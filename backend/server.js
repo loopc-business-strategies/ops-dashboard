@@ -8,6 +8,7 @@
 
 require('dotenv').config() // load .env variables FIRST
 
+const path     = require('path')
 const express  = require('express')
 const mongoose = require('mongoose')
 const cors     = require('cors')
@@ -34,6 +35,14 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth',         authRoutes)
 app.use('/api/hr/employees', employeeRoutes)
 app.use('/api/tasks',        taskRoutes)
+
+// Serve frontend build in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../frontend/dist')))
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'))
+  })
+}
 
 // 404
 app.use('*', (req, res) => {
