@@ -50,12 +50,57 @@ app.use((err, req, res, next) => {
 const PORT      = process.env.PORT      || 5000
 const MONGO_URI = process.env.MONGO_URI
 
-if (!MONGO_URI) {
-  console.error('❌ MONGO_URI not found in .env file!')
+function buildMongoUri() {
+  if (MONGO_URI) return MONGO_URI
+
+  const DB_USER = process.env.DB_USER
+  const DB_PASS = process.env.DB_PASS
+  const DB_CLUSTER = process.env.DB_CLUSTER
+  const DB_NAME = process.env.DB_NAME || 'ops-dashboard'
+  const DB_PARAMS = process.env.DB_PARAMS || 'retryWrites=true&w=majority'
+
+  if (!DB_USER || !DB_PASS || !DB_CLUSTER) {
+    return null
+  }
+
+  const encodedPass = encodeURIComponent(DB_PASS)
+  return `mongodb+srv://${DB_USER}:${encodedPass}@${DB_CLUSTER}/${DB_NAME}?${DB_PARAMS}`
+}
+
+function getMongoConfigInfo() {
+  const usingUri = Boolean(MONGO_URI)
+  const dbName = process.env.DB_NAME || 'ops-dashboard'
+
+  if (usingUri) {
+    return {
+      mode: 'MONGO_URI',
+      target: dbName,
+    }
+  }
+
+  return {
+    mode: 'DB_USER/DB_PASS/DB_CLUSTER',
+    target: `${process.env.DB_CLUSTER || 'unknown-cluster'}/${dbName}`,
+  }
+}
+
+const mongoUri = buildMongoUri()
+const mongoInfo = getMongoConfigInfo()
+const hasSplitDbVars = Boolean(process.env.DB_USER || process.env.DB_PASS || process.env.DB_CLUSTER)
+
+if (!mongoUri) {
+  console.error('Mongo config missing. Set MONGO_URI or DB_USER/DB_PASS/DB_CLUSTER in .env.')
   process.exit(1)
 }
 
-mongoose.connect(MONGO_URI)
+if (MONGO_URI && hasSplitDbVars) {
+  console.warn('Mongo warning: MONGO_URI is set, so DB_USER/DB_PASS/DB_CLUSTER values are ignored.')
+}
+
+console.log(`Mongo config mode: ${mongoInfo.mode}`)
+console.log(`Mongo target: ${mongoInfo.target}`)
+
+mongoose.connect(mongoUri)
   .then(() => {
     console.log('✅ Connected to MongoDB')
     app.listen(PORT, () => {
