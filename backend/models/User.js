@@ -1,0 +1,105 @@
+// ==========================================
+// FILE: backend/models/User.js
+// WHAT THIS DOES:
+//   Defines the shape of every user stored in MongoDB.
+//   Think of this as a form template — every user
+//   must have these fields with these rules.
+// ==========================================
+
+const mongoose = require('mongoose')
+const bcrypt   = require('bcryptjs')
+
+const userSchema = new mongoose.Schema(
+  {
+    // Full name — required, at least 2 characters
+    name: {
+      type: String,
+      required: [true, 'Name is required'],
+      trim: true,
+      minlength: [2, 'Name must be at least 2 characters'],
+    },
+
+    // Email — must be unique, stored lowercase
+    email: {
+      type: String,
+      required: [true, 'Email is required'],
+      unique: true,
+      lowercase: true,
+      trim: true,
+      match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email'],
+    },
+
+    // Password — stored as a hash (never plain text)
+    // select: false means password is NOT returned in queries by default
+    password: {
+      type: String,
+      required: [true, 'Password is required'],
+      minlength: [6, 'Password must be at least 6 characters'],
+      select: false,
+    },
+
+    // Role — controls what the user can see and do
+    // super_admin  → full access + create/manage users
+    // management   → read-only view of everything
+    // department_head → full edit of own dept, read others
+    // department_user → edit only assigned tasks
+    // external     → restricted to selected modules only
+    role: {
+      type: String,
+      enum: ['super_admin', 'management', 'department_head', 'department_user', 'external'],
+      default: 'department_user',
+    },
+
+    // Which department this user belongs to
+    department: {
+      type: String,
+      enum: ['', 'production', 'hr', 'finance', 'government', 'sales', 'operations', 'training', 'management'],
+      default: '',
+    },
+
+    // For external users only — which dept modules they can see
+    // Example: ['production', 'finance']
+    allowedModules: {
+      type: [String],
+      default: [],
+    },
+
+    // For department_user only — which task IDs they can edit
+    assignedTasks: {
+      type: [String],
+      default: [],
+    },
+
+    // Whether the account is active or deactivated
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+
+    lastLogin: Date,
+  },
+  {
+    timestamps: true, // auto-adds createdAt and updatedAt
+  }
+)
+
+// -----------------------------------------------
+// BEFORE SAVING: Hash the password automatically
+// This runs every time a user is saved with a new password
+// bcrypt turns "mypassword" into "$2a$12$xKj..." (unreadable)
+// -----------------------------------------------
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) return next() // only hash if changed
+  this.password = await bcrypt.hash(this.password, 12)
+  next()
+})
+
+// -----------------------------------------------
+// METHOD: Check if entered password is correct
+// Usage: const ok = await user.comparePassword('enteredPassword')
+// -----------------------------------------------
+userSchema.methods.comparePassword = async function (candidate) {
+  return bcrypt.compare(candidate, this.password)
+}
+
+module.exports = mongoose.model('User', userSchema)

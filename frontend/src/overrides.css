@@ -1,0 +1,499 @@
+/* ───────────────────────────────────────────────────────
+   ORANGE → PURPLE OVERRIDE FILE
+   Add this as: frontend/src/overrides.css
+   Import it LAST in index.css (after design-system.css)
+   It fixes every remaining orange element seen in screenshots
+─────────────────────────────────────────────────────── */
+
+/* ── 1. LOGIN PAGE ──────────────────────────────────────
+   Fixes: Orange "SIGN IN" header bar, orange Sign In button
+──────────────────────────────────────────────────────── */
+
+/* Sign In form header bar (orange strip) */
+.login-header,
+[class*="sign-in-header"],
+[class*="signin-header"],
+[class*="login-title-bar"],
+form > div:first-child[style*="background"],
+.auth-header {
+  background: linear-gradient(135deg, #7c3aed, #e040fb) !important;
+}
+
+/* Sign In / Submit button on login page */
+button[type="submit"],
+.login-btn,
+.signin-btn,
+[class*="login"] button,
+[class*="sign-in"] button,
+[class*="signin"] button.btn,
+.auth-form button[type="submit"] {
+  background: linear-gradient(135deg, #7c3aed, #e040fb) !important;
+  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.35) !important;
+  border: none !important;
+  color: #fff !important;
+}
+
+button[type="submit"]:hover,
+.login-btn:hover,
+.signin-btn:hover {
+  opacity: 0.9 !important;
+  transform: translateY(-1px) !important;
+}
+
+/* ── 2. ACTIVE TABS ─────────────────────────────────────
+   Fixes: Orange solid background on active tabs (HR, Production, etc.)
+   Change: Solid orange bg → no bg, just purple bottom border
+──────────────────────────────────────────────────────── */
+
+/* Remove orange background from active tabs — use purple underline style */
+.tab.active,
+.tab.on,
+button.tab.active,
+button.tab.on,
+[class*="tab-btn"].active,
+[class*="tab-btn"].on,
+[class*="tabBtn"].active,
+[class*="tabBtn"].on,
+.tabs button.active,
+.tabs button[aria-selected="true"],
+[role="tab"][aria-selected="true"],
+[role="tab"].active {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #a78bfa !important;
+  border-bottom: 2px solid #7c3aed !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Ensure inactive tabs don't have orange */
+.tab,
+button.tab,
+[class*="tab-btn"],
+.tabs button {
+  background: transparent !important;
+  color: #8b8fa8 !important;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+}
+
+.tab:hover,
+button.tab:hover,
+[class*="tab-btn"]:hover,
+.tabs button:hover {
+  color: #c4c4d4 !important;
+  background: transparent !important;
+}
+
+/* ── 3. PRIMARY BUTTONS ─────────────────────────────────
+   Fixes: Orange "+ Add Employee", "+ Add Machine" buttons
+──────────────────────────────────────────────────────── */
+
+/* Any button with orange/amber inline style or class */
+button[style*="#F97316"],
+button[style*="#FB923C"],
+button[style*="#EA580C"],
+button[style*="rgb(249, 115, 22)"],
+button[style*="rgb(251, 146, 60)"],
+button[style*="orange"],
+a[style*="#F97316"],
+[style*="background: #F97316"],
+[style*="background:#F97316"],
+[style*="background-color: #F97316"] {
+  background: linear-gradient(135deg, #7c3aed, #e040fb) !important;
+  background-color: #7c3aed !important;
+  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.35) !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+/* CSS variable overrides — replaces --acc with purple */
+:root {
+  --acc:    #7c3aed !important;
+  --acc-h:  #a78bfa !important;
+  --acc-d:  #5b21b6 !important;
+  /* Also target old variable names used in existing components */
+  --primary:        #7c3aed;
+  --primary-hover:  #a78bfa;
+  --primary-dark:   #5b21b6;
+  --btn-bg:         linear-gradient(135deg, #7c3aed, #e040fb);
+  --active-tab-bg:  transparent;
+  --active-tab-color: #a78bfa;
+  --active-tab-border: #7c3aed;
+}
+
+/* ── 4. CHAT TAB ────────────────────────────────────────
+   Fixes: Orange "Create New Group" button + orange "+" icon
+──────────────────────────────────────────────────────── */
+
+/* Create New Group button */
+[class*="new-grp"],
+[class*="newGrp"],
+[class*="create-group"],
+[class*="createGroup"],
+.new-group-btn,
+.create-group-btn {
+  background: rgba(124, 58, 237, 0.12) !important;
+  border: 1.5px dashed rgba(124, 58, 237, 0.4) !important;
+  color: #a78bfa !important;
+}
+
+[class*="new-grp"]:hover,
+[class*="newGrp"]:hover,
+.new-group-btn:hover {
+  background: rgba(124, 58, 237, 0.2) !important;
+  border-color: rgba(124, 58, 237, 0.7) !important;
+}
+
+[class*="new-grp"] > [class*="icon"],
+[class*="new-grp"] > span:first-child,
+.new-group-btn .icon {
+  background: #7c3aed !important;
+  color: #fff !important;
+}
+
+/* Chat + button (new message / add) */
+.chat-add-btn,
+[class*="chat"] button[class*="add"],
+[class*="chat"] .icon-btn.hot,
+[class*="chat"] .ib.hot {
+  background: #7c3aed !important;
+  color: #fff !important;
+  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.35) !important;
+}
+
+/* Chat unread badge (orange circle with number) */
+.unread-badge,
+.chat-badge,
+[class*="unread"],
+[class*="ni-bd"],
+.ni-bd {
+  background: #ff4757 !important;
+}
+
+/* ── 5. SIDEBAR ACTIVE ITEM ─────────────────────────────
+   Fixes: Orange left border + orange bg on active nav item
+──────────────────────────────────────────────────────── */
+
+.ni.on,
+.nav-item.active,
+.sidebar-item.active,
+[class*="nav-item"].active,
+[class*="navItem"].active,
+[class*="sidebar-item"].active,
+[class*="sidebarItem"].active {
+  background: rgba(124, 58, 237, 0.14) !important;
+  border-left-color: #7c3aed !important;
+}
+
+.ni.on .ni-lb,
+.nav-item.active .nav-label,
+.sidebar-item.active .sidebar-item-label,
+[class*="nav-item"].active [class*="label"],
+[class*="sidebar-item"].active [class*="label"] {
+  color: #a78bfa !important;
+}
+
+/* ── 6. TABLE ACTION BUTTONS ────────────────────────────
+   Fixes: Orange "Edit" + "Delete" text buttons in tables
+──────────────────────────────────────────────────────── */
+
+.td-ed,
+.td-edit,
+[class*="edit-btn"],
+[class*="editBtn"],
+button.edit {
+  color: #a78bfa !important;
+}
+
+.td-ed:hover,
+.td-edit:hover,
+button.edit:hover {
+  color: #fff !important;
+}
+
+.td-del,
+.td-delete,
+[class*="delete-btn"],
+[class*="deleteBtn"],
+button.delete {
+  color: #ff4757 !important;
+}
+
+/* ── 7. STAR RATINGS ────────────────────────────────────
+   Fixes: Orange stars in HR Employee List (keep yellow)
+──────────────────────────────────────────────────────── */
+
+.star-on,
+[class*="star"].on,
+[class*="star"].filled,
+[class*="starOn"],
+[class*="starFilled"],
+.rating .on {
+  color: #ffd600 !important;
+}
+
+/* ── 8. TOPBAR ROLE BADGE ───────────────────────────────
+   Fixes: Orange role badge in topbar
+──────────────────────────────────────────────────────── */
+
+.topbar-role-badge,
+[class*="role-badge"],
+[class*="roleBadge"],
+.tb-badge,
+.tb-bg {
+  background: linear-gradient(135deg, #7c3aed, #e040fb) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  border: 1px solid rgba(124, 58, 237, 0.3) !important;
+  padding: 3px 12px !important;
+  border-radius: 999px !important;
+}
+
+/* ── 9. LOGO / BRAND ICON ───────────────────────────────
+   Fixes: Orange logo background in sidebar and login
+──────────────────────────────────────────────────────── */
+
+.sb-logo-icon,
+.sidebar-brand-icon,
+[class*="brand-icon"],
+[class*="brandIcon"],
+[class*="logo-icon"],
+[class*="logoIcon"] {
+  background: linear-gradient(135deg, #7c3aed, #e040fb) !important;
+  border: none !important;
+  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.35) !important;
+}
+
+.login-logo,
+[class*="login"] [class*="logo"],
+[class*="auth"] [class*="logo"],
+[class*="logo"][style*="border"],
+[class*="logo"][style*="orange"] {
+  border-color: rgba(124, 58, 237, 0.5) !important;
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.3) !important;
+}
+
+/* ── 10. CATCH-ALL INLINE STYLE OVERRIDES ───────────────
+   Intercepts hardcoded orange inline styles still in JSX
+──────────────────────────────────────────────────────── */
+
+* {
+  --tab-active-bg: transparent;
+  --tab-active-color: #a78bfa;
+  --tab-active-border: #7c3aed;
+  --btn-primary-bg: linear-gradient(135deg, #7c3aed, #e040fb);
+  --btn-primary-color: #ffffff;
+  --highlight: #7c3aed;
+  --accent: #7c3aed;
+}
+
+[style*="background: #F97316"] { background: #7c3aed !important; }
+[style*="background:#F97316"]  { background: #7c3aed !important; }
+[style*="background: #FB923C"] { background: #7c3aed !important; }
+[style*="background:#FB923C"]  { background: #7c3aed !important; }
+[style*="background: #EA580C"] { background: #5b21b6 !important; }
+[style*="background:#EA580C"]  { background: #5b21b6 !important; }
+[style*="color: #F97316"]      { color: #a78bfa !important; }
+[style*="color:#F97316"]       { color: #a78bfa !important; }
+[style*="color: #FB923C"]      { color: #a78bfa !important; }
+[style*="color:#FB923C"]       { color: #a78bfa !important; }
+[style*="borderColor: #F97316"]{ border-color: #7c3aed !important; }
+[style*="border-color: #F97316"]{ border-color: #7c3aed !important; }
+
+/* ── 11. NOTIFICATIONS PANEL ────────────────────────────
+   Slide-in panel for ProductionTab real-time alerts
+──────────────────────────────────────────────────────── */
+.notif-bell {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(124, 58, 237, 0.1);
+  border: 1px solid rgba(124, 58, 237, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 17px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.notif-bell:hover {
+  background: rgba(124, 58, 237, 0.22);
+  border-color: rgba(124, 58, 237, 0.5);
+}
+.notif-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ff4757;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #0f0f1a;
+}
+@keyframes notif-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.25); opacity: 0.8; }
+}
+.notif-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 890;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.notif-overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+.notif-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 400px;
+  max-width: 100vw;
+  height: 100vh;
+  background: #1e1e35;
+  border-left: 1px solid rgba(124, 58, 237, 0.25);
+  z-index: 900;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 40px rgba(0, 0, 0, 0.5);
+}
+.notif-panel.open { transform: translateX(0); }
+.np-header {
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(124, 58, 237, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  background: #16162a;
+}
+.np-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.np-title-badge {
+  background: #ff4757;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.np-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #8b8fa8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+.np-close:hover { background: rgba(255,71,87,0.15); color: #ff4757; }
+.np-filters {
+  padding: 10px 18px;
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid rgba(124,58,237,0.1);
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.np-filters::-webkit-scrollbar { display: none; }
+.np-filter-btn {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid rgba(255,255,255,0.08);
+  color: #8b8fa8;
+  background: transparent;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.np-filter-btn:hover { color: #c4c4d4; border-color: rgba(124,58,237,0.3); }
+.np-filter-btn.active { background: linear-gradient(135deg,#7c3aed,#e040fb); color: #fff; border-color: transparent; }
+.np-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(124,58,237,0.3) transparent;
+}
+.np-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+  color: #4a4a6a;
+  font-size: 13px;
+}
+.np-empty .np-empty-icon { font-size: 36px; opacity: 0.4; }
+.np-item {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-left: 3px solid;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  transition: all 0.15s;
+}
+.np-item:hover { background: rgba(255,255,255,0.06); }
+.np-item.read { opacity: 0.55; }
+.np-item.crit    { border-left-color: #ff4757; }
+.np-item.high    { border-left-color: #ff7043; }
+.np-item.med     { border-left-color: #ffd600; }
+.np-item.info    { border-left-color: #00b4d8; }
+.np-item.success { border-left-color: #00c896; }
+.np-item-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+.np-item-title { font-size: 12.5px; font-weight: 700; }
+.np-item.crit    .np-item-title { color: #ff4757; }
+.np-item.high    .np-item-title { color: #ff7043; }
+.np-item.med     .np-item-title { color: #ffd600; }
+.np-item.info    .np-item-title { color: #00b4d8; }
+.np-item.success .np-item-title { color: #00c896; }
+.np-item-time { font-size: 10px; color: #4a4a6a; white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
+.np-item-desc { font-size: 11.5px; color: #8b8fa8; line-height: 1.55; margin-bottom: 8px; }
+.np-item-meta { font-size: 10px; color: #4a4a6a; margin-bottom: 9px; }
+.np-item-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.np-action-btn { padding: 4px 11px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; font-family: inherit; transition: all 0.15s; }
+.np-btn-ack       { background: rgba(0,200,150,0.12); color: #00c896; }
+.np-btn-ack:hover { background: rgba(0,200,150,0.22); }
+.np-btn-esc       { background: rgba(255,112,67,0.12); color: #ff7043; }
+.np-btn-esc:hover { background: rgba(255,112,67,0.22); }
+.np-btn-dis       { background: rgba(255,255,255,0.06); color: #8b8fa8; }
+.np-btn-dis:hover { background: rgba(255,255,255,0.12); color: #c4c4d4; }
+.np-footer { padding: 12px 18px; border-top: 1px solid rgba(124,58,237,0.1); display: flex; gap: 8px; flex-shrink: 0; }
+.np-footer-btn { flex: 1; padding: 9px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; border: none; transition: all 0.15s; }
+.np-footer-btn.pri { background: linear-gradient(135deg, #7c3aed, #e040fb); color: #fff; box-shadow: 0 4px 15px rgba(124,58,237,0.3); }
+.np-footer-btn.pri:hover { opacity: 0.9; }
+.np-footer-btn.sec { background: rgba(255,255,255,0.06); color: #8b8fa8; border: 1px solid rgba(255,255,255,0.08); }
+.np-footer-btn.sec:hover { background: rgba(255,255,255,0.1); color: #c4c4d4; }

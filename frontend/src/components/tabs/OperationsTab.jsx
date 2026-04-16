@@ -1,0 +1,1308 @@
+// FILE: src/components/tabs/OperationsTab.jsx
+// Operations & Logistics — 11 sub-tabs, role-based access, full feature set
+
+import { useState } from 'react'
+import { usePermissions } from '../../hooks/usePermissions'
+
+// ─── Design tokens ─────────────────────────────────────────────────────────────
+const C = {
+  grad:   'linear-gradient(135deg,#7c3aed,#e040fb)',
+  gbar:   'linear-gradient(90deg,#7c3aed,#00b4d8)',
+  green:  '#00c896', cyan:   '#00b4d8', yellow: '#ffd600',
+  orange: '#ff7043', red:    '#ff4757', gold:   '#f59e0b',
+  t1:'#fff', t2:'#c4c4d4', t3:'#8b8fa8', t4:'#4a4a6a',
+  border: 'rgba(124,58,237,0.15)', border2:'rgba(124,58,237,0.35)',
+  card:'#1e1e35', card2:'#242442', inp:'#1a1a2e',
+  pur: '#a78bfa',
+}
+const B = {
+  pri:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', border:'none', background:C.grad, color:'#fff', boxShadow:'0 4px 15px rgba(124,58,237,.35)', whiteSpace:'nowrap', fontFamily:'inherit' },
+  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#a78bfa', border:'1px solid #7c3aed', whiteSpace:'nowrap', fontFamily:'inherit' },
+  ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#8b8fa8', border:`1px solid ${C.border}`, whiteSpace:'nowrap', fontFamily:'inherit' },
+  warn:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(255,112,67,.15)', color:'#ff7043', border:'1px solid rgba(255,112,67,.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
+  succ:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(0,200,150,.15)', color:'#00c896', border:'1px solid rgba(0,200,150,.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
+  sm:    { padding:'5px 11px', fontSize:11 },
+}
+
+const TABS = [
+  { id:'kpi',       label:'📊 KPI Overview' },
+  { id:'checklist', label:'✅ Readiness' },
+  { id:'supply',    label:'🏭 Supply Chain' },
+  { id:'gold',      label:'🥇 Gold Sourcing' },
+  { id:'routes',    label:'🚛 Transport' },
+  { id:'security',  label:'🔒 Security' },
+  { id:'vendors',   label:'📄 Contracts' },
+  { id:'inventory', label:'📦 Inventory' },
+  { id:'map',       label:'🗺️ Live Map' },
+  { id:'analytics', label:'📈 Analytics' },
+  { id:'tasks',     label:'📋 Task Board' },
+]
+
+// ─── Seed data ──────────────────────────────────────────────────────────────────
+const INIT_SUPPLIERS = [
+  { id:1, name:'SinoTech Ltd',    cat:'Machinery',   od:'Mar 12, 2025', ed:'Apr 20, 2025', ad:'Apr 25, 2025', qty:'3 units', qr:'3 units', pay:'Fully Paid',   qc:'Passed',  st:'Completed',       notes:'Crusher delivered on time' },
+  { id:2, name:'KazMach Co',      cat:'Machinery',   od:'Apr 5, 2025',  ed:'Apr 30, 2025', ad:'—',            qty:'1 unit',  qr:'0',       pay:'Advance Paid', qc:'Pending', st:'Pending External',notes:'Conveyor belt in customs' },
+  { id:3, name:'EuroEquip GmbH',  cat:'Machinery',   od:'—',            ed:'Jun 15, 2025', ad:'—',            qty:'1 unit',  qr:'0',       pay:'Not Paid',     qc:'Pending', st:'Not Started',     notes:'Refinery pump pending' },
+  { id:4, name:'ChemEx Corp',     cat:'Chemicals',   od:'Apr 10, 2025', ed:'Apr 28, 2025', ad:'—',            qty:'500 kg',  qr:'0',       pay:'Advance Paid', qc:'Pending', st:'In Progress',     notes:'Reagents in transit' },
+  { id:5, name:'LocalSupply KZ',  cat:'Consumables', od:'Apr 1, 2025',  ed:'Apr 10, 2025', ad:'Apr 9, 2025',  qty:'Bulk',    qr:'Bulk',    pay:'Fully Paid',   qc:'Passed',  st:'Completed',       notes:'Site consumables delivered' },
+]
+
+const INIT_GOLD = [
+  { id:1, code:'GS-001', name:'Altyn Partners (Confidential)',      vol:120, actual:96,  stage:'Contract Signed',   cst:'Active',    comp:'Yes', officer:'Omar K.',  region:'East KZ',    risk:'Low',    lastAct:'Apr 10, 2025', nextAction:'Quarterly review call Apr 20' },
+  { id:2, code:'GS-002', name:'Northern Highlands Collective',      vol:80,  actual:52,  stage:'Final Negotiation', cst:'Pending',   comp:'No',  officer:'Omar K.',  region:'North KZ',   risk:'Medium', lastAct:'Apr 5, 2025',  nextAction:'Send contract draft by Apr 18' },
+  { id:3, code:'GS-003', name:'KazGold Artisanal Network',          vol:50,  actual:18,  stage:'MoU Stage',         cst:'Draft',     comp:'No',  officer:'Aidar B.', region:'Central KZ', risk:'Medium', lastAct:'Mar 28, 2025', nextAction:'MoU signing meeting Apr 22' },
+  { id:4, code:'GS-004', name:'CrossBorder Commodities',            vol:0,   actual:0,   stage:'On Hold',           cst:'Suspended', comp:'No',  officer:'—',        region:'South KZ',   risk:'High',   lastAct:'Feb 15, 2025', nextAction:'Compliance review required' },
+]
+
+const INIT_ROUTES = [
+  { id:1, name:'Route KAZ-1 (Primary)',   origin:'Almaty',           dest:'Site Alpha',             carrier:'KazTrans LLC',    mode:'Road', eta:'6 hrs',  st:'Active',    risk:'Low',    lastInc:'None',      insurance:'Active', gps:'Active',   checkpoints:'4/4', notes:'Armed escort after km 240' },
+  { id:2, name:'Route KAZ-2 (Alternate)', origin:'Shymkent',         dest:'Site Alpha',             carrier:'SteppeLogistics', mode:'Road', eta:'9 hrs',  st:'On Hold',   risk:'Medium', lastInc:'Mar 28',    insurance:'Active', gps:'Inactive', checkpoints:'2/4', notes:'Security clearance review' },
+  { id:3, name:'Route AIR-1',             origin:'Almaty Airport',   dest:'Site Airstrip',          carrier:'KazAir Cargo',    mode:'Air',  eta:'45 min', st:'Active',    risk:'Low',    lastInc:'None',      insurance:'Active', gps:'Active',   checkpoints:'2/2', notes:'High-value shipments only' },
+  { id:4, name:'Route RAIL-1',            origin:'Astana Rail Hub',  dest:'Site Rail Siding',       carrier:'KTZ Freight',     mode:'Rail', eta:'18 hrs', st:'Suspended', risk:'High',   lastInc:'Apr 2',     insurance:'Active', gps:'Inactive', checkpoints:'1/5', notes:'Suspended — security review' },
+]
+
+const INIT_SEC_VENDORS = [
+  { id:1, vendor:'SecureForce KZ', proto:'Approved',       escort:'Yes',     lastRev:'Apr 5, 2025',  nextRev:'Jul 5, 2025',  incidents:2, threat:'Medium', route:'KAZ-1, KAZ-2' },
+  { id:2, vendor:'AlphaGuard Ltd', proto:'Pending Review', escort:'Pending', lastRev:'Mar 15, 2025', nextRev:'May 15, 2025', incidents:0, threat:'Low',    route:'AIR-1' },
+]
+
+const INIT_INCIDENTS = [
+  { id:'INC-003', date:'Apr 2, 2025',  route:'Route RAIL-1', vendor:'Internal',        type:'Route Breach',          sev:'High',   st:'Under Investigation', res:'Investigation ongoing' },
+  { id:'INC-002', date:'Mar 28, 2025', route:'Route KAZ-2',  vendor:'SecureForce KZ',  type:'Escort Delay',          sev:'Medium', st:'Resolved',            res:'Escort breakdown resolved. Protocol updated.' },
+  { id:'INC-001', date:'Mar 15, 2025', route:'Route KAZ-1',  vendor:'Internal',        type:'Documentation Issue',   sev:'Low',    st:'Resolved',            res:'Customs paperwork corrected within 24hrs' },
+]
+
+const INIT_VENDORS = [
+  { id:1, name:'SecureForce KZ',    svc:'Armed Security',    val:'$180,000', signed:'Yes',     exp:'Dec 31, 2025', terms:'Monthly',       mgr:'Omar K.', rating:5, renewal:'Active',             days:261 },
+  { id:2, name:'KazTrans LLC',      svc:'Road Freight',      val:'$95,000',  signed:'Yes',     exp:'Sep 30, 2025', terms:'Per Shipment',  mgr:'Bilal R.',rating:4, renewal:'Renewal Due',        days:169 },
+  { id:3, name:'ChemEx Corp',       svc:'Chemical Supply',   val:'$42,000',  signed:'Yes',     exp:'Oct 15, 2025', terms:'Net 30',        mgr:'Omar K.', rating:3, renewal:'Active',             days:184 },
+  { id:4, name:'SteppeLogistics',   svc:'Alternate Freight', val:'$60,000',  signed:'No',      exp:'—',            terms:'TBD',           mgr:'Bilal R.',rating:2, renewal:'Under Negotiation',  days:null },
+  { id:5, name:'AlphaGuard Ltd',    svc:'Security Backup',   val:'$75,000',  signed:'Pending', exp:'Nov 1, 2025',  terms:'Monthly',       mgr:'Omar K.', rating:3, renewal:'Active',             days:201 },
+  { id:6, name:'KAZ Equipment Svc', svc:'Maintenance',       val:'$28,000',  signed:'Yes',     exp:'Aug 1, 2025',  terms:'Quarterly',     mgr:'Bilal R.',rating:4, renewal:'Renewal Due',        days:109 },
+]
+
+const INIT_INVENTORY = [
+  { id:'INV-001', item:'Drive Belt (Heavy)',      stock:2,   min:3,   sup:'KAZ Equipment Svc', last:'Apr 13, 2025', st:'Critical' },
+  { id:'INV-002', item:'Filter Kit (Industrial)', stock:8,   min:5,   sup:'ChemEx Corp',        last:'Apr 10, 2025', st:'Sufficient' },
+  { id:'INV-003', item:'Spindle Bearing Set',     stock:1,   min:2,   sup:'EuroEquip GmbH',     last:'Apr 3, 2025',  st:'Low Stock' },
+  { id:'INV-004', item:'Lubricant Oil (5L)',       stock:12,  min:4,   sup:'LocalSupply KZ',     last:'Apr 12, 2025', st:'Sufficient' },
+  { id:'INV-005', item:'Processing Reagent',       stock:180, min:200, sup:'ChemEx Corp',        last:'Apr 8, 2025',  st:'Low Stock' },
+  { id:'INV-006', item:'Safety Equipment Kit',     stock:0,   min:5,   sup:'LocalSupply KZ',     last:'Mar 20, 2025', st:'Critical' },
+]
+
+const INIT_TASKS = [
+  { id:1, title:'Escalate customs clearance — KazMach conveyor belt', assign:'Bilal R.',  pri:'High',   due:'Apr 15, 2025', st:'In Progress', sec:'Supply Chain' },
+  { id:2, title:'Schedule security review for Route RAIL-1',          assign:'Ahmad Y.',  pri:'High',   due:'Apr 18, 2025', st:'To Do',       sec:'Security' },
+  { id:3, title:'Draft contract renewal — KazTrans LLC',              assign:'Omar K.',   pri:'Medium', due:'Apr 25, 2025', st:'To Do',       sec:'Vendor Contracts' },
+  { id:4, title:'Restock Safety Equipment Kit (stock = 0)',           assign:'Bilal R.',  pri:'High',   due:'Apr 16, 2025', st:'Blocked',     sec:'Inventory' },
+  { id:5, title:'GS-002 contract draft review',                       assign:'Omar K.',   pri:'Medium', due:'Apr 18, 2025', st:'In Progress', sec:'Gold Sourcing' },
+  { id:6, title:'Update GPS tracking for Route KAZ-2',                assign:'Bilal R.',  pri:'Low',    due:'Apr 22, 2025', st:'To Do',       sec:'Transport' },
+  { id:7, title:'Quarterly OEE review with SinoTech',                 assign:'Omar K.',   pri:'Low',    due:'Apr 30, 2025', st:'Done',        sec:'Supply Chain' },
+]
+
+const INIT_CHECKLIST = [
+  { item:'Site Access Roads Secured',           assign:'Ahmad Y.',  st:'Done',        due:'Apr 5',  by:'Ahmad Y.',  ts:'Apr 5 09:00' },
+  { item:'Machinery Procurement Confirmed',     assign:'Omar K.',   st:'Done',        due:'Apr 8',  by:'Omar K.',   ts:'Apr 8 11:30' },
+  { item:'Security Vendor Contracts Signed',    assign:'Omar K.',   st:'Done',        due:'Apr 10', by:'Omar K.',   ts:'Apr 10 14:00' },
+  { item:'Customs Clearance — All Equipment',   assign:'Bilal R.',  st:'In Progress', due:'Apr 20', by:'—',         ts:'—' },
+  { item:'Route KAZ-1 Safety Audit',            assign:'Ahmad Y.',  st:'Done',        due:'Apr 7',  by:'Ahmad Y.',  ts:'Apr 7 16:00' },
+  { item:'Inventory Minimum Levels Met',        assign:'Bilal R.',  st:'Blocked',     due:'Apr 16', by:'—',         ts:'—' },
+  { item:'Gold Sourcing Channel Compliance',    assign:'Omar K.',   st:'In Progress', due:'Apr 22', by:'—',         ts:'—' },
+  { item:'Vendor Payment Schedules Confirmed',  assign:'Omar F.',   st:'Done',        due:'Apr 12', by:'Omar F.',   ts:'Apr 12 10:00' },
+  { item:'Emergency Response Protocol Updated', assign:'Ahmad Y.',  st:'In Progress', due:'Apr 25', by:'—',         ts:'—' },
+  { item:'Staff Safety Induction Completed',    assign:'Fatima N.', st:'Done',        due:'Apr 10', by:'Fatima N.', ts:'Apr 10 09:00' },
+  { item:'Insurance Certificates Renewed',      assign:'Omar F.',   st:'Done',        due:'Apr 15', by:'Omar F.',   ts:'Apr 14 15:30' },
+]
+
+const INIT_NOTIFS = [
+  { id:'ON1', lv:'crit', read:false, title:'🔴 Contract Expiring in 169 Days — KazTrans LLC',      desc:'KazTrans LLC contract expires Sep 30. Renewal process should start now.',                           time:'Today' },
+  { id:'ON2', lv:'high', read:false, title:'🟠 Security Review Overdue — Route RAIL-1',            desc:'Route RAIL-1 suspended. Security review was due Apr 10 and has not been completed.',                time:'2 hrs ago' },
+  { id:'ON3', lv:'crit', read:false, title:'🔴 Incident Reported — Route RAIL-1',                  desc:'Route breach INC-003 reported Apr 2. Investigation ongoing. Escalation required.',                  time:'2 days ago' },
+  { id:'ON4', lv:'med',  read:false, title:'🟡 Delivery Overdue — KazMach Conveyor Belt',          desc:'KazMach Co conveyor belt expected Apr 30 but currently held at Almaty customs. Action needed.',     time:'Today' },
+  { id:'ON5', lv:'med',  read:false, title:'🟡 Gold Channel Compliance Issue — GS-002 & GS-003',  desc:'Two gold sourcing channels have incomplete compliance documentation. Review by Apr 22.',              time:'Yesterday' },
+  { id:'ON6', lv:'suc',  read:true,  title:'🟢 New Delivery Confirmed — SinoTech Ltd',             desc:'Crusher Unit A from SinoTech Ltd delivered and accepted. Quality check passed.',                    time:'Apr 10' },
+  { id:'ON7', lv:'high', read:true,  title:'🟠 GPS Inactive on Route KAZ-2',                       desc:'GPS tracking is not active on Route KAZ-2. Security risk. Update required.',                        time:'Apr 8' },
+  { id:'ON8', lv:'crit', read:false, title:'🔴 Safety Equipment Kit — Stock Zero',                 desc:'Safety Equipment Kit has zero stock. Minimum is 5 units. Immediate restock required.',              time:'Today' },
+]
+
+// ─── Helpers ────────────────────────────────────────────────────────────────────
+function pct(v, t) { return Math.max(0, Math.min(100, Math.round((v / Math.max(t, 1)) * 100))) }
+function stars(n) {
+  return Array.from({ length: 5 }, (_, i) => (
+    <span key={i} style={{ color: i < n ? C.gold : C.t4, fontSize:14 }}>★</span>
+  ))
+}
+
+const BADGE_MAP = {
+  'Completed':             { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
+  'Active':                { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
+  'Approved':              { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
+  'Passed':                { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
+  'Sufficient':            { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
+  'Fully Paid':            { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
+  'Yes':                   { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
+  'Resolved':              { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
+  'Done':                  { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
+  'Contract Signed':       { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
+  'In Progress':           { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
+  'Advance Paid':          { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
+  'Pending':               { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
+  'Pending Review':        { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
+  'Low Stock':             { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
+  'On Hold':               { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
+  'Renewal Due':           { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
+  'Under Negotiation':     { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
+  'Under Investigation':   { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
+  'Final Negotiation':     { bg:'rgba(0,180,216,.12)',   color:'#00b4d8', b:'rgba(0,180,216,.3)' },
+  'MoU Stage':             { bg:'rgba(0,180,216,.12)',   color:'#00b4d8', b:'rgba(0,180,216,.3)' },
+  'Pending External':      { bg:'rgba(124,58,237,.15)',  color:'#a78bfa', b:'rgba(124,58,237,.3)' },
+  'Not Started':           { bg:'rgba(255,255,255,.05)', color:'#8b8fa8', b:'rgba(255,255,255,.1)' },
+  'No':                    { bg:'rgba(255,255,255,.05)', color:'#8b8fa8', b:'rgba(255,255,255,.1)' },
+  'Suspended':             { bg:'rgba(255,255,255,.05)', color:'#8b8fa8', b:'rgba(255,255,255,.1)' },
+  'Not Paid':              { bg:'rgba(255,255,255,.05)', color:'#8b8fa8', b:'rgba(255,255,255,.1)' },
+  'Inactive':              { bg:'rgba(255,255,255,.05)', color:'#8b8fa8', b:'rgba(255,255,255,.1)' },
+  'To Do':                 { bg:'rgba(255,255,255,.05)', color:'#8b8fa8', b:'rgba(255,255,255,.1)' },
+  'Draft':                 { bg:'rgba(255,255,255,.05)', color:'#8b8fa8', b:'rgba(255,255,255,.1)' },
+  'Critical':              { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
+  'Blocked':               { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
+  'Overdue':               { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
+  'High':                  { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
+  'Medium':                { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
+  'Low':                   { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
+  'Road':                  { bg:'rgba(0,180,216,.12)',   color:'#00b4d8', b:'rgba(0,180,216,.3)' },
+  'Air':                   { bg:'rgba(124,58,237,.15)',  color:'#a78bfa', b:'rgba(124,58,237,.3)' },
+  'Rail':                  { bg:'rgba(245,158,11,.12)',  color:'#f59e0b', b:'rgba(245,158,11,.3)' },
+}
+function Badge({ s }) {
+  const cf = BADGE_MAP[s] || { bg:'rgba(255,255,255,.05)', color:'#8b8fa8', b:'rgba(255,255,255,.1)' }
+  return <span style={{ display:'inline-flex', alignItems:'center', fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:cf.bg, color:cf.color, border:`1px solid ${cf.b}`, whiteSpace:'nowrap' }}>{s}</span>
+}
+
+function ProgBar({ pct: p, color, height=7 }) {
+  return (
+    <div style={{ flex:1, height, background:'rgba(255,255,255,.06)', borderRadius:4, overflow:'hidden' }}>
+      <div style={{ height:'100%', width:`${p}%`, background:color, borderRadius:4, transition:'width .5s' }} />
+    </div>
+  )
+}
+function ProgRow({ label, p, color }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10, fontSize:12 }}>
+      <div style={{ width:160, color:C.t2, fontWeight:500, flexShrink:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</div>
+      <ProgBar pct={p} color={color} />
+      <div style={{ width:38, textAlign:'right', fontWeight:700, color:C.t1, fontSize:12 }}>{p}%</div>
+    </div>
+  )
+}
+
+function StatCard({ label, value, sub, dot }) {
+  return (
+    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:'14px 16px', position:'relative', overflow:'hidden' }}>
+      <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:C.gbar }} />
+      <div style={{ fontSize:10, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.08em', marginBottom:8 }}>{label}</div>
+      <div style={{ fontSize:24, fontWeight:800, color:C.t1, lineHeight:1 }}>{value}</div>
+      {sub && <div style={{ fontSize:11, color:C.t3, marginTop:7, display:'flex', alignItems:'center', gap:5 }}>
+        {dot && <span style={{ width:6, height:6, borderRadius:'50%', background:dot, display:'inline-block', flexShrink:0 }} />}
+        {sub}
+      </div>}
+    </div>
+  )
+}
+
+function Card({ children, style = {} }) {
+  return (
+    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:'16px 18px', position:'relative', overflow:'hidden', ...style }}>
+      <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:C.gbar }} />
+      {children}
+    </div>
+  )
+}
+function CardTitle({ children, right }) {
+  return <div style={{ fontSize:13, fontWeight:800, color:C.t1, marginBottom:14, display:'flex', alignItems:'center', justifyContent:'space-between' }}>{children}{right && <div>{right}</div>}</div>
+}
+
+function TableWrap({ children }) {
+  return <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, overflow:'hidden' }}>{children}</div>
+}
+function TableHead({ title, subtitle, right }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 18px 12px', borderBottom:`1px solid ${C.border}`, flexWrap:'wrap', gap:8 }}>
+      <div>
+        <div style={{ fontSize:14, fontWeight:800, color:C.t1 }}>{title}</div>
+        {subtitle && <div style={{ fontSize:12, color:C.t3, marginTop:2 }}>{subtitle}</div>}
+      </div>
+      {right && <div style={{ display:'flex', gap:8 }}>{right}</div>}
+    </div>
+  )
+}
+
+const TH = { fontSize:10, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.08em', padding:'10px 14px', textAlign:'left', borderBottom:`1px solid ${C.border}`, background:'rgba(255,255,255,0.02)', whiteSpace:'nowrap' }
+const TD = { padding:'11px 14px', borderBottom:'1px solid rgba(255,255,255,.04)', fontSize:12.5, color:C.t2, verticalAlign:'middle' }
+
+function SH({ title, sub, children }) {
+  return (
+    <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:18 }}>
+      <div>
+        <div style={{ fontSize:16, fontWeight:800, color:C.t1 }}>{title}</div>
+        {sub && <div style={{ fontSize:12, color:C.t3, marginTop:3 }}>{sub}</div>}
+      </div>
+      {children && <div style={{ display:'flex', gap:8, flexShrink:0, marginTop:2 }}>{children}</div>}
+    </div>
+  )
+}
+
+function Restrict({ text, amber }) {
+  const col = amber ? C.gold : C.red
+  return (
+    <div style={{ background:`${col}10`, border:`1px solid ${col}25`, borderRadius:10, padding:'13px 16px', fontSize:13, color:col, display:'flex', alignItems:'center', gap:10, lineHeight:1.5 }}>
+      <span style={{ fontSize:20 }}>🔒</span>{text}
+    </div>
+  )
+}
+
+// ─── Modal base ─────────────────────────────────────────────────────────────────
+const IS = { width:'100%', background:'rgba(255,255,255,.05)', border:'1.5px solid rgba(124,58,237,.25)', borderRadius:8, padding:'10px 14px', fontSize:13, color:C.t1, fontFamily:'inherit', outline:'none', marginBottom:12, boxSizing:'border-box' }
+function ML({ children }) { return <div style={{ fontSize:11, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:5 }}>{children}</div> }
+function MI(props) { return <input {...props} style={IS} /> }
+function MS({ children, ...p }) { return <select {...p} style={{ ...IS, appearance:'auto' }}>{children}</select> }
+function MTA(props) { return <textarea {...props} style={{ ...IS, resize:'vertical', minHeight:65 }} /> }
+
+function Modal({ title, sub, onClose, onSave, saveLabel = 'Save', children }) {
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.65)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(8px)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background:'#1a1a2e', border:`1px solid ${C.border2}`, borderRadius:14, padding:24, width:580, maxWidth:'94vw', maxHeight:'88vh', overflowY:'auto', position:'relative' }}>
+        <div style={{ position:'absolute', top:0, left:0, width:3, height:'100%', background:C.grad, borderRadius:'14px 0 0 14px' }} />
+        <button onClick={onClose} style={{ position:'absolute', top:14, right:16, background:'none', border:'none', color:C.t3, fontSize:18, cursor:'pointer' }}>✕</button>
+        <h3 style={{ fontSize:17, fontWeight:800, color:C.t1, marginBottom:4 }}>{title}</h3>
+        <div style={{ fontSize:12, color:C.t3, marginBottom:18 }}>{sub}</div>
+        {children}
+        <div style={{ display:'flex', gap:8, marginTop:4 }}>
+          <button onClick={onClose} style={{ flex:1, padding:10, borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', border:'none', background:'rgba(255,255,255,.07)', color:C.t2 }}>Cancel</button>
+          <button onClick={onSave} style={{ flex:1, padding:10, borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', border:'none', background:C.grad, color:'#fff' }}>{saveLabel}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Toast ───────────────────────────────────────────────────────────────────────
+function Toast({ t }) {
+  if (!t) return null
+  return (
+    <div style={{ position:'fixed', bottom:22, right:22, minWidth:260, background:'#16162a', border:`1px solid ${C.border2}`, borderLeft:`3px solid #7c3aed`, borderRadius:10, padding:'13px 18px', zIndex:9999, boxShadow:'0 8px 30px rgba(124,58,237,.22)' }}>
+      <style>{`@keyframes toastIn{from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
+      <div style={{ fontWeight:700, color:C.t1, marginBottom:3, animation:'toastIn .3s ease' }}>{t.title}</div>
+      <div style={{ fontSize:12, color:C.t3 }}>{t.msg}</div>
+    </div>
+  )
+}
+
+// ─── TAB: KPI Overview ──────────────────────────────────────────────────────────
+function TabKPI({ suppliers, gold, routes, incidents, vendors, inventory, canEdit, isAdmin, isHead, isMgmt }) {
+  if (!isAdmin && !isHead && !isMgmt) return <Restrict text="KPI overview is not available to this role. Contact your Operations manager." />
+  const done    = suppliers.filter(s => s.st === 'Completed').length
+  const active  = routes.filter(r => r.st === 'Active').length
+  const expiring= vendors.filter(v => v.days && v.days < 60).length
+  const pending = suppliers.filter(s => s.st === 'Pending External' || s.st === 'In Progress').length
+  const unresolved = incidents.filter(i => i.st !== 'Resolved').length
+  const readiness = Math.round((
+    pct(done, suppliers.length) +
+    pct(routes.filter(r=>r.st==='Active').length, routes.length) +
+    pct(vendors.filter(v=>v.signed==='Yes').length, vendors.length)
+  ) / 3)
+  const readColor = readiness >= 80 ? C.green : readiness >= 60 ? C.yellow : C.red
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <SH title="Operations KPI Overview" sub="Real-time operational status — all departments">
+        <button style={B.ghost}>⬇ Export</button>
+      </SH>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>
+        <StatCard label="Operational Readiness" value={<span style={{ color:readColor }}>{readiness}%</span>} sub={<ProgBar pct={readiness} color={C.gbar} />} />
+        <StatCard label="Active Suppliers" value={<span style={{ color:C.cyan }}>{suppliers.filter(s=>s.st!=='Not Started').length}</span>} sub={`${suppliers.length} total registered`} dot={C.cyan} />
+        <StatCard label="Routes Active / Total" value={<><span style={{ color:C.green }}>{active}</span><span style={{ fontSize:16, color:C.t3 }}> / {routes.length}</span></>} sub={routes.filter(r=>r.st!=='Active').map(r=>r.name.split(' ')[1]).join(', ') + ' on hold'} dot={active >= 3 ? C.green : C.yellow} />
+        <StatCard label="Security Incidents" value={<span style={{ color: unresolved > 0 ? C.red : C.green }}>{incidents.length}</span>} sub={`${unresolved} unresolved`} dot={C.red} />
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>
+        <StatCard label="Contracts Expiring Soon" value={<span style={{ color: expiring > 0 ? C.orange : C.green }}>{expiring}</span>} sub="Within 60 days" dot={C.orange} />
+        <StatCard label="Pending Deliveries" value={<span style={{ color:C.yellow }}>{pending}</span>} sub="Awaiting delivery" dot={C.yellow} />
+        {isAdmin || isHead
+          ? <StatCard label="Gold Sourced This Month" value={<span style={{ color:C.gold }}>96 kg</span>} sub="Target: 120 kg" dot={C.gold} />
+          : <StatCard label="Gold Sourced" value={<span style={{ color:C.t4 }}>••</span>} sub="Restricted" />}
+        <StatCard label="Vendor Compliance Rate" value={<span style={{ color:C.green }}>83%</span>} sub="5 of 6 vendors compliant" dot={C.green} />
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+        <Card>
+          <CardTitle>Supply Chain Status by Category</CardTitle>
+          {['Machinery','Chemicals','Consumables'].map(cat => {
+            const items = suppliers.filter(s => s.cat === cat)
+            const d = items.filter(s => s.st === 'Completed').length
+            return <ProgRow key={cat} label={`${cat} (${items.length})`} p={pct(d, items.length || 1)} color={C.gbar} />
+          })}
+        </Card>
+        <Card>
+          <CardTitle>Route Status Overview</CardTitle>
+          {routes.map(r => (
+            <div key={r.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom:`1px solid ${C.border}`, fontSize:12 }}>
+              <div style={{ fontWeight:600, color:C.t1 }}>{r.name.split('(')[0].trim()}</div>
+              <div style={{ display:'flex', gap:6 }}><Badge s={r.mode} /><Badge s={r.st} /></div>
+            </div>
+          ))}
+        </Card>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+        <Card>
+          <CardTitle>Inventory Alert Summary</CardTitle>
+          {inventory.map(i => (
+            <div key={i.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 0', borderBottom:`1px solid ${C.border}`, fontSize:12 }}>
+              <div style={{ color:C.t2 }}>{i.item}</div>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ fontWeight:700, color: i.stock === 0 ? C.red : i.stock <= i.min ? C.yellow : C.green }}>{i.stock} units</span>
+                <Badge s={i.st} />
+              </div>
+            </div>
+          ))}
+        </Card>
+        <Card>
+          <CardTitle>Vendor Contract Expiry</CardTitle>
+          {vendors.filter(v => v.days).sort((a,b) => a.days - b.days).slice(0,5).map(v => {
+            const col = v.days < 60 ? C.red : v.days < 120 ? C.yellow : C.green
+            return (
+              <div key={v.id} style={{ marginBottom:10 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:4 }}>
+                  <span style={{ color:C.t2, fontWeight:600 }}>{v.name}</span>
+                  <span style={{ color:col, fontWeight:700 }}>{v.days}d</span>
+                </div>
+                <ProgBar pct={Math.min(v.days / 365 * 100, 100)} color={col} height={6} />
+              </div>
+            )
+          })}
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+// ─── TAB: Readiness Checklist ───────────────────────────────────────────────────
+function TabChecklist({ checklist, setChecklist, canEdit, isExternal, isMgmt }) {
+  if (isExternal || isMgmt) return <Restrict text="Operational Readiness Checklist is restricted to Operations team." />
+  const done    = checklist.filter(c => c.st === 'Done').length
+  const inprog  = checklist.filter(c => c.st === 'In Progress').length
+  const blocked = checklist.filter(c => c.st === 'Blocked').length
+  const p = pct(done, checklist.length)
+  const readColor = p >= 80 ? C.green : p >= 60 ? C.yellow : C.red
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <SH title="Operational Readiness Checklist" sub={`${done} of ${checklist.length} items complete — ${p}% ready`} />
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>
+        <StatCard label="Overall Readiness" value={<span style={{ color:readColor }}>{p}%</span>} sub={<ProgBar pct={p} color={C.gbar} />} />
+        <StatCard label="Completed" value={<span style={{ color:C.green }}>{done}</span>} sub="Items done" dot={C.green} />
+        <StatCard label="In Progress" value={<span style={{ color:C.yellow }}>{inprog}</span>} sub="Being worked on" dot={C.yellow} />
+        <StatCard label="Blocked" value={<span style={{ color:C.red }}>{blocked}</span>} sub="Needs resolution" dot={C.red} />
+      </div>
+
+      <TableWrap>
+        <TableHead title="Readiness Sub-Items" subtitle={`${checklist.length} items`} />
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', minWidth:800 }}>
+            <thead><tr>
+              {['Checklist Item','Assigned To','Status','Due Date','Completed By','Timestamp', ...(canEdit ? ['Actions'] : [])].map(h => <th key={h} style={TH}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {checklist.map((c, i) => {
+                const rowBg = c.st === 'Done' ? 'rgba(0,200,150,.04)' : c.st === 'Blocked' ? 'rgba(255,71,87,.04)' : 'rgba(255,214,0,.03)'
+                return (
+                  <tr key={i} style={{ background:rowBg }}>
+                    <td style={{ ...TD, fontWeight:700, color:C.t1 }}>{c.item}</td>
+                    <td style={{ ...TD, color:C.t2 }}>{c.assign}</td>
+                    <td style={TD}><Badge s={c.st} /></td>
+                    <td style={{ ...TD, color:C.t3 }}>{c.due}</td>
+                    <td style={{ ...TD, color: c.by === '—' ? C.t4 : C.green }}>{c.by}</td>
+                    <td style={{ ...TD, color:C.t4, fontSize:11 }}>{c.ts}</td>
+                    {canEdit && <td style={TD}>
+                      {c.st !== 'Done' && <button onClick={() => {
+                        setChecklist(p => p.map((x,j) => j===i ? {...x, st:'Done', by:'You', ts:'Now'} : x))
+                      }} style={{ background:'none', border:'none', cursor:'pointer', color:'#a78bfa', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Mark Done</button>}
+                      {c.st === 'Done' && <button onClick={() => {
+                        setChecklist(p => p.map((x,j) => j===i ? {...x, st:'In Progress', by:'—', ts:'—'} : x))
+                      }} style={{ background:'none', border:'none', cursor:'pointer', color:C.t3, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Undo</button>}
+                    </td>}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </TableWrap>
+    </div>
+  )
+}
+
+// ─── TAB: Supply Chain ──────────────────────────────────────────────────────────
+function TabSupply({ suppliers, setSuppliers, canEdit, isExternal, isMgmt, showToast, onOpenAdd }) {
+  const [detail, setDetail] = useState(null)
+  if (isExternal || isMgmt) return <Restrict text="Supply Chain data is restricted to Operations team only." />
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <SH title="Supply Chain Tracking" sub={`${suppliers.length} suppliers · ${suppliers.filter(s=>s.st==='Completed').length} completed`}>
+        {canEdit && <button style={B.pri} onClick={onOpenAdd}>+ Add Supplier</button>}
+        <button style={B.ghost}>⬇ Excel</button>
+      </SH>
+
+      <TableWrap>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', minWidth:1000 }}>
+            <thead><tr>
+              {['Supplier','Category','Order Date','Exp. Delivery','Qty Ordered','Qty Received','Payment','QC','Status','Notes', ...(canEdit?['Actions']:[])].map(h => <th key={h} style={TH}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {suppliers.map(s => {
+                const rowBg = s.st === 'Completed' ? 'rgba(0,200,150,.04)' : s.st === 'Pending External' ? 'rgba(255,214,0,.03)' : ''
+                return (
+                  <tr key={s.id} style={{ background:rowBg, cursor:'pointer' }} onClick={() => setDetail(s)}>
+                    <td style={{ ...TD, fontWeight:700, color:C.t1 }}>{s.name}</td>
+                    <td style={TD}><Badge s={s.cat} /></td>
+                    <td style={{ ...TD, color:C.t3 }}>{s.od}</td>
+                    <td style={{ ...TD, color:C.t3 }}>{s.ed}</td>
+                    <td style={TD}>{s.qty}</td>
+                    <td style={{ ...TD, color: s.qr === s.qty && s.qty !== '—' ? C.green : C.t2 }}>{s.qr}</td>
+                    <td style={TD}><Badge s={s.pay} /></td>
+                    <td style={TD}><Badge s={s.qc} /></td>
+                    <td style={TD}><Badge s={s.st} /></td>
+                    <td style={{ ...TD, color:C.t3, fontSize:11, maxWidth:140, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{s.notes}</td>
+                    {canEdit && <td style={TD} onClick={e => e.stopPropagation()}>
+                      <button onClick={() => showToast('Edit Supplier','Update form opens here')} style={{ background:'none', border:'none', cursor:'pointer', color:'#a78bfa', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
+                      <button onClick={() => { setSuppliers(p => p.filter(x => x.id !== s.id)); showToast('Deleted','Supplier removed') }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
+                    </td>}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </TableWrap>
+
+      {detail && (
+        <Modal title={`${detail.name} — Supplier Detail`} sub="Full order history and supplier information" onClose={() => setDetail(null)} onSave={() => setDetail(null)} saveLabel="Close">
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11, marginBottom:14 }}>
+            {[['Status', <Badge s={detail.st} />],['QC Status',<Badge s={detail.qc}/>],['Payment',<Badge s={detail.pay}/>],['Category',<span style={{fontWeight:700,color:C.t1}}>{detail.cat}</span>]].map(([lbl,val]) => (
+              <div key={lbl} style={{ background:C.card2, border:`1px solid ${C.border}`, borderRadius:8, padding:'12px 14px' }}>
+                <div style={{ fontSize:10, fontWeight:700, color:C.t3, textTransform:'uppercase', marginBottom:6 }}>{lbl}</div>
+                {val}
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize:12, color:C.t2, marginBottom:8 }}><strong style={{color:C.t1}}>Notes:</strong> {detail.notes}</div>
+          <div style={{ fontSize:12, color:C.t2, marginBottom:8 }}><strong style={{color:C.t1}}>Ordered:</strong> {detail.qty} · <strong style={{color:C.t1}}>Received:</strong> {detail.qr}</div>
+          <div style={{ fontSize:12, color:C.t2 }}><strong style={{color:C.t1}}>Order Date:</strong> {detail.od} · <strong style={{color:C.t1}}>Expected:</strong> {detail.ed} · <strong style={{color:C.t1}}>Actual:</strong> {detail.ad}</div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+// ─── TAB: Gold Sourcing ─────────────────────────────────────────────────────────
+function TabGold({ gold, canEdit, isAdmin, isHead, isMgmt, isExternal, showToast }) {
+  if (isExternal) return <Restrict amber text="Gold Sourcing data is confidential. Contact Operations Head for access." />
+  if (!isAdmin && !isHead && !isMgmt) return <Restrict amber text="Gold Sourcing data is confidential. Contact Operations Head for access." />
+  const limitedView = isMgmt && !isAdmin && !isHead
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <SH
+        title={<>Gold Sourcing Channels {limitedView && <span style={{ fontSize:12, color:C.yellow, fontWeight:500 }}> ⚠ Limited View</span>}</>}
+        sub={limitedView ? 'Volume and status data only — channel names and contacts are restricted' : 'Confidential — Super Admin & Operations Head full access'}
+      >
+        {isAdmin && <button style={B.pri} onClick={() => showToast('Add Channel','Gold channel registration form')}>+ Add Channel</button>}
+      </SH>
+
+      <TableWrap>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', minWidth: limitedView ? 600 : 1000 }}>
+            <thead><tr>
+              <th style={TH}>Channel ID</th>
+              {!limitedView && <th style={TH}>Channel Name</th>}
+              <th style={TH}>Region</th>
+              <th style={TH}>Vol. Target (kg)</th>
+              <th style={TH}>Actual (kg)</th>
+              <th style={TH}>Performance</th>
+              <th style={TH}>Stage</th>
+              <th style={TH}>Contract</th>
+              {!limitedView && <><th style={TH}>Compliance</th><th style={TH}>Risk</th><th style={TH}>Last Activity</th><th style={TH}>Next Action</th></>}
+            </tr></thead>
+            <tbody>
+              {gold.map(g => {
+                const perf = pct(g.actual, g.vol || 1)
+                return (
+                  <tr key={g.id} style={{ cursor:'pointer' }} onClick={() => !limitedView && showToast('Channel Detail', `Negotiation history for ${g.code}`)}>
+                    <td style={TD}><span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:'rgba(245,158,11,.12)', color:C.gold, border:'1px solid rgba(245,158,11,.3)' }}>{g.code}</span></td>
+                    {!limitedView && <td style={{ ...TD, fontWeight:700, color:C.t1 }}>{g.name}</td>}
+                    <td style={{ ...TD, color:C.t3 }}>{g.region}</td>
+                    <td style={{ ...TD, color:C.gold, fontWeight:700 }}>{g.vol} kg</td>
+                    <td style={{ ...TD, color:C.t2 }}>{g.actual} kg</td>
+                    <td style={{ ...TD, minWidth:120 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <ProgBar pct={perf} color={perf>=80?C.green:perf>=50?C.yellow:C.red} />
+                        <span style={{ fontSize:11, fontWeight:700, color:C.t1, width:34, textAlign:'right' }}>{perf}%</span>
+                      </div>
+                    </td>
+                    <td style={TD}><Badge s={g.stage} /></td>
+                    <td style={TD}><Badge s={g.cst} /></td>
+                    {!limitedView && <>
+                      <td style={TD}><Badge s={g.comp === 'Yes' ? 'Yes' : 'No'} /></td>
+                      <td style={TD}><Badge s={g.risk} /></td>
+                      <td style={{ ...TD, color:C.t3 }}>{g.lastAct}</td>
+                      <td style={{ ...TD, color:C.cyan, fontSize:11 }}>{g.nextAction}</td>
+                    </>}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </TableWrap>
+
+      {!limitedView && (
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+          <Card>
+            <CardTitle>Volume Performance by Channel</CardTitle>
+            {gold.map(g => <ProgRow key={g.id} label={`${g.code} — ${g.region}`} p={pct(g.actual, g.vol||1)} color={g.risk==='High'?C.red:g.risk==='Medium'?C.yellow:C.green} />)}
+          </Card>
+          <Card>
+            <CardTitle>Channel Risk Distribution</CardTitle>
+            {[['Low',C.green],['Medium',C.yellow],['High',C.red]].map(([r,c]) => (
+              <ProgRow key={r} label={`Risk Level: ${r}`} p={pct(gold.filter(g=>g.risk===r).length, gold.length)} color={c} />
+            ))}
+          </Card>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── TAB: Transport Routes ──────────────────────────────────────────────────────
+function TabRoutes({ routes, canEdit, isExternal, isMgmt, showToast, onOpenIncident }) {
+  if (isMgmt) return <Restrict text="Transport routes are managed by the Operations team." />
+  if (isExternal) return <Restrict text="Transport route details are not available to vendors." />
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <SH title="Transport Routes" sub={`${routes.filter(r=>r.st==='Active').length} active · ${routes.filter(r=>r.st!=='Active').length} restricted/suspended`}>
+        {canEdit && <button style={B.warn} onClick={onOpenIncident}>⚠ Report Incident</button>}
+      </SH>
+
+      <TableWrap>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', minWidth:1100 }}>
+            <thead><tr>
+              {['Route','Origin','Destination','Carrier','Mode','ETA','Status','Risk','Last Incident','Insurance','GPS','Checkpoints','Actions'].map(h => <th key={h} style={TH}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {routes.map(r => {
+                const rowBg = r.st === 'Active' ? 'rgba(0,200,150,.03)' : r.st === 'On Hold' ? 'rgba(255,214,0,.03)' : 'rgba(255,71,87,.04)'
+                return (
+                  <tr key={r.id} style={{ background:rowBg }}>
+                    <td style={{ ...TD, fontWeight:700, color:C.t1 }}>{r.name}</td>
+                    <td style={{ ...TD, color:C.t3 }}>{r.origin}</td>
+                    <td style={{ ...TD, color:C.t3 }}>{r.dest}</td>
+                    <td style={TD}>{r.carrier}</td>
+                    <td style={TD}><Badge s={r.mode} /></td>
+                    <td style={{ ...TD, color:C.t2 }}>{r.eta}</td>
+                    <td style={TD}><Badge s={r.st} /></td>
+                    <td style={TD}><Badge s={r.risk} /></td>
+                    <td style={{ ...TD, color: r.lastInc === 'None' ? C.t4 : C.orange }}>{r.lastInc}</td>
+                    <td style={TD}><Badge s={r.insurance} /></td>
+                    <td style={TD}><Badge s={r.gps} /></td>
+                    <td style={{ ...TD, fontWeight:700, color: r.checkpoints.split('/')[0] === r.checkpoints.split('/')[1] ? C.green : C.yellow }}>{r.checkpoints}</td>
+                    <td style={TD}>
+                      {canEdit && <button onClick={onOpenIncident} style={{ background:'none', border:'none', cursor:'pointer', color:'#a78bfa', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Report</button>}
+                      <button onClick={() => showToast('Route Detail','Full route detail and history')} style={{ background:'none', border:'none', cursor:'pointer', color:'#a78bfa', fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Detail</button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </TableWrap>
+    </div>
+  )
+}
+
+// ─── TAB: Security ──────────────────────────────────────────────────────────────
+function TabSecurity({ secVendors, incidents, setIncidents, canEdit, isExternal, isMgmt, showToast, onOpenIncident }) {
+  if (isExternal || isMgmt) return <Restrict text="Security coordination is restricted to Security Officer and Operations team." />
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <SH title="Security Coordination" sub={`${secVendors.length} vendors · ${incidents.length} incidents logged`}>
+        {canEdit && <button style={B.pri} onClick={onOpenIncident}>+ Log Incident</button>}
+      </SH>
+
+      <Card>
+        <CardTitle>Security Alerts</CardTitle>
+        {[
+          { lv:'r', title:'🔴 Route RAIL-1 — Incident Under Investigation', desc:'Route breach INC-003 reported Apr 2. Route suspended. Investigation in progress. All shipments rerouted to KAZ-1.' },
+          { lv:'o', title:'🟠 Security Review Overdue — AlphaGuard Ltd',    desc:'AlphaGuard protocol review was due Mar 15. Still pending. Risk to AIR-1 security.' },
+          { lv:'y', title:'🟡 GPS Tracking Inactive — Route KAZ-2',         desc:'GPS tracking not active on Route KAZ-2. Security monitoring gap exists.' },
+        ].map((a, i) => {
+          const col = a.lv==='r'?C.red:a.lv==='o'?C.orange:C.yellow
+          return (
+            <div key={i} style={{ padding:'10px 13px', borderRadius:8, marginBottom:8, borderLeft:`3px solid ${col}`, background:`${col}09` }}>
+              <div style={{ fontSize:12.5, fontWeight:700, color:col, marginBottom:3 }}>{a.title}</div>
+              <div style={{ fontSize:11.5, color:C.t3, lineHeight:1.5 }}>{a.desc}</div>
+              <div style={{ display:'flex', gap:5, marginTop:8 }}>
+                <button onClick={() => showToast('Acknowledged','Alert marked as acknowledged')} style={{ padding:'3px 10px', borderRadius:5, fontSize:10, fontWeight:700, cursor:'pointer', border:'none', background:'rgba(0,200,150,.12)', color:C.green, fontFamily:'inherit' }}>Acknowledge</button>
+                <button onClick={() => showToast('Escalated','Alert escalated to Operations Head')} style={{ padding:'3px 10px', borderRadius:5, fontSize:10, fontWeight:700, cursor:'pointer', border:'none', background:'rgba(255,112,67,.12)', color:C.orange, fontFamily:'inherit' }}>Escalate</button>
+              </div>
+            </div>
+          )
+        })}
+      </Card>
+
+      <TableWrap>
+        <TableHead title="Security Vendors" subtitle="Protocol and escort status" />
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', minWidth:800 }}>
+            <thead><tr>
+              {['Vendor','Protocol','Escort','Threat Level','Last Review','Next Review','Escort Route','Incidents', ...(canEdit?['Actions']:[])].map(h => <th key={h} style={TH}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {secVendors.map(s => (
+                <tr key={s.id}>
+                  <td style={{ ...TD, fontWeight:700, color:C.t1 }}>{s.vendor}</td>
+                  <td style={TD}><Badge s={s.proto} /></td>
+                  <td style={TD}><Badge s={s.escort} /></td>
+                  <td style={TD}><Badge s={s.threat} /></td>
+                  <td style={{ ...TD, color:C.t3 }}>{s.lastRev}</td>
+                  <td style={{ ...TD, color: s.proto !== 'Approved' ? C.red : C.cyan }}>{s.nextRev}</td>
+                  <td style={{ ...TD, color:C.t3 }}>{s.route}</td>
+                  <td style={TD}><span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background: s.incidents>0?'rgba(255,71,87,.12)':'rgba(0,200,150,.12)', color: s.incidents>0?C.red:C.green, border:`1px solid ${s.incidents>0?'rgba(255,71,87,.3)':'rgba(0,200,150,.3)'}` }}>{s.incidents} incident{s.incidents!==1?'s':''}</span></td>
+                  {canEdit && <td style={TD}>
+                    <button onClick={() => showToast('Protocol',`${s.vendor} protocol document`)} style={{ background:'none', border:'none', cursor:'pointer', color:'#a78bfa', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>View Doc</button>
+                    <button onClick={() => showToast('Incidents',`Incident log for ${s.vendor}`)} style={{ background:'none', border:'none', cursor:'pointer', color:'#a78bfa', fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Incidents</button>
+                  </td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </TableWrap>
+
+      <TableWrap>
+        <TableHead title="Incident Register" subtitle={`${incidents.length} incidents logged`}
+          right={canEdit && <button style={{ ...B.pri, ...B.sm }} onClick={onOpenIncident}>+ Add Incident</button>} />
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', minWidth:800 }}>
+            <thead><tr>
+              {['Incident ID','Date','Route','Vendor','Type','Severity','Status','Resolution'].map(h => <th key={h} style={TH}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {incidents.map(inc => {
+                const rowBg = inc.st==='Resolved'?'rgba(0,200,150,.04)':inc.st==='Under Investigation'?'rgba(255,214,0,.03)':'rgba(255,71,87,.04)'
+                return (
+                  <tr key={inc.id} style={{ background:rowBg }}>
+                    <td style={{ ...TD, fontWeight:700, color:C.t1 }}>{inc.id}</td>
+                    <td style={{ ...TD, color:C.t3 }}>{inc.date}</td>
+                    <td style={TD}>{inc.route}</td>
+                    <td style={TD}>{inc.vendor}</td>
+                    <td style={{ ...TD, color:C.t2 }}>{inc.type}</td>
+                    <td style={TD}><Badge s={inc.sev} /></td>
+                    <td style={TD}><Badge s={inc.st} /></td>
+                    <td style={{ ...TD, color: inc.res.includes('ongoing')?C.yellow:C.t2, fontSize:11 }}>{inc.res}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </TableWrap>
+    </div>
+  )
+}
+
+// ─── TAB: Vendor Contracts ──────────────────────────────────────────────────────
+function TabVendors({ vendors, setVendors, canEdit, isAdmin, isHead, isMgmt, isUser, isExternal, showToast, onOpenAdd }) {
+  const myOnly = isExternal
+  const showVal = !isUser && !isExternal
+
+  const showData = myOnly ? vendors.filter(v => v.name.includes('KazTrans')) : vendors
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <SH title="Vendor Contracts" sub={myOnly ? 'Your contract only' : `${vendors.length} vendors registered`}>
+        {(isAdmin || isHead) && <button style={B.pri} onClick={() => showToast('Renewal','Initiate contract renewal form')}>↻ Initiate Renewal</button>}
+        <button style={B.ghost}>⬇ Export</button>
+      </SH>
+
+      <TableWrap>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', minWidth: showVal ? 900 : 600 }}>
+            <thead><tr>
+              <th style={TH}>Vendor</th>
+              <th style={TH}>Service</th>
+              {showVal && <th style={TH}>Contract Value</th>}
+              <th style={TH}>Signed</th>
+              <th style={TH}>Expiry</th>
+              <th style={TH}>Days Left</th>
+              <th style={TH}>Renewal</th>
+              {!myOnly && <><th style={TH}>Payment Terms</th><th style={TH}>Account Mgr</th><th style={TH}>Rating</th></>}
+              {canEdit && <th style={TH}>Actions</th>}
+            </tr></thead>
+            <tbody>
+              {showData.map(v => {
+                const dCol = v.days && v.days < 60 ? C.red : v.days && v.days < 120 ? C.yellow : C.green
+                const rowBg = v.days && v.days < 60 ? 'rgba(255,214,0,.03)' : ''
+                return (
+                  <tr key={v.id} style={{ background:rowBg }}>
+                    <td style={{ ...TD, fontWeight:700, color:C.t1 }}>{v.name}</td>
+                    <td style={{ ...TD, color:C.t3 }}>{v.svc}</td>
+                    {showVal && <td style={{ ...TD, color:C.green, fontWeight:700 }}>{v.val}</td>}
+                    <td style={TD}><Badge s={v.signed} /></td>
+                    <td style={{ ...TD, color: v.days && v.days < 60 ? C.red : C.t3 }}>{v.exp}</td>
+                    <td style={{ ...TD, color:dCol, fontWeight:700 }}>{v.days ? `${v.days}d` : '—'}</td>
+                    <td style={TD}><Badge s={v.renewal} /></td>
+                    {!myOnly && <>
+                      <td style={{ ...TD, color:C.t3 }}>{v.terms}</td>
+                      <td style={{ ...TD, color:C.t2 }}>{v.mgr}</td>
+                      <td style={TD}><div style={{ display:'flex' }}>{stars(v.rating)}</div></td>
+                    </>}
+                    {canEdit && <td style={TD}>
+                      <button onClick={() => showToast('Contract','View contract document')} style={{ background:'none', border:'none', cursor:'pointer', color:'#a78bfa', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>View</button>
+                      {v.days && v.days < 120 && <button onClick={() => showToast('Renewal Started',`Renewal process initiated for ${v.name}`)} style={{ background:'none', border:'none', cursor:'pointer', color:C.green, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Renew</button>}
+                    </td>}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </TableWrap>
+
+      {!myOnly && (
+        <Card>
+          <CardTitle>Contract Timeline — Expiry Overview</CardTitle>
+          {vendors.filter(v => v.days).sort((a,b) => a.days-b.days).map(v => {
+            const col = v.days < 60 ? C.red : v.days < 120 ? C.yellow : C.green
+            return (
+              <div key={v.id} style={{ marginBottom:12 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:5 }}>
+                  <span style={{ color:C.t2, fontWeight:600 }}>{v.name}</span>
+                  <span style={{ color:col, fontWeight:700 }}>{v.days}d — {v.exp}</span>
+                </div>
+                <ProgBar pct={Math.min(v.days/365*100, 100)} color={col} height={8} />
+              </div>
+            )
+          })}
+        </Card>
+      )}
+    </div>
+  )
+}
+
+// ─── TAB: Inventory ─────────────────────────────────────────────────────────────
+function TabInventory({ inventory, setInventory, suppliers, setSuppliers, canEdit, isExternal, isMgmt, showToast }) {
+  if (isExternal || isMgmt) return <Restrict text="Inventory tracking is restricted to Operations team." />
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <SH title="Inventory & Stock Tracking" sub={`${inventory.filter(i=>i.st==='Critical').length} critical · ${inventory.filter(i=>i.st==='Low Stock').length} low stock`}>
+        <button style={B.ghost}>⬇ Inventory Report</button>
+      </SH>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:11 }}>
+        <StatCard label="Critical Stock" value={<span style={{color:C.red}}>{inventory.filter(i=>i.st==='Critical').length}</span>} sub="Immediate restock needed" dot={C.red} />
+        <StatCard label="Low Stock" value={<span style={{color:C.yellow}}>{inventory.filter(i=>i.st==='Low Stock').length}</span>} sub="Below minimum level" dot={C.yellow} />
+        <StatCard label="Sufficient" value={<span style={{color:C.green}}>{inventory.filter(i=>i.st==='Sufficient').length}</span>} sub="Above minimum level" dot={C.green} />
+      </div>
+
+      <TableWrap>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', minWidth:750 }}>
+            <thead><tr>
+              {['Item ID','Item','Current Stock','Min. Level','Stock Status','Supplier','Last Restocked','Actions'].map(h => <th key={h} style={TH}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {inventory.map(i => {
+                const rowBg = i.st==='Critical'?'rgba(255,71,87,.04)':i.st==='Low Stock'?'rgba(255,214,0,.03)':'rgba(0,200,150,.03)'
+                return (
+                  <tr key={i.id} style={{ background:rowBg }}>
+                    <td style={{ ...TD, fontWeight:700, color:C.t1 }}>{i.id}</td>
+                    <td style={TD}>{i.item}</td>
+                    <td style={{ ...TD, color: i.stock===0?C.red:i.stock<=i.min?C.yellow:C.green, fontWeight:700 }}>{i.stock} units</td>
+                    <td style={{ ...TD, color:C.t3 }}>{i.min} units</td>
+                    <td style={TD}><Badge s={i.st} /></td>
+                    <td style={{ ...TD, color:C.t2 }}>{i.sup}</td>
+                    <td style={{ ...TD, color:C.t3 }}>{i.last}</td>
+                    <td style={TD}>
+                      {canEdit && <button onClick={() => {
+                        setSuppliers(p => [...p, { id:Date.now(), name:`Restock: ${i.item}`, cat:'Consumables', od:'Today', ed:'TBD', ad:'—', qty:'Restock order', qr:'0', pay:'Not Paid', qc:'Pending', st:'Not Started', notes:'Auto-created from inventory restock request' }])
+                        showToast('Restock Requested', `${i.item} — procurement request sent`)
+                      }} style={{ ...B.pri, ...B.sm }}>Request Restock</button>}
+                      {i.st === 'Critical' && <span style={{ marginLeft:8, fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:20, background:'rgba(255,71,87,.15)', color:C.red, border:'1px solid rgba(255,71,87,.3)' }}>⚠ URGENT</span>}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </TableWrap>
+    </div>
+  )
+}
+
+// ─── TAB: Live Map ──────────────────────────────────────────────────────────────
+function TabMap({ canEdit, isAdmin, isHead, isExternal, showToast }) {
+  if (isExternal) return <Restrict text="Live Operations Map is restricted." />
+  const showGold = isAdmin || isHead
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <SH title="Live Operations Map" sub={showGold ? 'Full view — all pins visible' : 'Routes and logistics view'} />
+      <div style={{ background:'#0d1520', borderRadius:10, minHeight:340, position:'relative', overflow:'hidden', border:`1px solid ${C.border}` }}>
+        {/* Grid overlay */}
+        <div style={{ position:'absolute', inset:0, backgroundImage:'linear-gradient(rgba(124,58,237,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(124,58,237,.05) 1px,transparent 1px)', backgroundSize:'40px 40px' }} />
+        {/* Route lines */}
+        <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none' }}>
+          <line x1="15%" y1="30%" x2="55%" y2="65%" stroke="rgba(0,200,150,.5)"  strokeWidth="2" strokeDasharray="6 3" />
+          <line x1="20%" y1="48%" x2="55%" y2="65%" stroke="rgba(255,214,0,.4)"  strokeWidth="2" strokeDasharray="6 3" />
+          <line x1="18%" y1="22%" x2="55%" y2="65%" stroke="rgba(0,180,216,.5)"  strokeWidth="2" strokeDasharray="4 4" />
+          <line x1="50%" y1="16%" x2="55%" y2="65%" stroke="rgba(255,71,87,.4)"  strokeWidth="2" strokeDasharray="6 3" />
+        </svg>
+        {/* Site Alpha */}
+        <MapPin x="55%" y="65%" onClick={() => showToast('Site Alpha','Main production site — all routes terminate here')}>
+          <div style={{ width:16, height:16, borderRadius:'50%', background:'#7c3aed', border:'2px solid #fff', boxShadow:'0 0 10px #7c3aed' }} />
+          <div style={{ fontSize:10, color:'#fff', marginTop:3, fontWeight:700, textShadow:'0 1px 3px #000', whiteSpace:'nowrap' }}>🏭 Site Alpha</div>
+        </MapPin>
+        {/* Almaty */}
+        <MapPin x="15%" y="30%" onClick={() => showToast('Almaty Hub','Route KAZ-1 origin — Primary road corridor')}>
+          <PingDot color={C.green} /><div style={{ fontSize:9, color:C.green, marginTop:2, fontWeight:700 }}>📍 Almaty</div>
+        </MapPin>
+        {/* Airport */}
+        <MapPin x="18%" y="22%" onClick={() => showToast('Almaty Airport','Route AIR-1 — High-value cargo only')}>
+          <PingDot color={C.cyan} /><div style={{ fontSize:9, color:C.cyan, marginTop:2, fontWeight:700 }}>✈️ Airport</div>
+        </MapPin>
+        {/* Shymkent */}
+        <MapPin x="20%" y="48%" onClick={() => showToast('Shymkent','Route KAZ-2 — Alternate road route (On Hold)')}>
+          <PingDot color={C.yellow} /><div style={{ fontSize:9, color:C.yellow, marginTop:2, fontWeight:700 }}>📍 Shymkent</div>
+        </MapPin>
+        {/* Security checkpoints */}
+        <MapPin x="38%" y="50%" onClick={() => showToast('Checkpoint Alpha-3','Security checkpoint — km 240 on KAZ-1. Armed escort beyond this point.')}>
+          <div style={{ width:12, height:12, background:C.orange, borderRadius:3, border:'2px solid #fff' }} />
+          <div style={{ fontSize:9, color:C.orange, marginTop:2, fontWeight:700 }}>🔐 CP-A3</div>
+        </MapPin>
+        <MapPin x="28%" y="39%" onClick={() => showToast('Checkpoint Alpha-2','Security checkpoint KAZ-1')}>
+          <div style={{ width:10, height:10, background:C.orange, borderRadius:3, border:'1.5px solid rgba(255,255,255,.6)' }} />
+          <div style={{ fontSize:8, color:C.orange, marginTop:2 }}>🔐 CP-A2</div>
+        </MapPin>
+        {/* Gold channels */}
+        {showGold && <>
+          <MapPin x="72%" y="26%" onClick={() => showToast('GS-001','Altyn Partners — East KZ. Contract Active. 80% volume attainment.')}>
+            <div style={{ width:14, height:14, borderRadius:'50%', background:'rgba(245,158,11,.3)', border:`2px solid ${C.gold}` }} />
+            <div style={{ fontSize:9, color:C.gold, marginTop:2, fontWeight:700 }}>🥇 GS-001</div>
+          </MapPin>
+          <MapPin x="60%" y="20%" onClick={() => showToast('GS-002','Northern Highlands — Final Negotiation. Volume: 52/80kg target.')}>
+            <div style={{ width:12, height:12, borderRadius:'50%', background:'rgba(245,158,11,.2)', border:`2px solid rgba(245,158,11,.6)` }} />
+            <div style={{ fontSize:9, color:C.gold, marginTop:2 }}>🥇 GS-002</div>
+          </MapPin>
+          <MapPin x="65%" y="42%" onClick={() => showToast('GS-003','KazGold Network — Central KZ. MoU stage. 18/50kg.')}>
+            <div style={{ width:10, height:10, borderRadius:'50%', background:'rgba(245,158,11,.15)', border:`2px solid rgba(245,158,11,.4)` }} />
+            <div style={{ fontSize:8, color:'rgba(245,158,11,.7)', marginTop:2 }}>🥇 GS-003</div>
+          </MapPin>
+        </>}
+        {/* Legend */}
+        <div style={{ position:'absolute', bottom:12, left:12, background:'rgba(30,30,53,.9)', border:`1px solid ${C.border}`, borderRadius:10, padding:'10px 14px' }}>
+          <div style={{ fontSize:11, fontWeight:700, color:C.t2, marginBottom:8 }}>Legend</div>
+          {[['Active Route',C.green,'circle'],['On Hold',C.yellow,'circle'],['Suspended',C.red,'circle'],['Security Checkpoint',C.orange,'square'],...(showGold?[['Gold Channel',C.gold,'circle']]:[]),['Main Site','#7c3aed','circle']].map(([lbl,col,shape]) => (
+            <div key={lbl} style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:C.t2, marginBottom:4 }}>
+              <div style={{ width:8, height:8, borderRadius: shape==='circle'?'50%':3, background:col, flexShrink:0 }} />
+              {lbl}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+function MapPin({ x, y, onClick, children }) {
+  return (
+    <div onClick={onClick} style={{ position:'absolute', left:x, top:y, transform:'translate(-50%,-50%)', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center' }}>
+      {children}
+    </div>
+  )
+}
+function PingDot({ color }) {
+  return <div style={{ width:12, height:12, borderRadius:'50%', border:`2px solid ${color}`, background:`${color}30` }} />
+}
+
+// ─── TAB: Analytics ─────────────────────────────────────────────────────────────
+function TabAnalytics({ canEdit, isAdmin, isHead, isMgmt, isExternal }) {
+  if (!isAdmin && !isHead && !isMgmt) return <Restrict text="Operations Analytics is restricted to Super Admin, Operations Head and Management." />
+
+  const barData = [
+    { label:'Fulfillment Rate', bars:[{m:'Nov',v:88},{m:'Dec',v:91},{m:'Jan',v:85},{m:'Feb',v:92},{m:'Mar',v:94},{m:'Apr',v:72}], color:'rgba(0,180,216,.5)', suffix:'%' },
+  ]
+  const incData = [{m:'Nov',v:0},{m:'Dec',v:1},{m:'Jan',v:0},{m:'Feb',v:0},{m:'Mar',v:2},{m:'Apr',v:1}]
+  const goldData = [{m:'Nov',t:250,a:238},{m:'Dec',t:250,a:261},{m:'Jan',t:250,a:244},{m:'Feb',t:250,a:257},{m:'Mar',t:250,a:248},{m:'Apr',t:250,a:96}]
+  const readData = [{m:'Jan',v:45},{m:'Feb',v:52},{m:'Mar',v:61},{m:'Apr 1',v:68},{m:'Apr 7',v:73},{m:'Apr 13',v:72}]
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <SH title="Operations Analytics & Reports" sub="Performance trends and data insights">
+        <select style={{ background:C.inp, border:`1px solid ${C.border}`, color:C.t2, borderRadius:7, padding:'6px 12px', fontFamily:'inherit', fontSize:12, outline:'none' }}>
+          <option>Last 6 Months</option><option>Last 12 Months</option><option>This Year</option>
+        </select>
+        <button style={B.ghost}>⬇ PDF</button>
+        <button style={B.ghost}>⬇ Excel</button>
+      </SH>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+        <Card>
+          <CardTitle>Supply Chain Fulfillment Rate (%)</CardTitle>
+          <BarChart bars={barData[0].bars.map(d => ({ label:d.m, value:d.v, max:100, color:'rgba(0,180,216,.5)', valLabel:`${d.v}%` }))} height={100} />
+        </Card>
+        <Card>
+          <CardTitle>Gold Volume Sourced vs Target (kg)</CardTitle>
+          <div style={{ display:'flex', alignItems:'flex-end', gap:5, height:100 }}>
+            {goldData.map((d,i) => (
+              <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, gap:3 }}>
+                <div style={{ display:'flex', gap:2, alignItems:'flex-end', width:'100%' }}>
+                  <div style={{ height:d.t*.38, background:'rgba(245,158,11,.3)', flex:1, borderRadius:'3px 3px 0 0' }} />
+                  <div style={{ height:d.a*.38, background:'rgba(245,158,11,.7)', flex:1, borderRadius:'3px 3px 0 0' }} />
+                </div>
+                <div style={{ fontSize:9, color:C.t3 }}>{d.m}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:'flex', gap:12, marginTop:8, fontSize:11 }}>
+            <span><span style={{ display:'inline-block', width:10, height:10, background:'rgba(245,158,11,.3)', marginRight:4, borderRadius:2 }} />Target</span>
+            <span><span style={{ display:'inline-block', width:10, height:10, background:'rgba(245,158,11,.7)', marginRight:4, borderRadius:2 }} />Actual</span>
+          </div>
+        </Card>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+        <Card>
+          <CardTitle>Security Incidents Trend</CardTitle>
+          <BarChart bars={incData.map(d => ({ label:d.m, value:d.v, max:3, color:d.v>1?'rgba(255,71,87,.6)':d.v>0?'rgba(255,112,67,.5)':'rgba(0,200,150,.3)', valLabel:`${d.v}` }))} height={100} />
+        </Card>
+        <Card>
+          <CardTitle>Operational Readiness Trend</CardTitle>
+          <BarChart bars={readData.map(d => ({ label:d.m, value:d.v, max:100, color:d.v>=70?'rgba(0,200,150,.6)':'rgba(255,214,0,.5)', valLabel:`${d.v}%` }))} height={80} />
+        </Card>
+      </div>
+    </div>
+  )
+}
+function BarChart({ bars, height }) {
+  const maxV = Math.max(...bars.map(b => b.max || b.value), 1)
+  return (
+    <div style={{ display:'flex', alignItems:'flex-end', gap:5, height }}>
+      {bars.map((b, i) => (
+        <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, gap:3 }}>
+          <div style={{ height: Math.max(4, (b.value/maxV)*height*0.85), width:'100%', background:b.color, borderRadius:'4px 4px 0 0', minHeight:4 }} />
+          <div style={{ fontSize:9, fontWeight:700, color:C.t3 }}>{b.valLabel}</div>
+          <div style={{ fontSize:9, color:C.t3 }}>{b.label}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── TAB: Task Board ────────────────────────────────────────────────────────────
+function TabTasks({ tasks, setTasks, canEdit, isExternal, showToast, onOpenAdd }) {
+  if (isExternal) return <Restrict text="Task board is not available to vendors." />
+  const cols = [
+    { key:'To Do',       color:C.t3 },
+    { key:'In Progress', color:C.yellow },
+    { key:'Blocked',     color:C.red },
+    { key:'Done',        color:C.green },
+  ]
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <SH title="Operations Task Board" sub={`${tasks.filter(t=>t.st!=='Done').length} open tasks · ${tasks.filter(t=>t.st==='Done').length} completed`}>
+        {canEdit && <button style={B.pri} onClick={onOpenAdd}>+ Add Task</button>}
+      </SH>
+
+      {/* Kanban */}
+      <div style={{ display:'flex', gap:12, overflowX:'auto', paddingBottom:8 }}>
+        {cols.map(col => {
+          const items = tasks.filter(t => t.st === col.key)
+          return (
+            <div key={col.key} style={{ minWidth:220, width:220, background:C.card2, border:`1px solid ${C.border}`, borderRadius:12, display:'flex', flexDirection:'column', flexShrink:0, position:'relative', overflow:'hidden' }}>
+              <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:col.color }} />
+              <div style={{ padding:'12px 14px 10px', borderBottom:`1px solid ${C.border}` }}>
+                <div style={{ fontSize:12, fontWeight:800, color:C.t1 }}>{col.key}</div>
+                <div style={{ fontSize:10, fontWeight:600, color:col.color, marginTop:3 }}>{items.length} task{items.length!==1?'s':''}</div>
+              </div>
+              <div style={{ padding:10, display:'flex', flexDirection:'column', gap:7 }}>
+                {items.map(t => {
+                  const priC = t.pri==='High'?C.red:t.pri==='Medium'?C.yellow:C.cyan
+                  return (
+                    <div key={t.id} onClick={() => showToast('Task',`Update form for: ${t.title}`)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:'11px 12px', cursor:'pointer' }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:C.t1, marginBottom:5 }}>{t.title}</div>
+                      <div style={{ fontSize:11, color:C.t3 }}>{t.sec}</div>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
+                        <span style={{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:20, background:`${priC}15`, color:priC, border:`1px solid ${priC}30` }}>{t.pri}</span>
+                        <div style={{ fontSize:10, color:C.t4 }}>👤 {t.assign}</div>
+                      </div>
+                      <div style={{ fontSize:10, color:C.t4, marginTop:5 }}>📅 Due: {t.due}</div>
+                    </div>
+                  )
+                })}
+                {!items.length && <div style={{ fontSize:11, color:C.t4, textAlign:'center', padding:'16px 0' }}>No tasks</div>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Table view */}
+      <TableWrap>
+        <TableHead title="Task List View" />
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', minWidth:750 }}>
+            <thead><tr>
+              {['Task','Assigned To','Priority','Due Date','Status','Section', ...(canEdit?['Actions']:[])].map(h => <th key={h} style={TH}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {tasks.map(t => {
+                const rowBg = t.st==='Blocked'?'rgba(255,71,87,.04)':t.st==='Done'?'rgba(0,200,150,.03)':''
+                return (
+                  <tr key={t.id} style={{ background:rowBg }}>
+                    <td style={{ ...TD, fontWeight:700, color:C.t1 }}>{t.title}</td>
+                    <td style={{ ...TD, color:C.t2 }}>{t.assign}</td>
+                    <td style={TD}><Badge s={t.pri} /></td>
+                    <td style={{ ...TD, color:C.t3 }}>{t.due}</td>
+                    <td style={TD}><Badge s={t.st} /></td>
+                    <td style={TD}><span style={{ fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:20, background:'rgba(0,180,216,.12)', color:C.cyan, border:'1px solid rgba(0,180,216,.3)' }}>{t.sec}</span></td>
+                    {canEdit && <td style={TD}>
+                      <button onClick={() => showToast('Updated','Task status updated')} style={{ background:'none', border:'none', cursor:'pointer', color:'#a78bfa', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Update</button>
+                      <button onClick={() => { setTasks(p => p.filter(x=>x.id!==t.id)); showToast('Deleted','Task removed') }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
+                    </td>}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </TableWrap>
+    </div>
+  )
+}
+
+// ─── Modals ──────────────────────────────────────────────────────────────────────
+function ModalSupplier({ onClose, onAdd }) {
+  const [f, setF] = useState({ name:'', cat:'Machinery', od:'', ed:'', qty:'', st:'Not Started', notes:'' })
+  const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  return (
+    <Modal title="Add Supplier" sub="Register a new supply chain supplier" onClose={onClose} onSave={() => f.name.trim() && onAdd(f)} saveLabel="Add Supplier">
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Supplier Name</ML><MI value={f.name} onChange={s('name')} placeholder="Company name" /></div>
+        <div><ML>Category</ML><MS value={f.cat} onChange={s('cat')}>{['Machinery','Raw Materials','Chemicals','Consumables','Services'].map(o=><option key={o}>{o}</option>)}</MS></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Order Date</ML><input type="date" value={f.od} onChange={s('od')} style={IS} /></div>
+        <div><ML>Expected Delivery</ML><input type="date" value={f.ed} onChange={s('ed')} style={IS} /></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Qty Ordered</ML><MI value={f.qty} onChange={s('qty')} placeholder="e.g. 10 units" /></div>
+        <div><ML>Status</ML><MS value={f.st} onChange={s('st')}>{['Not Started','In Progress','Pending External','Completed'].map(o=><option key={o}>{o}</option>)}</MS></div>
+      </div>
+      <ML>Notes</ML><MTA value={f.notes} onChange={s('notes')} placeholder="Any notes..." />
+    </Modal>
+  )
+}
+
+function ModalTask({ onClose, onAdd }) {
+  const [f, setF] = useState({ title:'', assign:'', pri:'High', due:'', sec:'Supply Chain', st:'To Do' })
+  const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  return (
+    <Modal title="Add Task" sub="Create a new operations task" onClose={onClose} onSave={() => f.title.trim() && onAdd(f)} saveLabel="Add Task">
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Task Title</ML><MI value={f.title} onChange={s('title')} placeholder="Task description" /></div>
+        <div><ML>Assigned To</ML><MI value={f.assign} onChange={s('assign')} placeholder="Team member" /></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Priority</ML><MS value={f.pri} onChange={s('pri')}>{['High','Medium','Low'].map(o=><option key={o}>{o}</option>)}</MS></div>
+        <div><ML>Due Date</ML><input type="date" value={f.due} onChange={s('due')} style={IS} /></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Linked Section</ML><MS value={f.sec} onChange={s('sec')}>{['Supply Chain','Gold Sourcing','Transport','Security','Vendor Contracts','Inventory'].map(o=><option key={o}>{o}</option>)}</MS></div>
+        <div><ML>Status</ML><MS value={f.st} onChange={s('st')}>{['To Do','In Progress','Blocked','Done'].map(o=><option key={o}>{o}</option>)}</MS></div>
+      </div>
+    </Modal>
+  )
+}
+
+function ModalIncident({ onClose, onAdd }) {
+  const [f, setF] = useState({ route:'Route KAZ-1 (Primary)', sev:'High', type:'Route Breach', vendor:'SecureForce KZ', desc:'' })
+  const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  return (
+    <Modal title="Report Security Incident" sub="Log a new security incident on a transport route" onClose={onClose} onSave={() => onAdd(f)} saveLabel="Submit Incident">
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Route</ML><MS value={f.route} onChange={s('route')}>{['Route KAZ-1 (Primary)','Route KAZ-2 (Alternate)','Route AIR-1','Route RAIL-1'].map(o=><option key={o}>{o}</option>)}</MS></div>
+        <div><ML>Severity</ML><MS value={f.sev} onChange={s('sev')}>{['Critical','High','Medium','Low'].map(o=><option key={o}>{o}</option>)}</MS></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Incident Type</ML><MS value={f.type} onChange={s('type')}>{['Route Breach','Escort Delay','Unauthorized Access','Vehicle Breakdown','Documentation Issue'].map(o=><option key={o}>{o}</option>)}</MS></div>
+        <div><ML>Security Vendor</ML><MS value={f.vendor} onChange={s('vendor')}>{['SecureForce KZ','AlphaGuard Ltd','Internal'].map(o=><option key={o}>{o}</option>)}</MS></div>
+      </div>
+      <ML>Description</ML><MTA value={f.desc} onChange={s('desc')} placeholder="Describe what happened..." />
+    </Modal>
+  )
+}
+
+// ─── Notifications Panel ────────────────────────────────────────────────────────
+function NotifPanel({ notifs, setNotifs, onClose }) {
+  const unread = notifs.filter(n => !n.read).length
+  const lvCfg = { crit:{ color:C.red, border:C.red }, high:{ color:C.orange, border:C.orange }, med:{ color:C.yellow, border:C.yellow }, suc:{ color:C.green, border:C.green } }
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:890 }} />
+      <div style={{ position:'fixed', top:0, right:0, width:390, height:'100vh', background:'#1e1e35', borderLeft:`1px solid ${C.border2}`, zIndex:900, display:'flex', flexDirection:'column', boxShadow:'-8px 0 40px rgba(0,0,0,.5)' }}>
+        <div style={{ padding:'14px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', background:'#16162a' }}>
+          <div style={{ fontSize:14, fontWeight:800, color:C.t1, display:'flex', alignItems:'center', gap:8 }}>
+            🔔 Operations Alerts
+            {unread > 0 && <span style={{ background:C.red, color:'#fff', fontSize:10, fontWeight:800, padding:'2px 8px', borderRadius:20 }}>{unread} new</span>}
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:C.t3, fontSize:18, cursor:'pointer' }}>✕</button>
+        </div>
+        <div style={{ flex:1, overflowY:'auto', padding:'10px 12px' }}>
+          {notifs.map(n => {
+            const cf = lvCfg[n.lv] || lvCfg.med
+            return (
+              <div key={n.id} style={{ background:n.read?'rgba(255,255,255,.01)':'rgba(255,255,255,.03)', border:`1px solid rgba(255,255,255,.05)`, borderLeft:`3px solid ${cf.border}`, borderRadius:9, padding:'11px 13px', marginBottom:7, opacity:n.read?.5:1 }}>
+                <div style={{ fontSize:12, fontWeight:700, color:cf.color, marginBottom:3 }}>{n.title}</div>
+                <div style={{ fontSize:11, color:C.t3, lineHeight:1.5, marginBottom:6 }}>{n.desc}</div>
+                <div style={{ fontSize:10, color:C.t4, marginBottom:8 }}>{n.time}</div>
+                <div style={{ display:'flex', gap:5 }}>
+                  {!n.read && <button onClick={() => setNotifs(p => p.map(x => x.id===n.id ? {...x,read:true} : x))} style={{ padding:'3px 10px', borderRadius:5, fontSize:10, fontWeight:700, cursor:'pointer', border:'none', background:'rgba(0,200,150,.12)', color:C.green, fontFamily:'inherit' }}>✓ Acknowledge</button>}
+                  <button onClick={() => setNotifs(p => p.filter(x => x.id !== n.id))} style={{ padding:'3px 10px', borderRadius:5, fontSize:10, fontWeight:700, cursor:'pointer', border:'none', background:'rgba(255,255,255,.06)', color:C.t3, fontFamily:'inherit' }}>✕ Dismiss</button>
+                </div>
+              </div>
+            )
+          })}
+          {!notifs.length && <div style={{ textAlign:'center', padding:40, color:C.t4 }}>🔔<br/>No alerts</div>}
+        </div>
+        <div style={{ padding:'10px 12px', borderTop:`1px solid ${C.border}`, display:'flex', gap:7 }}>
+          <button onClick={() => setNotifs(p => p.map(n => ({...n,read:true})))} style={{ flex:1, padding:8, borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit', border:'none', background:C.grad, color:'#fff' }}>✓ Mark all read</button>
+          <button onClick={() => setNotifs(p => p.filter(n => !n.read))} style={{ flex:1, padding:8, borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit', border:`1px solid ${C.border}`, background:'rgba(255,255,255,.06)', color:C.t3 }}>🗑 Clear read</button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════
+export default function OperationsTab() {
+  const perms = usePermissions()
+  const isAdmin    = perms.isSuperAdmin
+  const isHead     = perms.isDepartmentHead
+  const isMgmt     = perms.isManagement
+  const isUser     = perms.isDepartmentUser
+  const isExternal = perms.isExternal
+  const canEdit    = isAdmin || isHead
+
+  const [activeTab, setActiveTab] = useState('kpi')
+  const [suppliers, setSuppliers] = useState(INIT_SUPPLIERS)
+  const [gold,      setGold]      = useState(INIT_GOLD)
+  const [routes]                  = useState(INIT_ROUTES)
+  const [secVendors]              = useState(INIT_SEC_VENDORS)
+  const [incidents, setIncidents] = useState(INIT_INCIDENTS)
+  const [vendors,   setVendors]   = useState(INIT_VENDORS)
+  const [inventory, setInventory] = useState(INIT_INVENTORY)
+  const [tasks,     setTasks]     = useState(INIT_TASKS)
+  const [checklist, setChecklist] = useState(INIT_CHECKLIST)
+  const [notifs,    setNotifs]    = useState(INIT_NOTIFS)
+  const [modal,     setModal]     = useState(null)  // 'supplier'|'task'|'incident'
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [toast,     setToast]     = useState(null)
+
+  function showToast(title, msg) {
+    setToast({ title, msg })
+    clearTimeout(showToast._t)
+    showToast._t = setTimeout(() => setToast(null), 3200)
+  }
+
+  function addSupplier(f) {
+    setSuppliers(p => [...p, { id:Date.now(), name:f.name.trim(), cat:f.cat, od:f.od||'—', ed:f.ed||'—', ad:'—', qty:f.qty||'—', qr:'0', pay:'Not Paid', qc:'Pending', st:f.st, notes:f.notes||'—' }])
+    setModal(null)
+    showToast('Supplier Added', f.name.trim() + ' added to supply chain')
+  }
+  function addTask(f) {
+    setTasks(p => [...p, { id:Date.now(), title:f.title.trim(), assign:f.assign||'Unassigned', pri:f.pri, due:f.due||'TBD', st:f.st, sec:f.sec }])
+    setModal(null)
+    showToast('Task Added', f.title.trim() + ' added to task board')
+  }
+  function addIncident(f) {
+    const newInc = { id:`INC-${String(incidents.length+4).padStart(3,'0')}`, date:'Today', route:f.route, vendor:f.vendor, type:f.type, sev:f.sev, st:'Open', res:f.desc||'Under review' }
+    setIncidents(p => [newInc, ...p])
+    setNotifs(p => [{ id:'INN'+Date.now(), lv:'crit', read:false, title:`🔴 New Incident Reported — ${f.route}`, desc:`${f.type} incident (${f.sev}) reported on ${f.route}. Immediate investigation required.`, time:'Just now' }, ...p])
+    setModal(null)
+    showToast('Incident Reported', `${f.type} on ${f.route} — security team notified`)
+  }
+
+  const unreadCount = notifs.filter(n => !n.read).length
+  const shared = { suppliers, setSuppliers, gold, setGold, routes, secVendors, incidents, setIncidents, vendors, setVendors, inventory, setInventory, tasks, setTasks, checklist, setChecklist, canEdit, isAdmin, isHead, isMgmt, isUser, isExternal, showToast }
+
+  return (
+    <div style={{ fontFamily:'inherit', color:C.t1 }}>
+      <style>{`
+        @keyframes tabPingOps { 0%,100%{opacity:1} 50%{opacity:.5} }
+      `}</style>
+
+      {/* Sub-tab bar + notification bell */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:`1px solid ${C.border}`, marginBottom:22, flexWrap:'wrap', gap:4 }}>
+        <div style={{ display:'flex', gap:2, flexWrap:'wrap' }}>
+          {TABS.map(t => {
+            const active = t.id === activeTab
+            return (
+              <button key={t.id} onClick={() => setActiveTab(t.id)}
+                style={{ padding:'10px 14px', fontSize:12, fontWeight: active ? 700 : 600, cursor:'pointer', border:'none', background:'transparent', color: active ? '#a78bfa' : C.t3, borderBottom: active ? '2px solid #7c3aed' : '2px solid transparent', transition:'all .15s', fontFamily:'inherit', whiteSpace:'nowrap', flexShrink:0, marginBottom:-1 }}>
+                {t.label}
+              </button>
+            )
+          })}
+        </div>
+        {/* Bell */}
+        <button onClick={() => setNotifOpen(true)} style={{ position:'relative', width:36, height:36, borderRadius:8, background:'rgba(124,58,237,.1)', border:`1px solid rgba(124,58,237,.25)`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:17, flexShrink:0, marginBottom:4 }}>
+          🔔
+          {unreadCount > 0 && <span style={{ position:'absolute', top:-5, right:-5, width:18, height:18, borderRadius:'50%', background:C.red, color:'#fff', fontSize:9, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #13131f' }}>{unreadCount}</span>}
+        </button>
+      </div>
+
+      {activeTab === 'kpi'       && <TabKPI       {...shared} />}
+      {activeTab === 'checklist' && <TabChecklist  {...shared} />}
+      {activeTab === 'supply'    && <TabSupply     {...shared} onOpenAdd={() => setModal('supplier')} />}
+      {activeTab === 'gold'      && <TabGold       {...shared} />}
+      {activeTab === 'routes'    && <TabRoutes     {...shared} onOpenIncident={() => setModal('incident')} />}
+      {activeTab === 'security'  && <TabSecurity   {...shared} onOpenIncident={() => setModal('incident')} />}
+      {activeTab === 'vendors'   && <TabVendors    {...shared} onOpenAdd={() => showToast('Add Vendor','Vendor form opens here')} />}
+      {activeTab === 'inventory' && <TabInventory  {...shared} />}
+      {activeTab === 'map'       && <TabMap        {...shared} />}
+      {activeTab === 'analytics' && <TabAnalytics  {...shared} />}
+      {activeTab === 'tasks'     && <TabTasks      {...shared} onOpenAdd={() => setModal('task')} />}
+
+      {modal === 'supplier' && <ModalSupplier  onClose={() => setModal(null)} onAdd={addSupplier}  />}
+      {modal === 'task'     && <ModalTask      onClose={() => setModal(null)} onAdd={addTask}      />}
+      {modal === 'incident' && <ModalIncident  onClose={() => setModal(null)} onAdd={addIncident}  />}
+
+      {notifOpen && <NotifPanel notifs={notifs} setNotifs={setNotifs} onClose={() => setNotifOpen(false)} />}
+
+      <Toast t={toast} />
+    </div>
+  )
+}
