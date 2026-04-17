@@ -16,26 +16,65 @@
 //   Operations     → placeholder (to be built)
 //   Training       → placeholder (to be built)
 
-import { useState } from 'react'
+import { Component, Suspense, lazy, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
 
 // Import tab content components
 import OverviewTab     from '../components/tabs/OverviewTab'
-import AdminTab        from '../components/tabs/AdminTab'
-import HRTab           from '../components/tabs/HRTab'
-import FinanceTab      from '../components/tabs/FinanceTab'
-import ProductionTab   from '../components/tabs/ProductionTab'
-import ChatTab         from '../components/tabs/ChatTab'
-import TrainingTab     from '../components/tabs/TrainingTab'
-import OperationsTab   from '../components/tabs/OperationsTab'
-import SalesTab        from '../components/tabs/SalesTab'
-import PlaceholderTab  from '../components/tabs/PlaceholderTab'
+const AdminTab = lazy(() => import('../components/tabs/AdminTab'))
+const HRTab = lazy(() => import('../components/tabs/HRTab'))
+const FinanceTab = lazy(() => import('../components/tabs/FinanceTab'))
+const ProductionTab = lazy(() => import('../components/tabs/ProductionTab'))
+const ChatTab = lazy(() => import('../components/tabs/ChatTab'))
+const TrainingTab = lazy(() => import('../components/tabs/TrainingTab'))
+const OperationsTab = lazy(() => import('../components/tabs/OperationsTab'))
+const SalesTab = lazy(() => import('../components/tabs/SalesTab'))
+const ERPTab = lazy(() => import('../components/tabs/ERPTab'))
+const PlaceholderTab = lazy(() => import('../components/tabs/PlaceholderTab'))
+
+class TabErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false })
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 rounded-xl border" style={{ background: '#FFFFFF', borderColor: '#E5E7EB', color: '#1C2A33' }}>
+          <p style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>This module failed to load.</p>
+          <p style={{ margin: '8px 0 0', color: '#6B7280', fontSize: 14 }}>The rest of the dashboard is still available. Switch tabs or reload the page.</p>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
+
+function TabLoadingFallback() {
+  return (
+    <div className="p-6 rounded-xl border" style={{ background: '#FFFFFF', borderColor: '#E5E7EB', color: '#1C2A33' }}>
+      <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Loading module...</p>
+    </div>
+  )
+}
 
 // ── Role badge config ────────────────────────────
 const ROLE_LABELS = {
-  super_admin:     { label: 'Super Admin',  style: { color: 'var(--purple-light)', background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)' } },
+  super_admin:     { label: 'Super Admin',  style: { color: '#00684A', background: 'rgba(0,104,74,0.1)', border: '1px solid rgba(0,104,74,0.3)' } },
   management:      { label: 'Management',   style: { color: '#60a5fa', background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.25)' } },
   department_head: { label: 'Dept. Head',   style: { color: '#fbbf24', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' } },
   department_user: { label: 'Dept. User',   style: { color: 'var(--text-secondary)', background: 'var(--bg-card-hover)', border: '1px solid var(--border)' } },
@@ -88,6 +127,7 @@ function getNavItems(perms, chatUnread = 0) {
     { id: 'sales',       icon: '📈',  label: 'Sales',               group: 'departments', show: perms.canViewModule('sales') },
     { id: 'operations',  icon: '🚛',  label: 'Operations',          group: 'departments', show: perms.canViewModule('operations') },
     { id: 'training',    icon: '🎓',  label: 'Training',            group: 'departments', show: perms.canViewModule('training') },
+    { id: 'erp',         icon: '🏭',  label: 'ERP',                 group: 'departments', show: !perms.isExternal },
 
     // ── More tabs added here as client requests ──
     // { id: 'reports',  icon: '📊', label: 'Reports', group: 'more', show: true },
@@ -134,6 +174,9 @@ function renderTab(tabId, setActiveTab, setChatUnread) {
     case 'training':
       return <TrainingTab />
 
+    case 'erp':
+      return <ERPTab />
+
     default:
       return (
         <div className="text-center py-20 text-gray-500">
@@ -141,6 +184,16 @@ function renderTab(tabId, setActiveTab, setChatUnread) {
         </div>
       )
   }
+}
+
+function renderTabContent(tabId, setActiveTab, setChatUnread) {
+  return (
+    <TabErrorBoundary resetKey={tabId}>
+      <Suspense fallback={<TabLoadingFallback />}>
+        {renderTab(tabId, setActiveTab, setChatUnread)}
+      </Suspense>
+    </TabErrorBoundary>
+  )
 }
 
 // ══════════════════════════════════════════════
@@ -189,7 +242,7 @@ function Dashboard() {
               🏢
             </div>
             <div className="min-w-0">
-              <p className="font-bold text-white text-sm truncate">Ops Dashboard</p>
+              <p className="font-bold text-sm truncate" style={{ color: '#1C2A33' }}>Ops Dashboard</p>
               <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>Control System</p>
             </div>
           </div>
@@ -208,7 +261,10 @@ function Dashboard() {
           {/* Admin section */}
           {adminItems.length > 0 && (
             <>
-              <div className="sidebar-section-title">Admin</div>
+              <div className="sidebar-section-title">
+                <span>Admin</span>
+                <span className="section-chevron">▾</span>
+              </div>
               {adminItems.map(item => (
                 <NavItem key={item.id} {...item}
                   active={activeTab === item.id}
@@ -220,7 +276,10 @@ function Dashboard() {
           {/* Departments */}
           {deptItems.length > 0 && (
             <>
-              <div className="sidebar-section-title">Departments</div>
+              <div className="sidebar-section-title">
+                <span>Departments</span>
+                <span className="section-chevron">▾</span>
+              </div>
               {deptItems.map(item => (
                 <NavItem key={item.id} {...item}
                   active={activeTab === item.id}
@@ -239,14 +298,14 @@ function Dashboard() {
               {user?.name?.[0]?.toUpperCase() || 'U'}
             </div>
             <div className="flex-1 min-w-100px">
-              <p className="text-sm font-medium text-white truncate">{user?.name}</p>
+              <p className="text-sm font-medium truncate" style={{ color: '#1C2A33' }}>{user?.name}</p>
               <RoleBadge role={user?.role} />
             </div>
           </div>
           <button onClick={handleLogout}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all"
             style={{ color: 'var(--text-muted)' }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'rgba(239,68,68,0.08)' }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.background = 'rgba(239,68,68,0.08)' }}
             onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round"
@@ -277,7 +336,7 @@ function Dashboard() {
               <button onClick={() => setSidebarOpen(!sidebarOpen)}
                 className="lg:hidden p-2 rounded-lg transition-colors"
                 style={{ color: 'var(--text-muted)' }}
-                onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-hover)' }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'rgba(255,255,255,0.12)' }}
                 onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -286,10 +345,10 @@ function Dashboard() {
 
               {/* Breadcrumb */}
               <div>
-                <h1 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+                <h1 className="topbar-title">
                   {currentTab?.label || 'Dashboard'}
                 </h1>
-                <p className="text-xs hidden sm:block" style={{ color: 'var(--text-muted)' }}>
+                <p className="topbar-subtitle hidden sm:block">
                   {new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' })}
                 </p>
               </div>
@@ -322,7 +381,7 @@ function Dashboard() {
         {/* Page content */}
         <main className={`flex-1 ${activeTab === 'chat' ? 'overflow-hidden' : 'p-6 overflow-y-auto'}`}
           style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-          {renderTab(activeTab, setActiveTab, setChatUnread)}
+          {renderTabContent(activeTab, setActiveTab, setChatUnread)}
         </main>
 
       </div>

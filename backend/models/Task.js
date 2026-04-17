@@ -29,14 +29,24 @@ const taskSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    module: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    linkedRecord: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     status: {
       type: String,
-      enum: ['todo', 'in-progress', 'done'],
+      enum: ['todo', 'in-progress', 'blocked', 'under-review', 'done', 'cancelled'],
       default: 'todo',
     },
     priority: {
       type: String,
-      enum: ['low', 'medium', 'high'],
+      enum: ['low', 'medium', 'high', 'critical'],
       default: 'medium',
     },
     dueDate: {

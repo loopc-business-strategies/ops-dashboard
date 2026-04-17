@@ -9,23 +9,23 @@ import { usePermissions } from '../../hooks/usePermissions'
 // DESIGN TOKENS (matching prototype exactly)
 // ─────────────────────────────────────────────────────────
 const C = {
-  sidebar:       '#13161e',
-  sidebarHover:  '#1c2130',
-  sidebarActive: '#1f2840',
-  main:          '#0e1117',
-  bubbleIn:      '#1e2535',
-  bubbleMe:      '#7c3aed',
-  inputBg:       '#13161e',
-  border:        'rgba(255,255,255,0.07)',
-  accent:        '#7c3aed',
-  accent2:       '#a78bfa',
+  sidebar:       '#ffffff',
+  sidebarHover:  '#f0faf5',
+  sidebarActive: '#e6f5ef',
+  main:          '#f8f9fa',
+  bubbleIn:      '#f0f2f5',
+  bubbleMe:      '#00684A',
+  inputBg:       '#ffffff',
+  border:        'rgba(0,104,74,0.12)',
+  accent:        '#00684A',
+  accent2:       '#13AA52',
 }
 
 // ─────────────────────────────────────────────────────────
 // SEED DATA
 // ─────────────────────────────────────────────────────────
 const SEED_USERS = [
-  { id: 'sa',       name: 'Admin',        dept: 'Admin',      color: '#7c3aed', initials: 'SA' },
+  { id: 'sa',       name: 'Admin',        dept: 'Admin',      color: '#00684A', initials: 'SA' },
   { id: 'ali',      name: 'Ali Hassan',   dept: 'Production', color: '#60a5fa', initials: 'AH' },
   { id: 'sara',     name: 'Sara Ahmed',   dept: 'Compliance', color: '#c084fc', initials: 'SA' },
   { id: 'fatima',   name: 'Fatima Noor',  dept: 'HR',         color: '#2dd4bf', initials: 'FN' },
@@ -137,13 +137,13 @@ function FileCard({ file, isMe }) {
   }
   const cf = cfgs[file.ext?.toLowerCase()] || { icon:'📎', bg:'rgba(148,163,184,0.18)', color:'#94a3b8' }
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:6, background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:10, padding:'10px 12px', cursor:'pointer' }}>
+    <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:6, background:'#f0f2f5', border:`1px solid ${C.border}`, borderRadius:10, padding:'10px 12px', cursor:'pointer' }}>
       <div style={{ width:36, height:36, borderRadius:8, background:cf.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{cf.icon}</div>
       <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontSize:12, fontWeight:600, color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{file.name}</div>
-        <div style={{ fontSize:10, color:'#6b7694', marginTop:2 }}>{file.size}</div>
+        <div style={{ fontSize:12, fontWeight:600, color:'#1c2a33', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{file.name}</div>
+        <div style={{ fontSize:10, color:'#6b7280', marginTop:2 }}>{file.size}</div>
       </div>
-      <div style={{ fontSize:16, color:'#6b7694', flexShrink:0 }}>⬇️</div>
+        <div style={{ fontSize:16, color:'#6b7280', flexShrink:0 }}>⬇️</div>
     </div>
   )
 }
@@ -155,7 +155,7 @@ function TypingDots() {
   return (
     <div style={{ display:'flex', gap:3 }}>
       {[0,1,2].map(i => (
-        <div key={i} style={{ width:5, height:5, borderRadius:'50%', background:'#6b7694', animation:'chatBounce 1.2s infinite', animationDelay:`${i*0.2}s` }} />
+        <div key={i} style={{ width:5, height:5, borderRadius:'50%', background:'#6b7280', animation:'chatBounce 1.2s infinite', animationDelay:`${i*0.2}s` }} />
       ))}
       <style>{`@keyframes chatBounce{0%,60%,100%{opacity:.25;transform:scale(1)}30%{opacity:1;transform:scale(1.35)}}`}</style>
     </div>
@@ -173,7 +173,7 @@ function IBtn({ onClick, title, children, style = {} }) {
       title={title}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      style={{ width:32, height:32, borderRadius:'50%', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color: hover ? '#fff' : '#b0bac8', background: hover ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)', transition:'all .15s', ...style }}
+      style={{ width:32, height:32, borderRadius:'50%', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color: hover ? '#ffffff' : '#6b7280', background: hover ? C.accent : 'rgba(0,104,74,0.08)', transition:'all .15s', ...style }}
     >
       {children}
     </button>
@@ -309,8 +309,8 @@ function ChatTab({ onUnreadChange }) {
         <div style={{ padding:'16px 16px 12px' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
             <div>
-              <div style={{ fontSize:18, fontWeight:700, color:'#fff', letterSpacing:'-0.3px' }}>💬 Chat</div>
-              <div style={{ fontSize:11, color:'#6b7694', marginTop:2 }}>
+              <div style={{ fontSize:18, fontWeight:700, color:'#1c2a33', letterSpacing:'-0.3px' }}>💬 Chat</div>
+              <div style={{ fontSize:11, color:'#6b7280', marginTop:2 }}>
                 {new Date().toLocaleDateString('en-US',{ weekday:'short', day:'numeric', month:'short', year:'numeric' })}
               </div>
             </div>
@@ -326,14 +326,14 @@ function ChatTab({ onUnreadChange }) {
 
           {/* Search */}
           <div style={{ position:'relative' }}>
-            <div style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', color:'#6b7694', display:'flex' }}><IconSearch /></div>
+            <div style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', color:'#6b7280', display:'flex' }}><IconSearch /></div>
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search chats..."
-              style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1.5px solid rgba(255,255,255,0.08)', borderRadius:10, padding:'9px 12px 9px 36px', fontSize:13, color:'#fff', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
+              style={{ width:'100%', background:'#f8f9fa', border:'1.5px solid rgba(0,104,74,0.2)', borderRadius:10, padding:'9px 12px 9px 36px', fontSize:13, color:'#1c2a33', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
               onFocus={e => e.target.style.borderColor = C.accent}
-              onBlur={e  => e.target.style.borderColor = 'rgba(255,255,255,0.08)'}
+              onBlur={e  => e.target.style.borderColor = 'rgba(0,104,74,0.2)'}
             />
           </div>
         </div>
@@ -342,29 +342,29 @@ function ChatTab({ onUnreadChange }) {
         {canCreateGroup ? (
           <div
             onClick={() => setShowGroupModal(true)}
-            style={{ margin:'4px 14px 6px', padding:'10px 14px', borderRadius:10, background:'rgba(124,58,237,0.12)', border:'1.5px dashed rgba(124,58,237,0.35)', display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}
-            onMouseEnter={e => { e.currentTarget.style.background='rgba(124,58,237,0.2)'; e.currentTarget.style.borderColor='rgba(124,58,237,0.6)' }}
-            onMouseLeave={e => { e.currentTarget.style.background='rgba(124,58,237,0.12)'; e.currentTarget.style.borderColor='rgba(124,58,237,0.35)' }}
+            style={{ margin:'4px 14px 6px', padding:'10px 14px', borderRadius:10, background:'rgba(0,104,74,0.12)', border:'1.5px dashed rgba(0,104,74,0.35)', display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}
+            onMouseEnter={e => { e.currentTarget.style.background='rgba(0,104,74,0.2)'; e.currentTarget.style.borderColor='rgba(0,104,74,0.6)' }}
+            onMouseLeave={e => { e.currentTarget.style.background='rgba(0,104,74,0.12)'; e.currentTarget.style.borderColor='rgba(0,104,74,0.35)' }}
           >
             <div style={{ width:28, height:28, borderRadius:8, background:C.accent, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, color:'#fff', flexShrink:0, fontWeight:700 }}>+</div>
             <div>
               <div style={{ fontSize:12, fontWeight:600, color:C.accent }}>Create New Group</div>
-              <div style={{ fontSize:10, color:'rgba(124,58,237,0.6)', marginTop:1 }}>Admin &amp; Dept Heads only</div>
+              <div style={{ fontSize:10, color:'rgba(0,104,74,0.6)', marginTop:1 }}>Admin &amp; Dept Heads only</div>
             </div>
           </div>
         ) : (
-          <div style={{ margin:'4px 14px 6px', padding:'8px 12px', borderRadius:8, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', fontSize:11, color:'#6b7694', display:'flex', gap:6, alignItems:'center' }}>
+          <div style={{ margin:'4px 14px 6px', padding:'8px 12px', borderRadius:8, background:'rgba(0,104,74,0.04)', border:`1px solid ${C.border}`, fontSize:11, color:'#6b7280', display:'flex', gap:6, alignItems:'center' }}>
             <IconLock /> Group creation — Admin / Head only
           </div>
         )}
 
         {/* Chat list */}
-        <div style={{ flex:1, overflowY:'auto', scrollbarWidth:'thin', scrollbarColor:`#3d4560 transparent` }}>
+        <div style={{ flex:1, overflowY:'auto', scrollbarWidth:'thin', scrollbarColor:`rgba(0,104,74,0.3) transparent` }}>
 
           {/* Groups */}
           {groupChats.length > 0 && (
             <>
-              <div style={{ padding:'10px 16px 5px', fontSize:10, fontWeight:700, color:'#6b7694', letterSpacing:'0.1em', textTransform:'uppercase' }}>Groups</div>
+              <div style={{ padding:'10px 16px 5px', fontSize:10, fontWeight:700, color:'#6b7280', letterSpacing:'0.1em', textTransform:'uppercase' }}>Groups</div>
               {groupChats.map(chat => {
                 const last   = chat.messages[chat.messages.length - 1]
                 const sender = last ? getUser(last.from) : null
@@ -377,21 +377,21 @@ function ChatTab({ onUnreadChange }) {
                     onMouseEnter={e => { if (!active) e.currentTarget.style.background = C.sidebarHover }}
                     onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
                   >
-                    <div style={{ width:42, height:42, borderRadius:'50%', background:'rgba(255,255,255,0.06)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>👥</div>
+                    <div style={{ width:42, height:42, borderRadius:'50%', background:'rgba(0,104,74,0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>👥</div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
                         <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-                          <span style={{ fontSize:13, fontWeight:600, color:'#fff' }}>{chat.name}</span>
-                          <span style={{ fontSize:9, background:'rgba(255,255,255,0.07)', color:'#6b7694', padding:'2px 6px', borderRadius:5, fontWeight:600 }}>Group</span>
+                          <span style={{ fontSize:13, fontWeight:600, color:'#1c2a33' }}>{chat.name}</span>
+                          <span style={{ fontSize:9, background:'rgba(0,104,74,0.1)', color:'#00684A', padding:'2px 6px', borderRadius:5, fontWeight:600 }}>Group</span>
                         </div>
-                        <span style={{ fontSize:10, color:'#6b7694', flexShrink:0 }}>{last ? msgTime(last.time) : ''}</span>
+                        <span style={{ fontSize:10, color:'#6b7280', flexShrink:0 }}>{last ? msgTime(last.time) : ''}</span>
                       </div>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                        <span style={{ fontSize:11.5, color: chat.unread ? '#b0bac8' : '#6b7694', fontWeight: chat.unread ? 500 : 400, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
+                        <span style={{ fontSize:11.5, color: chat.unread ? '#374151' : '#6b7280', fontWeight: chat.unread ? 500 : 400, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
                           {last ? (sender?.name ? sender.name + ': ' : '') + (last.file ? '📎 File' : last.text.substring(0,32)) : 'No messages yet'}
                         </span>
                         {chat.unread > 0 && (
-                          <span style={{ background: chat.muted ? '#3d4560' : C.accent, color:'#fff', fontSize:10, fontWeight:700, minWidth:18, height:18, borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 4px', flexShrink:0, marginLeft:4 }}>
+                          <span style={{ background: chat.muted ? '#94a3b8' : C.accent, color:'#fff', fontSize:10, fontWeight:700, minWidth:18, height:18, borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 4px', flexShrink:0, marginLeft:4 }}>
                             {chat.unread}
                           </span>
                         )}
@@ -406,7 +406,7 @@ function ChatTab({ onUnreadChange }) {
           {/* Direct Messages */}
           {directChats.length > 0 && (
             <>
-              <div style={{ padding:'10px 16px 5px', fontSize:10, fontWeight:700, color:'#6b7694', letterSpacing:'0.1em', textTransform:'uppercase', marginTop:6 }}>Direct Messages</div>
+              <div style={{ padding:'10px 16px 5px', fontSize:10, fontWeight:700, color:'#6b7280', letterSpacing:'0.1em', textTransform:'uppercase', marginTop:6 }}>Direct Messages</div>
               {directChats.map(chat => {
                 const other  = getUser(chat.otherId)
                 const last   = chat.messages[chat.messages.length - 1]
@@ -423,15 +423,15 @@ function ChatTab({ onUnreadChange }) {
                       <div style={{ width:42, height:42, borderRadius:'50%', background:(other?.color || '#6b7280') + '20', color: other?.color || '#9ca3af', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700 }}>
                         {other?.initials || '?'}
                       </div>
-                      <div style={{ position:'absolute', bottom:1, right:1, width:11, height:11, borderRadius:'50%', background:'#22c55e', border:`2.5px solid ${C.sidebar}` }} />
+                      <div style={{ position:'absolute', bottom:1, right:1, width:11, height:11, borderRadius:'50%', background:'#22c55e', border:`2.5px solid #ffffff` }} />
                     </div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
-                        <span style={{ fontSize:13, fontWeight:600, color:'#fff' }}>{chat.name}</span>
-                        <span style={{ fontSize:10, color:'#6b7694', flexShrink:0 }}>{last ? msgTime(last.time) : ''}</span>
+                        <span style={{ fontSize:13, fontWeight:600, color:'#1c2a33' }}>{chat.name}</span>
+                        <span style={{ fontSize:10, color:'#6b7280', flexShrink:0 }}>{last ? msgTime(last.time) : ''}</span>
                       </div>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                        <span style={{ fontSize:11.5, color: chat.unread ? '#b0bac8' : '#6b7694', fontWeight: chat.unread ? 500 : 400, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
+                        <span style={{ fontSize:11.5, color: chat.unread ? '#374151' : '#6b7280', fontWeight: chat.unread ? 500 : 400, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
                           {last ? (last.file ? '📎 File' : last.text.substring(0,32)) : 'Start a conversation'}
                         </span>
                         {chat.unread > 0 && !chat.muted && (
@@ -448,7 +448,7 @@ function ChatTab({ onUnreadChange }) {
           )}
 
           {filtered.length === 0 && (
-            <div style={{ textAlign:'center', padding:'40px 16px', fontSize:13, color:'#6b7694' }}>No chats found</div>
+            <div style={{ textAlign:'center', padding:'40px 16px', fontSize:13, color:'#6b7280' }}>No chats found</div>
           )}
         </div>
       </div>
@@ -457,7 +457,7 @@ function ChatTab({ onUnreadChange }) {
       <div style={{ flex:1, display:'flex', flexDirection:'column', background:C.main, minWidth:0 }}>
 
         {!activeChat ? (
-          <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, color:'#6b7694' }}>
+          <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, color:'#6b7280' }}>
             <div style={{ fontSize:52, opacity:.2 }}>💬</div>
             <div style={{ fontSize:14, fontWeight:600 }}>Select a conversation</div>
             <div style={{ fontSize:12, opacity:.6 }}>Choose from the list on the left</div>
@@ -467,18 +467,18 @@ function ChatTab({ onUnreadChange }) {
             {/* Chat Header */}
             <div style={{ padding:'30px 20px', background:C.sidebar, borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
               {activeChat.type === 'group' ? (
-                <div style={{ width:40, height:40, borderRadius:'50%', background:'rgba(255,255,255,0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>👥</div>
+                <div style={{ width:40, height:40, borderRadius:'50%', background:'rgba(0,104,74,0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>👥</div>
               ) : (
                 <div style={{ position:'relative', flexShrink:0 }}>
                   <div style={{ width:40, height:40, borderRadius:'50%', background:(getUser(activeChat.otherId)?.color || '#6b7280') + '20', color: getUser(activeChat.otherId)?.color || '#9ca3af', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700 }}>
                     {getUser(activeChat.otherId)?.initials || '?'}
                   </div>
-                  <div style={{ position:'absolute', bottom:0, right:0, width:11, height:11, borderRadius:'50%', background:'#22c55e', border:`2.5px solid ${C.sidebar}` }} />
+                  <div style={{ position:'absolute', bottom:0, right:0, width:11, height:11, borderRadius:'50%', background:'#22c55e', border:`2.5px solid #ffffff` }} />
                 </div>
               )}
 
               <div style={{ flex:1 }}>
-                <div style={{ fontSize:15, fontWeight:700, color:'#fff' }}>{activeChat.name}</div>
+                <div style={{ fontSize:15, fontWeight:700, color:'#1c2a33' }}>{activeChat.name}</div>
                 <div style={{ fontSize:11, color:'#22c55e', marginTop:2, display:'flex', alignItems:'center', gap:5 }}>
                   <div style={{ width:6, height:6, borderRadius:'50%', background:'#22c55e', display:'inline-block' }} />
                   {activeChat.type === 'group' ? `${activeChat.members.length} members · Active` : 'Online now'}
@@ -489,9 +489,9 @@ function ChatTab({ onUnreadChange }) {
                 {/* Video button */}
                 <button
                   onClick={() => showToast('📹 Video Call', `Starting video call with ${activeChat.name}...`, '#60a5fa')}
-                  style={{ padding:'7px 14px', borderRadius:8, border:'1.5px solid rgba(255,255,255,0.1)', cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:'inherit', display:'flex', alignItems:'center', gap:6, background:'rgba(255,255,255,0.08)', color:'#fff', transition:'all .2s' }}
-                  onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.14)'}
-                  onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.08)'}
+                  style={{ padding:'7px 14px', borderRadius:8, border:`1.5px solid ${C.border}`, cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:'inherit', display:'flex', alignItems:'center', gap:6, background:'#f8f9fa', color:'#374151', transition:'all .2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background='#f0faf5'}
+                  onMouseLeave={e => e.currentTarget.style.background='#f8f9fa'}
                 >
                   <IconVideo /> Video
                 </button>
@@ -509,8 +509,8 @@ function ChatTab({ onUnreadChange }) {
             </div>
 
             {/* Messages */}
-            <div style={{ flex:1, overflowY:'auto', padding:'20px 18px', display:'flex', flexDirection:'column', gap:4, scrollbarWidth:'thin', scrollbarColor:`#3d4560 transparent` }}>
-              <div style={{ alignSelf:'center', fontSize:11, fontWeight:600, color:'#6b7694', background:'rgba(255,255,255,0.05)', padding:'4px 14px', borderRadius:20, marginBottom:8 }}>Today</div>
+            <div style={{ flex:1, overflowY:'auto', padding:'20px 18px', display:'flex', flexDirection:'column', gap:4, scrollbarWidth:'thin', scrollbarColor:`rgba(0,104,74,0.3) transparent` }}>
+              <div style={{ alignSelf:'center', fontSize:11, fontWeight:600, color:'#6b7280', background:'#f0f2f5', padding:'4px 14px', borderRadius:20, marginBottom:8 }}>Today</div>
 
               {activeChat.messages.map((msg, idx) => {
                 const isMe    = msg.from === myId
@@ -542,7 +542,7 @@ function ChatTab({ onUnreadChange }) {
                         borderRadius:16,
                         fontSize:13,
                         lineHeight:1.55,
-                        color:'#fff',
+                        color: isMe ? '#ffffff' : '#1c2a33',
                         wordBreak:'break-word',
                         background: isMe ? C.bubbleMe : C.bubbleIn,
                         borderBottomRightRadius: isMe ? 4 : 16,
@@ -551,7 +551,7 @@ function ChatTab({ onUnreadChange }) {
                         {msg.text && <div>{msg.text}</div>}
                         {msg.file && <FileCard file={msg.file} isMe={isMe} />}
                         <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:4, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
-                          <span style={{ fontSize:10, color: isMe ? 'rgba(255,255,255,0.55)' : '#6b7694' }}>{msgTime(msg.time)}</span>
+                          <span style={{ fontSize:10, color: isMe ? 'rgba(255,255,255,0.55)' : '#6b7280' }}>{msgTime(msg.time)}</span>
                           {isMe && <span style={{ fontSize:12, color:'#60a5fa' }}>✓✓</span>}
                         </div>
                       </div>
@@ -566,7 +566,7 @@ function ChatTab({ onUnreadChange }) {
                   <div style={{ width:30, height:30, borderRadius:'50%', background:(getUser(activeChat.otherId)?.color || '#6b7280') + '20', color: getUser(activeChat.otherId)?.color || '#9ca3af', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, flexShrink:0 }}>
                     {getUser(activeChat.otherId)?.initials || '?'}
                   </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'12px 16px', borderRadius:16, borderBottomLeftRadius:4, background:C.bubbleIn, fontSize:11, color:'#6b7694' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'12px 16px', borderRadius:16, borderBottomLeftRadius:4, background:C.bubbleIn, fontSize:11, color:'#6b7280' }}>
                     <TypingDots />
                     <span>{getUser(activeChat.otherId)?.name} is typing…</span>
                   </div>
@@ -584,7 +584,7 @@ function ChatTab({ onUnreadChange }) {
                 <div style={{ position:'relative' }}>
                   <IBtn title="Attach file" onClick={() => setShowAttach(a => !a)}><IconAttach /></IBtn>
                   {showAttach && (
-                    <div style={{ position:'absolute', bottom:'calc(100% + 8px)', left:0, background:'#1a2035', border:'1px solid rgba(255,255,255,0.12)', borderRadius:14, padding:10, display:'flex', gap:8, zIndex:20, boxShadow:'0 8px 32px rgba(0,0,0,0.5)' }}>
+                    <div style={{ position:'absolute', bottom:'calc(100% + 8px)', left:0, background:'#ffffff', border:`1px solid ${C.border}`, borderRadius:14, padding:10, display:'flex', gap:8, zIndex:20, boxShadow:'0 8px 24px rgba(0,0,0,0.12)' }}>
                       {[
                         { type:'PDF',  icon:'📄', label:'PDF',   bg:'rgba(239,68,68,0.18)'  },
                         { type:'DOC',  icon:'📝', label:'Word',  bg:'rgba(96,165,250,0.18)' },
@@ -607,9 +607,9 @@ function ChatTab({ onUnreadChange }) {
                 </div>
 
                 {/* Input box */}
-                <div style={{ flex:1, display:'flex', alignItems:'center', background:'rgba(255,255,255,0.06)', border:'1.5px solid rgba(255,255,255,0.1)', borderRadius:24, padding:'9px 16px', gap:8, transition:'border-color .2s' }}
+                <div style={{ flex:1, display:'flex', alignItems:'center', background:'#f8f9fa', border:'1.5px solid rgba(0,104,74,0.2)', borderRadius:24, padding:'9px 16px', gap:8, transition:'border-color .2s' }}
                   onFocusCapture={e => e.currentTarget.style.borderColor = C.accent}
-                  onBlurCapture={e  => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+                  onBlurCapture={e  => e.currentTarget.style.borderColor = 'rgba(0,104,74,0.2)'}
                 >
                   <input
                     ref={inputRef}
@@ -618,7 +618,7 @@ function ChatTab({ onUnreadChange }) {
                     onChange={e => setMsgText(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMessage(activeChatId))}
                     placeholder="Type a message..."
-                    style={{ flex:1, background:'none', border:'none', outline:'none', fontSize:13, color:'#fff', fontFamily:'inherit' }}
+                    style={{ flex:1, background:'none', border:'none', outline:'none', fontSize:13, color:'#1c2a33', fontFamily:'inherit' }}
                   />
                   <button style={{ background:'none', border:'none', cursor:'pointer', fontSize:18, opacity:.6 }} onClick={() => {}}>😊</button>
                 </div>
@@ -627,9 +627,9 @@ function ChatTab({ onUnreadChange }) {
                 <button
                   onClick={() => sendMessage(activeChatId)}
                   disabled={!msgText.trim()}
-                  style={{ width:40, height:40, borderRadius:'50%', background: msgText.trim() ? C.accent : 'rgba(124,58,237,0.3)', border:'none', cursor: msgText.trim() ? 'pointer' : 'not-allowed', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', flexShrink:0 }}
+                  style={{ width:40, height:40, borderRadius:'50%', background: msgText.trim() ? C.accent : 'rgba(0,104,74,0.3)', border:'none', cursor: msgText.trim() ? 'pointer' : 'not-allowed', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', flexShrink:0 }}
                   onMouseEnter={e => { if (msgText.trim()) { e.currentTarget.style.background=C.accent2; e.currentTarget.style.transform='scale(1.06)' }}}
-                  onMouseLeave={e => { e.currentTarget.style.background = msgText.trim() ? C.accent : 'rgba(124,58,237,0.3)'; e.currentTarget.style.transform='scale(1)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = msgText.trim() ? C.accent : 'rgba(0,104,74,0.3)'; e.currentTarget.style.transform='scale(1)' }}
                 >
                   <IconSend />
                 </button>
@@ -642,12 +642,12 @@ function ChatTab({ onUnreadChange }) {
       {/* ═══════════ CREATE GROUP MODAL ═══════════ */}
       {showGroupModal && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500, backdropFilter:'blur(6px)' }}>
-          <div style={{ background:'#161d2b', border:'1px solid rgba(255,255,255,0.12)', borderRadius:18, padding:24, width:380, maxWidth:'92vw', boxShadow:'0 20px 60px rgba(0,0,0,0.6)' }}>
+          <div style={{ background:'#ffffff', border:`1px solid ${C.border}`, borderRadius:18, padding:24, width:380, maxWidth:'92vw', boxShadow:'0 20px 40px rgba(0,0,0,0.15)' }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
-              <div style={{ fontSize:17, fontWeight:700, color:'#fff' }}>Create New Group</div>
-              <button onClick={() => setShowGroupModal(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#6b7694', fontSize:18 }}>✕</button>
+              <div style={{ fontSize:17, fontWeight:700, color:'#1c2a33' }}>Create New Group</div>
+              <button onClick={() => setShowGroupModal(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#6b7280', fontSize:18 }}>✕</button>
             </div>
-            <div style={{ fontSize:12, color:'#6b7694', marginBottom:18 }}>Only Super Admin &amp; Dept Heads can create groups</div>
+            <div style={{ fontSize:12, color:'#6b7280', marginBottom:18 }}>Only Super Admin &amp; Dept Heads can create groups</div>
 
             <div style={{ marginBottom:12 }}>
               <input
@@ -655,31 +655,31 @@ function ChatTab({ onUnreadChange }) {
                 onChange={e => setGroupForm(p => ({ ...p, name:e.target.value }))}
                 placeholder="Group name e.g. Production Team"
                 autoFocus
-                style={{ width:'100%', background:'rgba(255,255,255,0.06)', border:'1.5px solid rgba(255,255,255,0.1)', borderRadius:10, padding:'10px 14px', fontSize:13, color:'#fff', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
+                style={{ width:'100%', background:'#f8f9fa', border:'1.5px solid rgba(0,104,74,0.2)', borderRadius:10, padding:'10px 14px', fontSize:13, color:'#1c2a33', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
                 onFocus={e => e.target.style.borderColor = C.accent}
-                onBlur={e  => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                onBlur={e  => e.target.style.borderColor = 'rgba(0,104,74,0.2)'}
               />
             </div>
             <div style={{ marginBottom:16 }}>
               <select
                 value={groupForm.dept}
                 onChange={e => setGroupForm(p => ({ ...p, dept:e.target.value }))}
-                style={{ width:'100%', background:'rgba(255,255,255,0.06)', border:'1.5px solid rgba(255,255,255,0.1)', borderRadius:10, padding:'10px 14px', fontSize:13, color:'#fff', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
+                style={{ width:'100%', background:'#f8f9fa', border:'1.5px solid rgba(0,104,74,0.2)', borderRadius:10, padding:'10px 14px', fontSize:13, color:'#1c2a33', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
                 onFocus={e => e.target.style.borderColor = C.accent}
-                onBlur={e  => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                onBlur={e  => e.target.style.borderColor = 'rgba(0,104,74,0.2)'}
               >
-                <option value="" style={{ background:'#161d2b' }}>Select department scope</option>
+                <option value="" style={{ background:'#ffffff' }}>Select department scope</option>
                 {['All Departments','Production & Factory','HR & Hiring','Finance & Accounts','Govt. & Compliance','Sales & Marketing','Operations & Logistics','Training & Dev.'].map(d => (
-                  <option key={d} value={d} style={{ background:'#161d2b' }}>{d}</option>
+                  <option key={d} value={d} style={{ background:'#ffffff' }}>{d}</option>
                 ))}
               </select>
             </div>
 
-            <div style={{ fontSize:11, color:'#6b7694', fontWeight:600, marginBottom:8, letterSpacing:'0.05em', textTransform:'uppercase' }}>Add Members</div>
-            <div style={{ maxHeight:160, overflowY:'auto', marginBottom:18, scrollbarWidth:'thin', scrollbarColor:'#3d4560 transparent' }}>
+            <div style={{ fontSize:11, color:'#6b7280', fontWeight:600, marginBottom:8, letterSpacing:'0.05em', textTransform:'uppercase' }}>Add Members</div>
+            <div style={{ maxHeight:160, overflowY:'auto', marginBottom:18, scrollbarWidth:'thin', scrollbarColor:'rgba(0,104,74,0.3) transparent' }}>
               {SEED_USERS.filter(u => u.id !== myId).map(u => (
                 <label key={u.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:8, cursor:'pointer', transition:'background .15s' }}
-                  onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.05)'}
+                  onMouseEnter={e => e.currentTarget.style.background='rgba(0,104,74,0.06)'}
                   onMouseLeave={e => e.currentTarget.style.background='transparent'}
                 >
                   <input
@@ -689,8 +689,8 @@ function ChatTab({ onUnreadChange }) {
                     style={{ accentColor:C.accent, width:15, height:15, flexShrink:0 }}
                   />
                   <div style={{ width:30, height:30, borderRadius:'50%', background:u.color + '20', color:u.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, flexShrink:0 }}>{u.initials}</div>
-                  <span style={{ flex:1, fontSize:13, color:'#fff' }}>{u.name}</span>
-                  <span style={{ fontSize:10, color:'#6b7694' }}>{u.dept}</span>
+                  <span style={{ flex:1, fontSize:13, color:'#1c2a33' }}>{u.name}</span>
+                  <span style={{ fontSize:10, color:'#6b7280' }}>{u.dept}</span>
                 </label>
               ))}
             </div>
@@ -698,18 +698,18 @@ function ChatTab({ onUnreadChange }) {
             <div style={{ display:'flex', gap:8 }}>
               <button
                 onClick={() => { setShowGroupModal(false); setGroupForm({ name:'', dept:'', members:[] }) }}
-                style={{ flex:1, padding:10, borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', border:'none', background:'rgba(255,255,255,0.07)', color:'#b0bac8', transition:'all .2s' }}
-                onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.12)'}
-                onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.07)'}
+                style={{ flex:1, padding:10, borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', border:'1px solid rgba(0,0,0,0.1)', background:'#f3f4f6', color:'#374151', transition:'all .2s' }}
+                onMouseEnter={e => e.currentTarget.style.background='#e5e7eb'}
+                onMouseLeave={e => e.currentTarget.style.background='#f3f4f6'}
               >
                 Cancel
               </button>
               <button
                 onClick={createGroup}
                 disabled={!groupForm.name.trim()}
-                style={{ flex:1, padding:10, borderRadius:10, fontSize:13, fontWeight:600, cursor: groupForm.name.trim() ? 'pointer' : 'not-allowed', fontFamily:'inherit', border:'none', background: groupForm.name.trim() ? C.accent : 'rgba(124,58,237,0.3)', color:'#fff', transition:'all .2s' }}
+                style={{ flex:1, padding:10, borderRadius:10, fontSize:13, fontWeight:600, cursor: groupForm.name.trim() ? 'pointer' : 'not-allowed', fontFamily:'inherit', border:'none', background: groupForm.name.trim() ? C.accent : 'rgba(0,104,74,0.3)', color:'#fff', transition:'all .2s' }}
                 onMouseEnter={e => { if (groupForm.name.trim()) e.currentTarget.style.background=C.accent2 }}
-                onMouseLeave={e => { e.currentTarget.style.background = groupForm.name.trim() ? C.accent : 'rgba(124,58,237,0.3)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = groupForm.name.trim() ? C.accent : 'rgba(0,104,74,0.3)' }}
               >
                 Create Group
               </button>
@@ -720,14 +720,14 @@ function ChatTab({ onUnreadChange }) {
 
       {/* ═══════════ TOAST ═══════════ */}
       {toast && (
-        <div style={{ position:'fixed', top:14, right:14, minWidth:250, background:'#1c2335', border:'1px solid rgba(255,255,255,0.12)', borderLeft:`3px solid ${toast.color || C.accent}`, borderRadius:12, padding:'12px 16px', zIndex:999, boxShadow:'0 8px 32px rgba(0,0,0,0.5)', animation:'toastIn .3s ease' }}>
+        <div style={{ position:'fixed', top:14, right:14, minWidth:250, background:'#ffffff', border:`1px solid ${C.border}`, borderLeft:`3px solid ${toast.color || C.accent}`, borderRadius:12, padding:'12px 16px', zIndex:999, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', animation:'toastIn .3s ease' }}>
           <style>{`@keyframes toastIn{from{transform:translateX(16px);opacity:0}to{transform:translateX(0);opacity:1}}`}</style>
           <div style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
             <div style={{ flex:1 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:'#fff', marginBottom:3 }}>{toast.title}</div>
-              <div style={{ fontSize:12, color:'#b0bac8' }}>{toast.text}</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#1c2a33', marginBottom:3 }}>{toast.title}</div>
+              <div style={{ fontSize:12, color:'#6b7280' }}>{toast.text}</div>
             </div>
-            <button onClick={() => setToast(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#6b7694', fontSize:16, lineHeight:1 }}>✕</button>
+            <button onClick={() => setToast(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#6b7280', fontSize:16, lineHeight:1 }}>✕</button>
           </div>
         </div>
       )}

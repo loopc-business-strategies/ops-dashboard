@@ -1,0 +1,1 @@
+import{i as e}from"./AuthContext-BdwOdKZ4.js";var t=`/api/hr/employees`,n=e=>({headers:{Authorization:`Bearer ${e}`}}),r={getEmployees:async r=>(await e.get(t,n(r))).data,createEmployee:async(r,i)=>(await e.post(t,i,n(r))).data,updateEmployee:async(r,i,a)=>(await e.put(`${t}/${i}`,a,n(r))).data,deleteEmployee:async(r,i)=>(await e.delete(`${t}/${i}`,n(r))).data};export{r as t};

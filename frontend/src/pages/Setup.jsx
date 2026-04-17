@@ -41,14 +41,14 @@ function Setup() {
       <div className="w-full max-w-sm">
 
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-violet-600/20 border-2 border-violet-500/50 mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-700/20 border-2 border-emerald-600/50 mb-4">
             <span className="text-2xl">⚙️</span>
           </div>
           <h1 className="text-xl font-bold text-white">First Time Setup</h1>
           <p className="text-gray-500 text-sm mt-1">Create your Super Admin account</p>
         </div>
 
-        <div className="bg-violet-600/10 border border-violet-500/30 rounded-xl p-4 mb-6">
+        <div className="bg-emerald-700/10 border border-emerald-600/30 rounded-xl p-4 mb-6">
           <p className="text-violet-300 text-xs text-center">
             This page only works once — when no users exist yet.
             After this, only Super Admin can create new users.

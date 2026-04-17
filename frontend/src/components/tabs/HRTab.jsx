@@ -100,7 +100,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
           {/* Name */}
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
-              Full Name <span className="text-violet-400">*</span>
+              Full Name <span className="text-emerald-700">*</span>
             </label>
             <input
               type="text"
@@ -114,7 +114,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
           {/* ID Number */}
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
-              ID Number <span className="text-violet-400">*</span>
+              ID Number <span className="text-emerald-700">*</span>
             </label>
             <input
               type="text"
@@ -128,7 +128,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
           {/* Employee Code */}
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
-              Employee Code <span className="text-violet-400">*</span>
+              Employee Code <span className="text-emerald-700">*</span>
             </label>
             <input
               type="text"
@@ -196,7 +196,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
           <button
             type="submit"
             disabled={loading}
-            className="px-5 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #7c3aed, #e040fb)' }}
+            className="px-5 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}
           >
             {loading ? 'Saving...' : 'Save Employee'}
           </button>
@@ -265,7 +265,7 @@ function EmployeeList({ token }) {
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors" style={{ background: 'linear-gradient(135deg, #7c3aed, #e040fb)' }}
+            className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors" style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}
           >
             + Add Employee
           </button>
@@ -288,7 +288,7 @@ function EmployeeList({ token }) {
       {/* List */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="w-6 h-6 border-4 border-violet-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-6 h-6 border-4 border-emerald-700 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : employees.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-gray-800 rounded-2xl">
@@ -385,8 +385,8 @@ export default function HRTab() {
             onClick={() => setSubTab(t.id)}
             className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-all ${
               subTab === t.id
-                ? 'text-violet-400 border-b-2 border-violet-500'
-                : 'text-gray-400 hover:text-white border-b-2 border-transparent'
+                ? 'text-emerald-700 border-b-2 border-emerald-700'
+                : 'text-gray-400 hover:text-gray-900 border-b-2 border-transparent'
             }`}
           >
             {t.label}

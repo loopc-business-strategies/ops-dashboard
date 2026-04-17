@@ -10,7 +10,7 @@ import authAPI from '../../api/auth'
 
 // ── Config ───────────────────────────────────────
 const ROLES = [
-  { value: 'super_admin',     label: 'Super Admin',  desc: 'Full access + user management',    color: 'text-violet-400 bg-violet-500/10 border-violet-500/30' },
+  { value: 'super_admin',     label: 'Super Admin',  desc: 'Full access + user management',    color: 'text-emerald-700 bg-emerald-700/10 border-emerald-700/30' },
   { value: 'management',      label: 'Management',   desc: 'Read-only all dashboards',          color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' },
   { value: 'department_head', label: 'Dept. Head',   desc: 'Full own dept, read others',        color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
   { value: 'department_user', label: 'Dept. User',   desc: 'Limited to assigned tasks',         color: 'text-gray-300 bg-gray-700/50 border-gray-600' },
@@ -32,7 +32,7 @@ const DEPTS = [
 const ALL_MODULES = ['production', 'hr', 'finance', 'government', 'sales', 'operations', 'training']
 
 const ROLE_COLOR = {
-  super_admin:     'text-violet-400 bg-violet-500/10 border-violet-500/30',
+  super_admin:     'text-emerald-700 bg-emerald-700/10 border-emerald-700/30',
   management:      'text-blue-400 bg-blue-500/10 border-blue-500/30',
   department_head: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
   department_user: 'text-gray-300 bg-gray-700/50 border-gray-600',
@@ -91,7 +91,7 @@ function CreateUserForm({ token, onCreated, onCancel }) {
           {/* Username */}
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
-              Username <span className="text-violet-400">*</span>
+              Username <span className="text-emerald-700">*</span>
             </label>
             <input type="text" value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -101,7 +101,7 @@ function CreateUserForm({ token, onCreated, onCancel }) {
           {/* Password */}
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
-              Password <span className="text-violet-400">*</span>
+              Password <span className="text-emerald-700">*</span>
             </label>
             <input type="text" value={form.password}
               onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
@@ -117,13 +117,13 @@ function CreateUserForm({ token, onCreated, onCancel }) {
               <label key={r.value}
                 className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                   form.role === r.value
-                    ? 'border-violet-500/60 bg-violet-500/10'
+                    ? 'border-emerald-700/50 bg-emerald-700/10'
                     : 'border-gray-700 hover:border-gray-600'
                 }`}>
                 <input type="radio" name="role" value={r.value}
                   checked={form.role === r.value}
                   onChange={() => setForm(f => ({ ...f, role: r.value, department: '', allowedModules: [] }))}
-                  className="accent-violet-500" />
+                  className="accent-emerald-700" />
                 <div>
                   <p className="text-xs font-semibold text-white">{r.label}</p>
                   <p className="text-xs text-gray-500">{r.desc}</p>
@@ -140,7 +140,7 @@ function CreateUserForm({ token, onCreated, onCancel }) {
             <select value={form.department}
               onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
               className="input-field appearance-none">
-              {DEPTS.map(d => <option key={d.value} value={d.value} className="bg-gray-800">{d.label}</option>)}
+              {DEPTS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
             </select>
           </div>
         )}
@@ -179,7 +179,7 @@ function CreateUserForm({ token, onCreated, onCancel }) {
 
         <div className="flex gap-3 pt-1">
           <button type="submit" disabled={loading}
-            className="px-5 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #7c3aed, #e040fb)' }}>
+            className="px-5 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}>
             {loading ? 'Creating...' : 'Create User'}
           </button>
           <button type="button" onClick={onCancel}
@@ -236,7 +236,7 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
             <h3 className="text-base font-bold text-white">Edit User</h3>
             <p className="text-gray-500 text-xs mt-0.5">{u.name}</p>
           </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-white text-lg leading-none">✕</button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-900 text-lg leading-none">✕</button>
         </div>
 
         {error && (
@@ -250,12 +250,12 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
             {ROLES.map(r => (
               <label key={r.value}
                 className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-all text-sm ${
-                  form.role === r.value ? 'border-violet-500/60 bg-violet-500/10' : 'border-gray-700 hover:border-gray-600'
+                  form.role === r.value ? 'border-emerald-700/50 bg-emerald-700/10' : 'border-gray-700 hover:border-gray-600'
                 }`}>
                 <input type="radio" name="erole" value={r.value}
                   checked={form.role === r.value}
                   onChange={() => setForm(f => ({ ...f, role: r.value, department: '', allowedModules: [] }))}
-                  className="accent-violet-500" />
+                  className="accent-emerald-700" />
                 <div>
                   <p className="font-medium text-white text-xs">{r.label}</p>
                   <p className="text-gray-400 text-xs">{r.desc}</p>
@@ -272,7 +272,7 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
             <select value={form.department}
               onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
               className="input-field appearance-none">
-              {DEPTS.map(d => <option key={d.value} value={d.value} className="bg-gray-800">{d.label}</option>)}
+              {DEPTS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
             </select>
           </div>
         )}
@@ -314,7 +314,7 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
             Cancel
           </button>
           <button onClick={handleSave} disabled={saving}
-            className="flex-1 py-2.5 text-sm font-medium text-white rounded-lg transition-all disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #7c3aed, #e040fb)' }}>
+            className="flex-1 py-2.5 text-sm font-medium text-white rounded-lg transition-all disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}>
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
@@ -378,7 +378,7 @@ function UsersTab({ users, token, onRefresh }) {
         </div>
         {!showCreate && (
           <button onClick={() => setShowCreate(true)}
-            className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors" style={{ background: 'linear-gradient(135deg, #7c3aed, #e040fb)' }}>
+            className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors" style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}>
             + Add User
           </button>
         )}
@@ -409,12 +409,12 @@ function UsersTab({ users, token, onRefresh }) {
                 {/* User */}
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                    <div className="w-8 h-8 bg-emerald-700 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
                       {u.name[0].toUpperCase()}
                     </div>
                     <p className="text-sm font-medium text-white">
                       {u.name}
-                      {u._id === me?.id && <span className="ml-2 text-xs text-violet-400">(you)</span>}
+                      {u._id === me?.id && <span className="ml-2 text-xs text-emerald-700">(you)</span>}
                     </p>
                   </div>
                 </td>
@@ -440,7 +440,7 @@ function UsersTab({ users, token, onRefresh }) {
                     {u._id !== me?.id ? (
                       <div className="flex gap-2 flex-wrap">
                         <button onClick={() => setEditUser(u)}
-                          className="px-3 py-1 text-xs font-medium text-violet-400 border border-violet-500/30 rounded-lg hover:bg-violet-500/10 transition-all">
+                          className="px-3 py-1 text-xs font-medium text-emerald-700 border border-emerald-700/30 rounded-lg hover:bg-emerald-700/10 transition-all">
                           Edit
                         </button>
                         <button onClick={() => handleToggle(u)}
@@ -517,8 +517,8 @@ function AdminTab() {
           <button key={t.id} onClick={() => setSubTab(t.id)}
             className={`px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
               subTab === t.id
-                ? 'text-violet-400 border-b-2 border-violet-500'
-                : 'text-gray-400 hover:text-white border-b-2 border-transparent'
+                ? 'text-emerald-700 border-b-2 border-emerald-700'
+                : 'text-gray-400 hover:text-gray-900 border-b-2 border-transparent'
             }`}>
             {t.label}
           </button>
@@ -528,7 +528,7 @@ function AdminTab() {
       {/* Content */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="w-6 h-6 border-4 border-violet-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-6 h-6 border-4 border-emerald-700 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
         <>

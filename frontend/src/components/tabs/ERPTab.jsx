@@ -1,0 +1,4665 @@
+import { useEffect, useState } from 'react'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import * as XLSX from 'xlsx'
+import { useAuth } from '../../context/AuthContext'
+import erpAccountingAPI from '../../api/erp-accounting'
+
+const LEDGER_REFERENCE_TYPES = ['journal', 'expense', 'invoice', 'payment', 'purchase', 'vendor_payment', 'inventory', 'payroll']
+const LEDGER_DEPARTMENTS = ['finance', 'sales', 'production', 'hr', 'operations', 'management']
+const ENQUIRY_HISTORY_STORAGE_KEY = 'erp-account-enquiry-history'
+const METAL_UNIT_FACTORS = {
+  gram: 1,
+  ounce: 31.1034768,
+  kg: 1000,
+}
+
+const C = {
+  p1: '#FFFFFF',
+  p2: '#F3F4F6',
+  s1: '#059669',
+  s2: '#047857',
+  ink: '#111827',
+  inkSoft: '#374151',
+  t1: '#111827',
+  t2: '#374151',
+  t3: '#6B7280',
+  danger: '#DC2626',
+}
+
+const DEFAULT_BRANDING = {
+  key: 'default',
+  entityName: 'Main Entity',
+  branchName: '',
+  isDefault: true,
+  companyName: 'Ops Dashboard ERP',
+  legalName: '',
+  reportSubtitle: 'Finance & Accounts Division',
+  logoUrl: '',
+  logoWidth: 180,
+  logoHeight: 56,
+  logoFit: 'contain',
+  reportFooter: 'Confidential Internal Statement',
+  preparedByTitle: 'Prepared By',
+  preparedByName: 'Finance Officer',
+  reviewedByTitle: 'Reviewed By',
+  reviewedByName: 'Accounts Manager',
+  approvedByTitle: 'Authorized Signatory',
+  approvedByName: 'Finance Controller',
+}
+
+const DEFAULT_BRANDING_PROFILES = [{
+  key: DEFAULT_BRANDING.key,
+  entityName: DEFAULT_BRANDING.entityName,
+  branchName: DEFAULT_BRANDING.branchName,
+  companyName: DEFAULT_BRANDING.companyName,
+  isDefault: DEFAULT_BRANDING.isDefault,
+}]
+
+const normalizeBrandingKey = (value) => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return normalized || 'default'
+}
+
+const clampBrandingDimension = (value, fallback, min, max) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(Math.max(parsed, min), max)
+}
+
+const brandingOptionLabel = (branding) => {
+  const entity = branding.entityName || DEFAULT_BRANDING.entityName
+  const branch = branding.branchName ? ` / ${branding.branchName}` : ''
+  const company = branding.companyName ? ` - ${branding.companyName}` : ''
+  return `${entity}${branch}${company}`
+}
+
+const createLogoRenderAsset = async (logoUrl, width, height, fit = 'contain') => {
+  if (!logoUrl || typeof document === 'undefined') return ''
+
+  const boxWidth = clampBrandingDimension(width, DEFAULT_BRANDING.logoWidth, 80, 260)
+  const boxHeight = clampBrandingDimension(height, DEFAULT_BRANDING.logoHeight, 32, 120)
+
+  return new Promise((resolve) => {
+    const image = new Image()
+    image.crossOrigin = 'anonymous'
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = boxWidth
+        canvas.height = boxHeight
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return resolve(logoUrl)
+        ctx.clearRect(0, 0, boxWidth, boxHeight)
+
+        if (fit === 'fill') {
+          ctx.drawImage(image, 0, 0, boxWidth, boxHeight)
+        } else {
+          const scale = fit === 'cover'
+            ? Math.max(boxWidth / image.width, boxHeight / image.height)
+            : Math.min(boxWidth / image.width, boxHeight / image.height)
+          const drawWidth = image.width * scale
+          const drawHeight = image.height * scale
+          const dx = (boxWidth - drawWidth) / 2
+          const dy = (boxHeight - drawHeight) / 2
+          ctx.drawImage(image, dx, dy, drawWidth, drawHeight)
+        }
+
+        resolve(canvas.toDataURL('image/png'))
+      } catch {
+        resolve(logoUrl)
+      }
+    }
+    image.onerror = () => resolve(logoUrl)
+    image.src = logoUrl
+  })
+}
+
+function ERPTab() {
+  const { user, token } = useAuth()
+  const [activeTab, setActiveTab] = useState('dashboard')
+  const [accounts, setAccounts] = useState([])
+  const [customers, setCustomers] = useState([])
+  const [ledger, setLedger] = useState([])
+  const [mappings, setMappings] = useState([])
+  const [currencies, setCurrencies] = useState([])
+  const [dashboard, setDashboard] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [form, setForm] = useState({})
+  const [ledgerForm, setLedgerForm] = useState({
+    date: new Date().toISOString().slice(0, 10),
+    mappingId: '',
+    debitAccountId: '',
+    creditAccountId: '',
+    amount: '',
+    description: '',
+    referenceType: 'journal',
+    currency: 'AED',
+  })
+  const [currencyForm, setCurrencyForm] = useState({ code: '', name: '', symbol: '', exchangeRate: 1, baseCurrency: false })
+  const [mappingForm, setMappingForm] = useState({ mappingType: '', debitAccountId: '', creditAccountId: '', description: '' })
+  const [customerForm, setCustomerForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    gstVat: '',
+    openingBalance: '',
+    creditLimit: '',
+    paymentTermsDays: '',
+    currency: 'AED',
+    notes: '',
+  })
+  const [showForm, setShowForm] = useState(false)
+  const [showCustomerForm, setShowCustomerForm] = useState(false)
+  const [showLedgerForm, setShowLedgerForm] = useState(false)
+  const [showCurrencyForm, setShowCurrencyForm] = useState(false)
+  const [showMappingForm, setShowMappingForm] = useState(false)
+  const [ledgerFilters, setLedgerFilters] = useState({ startDate: '', endDate: '', department: '', referenceType: '', accountId: '' })
+  const [editState, setEditState] = useState({ type: '', record: null, form: {} })
+  const [success, setSuccess] = useState('')
+  const [pagination, setPagination] = useState({ accounts: 1, ledger: 1, mappings: 1 })
+  const [sorting, setSorting] = useState({ accounts: { by: 'code', asc: true }, ledger: { by: 'date', asc: false }, mappings: { by: 'type', asc: true } })
+  const [showMappingTest, setShowMappingTest] = useState(false)
+  const [testMapping, setTestMapping] = useState(null)
+  const [accountEnquiryCode, setAccountEnquiryCode] = useState('')
+  const [accountEnquiryData, setAccountEnquiryData] = useState(null)
+  const [enquiryLoading, setEnquiryLoading] = useState(false)
+  const [enquiryStatus, setEnquiryStatus] = useState({ type: '', message: '' })
+  const [metalRates, setMetalRates] = useState({ goldPrice: 285, silverPrice: 3.5, priceCurrency: 'AED', updatedAt: null })
+  const [metalRateForm, setMetalRateForm] = useState({ goldPrice: '285', silverPrice: '3.5', priceCurrency: 'AED' })
+  const [enquiryHistory, setEnquiryHistory] = useState([])
+  const [metalUnit, setMetalUnit] = useState('gram')
+  const [transactions, setTransactions] = useState([])
+  const [vendors, setVendors] = useState([])
+  const [inventoryProducts, setInventoryProducts] = useState([])
+  const [stockLedger, setStockLedger] = useState([])
+  const [reports, setReports] = useState({
+    trialBalance: null,
+    profitLoss: null,
+    balanceSheet: null,
+    dayBook: null,
+    customerOutstanding: null,
+    vendorOutstanding: null,
+    forex: null,
+  })
+  const [reportView, setReportView] = useState('summary')
+  const [reportFilters, setReportFilters] = useState({
+    period: 'month',
+    startDate: '',
+    endDate: '',
+    accountType: '',
+    includeZeroAccounts: true,
+    sortBy: 'accountCode',
+    sortDir: 'asc',
+    comparePrevious: true,
+    referenceType: '',
+    minAmount: '',
+    search: '',
+  })
+  const [selectedReportAccountId, setSelectedReportAccountId] = useState('')
+  const [selectedReportAccountCode, setSelectedReportAccountCode] = useState('')
+  const [ledgerReportRows, setLedgerReportRows] = useState([])
+  const [voucherSource, setVoucherSource] = useState(null)
+  const [voucherSourceLoading, setVoucherSourceLoading] = useState(false)
+  const [selectedTransactionId, setSelectedTransactionId] = useState('')
+  const [brandingProfiles, setBrandingProfiles] = useState(DEFAULT_BRANDING_PROFILES)
+  const [selectedBrandingKey, setSelectedBrandingKey] = useState(DEFAULT_BRANDING.key)
+  const [reportBranding, setReportBranding] = useState(DEFAULT_BRANDING)
+  const [brandingForm, setBrandingForm] = useState(DEFAULT_BRANDING)
+  const [brandingPreviewLogo, setBrandingPreviewLogo] = useState('')
+  const [transactionForm, setTransactionForm] = useState({
+    type: 'expense',
+    amount: '',
+    currency: 'AED',
+    description: '',
+    customerId: '',
+    vendorId: '',
+    inventoryItemId: '',
+    mappingId: '',
+  })
+  const [vendorForm, setVendorForm] = useState({
+    vendorCode: '',
+    name: '',
+    contactPerson: '',
+    phone: '',
+    email: '',
+    address: '',
+    city: '',
+    country: '',
+    postalCode: '',
+    gstVat: '',
+    taxRegistrationNo: '',
+    openingBalance: '',
+    paymentTermsDays: '30',
+    creditLimit: '',
+    category: 'general',
+    rating: '3',
+    riskLevel: 'medium',
+    status: 'active',
+    notes: '',
+    tags: '',
+    preferredCurrency: 'AED',
+    bankName: '',
+    bankAccountNumber: '',
+    iban: '',
+    swiftCode: '',
+    currency: 'AED',
+  })
+  const [vendorFilters, setVendorFilters] = useState({ search: '', status: '', approvalStatus: '', riskLevel: '', category: '', includeInactive: false })
+  const [vendorSummary, setVendorSummary] = useState({ totalVendors: 0, totalOutstanding: 0, overLimit: 0, blacklisted: 0, onHold: 0, nonCompliant: 0 })
+  const [vendorPermissions, setVendorPermissions] = useState({ canManage: false, canUpdateOperational: false })
+  const [selectedVendorId, setSelectedVendorId] = useState('')
+  const [selectedVendorDetails, setSelectedVendorDetails] = useState(null)
+  const [vendorWorkflowReason, setVendorWorkflowReason] = useState('')
+  const [vendorDocumentForm, setVendorDocumentForm] = useState({ docType: 'contract', title: '', documentNo: '', fileUrl: '', issueDate: '', expiryDate: '', status: 'active', verified: false, notes: '' })
+  const [vendorPaymentCalendar, setVendorPaymentCalendar] = useState({ rows: [], alerts: { overdue: 0, due_soon: 0, upcoming: 0, later: 0, totalDue: 0 } })
+  const [vendorComplianceSummary, setVendorComplianceSummary] = useState({ summary: { total: 0, nonCompliant: 0, avgComplianceScore: 0 }, expiryBuckets: { expired: 0, warning30: 0, warning60: 0, warning90: 0 }, atRisk: [] })
+  const [vendorOverdueQueue, setVendorOverdueQueue] = useState({ summary: { total: 0, withRecipient: 0, critical: 0, totalAmountDue: 0 }, queue: [] })
+  const [showVendorForm, setShowVendorForm] = useState(false)
+  const [editingVendorId, setEditingVendorId] = useState('')
+  const [productForm, setProductForm] = useState({ sku: '', name: '', category: '', unit: 'pcs', unitCost: '', sellingPrice: '', quantity: '', currency: 'AED' })
+  const [stockInForm, setStockInForm] = useState({ itemId: '', vendorId: '', quantity: '', unitCost: '', currency: 'AED', description: '' })
+  const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', currency: 'AED', description: '' })
+
+  const ITEMS_PER_PAGE = 25
+  const showNotification = (msg) => {
+    setSuccess(msg)
+    setTimeout(() => setSuccess(''), 3000)
+  }
+
+  // Check if user is logged in
+  if (!token) {
+    return (
+      <div style={{ padding: '2rem', background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: '0.5rem', color: '#DC2626', textAlign: 'center' }}>
+        <p style={{ fontSize: '1rem', fontWeight: '500' }}>🔒 Please log in to access this module.</p>
+      </div>
+    )
+  }
+
+  // Role-based permissions
+  const isSuperAdmin = user?.role === 'super_admin'
+  const isDepartmentHead = user?.role === 'department_head'
+  const isManagementRole = user?.role === 'management'
+  const dept = (user?.department || '').toLowerCase()
+  // Keep client-side visibility in sync with backend route guards in erp-accounting.
+  const isFinance = isSuperAdmin || (isDepartmentHead && dept === 'finance')
+  const isSalesRole = isSuperAdmin || isManagementRole || (isDepartmentHead && dept === 'sales')
+  const isOperationsRole = isSuperAdmin || (isDepartmentHead && (dept === 'operations' || dept === 'production'))
+  const isHRRole = isSuperAdmin || (isDepartmentHead && dept === 'hr')
+
+  const canViewAccounts = isSuperAdmin || isFinance
+  const canManageAccounts = isSuperAdmin || isFinance
+  const canViewLedger = isSuperAdmin || isFinance
+  const canViewCustomers = isSuperAdmin || isFinance || isSalesRole || user?.role === 'management'
+  const canManageCustomers = isSuperAdmin || isFinance || isSalesRole
+  const canViewBalanceEnquiry = canViewAccounts
+  const canUpdateMetalRates = canManageAccounts
+  const canAccessTransactions = isSuperAdmin || isFinance || isSalesRole || isOperationsRole || isHRRole
+  const canAccessReports = isSuperAdmin || isFinance
+  const canAccessVendors = isSuperAdmin || isFinance || isOperationsRole
+  const canManageVendors = isSuperAdmin || isFinance
+  const canUpdateVendorOperational = canAccessVendors
+  const canAccessInventory = isSuperAdmin || isFinance || isOperationsRole
+  const canAccessERP = canViewAccounts || canAccessTransactions || canAccessInventory || canViewCustomers
+
+  const emptyCardStyle = {
+    background: '#F9FAFB',
+    border: '1px dashed #D1D5DB',
+    borderRadius: '0.5rem',
+    padding: '1rem',
+    color: C.inkSoft,
+    fontSize: '0.875rem',
+  }
+
+  const modalBackdropStyle = {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(17, 24, 39, 0.45)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 60,
+    padding: '1rem',
+  }
+
+  const modalCardStyle = {
+    width: 'min(540px, 100%)',
+    background: '#FFFFFF',
+    borderRadius: '0.75rem',
+    boxShadow: '0 18px 50px rgba(15, 23, 42, 0.2)',
+    padding: '1.25rem',
+  }
+
+  const modalInputStyle = {
+    display: 'block',
+    width: '100%',
+    padding: '0.65rem 0.75rem',
+    marginBottom: '0.75rem',
+    background: '#F9FAFB',
+    border: '1px solid #D1D5DB',
+    color: C.ink,
+    borderRadius: '0.5rem',
+  }
+
+  const loadDashboard = async () => {
+    if (!canViewAccounts) return
+    setLoading(true)
+    try {
+      const data = await erpAccountingAPI.getDashboardReport(token)
+      setDashboard(data)
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load dashboard')
+    }
+    setLoading(false)
+  }
+
+  const loadAccounts = async () => {
+    if (!canViewAccounts) return
+    setLoading(true)
+    try {
+      const data = await erpAccountingAPI.getAccounts(token)
+      setAccounts(data.accounts || [])
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load accounts')
+    }
+    setLoading(false)
+  }
+
+  const loadLedger = async () => {
+    if (!canViewLedger) return
+    setLoading(true)
+    try {
+      const [ledgerData, accountData, currencyData, mappingData] = await Promise.all([
+        erpAccountingAPI.getLedger(token, { limit: 100, ...ledgerFilters }),
+        erpAccountingAPI.getAccounts(token),
+        erpAccountingAPI.getCurrencies(token),
+        erpAccountingAPI.getMappings(token),
+      ])
+      setLedger(ledgerData.entries || [])
+      setAccounts(accountData.accounts || [])
+      setCurrencies(currencyData.currencies || [])
+      setMappings(mappingData.mappings || [])
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load ledger')
+    }
+    setLoading(false)
+  }
+
+  const loadCustomers = async () => {
+    if (!canViewCustomers) return
+    setLoading(true)
+    try {
+      const data = await erpAccountingAPI.getCustomers(token)
+      setCustomers(data.customers || [])
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load customers')
+    }
+    setLoading(false)
+  }
+
+  const loadMappings = async () => {
+    if (!canViewAccounts) return
+    setLoading(true)
+    try {
+      const [mappingData, accountData] = await Promise.all([
+        erpAccountingAPI.getMappings(token),
+        erpAccountingAPI.getAccounts(token),
+      ])
+      setMappings(mappingData.mappings || [])
+      setAccounts(accountData.accounts || [])
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load mappings')
+    }
+    setLoading(false)
+  }
+
+  const loadCurrencies = async () => {
+    setLoading(true)
+    try {
+      const data = await erpAccountingAPI.getCurrencies(token)
+      setCurrencies(data.currencies || [])
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load currencies')
+    }
+    setLoading(false)
+  }
+
+  const loadReportBranding = async (brandingKey = selectedBrandingKey || DEFAULT_BRANDING.key) => {
+    try {
+      const data = await erpAccountingAPI.getReportBranding(token, { key: brandingKey })
+      const branding = { ...DEFAULT_BRANDING, ...(data.branding || {}) }
+      setBrandingProfiles(data.profiles?.length ? data.profiles : DEFAULT_BRANDING_PROFILES)
+      setSelectedBrandingKey(data.selectedKey || branding.key || DEFAULT_BRANDING.key)
+      setReportBranding(branding)
+      setBrandingForm(branding)
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load report branding')
+    }
+  }
+
+  const loadMetalRates = async () => {
+    try {
+      const data = await erpAccountingAPI.getMetalRates(token)
+      const rates = data.rates || { goldPrice: 285, silverPrice: 3.5, priceCurrency: 'AED', updatedAt: null }
+      setMetalRates(rates)
+      setMetalRateForm({
+        goldPrice: String(rates.goldPrice ?? 285),
+        silverPrice: String(rates.silverPrice ?? 3.5),
+        priceCurrency: rates.priceCurrency || 'AED',
+      })
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load metal rates')
+    }
+  }
+
+  const loadTransactions = async () => {
+    if (!canAccessTransactions) return
+    setLoading(true)
+    try {
+      const data = await erpAccountingAPI.getTransactions(token)
+      setTransactions(data.transactions || [])
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load transactions')
+    }
+    setLoading(false)
+  }
+
+  const loadVendors = async (filters = vendorFilters) => {
+    if (!canAccessVendors) return
+    setLoading(true)
+    try {
+      const data = await erpAccountingAPI.getVendors(token, filters)
+      setVendors(data.vendors || [])
+      setVendorSummary(data.summary || { totalVendors: 0, totalOutstanding: 0, overLimit: 0, blacklisted: 0, onHold: 0, nonCompliant: 0 })
+      setVendorPermissions(data.permissions || { canManage: false, canUpdateOperational: false })
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load vendors')
+    }
+    setLoading(false)
+  }
+
+  const loadVendorDetails = async (id) => {
+    if (!id) {
+      setSelectedVendorDetails(null)
+      return
+    }
+    try {
+      const data = await erpAccountingAPI.getVendorDetails(token, id)
+      setSelectedVendorDetails(data)
+      if (data.permissions) setVendorPermissions(data.permissions)
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load vendor details')
+    }
+  }
+
+  const loadVendorPaymentCalendar = async () => {
+    try {
+      const data = await erpAccountingAPI.getVendorPaymentCalendar(token, { horizonDays: 45 })
+      setVendorPaymentCalendar({ rows: data.rows || [], alerts: data.alerts || { overdue: 0, due_soon: 0, upcoming: 0, later: 0, totalDue: 0 } })
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load vendor payment calendar')
+    }
+  }
+
+  const loadVendorComplianceSummary = async () => {
+    try {
+      const data = await erpAccountingAPI.getVendorComplianceSummary(token)
+      setVendorComplianceSummary({
+        summary: data.summary || { total: 0, nonCompliant: 0, avgComplianceScore: 0 },
+        expiryBuckets: data.expiryBuckets || { expired: 0, warning30: 0, warning60: 0, warning90: 0 },
+        atRisk: data.atRisk || [],
+      })
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load vendor compliance summary')
+    }
+  }
+
+  const loadVendorOverdueQueue = async () => {
+    try {
+      const data = await erpAccountingAPI.getVendorOverdueAlertQueue(token, { horizonDays: 120 })
+      setVendorOverdueQueue({
+        summary: data.summary || { total: 0, withRecipient: 0, critical: 0, totalAmountDue: 0 },
+        queue: data.queue || [],
+      })
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load overdue alert queue')
+    }
+  }
+
+  const loadInventory = async () => {
+    if (!canAccessInventory) return
+    setLoading(true)
+    try {
+      const [productsData, stockData] = await Promise.all([
+        erpAccountingAPI.getInventoryProducts(token),
+        erpAccountingAPI.getStockLedger(token),
+      ])
+      setInventoryProducts(productsData.products || [])
+      setStockLedger(stockData.movements || [])
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load inventory')
+    }
+    setLoading(false)
+  }
+
+  const loadReports = async () => {
+    if (!canAccessReports) return
+    setLoading(true)
+    try {
+      const now = new Date()
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      const startOfYear = new Date(now.getFullYear(), 0, 1)
+
+      let startDate = ''
+      let endDate = ''
+
+      if (reportFilters.period === 'today') {
+        startDate = now.toISOString().slice(0, 10)
+        endDate = startDate
+      } else if (reportFilters.period === 'month') {
+        startDate = startOfMonth.toISOString().slice(0, 10)
+        endDate = endOfMonth.toISOString().slice(0, 10)
+      } else if (reportFilters.period === 'ytd') {
+        startDate = startOfYear.toISOString().slice(0, 10)
+        endDate = now.toISOString().slice(0, 10)
+      } else if (reportFilters.period === 'custom') {
+        startDate = reportFilters.startDate || ''
+        endDate = reportFilters.endDate || ''
+      }
+
+      const commonRange = {
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+      }
+
+      const [trial, pnl, bs, dayBook, custOut, venOut, forex] = await Promise.all([
+        erpAccountingAPI.getTrialBalance(token, {
+          ...commonRange,
+          ...(reportFilters.accountType ? { accountType: reportFilters.accountType } : {}),
+          includeZero: reportFilters.includeZeroAccounts,
+          sortBy: reportFilters.sortBy,
+          sortDir: reportFilters.sortDir,
+        }),
+        erpAccountingAPI.getProfitLossReport(token, {
+          ...commonRange,
+          comparePrevious: reportFilters.comparePrevious,
+        }),
+        erpAccountingAPI.getBalanceSheetReport(token, {
+          ...(endDate ? { endDate } : {}),
+        }),
+        erpAccountingAPI.getDayBookReport(token, {
+          ...commonRange,
+          ...(reportFilters.referenceType ? { referenceType: reportFilters.referenceType } : {}),
+          ...(reportFilters.minAmount ? { minAmount: reportFilters.minAmount } : {}),
+        }),
+        erpAccountingAPI.getCustomerOutstandingReport(token),
+        erpAccountingAPI.getVendorOutstandingReport(token),
+        erpAccountingAPI.getForexGainLossReport(token, commonRange),
+      ])
+      setReports({
+        trialBalance: trial,
+        profitLoss: pnl,
+        balanceSheet: bs,
+        dayBook,
+        customerOutstanding: custOut,
+        vendorOutstanding: venOut,
+        forex,
+      })
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load reports')
+    }
+    setLoading(false)
+  }
+
+  const loadLedgerReport = async (accountId) => {
+    if (!accountId) {
+      setLedgerReportRows([])
+      return
+    }
+    try {
+      const now = new Date()
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      let startDate = ''
+      let endDate = ''
+
+      if (reportFilters.period === 'today') {
+        startDate = now.toISOString().slice(0, 10)
+        endDate = startDate
+      } else if (reportFilters.period === 'month') {
+        startDate = startOfMonth.toISOString().slice(0, 10)
+        endDate = endOfMonth.toISOString().slice(0, 10)
+      } else if (reportFilters.period === 'ytd') {
+        startDate = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)
+        endDate = now.toISOString().slice(0, 10)
+      } else if (reportFilters.period === 'custom') {
+        startDate = reportFilters.startDate || ''
+        endDate = reportFilters.endDate || ''
+      }
+
+      const data = await erpAccountingAPI.getLedgerReport(token, {
+        accountId,
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+      })
+      setLedgerReportRows(data.report || [])
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load ledger report')
+    }
+  }
+
+  const handleCreateTransaction = async (e) => {
+    e.preventDefault()
+    if (!transactionForm.type || !transactionForm.amount) {
+      setError('Transaction type and amount are required')
+      return
+    }
+    try {
+      setSaving(true)
+      await erpAccountingAPI.createTransaction(token, {
+        ...transactionForm,
+        amount: Number(transactionForm.amount),
+      })
+      setTransactionForm({ type: 'expense', amount: '', currency: 'AED', description: '', customerId: '', vendorId: '', inventoryItemId: '', mappingId: '' })
+      await loadTransactions()
+      showNotification('✅ Transaction created as draft')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to create transaction')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleTransactionAction = async (action, id) => {
+    try {
+      setSaving(true)
+      if (action === 'submit') await erpAccountingAPI.submitTransaction(token, id)
+      if (action === 'approve') await erpAccountingAPI.approveTransaction(token, id)
+      if (action === 'post') await erpAccountingAPI.postTransaction(token, id)
+      await Promise.all([loadTransactions(), loadDashboard()])
+      showNotification(`✅ Transaction ${action}ed`)
+    } catch (e) {
+      setError(e.response?.data?.message || `Failed to ${action} transaction`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCreateVendor = async (e) => {
+    e.preventDefault()
+    if (!canManageVendors && !editingVendorId) {
+      setError('Only Admin/Finance can create vendors')
+      return
+    }
+    if (!vendorForm.name) {
+      setError('Vendor name is required')
+      return
+    }
+    try {
+      setSaving(true)
+      const payload = {
+        ...vendorForm,
+        openingBalance: Number(vendorForm.openingBalance || 0),
+        paymentTermsDays: Number(vendorForm.paymentTermsDays || 30),
+        creditLimit: Number(vendorForm.creditLimit || 0),
+        rating: Number(vendorForm.rating || 3),
+        tags: String(vendorForm.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean),
+      }
+
+      if (editingVendorId) {
+        await erpAccountingAPI.updateVendor(token, editingVendorId, payload)
+        showNotification('✅ Vendor updated')
+      } else {
+        await erpAccountingAPI.createVendor(token, payload)
+        showNotification('✅ Vendor created')
+      }
+
+      setVendorForm({
+        vendorCode: '',
+        name: '',
+        contactPerson: '',
+        phone: '',
+        email: '',
+        address: '',
+        city: '',
+        country: '',
+        postalCode: '',
+        gstVat: '',
+        taxRegistrationNo: '',
+        openingBalance: '',
+        paymentTermsDays: '30',
+        creditLimit: '',
+        category: 'general',
+        rating: '3',
+        riskLevel: 'medium',
+        status: 'active',
+        notes: '',
+        tags: '',
+        preferredCurrency: 'AED',
+        bankName: '',
+        bankAccountNumber: '',
+        iban: '',
+        swiftCode: '',
+        currency: 'AED',
+      })
+      setShowVendorForm(false)
+      setEditingVendorId('')
+      await Promise.all([
+        loadVendors(vendorFilters),
+        loadVendorComplianceSummary(),
+      ])
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to save vendor')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleVendorFilterSearch = async () => {
+    await loadVendors(vendorFilters)
+  }
+
+  const handleVendorSelect = async (vendorId) => {
+    setSelectedVendorId(vendorId)
+    await loadVendorDetails(vendorId)
+  }
+
+  const handleEditVendor = (vendor) => {
+    if (!vendorPermissions.canUpdateOperational) {
+      setError('You are not allowed to edit vendors')
+      return
+    }
+
+    setEditingVendorId(vendor._id)
+    setShowVendorForm(true)
+    setVendorForm({
+      vendorCode: vendor.vendorCode || '',
+      name: vendor.name || '',
+      contactPerson: vendor.contactPerson || '',
+      phone: vendor.phone || '',
+      email: vendor.email || '',
+      address: vendor.address || '',
+      city: vendor.city || '',
+      country: vendor.country || '',
+      postalCode: vendor.postalCode || '',
+      gstVat: vendor.gstVat || '',
+      taxRegistrationNo: vendor.taxRegistrationNo || '',
+      openingBalance: String(vendor.openingBalance || ''),
+      paymentTermsDays: String(vendor.paymentTermsDays || 30),
+      creditLimit: String(vendor.creditLimit || ''),
+      category: vendor.category || 'general',
+      rating: String(vendor.rating || 3),
+      riskLevel: vendor.riskLevel || 'medium',
+      status: vendor.status || 'active',
+      notes: vendor.notes || '',
+      tags: Array.isArray(vendor.tags) ? vendor.tags.join(', ') : '',
+      preferredCurrency: vendor.preferredCurrency || vendor.currency || 'AED',
+      bankName: vendor.bankName || '',
+      bankAccountNumber: vendor.bankAccountNumber || '',
+      iban: vendor.iban || '',
+      swiftCode: vendor.swiftCode || '',
+      currency: vendor.currency || 'AED',
+    })
+  }
+
+  const handleDeleteVendor = async (vendor) => {
+    if (!vendorPermissions.canManage) {
+      setError('Only Admin/Finance can deactivate vendors')
+      return
+    }
+    if (!window.confirm(`Deactivate vendor ${vendor.name}?`)) return
+    try {
+      setSaving(true)
+      await erpAccountingAPI.deleteVendor(token, vendor._id)
+      if (selectedVendorId === vendor._id) {
+        setSelectedVendorId('')
+        setSelectedVendorDetails(null)
+      }
+      await Promise.all([
+        loadVendors(vendorFilters),
+        loadVendorComplianceSummary(),
+        loadVendorOverdueQueue(),
+      ])
+      showNotification('✅ Vendor deactivated')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to deactivate vendor')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleVendorWorkflowStatus = async (status) => {
+    if (!selectedVendorId) return
+    try {
+      setSaving(true)
+      await erpAccountingAPI.updateVendorWorkflow(token, selectedVendorId, {
+        status,
+        reason: vendorWorkflowReason,
+      })
+      setVendorWorkflowReason('')
+      await Promise.all([
+        loadVendors(vendorFilters),
+        loadVendorDetails(selectedVendorId),
+        loadVendorPaymentCalendar(),
+        loadVendorComplianceSummary(),
+        loadVendorOverdueQueue(),
+      ])
+      showNotification(`✅ Vendor moved to ${status}`)
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to update vendor workflow')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleAddVendorDocument = async (e) => {
+    e.preventDefault()
+    if (!selectedVendorId) {
+      setError('Select a vendor first')
+      return
+    }
+    if (!vendorDocumentForm.title) {
+      setError('Document title is required')
+      return
+    }
+    try {
+      setSaving(true)
+      await erpAccountingAPI.addVendorDocument(token, selectedVendorId, vendorDocumentForm)
+      setVendorDocumentForm({ docType: 'contract', title: '', documentNo: '', fileUrl: '', issueDate: '', expiryDate: '', status: 'active', verified: false, notes: '' })
+      await Promise.all([
+        loadVendorDetails(selectedVendorId),
+        loadVendorComplianceSummary(),
+      ])
+      showNotification('✅ Vendor document added')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to add vendor document')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteVendorDocument = async (documentId) => {
+    if (!selectedVendorId) return
+    if (!window.confirm('Delete this vendor document?')) return
+    try {
+      setSaving(true)
+      await erpAccountingAPI.deleteVendorDocument(token, selectedVendorId, documentId)
+      await Promise.all([
+        loadVendorDetails(selectedVendorId),
+        loadVendorComplianceSummary(),
+      ])
+      showNotification('✅ Vendor document deleted')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to delete vendor document')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCreateProduct = async (e) => {
+    e.preventDefault()
+    if (!productForm.name) {
+      setError('Product name is required')
+      return
+    }
+    try {
+      setSaving(true)
+      await erpAccountingAPI.createInventoryProduct(token, {
+        ...productForm,
+        unitCost: Number(productForm.unitCost || 0),
+        sellingPrice: Number(productForm.sellingPrice || 0),
+        quantity: Number(productForm.quantity || 0),
+      })
+      setProductForm({ sku: '', name: '', category: '', unit: 'pcs', unitCost: '', sellingPrice: '', quantity: '', currency: 'AED' })
+      await loadInventory()
+      showNotification('✅ Product created')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to create product')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleStockIn = async (e) => {
+    e.preventDefault()
+    try {
+      setSaving(true)
+      await erpAccountingAPI.stockInInventory(token, {
+        ...stockInForm,
+        quantity: Number(stockInForm.quantity || 0),
+        unitCost: Number(stockInForm.unitCost || 0),
+      })
+      setStockInForm({ itemId: '', vendorId: '', quantity: '', unitCost: '', currency: 'AED', description: '' })
+      await Promise.all([loadInventory(), loadDashboard()])
+      showNotification('✅ Stock IN posted')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to post stock IN')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleStockOut = async (e) => {
+    e.preventDefault()
+    try {
+      setSaving(true)
+      await erpAccountingAPI.stockOutInventory(token, {
+        ...stockOutForm,
+        quantity: Number(stockOutForm.quantity || 0),
+      })
+      setStockOutForm({ itemId: '', quantity: '', currency: 'AED', description: '' })
+      await Promise.all([loadInventory(), loadDashboard()])
+      showNotification('✅ Stock OUT posted')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to post stock OUT')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const loadEnquiryHistory = () => {
+    try {
+      const raw = localStorage.getItem(ENQUIRY_HISTORY_STORAGE_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        setEnquiryHistory(parsed.slice(0, 10))
+      }
+    } catch {
+      setEnquiryHistory([])
+    }
+  }
+
+  const persistEnquiryHistory = (nextHistory) => {
+    setEnquiryHistory(nextHistory)
+    localStorage.setItem(ENQUIRY_HISTORY_STORAGE_KEY, JSON.stringify(nextHistory))
+  }
+
+  const pushEnquiryHistory = (account) => {
+    if (!account?.accountCode) return
+    const nextItem = {
+      accountCode: account.accountCode,
+      accountName: account.accountName || '',
+      searchedAt: new Date().toISOString(),
+    }
+    const deduped = enquiryHistory.filter((item) => item.accountCode !== nextItem.accountCode)
+    const nextHistory = [nextItem, ...deduped].slice(0, 10)
+    persistEnquiryHistory(nextHistory)
+  }
+
+  const fetchAccountEnquiryByCode = async (accountCode) => {
+    const cleanCode = String(accountCode || '').trim()
+    if (!cleanCode) {
+      setError('Please enter account number')
+      setEnquiryStatus({ type: 'error', message: 'Please enter account number' })
+      return
+    }
+
+    try {
+      setEnquiryLoading(true)
+      setEnquiryStatus({ type: '', message: '' })
+      const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode)
+      setAccountEnquiryCode(cleanCode)
+      setAccountEnquiryData(data)
+      pushEnquiryHistory(data.account)
+      setError('')
+      setEnquiryStatus({ type: 'success', message: `Account ${data.account.accountCode} loaded successfully` })
+      showNotification('✅ Account enquiry loaded')
+    } catch (e) {
+      setAccountEnquiryData(null)
+      const msg = e.response?.data?.message || 'Failed to fetch account enquiry'
+      setError(msg)
+      setEnquiryStatus({ type: 'error', message: msg })
+    } finally {
+      setEnquiryLoading(false)
+    }
+  }
+
+  const handleAccountEnquiry = async (e) => {
+    e.preventDefault()
+    await fetchAccountEnquiryByCode(accountEnquiryCode)
+  }
+
+  const handleUpdateMetalRates = async (e) => {
+    e.preventDefault()
+    if (!canUpdateMetalRates) {
+      setError('You do not have permission to update rates')
+      return
+    }
+
+    const payload = {
+      goldPrice: Number(metalRateForm.goldPrice),
+      silverPrice: Number(metalRateForm.silverPrice),
+      priceCurrency: String(metalRateForm.priceCurrency || 'AED').toUpperCase(),
+    }
+
+    if (!payload.goldPrice || payload.goldPrice <= 0 || !payload.silverPrice || payload.silverPrice <= 0) {
+      setError('Gold and silver rates must be greater than zero')
+      return
+    }
+
+    try {
+      setSaving(true)
+      const data = await erpAccountingAPI.updateMetalRates(token, payload)
+      const rates = data.rates || payload
+      setMetalRates(rates)
+      setMetalRateForm({
+        goldPrice: String(rates.goldPrice),
+        silverPrice: String(rates.silverPrice),
+        priceCurrency: rates.priceCurrency,
+      })
+      setError('')
+      showNotification('✅ Gold/Silver rates updated')
+
+      if (accountEnquiryData?.account?.accountCode) {
+        const refreshed = await erpAccountingAPI.getAccountEnquiry(token, accountEnquiryData.account.accountCode)
+        setAccountEnquiryData(refreshed)
+        pushEnquiryHistory(refreshed.account)
+      }
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to update metal rates')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  useEffect(() => {
+    loadEnquiryHistory()
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const updatePreviewLogo = async () => {
+      if (!brandingForm.logoUrl) {
+        setBrandingPreviewLogo('')
+        return
+      }
+
+      const nextLogo = await createLogoRenderAsset(
+        brandingForm.logoUrl,
+        brandingForm.logoWidth,
+        brandingForm.logoHeight,
+        brandingForm.logoFit
+      )
+
+      if (!cancelled) {
+        setBrandingPreviewLogo(nextLogo)
+      }
+    }
+
+    updatePreviewLogo()
+
+    return () => {
+      cancelled = true
+    }
+  }, [brandingForm.logoFit, brandingForm.logoHeight, brandingForm.logoUrl, brandingForm.logoWidth])
+
+  useEffect(() => {
+    if (activeTab !== 'transactions' || !selectedTransactionId || !transactions.length) return
+    const target = document.getElementById(`erp-transaction-row-${selectedTransactionId}`)
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [activeTab, selectedTransactionId, transactions])
+
+  useEffect(() => {
+    if (activeTab !== 'vendors' || !selectedVendorId) return
+    loadVendorDetails(selectedVendorId)
+  }, [activeTab, selectedVendorId])
+
+  useEffect(() => {
+    // Prevent stale error banners from one ERP section leaking into another.
+    setError('')
+  }, [activeTab])
+
+  useEffect(() => {
+    if (!canAccessERP || !token) {
+      setError('You do not have access to the ERP Accounting module.')
+      return
+    }
+
+    if (activeTab === 'dashboard') loadDashboard()
+    else if (activeTab === 'accounts') loadAccounts()
+    else if (activeTab === 'customers') loadCustomers()
+    else if (activeTab === 'ledger') loadLedger()
+    else if (activeTab === 'mappings') loadMappings()
+    else if (activeTab === 'transactions') {
+      loadTransactions()
+      loadAccounts()
+      loadCustomers()
+      loadVendors()
+      loadInventory()
+      loadMappings()
+    }
+    else if (activeTab === 'reports') {
+      loadReportBranding()
+      loadReports()
+      if (!accounts.length) loadAccounts()
+      if (selectedReportAccountId) {
+        loadLedgerReport(selectedReportAccountId)
+      }
+    }
+    else if (activeTab === 'vendors') {
+      loadVendors()
+      loadVendorPaymentCalendar()
+      loadVendorComplianceSummary()
+      loadVendorOverdueQueue()
+    }
+    else if (activeTab === 'inventory') {
+      loadInventory()
+      loadVendors()
+    }
+    else if (activeTab === 'settings') {
+      loadCurrencies()
+      loadReportBranding()
+    }
+    else if (activeTab === 'enquiry') {
+      loadMetalRates()
+      loadAccounts()
+    }
+  }, [
+    activeTab,
+    token,
+    ledgerFilters.startDate,
+    ledgerFilters.endDate,
+    ledgerFilters.department,
+    ledgerFilters.referenceType,
+    ledgerFilters.accountId,
+    reportFilters.period,
+    reportFilters.startDate,
+    reportFilters.endDate,
+    reportFilters.accountType,
+    reportFilters.includeZeroAccounts,
+    reportFilters.sortBy,
+    reportFilters.sortDir,
+    reportFilters.comparePrevious,
+    reportFilters.referenceType,
+    reportFilters.minAmount,
+    selectedReportAccountId,
+  ])
+
+  const convertMetalBalanceByUnit = (valueInGram) => {
+    const factor = METAL_UNIT_FACTORS[metalUnit] || 1
+    return Number(valueInGram || 0) / factor
+  }
+
+  const formatMoney = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
+  const branding = { ...DEFAULT_BRANDING, ...reportBranding }
+  const brandingPreview = { ...DEFAULT_BRANDING, ...brandingForm }
+
+  const buildBrandingLogoTag = async (brandingConfig, extraStyle = '') => {
+    const logoAsset = await createLogoRenderAsset(
+      brandingConfig.logoUrl,
+      brandingConfig.logoWidth,
+      brandingConfig.logoHeight,
+      brandingConfig.logoFit
+    )
+
+    if (!logoAsset) return ''
+
+    const width = clampBrandingDimension(brandingConfig.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
+    const height = clampBrandingDimension(brandingConfig.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
+    return `<img src="${logoAsset}" alt="Company Logo" style="width:${width}px;height:${height}px;object-fit:fill;display:block;${extraStyle}" />`
+  }
+
+  const openPrintWindow = (title, bodyHtml) => {
+    const w = window.open('', '_blank')
+    if (!w) {
+      setError('Popup blocked. Please allow popups for statement printing')
+      return
+    }
+
+    w.document.write(`
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body { font-family: Georgia, 'Times New Roman', serif; color: #111827; margin: 0; padding: 32px; }
+            .sheet { max-width: 980px; margin: 0 auto; }
+            .brandbar { height: 10px; background: linear-gradient(135deg, #00684A, #13AA52); border-radius: 999px; margin-bottom: 14px; }
+            .head { border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 20px; }
+            .title { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
+            .subtitle { color: #065F46; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin: 0 0 8px; }
+            .meta { color: #4B5563; font-size: 12px; margin: 2px 0; }
+            .section { margin-bottom: 20px; }
+            .section-title { font-size: 16px; font-weight: 700; margin: 0 0 8px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { border: 1px solid #D1D5DB; padding: 7px 8px; text-align: left; }
+            th { background: #F3F4F6; }
+            .num { text-align: right; }
+            .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+            .card { border: 1px solid #D1D5DB; padding: 10px; }
+            .card-label { color: #6B7280; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+            .card-value { font-size: 18px; font-weight: 700; margin-top: 4px; }
+            .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 36px; }
+            .sign-box { padding-top: 18px; border-top: 1px solid #9CA3AF; font-size: 12px; color: #374151; }
+            .footer { margin-top: 18px; font-size: 11px; color: #6B7280; display: flex; justify-content: space-between; }
+            @media print { body { padding: 0; } .sheet { max-width: none; } }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">${bodyHtml}</div>
+        </body>
+      </html>
+    `)
+    w.document.close()
+    w.focus()
+    w.print()
+  }
+
+  const handleBrandingLogoFile = async (file) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      setBrandingForm((prev) => ({ ...prev, logoUrl: String(reader.result || '') }))
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleSaveBranding = async (e) => {
+    e.preventDefault()
+    try {
+      setSaving(true)
+      const payload = {
+        ...brandingForm,
+        key: normalizeBrandingKey(brandingForm.key || selectedBrandingKey || DEFAULT_BRANDING.key),
+        logoWidth: clampBrandingDimension(brandingForm.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260),
+        logoHeight: clampBrandingDimension(brandingForm.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120),
+      }
+      const data = await erpAccountingAPI.updateReportBranding(token, payload)
+      const nextBranding = { ...DEFAULT_BRANDING, ...(data.branding || {}) }
+      setBrandingProfiles(data.profiles?.length ? data.profiles : DEFAULT_BRANDING_PROFILES)
+      setSelectedBrandingKey(data.selectedKey || nextBranding.key || DEFAULT_BRANDING.key)
+      setReportBranding(nextBranding)
+      setBrandingForm(nextBranding)
+      setError('')
+      showNotification('✅ Report branding saved')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to save report branding')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSelectBrandingProfile = async (key) => {
+    const nextKey = normalizeBrandingKey(key)
+    setSelectedBrandingKey(nextKey)
+    await loadReportBranding(nextKey)
+  }
+
+  const handleCreateBrandingDraft = () => {
+    const timestamp = Date.now().toString().slice(-6)
+    const nextDraft = {
+      ...DEFAULT_BRANDING,
+      key: `entity-${timestamp}`,
+      entityName: 'New Entity',
+      branchName: '',
+      isDefault: false,
+    }
+    setBrandingProfiles((prev) => [
+      ...prev.filter((profile) => profile.key !== nextDraft.key),
+      { key: nextDraft.key, entityName: nextDraft.entityName, branchName: nextDraft.branchName, companyName: nextDraft.companyName, isDefault: false },
+    ])
+    setSelectedBrandingKey(nextDraft.key)
+    setBrandingForm(nextDraft)
+  }
+
+  const buildEnquiryExportRows = () => {
+    if (!accountEnquiryData) return []
+
+    const now = new Date().toLocaleString()
+    return [
+      ['Generated At', now],
+      ['Account Code', accountEnquiryData.account.accountCode || ''],
+      ['Account Name', accountEnquiryData.account.accountName || ''],
+      ['Account Type', accountEnquiryData.account.accountType || ''],
+      ['Account Currency', accountEnquiryData.account.currency || ''],
+      ['Debit Total', Number(accountEnquiryData.balances.debitTotal || 0).toFixed(2)],
+      ['Credit Total', Number(accountEnquiryData.balances.creditTotal || 0).toFixed(2)],
+      ['Net Direction', accountEnquiryData.balances.netDirection || ''],
+      ['Net Balance', Number(accountEnquiryData.balances.absoluteNetBalance || 0).toFixed(2)],
+      ['Rate Currency', accountEnquiryData.balances.rateCurrency || ''],
+      ['Rate Currency Balance', Number(accountEnquiryData.balances.rateCurrencyBalance || 0).toFixed(2)],
+      ['Gold Price', Number(accountEnquiryData.metals.goldPrice || 0).toFixed(4)],
+      ['Silver Price', Number(accountEnquiryData.metals.silverPrice || 0).toFixed(4)],
+      ['Selected Metal Unit', metalUnit],
+      ['Gold Balance', Number(convertMetalBalanceByUnit(accountEnquiryData.metals.goldBalance || 0)).toFixed(6)],
+      ['Silver Balance', Number(convertMetalBalanceByUnit(accountEnquiryData.metals.silverBalance || 0)).toFixed(6)],
+    ]
+  }
+
+  const handleExportEnquiryExcel = () => {
+    if (!accountEnquiryData) {
+      setError('Load an enquiry first to export')
+      return
+    }
+
+    const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const rows = buildEnquiryExportRows()
+    const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    const stamp = new Date().toISOString().slice(0, 10)
+    link.href = url
+    link.download = `account-enquiry-${accountEnquiryData.account.accountCode}-${stamp}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    showNotification('✅ Excel file exported')
+  }
+
+  const handleExportEnquiryPdf = () => {
+    if (!accountEnquiryData) {
+      setError('Load an enquiry first to export')
+      return
+    }
+
+    const rows = buildEnquiryExportRows()
+    const htmlRows = rows
+      .map((row) => `<tr><td style=\"padding:8px;border:1px solid #D1D5DB;font-weight:600;\">${row[0]}</td><td style=\"padding:8px;border:1px solid #D1D5DB;\">${row[1]}</td></tr>`)
+      .join('')
+
+    const w = window.open('', '_blank')
+    if (!w) {
+      setError('Popup blocked. Please allow popups to export PDF')
+      return
+    }
+
+    w.document.write(`
+      <html>
+        <head>
+          <title>Account Enquiry ${accountEnquiryData.account.accountCode}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; color: #111827; }
+            h1 { margin: 0 0 8px 0; font-size: 20px; }
+            p { margin: 0 0 16px 0; color: #374151; }
+            table { width: 100%; border-collapse: collapse; font-size: 13px; }
+          </style>
+        </head>
+        <body>
+          <h1>Account Balance Enquiry</h1>
+          <p>${accountEnquiryData.account.accountCode} - ${accountEnquiryData.account.accountName}</p>
+          <table>${htmlRows}</table>
+        </body>
+      </html>
+    `)
+    w.document.close()
+    w.focus()
+    w.print()
+    showNotification('✅ PDF export opened for printing')
+  }
+
+  const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`
+
+  const downloadCsv = (rows, fileName) => {
+    const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadXlsx = (rows, fileName, sheetName = 'Report') => {
+    const workbook = XLSX.utils.book_new()
+    const worksheet = XLSX.utils.aoa_to_sheet(rows)
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
+    XLSX.writeFile(workbook, fileName)
+  }
+
+  const buildReportExportPayload = () => {
+    if (!reports.trialBalance) return null
+    const stamp = new Date().toISOString().slice(0, 10)
+    const brandingRows = [
+      [branding.entityName || DEFAULT_BRANDING.entityName, branding.branchName || ''],
+      [branding.companyName || DEFAULT_BRANDING.companyName],
+      [branding.legalName || ''],
+      [branding.reportSubtitle || DEFAULT_BRANDING.reportSubtitle],
+      [branding.reportFooter || DEFAULT_BRANDING.reportFooter],
+      [],
+    ]
+
+    if (reportView === 'trial' || reportView === 'summary') {
+      const rows = [...brandingRows, ['Account Code', 'Account Name', 'Type', 'Debit', 'Credit', 'Net']]
+      ;(reports.trialBalance?.trialBalance || []).forEach((row) => {
+        rows.push([row.accountCode, row.accountName, row.accountType, row.debit, row.credit, row.net])
+      })
+      return { rows, fileBase: `trial-balance-${stamp}`, sheetName: 'Trial Balance', successLabel: 'Trial balance' }
+    }
+
+    if (reportView === 'pnl') {
+      const rows = [...brandingRows, ['Section', 'Account Code', 'Account Name', 'Amount']]
+      ;(reports.profitLoss?.incomeBreakdown || []).forEach((row) => rows.push(['Income', row.accountCode, row.accountName, row.amount]))
+      ;(reports.profitLoss?.expenseBreakdown || []).forEach((row) => rows.push(['Expense', row.accountCode, row.accountName, row.amount]))
+      ;(reports.profitLoss?.monthlyComparison || []).forEach((row) => rows.push(['Monthly', row.label, 'Net Profit', row.netProfit]))
+      return { rows, fileBase: `profit-loss-${stamp}`, sheetName: 'Profit Loss', successLabel: 'Profit & loss' }
+    }
+
+    if (reportView === 'balanceSheet') {
+      const rows = [...brandingRows, ['Section', 'Account Code', 'Account Name', 'Balance']]
+      ;(reports.balanceSheet?.assets || []).forEach((row) => rows.push(['Asset', row.accountCode, row.accountName, row.balance]))
+      ;(reports.balanceSheet?.liabilities || []).forEach((row) => rows.push(['Liability', row.accountCode, row.accountName, row.balance]))
+      ;(reports.balanceSheet?.equity || []).forEach((row) => rows.push(['Equity', row.accountCode, row.accountName, row.balance]))
+      ;(reports.balanceSheet?.monthlyComparison || []).forEach((row) => rows.push(['Monthly', row.label, 'Working Capital', row.workingCapital]))
+      return { rows, fileBase: `balance-sheet-${stamp}`, sheetName: 'Balance Sheet', successLabel: 'Balance sheet' }
+    }
+
+    if (reportView === 'dayBook') {
+      const rows = [...brandingRows, ['Date', 'Type', 'Description', 'Debit Account', 'Credit Account', 'Amount', 'Currency']]
+      ;(reports.dayBook?.entries || []).forEach((row) => {
+        rows.push([
+          new Date(row.date).toLocaleString(),
+          row.referenceType,
+          row.description || '',
+          row.debitAccountId?.accountCode || '',
+          row.creditAccountId?.accountCode || '',
+          row.amount,
+          row.currency || 'AED',
+        ])
+      })
+      return { rows, fileBase: `day-book-${stamp}`, sheetName: 'Day Book', successLabel: 'Day book' }
+    }
+
+    if (reportView === 'outstanding') {
+      const rows = [...brandingRows, ['Category', 'Name', 'Ledger Code', 'Outstanding', '0-30', '31-60', '61-90', '90+', 'Limit Exceeded']]
+      ;(reports.customerOutstanding?.rows || []).forEach((row) => {
+        rows.push(['Customer', row.customerName, row.ledgerAccount?.accountCode || '', row.outstanding, row.aging?.bucket0to30 || 0, row.aging?.bucket31to60 || 0, row.aging?.bucket61to90 || 0, row.aging?.bucket90Plus || 0, row.limitExceeded ? 'Yes' : 'No'])
+      })
+      ;(reports.vendorOutstanding?.rows || []).forEach((row) => {
+        rows.push(['Vendor', row.vendorName, row.ledgerAccount?.accountCode || '', row.outstanding, '', '', '', '', row.outstandingType || ''])
+      })
+      return { rows, fileBase: `outstanding-${stamp}`, sheetName: 'Outstanding', successLabel: 'Outstanding' }
+    }
+
+    if (reportView === 'ledger') {
+      const rows = [...brandingRows, ['Voucher', 'Date', 'Type', 'Description', 'Debit', 'Credit', 'Running Balance']]
+      ledgerReportRows.forEach((row) => {
+        rows.push([String(row.entryId || '').slice(-6).toUpperCase(), new Date(row.date).toLocaleString(), row.referenceType, row.description || '', row.debit || 0, row.credit || 0, row.runningBalance || 0])
+      })
+      return { rows, fileBase: `account-ledger-${stamp}`, sheetName: 'Ledger', successLabel: 'Ledger drilldown' }
+    }
+
+    if (reportView === 'forex') {
+      const rows = [...brandingRows, ['Currency', 'Entries', 'Impact']]
+      Object.entries(reports.forex?.byCurrency || {}).forEach(([currency, row]) => rows.push([currency, row.count || 0, row.impact || 0]))
+      return { rows, fileBase: `forex-impact-${stamp}`, sheetName: 'Forex', successLabel: 'Forex report' }
+    }
+
+    return null
+  }
+
+  const handleExportReportCsv = () => {
+    const payload = buildReportExportPayload()
+    if (!payload) {
+      setError('Load reports first before exporting')
+      return
+    }
+    downloadCsv(payload.rows, `${payload.fileBase}.csv`)
+    showNotification(`✅ ${payload.successLabel} CSV exported`)
+  }
+
+  const handleExportReportXlsx = () => {
+    const payload = buildReportExportPayload()
+    if (!payload) {
+      setError('Load reports first before exporting')
+      return
+    }
+    downloadXlsx(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
+    showNotification(`✅ ${payload.successLabel} XLSX exported`)
+  }
+
+  const handlePrintCurrentReport = async () => {
+    if (!reports.trialBalance) {
+      setError('Load reports first before printing')
+      return
+    }
+
+    const periodText = reports.trialBalance?.period?.startDate
+      ? `${reports.trialBalance.period.startDate} to ${reports.trialBalance.period.endDate || reports.trialBalance.period.startDate}`
+      : `As on ${new Date().toLocaleDateString()}`
+
+    const logoMarkup = await buildBrandingLogoTag(branding, 'margin-bottom:10px;')
+
+    const head = `
+      <div class="brandbar"></div>
+      <div class="head">
+        ${logoMarkup}
+        <p class="subtitle">${branding.companyName || DEFAULT_BRANDING.companyName}</p>
+        <p class="title">ERP Financial Statement</p>
+        <p class="meta">${branding.entityName || DEFAULT_BRANDING.entityName}${branding.branchName ? ` / ${branding.branchName}` : ''}</p>
+        ${branding.legalName ? `<p class="meta">${branding.legalName}</p>` : ''}
+        <p class="meta">${branding.reportSubtitle || DEFAULT_BRANDING.reportSubtitle} | Prepared for statutory / CA-style review</p>
+        <p class="meta">Period: ${periodText}</p>
+        <p class="meta">Generated: ${new Date().toLocaleString()}</p>
+      </div>
+    `
+
+    const signatureBlock = `
+      <div class="signatures">
+        <div class="sign-box">${branding.preparedByTitle || DEFAULT_BRANDING.preparedByTitle}<br />${branding.preparedByName || user?.name || DEFAULT_BRANDING.preparedByName}</div>
+        <div class="sign-box">${branding.reviewedByTitle || DEFAULT_BRANDING.reviewedByTitle}<br />${branding.reviewedByName || DEFAULT_BRANDING.reviewedByName}</div>
+        <div class="sign-box">${branding.approvedByTitle || DEFAULT_BRANDING.approvedByTitle}<br />${branding.approvedByName || DEFAULT_BRANDING.approvedByName}</div>
+      </div>
+      <div class="footer">
+        <span>${branding.companyName || DEFAULT_BRANDING.companyName} Reporting Suite</span>
+        <span>${branding.reportFooter || DEFAULT_BRANDING.reportFooter}</span>
+      </div>
+    `
+
+    let body = ''
+    if (reportView === 'pnl') {
+      body = `
+        ${head}
+        <div class="summary">
+          <div class="card"><div class="card-label">Income</div><div class="card-value">${formatMoney(reports.profitLoss?.totalIncome)}</div></div>
+          <div class="card"><div class="card-label">Expense</div><div class="card-value">${formatMoney(reports.profitLoss?.totalExpense)}</div></div>
+          <div class="card"><div class="card-label">Net Profit</div><div class="card-value">${formatMoney(reports.profitLoss?.netProfit)}</div></div>
+        </div>
+        <div class="section"><p class="section-title">Income Breakdown</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Amount</th></tr></thead><tbody>${(reports.profitLoss?.incomeBreakdown || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td class="num">${formatMoney(row.amount)}</td></tr>`).join('')}</tbody></table></div>
+        <div class="section"><p class="section-title">Expense Breakdown</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Amount</th></tr></thead><tbody>${(reports.profitLoss?.expenseBreakdown || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td class="num">${formatMoney(row.amount)}</td></tr>`).join('')}</tbody></table></div>
+        ${signatureBlock}
+      `
+    } else if (reportView === 'balanceSheet') {
+      const section = (title, rows) => `<div class="section"><p class="section-title">${title}</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Balance</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td class="num">${formatMoney(row.balance)}</td></tr>`).join('')}</tbody></table></div>`
+      body = `
+        ${head}
+        <div class="summary">
+          <div class="card"><div class="card-label">Assets</div><div class="card-value">${formatMoney(reports.balanceSheet?.totalAssets)}</div></div>
+          <div class="card"><div class="card-label">Liabilities + Equity</div><div class="card-value">${formatMoney(reports.balanceSheet?.liabilitiesPlusEquity)}</div></div>
+          <div class="card"><div class="card-label">Working Capital</div><div class="card-value">${formatMoney(reports.balanceSheet?.workingCapital)}</div></div>
+        </div>
+        ${section('Assets', reports.balanceSheet?.assets || [])}
+        ${section('Liabilities', reports.balanceSheet?.liabilities || [])}
+        ${section('Equity', reports.balanceSheet?.equity || [])}
+        ${signatureBlock}
+      `
+    } else {
+      body = `
+        ${head}
+        <div class="summary">
+          <div class="card"><div class="card-label">Trial Debit</div><div class="card-value">${formatMoney(reports.trialBalance?.totalDebit)}</div></div>
+          <div class="card"><div class="card-label">Trial Credit</div><div class="card-value">${formatMoney(reports.trialBalance?.totalCredit)}</div></div>
+          <div class="card"><div class="card-label">Difference</div><div class="card-value">${formatMoney(reports.trialBalance?.difference)}</div></div>
+        </div>
+        <div class="section"><p class="section-title">Trial Balance</p><table><thead><tr><th>Code</th><th>Account</th><th>Type</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Net</th></tr></thead><tbody>${(reports.trialBalance?.trialBalance || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td>${row.accountType}</td><td class="num">${formatMoney(row.debit)}</td><td class="num">${formatMoney(row.credit)}</td><td class="num">${formatMoney(row.net)}</td></tr>`).join('')}</tbody></table></div>
+        ${signatureBlock}
+      `
+    }
+
+    openPrintWindow('ERP Financial Statement', body)
+    showNotification('✅ Statement print layout opened')
+  }
+
+  const handleExportReportPdf = async () => {
+    if (!reports.trialBalance) {
+      setError('Load reports first before exporting PDF')
+      return
+    }
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+    const titleMap = {
+      summary: 'ERP Financial Summary',
+      trial: 'Trial Balance',
+      pnl: 'Profit & Loss Statement',
+      balanceSheet: 'Balance Sheet',
+      dayBook: 'Day Book',
+      outstanding: 'Outstanding Statement',
+      forex: 'Forex Gain/Loss',
+      ledger: `Ledger Drilldown ${selectedReportAccountCode ? `- ${selectedReportAccountCode}` : ''}`,
+    }
+    const title = titleMap[reportView] || 'ERP Report'
+    const generatedAt = new Date().toLocaleString()
+
+    const logoWidth = clampBrandingDimension(branding.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
+    const logoHeight = clampBrandingDimension(branding.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
+    const processedLogo = await createLogoRenderAsset(branding.logoUrl, logoWidth, logoHeight, branding.logoFit)
+
+    doc.setFillColor(0, 104, 74)
+    doc.rect(28, 24, 539, 10, 'F')
+    if (processedLogo && String(processedLogo).startsWith('data:image/')) {
+      try {
+        doc.addImage(processedLogo, 'PNG', 540 - logoWidth, 36, logoWidth, logoHeight, undefined, 'FAST')
+      } catch {
+        // Ignore invalid embedded image data and continue with text branding.
+      }
+    }
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.setTextColor(6, 95, 70)
+    doc.text(String(branding.companyName || DEFAULT_BRANDING.companyName).toUpperCase(), 40, 52)
+    doc.setFontSize(16)
+    doc.setTextColor(17, 24, 39)
+    doc.text(title, 40, 42)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    if (branding.legalName) doc.text(String(branding.legalName), 40, 64)
+    doc.text(`${branding.entityName || DEFAULT_BRANDING.entityName}${branding.branchName ? ` / ${branding.branchName}` : ''}`, 40, branding.legalName ? 78 : 64)
+    doc.text(String(branding.reportSubtitle || DEFAULT_BRANDING.reportSubtitle), 40, branding.legalName ? 92 : 78)
+    doc.text(`Generated: ${generatedAt}`, 40, branding.legalName ? 106 : 92)
+
+    let head = []
+    let body = []
+
+    if (reportView === 'trial' || reportView === 'summary') {
+      head = [['Code', 'Account', 'Type', 'Debit', 'Credit', 'Net']]
+      body = (reports.trialBalance?.trialBalance || []).map((row) => [
+        row.accountCode,
+        row.accountName,
+        row.accountType,
+        formatMoney(row.debit),
+        formatMoney(row.credit),
+        formatMoney(row.net),
+      ])
+    } else if (reportView === 'pnl') {
+      head = [['Section', 'Code', 'Account', 'Amount']]
+      body = [
+        ...(reports.profitLoss?.incomeBreakdown || []).map((row) => ['Income', row.accountCode, row.accountName, formatMoney(row.amount)]),
+        ...(reports.profitLoss?.expenseBreakdown || []).map((row) => ['Expense', row.accountCode, row.accountName, formatMoney(row.amount)]),
+        ['Total', 'NET', 'Net Profit', formatMoney(reports.profitLoss?.netProfit)],
+      ]
+    } else if (reportView === 'balanceSheet') {
+      head = [['Section', 'Code', 'Account', 'Balance']]
+      body = [
+        ...(reports.balanceSheet?.assets || []).map((row) => ['Asset', row.accountCode, row.accountName, formatMoney(row.balance)]),
+        ...(reports.balanceSheet?.liabilities || []).map((row) => ['Liability', row.accountCode, row.accountName, formatMoney(row.balance)]),
+        ...(reports.balanceSheet?.equity || []).map((row) => ['Equity', row.accountCode, row.accountName, formatMoney(row.balance)]),
+      ]
+    } else if (reportView === 'dayBook') {
+      head = [['Date', 'Type', 'Description', 'Debit A/C', 'Credit A/C', 'Amount']]
+      body = (reports.dayBook?.entries || []).map((row) => [
+        new Date(row.date).toLocaleString(),
+        row.referenceType,
+        row.description || '',
+        row.debitAccountId?.accountCode || '',
+        row.creditAccountId?.accountCode || '',
+        formatMoney(row.amount),
+      ])
+    } else if (reportView === 'outstanding') {
+      head = [['Party', 'Name', 'Ledger', 'Outstanding', 'Age/Type']]
+      body = [
+        ...(reports.customerOutstanding?.rows || []).map((row) => ['Customer', row.customerName, row.ledgerAccount?.accountCode || '', formatMoney(row.outstanding), `90+: ${formatMoney(row.aging?.bucket90Plus || 0)}`]),
+        ...(reports.vendorOutstanding?.rows || []).map((row) => ['Vendor', row.vendorName, row.ledgerAccount?.accountCode || '', formatMoney(row.outstanding), row.outstandingType || '']),
+      ]
+    } else if (reportView === 'forex') {
+      head = [['Currency', 'Entries', 'Impact']]
+      body = Object.entries(reports.forex?.byCurrency || {}).map(([currency, row]) => [currency, String(row.count || 0), formatMoney(row.impact)])
+    } else if (reportView === 'ledger') {
+      head = [['Voucher', 'Date', 'Type', 'Description', 'Debit', 'Credit', 'Running']]
+      body = (ledgerReportRows || []).map((row) => [
+        String(row.entryId || '').slice(-6).toUpperCase(),
+        new Date(row.date).toLocaleString(),
+        row.referenceType,
+        row.description || '',
+        formatMoney(row.debit),
+        formatMoney(row.credit),
+        formatMoney(row.runningBalance),
+      ])
+    }
+
+    autoTable(doc, {
+      head,
+      body,
+      startY: branding.legalName ? 122 : 108,
+      styles: { fontSize: 8, cellPadding: 4 },
+      headStyles: { fillColor: [17, 24, 39] },
+      alternateRowStyles: { fillColor: [249, 250, 251] },
+      margin: { left: 28, right: 28 },
+    })
+
+    const finalY = doc.lastAutoTable?.finalY || 110
+    const signatureY = Math.min(Math.max(finalY + 36, 680), 740)
+    doc.setDrawColor(156, 163, 175)
+    doc.line(40, signatureY, 180, signatureY)
+    doc.line(220, signatureY, 360, signatureY)
+    doc.line(400, signatureY, 540, signatureY)
+    doc.setFontSize(9)
+    doc.text(String(branding.preparedByTitle || DEFAULT_BRANDING.preparedByTitle), 40, signatureY + 14)
+    doc.text(String(branding.preparedByName || user?.name || DEFAULT_BRANDING.preparedByName), 40, signatureY + 28)
+    doc.text(String(branding.reviewedByTitle || DEFAULT_BRANDING.reviewedByTitle), 220, signatureY + 14)
+    doc.text(String(branding.reviewedByName || DEFAULT_BRANDING.reviewedByName), 220, signatureY + 28)
+    doc.text(String(branding.approvedByTitle || DEFAULT_BRANDING.approvedByTitle), 400, signatureY + 14)
+    doc.text(String(branding.approvedByName || DEFAULT_BRANDING.approvedByName), 400, signatureY + 28)
+    doc.setFontSize(8)
+    doc.setTextColor(107, 114, 128)
+    doc.text(`${branding.companyName || DEFAULT_BRANDING.companyName} Reporting Suite`, 40, signatureY + 52)
+    doc.text(String(branding.reportFooter || DEFAULT_BRANDING.reportFooter), 420, signatureY + 52)
+
+    const stamp = new Date().toISOString().slice(0, 10)
+    doc.save(`${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${stamp}.pdf`)
+    showNotification('✅ PDF exported')
+  }
+
+  const handleTrialAccountDrilldown = async (accountCode) => {
+    const match = accounts.find((acc) => acc.accountCode === accountCode)
+    if (!match?._id) return
+    setSelectedReportAccountId(match._id)
+    setSelectedReportAccountCode(match.accountCode)
+    setReportView('ledger')
+    await loadLedgerReport(match._id)
+  }
+
+  const handleReportAccountDrilldown = async (accountId, accountCode) => {
+    if (!accountId) return
+    setSelectedReportAccountId(String(accountId))
+    setSelectedReportAccountCode(accountCode || '')
+    setReportView('ledger')
+    await loadLedgerReport(String(accountId))
+  }
+
+  const handleOpenVoucherSource = async (ledgerId) => {
+    if (!ledgerId) return
+    try {
+      setVoucherSourceLoading(true)
+      const data = await erpAccountingAPI.getTransactionSourceByLedger(token, ledgerId)
+      setVoucherSource(data)
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load voucher source')
+    } finally {
+      setVoucherSourceLoading(false)
+    }
+  }
+
+  const handleJumpToTransaction = async (transactionId) => {
+    if (!transactionId) return
+    setSelectedTransactionId(transactionId)
+    setVoucherSource(null)
+    setActiveTab('transactions')
+    try {
+      await loadTransactions()
+    } catch {
+      // Errors are handled by loadTransactions state updates.
+    }
+    showNotification('✅ Jumped to linked transaction')
+  }
+
+  if (!canAccessERP) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center', color: C.t2 }}>
+        <p>⛔ ERP access restricted for your role.</p>
+      </div>
+    )
+  }
+
+  const handleCreateAccount = async (e) => {
+    e.preventDefault()
+    if (!form.accountName || !form.accountCode || !form.accountType) {
+      setError('All fields required')
+      return
+    }
+    try {
+      await erpAccountingAPI.createAccount(token, form)
+      setForm({})
+      setShowForm(false)
+      await loadAccounts()
+      showNotification('✅ Account created successfully')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to create account')
+    }
+  }
+
+  const handleCreateLedgerEntry = async (e) => {
+    e.preventDefault()
+    if (!ledgerForm.debitAccountId || !ledgerForm.creditAccountId || !ledgerForm.amount) {
+      setError('Debit account, credit account, and amount are required')
+      return
+    }
+    setSaving(true)
+    try {
+      await erpAccountingAPI.createLedgerEntry(token, {
+        ...ledgerForm,
+        amount: Number(ledgerForm.amount),
+      })
+      setLedgerForm({
+        date: new Date().toISOString().slice(0, 10),
+        mappingId: '',
+        debitAccountId: '',
+        creditAccountId: '',
+        amount: '',
+        description: '',
+        referenceType: 'journal',
+        currency: currencies.find((currency) => currency.baseCurrency)?.code || 'AED',
+      })
+      setShowLedgerForm(false)
+      await Promise.all([loadLedger(), loadDashboard()])
+      showNotification('✅ Ledger entry created')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to create ledger entry')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCreateCustomer = async (e) => {
+    e.preventDefault()
+    if (!customerForm.name) {
+      setError('Customer name is required')
+      return
+    }
+    setSaving(true)
+    try {
+      await erpAccountingAPI.createCustomer(token, {
+        ...customerForm,
+        openingBalance: Number(customerForm.openingBalance || 0),
+        creditLimit: Number(customerForm.creditLimit || 0),
+        paymentTermsDays: Number(customerForm.paymentTermsDays || 0),
+      })
+      setCustomerForm({
+        name: '',
+        phone: '',
+        email: '',
+        address: '',
+        gstVat: '',
+        openingBalance: '',
+        creditLimit: '',
+        paymentTermsDays: '',
+        currency: currencies.find((currency) => currency.baseCurrency)?.code || 'AED',
+        notes: '',
+      })
+      setShowCustomerForm(false)
+      await Promise.all([loadCustomers(), loadAccounts()])
+      showNotification('✅ Customer created successfully')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to create customer')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const openEditModal = (type, record) => {
+    let formState = {}
+    if (type === 'account') {
+      formState = {
+        accountName: record.accountName || '',
+        description: record.description || '',
+        currency: record.currency || 'AED',
+        department: record.department || '',
+      }
+    }
+    if (type === 'mapping') {
+      formState = {
+        mappingType: record.mappingType || '',
+        debitAccountId: record.debitAccountId?._id || '',
+        creditAccountId: record.creditAccountId?._id || '',
+        description: record.description || '',
+      }
+    }
+    if (type === 'currency') {
+      formState = {
+        code: record.code || '',
+        name: record.name || '',
+        symbol: record.symbol || '',
+        exchangeRate: record.exchangeRate || 1,
+        baseCurrency: Boolean(record.baseCurrency),
+      }
+    }
+    if (type === 'customer') {
+      formState = {
+        name: record.name || '',
+        phone: record.phone || '',
+        email: record.email || '',
+        address: record.address || '',
+        gstVat: record.gstVat || '',
+        creditLimit: record.creditLimit || 0,
+        paymentTermsDays: record.paymentTermsDays || 0,
+        currency: record.currency || 'AED',
+        notes: record.notes || '',
+      }
+    }
+    setEditState({ type, record, form: formState })
+  }
+
+  const closeEditModal = () => {
+    setEditState({ type: '', record: null, form: {} })
+  }
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault()
+    if (editState.type === 'ledger') {
+      handleSaveEditLedger()
+      return
+    }
+    if (!editState.record || !editState.type) return
+    setSaving(true)
+    try {
+      if (editState.type === 'account') {
+        await erpAccountingAPI.updateAccount(token, editState.record._id, editState.form)
+        await loadAccounts()
+      }
+      if (editState.type === 'mapping') {
+        await erpAccountingAPI.updateMapping(token, editState.record._id, editState.form)
+        await loadMappings()
+      }
+      if (editState.type === 'currency') {
+        await erpAccountingAPI.updateCurrency(token, editState.record._id, {
+          ...editState.form,
+          exchangeRate: Number(editState.form.exchangeRate || 1),
+        })
+        await loadCurrencies()
+      }
+      if (editState.type === 'customer') {
+        await erpAccountingAPI.updateCustomer(token, editState.record._id, {
+          ...editState.form,
+          creditLimit: Number(editState.form.creditLimit || 0),
+          paymentTermsDays: Number(editState.form.paymentTermsDays || 0),
+        })
+        await loadCustomers()
+      }
+      closeEditModal()
+      showNotification('✅ Changes saved successfully')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to save changes')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCreateCurrency = async (e) => {
+    e.preventDefault()
+    if (!currencyForm.code || !currencyForm.name || !currencyForm.symbol) {
+      setError('Currency code, name, and symbol are required')
+      return
+    }
+    setSaving(true)
+    try {
+      await erpAccountingAPI.createCurrency(token, {
+        ...currencyForm,
+        exchangeRate: Number(currencyForm.exchangeRate || 1),
+      })
+      setCurrencyForm({ code: '', name: '', symbol: '', exchangeRate: 1, baseCurrency: false })
+      setShowCurrencyForm(false)
+      await loadCurrencies()
+      showNotification('✅ Currency created successfully')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to create currency')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCreateMapping = async (e) => {
+    e.preventDefault()
+    if (!mappingForm.mappingType || !mappingForm.debitAccountId || !mappingForm.creditAccountId) {
+      setError('Mapping type, debit account, and credit account are required')
+      return
+    }
+    setSaving(true)
+    try {
+      await erpAccountingAPI.createMapping(token, mappingForm)
+      setMappingForm({ mappingType: '', debitAccountId: '', creditAccountId: '', description: '' })
+      setShowMappingForm(false)
+      await loadMappings()
+      showNotification('✅ Mapping created successfully')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to create mapping')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleEditAccount = (account) => openEditModal('account', account)
+
+  const handleDeleteAccount = async (account) => {
+    if (!window.confirm(`Deactivate account ${account.accountCode} - ${account.accountName}?`)) return
+    try {
+      await erpAccountingAPI.deleteAccount(token, account._id)
+      await loadAccounts()
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to delete account')
+    }
+  }
+
+  const handleEditMapping = (mapping) => openEditModal('mapping', mapping)
+
+  const handleDeleteMapping = async (mapping) => {
+    if (!window.confirm(`Deactivate mapping ${mapping.mappingType}?`)) return
+    try {
+      await erpAccountingAPI.deleteMapping(token, mapping._id)
+      await loadMappings()
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to delete mapping')
+    }
+  }
+
+  const handleEditCurrency = (currency) => openEditModal('currency', currency)
+
+  const handleLedgerMappingChange = (mappingId) => {
+    const selectedMapping = mappings.find((mapping) => mapping._id === mappingId)
+    setLedgerForm((prev) => ({
+      ...prev,
+      mappingId,
+      debitAccountId: selectedMapping?.debitAccountId?._id || prev.debitAccountId,
+      creditAccountId: selectedMapping?.creditAccountId?._id || prev.creditAccountId,
+      description: selectedMapping && !prev.description ? selectedMapping.description || prev.description : prev.description,
+    }))
+  }
+
+  const handleDeleteCurrency = async (currency) => {
+    if (!window.confirm(`Deactivate currency ${currency.code}?`)) return
+    try {
+      await erpAccountingAPI.deleteCurrency(token, currency._id)
+      await loadCurrencies()
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to delete currency')
+    }
+  }
+
+  const handleEditCustomer = (customer) => openEditModal('customer', customer)
+
+  const handleDeleteCustomer = async (customer) => {
+    if (!window.confirm(`Deactivate customer ${customer.name}?`)) return
+    try {
+      await erpAccountingAPI.deleteCustomer(token, customer._id)
+      await loadCustomers()
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to delete customer')
+    }
+  }
+
+  const handleEditLedger = (entry) => {
+    setEditState({
+      type: 'ledger',
+      record: entry,
+      form: {
+        date: new Date(entry.date).toISOString().slice(0, 10),
+        debitAccountId: entry.debitAccountId?._id || '',
+        creditAccountId: entry.creditAccountId?._id || '',
+        amount: entry.amount,
+        description: entry.description,
+        referenceType: entry.referenceType,
+        currency: entry.currency,
+      },
+    })
+  }
+
+  const handleDeleteLedger = async (entry) => {
+    if (!window.confirm(`Reverse ledger entry ${entry.referenceType} (${entry.amount})? This will create an offsetting entry.`)) return
+    try {
+      setSaving(true)
+      await erpAccountingAPI.deleteLedgerEntry(token, entry._id)
+      await loadLedger()
+      setError('')
+      showNotification('✅ Entry reversed successfully')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to reverse entry')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveEditLedger = async () => {
+    if (!editState.form.debitAccountId || !editState.form.creditAccountId || !editState.form.amount) {
+      setError('All fields required')
+      return
+    }
+    if (editState.form.debitAccountId === editState.form.creditAccountId) {
+      setError('Debit and Credit accounts must be different')
+      return
+    }
+    try {
+      setSaving(true)
+      await erpAccountingAPI.updateLedgerEntry(token, editState.record._id, editState.form)
+      await loadLedger()
+      setEditState({ type: '', record: null, form: {} })
+      setError('')
+      showNotification('✅ Entry updated successfully')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to update entry')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ padding: '1.5rem' }}>
+      <h2 style={{ marginBottom: '1.5rem', color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>
+        📊 ERP Accounting System
+      </h2>
+
+      {error && <div style={{ background: C.danger, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>{error}</div>}
+      {success && <div style={{ background: C.s1, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>{success}</div>}
+
+      {/* TAB NAVIGATION */}
+      {(() => {
+        const visibleTabs = [
+          'dashboard',
+          ...(canViewAccounts ? ['accounts', 'mappings', 'enquiry', 'settings'] : []),
+          ...(canViewCustomers ? ['customers'] : []),
+          ...(canViewLedger ? ['ledger'] : []),
+          ...(canAccessTransactions ? ['transactions'] : []),
+          ...(canAccessReports ? ['reports'] : []),
+          ...(canAccessVendors ? ['vendors'] : []),
+          ...(canAccessInventory ? ['inventory'] : []),
+        ]
+        const uniqueTabs = Array.from(new Set(visibleTabs))
+        return (
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem', paddingBottom: '1rem', flexWrap: 'wrap' }}>
+        {uniqueTabs.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              padding: '0.625rem 1.25rem',
+              background: activeTab === tab ? C.s1 : 'transparent',
+              color: activeTab === tab ? '#FFFFFF' : '#1F1F1F',
+              border: activeTab === tab ? 'none' : `1px solid #D1D5DB`,
+              borderRadius: '0.375rem',
+              cursor: 'pointer',
+              fontWeight: activeTab === tab ? '700' : '600',
+              textTransform: 'capitalize',
+              fontSize: '0.9rem',
+              transition: 'all 0.25s ease',
+              boxShadow: activeTab === tab ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            }}
+          >
+            {tab === 'enquiry'
+              ? 'Balance Enquiry'
+              : tab === 'transactions'
+                ? 'Transactions'
+                : tab === 'reports'
+                  ? 'Reports'
+                  : tab === 'vendors'
+                    ? 'Vendors'
+                    : tab === 'inventory'
+                      ? 'Inventory'
+                      : tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
+      </div>
+        )
+      })()}
+
+      {/* DASHBOARD TAB */}
+      {activeTab === 'dashboard' && (
+        <div>
+          <h3 style={{ marginBottom: '1rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Dashboard</h3>
+          {loading ? (
+            <p style={{ color: C.inkSoft }}>Loading...</p>
+          ) : dashboard ? (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+                <div style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', borderLeft: `4px solid ${C.s1}` }}>
+                  <p style={{ color: C.t3, fontSize: '0.875rem', marginBottom: '0.5rem' }}>Month Income</p>
+                  <p style={{ color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>AED {dashboard.summary?.monthIncome?.toLocaleString()}</p>
+                </div>
+                <div style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', borderLeft: `4px solid ${C.danger}` }}>
+                  <p style={{ color: C.t3, fontSize: '0.875rem', marginBottom: '0.5rem' }}>Month Expense</p>
+                  <p style={{ color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>AED {dashboard.summary?.monthExpense?.toLocaleString()}</p>
+                </div>
+                <div style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', borderLeft: `4px solid ${C.s1}` }}>
+                  <p style={{ color: C.t3, fontSize: '0.875rem', marginBottom: '0.5rem' }}>Month Profit</p>
+                  <p style={{ color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>AED {dashboard.summary?.monthProfit?.toLocaleString()}</p>
+                </div>
+                <div style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', borderLeft: '4px solid #0EA5E9' }}>
+                  <p style={{ color: C.t3, fontSize: '0.875rem', marginBottom: '0.3rem' }}>Document Expiry Warnings</p>
+                  <p style={{ color: C.t1, fontSize: '0.95rem', fontWeight: '700', margin: 0 }}>
+                    30d: {Number(dashboard.vendorDocumentExpiry?.warning30 || 0).toLocaleString()} | 60d: {Number(dashboard.vendorDocumentExpiry?.warning60 || 0).toLocaleString()} | 90d: {Number(dashboard.vendorDocumentExpiry?.warning90 || 0).toLocaleString()}
+                  </p>
+                  <p style={{ color: '#991B1B', fontSize: '0.78rem', margin: '0.3rem 0 0' }}>Expired: {Number(dashboard.vendorDocumentExpiry?.expired || 0).toLocaleString()}</p>
+                </div>
+                <div style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', borderLeft: '4px solid #D97706' }}>
+                  <p style={{ color: C.t3, fontSize: '0.875rem', marginBottom: '0.3rem' }}>Vendor Compliance Risk</p>
+                  <p style={{ color: C.t1, fontSize: '1.05rem', fontWeight: '700', margin: 0 }}>{Number(dashboard.vendorComplianceRisk?.nonCompliant || 0).toLocaleString()} vendors at risk</p>
+                  <p style={{ color: C.inkSoft, fontSize: '0.78rem', margin: '0.3rem 0 0' }}>Avg score: {Number(dashboard.vendorComplianceRisk?.averageScore || 0).toLocaleString()}%</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div style={{ background: C.p1, padding: '1.5rem', borderRadius: '0.5rem' }}>
+                  <h4 style={{ color: C.t1, marginBottom: '1rem', fontWeight: '600' }}>Key Assets</h4>
+                  {dashboard.assets?.length ? (
+                    dashboard.assets.map((a, i) => (
+                      <div key={i} style={{ padding: '0.5rem', borderBottom: `1px solid ${C.p2}`, color: C.t2, fontSize: '0.875rem' }}>
+                        {a.accountCode} - {a.accountName}
+                      </div>
+                    ))
+                  ) : (
+                    <div style={emptyCardStyle}>No asset accounts yet.</div>
+                  )}
+                </div>
+                <div style={{ background: C.p1, padding: '1.5rem', borderRadius: '0.5rem' }}>
+                  <h4 style={{ color: C.t1, marginBottom: '1rem', fontWeight: '600' }}>Key Liabilities</h4>
+                  {dashboard.liabilities?.length ? (
+                    dashboard.liabilities.map((l, i) => (
+                      <div key={i} style={{ padding: '0.5rem', borderBottom: `1px solid ${C.p2}`, color: C.t2, fontSize: '0.875rem' }}>
+                        {l.accountCode} - {l.accountName}
+                      </div>
+                    ))
+                  ) : (
+                    <div style={emptyCardStyle}>No liability accounts yet.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p style={{ color: C.inkSoft }}>No dashboard data available yet.</p>
+          )}
+        </div>
+      )}
+
+      {/* CHART OF ACCOUNTS TAB */}
+      {activeTab === 'accounts' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Chart of Accounts</h3>
+            {canManageAccounts && (
+              <button
+                onClick={() => setShowForm(!showForm)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: C.s1,
+                  color: C.t1,
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                }}
+              >
+                + Add Account
+              </button>
+            )}
+          </div>
+
+          {showForm && (
+            <form onSubmit={handleCreateAccount} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
+              <input
+                placeholder="Account Name"
+                value={form.accountName || ''}
+                onChange={(e) => setForm({ ...form, accountName: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              />
+              <input
+                placeholder="Account Code"
+                value={form.accountCode || ''}
+                onChange={(e) => setForm({ ...form, accountCode: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              />
+              <select
+                value={form.accountType || ''}
+                onChange={(e) => setForm({ ...form, accountType: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              >
+                <option value="">Select Type</option>
+                <option value="Asset">Asset</option>
+                <option value="Liability">Liability</option>
+                <option value="Income">Income</option>
+                <option value="Expense">Expense</option>
+                <option value="Equity">Equity</option>
+              </select>
+              <button type="submit" style={{ padding: '0.5rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', marginRight: '0.5rem' }}>
+                Create
+              </button>
+              <button type="button" onClick={() => setShowForm(false)} style={{ padding: '0.5rem 1rem', background: C.p1, color: C.t2, border: `1px solid ${C.p1}`, borderRadius: '0.375rem', cursor: 'pointer' }}>
+                Cancel
+              </button>
+            </form>
+          )}
+
+          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
+                  <th onClick={() => setSorting({...sorting, accounts: {by: 'code', asc: !sorting.accounts.asc}})} style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.accounts.by === 'code' ? C.p2 : 'transparent' }}>Code {sorting.accounts.by === 'code' && (sorting.accounts.asc ? '▲' : '▼')}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Name</th>
+                  <th onClick={() => setSorting({...sorting, accounts: {by: 'type', asc: !sorting.accounts.asc}})} style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.accounts.by === 'type' ? C.p2 : 'transparent' }}>Type {sorting.accounts.by === 'type' && (sorting.accounts.asc ? '▲' : '▼')}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Status</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {accounts
+                  .sort((a, b) => {
+                    if (sorting.accounts.by === 'code') {
+                      return sorting.accounts.asc ? a.accountCode.localeCompare(b.accountCode) : b.accountCode.localeCompare(a.accountCode)
+                    } else if (sorting.accounts.by === 'type') {
+                      return sorting.accounts.asc ? a.accountType.localeCompare(b.accountType) : b.accountType.localeCompare(a.accountType)
+                    }
+                    return 0
+                  })
+                  .slice((pagination.accounts - 1) * ITEMS_PER_PAGE, pagination.accounts * ITEMS_PER_PAGE)
+                  .map((acc) => (
+                    <tr key={acc._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>{acc.accountCode}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>{acc.accountName}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>{acc.accountType}</td>
+                      <td style={{ padding: '0.75rem', color: acc.isActive ? C.s1 : C.danger }}>{acc.isActive ? '✓ Active' : '✗ Inactive'}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <button onClick={() => handleEditAccount(acc)} style={{ padding: '0.35rem 0.7rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
+                          <button onClick={() => handleDeleteAccount(acc)} style={{ padding: '0.35rem 0.7rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination for Accounts */}
+          {Math.ceil(accounts.length / ITEMS_PER_PAGE) > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+              <button onClick={() => setPagination({...pagination, accounts: Math.max(1, pagination.accounts - 1)})} disabled={pagination.accounts === 1} style={{padding: '0.4rem 0.8rem', background: pagination.accounts === 1 ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.accounts === 1 ? 'default' : 'pointer', borderRadius: '0.35rem'}}>← Prev</button>
+              {Array.from({length: Math.ceil(accounts.length / ITEMS_PER_PAGE)}, (_, i) => i + 1).map(p => (
+                <button key={p} onClick={() => setPagination({...pagination, accounts: p})} style={{padding: '0.4rem 0.6rem', background: p === pagination.accounts ? C.s1 : '#E5E7EB', color: p === pagination.accounts ? '#fff' : C.ink, border: 'none', cursor: 'pointer', borderRadius: '0.35rem', fontWeight: p === pagination.accounts ? '600' : '400'}}>{p}</button>
+              ))}
+              <button onClick={() => setPagination({...pagination, accounts: Math.min(Math.ceil(accounts.length / ITEMS_PER_PAGE), pagination.accounts + 1)})} disabled={pagination.accounts === Math.ceil(accounts.length / ITEMS_PER_PAGE)} style={{padding: '0.4rem 0.8rem', background: pagination.accounts === Math.ceil(accounts.length / ITEMS_PER_PAGE) ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.accounts === Math.ceil(accounts.length / ITEMS_PER_PAGE) ? 'default' : 'pointer', borderRadius: '0.35rem'}}>Next →</button>
+            </div>
+          )}
+
+          {accounts.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No accounts created yet.</p>}
+        </div>
+      )}
+
+      {/* LEDGER TAB */}
+      {activeTab === 'customers' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
+            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Customers</h3>
+            {canManageCustomers && (
+              <button
+                onClick={() => setShowCustomerForm(!showCustomerForm)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: C.s1,
+                  color: C.t1,
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                }}
+              >
+                + Add Customer
+              </button>
+            )}
+          </div>
+
+          {showCustomerForm && (
+            <form onSubmit={handleCreateCustomer} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
+              <input placeholder="Customer Name" value={customerForm.name} onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
+              <input placeholder="Phone" value={customerForm.phone} onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
+              <input placeholder="Email" value={customerForm.email} onChange={(e) => setCustomerForm({ ...customerForm, email: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
+              <input placeholder="Address" value={customerForm.address} onChange={(e) => setCustomerForm({ ...customerForm, address: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
+              <input placeholder="GST/VAT" value={customerForm.gstVat} onChange={(e) => setCustomerForm({ ...customerForm, gstVat: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
+              <input type="number" step="0.01" placeholder="Opening Balance" value={customerForm.openingBalance} onChange={(e) => setCustomerForm({ ...customerForm, openingBalance: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
+              <input type="number" step="0.01" placeholder="Credit Limit" value={customerForm.creditLimit} onChange={(e) => setCustomerForm({ ...customerForm, creditLimit: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
+              <input type="number" placeholder="Payment Terms (Days)" value={customerForm.paymentTermsDays} onChange={(e) => setCustomerForm({ ...customerForm, paymentTermsDays: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
+              <input placeholder="Currency (e.g. AED)" value={customerForm.currency} onChange={(e) => setCustomerForm({ ...customerForm, currency: e.target.value.toUpperCase() })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
+              <input placeholder="Notes" value={customerForm.notes} onChange={(e) => setCustomerForm({ ...customerForm, notes: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.75rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
+
+              <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', marginRight: '0.5rem' }}>
+                {saving ? 'Saving...' : 'Create Customer'}
+              </button>
+              <button type="button" onClick={() => setShowCustomerForm(false)} style={{ padding: '0.5rem 1rem', background: C.p1, color: C.t2, border: `1px solid ${C.t2}`, borderRadius: '0.375rem', cursor: 'pointer' }}>
+                Cancel
+              </button>
+            </form>
+          )}
+
+          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Name</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Phone</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Email</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>GST/VAT</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>Opening</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>Outstanding</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>0-30</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>31-60</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>61-90</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>90+</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Debtor A/C</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {customers.map((customer) => (
+                  <tr key={customer._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                    <td style={{ padding: '0.75rem', color: C.t1, fontWeight: '600' }}>{customer.name}</td>
+                    <td style={{ padding: '0.75rem', color: C.t2 }}>{customer.phone || '-'}</td>
+                    <td style={{ padding: '0.75rem', color: C.t2 }}>{customer.email || '-'}</td>
+                    <td style={{ padding: '0.75rem', color: C.t2 }}>{customer.gstVat || '-'}</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.openingBalance || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right', color: Number(customer.outstandingBalance || 0) > 0 ? C.s1 : C.t2, fontWeight: '600' }}>{Number(customer.outstandingBalance || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.aging?.bucket0to30 || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.aging?.bucket31to60 || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.aging?.bucket61to90 || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right', color: Number(customer.aging?.bucket90Plus || 0) > 0 ? '#F59E0B' : C.t2, fontWeight: Number(customer.aging?.bucket90Plus || 0) > 0 ? '700' : '400' }}>{Number(customer.aging?.bucket90Plus || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.75rem', color: C.t2 }}>{customer.ledgerAccountId?.accountCode || '-'}{customer.ledgerAccountId?.accountName ? ` - ${customer.ledgerAccountId.accountName}` : ''}</td>
+                    <td style={{ padding: '0.75rem', color: C.t2 }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button onClick={() => handleEditCustomer(customer)} style={{ padding: '0.35rem 0.7rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Edit</button>
+                        <button onClick={() => handleDeleteCustomer(customer)} style={{ padding: '0.35rem 0.7rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {customers.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No customers added yet.</p>}
+        </div>
+      )}
+
+      {/* LEDGER TAB */}
+      {activeTab === 'ledger' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
+            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Journal Entry (Advanced)</h3>
+            {canManageAccounts && (
+              <button
+                onClick={() => setShowLedgerForm(!showLedgerForm)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: C.s1,
+                  color: C.t1,
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                }}
+              >
+                + Create Ledger Entry
+              </button>
+            )}
+          </div>
+          {showLedgerForm && (
+            <form onSubmit={handleCreateLedgerEntry} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
+              <select
+                value={ledgerForm.mappingId}
+                onChange={(e) => handleLedgerMappingChange(e.target.value)}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              >
+                <option value="">Post From Mapping (Optional)</option>
+                {mappings.map((mapping) => (
+                  <option key={mapping._id} value={mapping._id}>{mapping.mappingType}</option>
+                ))}
+              </select>
+              <input
+                type="date"
+                value={ledgerForm.date}
+                onChange={(e) => setLedgerForm({ ...ledgerForm, date: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              />
+              <select
+                value={ledgerForm.debitAccountId}
+                onChange={(e) => setLedgerForm({ ...ledgerForm, debitAccountId: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              >
+                <option value="">Select Debit Account</option>
+                {accounts.map((account) => (
+                  <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
+                ))}
+              </select>
+              <select
+                value={ledgerForm.creditAccountId}
+                onChange={(e) => setLedgerForm({ ...ledgerForm, creditAccountId: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              >
+                <option value="">Select Credit Account</option>
+                {accounts.map((account) => (
+                  <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Amount"
+                value={ledgerForm.amount}
+                onChange={(e) => setLedgerForm({ ...ledgerForm, amount: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              />
+              <select
+                value={ledgerForm.referenceType}
+                onChange={(e) => setLedgerForm({ ...ledgerForm, referenceType: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              >
+                {LEDGER_REFERENCE_TYPES.map((referenceType) => (
+                  <option key={referenceType} value={referenceType}>{referenceType}</option>
+                ))}
+              </select>
+              <select
+                value={ledgerForm.currency}
+                onChange={(e) => setLedgerForm({ ...ledgerForm, currency: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              >
+                {(currencies.length ? currencies : [{ code: 'AED', name: 'UAE Dirham' }]).map((currency) => (
+                  <option key={currency.code} value={currency.code}>{currency.code} - {currency.name}</option>
+                ))}
+              </select>
+              <input
+                placeholder="Description"
+                value={ledgerForm.description}
+                onChange={(e) => setLedgerForm({ ...ledgerForm, description: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              />
+              <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', marginRight: '0.5rem' }}>
+                {saving ? 'Saving...' : 'Create Entry'}
+              </button>
+              <button type="button" onClick={() => setShowLedgerForm(false)} style={{ padding: '0.5rem 1rem', background: C.p1, color: C.t2, border: `1px solid ${C.t2}`, borderRadius: '0.375rem', cursor: 'pointer' }}>
+                Cancel
+              </button>
+            </form>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+            <input
+              type="date"
+              value={ledgerFilters.startDate}
+              onChange={(e) => setLedgerFilters((prev) => ({ ...prev, startDate: e.target.value }))}
+              style={modalInputStyle}
+            />
+            <input
+              type="date"
+              value={ledgerFilters.endDate}
+              onChange={(e) => setLedgerFilters((prev) => ({ ...prev, endDate: e.target.value }))}
+              style={modalInputStyle}
+            />
+            <select
+              value={ledgerFilters.department}
+              onChange={(e) => setLedgerFilters((prev) => ({ ...prev, department: e.target.value }))}
+              style={modalInputStyle}
+            >
+              <option value="">All Departments</option>
+              {LEDGER_DEPARTMENTS.map((department) => (
+                <option key={department} value={department}>{department}</option>
+              ))}
+            </select>
+            <select
+              value={ledgerFilters.referenceType}
+              onChange={(e) => setLedgerFilters((prev) => ({ ...prev, referenceType: e.target.value }))}
+              style={modalInputStyle}
+            >
+              <option value="">All Types</option>
+              {LEDGER_REFERENCE_TYPES.map((referenceType) => (
+                <option key={referenceType} value={referenceType}>{referenceType}</option>
+              ))}
+            </select>
+            <select
+              value={ledgerFilters.accountId}
+              onChange={(e) => setLedgerFilters((prev) => ({ ...prev, accountId: e.target.value }))}
+              style={modalInputStyle}
+            >
+              <option value="">All Accounts</option>
+              {accounts.map((account) => (
+                <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => setLedgerFilters({ startDate: '', endDate: '', department: '', referenceType: '', accountId: '' })}
+              style={{ padding: '0.65rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', height: 'fit-content' }}
+            >
+              Reset Filters
+            </button>
+          </div>
+          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
+                  <th onClick={() => setSorting({...sorting, ledger: {by: 'date', asc: !sorting.ledger.asc}})} style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.ledger.by === 'date' ? C.p2 : 'transparent' }}>Date {sorting.ledger.by === 'date' && (sorting.ledger.asc ? '▲' : '▼')}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Debit Account</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Credit Account</th>
+                  <th onClick={() => setSorting({...sorting, ledger: {by: 'amount', asc: !sorting.ledger.asc}})} style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.ledger.by === 'amount' ? C.p2 : 'transparent' }}>Amount {sorting.ledger.by === 'amount' && (sorting.ledger.asc ? '▲' : '▼')}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Type</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'center', color: C.t1, fontWeight: '600' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ledger
+                  .sort((a, b) => {
+                    if (sorting.ledger.by === 'date') {
+                      return sorting.ledger.asc ? new Date(a.date) - new Date(b.date) : new Date(b.date) - new Date(a.date)
+                    } else if (sorting.ledger.by === 'amount') {
+                      return sorting.ledger.asc ? a.amount - b.amount : b.amount - a.amount
+                    }
+                    return 0
+                  })
+                  .slice((pagination.ledger - 1) * ITEMS_PER_PAGE, pagination.ledger * ITEMS_PER_PAGE)
+                  .map((entry) => (
+                    <tr key={entry._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>{new Date(entry.date).toLocaleDateString()}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>{entry.debitAccountId?.accountCode}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>{entry.creditAccountId?.accountCode}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>{entry.amount?.toLocaleString()}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>{entry.referenceType}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                          <button onClick={() => handleEditLedger(entry)} title="Edit" style={{ padding: '0.35rem 0.5rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
+                          <button onClick={() => handleDeleteLedger(entry)} title="Reverse" style={{ padding: '0.35rem 0.5rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Reverse</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination for Ledger */}
+          {Math.ceil(ledger.length / ITEMS_PER_PAGE) > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+              <button onClick={() => setPagination({...pagination, ledger: Math.max(1, pagination.ledger - 1)})} disabled={pagination.ledger === 1} style={{padding: '0.4rem 0.8rem', background: pagination.ledger === 1 ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.ledger === 1 ? 'default' : 'pointer', borderRadius: '0.35rem'}}>← Prev</button>
+              {Array.from({length: Math.ceil(ledger.length / ITEMS_PER_PAGE)}, (_, i) => i + 1).map(p => (
+                <button key={p} onClick={() => setPagination({...pagination, ledger: p})} style={{padding: '0.4rem 0.6rem', background: p === pagination.ledger ? C.s1 : '#E5E7EB', color: p === pagination.ledger ? '#fff' : C.ink, border: 'none', cursor: 'pointer', borderRadius: '0.35rem', fontWeight: p === pagination.ledger ? '600' : '400'}}>{p}</button>
+              ))}
+              <button onClick={() => setPagination({...pagination, ledger: Math.min(Math.ceil(ledger.length / ITEMS_PER_PAGE), pagination.ledger + 1)})} disabled={pagination.ledger === Math.ceil(ledger.length / ITEMS_PER_PAGE)} style={{padding: '0.4rem 0.8rem', background: pagination.ledger === Math.ceil(ledger.length / ITEMS_PER_PAGE) ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.ledger === Math.ceil(ledger.length / ITEMS_PER_PAGE) ? 'default' : 'pointer', borderRadius: '0.35rem'}}>Next →</button>
+            </div>
+          )}
+
+          {ledger.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No ledger entries yet.</p>}
+        </div>
+      )}
+
+      {/* ACCOUNT MAPPINGS TAB */}
+      {activeTab === 'mappings' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
+            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Account Mappings</h3>
+            {canManageAccounts && (
+              <button
+                onClick={() => setShowMappingForm(!showMappingForm)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: C.s1,
+                  color: C.t1,
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                }}
+              >
+                + Add Mapping
+              </button>
+            )}
+          </div>
+          <p style={{ color: C.inkSoft, marginBottom: '1rem', fontSize: '0.875rem' }}>
+            📌 Auto-map accounts for transactions. When a user selects a transaction type, the system auto-fills debit and credit accounts.
+          </p>
+          {showMappingForm && (
+            <form onSubmit={handleCreateMapping} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
+              <input
+                placeholder="Mapping Type"
+                value={mappingForm.mappingType}
+                onChange={(e) => setMappingForm({ ...mappingForm, mappingType: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              />
+              <select
+                value={mappingForm.debitAccountId}
+                onChange={(e) => setMappingForm({ ...mappingForm, debitAccountId: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              >
+                <option value="">Select Debit Account</option>
+                {accounts.map((account) => (
+                  <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
+                ))}
+              </select>
+              <select
+                value={mappingForm.creditAccountId}
+                onChange={(e) => setMappingForm({ ...mappingForm, creditAccountId: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              >
+                <option value="">Select Credit Account</option>
+                {accounts.map((account) => (
+                  <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
+                ))}
+              </select>
+              <input
+                placeholder="Description"
+                value={mappingForm.description}
+                onChange={(e) => setMappingForm({ ...mappingForm, description: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              />
+              <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', marginRight: '0.5rem' }}>
+                {saving ? 'Saving...' : 'Create Mapping'}
+              </button>
+              <button type="button" onClick={() => setShowMappingForm(false)} style={{ padding: '0.5rem 1rem', background: C.p1, color: C.t2, border: `1px solid ${C.t2}`, borderRadius: '0.375rem', cursor: 'pointer' }}>
+                Cancel
+              </button>
+            </form>
+          )}
+          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
+                  <th onClick={() => setSorting({...sorting, mappings: {by: 'type', asc: !sorting.mappings.asc}})} style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.mappings.by === 'type' ? C.p2 : 'transparent' }}>Type {sorting.mappings.by === 'type' && (sorting.mappings.asc ? '▲' : '▼')}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Debit Account</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Credit Account</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'center', color: C.t1, fontWeight: '600' }}>Usage</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'center', color: C.t1, fontWeight: '600' }}>Active</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mappings
+                  .sort((a, b) => {
+                    if (sorting.mappings.by === 'type') {
+                      return sorting.mappings.asc ? a.mappingType.localeCompare(b.mappingType) : b.mappingType.localeCompare(a.mappingType)
+                    }
+                    return 0
+                  })
+                  .slice((pagination.mappings - 1) * ITEMS_PER_PAGE, pagination.mappings * ITEMS_PER_PAGE)
+                  .map((m) => (
+                    <tr key={m._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                      <td style={{ padding: '0.75rem', color: C.t1, fontWeight: '600' }}>{m.mappingType}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>{m.debitAccountId?.accountCode} - {m.debitAccountId?.accountName}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>{m.creditAccountId?.accountCode} - {m.creditAccountId?.accountName}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center', color: m.usageCount > 0 ? C.s1 : C.t3, fontWeight: '600' }}>{m.usageCount || 0}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                        <input type="checkbox" checked={m.isActive !== false} onChange={async () => {
+                          try {
+                            await erpAccountingAPI.updateMapping(token, m._id, {isActive: m.isActive === false})
+                            await loadMappings()
+                            showNotification(m.isActive === false ? '✅ Mapping activated' : '✅ Mapping deactivated')
+                          } catch (e) {
+                            setError(e.response?.data?.message || 'Failed to toggle mapping')
+                          }
+                        }} style={{cursor: 'pointer'}} />
+                      </td>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>
+                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                          <button onClick={() => setTestMapping(m) || setShowMappingTest(true)} title="Preview" style={{ padding: '0.35rem 0.5rem', background: '#7C3AED', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Test</button>
+                          <button onClick={() => handleEditMapping(m)} style={{ padding: '0.35rem 0.5rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
+                          <button onClick={() => handleDeleteMapping(m)} style={{ padding: '0.35rem 0.5rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination for Mappings */}
+          {Math.ceil(mappings.length / ITEMS_PER_PAGE) > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+              <button onClick={() => setPagination({...pagination, mappings: Math.max(1, pagination.mappings - 1)})} disabled={pagination.mappings === 1} style={{padding: '0.4rem 0.8rem', background: pagination.mappings === 1 ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.mappings === 1 ? 'default' : 'pointer', borderRadius: '0.35rem'}}>← Prev</button>
+              {Array.from({length: Math.ceil(mappings.length / ITEMS_PER_PAGE)}, (_, i) => i + 1).map(p => (
+                <button key={p} onClick={() => setPagination({...pagination, mappings: p})} style={{padding: '0.4rem 0.6rem', background: p === pagination.mappings ? C.s1 : '#E5E7EB', color: p === pagination.mappings ? '#fff' : C.ink, border: 'none', cursor: 'pointer', borderRadius: '0.35rem', fontWeight: p === pagination.mappings ? '600' : '400'}}>{p}</button>
+              ))}
+              <button onClick={() => setPagination({...pagination, mappings: Math.min(Math.ceil(mappings.length / ITEMS_PER_PAGE), pagination.mappings + 1)})} disabled={pagination.mappings === Math.ceil(mappings.length / ITEMS_PER_PAGE)} style={{padding: '0.4rem 0.8rem', background: pagination.mappings === Math.ceil(mappings.length / ITEMS_PER_PAGE) ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.mappings === Math.ceil(mappings.length / ITEMS_PER_PAGE) ? 'default' : 'pointer', borderRadius: '0.35rem'}}>Next →</button>
+            </div>
+          )}
+
+          {mappings.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No mappings configured yet.</p>}
+        </div>
+      )}
+
+      {/* BALANCE ENQUIRY TAB */}
+      {activeTab === 'enquiry' && (
+        <div>
+          <div style={{ marginBottom: '1rem' }}>
+            <h3 style={{ marginBottom: '0.4rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Quick Account Balance Enquiry</h3>
+            <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.9rem' }}>Enter account number to check debit, credit, net balance, and live gold/silver converted balances.</p>
+          </div>
+
+          {!canViewBalanceEnquiry ? (
+            <div style={emptyCardStyle}>⛔ Balance enquiry access restricted by role.</div>
+          ) : (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(280px, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+                <form onSubmit={handleAccountEnquiry} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
+                  <p style={{ marginTop: 0, marginBottom: '0.6rem', color: C.ink, fontWeight: '700' }}>Account Balance Search</p>
+                  <input
+                    placeholder="Enter Account Number (e.g. 1000)"
+                    value={accountEnquiryCode}
+                    onChange={(e) => {
+                      setAccountEnquiryCode(e.target.value)
+                      setEnquiryStatus({ type: '', message: '' })
+                    }}
+                    list="erp-account-code-list"
+                    style={{ display: 'block', width: '100%', padding: '0.65rem 0.75rem', marginBottom: '0.75rem', background: '#F9FAFB', border: '1px solid #D1D5DB', color: C.ink, borderRadius: '0.5rem' }}
+                  />
+                  <datalist id="erp-account-code-list">
+                    {accounts.map((account) => (
+                      <option key={account._id} value={account.accountCode}>{account.accountName}</option>
+                    ))}
+                  </datalist>
+                  <select
+                    value={accountEnquiryCode}
+                    onChange={(e) => {
+                      setAccountEnquiryCode(e.target.value)
+                      setEnquiryStatus({ type: '', message: '' })
+                    }}
+                    style={{ display: 'block', width: '100%', padding: '0.65rem 0.75rem', marginBottom: '0.75rem', background: '#F9FAFB', border: '1px solid #D1D5DB', color: C.ink, borderRadius: '0.5rem' }}
+                  >
+                    <option value="">Select Account Number (Dropdown)</option>
+                    {accounts
+                      .slice()
+                      .sort((a, b) => a.accountCode.localeCompare(b.accountCode))
+                      .map((account) => (
+                        <option key={account._id} value={account.accountCode}>
+                          {account.accountCode} - {account.accountName}
+                        </option>
+                      ))}
+                  </select>
+                  <button type="submit" disabled={enquiryLoading} style={{ padding: '0.55rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.4rem', cursor: 'pointer', fontWeight: '600' }}>
+                    {enquiryLoading ? 'Checking...' : 'Check Balance'}
+                  </button>
+                  {enquiryStatus.message && (
+                    <p style={{ marginTop: '0.6rem', marginBottom: 0, color: enquiryStatus.type === 'success' ? '#047857' : C.danger, fontWeight: '600', fontSize: '0.85rem' }}>
+                      {enquiryStatus.message}
+                    </p>
+                  )}
+                </form>
+
+                <form onSubmit={handleUpdateMetalRates} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
+                  <p style={{ marginTop: 0, marginBottom: '0.6rem', color: C.ink, fontWeight: '700' }}>Gold / Silver Current Price</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      placeholder="Gold Price"
+                      value={metalRateForm.goldPrice}
+                      onChange={(e) => setMetalRateForm((prev) => ({ ...prev, goldPrice: e.target.value }))}
+                      style={{ padding: '0.65rem 0.75rem', background: '#F9FAFB', border: '1px solid #D1D5DB', color: C.ink, borderRadius: '0.5rem' }}
+                    />
+                    <input
+                      type="number"
+                      step="0.0001"
+                      placeholder="Silver Price"
+                      value={metalRateForm.silverPrice}
+                      onChange={(e) => setMetalRateForm((prev) => ({ ...prev, silverPrice: e.target.value }))}
+                      style={{ padding: '0.65rem 0.75rem', background: '#F9FAFB', border: '1px solid #D1D5DB', color: C.ink, borderRadius: '0.5rem' }}
+                    />
+                    <input
+                      placeholder="Currency"
+                      value={metalRateForm.priceCurrency}
+                      onChange={(e) => setMetalRateForm((prev) => ({ ...prev, priceCurrency: e.target.value.toUpperCase() }))}
+                      style={{ padding: '0.65rem 0.75rem', background: '#F9FAFB', border: '1px solid #D1D5DB', color: C.ink, borderRadius: '0.5rem' }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.35rem', color: C.inkSoft, fontSize: '0.82rem', fontWeight: '600' }}>Metal Unit</label>
+                    <select
+                      value={metalUnit}
+                      onChange={(e) => setMetalUnit(e.target.value)}
+                      style={{ padding: '0.65rem 0.75rem', background: '#F9FAFB', border: '1px solid #D1D5DB', color: C.ink, borderRadius: '0.5rem', width: '100%' }}
+                    >
+                      <option value="gram">Gram</option>
+                      <option value="ounce">Ounce</option>
+                      <option value="kg">Kilogram</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <span style={{ color: C.inkSoft, fontSize: '0.82rem' }}>
+                      Last Updated: {metalRates.updatedAt ? new Date(metalRates.updatedAt).toLocaleString() : 'Default values'}
+                    </span>
+                    <button type="submit" disabled={!canUpdateMetalRates || saving} style={{ padding: '0.55rem 1rem', background: canUpdateMetalRates ? '#F59E0B' : '#D1D5DB', color: '#111827', border: 'none', borderRadius: '0.4rem', cursor: canUpdateMetalRates ? 'pointer' : 'not-allowed', fontWeight: '700' }}>
+                      {saving ? 'Updating...' : 'Update Rates'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {enquiryHistory.length > 0 && (
+                <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem', marginBottom: '1rem' }}>
+                  <p style={{ margin: 0, color: C.ink, fontWeight: '700', marginBottom: '0.55rem' }}>Recent Enquiry History (Last 10)</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {enquiryHistory.map((item) => (
+                      <button
+                        key={`${item.accountCode}-${item.searchedAt}`}
+                        type="button"
+                        onClick={() => fetchAccountEnquiryByCode(item.accountCode)}
+                        style={{ padding: '0.35rem 0.6rem', borderRadius: '0.4rem', border: '1px solid #D1D5DB', background: '#F9FAFB', color: C.ink, cursor: 'pointer', fontSize: '0.8rem' }}
+                        title={item.accountName || item.accountCode}
+                      >
+                        {item.accountCode}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {accountEnquiryData && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={handleExportEnquiryExcel}
+                      style={{ padding: '0.45rem 0.8rem', borderRadius: '0.4rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}
+                    >
+                      Export Excel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportEnquiryPdf}
+                      style={{ padding: '0.45rem 0.8rem', borderRadius: '0.4rem', border: '1px solid #60A5FA', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}
+                    >
+                      Export PDF
+                    </button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                  <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
+                    <p style={{ margin: 0, color: C.t3, fontSize: '0.8rem', fontWeight: '600' }}>ACCOUNT DETAILS</p>
+                    <p style={{ margin: '0.35rem 0', color: C.ink, fontWeight: '700' }}>{accountEnquiryData.account.accountCode} - {accountEnquiryData.account.accountName}</p>
+                    <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.88rem' }}>Type: {accountEnquiryData.account.accountType}</p>
+                    <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.88rem' }}>Currency: {accountEnquiryData.account.currency}</p>
+                  </div>
+
+                  <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
+                    <p style={{ margin: 0, color: C.t3, fontSize: '0.8rem', fontWeight: '600' }}>DEBIT / CREDIT</p>
+                    <p style={{ margin: '0.35rem 0', color: C.ink, fontWeight: '700' }}>Debit: {Number(accountEnquiryData.balances.debitTotal || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                    <p style={{ margin: 0, color: C.ink, fontWeight: '700' }}>Credit: {Number(accountEnquiryData.balances.creditTotal || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                    <p style={{ margin: '0.35rem 0 0', color: accountEnquiryData.balances.netDirection === 'Debit' ? C.s1 : accountEnquiryData.balances.netDirection === 'Credit' ? C.danger : C.inkSoft, fontWeight: '800' }}>
+                      Net: {Number(accountEnquiryData.balances.absoluteNetBalance || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} ({accountEnquiryData.balances.netDirection})
+                    </p>
+                  </div>
+
+                  <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
+                    <p style={{ margin: 0, color: C.t3, fontSize: '0.8rem', fontWeight: '600' }}>CURRENCY BALANCE</p>
+                    <p style={{ margin: '0.35rem 0', color: C.ink, fontWeight: '700' }}>{accountEnquiryData.balances.rateCurrency} {Number(accountEnquiryData.balances.rateCurrencyBalance || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                    <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.88rem' }}>Based on account balance conversion</p>
+                  </div>
+
+                  <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
+                    <p style={{ margin: 0, color: C.t3, fontSize: '0.8rem', fontWeight: '600' }}>GOLD BALANCE</p>
+                    <p style={{ margin: '0.35rem 0', color: '#B45309', fontWeight: '800' }}>{Number(convertMetalBalanceByUnit(accountEnquiryData.metals.goldBalance || 0)).toLocaleString(undefined, { maximumFractionDigits: 6 })} {metalUnit}</p>
+                    <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.88rem' }}>Rate: {accountEnquiryData.metals.priceCurrency} {Number(accountEnquiryData.metals.goldPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</p>
+                  </div>
+
+                  <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
+                    <p style={{ margin: 0, color: C.t3, fontSize: '0.8rem', fontWeight: '600' }}>SILVER BALANCE</p>
+                    <p style={{ margin: '0.35rem 0', color: '#475569', fontWeight: '800' }}>{Number(convertMetalBalanceByUnit(accountEnquiryData.metals.silverBalance || 0)).toLocaleString(undefined, { maximumFractionDigits: 6 })} {metalUnit}</p>
+                    <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.88rem' }}>Rate: {accountEnquiryData.metals.priceCurrency} {Number(accountEnquiryData.metals.silverPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</p>
+                  </div>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* TRANSACTIONS TAB */}
+      {activeTab === 'transactions' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
+            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Transactions</h3>
+            {selectedTransactionId && (
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ color: C.inkSoft, fontSize: '0.84rem', fontWeight: '700' }}>Linked transaction highlighted</span>
+                <button onClick={() => setSelectedTransactionId('')} style={{ padding: '0.35rem 0.6rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer' }}>Clear</button>
+              </div>
+            )}
+          </div>
+          <form onSubmit={handleCreateTransaction} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem' }}>
+              <select value={transactionForm.type} onChange={(e) => setTransactionForm((prev) => ({ ...prev, type: e.target.value }))} style={modalInputStyle}>
+                {canAccessTransactions && (isSuperAdmin || isFinance) && <><option value="expense">Expense</option><option value="sale">Sales / Invoice</option><option value="purchase">Purchase</option><option value="receipt">Receipt</option><option value="payment">Payment</option><option value="payroll">Payroll</option></>}
+                {canAccessTransactions && isSalesRole && <><option value="sale">Sales / Invoice</option><option value="receipt">Receipt</option></>}
+                {canAccessTransactions && isOpsRole && <><option value="expense">Expense</option><option value="purchase">Purchase</option></>}
+                {canAccessTransactions && isHRRole && <option value="payroll">Payroll</option>}
+              </select>
+              <input type="number" step="0.01" placeholder="Amount" value={transactionForm.amount} onChange={(e) => setTransactionForm((prev) => ({ ...prev, amount: e.target.value }))} style={modalInputStyle} />
+              <select value={transactionForm.currency} onChange={(e) => setTransactionForm((prev) => ({ ...prev, currency: e.target.value }))} style={modalInputStyle}>
+                {(currencies.length ? currencies : [{ code: 'AED' }]).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+              </select>
+              <select value={transactionForm.customerId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, customerId: e.target.value }))} style={modalInputStyle}>
+                <option value="">Customer (for Sales/Receipt)</option>
+                {customers.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+              </select>
+              <select value={transactionForm.vendorId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, vendorId: e.target.value }))} style={modalInputStyle}>
+                <option value="">Vendor (for Purchase/Payment)</option>
+                {vendors.map((v) => <option key={v._id} value={v._id}>{v.name}</option>)}
+              </select>
+              <select value={transactionForm.inventoryItemId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, inventoryItemId: e.target.value }))} style={modalInputStyle}>
+                <option value="">Inventory Item (optional)</option>
+                {inventoryProducts.map((p) => <option key={p._id} value={p._id}>{p.sku || p.name}</option>)}
+              </select>
+              <select value={transactionForm.mappingId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, mappingId: e.target.value }))} style={modalInputStyle}>
+                <option value="">Account Mapping (optional)</option>
+                {mappings.map((m) => <option key={m._id} value={m._id}>{m.mappingType}</option>)}
+              </select>
+              <input placeholder="Description" value={transactionForm.description} onChange={(e) => setTransactionForm((prev) => ({ ...prev, description: e.target.value }))} style={modalInputStyle} />
+            </div>
+            <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer' }}>{saving ? 'Saving...' : 'Create Transaction (Draft)'}</button>
+          </form>
+
+          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Date</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Type</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'right' }}>Amount</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Status</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((tx) => (
+                  <tr id={`erp-transaction-row-${tx._id}`} key={tx._id} style={{ borderBottom: `1px solid ${C.p2}`, background: selectedTransactionId === tx._id ? '#ECFDF5' : 'transparent', outline: selectedTransactionId === tx._id ? '2px solid #10B981' : 'none', outlineOffset: '-2px' }}>
+                    <td style={{ padding: '0.65rem' }}>{new Date(tx.date).toLocaleDateString()}</td>
+                    <td style={{ padding: '0.65rem', textTransform: 'capitalize' }}>{tx.type}</td>
+                    <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(tx.amount || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.65rem', textTransform: 'capitalize', fontWeight: '600' }}>{tx.status}</td>
+                    <td style={{ padding: '0.65rem' }}>
+                      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                        {tx.status === 'draft' && <button onClick={() => handleTransactionAction('submit', tx._id)} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#F59E0B', color: '#111827', cursor: 'pointer' }}>Submit</button>}
+                        {tx.status === 'submitted' && (isSuperAdmin || isFinance) && <button onClick={() => handleTransactionAction('approve', tx._id)} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#0EA5E9', color: '#fff', cursor: 'pointer' }}>Approve</button>}
+                        {['submitted', 'approved'].includes(tx.status) && (isSuperAdmin || isFinance) && <button onClick={() => handleTransactionAction('post', tx._id)} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: C.s1, color: '#fff', cursor: 'pointer' }}>Post</button>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* REPORTS TAB */}
+      {activeTab === 'reports' && (
+        <div>
+          <h3 style={{ marginBottom: '1rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Reports (Advanced ERP)</h3>
+
+          <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.6rem', padding: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
+              <select value={reportFilters.period} onChange={(e) => setReportFilters((prev) => ({ ...prev, period: e.target.value }))} style={modalInputStyle}>
+                <option value="today">Today</option>
+                <option value="month">This Month</option>
+                <option value="ytd">Year To Date</option>
+                <option value="custom">Custom Range</option>
+              </select>
+              <input type="date" value={reportFilters.startDate} onChange={(e) => setReportFilters((prev) => ({ ...prev, startDate: e.target.value, period: 'custom' }))} style={modalInputStyle} />
+              <input type="date" value={reportFilters.endDate} onChange={(e) => setReportFilters((prev) => ({ ...prev, endDate: e.target.value, period: 'custom' }))} style={modalInputStyle} />
+              <select value={reportFilters.accountType} onChange={(e) => setReportFilters((prev) => ({ ...prev, accountType: e.target.value }))} style={modalInputStyle}>
+                <option value="">All Account Types</option>
+                <option value="Asset">Asset</option>
+                <option value="Liability">Liability</option>
+                <option value="Income">Income</option>
+                <option value="Expense">Expense</option>
+                <option value="Equity">Equity</option>
+              </select>
+              <select value={reportFilters.sortBy} onChange={(e) => setReportFilters((prev) => ({ ...prev, sortBy: e.target.value }))} style={modalInputStyle}>
+                <option value="accountCode">Sort: Account Code</option>
+                <option value="accountName">Sort: Account Name</option>
+                <option value="debit">Sort: Debit</option>
+                <option value="credit">Sort: Credit</option>
+                <option value="net">Sort: Net</option>
+              </select>
+              <select value={reportFilters.sortDir} onChange={(e) => setReportFilters((prev) => ({ ...prev, sortDir: e.target.value }))} style={modalInputStyle}>
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+              <select value={reportFilters.referenceType} onChange={(e) => setReportFilters((prev) => ({ ...prev, referenceType: e.target.value }))} style={modalInputStyle}>
+                <option value="">All Day Book Types</option>
+                {LEDGER_REFERENCE_TYPES.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+              <input type="number" placeholder="Day Book Min Amount" value={reportFilters.minAmount} onChange={(e) => setReportFilters((prev) => ({ ...prev, minAmount: e.target.value }))} style={modalInputStyle} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: C.ink, fontSize: '0.86rem', fontWeight: '600' }}>
+                  <input type="checkbox" checked={reportFilters.includeZeroAccounts} onChange={(e) => setReportFilters((prev) => ({ ...prev, includeZeroAccounts: e.target.checked }))} />
+                  Include zero-balance accounts
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: C.ink, fontSize: '0.86rem', fontWeight: '600' }}>
+                  <input type="checkbox" checked={reportFilters.comparePrevious} onChange={(e) => setReportFilters((prev) => ({ ...prev, comparePrevious: e.target.checked }))} />
+                  Compare with previous period
+                </label>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button onClick={handleExportReportCsv} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46', fontWeight: '700', cursor: 'pointer' }}>Export CSV</button>
+                <button onClick={handleExportReportXlsx} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', fontWeight: '700', cursor: 'pointer' }}>Export XLSX</button>
+                <button onClick={handleExportReportPdf} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #EF4444', background: '#FEF2F2', color: '#991B1B', fontWeight: '700', cursor: 'pointer' }}>Export PDF</button>
+                <button onClick={handlePrintCurrentReport} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #60A5FA', background: '#EFF6FF', color: '#1E40AF', fontWeight: '700', cursor: 'pointer' }}>Print</button>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.8rem', marginBottom: '1rem' }}>
+            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
+              <p style={{ margin: 0, fontWeight: '700' }}>Trial Balance</p>
+              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Debit: {Number(reports.trialBalance?.totalDebit || 0).toLocaleString()}</p>
+              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Credit: {Number(reports.trialBalance?.totalCredit || 0).toLocaleString()}</p>
+              <p style={{ margin: '0.2rem 0 0', color: reports.trialBalance?.balanced ? C.s1 : C.danger, fontWeight: '700', fontSize: '0.82rem' }}>{reports.trialBalance?.balanced ? 'Balanced' : 'Difference Found'}</p>
+            </div>
+            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
+              <p style={{ margin: 0, fontWeight: '700' }}>Profit & Loss</p>
+              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Income: {Number(reports.profitLoss?.totalIncome || 0).toLocaleString()}</p>
+              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Expense: {Number(reports.profitLoss?.totalExpense || 0).toLocaleString()}</p>
+              <p style={{ margin: '0.2rem 0 0', fontWeight: '700', color: Number(reports.profitLoss?.netProfit || 0) >= 0 ? C.s1 : C.danger, fontSize: '0.82rem' }}>Net: {Number(reports.profitLoss?.netProfit || 0).toLocaleString()}</p>
+            </div>
+            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
+              <p style={{ margin: 0, fontWeight: '700' }}>Balance Sheet</p>
+              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Assets: {Number(reports.balanceSheet?.totalAssets || 0).toLocaleString()}</p>
+              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>L+E: {Number(reports.balanceSheet?.liabilitiesPlusEquity || 0).toLocaleString()}</p>
+              <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem' }}>Current Ratio: {reports.balanceSheet?.currentRatio ?? '-'}</p>
+            </div>
+            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
+              <p style={{ margin: 0, fontWeight: '700' }}>Forex Impact</p>
+              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Entries: {Number(reports.forex?.entriesCount || 0).toLocaleString()}</p>
+              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Impact: {Number(reports.forex?.forexImpact || 0).toLocaleString()}</p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+            {[
+              ['summary', 'Summary'],
+              ['trial', 'Trial Balance'],
+              ['pnl', 'Profit & Loss'],
+              ['balanceSheet', 'Balance Sheet'],
+              ['dayBook', 'Day Book'],
+              ['outstanding', 'Outstanding'],
+              ['forex', 'Forex'],
+              ['ledger', 'Ledger Drilldown'],
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => setReportView(id)}
+                style={{
+                  padding: '0.45rem 0.75rem',
+                  borderRadius: '0.35rem',
+                  border: reportView === id ? 'none' : '1px solid #D1D5DB',
+                  background: reportView === id ? C.s1 : '#FFFFFF',
+                  color: reportView === id ? '#fff' : C.ink,
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {(reportView === 'summary' || reportView === 'trial') && (
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>Trial Balance Detailed</p>
+                <input placeholder="Search account code/name" value={reportFilters.search} onChange={(e) => setReportFilters((prev) => ({ ...prev, search: e.target.value }))} style={{ ...modalInputStyle, marginBottom: 0, width: '260px' }} />
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
+                      <th style={{ padding: '0.6rem', textAlign: 'left' }}>Code</th>
+                      <th style={{ padding: '0.6rem', textAlign: 'left' }}>Name</th>
+                      <th style={{ padding: '0.6rem', textAlign: 'left' }}>Type</th>
+                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>Debit</th>
+                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>Credit</th>
+                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>Net</th>
+                      <th style={{ padding: '0.6rem', textAlign: 'left' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(reports.trialBalance?.trialBalance || [])
+                      .filter((row) => {
+                        const q = String(reportFilters.search || '').toLowerCase().trim()
+                        if (!q) return true
+                        return String(row.accountCode || '').toLowerCase().includes(q) || String(row.accountName || '').toLowerCase().includes(q)
+                      })
+                      .slice(0, 500)
+                      .map((row) => (
+                        <tr key={`${row.accountCode}-${row.accountType}`} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                          <td style={{ padding: '0.6rem', fontWeight: '700' }}>{row.accountCode}</td>
+                          <td style={{ padding: '0.6rem' }}>{row.accountName}</td>
+                          <td style={{ padding: '0.6rem' }}>{row.accountType}</td>
+                          <td style={{ padding: '0.6rem', textAlign: 'right' }}>{Number(row.debit || 0).toLocaleString()}</td>
+                          <td style={{ padding: '0.6rem', textAlign: 'right' }}>{Number(row.credit || 0).toLocaleString()}</td>
+                          <td style={{ padding: '0.6rem', textAlign: 'right', color: Number(row.net || 0) >= 0 ? C.s1 : C.danger, fontWeight: '700' }}>{Number(row.net || 0).toLocaleString()}</td>
+                          <td style={{ padding: '0.6rem' }}>
+                            <button onClick={() => handleTrialAccountDrilldown(row.accountCode)} style={{ padding: '0.3rem 0.5rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', color: '#0C4A6E', background: '#E0F2FE', cursor: 'pointer' }}>
+                              Ledger
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {reportView === 'pnl' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Income Breakdown</p>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.55rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Account</th><th style={{ padding: '0.55rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Action</th></tr></thead>
+                    <tbody>
+                      {(reports.profitLoss?.incomeBreakdown || []).map((row) => (
+                        <tr key={`inc-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{Number(row.amount || 0).toLocaleString()}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Expense Breakdown</p>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.55rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Account</th><th style={{ padding: '0.55rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Action</th></tr></thead>
+                    <tbody>
+                      {(reports.profitLoss?.expenseBreakdown || []).map((row) => (
+                        <tr key={`exp-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{Number(row.amount || 0).toLocaleString()}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ marginTop: '0.75rem', borderTop: `1px solid ${C.p2}`, paddingTop: '0.6rem' }}>
+                  <p style={{ margin: '0.2rem 0', fontWeight: '700' }}>Total Income: {Number(reports.profitLoss?.totalIncome || 0).toLocaleString()}</p>
+                  <p style={{ margin: '0.2rem 0', fontWeight: '700' }}>Total Expense: {Number(reports.profitLoss?.totalExpense || 0).toLocaleString()}</p>
+                  <p style={{ margin: '0.2rem 0', fontWeight: '800', color: Number(reports.profitLoss?.netProfit || 0) >= 0 ? C.s1 : C.danger }}>Net Profit: {Number(reports.profitLoss?.netProfit || 0).toLocaleString()}</p>
+                  {reports.profitLoss?.previousPeriod && <p style={{ margin: '0.2rem 0', fontWeight: '600', color: C.inkSoft }}>Variance vs previous: {Number(reports.profitLoss?.varianceVsPrevious || 0).toLocaleString()}</p>}
+                </div>
+              </div>
+              <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.6rem' }}>Monthly Comparison</p>
+                <div style={{ overflowX: 'auto', marginBottom: '0.9rem' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Month</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Income</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Expense</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Net Profit</th></tr></thead>
+                    <tbody>{(reports.profitLoss?.monthlyComparison || []).map((row) => <tr key={row.label} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.label}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalIncome)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalExpense)}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.netProfit)}</td></tr>)}</tbody>
+                  </table>
+                </div>
+                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.6rem' }}>Quarterly Comparison</p>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Quarter</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Income</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Expense</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Net Profit</th></tr></thead>
+                    <tbody>{(reports.profitLoss?.quarterlyComparison || []).map((row) => <tr key={row.label} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.label}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalIncome)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalExpense)}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.netProfit)}</td></tr>)}</tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {reportView === 'balanceSheet' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+              {[['Assets', reports.balanceSheet?.assets || []], ['Liabilities', reports.balanceSheet?.liabilities || []], ['Equity', reports.balanceSheet?.equity || []]].map(([title, rows]) => (
+                <div key={title} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+                  <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>{title}</p>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                      <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Name</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Balance</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Action</th></tr></thead>
+                      <tbody>
+                        {rows.map((row) => (
+                          <tr key={`${title}-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.accountCode}</td><td style={{ padding: '0.5rem' }}>{row.accountName}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.balance || 0).toLocaleString()}</td><td style={{ padding: '0.5rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+              <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+                <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Assets: {Number(reports.balanceSheet?.totalAssets || 0).toLocaleString()}</p>
+                <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Liabilities + Equity: {Number(reports.balanceSheet?.liabilitiesPlusEquity || 0).toLocaleString()}</p>
+                <p style={{ margin: '0.15rem 0', color: Math.abs(Number(reports.balanceSheet?.difference || 0)) < 0.01 ? C.s1 : C.danger, fontWeight: '800' }}>Difference: {Number(reports.balanceSheet?.difference || 0).toLocaleString()}</p>
+                <p style={{ margin: '0.15rem 0' }}>Working Capital: {Number(reports.balanceSheet?.workingCapital || 0).toLocaleString()}</p>
+                <p style={{ margin: '0.15rem 0' }}>Current Ratio: {reports.balanceSheet?.currentRatio ?? '-'}</p>
+              </div>
+              <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.6rem' }}>Monthly Comparison</p>
+                <div style={{ overflowX: 'auto', marginBottom: '0.9rem' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Month</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Assets</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Liabilities</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Equity</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Working Capital</th></tr></thead>
+                    <tbody>{(reports.balanceSheet?.monthlyComparison || []).map((row) => <tr key={row.label} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.label}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalAssets)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalLiabilities)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalEquity)}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.workingCapital)}</td></tr>)}</tbody>
+                  </table>
+                </div>
+                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.6rem' }}>Quarterly Comparison</p>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Quarter</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Assets</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Liabilities</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Equity</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Working Capital</th></tr></thead>
+                    <tbody>{(reports.balanceSheet?.quarterlyComparison || []).map((row) => <tr key={row.label} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.label}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalAssets)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalLiabilities)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalEquity)}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.workingCapital)}</td></tr>)}</tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {reportView === 'dayBook' && (
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+              <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Day Book Entries</p>
+              <p style={{ margin: '0 0 0.5rem', color: C.inkSoft, fontSize: '0.84rem' }}>
+                Total Entries: {reports.dayBook?.totals?.count || 0} | Debit: {Number(reports.dayBook?.totals?.debit || 0).toLocaleString()} | Credit: {Number(reports.dayBook?.totals?.credit || 0).toLocaleString()}
+              </p>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
+                      <th style={{ padding: '0.5rem', textAlign: 'left' }}>Date</th>
+                      <th style={{ padding: '0.5rem', textAlign: 'left' }}>Type</th>
+                      <th style={{ padding: '0.5rem', textAlign: 'left' }}>Description</th>
+                      <th style={{ padding: '0.5rem', textAlign: 'left' }}>Debit A/C</th>
+                      <th style={{ padding: '0.5rem', textAlign: 'left' }}>Credit A/C</th>
+                      <th style={{ padding: '0.5rem', textAlign: 'right' }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(reports.dayBook?.entries || []).slice(0, 600).map((entry) => (
+                      <tr key={entry._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                        <td style={{ padding: '0.5rem' }}>{new Date(entry.date).toLocaleString()}</td>
+                        <td style={{ padding: '0.5rem', textTransform: 'capitalize' }}>{entry.referenceType}</td>
+                        <td style={{ padding: '0.5rem' }}>{entry.description || '-'}</td>
+                        <td style={{ padding: '0.5rem' }}>{entry.debitAccountId?.accountCode} - {entry.debitAccountId?.accountName}</td>
+                        <td style={{ padding: '0.5rem' }}>{entry.creditAccountId?.accountCode} - {entry.creditAccountId?.accountName}</td>
+                        <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{Number(entry.amount || 0).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {reportView === 'outstanding' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+              <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.45rem' }}>Customer Outstanding</p>
+                <p style={{ margin: '0 0 0.45rem', color: C.inkSoft, fontSize: '0.84rem' }}>Total: {Number(reports.customerOutstanding?.totals?.outstanding || 0).toLocaleString()} | Limit Exceeded: {reports.customerOutstanding?.totals?.limitExceededCount || 0}</p>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Customer</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Ledger</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Outstanding</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>0-30</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>31-60</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>61-90</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>90+</th><th style={{ padding: '0.5rem', textAlign: 'center' }}>Limit</th></tr></thead>
+                    <tbody>
+                      {(reports.customerOutstanding?.rows || []).map((row) => (
+                        <tr key={row.customerId} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                          <td style={{ padding: '0.5rem' }}>{row.customerName}</td>
+                          <td style={{ padding: '0.5rem' }}>{row.ledgerAccount?.accountCode || '-'}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{Number(row.outstanding || 0).toLocaleString()}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.aging?.bucket0to30 || 0).toLocaleString()}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.aging?.bucket31to60 || 0).toLocaleString()}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.aging?.bucket61to90 || 0).toLocaleString()}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.aging?.bucket90Plus || 0).toLocaleString()}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'center', color: row.limitExceeded ? C.danger : C.s1, fontWeight: '700' }}>{row.limitExceeded ? 'Exceeded' : 'OK'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.45rem' }}>Vendor Outstanding</p>
+                <p style={{ margin: '0 0 0.45rem', color: C.inkSoft, fontSize: '0.84rem' }}>Total: {Number(reports.vendorOutstanding?.totals?.outstanding || 0).toLocaleString()} | Credit: {Number(reports.vendorOutstanding?.totals?.credit || 0).toLocaleString()}</p>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Vendor</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Ledger</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Outstanding</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Type</th></tr></thead>
+                    <tbody>
+                      {(reports.vendorOutstanding?.rows || []).map((row) => (
+                        <tr key={row.vendorId} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                          <td style={{ padding: '0.5rem' }}>{row.vendorName}</td>
+                          <td style={{ padding: '0.5rem' }}>{row.ledgerAccount?.accountCode || '-'}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{Number(row.outstanding || 0).toLocaleString()}</td>
+                          <td style={{ padding: '0.5rem' }}>{row.outstandingType || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {reportView === 'forex' && (
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+              <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Forex Gain/Loss Analysis</p>
+              <p style={{ margin: '0 0 0.6rem', color: C.inkSoft, fontSize: '0.84rem' }}>Entries: {reports.forex?.entriesCount || 0} | Total Impact: {Number(reports.forex?.forexImpact || 0).toLocaleString()}</p>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
+                  <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Currency</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Entries</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Impact</th></tr></thead>
+                  <tbody>
+                    {Object.entries(reports.forex?.byCurrency || {}).map(([currency, row]) => (
+                      <tr key={currency} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{currency}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.count || 0).toLocaleString()}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{Number(row.impact || 0).toLocaleString()}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {reportView === 'ledger' && (
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.6rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <select
+                  value={selectedReportAccountId}
+                  onChange={(e) => {
+                    const account = accounts.find((acc) => acc._id === e.target.value)
+                    setSelectedReportAccountId(e.target.value)
+                    setSelectedReportAccountCode(account?.accountCode || '')
+                    loadLedgerReport(e.target.value)
+                  }}
+                  style={{ ...modalInputStyle, marginBottom: 0 }}
+                >
+                  <option value="">Select Account For Ledger Drilldown</option>
+                  {accounts.map((account) => (
+                    <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
+                  ))}
+                </select>
+                {selectedReportAccountCode && <span style={{ color: C.inkSoft, fontWeight: '700', fontSize: '0.84rem' }}>Account: {selectedReportAccountCode}</span>}
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                  <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Voucher</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Date</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Type</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Description</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Debit A/C</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Credit A/C</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Running</th></tr></thead>
+                  <tbody>
+                    {ledgerReportRows.map((row, i) => (
+                      <tr key={`${row.date}-${i}`} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                        <td style={{ padding: '0.5rem', fontWeight: '700' }}>{String(row.entryId || '').slice(-6).toUpperCase()}</td>
+                        <td style={{ padding: '0.5rem' }}>{new Date(row.date).toLocaleString()}</td>
+                        <td style={{ padding: '0.5rem', textTransform: 'capitalize' }}>{row.referenceType}</td>
+                        <td style={{ padding: '0.5rem' }}>{row.description || '-'}</td>
+                        <td style={{ padding: '0.5rem' }}>{row.debitAccount?.accountCode || '-'}</td>
+                        <td style={{ padding: '0.5rem' }}>{row.creditAccount?.accountCode || '-'}</td>
+                        <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.amount || 0).toLocaleString()}</td>
+                        <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700', color: Number(row.runningBalance || 0) >= 0 ? C.s1 : C.danger }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <span>{Number(row.runningBalance || 0).toLocaleString()}</span>
+                            <button onClick={() => handleOpenVoucherSource(row.entryId)} style={{ padding: '0.25rem 0.45rem', borderRadius: '0.3rem', border: '1px solid #D1D5DB', background: '#F9FAFB', color: C.ink, cursor: 'pointer', fontSize: '0.74rem', fontWeight: '700' }}>Source</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {loading && <p style={{ color: C.inkSoft, marginTop: '0.8rem' }}>Loading report data...</p>}
+
+          {voucherSource && (
+            <div style={modalBackdropStyle} onClick={() => !voucherSourceLoading && setVoucherSource(null)}>
+              <div style={{ ...modalCardStyle, width: 'min(760px, 100%)' }} onClick={(e) => e.stopPropagation()}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div>
+                    <h4 style={{ margin: 0, color: C.ink }}>Voucher Source Drilldown</h4>
+                    <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.85rem' }}>Trace journal entry back to source transaction or manual voucher.</p>
+                  </div>
+                  <button onClick={() => setVoucherSource(null)} style={{ padding: '0.45rem 0.75rem', border: '1px solid #D1D5DB', background: '#fff', borderRadius: '0.35rem', cursor: 'pointer' }}>Close</button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                  <div style={emptyCardStyle}>
+                    <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>Ledger Voucher</p>
+                    <p style={{ margin: '0.35rem 0 0' }}>Type: {voucherSource.ledgerEntry?.referenceType || '-'}</p>
+                    <p style={{ margin: '0.2rem 0 0' }}>Date: {voucherSource.ledgerEntry?.date ? new Date(voucherSource.ledgerEntry.date).toLocaleString() : '-'}</p>
+                    <p style={{ margin: '0.2rem 0 0' }}>Debit: {voucherSource.ledgerEntry?.debitAccountId?.accountCode || '-'} - {voucherSource.ledgerEntry?.debitAccountId?.accountName || ''}</p>
+                    <p style={{ margin: '0.2rem 0 0' }}>Credit: {voucherSource.ledgerEntry?.creditAccountId?.accountCode || '-'} - {voucherSource.ledgerEntry?.creditAccountId?.accountName || ''}</p>
+                    <p style={{ margin: '0.2rem 0 0', fontWeight: '700' }}>Amount: {formatMoney(voucherSource.ledgerEntry?.amount)}</p>
+                  </div>
+
+                  <div style={emptyCardStyle}>
+                    <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>Source Record</p>
+                    {voucherSource.sourceTransaction ? (
+                      <>
+                        <p style={{ margin: '0.35rem 0 0' }}>Status: {voucherSource.sourceTransaction.status}</p>
+                        <p style={{ margin: '0.2rem 0 0' }}>Type: {voucherSource.sourceTransaction.type}</p>
+                        <p style={{ margin: '0.2rem 0 0' }}>Amount: {formatMoney(voucherSource.sourceTransaction.amount)} {voucherSource.sourceTransaction.currency || 'AED'}</p>
+                        <p style={{ margin: '0.2rem 0 0' }}>Customer: {voucherSource.sourceTransaction.customerId?.name || '-'}</p>
+                        <p style={{ margin: '0.2rem 0 0' }}>Vendor: {voucherSource.sourceTransaction.vendorId?.name || '-'}</p>
+                        <p style={{ margin: '0.2rem 0 0' }}>Inventory: {voucherSource.sourceTransaction.inventoryItemId?.sku || voucherSource.sourceTransaction.inventoryItemId?.name || '-'}</p>
+                        <p style={{ margin: '0.2rem 0 0' }}>Mapping: {voucherSource.sourceTransaction.mappingId?.mappingType || '-'}</p>
+                      </>
+                    ) : (
+                      <p style={{ margin: '0.35rem 0 0' }}>No transaction record linked. This appears to be a manual journal or system-only voucher.</p>
+                    )}
+                  </div>
+                </div>
+
+                {voucherSource.sourceTransaction && (
+                  <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '0.5rem', padding: '0.85rem' }}>
+                    <p style={{ margin: 0, fontWeight: '700', color: C.ink, marginBottom: '0.45rem' }}>Narration</p>
+                    <p style={{ margin: 0, color: C.inkSoft }}>{voucherSource.sourceTransaction.description || 'No description available.'}</p>
+                  </div>
+                )}
+
+                {voucherSource.sourceTransaction && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+                    <button onClick={() => handleJumpToTransaction(voucherSource.sourceTransaction._id)} style={{ padding: '0.5rem 0.85rem', border: 'none', background: C.s1, color: '#fff', borderRadius: '0.35rem', cursor: 'pointer', fontWeight: '700' }}>Open In Transactions</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* VENDORS TAB */}
+      {activeTab === 'vendors' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Vendors Management</h3>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                onClick={handleVendorFilterSearch}
+                style={{ padding: '0.5rem 0.85rem', background: '#E0F2FE', color: '#075985', border: '1px solid #7DD3FC', borderRadius: '0.4rem', cursor: 'pointer', fontWeight: '600' }}
+              >
+                Refresh List
+              </button>
+              <button
+                onClick={() => {
+                  setEditingVendorId('')
+                  setShowVendorForm((prev) => !prev)
+                }}
+                disabled={!canManageVendors}
+                style={{ padding: '0.5rem 0.85rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: canManageVendors ? 'pointer' : 'not-allowed', opacity: canManageVendors ? 1 : 0.55, fontWeight: '600' }}
+              >
+                + Add Vendor
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #059669', borderRadius: '0.5rem', padding: '0.85rem' }}>
+              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Total Vendors</p>
+              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.totalVendors}</p>
+            </div>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #0284C7', borderRadius: '0.5rem', padding: '0.85rem' }}>
+              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Total Outstanding</p>
+              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{Number(vendorSummary.totalOutstanding || 0).toLocaleString()}</p>
+            </div>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #D97706', borderRadius: '0.5rem', padding: '0.85rem' }}>
+              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Over Limit</p>
+              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.overLimit}</p>
+            </div>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #DC2626', borderRadius: '0.5rem', padding: '0.85rem' }}>
+              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Blacklisted</p>
+              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.blacklisted}</p>
+            </div>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #8B5CF6', borderRadius: '0.5rem', padding: '0.85rem' }}>
+              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>In Review</p>
+              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.review || 0}</p>
+            </div>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #D97706', borderRadius: '0.5rem', padding: '0.85rem' }}>
+              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Non-Compliant</p>
+              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.nonCompliant || 0}</p>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', marginBottom: '1rem' }}>
+            <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.45rem', padding: '0.55rem' }}>
+              <p style={{ margin: 0, color: '#991B1B', fontSize: '0.76rem' }}>Overdue Dues</p>
+              <p style={{ margin: '0.2rem 0 0', color: '#7F1D1D', fontWeight: '700' }}>{vendorPaymentCalendar.alerts?.overdue || 0}</p>
+            </div>
+            <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: '0.45rem', padding: '0.55rem' }}>
+              <p style={{ margin: 0, color: '#92400E', fontSize: '0.76rem' }}>Due Soon (7d)</p>
+              <p style={{ margin: '0.2rem 0 0', color: '#78350F', fontWeight: '700' }}>{vendorPaymentCalendar.alerts?.due_soon || 0}</p>
+            </div>
+            <div style={{ background: '#EFF6FF', border: '1px solid #93C5FD', borderRadius: '0.45rem', padding: '0.55rem' }}>
+              <p style={{ margin: 0, color: '#1D4ED8', fontSize: '0.76rem' }}>Upcoming</p>
+              <p style={{ margin: '0.2rem 0 0', color: '#1E3A8A', fontWeight: '700' }}>{vendorPaymentCalendar.alerts?.upcoming || 0}</p>
+            </div>
+            <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem' }}>
+              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.76rem' }}>Total Due Amount</p>
+              <p style={{ margin: '0.2rem 0 0', color: C.ink, fontWeight: '700' }}>{Number(vendorPaymentCalendar.alerts?.totalDue || 0).toLocaleString()}</p>
+            </div>
+            <div style={{ background: '#EFF6FF', border: '1px solid #93C5FD', borderRadius: '0.45rem', padding: '0.55rem' }}>
+              <p style={{ margin: 0, color: '#1D4ED8', fontSize: '0.76rem' }}>Doc Warning 30d</p>
+              <p style={{ margin: '0.2rem 0 0', color: '#1E3A8A', fontWeight: '700' }}>{vendorComplianceSummary.expiryBuckets?.warning30 || 0}</p>
+            </div>
+            <div style={{ background: '#EEF2FF', border: '1px solid #A5B4FC', borderRadius: '0.45rem', padding: '0.55rem' }}>
+              <p style={{ margin: 0, color: '#3730A3', fontSize: '0.76rem' }}>Doc Warning 60d</p>
+              <p style={{ margin: '0.2rem 0 0', color: '#312E81', fontWeight: '700' }}>{vendorComplianceSummary.expiryBuckets?.warning60 || 0}</p>
+            </div>
+            <div style={{ background: '#F5F3FF', border: '1px solid #C4B5FD', borderRadius: '0.45rem', padding: '0.55rem' }}>
+              <p style={{ margin: 0, color: '#5B21B6', fontSize: '0.76rem' }}>Doc Warning 90d</p>
+              <p style={{ margin: '0.2rem 0 0', color: '#4C1D95', fontWeight: '700' }}>{vendorComplianceSummary.expiryBuckets?.warning90 || 0}</p>
+            </div>
+            <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.45rem', padding: '0.55rem' }}>
+              <p style={{ margin: 0, color: '#991B1B', fontSize: '0.76rem' }}>Doc Expired</p>
+              <p style={{ margin: '0.2rem 0 0', color: '#7F1D1D', fontWeight: '700' }}>{vendorComplianceSummary.expiryBuckets?.expired || 0}</p>
+            </div>
+            <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: '0.45rem', padding: '0.55rem' }}>
+              <p style={{ margin: 0, color: '#92400E', fontSize: '0.76rem' }}>Overdue Queue</p>
+              <p style={{ margin: '0.2rem 0 0', color: '#78350F', fontWeight: '700' }}>{vendorOverdueQueue.summary?.total || 0} alerts</p>
+            </div>
+          </div>
+
+          <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.45rem' }}>
+              <p style={{ margin: 0, color: C.ink, fontWeight: '700', fontSize: '0.9rem' }}>Overdue Email Queue Payload</p>
+              <button onClick={loadVendorOverdueQueue} style={{ padding: '0.3rem 0.6rem', borderRadius: '0.35rem', border: '1px solid #7DD3FC', background: '#E0F2FE', color: '#075985', cursor: 'pointer', fontSize: '0.74rem', fontWeight: '600' }}>Refresh Queue</button>
+            </div>
+            <p style={{ margin: '0 0 0.4rem', color: C.inkSoft, fontSize: '0.78rem' }}>
+              Total: {vendorOverdueQueue.summary?.total || 0} | With Recipient: {vendorOverdueQueue.summary?.withRecipient || 0} | Critical: {vendorOverdueQueue.summary?.critical || 0} | Amount Due: {Number(vendorOverdueQueue.summary?.totalAmountDue || 0).toLocaleString()}
+            </p>
+            <div style={{ maxHeight: '130px', overflowY: 'auto', border: `1px solid ${C.p2}`, borderRadius: '0.45rem' }}>
+              {(vendorOverdueQueue.queue || []).slice(0, 12).map((row) => (
+                <div key={row.queueId} style={{ padding: '0.45rem', borderBottom: `1px solid ${C.p2}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.35rem', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: '700', color: C.ink }}>{row.subject}</span>
+                    <span style={{ fontSize: '0.7rem', color: row.priority === 'high' ? '#991B1B' : '#92400E', fontWeight: '700' }}>{row.priority}</span>
+                  </div>
+                  <div style={{ fontSize: '0.71rem', color: C.inkSoft, marginTop: '0.15rem' }}>To: {(row.to || []).join(', ') || 'No recipient email'}</div>
+                  <div style={{ fontSize: '0.71rem', color: C.inkSoft, marginTop: '0.1rem' }}>{row.preview}</div>
+                </div>
+              ))}
+              {(!vendorOverdueQueue.queue || !vendorOverdueQueue.queue.length) && <p style={{ margin: '0.55rem', color: C.inkSoft, fontSize: '0.75rem' }}>No overdue queue payloads right now.</p>}
+            </div>
+          </div>
+
+          <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem' }}>
+              <input
+                placeholder="Search name, code, contact, phone"
+                value={vendorFilters.search}
+                onChange={(e) => setVendorFilters((prev) => ({ ...prev, search: e.target.value }))}
+                style={modalInputStyle}
+              />
+              <select value={vendorFilters.status} onChange={(e) => setVendorFilters((prev) => ({ ...prev, status: e.target.value }))} style={modalInputStyle}>
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="on_hold">On Hold</option>
+                <option value="blacklisted">Blacklisted</option>
+              </select>
+              <select value={vendorFilters.approvalStatus} onChange={(e) => setVendorFilters((prev) => ({ ...prev, approvalStatus: e.target.value }))} style={modalInputStyle}>
+                <option value="">All Workflow</option>
+                <option value="draft">Draft</option>
+                <option value="review">Review</option>
+                <option value="approved">Approved</option>
+                <option value="blacklisted">Blacklisted</option>
+              </select>
+              <select value={vendorFilters.riskLevel} onChange={(e) => setVendorFilters((prev) => ({ ...prev, riskLevel: e.target.value }))} style={modalInputStyle}>
+                <option value="">All Risk</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+              <input
+                placeholder="Category"
+                value={vendorFilters.category}
+                onChange={(e) => setVendorFilters((prev) => ({ ...prev, category: e.target.value }))}
+                style={modalInputStyle}
+              />
+            </div>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.25rem', color: C.inkSoft, fontSize: '0.82rem' }}>
+              <input type="checkbox" checked={vendorFilters.includeInactive} onChange={(e) => setVendorFilters((prev) => ({ ...prev, includeInactive: e.target.checked }))} />
+              Include inactive vendors
+            </label>
+          </div>
+
+          {showVendorForm && (
+            <form onSubmit={handleCreateVendor} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
+              <p style={{ marginTop: 0, marginBottom: '0.6rem', color: C.ink, fontWeight: '700' }}>{editingVendorId ? 'Update Vendor Profile' : 'Create Vendor Profile'}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.5rem' }}>
+                <input placeholder="Vendor Code" value={vendorForm.vendorCode} onChange={(e) => setVendorForm((prev) => ({ ...prev, vendorCode: e.target.value.toUpperCase() }))} style={modalInputStyle} disabled={!canManageVendors} />
+                <input placeholder="Vendor Name" value={vendorForm.name} onChange={(e) => setVendorForm((prev) => ({ ...prev, name: e.target.value }))} style={modalInputStyle} />
+                <input placeholder="Contact Person" value={vendorForm.contactPerson} onChange={(e) => setVendorForm((prev) => ({ ...prev, contactPerson: e.target.value }))} style={modalInputStyle} />
+                <input placeholder="Phone" value={vendorForm.phone} onChange={(e) => setVendorForm((prev) => ({ ...prev, phone: e.target.value }))} style={modalInputStyle} />
+                <input placeholder="Email" value={vendorForm.email} onChange={(e) => setVendorForm((prev) => ({ ...prev, email: e.target.value }))} style={modalInputStyle} />
+                <input placeholder="Address" value={vendorForm.address} onChange={(e) => setVendorForm((prev) => ({ ...prev, address: e.target.value }))} style={modalInputStyle} />
+                <input placeholder="City" value={vendorForm.city} onChange={(e) => setVendorForm((prev) => ({ ...prev, city: e.target.value }))} style={modalInputStyle} />
+                <input placeholder="Country" value={vendorForm.country} onChange={(e) => setVendorForm((prev) => ({ ...prev, country: e.target.value }))} style={modalInputStyle} />
+                <input placeholder="Postal Code" value={vendorForm.postalCode} onChange={(e) => setVendorForm((prev) => ({ ...prev, postalCode: e.target.value }))} style={modalInputStyle} />
+                <input placeholder="GST/VAT" value={vendorForm.gstVat} onChange={(e) => setVendorForm((prev) => ({ ...prev, gstVat: e.target.value }))} style={modalInputStyle} />
+                <input placeholder="Tax Registration" value={vendorForm.taxRegistrationNo} onChange={(e) => setVendorForm((prev) => ({ ...prev, taxRegistrationNo: e.target.value }))} style={modalInputStyle} />
+                <input type="number" step="0.01" placeholder="Opening Balance" value={vendorForm.openingBalance} onChange={(e) => setVendorForm((prev) => ({ ...prev, openingBalance: e.target.value }))} style={modalInputStyle} disabled={!canManageVendors} />
+                <input type="number" placeholder="Payment Terms (days)" value={vendorForm.paymentTermsDays} onChange={(e) => setVendorForm((prev) => ({ ...prev, paymentTermsDays: e.target.value }))} style={modalInputStyle} />
+                <input type="number" step="0.01" placeholder="Credit Limit" value={vendorForm.creditLimit} onChange={(e) => setVendorForm((prev) => ({ ...prev, creditLimit: e.target.value }))} style={modalInputStyle} disabled={!canManageVendors} />
+                <input placeholder="Category" value={vendorForm.category} onChange={(e) => setVendorForm((prev) => ({ ...prev, category: e.target.value }))} style={modalInputStyle} />
+                <select value={vendorForm.rating} onChange={(e) => setVendorForm((prev) => ({ ...prev, rating: e.target.value }))} style={modalInputStyle}>
+                  <option value="1">1 Star</option>
+                  <option value="2">2 Stars</option>
+                  <option value="3">3 Stars</option>
+                  <option value="4">4 Stars</option>
+                  <option value="5">5 Stars</option>
+                </select>
+                <select value={vendorForm.riskLevel} onChange={(e) => setVendorForm((prev) => ({ ...prev, riskLevel: e.target.value }))} style={modalInputStyle}>
+                  <option value="low">Risk Low</option>
+                  <option value="medium">Risk Medium</option>
+                  <option value="high">Risk High</option>
+                </select>
+                <select value={vendorForm.status} onChange={(e) => setVendorForm((prev) => ({ ...prev, status: e.target.value }))} style={modalInputStyle}>
+                  <option value="active">Status Active</option>
+                  <option value="on_hold">Status On Hold</option>
+                  <option value="blacklisted">Status Blacklisted</option>
+                </select>
+                <input placeholder="Preferred Currency" value={vendorForm.preferredCurrency} onChange={(e) => setVendorForm((prev) => ({ ...prev, preferredCurrency: e.target.value.toUpperCase() }))} style={modalInputStyle} />
+                <input placeholder="Base Currency" value={vendorForm.currency} onChange={(e) => setVendorForm((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))} style={modalInputStyle} disabled={!canManageVendors} />
+                <input placeholder="Bank Name" value={vendorForm.bankName} onChange={(e) => setVendorForm((prev) => ({ ...prev, bankName: e.target.value }))} style={modalInputStyle} disabled={!canManageVendors} />
+                <input placeholder="Bank Account Number" value={vendorForm.bankAccountNumber} onChange={(e) => setVendorForm((prev) => ({ ...prev, bankAccountNumber: e.target.value }))} style={modalInputStyle} disabled={!canManageVendors} />
+                <input placeholder="IBAN" value={vendorForm.iban} onChange={(e) => setVendorForm((prev) => ({ ...prev, iban: e.target.value }))} style={modalInputStyle} disabled={!canManageVendors} />
+                <input placeholder="SWIFT" value={vendorForm.swiftCode} onChange={(e) => setVendorForm((prev) => ({ ...prev, swiftCode: e.target.value }))} style={modalInputStyle} disabled={!canManageVendors} />
+                <input placeholder="Tags (comma separated)" value={vendorForm.tags} onChange={(e) => setVendorForm((prev) => ({ ...prev, tags: e.target.value }))} style={modalInputStyle} />
+                <input placeholder="Notes" value={vendorForm.notes} onChange={(e) => setVendorForm((prev) => ({ ...prev, notes: e.target.value }))} style={modalInputStyle} />
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button type="submit" disabled={saving || (!canManageVendors && !editingVendorId)} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer' }}>{saving ? 'Saving...' : editingVendorId ? 'Update Vendor' : 'Create Vendor'}</button>
+                <button type="button" onClick={() => { setShowVendorForm(false); setEditingVendorId('') }} style={{ padding: '0.5rem 1rem', background: '#fff', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.4rem', cursor: 'pointer' }}>Cancel</button>
+              </div>
+            </form>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: '1rem' }}>
+            <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
+                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Code</th>
+                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Vendor</th>
+                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Contact</th>
+                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Status</th>
+                    <th style={{ padding: '0.6rem', textAlign: 'right' }}>Outstanding</th>
+                    <th style={{ padding: '0.6rem', textAlign: 'center' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vendors.map((v) => (
+                    <tr key={v._id} style={{ borderBottom: `1px solid ${C.p2}`, background: selectedVendorId === v._id ? '#ECFEFF' : 'transparent' }}>
+                      <td style={{ padding: '0.6rem' }}>{v.vendorCode || '-'}</td>
+                      <td style={{ padding: '0.6rem', minWidth: '170px' }}>
+                        <div style={{ fontWeight: '700', color: C.ink }}>{v.name}</div>
+                        <div style={{ color: C.inkSoft, fontSize: '0.74rem' }}>{v.category || 'general'} | Risk {v.riskLevel || 'medium'}</div>
+                      </td>
+                      <td style={{ padding: '0.6rem' }}>{v.contactPerson || v.phone || '-'}</td>
+                      <td style={{ padding: '0.6rem' }}>
+                        <span style={{ padding: '0.15rem 0.5rem', borderRadius: '999px', background: v.status === 'blacklisted' ? '#FEE2E2' : v.status === 'on_hold' ? '#FEF3C7' : '#DCFCE7', color: v.status === 'blacklisted' ? '#991B1B' : v.status === 'on_hold' ? '#92400E' : '#166534', fontWeight: '700', fontSize: '0.72rem' }}>{v.status || 'active'}</span>
+                      </td>
+                      <td style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '700', color: v.isOverLimit ? '#DC2626' : C.ink }}>{Number(v.outstanding || 0).toLocaleString()}</td>
+                      <td style={{ padding: '0.6rem', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                          <button onClick={() => handleVendorSelect(v._id)} style={{ padding: '0.25rem 0.55rem', background: '#E0F2FE', border: '1px solid #7DD3FC', borderRadius: '0.3rem', color: '#075985', cursor: 'pointer', fontSize: '0.75rem' }}>View</button>
+                          {vendorPermissions.canUpdateOperational && <button onClick={() => handleEditVendor(v)} style={{ padding: '0.25rem 0.55rem', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: '0.3rem', color: '#065F46', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>}
+                          {vendorPermissions.canManage && <button onClick={() => handleDeleteVendor(v)} style={{ padding: '0.25rem 0.55rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.3rem', color: '#991B1B', cursor: 'pointer', fontSize: '0.75rem' }}>Deactivate</button>}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {vendors.length === 0 && <p style={{ color: C.inkSoft, margin: '0.8rem', textAlign: 'center' }}>No vendors found for current filters.</p>}
+            </div>
+
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem' }}>
+              <h4 style={{ marginTop: 0, marginBottom: '0.6rem', color: C.ink, fontWeight: '700' }}>Vendor Details</h4>
+              {!selectedVendorDetails?.vendor ? (
+                <div style={emptyCardStyle}>Select a vendor to view profile, financial metrics, and recent activity.</div>
+              ) : (
+                <div>
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>{selectedVendorDetails.vendor.name}</p>
+                    <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>{selectedVendorDetails.vendor.vendorCode || '-'} | {selectedVendorDetails.vendor.contactPerson || 'No contact'} | {selectedVendorDetails.vendor.phone || '-'}</p>
+                  </div>
+
+                  <div style={{ marginBottom: '0.8rem', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem', background: '#F8FAFC' }}>
+                    <p style={{ margin: '0 0 0.4rem', color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>Approval Workflow</p>
+                    <p style={{ margin: '0 0 0.35rem', color: C.inkSoft, fontSize: '0.76rem' }}>Current: <span style={{ fontWeight: '700', color: C.ink }}>{selectedVendorDetails.vendor.approvalStatus || 'draft'}</span></p>
+                    <input
+                      placeholder="Reason for transition"
+                      value={vendorWorkflowReason}
+                      onChange={(e) => setVendorWorkflowReason(e.target.value)}
+                      style={{ ...modalInputStyle, marginBottom: '0.45rem' }}
+                    />
+                    <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                      <button onClick={() => handleVendorWorkflowStatus('draft')} disabled={saving || !vendorPermissions.canUpdateOperational} style={{ padding: '0.25rem 0.55rem', borderRadius: '0.3rem', border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', cursor: 'pointer', fontSize: '0.74rem' }}>Draft</button>
+                      <button onClick={() => handleVendorWorkflowStatus('review')} disabled={saving || !vendorPermissions.canUpdateOperational} style={{ padding: '0.25rem 0.55rem', borderRadius: '0.3rem', border: '1px solid #FDE68A', background: '#FFFBEB', color: '#92400E', cursor: 'pointer', fontSize: '0.74rem' }}>Review</button>
+                      <button onClick={() => handleVendorWorkflowStatus('approved')} disabled={saving || !vendorPermissions.canManage} style={{ padding: '0.25rem 0.55rem', borderRadius: '0.3rem', border: '1px solid #6EE7B7', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontSize: '0.74rem' }}>Approve</button>
+                      <button onClick={() => handleVendorWorkflowStatus('blacklisted')} disabled={saving || !vendorPermissions.canManage} style={{ padding: '0.25rem 0.55rem', borderRadius: '0.3rem', border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#991B1B', cursor: 'pointer', fontSize: '0.74rem' }}>Blacklist</button>
+                    </div>
+                    <div style={{ marginTop: '0.45rem', maxHeight: '84px', overflowY: 'auto', borderTop: `1px solid ${C.p2}`, paddingTop: '0.45rem' }}>
+                      {(selectedVendorDetails.vendor.approvalHistory || []).slice().reverse().slice(0, 5).map((h, idx) => (
+                        <p key={`${h.changedAt || idx}-${idx}`} style={{ margin: '0 0 0.3rem', color: C.inkSoft, fontSize: '0.72rem' }}>
+                          <strong style={{ color: C.ink }}>{h.status}</strong> {h.reason ? `- ${h.reason}` : ''} ({new Date(h.changedAt).toLocaleString()})
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '0.8rem', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem', background: '#F8FAFC' }}>
+                    <p style={{ margin: '0 0 0.35rem', color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>Required Document Compliance</p>
+                    <p style={{ margin: '0 0 0.35rem', color: C.inkSoft, fontSize: '0.76rem' }}>
+                      Category: <strong style={{ color: C.ink }}>{selectedVendorDetails.vendor.compliance?.category || selectedVendorDetails.vendor.category || 'general'}</strong>
+                      {' | '}
+                      Score: <strong style={{ color: C.ink }}>{Number(selectedVendorDetails.vendor.compliance?.complianceScore || 0).toLocaleString()}%</strong>
+                      {' | '}
+                      Status: <strong style={{ color: selectedVendorDetails.vendor.compliance?.compliant ? '#065F46' : '#991B1B' }}>{selectedVendorDetails.vendor.compliance?.compliant ? 'Compliant' : 'At Risk'}</strong>
+                    </p>
+                    <p style={{ margin: '0 0 0.25rem', color: C.inkSoft, fontSize: '0.74rem' }}>
+                      Missing Required: {(selectedVendorDetails.vendor.compliance?.missingDocuments || []).join(', ') || 'None'}
+                    </p>
+                    <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.74rem' }}>
+                      Expired Required: {(selectedVendorDetails.vendor.compliance?.expiredRequiredDocuments || []).join(', ') || 'None'}
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                    <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem' }}>
+                      <p style={{ margin: 0, color: C.t3, fontSize: '0.75rem' }}>Outstanding</p>
+                      <p style={{ margin: '0.2rem 0 0', color: C.ink, fontWeight: '700' }}>{Number(selectedVendorDetails.vendor.outstanding || 0).toLocaleString()}</p>
+                    </div>
+                    <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem' }}>
+                      <p style={{ margin: 0, color: C.t3, fontSize: '0.75rem' }}>Credit Utilization</p>
+                      <p style={{ margin: '0.2rem 0 0', color: selectedVendorDetails.vendor.isOverLimit ? '#DC2626' : C.ink, fontWeight: '700' }}>{Number(selectedVendorDetails.vendor.utilizationPercent || 0).toLocaleString()}%</p>
+                    </div>
+                    <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem' }}>
+                      <p style={{ margin: 0, color: C.t3, fontSize: '0.75rem' }}>Posted Purchases</p>
+                      <p style={{ margin: '0.2rem 0 0', color: C.ink, fontWeight: '700' }}>{selectedVendorDetails.vendor.purchaseCount || 0}</p>
+                    </div>
+                    <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem' }}>
+                      <p style={{ margin: 0, color: C.t3, fontSize: '0.75rem' }}>Posted Payments</p>
+                      <p style={{ margin: '0.2rem 0 0', color: C.ink, fontWeight: '700' }}>{selectedVendorDetails.vendor.paymentCount || 0}</p>
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '0.6rem' }}>
+                    <p style={{ margin: '0 0 0.35rem', color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>Recent Transactions</p>
+                    <div style={{ maxHeight: '150px', overflowY: 'auto', border: `1px solid ${C.p2}`, borderRadius: '0.45rem' }}>
+                      {(selectedVendorDetails.recentTransactions || []).map((tx) => (
+                        <div key={tx._id} style={{ padding: '0.5rem', borderBottom: `1px solid ${C.p2}` }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.4rem' }}>
+                            <span style={{ color: C.ink, fontWeight: '600', fontSize: '0.77rem', textTransform: 'capitalize' }}>{tx.type} ({tx.status})</span>
+                            <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.77rem' }}>{Number(tx.amount || 0).toLocaleString()} {tx.currency || 'AED'}</span>
+                          </div>
+                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{new Date(tx.date).toLocaleString()}</div>
+                        </div>
+                      ))}
+                      {(!selectedVendorDetails.recentTransactions || !selectedVendorDetails.recentTransactions.length) && <p style={{ margin: '0.55rem', color: C.inkSoft, fontSize: '0.75rem' }}>No recent transactions.</p>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p style={{ margin: '0 0 0.35rem', color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>Recent Ledger Activity</p>
+                    <div style={{ maxHeight: '150px', overflowY: 'auto', border: `1px solid ${C.p2}`, borderRadius: '0.45rem' }}>
+                      {(selectedVendorDetails.recentLedgerEntries || []).map((entry) => (
+                        <div key={entry._id} style={{ padding: '0.5rem', borderBottom: `1px solid ${C.p2}` }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.4rem' }}>
+                            <span style={{ color: C.ink, fontWeight: '600', fontSize: '0.77rem', textTransform: 'capitalize' }}>{entry.referenceType}</span>
+                            <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.77rem' }}>{Number(entry.amount || 0).toLocaleString()} {entry.currency || 'AED'}</span>
+                          </div>
+                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{new Date(entry.date).toLocaleString()}</div>
+                        </div>
+                      ))}
+                      {(!selectedVendorDetails.recentLedgerEntries || !selectedVendorDetails.recentLedgerEntries.length) && <p style={{ margin: '0.55rem', color: C.inkSoft, fontSize: '0.75rem' }}>No recent ledger activity.</p>}
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <p style={{ margin: '0 0 0.35rem', color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>Document Vault</p>
+                    <form onSubmit={handleAddVendorDocument} style={{ border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.5rem', marginBottom: '0.45rem', background: '#F8FAFC' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem' }}>
+                        <select value={vendorDocumentForm.docType} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, docType: e.target.value }))} style={modalInputStyle}>
+                          <option value="contract">Contract</option>
+                          <option value="trade_license">Trade License</option>
+                          <option value="vat_certificate">VAT Certificate</option>
+                          <option value="bank_proof">Bank Proof</option>
+                          <option value="other">Other</option>
+                        </select>
+                        <input placeholder="Title" value={vendorDocumentForm.title} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, title: e.target.value }))} style={modalInputStyle} />
+                        <input placeholder="Document No" value={vendorDocumentForm.documentNo} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, documentNo: e.target.value }))} style={modalInputStyle} />
+                        <input placeholder="File URL" value={vendorDocumentForm.fileUrl} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, fileUrl: e.target.value }))} style={modalInputStyle} />
+                        <input type="date" value={vendorDocumentForm.issueDate} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, issueDate: e.target.value }))} style={modalInputStyle} />
+                        <input type="date" value={vendorDocumentForm.expiryDate} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, expiryDate: e.target.value }))} style={modalInputStyle} />
+                      </div>
+                      <button type="submit" disabled={saving || !vendorPermissions.canUpdateOperational} style={{ padding: '0.3rem 0.6rem', borderRadius: '0.32rem', border: '1px solid #6EE7B7', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontSize: '0.74rem' }}>Add Document</button>
+                    </form>
+                    <div style={{ maxHeight: '140px', overflowY: 'auto', border: `1px solid ${C.p2}`, borderRadius: '0.45rem' }}>
+                      {(selectedVendorDetails.vendor.documents || []).map((doc) => (
+                        <div key={doc._id} style={{ padding: '0.45rem', borderBottom: `1px solid ${C.p2}` }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.35rem' }}>
+                            <span style={{ color: C.ink, fontWeight: '600', fontSize: '0.74rem' }}>{doc.docType} - {doc.title}</span>
+                            {vendorPermissions.canUpdateOperational && <button onClick={() => handleDeleteVendorDocument(doc._id)} style={{ padding: '0.2rem 0.45rem', borderRadius: '0.28rem', border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#991B1B', cursor: 'pointer', fontSize: '0.7rem' }}>Delete</button>}
+                          </div>
+                          <div style={{ color: C.inkSoft, fontSize: '0.71rem' }}>{doc.documentNo || '-'} {doc.expiryDate ? `| Exp: ${new Date(doc.expiryDate).toLocaleDateString()}` : ''}</div>
+                        </div>
+                      ))}
+                      {(!selectedVendorDetails.vendor.documents || !selectedVendorDetails.vendor.documents.length) && <p style={{ margin: '0.55rem', color: C.inkSoft, fontSize: '0.75rem' }}>No documents uploaded.</p>}
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <p style={{ margin: '0 0 0.35rem', color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>Payment Calendar & Due Alerts</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(70px, 1fr))', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                      <div style={{ border: `1px solid ${C.p2}`, borderRadius: '0.35rem', padding: '0.35rem', background: '#FEF2F2' }}><p style={{ margin: 0, fontSize: '0.68rem', color: C.inkSoft }}>Overdue</p><p style={{ margin: '0.15rem 0 0', fontWeight: '700', color: '#991B1B', fontSize: '0.82rem' }}>{selectedVendorDetails.paymentAlerts?.overdue || 0}</p></div>
+                      <div style={{ border: `1px solid ${C.p2}`, borderRadius: '0.35rem', padding: '0.35rem', background: '#FFFBEB' }}><p style={{ margin: 0, fontSize: '0.68rem', color: C.inkSoft }}>Due Soon</p><p style={{ margin: '0.15rem 0 0', fontWeight: '700', color: '#92400E', fontSize: '0.82rem' }}>{selectedVendorDetails.paymentAlerts?.due_soon || 0}</p></div>
+                      <div style={{ border: `1px solid ${C.p2}`, borderRadius: '0.35rem', padding: '0.35rem', background: '#EFF6FF' }}><p style={{ margin: 0, fontSize: '0.68rem', color: C.inkSoft }}>Upcoming</p><p style={{ margin: '0.15rem 0 0', fontWeight: '700', color: '#1D4ED8', fontSize: '0.82rem' }}>{selectedVendorDetails.paymentAlerts?.upcoming || 0}</p></div>
+                      <div style={{ border: `1px solid ${C.p2}`, borderRadius: '0.35rem', padding: '0.35rem', background: '#F8FAFC' }}><p style={{ margin: 0, fontSize: '0.68rem', color: C.inkSoft }}>Later</p><p style={{ margin: '0.15rem 0 0', fontWeight: '700', color: C.ink, fontSize: '0.82rem' }}>{selectedVendorDetails.paymentAlerts?.later || 0}</p></div>
+                    </div>
+                    <div style={{ maxHeight: '130px', overflowY: 'auto', border: `1px solid ${C.p2}`, borderRadius: '0.45rem' }}>
+                      {(selectedVendorDetails.paymentCalendar || []).map((due) => (
+                        <div key={`${due.purchaseTransactionId}-${due.dueDate}`} style={{ padding: '0.45rem', borderBottom: `1px solid ${C.p2}` }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.35rem' }}>
+                            <span style={{ fontSize: '0.74rem', fontWeight: '600', color: C.ink }}>{Number(due.remaining || 0).toLocaleString()} {due.currency || 'AED'}</span>
+                            <span style={{ fontSize: '0.71rem', color: due.alertLevel === 'overdue' ? '#991B1B' : due.alertLevel === 'due_soon' ? '#92400E' : C.inkSoft }}>{due.alertLevel} ({due.daysToDue}d)</span>
+                          </div>
+                          <div style={{ fontSize: '0.71rem', color: C.inkSoft }}>Due {new Date(due.dueDate).toLocaleDateString()}</div>
+                        </div>
+                      ))}
+                      {(!selectedVendorDetails.paymentCalendar || !selectedVendorDetails.paymentCalendar.length) && <p style={{ margin: '0.55rem', color: C.inkSoft, fontSize: '0.75rem' }}>No pending due amounts in horizon.</p>}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* INVENTORY TAB */}
+      {activeTab === 'inventory' && (
+        <div>
+          <h3 style={{ marginBottom: '1rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Inventory</h3>
+          <form onSubmit={handleCreateProduct} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
+            <p style={{ marginTop: 0, marginBottom: '0.5rem', fontWeight: '700' }}>Products</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.5rem' }}>
+              <input placeholder="SKU" value={productForm.sku} onChange={(e) => setProductForm((prev) => ({ ...prev, sku: e.target.value }))} style={modalInputStyle} />
+              <input placeholder="Name" value={productForm.name} onChange={(e) => setProductForm((prev) => ({ ...prev, name: e.target.value }))} style={modalInputStyle} />
+              <input placeholder="Category" value={productForm.category} onChange={(e) => setProductForm((prev) => ({ ...prev, category: e.target.value }))} style={modalInputStyle} />
+              <input placeholder="Unit" value={productForm.unit} onChange={(e) => setProductForm((prev) => ({ ...prev, unit: e.target.value }))} style={modalInputStyle} />
+              <input type="number" step="0.01" placeholder="Cost" value={productForm.unitCost} onChange={(e) => setProductForm((prev) => ({ ...prev, unitCost: e.target.value }))} style={modalInputStyle} />
+              <input type="number" step="0.01" placeholder="Price" value={productForm.sellingPrice} onChange={(e) => setProductForm((prev) => ({ ...prev, sellingPrice: e.target.value }))} style={modalInputStyle} />
+              <input type="number" step="0.01" placeholder="Opening Qty" value={productForm.quantity} onChange={(e) => setProductForm((prev) => ({ ...prev, quantity: e.target.value }))} style={modalInputStyle} />
+            </div>
+            <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer' }}>{saving ? 'Saving...' : 'Create Product'}</button>
+          </form>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+            <form onSubmit={handleStockIn} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
+              <p style={{ marginTop: 0, marginBottom: '0.5rem', fontWeight: '700' }}>Stock IN (Purchase)</p>
+              <select value={stockInForm.itemId} onChange={(e) => setStockInForm((prev) => ({ ...prev, itemId: e.target.value }))} style={modalInputStyle}><option value="">Select Product</option>{inventoryProducts.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}</select>
+              <select value={stockInForm.vendorId} onChange={(e) => setStockInForm((prev) => ({ ...prev, vendorId: e.target.value }))} style={modalInputStyle}><option value="">Select Vendor</option>{vendors.map((v) => <option key={v._id} value={v._id}>{v.name}</option>)}</select>
+              <input type="number" step="0.01" placeholder="Quantity" value={stockInForm.quantity} onChange={(e) => setStockInForm((prev) => ({ ...prev, quantity: e.target.value }))} style={modalInputStyle} />
+              <input type="number" step="0.01" placeholder="Unit Cost" value={stockInForm.unitCost} onChange={(e) => setStockInForm((prev) => ({ ...prev, unitCost: e.target.value }))} style={modalInputStyle} />
+              <button type="submit" disabled={saving} style={{ padding: '0.45rem 0.8rem', background: '#0EA5E9', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Post Stock IN</button>
+            </form>
+
+            <form onSubmit={handleStockOut} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
+              <p style={{ marginTop: 0, marginBottom: '0.5rem', fontWeight: '700' }}>Stock OUT (Sales)</p>
+              <select value={stockOutForm.itemId} onChange={(e) => setStockOutForm((prev) => ({ ...prev, itemId: e.target.value }))} style={modalInputStyle}><option value="">Select Product</option>{inventoryProducts.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}</select>
+              <input type="number" step="0.01" placeholder="Quantity" value={stockOutForm.quantity} onChange={(e) => setStockOutForm((prev) => ({ ...prev, quantity: e.target.value }))} style={modalInputStyle} />
+              <button type="submit" disabled={saving} style={{ padding: '0.45rem 0.8rem', background: '#F97316', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Post Stock OUT</button>
+            </form>
+          </div>
+
+          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}`, marginBottom: '1rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>SKU</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Name</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'right' }}>Qty</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'right' }}>Cost</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'right' }}>Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inventoryProducts.map((p) => (
+                  <tr key={p._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                    <td style={{ padding: '0.65rem' }}>{p.sku || '-'}</td>
+                    <td style={{ padding: '0.65rem' }}>{p.name}</td>
+                    <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.quantity || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.unitCost || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.sellingPrice || 0).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
+                  <th style={{ padding: '0.6rem', textAlign: 'left' }}>Date</th>
+                  <th style={{ padding: '0.6rem', textAlign: 'left' }}>Item</th>
+                  <th style={{ padding: '0.6rem', textAlign: 'right' }}>Change</th>
+                  <th style={{ padding: '0.6rem', textAlign: 'right' }}>Before</th>
+                  <th style={{ padding: '0.6rem', textAlign: 'right' }}>After</th>
+                  <th style={{ padding: '0.6rem', textAlign: 'left' }}>Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stockLedger.slice(0, 100).map((m) => (
+                  <tr key={m._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                    <td style={{ padding: '0.6rem' }}>{new Date(m.createdAt).toLocaleString()}</td>
+                    <td style={{ padding: '0.6rem' }}>{m.itemName}</td>
+                    <td style={{ padding: '0.6rem', textAlign: 'right', color: Number(m.change) >= 0 ? C.s1 : C.danger }}>{Number(m.change || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.6rem', textAlign: 'right' }}>{Number(m.quantityBefore || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.6rem', textAlign: 'right' }}>{Number(m.quantityAfter || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.6rem' }}>{m.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* SETTINGS TAB */}
+      {activeTab === 'settings' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
+            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Settings</h3>
+            {canManageAccounts && (
+              <button
+                onClick={() => setShowCurrencyForm(!showCurrencyForm)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: C.s1,
+                  color: C.t1,
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                }}
+              >
+                + Add Currency
+              </button>
+            )}
+          </div>
+
+          <div style={{ marginBottom: '2rem' }}>
+            <h4 style={{ color: C.ink, marginBottom: '1rem', fontWeight: '700' }}>Report Branding</h4>
+            <form onSubmit={handleSaveBranding} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', border: `1px solid ${C.p2}`, marginBottom: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) repeat(2, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                <select value={selectedBrandingKey} onChange={(e) => handleSelectBrandingProfile(e.target.value)} style={modalInputStyle}>
+                  {brandingProfiles.map((profile) => (
+                    <option key={profile.key} value={profile.key}>{brandingOptionLabel(profile)}{profile.isDefault ? ' (Default)' : ''}</option>
+                  ))}
+                </select>
+                <input
+                  placeholder="Profile Key"
+                  value={brandingForm.key}
+                  onChange={(e) => {
+                    const nextKey = normalizeBrandingKey(e.target.value)
+                    setSelectedBrandingKey(nextKey)
+                    setBrandingForm((prev) => ({ ...prev, key: nextKey }))
+                  }}
+                  style={modalInputStyle}
+                />
+                <label style={{ ...modalInputStyle, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(brandingForm.isDefault)}
+                    onChange={(e) => setBrandingForm((prev) => ({ ...prev, isDefault: e.target.checked }))}
+                  />
+                  Set as default entity
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                <button type="button" onClick={handleCreateBrandingDraft} style={{ padding: '0.45rem 0.85rem', background: '#ECFDF5', color: '#065F46', border: '1px solid #A7F3D0', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600' }}>
+                  + New Entity Profile
+                </button>
+                <span style={{ color: C.inkSoft, fontSize: '0.82rem', alignSelf: 'center' }}>Each profile can represent a separate legal entity, branch, or reporting unit.</span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                <input
+                  placeholder="Entity Name"
+                  value={brandingForm.entityName}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, entityName: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <input
+                  placeholder="Branch / Unit"
+                  value={brandingForm.branchName}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, branchName: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <input
+                  placeholder="Company Name"
+                  value={brandingForm.companyName}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, companyName: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <input
+                  placeholder="Legal Name"
+                  value={brandingForm.legalName}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, legalName: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <input
+                  placeholder="Report Subtitle"
+                  value={brandingForm.reportSubtitle}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, reportSubtitle: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <input
+                  placeholder="Footer Text"
+                  value={brandingForm.reportFooter}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, reportFooter: e.target.value }))}
+                  style={modalInputStyle}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.75rem', alignItems: 'start', marginBottom: '0.75rem' }}>
+                <input
+                  placeholder="Logo URL or paste data URL"
+                  value={brandingForm.logoUrl}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoUrl: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <label style={{ ...modalInputStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginBottom: 0 }}>
+                  Upload Logo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleBrandingLogoFile(e.target.files?.[0])}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+              </div>
+
+              {brandingForm.logoUrl && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+                  <div style={{ padding: '0.75rem', border: `1px dashed ${C.p2}`, borderRadius: '0.5rem', background: '#FFFDF7' }}>
+                    <p style={{ marginTop: 0, marginBottom: '0.5rem', color: C.ink, fontWeight: '600' }}>Source Logo</p>
+                    <img src={brandingForm.logoUrl} alt="Brand logo source" style={{ maxHeight: '72px', maxWidth: '220px', objectFit: 'contain' }} />
+                  </div>
+                  <div style={{ padding: '0.75rem', border: `1px dashed ${C.p2}`, borderRadius: '0.5rem', background: '#FFFDF7' }}>
+                    <p style={{ marginTop: 0, marginBottom: '0.5rem', color: C.ink, fontWeight: '600' }}>Header Crop Result</p>
+                    <div style={{ width: `${clampBrandingDimension(brandingForm.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)}px`, height: `${clampBrandingDimension(brandingForm.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)}px`, border: '1px solid #D1D5DB', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {brandingPreviewLogo ? <img src={brandingPreviewLogo} alt="Brand logo processed preview" style={{ width: '100%', height: '100%', objectFit: 'fill' }} /> : null}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+                <input
+                  type="number"
+                  min="80"
+                  max="260"
+                  placeholder="Logo Width"
+                  value={brandingForm.logoWidth}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoWidth: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <input
+                  type="number"
+                  min="32"
+                  max="120"
+                  placeholder="Logo Height"
+                  value={brandingForm.logoHeight}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoHeight: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <select
+                  value={brandingForm.logoFit}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoFit: e.target.value }))}
+                  style={modalInputStyle}
+                >
+                  <option value="contain">Contain</option>
+                  <option value="cover">Cover / Crop</option>
+                  <option value="fill">Fill / Stretch</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '1rem', padding: '1rem', borderRadius: '0.75rem', border: `1px solid ${C.p2}`, background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)' }}>
+                <p style={{ marginTop: 0, marginBottom: '0.75rem', color: C.ink, fontWeight: '700' }}>Company Profile Preview</p>
+                <div style={{ height: '10px', background: 'linear-gradient(135deg, #00684A, #13AA52)', borderRadius: '999px', marginBottom: '14px' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '2px solid #111827', paddingBottom: '0.9rem', marginBottom: '0.9rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                  <div style={{ minWidth: '260px', flex: '1 1 320px' }}>
+                    <p style={{ margin: '0 0 0.35rem', color: '#065F46', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>{brandingPreview.companyName || DEFAULT_BRANDING.companyName}</p>
+                    <p style={{ margin: '0 0 0.35rem', color: '#111827', fontSize: '1.3rem', fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 700 }}>ERP Financial Statement</p>
+                    <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem' }}>{brandingPreview.entityName || DEFAULT_BRANDING.entityName}{brandingPreview.branchName ? ` / ${brandingPreview.branchName}` : ''}</p>
+                    {brandingPreview.legalName ? <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem' }}>{brandingPreview.legalName}</p> : null}
+                    <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem' }}>{brandingPreview.reportSubtitle || DEFAULT_BRANDING.reportSubtitle} | Prepared for statutory / CA-style review</p>
+                    <p style={{ margin: 0, color: '#4B5563', fontSize: '0.8rem' }}>Period: 01 Apr 2026 to 30 Apr 2026</p>
+                  </div>
+                  {brandingPreviewLogo ? (
+                    <div style={{ width: `${clampBrandingDimension(brandingPreview.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)}px`, height: `${clampBrandingDimension(brandingPreview.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)}px`, borderRadius: '0.35rem', overflow: 'hidden', background: '#FFFFFF', border: '1px solid #E5E7EB', flex: '0 0 auto' }}>
+                      <img src={brandingPreviewLogo} alt="Export header preview logo" style={{ width: '100%', height: '100%', objectFit: 'fill', display: 'block' }} />
+                    </div>
+                  ) : null}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(120px, 1fr))', gap: '0.75rem', marginBottom: '0.9rem' }}>
+                  <div style={{ paddingTop: '0.85rem', borderTop: '1px solid #9CA3AF', color: '#374151', fontSize: '0.78rem' }}>{brandingPreview.preparedByTitle || DEFAULT_BRANDING.preparedByTitle}<br />{brandingPreview.preparedByName || DEFAULT_BRANDING.preparedByName}</div>
+                  <div style={{ paddingTop: '0.85rem', borderTop: '1px solid #9CA3AF', color: '#374151', fontSize: '0.78rem' }}>{brandingPreview.reviewedByTitle || DEFAULT_BRANDING.reviewedByTitle}<br />{brandingPreview.reviewedByName || DEFAULT_BRANDING.reviewedByName}</div>
+                  <div style={{ paddingTop: '0.85rem', borderTop: '1px solid #9CA3AF', color: '#374151', fontSize: '0.78rem' }}>{brandingPreview.approvedByTitle || DEFAULT_BRANDING.approvedByTitle}<br />{brandingPreview.approvedByName || DEFAULT_BRANDING.approvedByName}</div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', color: '#6B7280', fontSize: '0.74rem', flexWrap: 'wrap' }}>
+                  <span>{brandingPreview.companyName || DEFAULT_BRANDING.companyName} Reporting Suite</span>
+                  <span>{brandingPreview.reportFooter || DEFAULT_BRANDING.reportFooter}</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+                <input
+                  placeholder="Prepared By Title"
+                  value={brandingForm.preparedByTitle}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, preparedByTitle: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <input
+                  placeholder="Prepared By Name"
+                  value={brandingForm.preparedByName}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, preparedByName: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <input
+                  placeholder="Reviewed By Title"
+                  value={brandingForm.reviewedByTitle}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, reviewedByTitle: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <input
+                  placeholder="Reviewed By Name"
+                  value={brandingForm.reviewedByName}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, reviewedByName: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <input
+                  placeholder="Approved By Title"
+                  value={brandingForm.approvedByTitle}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, approvedByTitle: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <input
+                  placeholder="Approved By Name"
+                  value={brandingForm.approvedByName}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, approvedByName: e.target.value }))}
+                  style={modalInputStyle}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button type="submit" disabled={saving || !canManageAccounts} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: canManageAccounts ? 'pointer' : 'not-allowed', opacity: canManageAccounts ? 1 : 0.65 }}>
+                  {saving ? 'Saving...' : 'Save Branding'}
+                </button>
+                <button type="button" onClick={() => setBrandingForm(reportBranding)} style={{ padding: '0.5rem 1rem', background: '#fff', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.375rem', cursor: 'pointer' }}>
+                  Reset Changes
+                </button>
+                <span style={{ color: C.inkSoft, fontSize: '0.82rem' }}>Use separate profiles per branch or legal entity. Uploaded logos give the most reliable PDF result.</span>
+              </div>
+            </form>
+
+            <h4 style={{ color: C.ink, marginBottom: '1rem', fontWeight: '700' }}>Currencies</h4>
+            {showCurrencyForm && (
+              <form onSubmit={handleCreateCurrency} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
+                <input
+                  placeholder="Currency Code"
+                  value={currencyForm.code}
+                  onChange={(e) => setCurrencyForm({ ...currencyForm, code: e.target.value.toUpperCase() })}
+                  style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+                />
+                <input
+                  placeholder="Currency Name"
+                  value={currencyForm.name}
+                  onChange={(e) => setCurrencyForm({ ...currencyForm, name: e.target.value })}
+                  style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+                />
+                <input
+                  placeholder="Symbol"
+                  value={currencyForm.symbol}
+                  onChange={(e) => setCurrencyForm({ ...currencyForm, symbol: e.target.value })}
+                  style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+                />
+                <input
+                  type="number"
+                  step="0.0001"
+                  placeholder="Exchange Rate"
+                  value={currencyForm.exchangeRate}
+                  onChange={(e) => setCurrencyForm({ ...currencyForm, exchangeRate: e.target.value })}
+                  style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+                />
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: C.t1, marginBottom: '0.75rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={currencyForm.baseCurrency}
+                    onChange={(e) => setCurrencyForm({ ...currencyForm, baseCurrency: e.target.checked })}
+                  />
+                  Set as base currency
+                </label>
+                <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', marginRight: '0.5rem' }}>
+                  {saving ? 'Saving...' : 'Create Currency'}
+                </button>
+                <button type="button" onClick={() => setShowCurrencyForm(false)} style={{ padding: '0.5rem 1rem', background: C.p1, color: C.t2, border: `1px solid ${C.t2}`, borderRadius: '0.375rem', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+              </form>
+            )}
+            <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Code</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Name</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Exchange Rate</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Base</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currencies.map((c) => (
+                    <tr key={c._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                      <td style={{ padding: '0.75rem', color: C.t1, fontWeight: '600' }}>{c.code}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>{c.name}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>{c.exchangeRate?.toFixed(4)}</td>
+                      <td style={{ padding: '0.75rem', color: c.baseCurrency ? C.s1 : C.t2 }}>{c.baseCurrency ? '✓ Base' : '-'}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <button onClick={() => handleEditCurrency(c)} style={{ padding: '0.35rem 0.7rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Edit</button>
+                          <button onClick={() => handleDeleteCurrency(c)} style={{ padding: '0.35rem 0.7rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {currencies.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No currencies configured yet.</p>}
+          </div>
+
+          <div style={{ background: C.p1, padding: '1.5rem', borderRadius: '0.5rem', borderLeft: `4px solid ${C.s1}` }}>
+            <h4 style={{ color: C.t1, marginBottom: '1rem', fontWeight: '600' }}>📋 System Information</h4>
+            <ul style={{ color: C.t2, fontSize: '0.875rem', listStyle: 'none', padding: 0 }}>
+              <li style={{ marginBottom: '0.5rem' }}>✓ Central Ledger System: Every transaction creates one ledger entry</li>
+              <li style={{ marginBottom: '0.5rem' }}>✓ Auto Journal Logic: Debit/Credit pairs auto-populated based on mappings</li>
+              <li style={{ marginBottom: '0.5rem' }}>✓ Role-Based Access: Finance and Super Admin only</li>
+              <li style={{ marginBottom: '0.5rem' }}>✓ Multi-Currency Support: AED, USD, EUR, and more</li>
+              <li style={{ marginBottom: '0.5rem' }}>✓ Reports: Trial Balance, Ledger, and Dashboard all from ledger data</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {editState.record && (
+        <div style={modalBackdropStyle} onClick={closeEditModal}>
+          <div style={modalCardStyle} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, marginBottom: '1rem', color: C.ink, fontSize: '1.1rem', fontWeight: '700' }}>
+              Edit {editState.type.charAt(0).toUpperCase() + editState.type.slice(1)}
+            </h3>
+            <form onSubmit={handleSaveEdit}>
+              {editState.type === 'account' && (
+                <>
+                  <input
+                    value={editState.form.accountName || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, accountName: e.target.value } }))}
+                    placeholder="Account Name"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    value={editState.form.description || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))}
+                    placeholder="Description"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    value={editState.form.department || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, department: e.target.value } }))}
+                    placeholder="Department"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    value={editState.form.currency || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, currency: e.target.value } }))}
+                    placeholder="Currency"
+                    style={modalInputStyle}
+                  />
+                </>
+              )}
+              {editState.type === 'mapping' && (
+                <>
+                  <input
+                    value={editState.form.mappingType || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, mappingType: e.target.value } }))}
+                    placeholder="Mapping Type"
+                    style={modalInputStyle}
+                  />
+                  <select
+                    value={editState.form.debitAccountId || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, debitAccountId: e.target.value } }))}
+                    style={modalInputStyle}
+                  >
+                    <option value="">Select Debit Account</option>
+                    {accounts.map((account) => (
+                      <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={editState.form.creditAccountId || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditAccountId: e.target.value } }))}
+                    style={modalInputStyle}
+                  >
+                    <option value="">Select Credit Account</option>
+                    {accounts.map((account) => (
+                      <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
+                    ))}
+                  </select>
+                  <input
+                    value={editState.form.description || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))}
+                    placeholder="Description"
+                    style={modalInputStyle}
+                  />
+                </>
+              )}
+              {editState.type === 'currency' && (
+                <>
+                  <input
+                    value={editState.form.code || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, code: e.target.value.toUpperCase() } }))}
+                    placeholder="Code"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    value={editState.form.name || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))}
+                    placeholder="Name"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    value={editState.form.symbol || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, symbol: e.target.value } }))}
+                    placeholder="Symbol"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={editState.form.exchangeRate || 1}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, exchangeRate: e.target.value } }))}
+                    placeholder="Exchange Rate"
+                    style={modalInputStyle}
+                  />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: C.ink, marginBottom: '0.75rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editState.form.baseCurrency)}
+                      onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, baseCurrency: e.target.checked } }))}
+                    />
+                    Set as base currency
+                  </label>
+                </>
+              )}
+              {editState.type === 'customer' && (
+                <>
+                  <input
+                    value={editState.form.name || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))}
+                    placeholder="Customer Name"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    value={editState.form.phone || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, phone: e.target.value } }))}
+                    placeholder="Phone"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    value={editState.form.email || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, email: e.target.value } }))}
+                    placeholder="Email"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    value={editState.form.address || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, address: e.target.value } }))}
+                    placeholder="Address"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    value={editState.form.gstVat || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, gstVat: e.target.value } }))}
+                    placeholder="GST/VAT"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editState.form.creditLimit || 0}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditLimit: e.target.value } }))}
+                    placeholder="Credit Limit"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    type="number"
+                    value={editState.form.paymentTermsDays || 0}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, paymentTermsDays: e.target.value } }))}
+                    placeholder="Payment Terms (Days)"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    value={editState.form.currency || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, currency: e.target.value.toUpperCase() } }))}
+                    placeholder="Currency"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    value={editState.form.notes || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, notes: e.target.value } }))}
+                    placeholder="Notes"
+                    style={modalInputStyle}
+                  />
+                </>
+              )}
+              {editState.type === 'ledger' && (
+                <>
+                  <input
+                    type="date"
+                    value={editState.form.date || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, date: e.target.value } }))}
+                    style={modalInputStyle}
+                  />
+                  <select
+                    value={editState.form.debitAccountId || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, debitAccountId: e.target.value } }))}
+                    style={modalInputStyle}
+                  >
+                    <option value="">Select Debit Account</option>
+                    {accounts.map((acc) => (
+                      <option key={acc._id} value={acc._id}>{acc.accountCode} - {acc.accountName}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={editState.form.creditAccountId || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditAccountId: e.target.value } }))}
+                    style={modalInputStyle}
+                  >
+                    <option value="">Select Credit Account</option>
+                    {accounts.map((acc) => (
+                      <option key={acc._id} value={acc._id}>{acc.accountCode} - {acc.accountName}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editState.form.amount || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, amount: parseFloat(e.target.value) || 0 } }))}
+                    placeholder="Amount"
+                    style={modalInputStyle}
+                  />
+                  <input
+                    value={editState.form.description || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))}
+                    placeholder="Description"
+                    style={modalInputStyle}
+                  />
+                  <select
+                    value={editState.form.referenceType || 'journal'}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, referenceType: e.target.value } }))}
+                    style={modalInputStyle}
+                  >
+                    <option value="journal">Journal</option>
+                    <option value="invoice">Invoice</option>
+                    <option value="payment">Payment</option>
+                    <option value="purchase">Purchase</option>
+                    <option value="expense">Expense</option>
+                    <option value="payroll">Payroll</option>
+                  </select>
+                </>
+              )}
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                <button type="button" onClick={closeEditModal} style={{ padding: '0.6rem 1rem', background: '#FFFFFF', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+                <button type="submit" disabled={saving} style={{ padding: '0.6rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.5rem', cursor: 'pointer' }}>
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* TEST MAPPING MODAL */}
+      {showMappingTest && testMapping && (
+        <div style={modalBackdropStyle} onClick={() => setShowMappingTest(false)}>
+          <div style={modalCardStyle} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginBottom: '1rem', color: C.ink, fontWeight: '700' }}>
+              Test Mapping: {testMapping.mappingType}
+            </h3>
+            <div style={{ background: '#F9FAFB', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+              <p style={{ color: C.inkSoft, marginBottom: '0.75rem' }}>
+                <strong>Usage Count:</strong> {testMapping.usageCount || 0} times used
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.75rem' }}>
+                <div>
+                  <p style={{ color: C.t3, fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem' }}>DEBIT ACCOUNT</p>
+                  <p style={{ color: C.ink, fontWeight: '600' }}>{testMapping.debitAccountId?.accountCode}</p>
+                  <p style={{ color: C.t3, fontSize: '0.875rem' }}>{testMapping.debitAccountId?.accountName}</p>
+                </div>
+                <div>
+                  <p style={{ color: C.t3, fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem' }}>CREDIT ACCOUNT</p>
+                  <p style={{ color: C.ink, fontWeight: '600' }}>{testMapping.creditAccountId?.accountCode}</p>
+                  <p style={{ color: C.t3, fontSize: '0.875rem' }}>{testMapping.creditAccountId?.accountName}</p>
+                </div>
+              </div>
+              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: `1px solid ${C.t2}` }}>
+                <p style={{ color: C.t3, fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem' }}>DESCRIPTION</p>
+                <p style={{ color: C.ink }}>{testMapping.description || '(No description)'}</p>
+              </div>
+              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: `1px solid ${C.t2}`, background: '#ECFDF5', padding: '0.75rem', borderRadius: '0.375rem' }}>
+                <p style={{ color: '#065F46', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem' }}>✓ Sample Transaction</p>
+                <p style={{ color: '#047857', fontSize: '0.875rem' }}>When this mapping is applied:</p>
+                <ul style={{ color: '#047857', fontSize: '0.875rem', marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
+                  <li>Debit: {testMapping.debitAccountId?.accountCode}</li>
+                  <li>Credit: {testMapping.creditAccountId?.accountCode}</li>
+                  <li>Amount: Enter any amount</li>
+                </ul>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowMappingTest(false)} style={{ padding: '0.6rem 1rem', background: '#FFFFFF', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer' }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default ERPTab

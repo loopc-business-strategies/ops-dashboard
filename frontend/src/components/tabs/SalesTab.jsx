@@ -6,16 +6,16 @@ import { usePermissions } from '../../hooks/usePermissions'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  card:'#111520', card2:'#161b26',
-  border:'rgba(255,255,255,0.07)', border2:'rgba(255,255,255,0.13)',
-  acc:'#7c3aed', accH:'#a78bfa',
+  card:'#ffffff', card2:'#f8f9fa',
+  border:'rgba(0,104,74,0.12)', border2:'rgba(0,104,74,0.28)',
+  acc:'#00684A', accH:'#13AA52',
   grn:'#22c55e', blu:'#60a5fa', red:'#f87171', amb:'#fbbf24', pur:'#c084fc', tel:'#2dd4bf',
-  t1:'#ffffff', t2:'#d1d5db', t3:'#9ca3af', t4:'#6b7280', t5:'#374151',
+  t1:'#1c2a33', t2:'#374151', t3:'#6b7280', t4:'#9ca3af', t5:'#d1d5db',
 }
 
 // ─── Pipeline config ───────────────────────────────────────────────────────────
 const PIPE_STAGES = ['Prospect','Contacted','Qualified','Negotiating','Agreement Signed','Active']
-const PIPE_COLORS = ['#6b7280','#60a5fa','#c084fc','#fbbf24','#22c55e','#7c3aed']
+const PIPE_COLORS = ['#6b7280','#60a5fa','#c084fc','#fbbf24','#22c55e','#00684A']
 
 // ─── Seed data ─────────────────────────────────────────────────────────────────
 const INIT_MARKETS = [
@@ -94,7 +94,7 @@ const BADGE_CFG = {
   'Government Event':        { bg:'rgba(45,212,191,0.1)',  color:'#2dd4bf' },
   'High':                    { bg:'rgba(248,113,113,0.1)', color:'#f87171' },
   'Lost':                    { bg:'rgba(248,113,113,0.1)', color:'#f87171' },
-  'Exhibition':              { bg:'rgba(124,58,237,0.15)', color:'#7c3aed' },
+  'Exhibition':              { bg:'rgba(0,104,74,0.15)', color:'#00684A' },
 }
 function Badge({ s }) {
   const cf = BADGE_CFG[s] || { bg:'rgba(255,255,255,0.06)', color:'#9ca3af' }
@@ -138,7 +138,7 @@ function BtnPri({ onClick, children }) {
 function BtnSec({ onClick, children }) {
   const [h, sH] = useState(false)
   return <button onClick={onClick} onMouseEnter={() => sH(true)} onMouseLeave={() => sH(false)}
-    style={{ background:h?'rgba(255,255,255,0.1)':'rgba(255,255,255,0.06)', color:h?C.t1:C.t2, border:`1px solid ${C.border2}`, padding:'8px 16px', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'inherit', transition:'all .15s' }}>{children}</button>
+    style={{ background:h?'rgba(0,104,74,0.12)':'rgba(0,104,74,0.06)', color:h?C.t1:C.t2, border:`1px solid ${C.border2}`, padding:'8px 16px', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'inherit', transition:'all .15s' }}>{children}</button>
 }
 function RestrictNotice({ text }) {
   return (
@@ -150,7 +150,7 @@ function RestrictNotice({ text }) {
 function Toast({ toast }) {
   if (!toast) return null
   return (
-    <div style={{ position:'fixed', bottom:20, right:20, background:'#1c2337', border:`1px solid ${C.border2}`, borderLeft:`3px solid ${C.acc}`, borderRadius:10, padding:'12px 18px', fontSize:13, color:C.t1, zIndex:2000, minWidth:240, boxShadow:'0 8px 32px rgba(0,0,0,.5)', animation:'salesToast .3s ease' }}>
+    <div style={{ position:'fixed', bottom:20, right:20, background:'#ffffff', border:`1px solid ${C.border2}`, borderLeft:`3px solid ${C.acc}`, borderRadius:10, padding:'12px 18px', fontSize:13, color:C.t1, zIndex:2000, minWidth:240, boxShadow:'0 8px 32px rgba(0,0,0,.15)', animation:'salesToast .3s ease' }}>
       <style>{`@keyframes salesToast{from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
       <div style={{ fontWeight:700, marginBottom:2 }}>{toast.title}</div>
       <div style={{ fontSize:12, color:C.t3 }}>{toast.msg}</div>
@@ -163,7 +163,7 @@ const TH = { fontSize:10, fontWeight:700, color:C.t4, textTransform:'uppercase',
 const TD = { padding:'11px 14px', borderBottom:'1px solid rgba(255,255,255,0.04)', fontSize:13, color:C.t2, verticalAlign:'middle' }
 
 // ─── Modal shared ──────────────────────────────────────────────────────────────
-const iSt = { width:'100%', background:'rgba(255,255,255,0.05)', border:'1.5px solid rgba(255,255,255,0.10)', borderRadius:8, padding:'10px 14px', fontSize:13, color:C.t1, fontFamily:'inherit', outline:'none', marginBottom:12, boxSizing:'border-box' }
+const iSt = { width:'100%', background:'#f8f9fa', border:'1.5px solid rgba(0,104,74,.25)', borderRadius:8, padding:'10px 14px', fontSize:13, color:C.t1, fontFamily:'inherit', outline:'none', marginBottom:12, boxSizing:'border-box' }
 function ML({ c }) { return <div style={{ fontSize:11, fontWeight:600, color:C.t3, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:5 }}>{c}</div> }
 function MI(p) { return <input {...p} style={iSt} /> }
 function MS({ children, ...p }) { return <select {...p} style={{ ...iSt, appearance:'auto' }}>{children}</select> }
@@ -172,12 +172,12 @@ function MModal({ title, subtitle, onClose, onSave, saveLabel='Save', children }
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(4px)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background:'#161d2c', border:`1px solid ${C.border2}`, borderRadius:14, padding:24, width:480, maxWidth:'94vw', maxHeight:'90vh', overflowY:'auto' }}>
+      <div style={{ background:'#ffffff', border:`1px solid ${C.border2}`, borderRadius:14, padding:24, width:480, maxWidth:'94vw', maxHeight:'90vh', overflowY:'auto' }}>
         <h3 style={{ fontSize:17, fontWeight:700, color:C.t1, marginBottom:4 }}>{title}</h3>
         <div style={{ fontSize:12, color:C.t3, marginBottom:18 }}>{subtitle}</div>
         {children}
         <div style={{ display:'flex', gap:8, marginTop:4 }}>
-          <button onClick={onClose} style={{ flex:1, padding:10, borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', border:'none', background:'rgba(255,255,255,0.07)', color:C.t2 }}
+          <button onClick={onClose} style={{ flex:1, padding:10, borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', border:'1px solid rgba(0,0,0,0.1)', background:'#f3f4f6', color:C.t2 }}
             onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.12)'}
             onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.07)'}>Cancel</button>
           <button onClick={onSave} style={{ flex:1, padding:10, borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', border:'none', background:C.acc, color:'#fff' }}
@@ -410,7 +410,7 @@ function MktBtn({ onClick, children, danger }) {
   return (
     <button onClick={onClick} onMouseEnter={() => sH(true)} onMouseLeave={() => sH(false)}
       style={{ flex:1, padding:6, borderRadius:7, fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit', border:'none', textAlign:'center', transition:'all .15s',
-        background: danger ? (h ? 'rgba(248,113,113,0.15)' : 'rgba(255,255,255,0.06)') : (h ? 'rgba(124,58,237,0.15)' : 'rgba(255,255,255,0.06)'),
+        background: danger ? (h ? 'rgba(248,113,113,0.15)' : 'rgba(255,255,255,0.06)') : (h ? 'rgba(0,104,74,0.15)' : 'rgba(255,255,255,0.06)'),
         color: danger ? (h ? C.red : C.t3) : (h ? C.acc : C.t3) }}>
       {children}
     </button>
@@ -447,14 +447,14 @@ function TabPipeline({ partners, setPartners, canEdit, isUser, isExt, showToast,
                     <div style={{ fontSize:11, color:C.t3 }}>👤 {p.contact}</div>
                     {p.docs.length > 0 && (
                       <div style={{ display:'flex', gap:4, marginTop:6, flexWrap:'wrap' }}>
-                        {p.docs.map(d => <span key={d} style={{ fontSize:9, fontWeight:600, padding:'2px 7px', borderRadius:10, background:'rgba(255,255,255,0.06)', color:C.t3 }}>{d}</span>)}
+                        {p.docs.map(d => <span key={d} style={{ fontSize:9, fontWeight:600, padding:'2px 7px', borderRadius:10, background:'rgba(0,104,74,0.08)', color:C.t3 }}>{d}</span>)}
                       </div>
                     )}
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
                       <div style={{ fontSize:10, color:C.t4 }}>{p.last}</div>
                       {(canEdit || (isUser && p.mgr === 'Ahmed K.')) && (
                         <button onClick={() => showToast('Move Stage', 'Stage update form opens here')}
-                          style={{ padding:'3px 8px', fontSize:10, fontWeight:600, cursor:'pointer', fontFamily:'inherit', border:'none', borderRadius:7, background:'rgba(255,255,255,0.06)', color:C.t3 }}>
+                          style={{ padding:'3px 8px', fontSize:10, fontWeight:600, cursor:'pointer', fontFamily:'inherit', border:'none', borderRadius:7, background:'rgba(0,104,74,0.08)', color:C.t3 }}>
                           Move →
                         </button>
                       )}
@@ -537,7 +537,7 @@ function TabLeads({ leads, setLeads, canEdit, isMgmt, isUser, isExt, showToast, 
                     <tr key={`r-${l.id}`}>
                       <td style={TD}>
                         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                          <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(124,58,237,0.2)', color:C.acc, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, flexShrink:0 }}>{l.name[0]}</div>
+                          <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(0,104,74,0.2)', color:C.acc, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, flexShrink:0 }}>{l.name[0]}</div>
                           <div>
                             <div style={{ fontWeight:600, color:C.t1 }}>{l.name}</div>
                             <div style={{ fontSize:11, color:C.t3 }}>{l.co}</div>

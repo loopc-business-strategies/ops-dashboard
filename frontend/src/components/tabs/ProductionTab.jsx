@@ -7,10 +7,10 @@ import { usePermissions } from '../../hooks/usePermissions'
 
 // ── Design tokens ─────────────────────────────────
 const C = {
-  acc:  '#7c3aed',
-  accH: '#a78bfa',
-  accD: '#5b21b6',
-  grad: 'linear-gradient(135deg, #7c3aed, #e040fb)',
+  acc:  '#00684A',
+  accH: '#13AA52',
+  accD: '#023430',
+  grad: 'linear-gradient(135deg, #00684A, #00ED64)',
 }
 
 const SUB_TABS = [
@@ -43,7 +43,7 @@ function Badge({ children, color = 'gray' }) {
   )
 }
 
-function StatCard({ icon, label, value, sub, color = '#7c3aed', trend }) {
+function StatCard({ icon, label, value, sub, color = '#00684A', trend }) {
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 hover:border-violet-500/30 transition-all hover:-translate-y-0.5"
          style={{ boxShadow: `0 0 0 1px transparent` }}>
@@ -341,7 +341,7 @@ function KPIOverview() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard icon="🏭" label="Lines Running"    value={`${activeLines}/${LINES.length}`} color="#22c55e" trend={0} />
-        <StatCard icon="📦" label="Total Output"     value={totalOutput.toLocaleString()} sub={`Target: ${totalTarget.toLocaleString()}`} color="#7c3aed" trend={-4} />
+        <StatCard icon="📦" label="Total Output"     value={totalOutput.toLocaleString()} sub={`Target: ${totalTarget.toLocaleString()}`} color="#00684A" trend={-4} />
         <StatCard icon="⚡" label="Avg OEE"          value={`${avgOEE}%`}  sub="Overall Equipment Effectiveness" color="#3b82f6" trend={2} />
         <StatCard icon="🎯" label="Quality Rate"     value={`${avgQuality}%`} color="#22c55e" trend={1} />
         <StatCard icon="🔧" label="Open Work Orders" value={DEFAULT_WORK_ORDERS.filter(w => w.status !== 'closed').length} color="#eab308" />
@@ -349,7 +349,7 @@ function KPIOverview() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard icon="⚠️" label="Active Alerts"   value={DEFAULT_ALERTS.filter(a => !a.ack).length} color="#ef4444" />
-        <StatCard icon="📋" label="Active Orders"    value={DEFAULT_ORDERS.filter(o => o.status === 'in-progress').length} color="#7c3aed" />
+        <StatCard icon="📋" label="Active Orders"    value={DEFAULT_ORDERS.filter(o => o.status === 'in-progress').length} color="#00684A" />
         <StatCard icon="🕐" label="Downtime Today"   value="2h 14m"  sub="Line 2 maintenance" color="#f59e0b" />
         <StatCard icon="📈" label="Efficiency"       value="81.4%" sub="vs 79.2% last week" color="#22c55e" trend={2.8} />
         <StatCard icon="🔄" label="Shift Changes"    value="3"  sub="Next: 14:00" color="#3b82f6" />
@@ -1277,7 +1277,7 @@ function CostTracking({ canViewCosts }) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
         <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4"
-             style={{ background: 'rgba(124,58,237,0.1)' }}>🔒</div>
+             style={{ background: 'rgba(0,104,74,0.1)' }}>🔒</div>
         <h3 className="text-base font-semibold text-white mb-2">Access Restricted</h3>
         <p className="text-sm text-gray-500 max-w-xs">
           Cost tracking is available to Finance, Management, and Admin roles only.
@@ -1296,7 +1296,7 @@ function CostTracking({ canViewCosts }) {
       <SectionHeader title="Cost Tracking" sub="April 2026 — Budget vs. Actual" />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard icon="📊" label="Total Budget"  value={`$${(totalBudget/1000).toFixed(0)}K`} color="#7c3aed" />
+        <StatCard icon="📊" label="Total Budget"  value={`$${(totalBudget/1000).toFixed(0)}K`} color="#00684A" />
         <StatCard icon="💵" label="Total Actual"  value={`$${(totalActual/1000).toFixed(0)}K`} color={totalActual > totalBudget ? '#ef4444' : '#22c55e'} />
         <StatCard icon="📉" label="Variance"      value={`${parseFloat(totalVar) >= 0 ? '+' : ''}${totalVar}%`} color={parseFloat(totalVar) > 0 ? '#ef4444' : '#22c55e'} />
       </div>
