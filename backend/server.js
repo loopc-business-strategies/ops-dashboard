@@ -9,6 +9,7 @@
 require('dotenv').config() // load .env variables FIRST
 
 const path     = require('path')
+const fs       = require('fs')
 const express  = require('express')
 const mongoose = require('mongoose')
 const cors     = require('cors')
@@ -19,9 +20,19 @@ const taskRoutes     = require('./routes/tasks')
 
 const app = express()
 
+const allowedOrigins = (process.env.CLIENT_URLS || process.env.CLIENT_URL || 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+
 // ── Middleware (runs on every request) ──────────
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin(origin, callback) {
+    // Allow non-browser tools and same-origin requests with no Origin header.
+    if (!origin) return callback(null, true)
+    if (allowedOrigins.includes(origin)) return callback(null, true)
+    return callback(null, false)
+  },
   credentials: true,
 }))
 app.use(express.json())
@@ -36,11 +47,15 @@ app.use('/api/auth',         authRoutes)
 app.use('/api/hr/employees', employeeRoutes)
 app.use('/api/tasks',        taskRoutes)
 
-// Serve frontend build in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend/dist')))
+// Serve frontend build only when explicitly enabled and build output exists.
+const frontendDistPath = path.join(__dirname, '../frontend/dist')
+const shouldServeFrontend =
+  process.env.SERVE_FRONTEND === 'true' && fs.existsSync(frontendDistPath)
+
+if (shouldServeFrontend) {
+  app.use(express.static(frontendDistPath))
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'))
+    res.sendFile(path.join(frontendDistPath, 'index.html'))
   })
 }
 

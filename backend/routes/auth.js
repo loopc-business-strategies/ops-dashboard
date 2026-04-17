@@ -21,6 +21,8 @@ const { protect, restrictTo } = require('../middleware/auth')
 
 const router = express.Router()
 
+const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 // Helper: create a JWT token for a user
 const createToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' })
@@ -87,18 +89,23 @@ router.post('/setup', async (req, res) => {
 // ==========================================
 router.post('/login', async (req, res) => {
   try {
-    const { name, password } = req.body
+    const { name, email, password } = req.body
+    const identifier = (name || email || '').trim()
 
-    if (!name || !password)
-      return res.status(400).json({ success: false, message: 'Name and password are required.' })
+    if (!identifier || !password)
+      return res.status(400).json({ success: false, message: 'Username/email and password are required.' })
 
-    // Find user by name (case-insensitive search)
+    // Find user by username or email (case-insensitive exact match)
+    const exact = new RegExp(`^${escapeRegExp(identifier)}$`, 'i')
     const user = await User.findOne({
-      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') }
+      $or: [
+        { name: { $regex: exact } },
+        { email: { $regex: exact } },
+      ],
     }).select('+password')
 
     if (!user || !(await user.comparePassword(password)))
-      return res.status(401).json({ success: false, message: 'Invalid name or password.' })
+      return res.status(401).json({ success: false, message: 'Invalid credentials.' })
 
     if (!user.isActive)
       return res.status(401).json({ success: false, message: 'Account deactivated. Contact your admin.' })
@@ -160,7 +167,8 @@ router.post('/users', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' })
 
     // Check if name already taken
-    const exists = await User.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } })
+    const escapedName = escapeRegExp(name.trim())
+    const exists = await User.findOne({ name: { $regex: new RegExp(`^${escapedName}$`, 'i') } })
     if (exists)
       return res.status(400).json({ success: false, message: 'A user with this name already exists.' })
 

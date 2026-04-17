@@ -5,7 +5,8 @@
 
 import axios from 'axios'
 
-const BASE = '/api/auth'
+const API_ROOT = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const BASE = `${API_ROOT}/api/auth`
 // Helper: build Authorization header
 const h = (token) => ({ headers: { Authorization: `Bearer ${token}` } })
 

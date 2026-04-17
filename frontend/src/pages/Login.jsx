@@ -28,7 +28,13 @@ function Login() {
       await login(name.trim(), password)
       navigate('/dashboard')
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid username or password.')
+      if (!err.response) {
+        setError('Cannot reach server right now. Check your connection or try again in a moment.')
+      } else if (err.response.status >= 500) {
+        setError('Server error while signing in. Please try again shortly.')
+      } else {
+        setError(err.response?.data?.message || 'Invalid username or password.')
+      }
     } finally {
       setLoading(false)
     }

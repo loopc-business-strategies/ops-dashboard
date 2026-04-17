@@ -18,11 +18,24 @@ export function AuthProvider({ children }) {
   // On app load: restore session from localStorage
   useEffect(() => {
     const savedToken = localStorage.getItem('token')
-    const savedUser  = localStorage.getItem('user')
+    const savedUser = localStorage.getItem('user')
+
     if (savedToken && savedUser) {
-      setToken(savedToken)
-      setUser(JSON.parse(savedUser))
+      try {
+        const parsedUser = JSON.parse(savedUser)
+        if (parsedUser && typeof parsedUser === 'object') {
+          setToken(savedToken)
+          setUser(parsedUser)
+        } else {
+          throw new Error('Invalid user payload')
+        }
+      } catch {
+        // Clear corrupted session data to avoid breaking login flow.
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+      }
     }
+
     setIsLoading(false)
   }, [])
 
