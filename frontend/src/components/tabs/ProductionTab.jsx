@@ -88,7 +88,7 @@ function OEEGauge({ value = 78, size = 80 }) {
 
 function SectionHeader({ title, sub, action }) {
   return (
-    <div className="flex items-center justify-between mb-5">
+    <div className="flex items-center justify-between mb-6">
       <div>
         <h3 className="text-base font-semibold text-white">{title}</h3>
         {sub && <p className="text-sm text-gray-500 mt-0.5">{sub}</p>}
@@ -336,7 +336,7 @@ function KPIOverview() {
   const avgQuality = (LINES.reduce((s, l) => s + l.quality, 0) / LINES.length).toFixed(1)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <SectionHeader title="KPI Overview" sub="Real-time status across all production lines" />
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
