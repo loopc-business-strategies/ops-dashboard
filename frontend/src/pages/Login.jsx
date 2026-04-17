@@ -34,6 +34,20 @@ function Login() {
     }
   }
 
+  // DEMO — remove this function when done
+  const handleDemoLogin = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      await login('AdminUser', 'demo1234')
+      navigate('/dashboard')
+    } catch (err) {
+      setError(err.response?.data?.message || 'Demo login failed.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-4">
 
@@ -43,14 +57,14 @@ function Login() {
         <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gray-900 border-2 border-violet-500/40 mb-4">
           <span className="text-3xl">🏢</span>
         </div>
-        <h1 className="text-2xl font-bold text-white tracking-wide">OPS DASHBOARD</h1>
+        <h1 className="text-2xl font-bold tracking-wide" style={{ color: '#1C2A33' }}>OPS DASHBOARD</h1>
         <p className="text-gray-500 text-sm mt-1">Operations Control System</p>
       </div>
 
       {/* ── Orange credential box ── */}
       <div className="w-full max-w-sm">
-        {/* Purple header bar */}
-        <div className="rounded-t-xl px-6 py-4" style={{ background: 'linear-gradient(135deg, #7c3aed, #e040fb)' }}>
+        {/* Green header bar */}
+        <div className="rounded-t-xl px-6 py-4" style={{ background: 'linear-gradient(135deg, #00684A, #13AA52)' }}>
           <div className="flex items-center gap-3">
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round"
@@ -152,6 +166,19 @@ function Login() {
               ) : 'Sign In'}
             </button>
           </form>
+
+          {/* DEMO LOGIN — delete this block when done */}
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={handleDemoLogin}
+              disabled={loading}
+              className="w-full py-2.5 rounded-lg text-sm font-semibold border border-yellow-500/50 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors disabled:opacity-50"
+            >
+              ⚡ Demo Login (Super Admin)
+            </button>
+            <p className="text-xs text-yellow-600/60 text-center mt-1">For testing only — remove before production</p>
+          </div>
 
           {/* No signup — invitation only */}
           <div className="mt-5 pt-5 border-t border-gray-800 text-center">

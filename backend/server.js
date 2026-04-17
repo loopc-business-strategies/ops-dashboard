@@ -8,52 +8,10 @@
 
 require('dotenv').config() // load .env variables FIRST
 
-const path     = require('path')
-const express  = require('express')
 const mongoose = require('mongoose')
-const cors     = require('cors')
+const createApp = require('./app')
 
-const authRoutes     = require('./routes/auth')
-const employeeRoutes = require('./routes/employees')
-const taskRoutes     = require('./routes/tasks')
-
-const app = express()
-
-// ── Middleware (runs on every request) ──────────
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true,
-}))
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
-
-// ── Routes ──────────────────────────────────────
-app.get('/api/health', (req, res) => {
-  res.json({ success: true, message: 'Server is running!', time: new Date() })
-})
-
-app.use('/api/auth',         authRoutes)
-app.use('/api/hr/employees', employeeRoutes)
-app.use('/api/tasks',        taskRoutes)
-
-// Serve frontend build in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend/dist')))
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'))
-  })
-}
-
-// 404
-app.use('*', (req, res) => {
-  res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found.` })
-})
-
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err)
-  res.status(500).json({ success: false, message: 'Something went wrong.' })
-})
+const app = createApp()
 
 // ── Connect to MongoDB then start server ────────
 const PORT      = process.env.PORT      || 5000

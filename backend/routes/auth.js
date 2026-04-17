@@ -137,7 +137,7 @@ router.get('/me', protect, (req, res) => {
 // GET /api/auth/users — list all users
 // All authenticated users
 // ==========================================
-router.get('/users', protect, async (req, res) => {
+router.get('/users', protect, restrictTo('super_admin'), async (req, res) => {
   try {
     const users = await User.find().select('-password').sort({ createdAt: -1 })
     res.json({ success: true, count: users.length, users })
@@ -150,7 +150,7 @@ router.get('/users', protect, async (req, res) => {
 // POST /api/auth/users — create a new user
 // SUPER ADMIN only — no public signup exists
 // ==========================================
-router.post('/users', protect, async (req, res) => {
+router.post('/users', protect, restrictTo('super_admin'), async (req, res) => {
   try {
     const { name, password, role, department, allowedModules, assignedTasks } = req.body
 
@@ -186,7 +186,7 @@ router.post('/users', protect, async (req, res) => {
 // PUT /api/auth/users/:id/role — update role
 // SUPER ADMIN only
 // ==========================================
-router.put('/users/:id/role', protect, async (req, res) => {
+router.put('/users/:id/role', protect, restrictTo('super_admin'), async (req, res) => {
   try {
     const { role, department, allowedModules, assignedTasks } = req.body
 
@@ -207,7 +207,7 @@ router.put('/users/:id/role', protect, async (req, res) => {
 // DELETE /api/auth/users/:id — permanently delete a user
 // SUPER ADMIN only
 // ==========================================
-router.delete('/users/:id', protect, async (req, res) => {
+router.delete('/users/:id', protect, restrictTo('super_admin'), async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
@@ -226,7 +226,7 @@ router.delete('/users/:id', protect, async (req, res) => {
 // PUT /api/auth/users/:id/toggle — activate/deactivate
 // SUPER ADMIN only
 // ==========================================
-router.put('/users/:id/toggle', protect, async (req, res) => {
+router.put('/users/:id/toggle', protect, restrictTo('super_admin'), async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' })

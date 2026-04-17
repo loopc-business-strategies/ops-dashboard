@@ -45,7 +45,7 @@ function PlaceholderTab({ title, icon, description, subTabs = [] }) {
         ))}
       </div>
 
-      <div className="mt-8 p-6 bg-violet-600/5 border border-violet-600/20 rounded-xl text-center">
+      <div className="mt-8 p-6 bg-emerald-700/5 border border-emerald-700/20 rounded-xl text-center">
         <p className="text-violet-400 font-medium text-sm">🔧 Module Under Construction</p>
         <p className="text-gray-500 text-xs mt-1">
           This section will be built as requirements are confirmed with the client.
