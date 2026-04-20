@@ -388,7 +388,7 @@ function TabKPI({ suppliers, gold, routes, incidents, vendors, inventory, canEdi
 }
 
 // ─── TAB: Readiness Checklist ───────────────────────────────────────────────────
-function TabChecklist({ checklist, setChecklist, canEdit, isExternal, isMgmt }) {
+function TabChecklist({ checklist, setChecklist, canEdit, isExternal, isMgmt, setModal }) {
   if (isExternal || isMgmt) return <Restrict text="Operational Readiness Checklist is restricted to Operations team." />
   const done    = checklist.filter(c => c.st === 'Done').length
   const inprog  = checklist.filter(c => c.st === 'In Progress').length
@@ -398,7 +398,9 @@ function TabChecklist({ checklist, setChecklist, canEdit, isExternal, isMgmt }) 
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
-      <SH title="Operational Readiness Checklist" sub={`${done} of ${checklist.length} items complete — ${p}% ready`} />
+      <SH title="Operational Readiness Checklist" sub={`${done} of ${checklist.length} items complete — ${p}% ready`}>
+        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'checklist-add', data:null })}>+ Add Item</button>}
+      </SH>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>
         <StatCard label="Overall Readiness" value={<span style={{ color:readColor }}>{p}%</span>} sub={<ProgBar pct={p} color={C.gbar} />} />
@@ -412,7 +414,7 @@ function TabChecklist({ checklist, setChecklist, canEdit, isExternal, isMgmt }) 
         <div style={{ overflowX:'auto' }}>
           <table style={{ width:'100%', borderCollapse:'collapse', minWidth:800 }}>
             <thead><tr>
-              {['Checklist Item','Assigned To','Status','Due Date','Completed By','Timestamp', ...(canEdit ? ['Actions'] : [])].map(h => <th key={h} style={TH}>{h}</th>)}
+              {['Checklist Item','Assigned To','Status','Due Date','Completed By','Timestamp','Actions'].map(h => <th key={h} style={TH}>{h}</th>)}
             </tr></thead>
             <tbody>
               {checklist.map((c, i) => {
@@ -425,14 +427,15 @@ function TabChecklist({ checklist, setChecklist, canEdit, isExternal, isMgmt }) 
                     <td style={{ ...TD, color:C.t3 }}>{c.due}</td>
                     <td style={{ ...TD, color: c.by === '—' ? C.t4 : C.green }}>{c.by}</td>
                     <td style={{ ...TD, color:C.t4, fontSize:11 }}>{c.ts}</td>
-                    {canEdit && <td style={TD}>
-                      {c.st !== 'Done' && <button onClick={() => {
+                    <td style={TD}>
+                      {canEdit && c.st !== 'Done' && <button onClick={() => {
                         setChecklist(p => p.map((x,j) => j===i ? {...x, st:'Done', by:'You', ts:'Now'} : x))
-                      }} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Mark Done</button>}
-                      {c.st === 'Done' && <button onClick={() => {
+                      }} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>✓ Done</button>}
+                      {canEdit && c.st === 'Done' && <button onClick={() => {
                         setChecklist(p => p.map((x,j) => j===i ? {...x, st:'In Progress', by:'—', ts:'—'} : x))
-                      }} style={{ background:'none', border:'none', cursor:'pointer', color:C.t3, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Undo</button>}
-                    </td>}
+                      }} style={{ background:'none', border:'none', cursor:'pointer', color:C.t3, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Undo</button>}
+                      {canEdit && <button onClick={() => { if (window.confirm('Delete this item?')) setChecklist(p => p.filter((_,j) => j!==i)) }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>🗑</button>}
+                    </td>
                   </tr>
                 )
               })}
@@ -445,7 +448,7 @@ function TabChecklist({ checklist, setChecklist, canEdit, isExternal, isMgmt }) 
 }
 
 // ─── TAB: Supply Chain ──────────────────────────────────────────────────────────
-function TabSupply({ suppliers, setSuppliers, canEdit, isExternal, isMgmt, showToast, onOpenAdd }) {
+function TabSupply({ suppliers, setSuppliers, canEdit, isExternal, isMgmt, showToast, onOpenAdd, setModal }) {
   const [detail, setDetail] = useState(null)
   if (isExternal || isMgmt) return <Restrict text="Supply Chain data is restricted to Operations team only." />
 
@@ -478,7 +481,7 @@ function TabSupply({ suppliers, setSuppliers, canEdit, isExternal, isMgmt, showT
                     <td style={TD}><Badge s={s.st} /></td>
                     <td style={{ ...TD, color:C.t3, fontSize:11, maxWidth:140, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{s.notes}</td>
                     {canEdit && <td style={TD} onClick={e => e.stopPropagation()}>
-                      <button onClick={() => showToast('Edit Supplier','Update form opens here')} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
+                      <button onClick={e => { e.stopPropagation(); setModal({ type:'supplier-edit', data:s }) }} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
                       <button onClick={() => { setSuppliers(p => p.filter(x => x.id !== s.id)); showToast('Deleted','Supplier removed') }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
                     </td>}
                   </tr>
@@ -509,7 +512,7 @@ function TabSupply({ suppliers, setSuppliers, canEdit, isExternal, isMgmt, showT
 }
 
 // ─── TAB: Gold Sourcing ─────────────────────────────────────────────────────────
-function TabGold({ gold, canEdit, isAdmin, isHead, isMgmt, isExternal, showToast }) {
+function TabGold({ gold, setGold, canEdit, isAdmin, isHead, isMgmt, isExternal, showToast, setModal }) {
   if (isExternal) return <Restrict amber text="Gold Sourcing data is confidential. Contact Operations Head for access." />
   if (!isAdmin && !isHead && !isMgmt) return <Restrict amber text="Gold Sourcing data is confidential. Contact Operations Head for access." />
   const limitedView = isMgmt && !isAdmin && !isHead
@@ -520,7 +523,7 @@ function TabGold({ gold, canEdit, isAdmin, isHead, isMgmt, isExternal, showToast
         title={<>Gold Sourcing Channels {limitedView && <span style={{ fontSize:12, color:C.yellow, fontWeight:500 }}> ⚠ Limited View</span>}</>}
         sub={limitedView ? 'Volume and status data only — channel names and contacts are restricted' : 'Confidential — Super Admin & Operations Head full access'}
       >
-        {isAdmin && <button style={B.pri} onClick={() => showToast('Add Channel','Gold channel registration form')}>+ Add Channel</button>}
+        {isAdmin && <button style={B.pri} onClick={() => setModal({ type:'gold-add', data:null })}>+ Add Channel</button>}
       </SH>
 
       <TableWrap>
@@ -529,6 +532,7 @@ function TabGold({ gold, canEdit, isAdmin, isHead, isMgmt, isExternal, showToast
             <thead><tr>
               <th style={TH}>Channel ID</th>
               {!limitedView && <th style={TH}>Channel Name</th>}
+              {isAdmin && !limitedView && <th style={TH}>Actions</th>}
               <th style={TH}>Region</th>
               <th style={TH}>Vol. Target (kg)</th>
               <th style={TH}>Actual (kg)</th>
@@ -541,7 +545,7 @@ function TabGold({ gold, canEdit, isAdmin, isHead, isMgmt, isExternal, showToast
               {gold.map(g => {
                 const perf = pct(g.actual, g.vol || 1)
                 return (
-                  <tr key={g.id} style={{ cursor:'pointer' }} onClick={() => !limitedView && showToast('Channel Detail', `Negotiation history for ${g.code}`)}>
+                  <tr key={g.id} style={{ cursor:'pointer' }} onClick={() => !limitedView && !isAdmin && showToast('Channel Detail', `Negotiation history for ${g.code}`)}>
                     <td style={TD}><span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:'rgba(245,158,11,.12)', color:C.gold, border:'1px solid rgba(245,158,11,.3)' }}>{g.code}</span></td>
                     {!limitedView && <td style={{ ...TD, fontWeight:700, color:C.t1 }}>{g.name}</td>}
                     <td style={{ ...TD, color:C.t3 }}>{g.region}</td>
@@ -569,12 +573,16 @@ function TabGold({ gold, canEdit, isAdmin, isHead, isMgmt, isExternal, showToast
         </div>
       </TableWrap>
 
-      {!limitedView && (
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-          <Card>
-            <CardTitle>Volume Performance by Channel</CardTitle>
-            {gold.map(g => <ProgRow key={g.id} label={`${g.code} — ${g.region}`} p={pct(g.actual, g.vol||1)} color={g.risk==='High'?C.red:g.risk==='Medium'?C.yellow:C.green} />)}
-          </Card>
+                    {!limitedView && <>
+                      <td style={TD}><Badge s={g.comp === 'Yes' ? 'Yes' : 'No'} /></td>
+                      <td style={TD}><Badge s={g.risk} /></td>
+                      <td style={{ ...TD, color:C.t3 }}>{g.lastAct}</td>
+                      <td style={{ ...TD, color:C.cyan, fontSize:11 }}>{g.nextAction}</td>
+                    </>}
+                    {isAdmin && !limitedView && <td style={TD} onClick={e => e.stopPropagation()}>
+                      <button onClick={() => setModal({ type:'gold-edit', data:g })} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
+                      <button onClick={() => { if (window.confirm('Delete channel?')) { setGold(p => p.filter(x => x.id!==g.id)); showToast('Deleted','Channel removed') } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
+                    </td>}
           <Card>
             <CardTitle>Channel Risk Distribution</CardTitle>
             {[['Low',C.green],['Medium',C.yellow],['High',C.red]].map(([r,c]) => (
@@ -588,13 +596,14 @@ function TabGold({ gold, canEdit, isAdmin, isHead, isMgmt, isExternal, showToast
 }
 
 // ─── TAB: Transport Routes ──────────────────────────────────────────────────────
-function TabRoutes({ routes, canEdit, isExternal, isMgmt, showToast, onOpenIncident }) {
+function TabRoutes({ routes, setRoutes, canEdit, isExternal, isMgmt, showToast, onOpenIncident, setModal }) {
   if (isMgmt) return <Restrict text="Transport routes are managed by the Operations team." />
   if (isExternal) return <Restrict text="Transport route details are not available to vendors." />
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Transport Routes" sub={`${routes.filter(r=>r.st==='Active').length} active · ${routes.filter(r=>r.st!=='Active').length} restricted/suspended`}>
+        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'route-add', data:null })}>+ Add Route</button>}
         {canEdit && <button style={B.warn} onClick={onOpenIncident}>⚠ Report Incident</button>}
       </SH>
 
@@ -602,7 +611,7 @@ function TabRoutes({ routes, canEdit, isExternal, isMgmt, showToast, onOpenIncid
         <div style={{ overflowX:'auto' }}>
           <table style={{ width:'100%', borderCollapse:'collapse', minWidth:1100 }}>
             <thead><tr>
-              {['Route','Origin','Destination','Carrier','Mode','ETA','Status','Risk','Last Incident','Insurance','GPS','Checkpoints','Actions'].map(h => <th key={h} style={TH}>{h}</th>)}
+              {['Route','Origin','Destination','Carrier','Mode','ETA','Status','Risk','GPS','Checkpoints','Actions'].map(h => <th key={h} style={TH}>{h}</th>)}
             </tr></thead>
             <tbody>
               {routes.map(r => {
@@ -617,13 +626,12 @@ function TabRoutes({ routes, canEdit, isExternal, isMgmt, showToast, onOpenIncid
                     <td style={{ ...TD, color:C.t2 }}>{r.eta}</td>
                     <td style={TD}><Badge s={r.st} /></td>
                     <td style={TD}><Badge s={r.risk} /></td>
-                    <td style={{ ...TD, color: r.lastInc === 'None' ? C.t4 : C.orange }}>{r.lastInc}</td>
-                    <td style={TD}><Badge s={r.insurance} /></td>
                     <td style={TD}><Badge s={r.gps} /></td>
                     <td style={{ ...TD, fontWeight:700, color: r.checkpoints.split('/')[0] === r.checkpoints.split('/')[1] ? C.green : C.yellow }}>{r.checkpoints}</td>
                     <td style={TD}>
-                      {canEdit && <button onClick={onOpenIncident} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Report</button>}
-                      <button onClick={() => showToast('Route Detail','Full route detail and history')} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Detail</button>
+                      {canEdit && <button onClick={() => setModal({ type:'route-edit', data:r })} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>}
+                      {canEdit && <button onClick={onOpenIncident} style={{ background:'none', border:'none', cursor:'pointer', color:C.orange, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Report</button>}
+                      {canEdit && <button onClick={() => { if (window.confirm('Delete route?')) { setRoutes(p => p.filter(x=>x.id!==r.id)); showToast('Deleted','Route removed') } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>}
                     </td>
                   </tr>
                 )
@@ -637,12 +645,13 @@ function TabRoutes({ routes, canEdit, isExternal, isMgmt, showToast, onOpenIncid
 }
 
 // ─── TAB: Security ──────────────────────────────────────────────────────────────
-function TabSecurity({ secVendors, incidents, setIncidents, canEdit, isExternal, isMgmt, showToast, onOpenIncident }) {
+function TabSecurity({ secVendors, setSecVendors, incidents, setIncidents, canEdit, isExternal, isMgmt, showToast, onOpenIncident, setModal }) {
   if (isExternal || isMgmt) return <Restrict text="Security coordination is restricted to Security Officer and Operations team." />
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Security Coordination" sub={`${secVendors.length} vendors · ${incidents.length} incidents logged`}>
+        {canEdit && <button style={B.sec} onClick={() => setModal({ type:'secvendor-add', data:null })}>+ Add Vendor</button>}
         {canEdit && <button style={B.pri} onClick={onOpenIncident}>+ Log Incident</button>}
       </SH>
 
@@ -672,7 +681,7 @@ function TabSecurity({ secVendors, incidents, setIncidents, canEdit, isExternal,
         <div style={{ overflowX:'auto' }}>
           <table style={{ width:'100%', borderCollapse:'collapse', minWidth:800 }}>
             <thead><tr>
-              {['Vendor','Protocol','Escort','Threat Level','Last Review','Next Review','Escort Route','Incidents', ...(canEdit?['Actions']:[])].map(h => <th key={h} style={TH}>{h}</th>)}
+              {['Vendor','Protocol','Escort','Threat Level','Last Review','Next Review','Route','Incidents','Actions'].map(h => <th key={h} style={TH}>{h}</th>)}
             </tr></thead>
             <tbody>
               {secVendors.map(s => (
@@ -685,10 +694,11 @@ function TabSecurity({ secVendors, incidents, setIncidents, canEdit, isExternal,
                   <td style={{ ...TD, color: s.proto !== 'Approved' ? C.red : C.cyan }}>{s.nextRev}</td>
                   <td style={{ ...TD, color:C.t3 }}>{s.route}</td>
                   <td style={TD}><span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background: s.incidents>0?'rgba(255,71,87,.12)':'rgba(0,200,150,.12)', color: s.incidents>0?C.red:C.green, border:`1px solid ${s.incidents>0?'rgba(255,71,87,.3)':'rgba(0,200,150,.3)'}` }}>{s.incidents} incident{s.incidents!==1?'s':''}</span></td>
-                  {canEdit && <td style={TD}>
-                    <button onClick={() => showToast('Protocol',`${s.vendor} protocol document`)} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>View Doc</button>
-                    <button onClick={() => showToast('Incidents',`Incident log for ${s.vendor}`)} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Incidents</button>
-                  </td>}
+                  <td style={TD}>
+                    {canEdit && <button onClick={() => setModal({ type:'secvendor-edit', data:s })} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>}
+                    <button onClick={() => showToast('Protocol',`${s.vendor} protocol document`)} style={{ background:'none', border:'none', cursor:'pointer', color:C.cyan, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Doc</button>
+                    {canEdit && <button onClick={() => { if (window.confirm(`Delete ${s.vendor}?`)) { setSecVendors(p => p.filter(x=>x.id!==s.id)); showToast('Deleted',`${s.vendor} removed`) } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -702,7 +712,7 @@ function TabSecurity({ secVendors, incidents, setIncidents, canEdit, isExternal,
         <div style={{ overflowX:'auto' }}>
           <table style={{ width:'100%', borderCollapse:'collapse', minWidth:800 }}>
             <thead><tr>
-              {['Incident ID','Date','Route','Vendor','Type','Severity','Status','Resolution'].map(h => <th key={h} style={TH}>{h}</th>)}
+              {['Incident ID','Date','Route','Vendor','Type','Severity','Status','Resolution','Actions'].map(h => <th key={h} style={TH}>{h}</th>)}
             </tr></thead>
             <tbody>
               {incidents.map(inc => {
@@ -717,6 +727,10 @@ function TabSecurity({ secVendors, incidents, setIncidents, canEdit, isExternal,
                     <td style={TD}><Badge s={inc.sev} /></td>
                     <td style={TD}><Badge s={inc.st} /></td>
                     <td style={{ ...TD, color: inc.res.includes('ongoing')?C.yellow:C.t2, fontSize:11 }}>{inc.res}</td>
+                    <td style={TD}>
+                      {canEdit && <button onClick={() => setModal({ type:'incident-edit', data:inc })} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>}
+                      {canEdit && <button onClick={() => { if (window.confirm('Delete incident?')) { setIncidents(p => p.filter(x=>x.id!==inc.id)); showToast('Deleted','Incident removed') } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>}
+                    </td>
                   </tr>
                 )
               })}
@@ -729,7 +743,7 @@ function TabSecurity({ secVendors, incidents, setIncidents, canEdit, isExternal,
 }
 
 // ─── TAB: Vendor Contracts ──────────────────────────────────────────────────────
-function TabVendors({ vendors, setVendors, canEdit, isAdmin, isHead, isMgmt, isUser, isExternal, showToast, onOpenAdd }) {
+function TabVendors({ vendors, setVendors, canEdit, isAdmin, isHead, isMgmt, isUser, isExternal, showToast, onOpenAdd, setModal }) {
   const myOnly = isExternal
   const showVal = !isUser && !isExternal
 
@@ -775,8 +789,10 @@ function TabVendors({ vendors, setVendors, canEdit, isAdmin, isHead, isMgmt, isU
                       <td style={TD}><div style={{ display:'flex' }}>{stars(v.rating)}</div></td>
                     </>}
                     {canEdit && <td style={TD}>
-                      <button onClick={() => showToast('Contract','View contract document')} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>View</button>
-                      {v.days && v.days < 120 && <button onClick={() => showToast('Renewal Started',`Renewal process initiated for ${v.name}`)} style={{ background:'none', border:'none', cursor:'pointer', color:C.green, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Renew</button>}
+                      <button onClick={() => setModal({ type:'vendor-edit', data:v })} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
+                      <button onClick={() => showToast('Contract','View contract document')} style={{ background:'none', border:'none', cursor:'pointer', color:C.cyan, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>View</button>
+                      {v.days && v.days < 120 && <button onClick={() => showToast('Renewal Started',`Renewal process initiated for ${v.name}`)} style={{ background:'none', border:'none', cursor:'pointer', color:C.green, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Renew</button>}
+                      <button onClick={() => { if (window.confirm(`Delete ${v.name}?`)) { setVendors(p => p.filter(x=>x.id!==v.id)); showToast('Deleted',`${v.name} removed`) } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
                     </td>}
                   </tr>
                 )
@@ -808,13 +824,14 @@ function TabVendors({ vendors, setVendors, canEdit, isAdmin, isHead, isMgmt, isU
 }
 
 // ─── TAB: Inventory ─────────────────────────────────────────────────────────────
-function TabInventory({ inventory, setInventory, suppliers, setSuppliers, canEdit, isExternal, isMgmt, showToast }) {
+function TabInventory({ inventory, setInventory, suppliers, setSuppliers, canEdit, isExternal, isMgmt, showToast, setModal }) {
   if (isExternal || isMgmt) return <Restrict text="Inventory tracking is restricted to Operations team." />
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Inventory & Stock Tracking" sub={`${inventory.filter(i=>i.st==='Critical').length} critical · ${inventory.filter(i=>i.st==='Low Stock').length} low stock`}>
-        <button style={B.ghost}>⬇ Inventory Report</button>
+        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'inventory-add', data:null })}>+ Add Item</button>}
+        <button style={B.ghost}>⬇ Report</button>
       </SH>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:11 }}>
@@ -842,11 +859,13 @@ function TabInventory({ inventory, setInventory, suppliers, setSuppliers, canEdi
                     <td style={{ ...TD, color:C.t2 }}>{i.sup}</td>
                     <td style={{ ...TD, color:C.t3 }}>{i.last}</td>
                     <td style={TD}>
+                      {canEdit && <button onClick={() => setModal({ type:'inventory-edit', data:i })} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>}
                       {canEdit && <button onClick={() => {
                         setSuppliers(p => [...p, { id:Date.now(), name:`Restock: ${i.item}`, cat:'Consumables', od:'Today', ed:'TBD', ad:'—', qty:'Restock order', qr:'0', pay:'Not Paid', qc:'Pending', st:'Not Started', notes:'Auto-created from inventory restock request' }])
                         showToast('Restock Requested', `${i.item} — procurement request sent`)
-                      }} style={{ ...B.pri, ...B.sm }}>Request Restock</button>}
-                      {i.st === 'Critical' && <span style={{ marginLeft:8, fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:20, background:'rgba(255,71,87,.15)', color:C.red, border:'1px solid rgba(255,71,87,.3)' }}>⚠ URGENT</span>}
+                      }} style={{ ...B.sec, ...B.sm }}>Restock</button>}
+                      {canEdit && <button onClick={() => { if (window.confirm(`Delete ${i.item}?`)) { setInventory(p => p.filter(x=>x.id!==i.id)); showToast('Deleted',`${i.item} removed`) } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit', marginLeft:6 }}>Del</button>}
+                      {i.st === 'Critical' && <span style={{ marginLeft:6, fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:20, background:'rgba(255,71,87,.15)', color:C.red, border:'1px solid rgba(255,71,87,.3)' }}>⚠ URGENT</span>}
                     </td>
                   </tr>
                 )
@@ -1018,7 +1037,7 @@ function BarChart({ bars, height }) {
 }
 
 // ─── TAB: Task Board ────────────────────────────────────────────────────────────
-function TabTasks({ tasks, setTasks, canEdit, isExternal, showToast, onOpenAdd }) {
+function TabTasks({ tasks, setTasks, canEdit, isExternal, showToast, onOpenAdd, setModal }) {
   if (isExternal) return <Restrict text="Task board is not available to vendors." />
   const cols = [
     { key:'To Do',       color:C.t3 },
@@ -1048,7 +1067,7 @@ function TabTasks({ tasks, setTasks, canEdit, isExternal, showToast, onOpenAdd }
                 {items.map(t => {
                   const priC = t.pri==='High'?C.red:t.pri==='Medium'?C.yellow:C.cyan
                   return (
-                    <div key={t.id} onClick={() => showToast('Task',`Update form for: ${t.title}`)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:'11px 12px', cursor:'pointer' }}>
+                    <div key={t.id} onClick={() => canEdit && setModal({ type:'task-edit', data:t })} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:'11px 12px', cursor: canEdit ? 'pointer' : 'default' }}>
                       <div style={{ fontSize:12, fontWeight:700, color:C.t1, marginBottom:5 }}>{t.title}</div>
                       <div style={{ fontSize:11, color:C.t3 }}>{t.sec}</div>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
@@ -1086,7 +1105,7 @@ function TabTasks({ tasks, setTasks, canEdit, isExternal, showToast, onOpenAdd }
                     <td style={TD}><Badge s={t.st} /></td>
                     <td style={TD}><span style={{ fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:20, background:'rgba(0,180,216,.12)', color:C.cyan, border:'1px solid rgba(0,180,216,.3)' }}>{t.sec}</span></td>
                     {canEdit && <td style={TD}>
-                      <button onClick={() => showToast('Updated','Task status updated')} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Update</button>
+                      <button onClick={() => setModal({ type:'task-edit', data:t })} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
                       <button onClick={() => { setTasks(p => p.filter(x=>x.id!==t.id)); showToast('Deleted','Task removed') }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
                     </td>}
                   </tr>
@@ -1101,11 +1120,12 @@ function TabTasks({ tasks, setTasks, canEdit, isExternal, showToast, onOpenAdd }
 }
 
 // ─── Modals ──────────────────────────────────────────────────────────────────────
-function ModalSupplier({ onClose, onAdd }) {
-  const [f, setF] = useState({ name:'', cat:'Machinery', od:'', ed:'', qty:'', st:'Not Started', notes:'' })
+function ModalSupplier({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial ? { ...initial } : { name:'', cat:'Machinery', od:'', ed:'', qty:'', st:'Not Started', notes:'' })
   const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  const isEdit = !!initial
   return (
-    <Modal title="Add Supplier" sub="Register a new supply chain supplier" onClose={onClose} onSave={() => f.name.trim() && onAdd(f)} saveLabel="Add Supplier">
+    <Modal title={isEdit ? 'Edit Supplier' : 'Add Supplier'} sub={isEdit ? 'Update supplier information' : 'Register a new supply chain supplier'} onClose={onClose} onSave={() => f.name.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Add Supplier'}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
         <div><ML>Supplier Name</ML><MI value={f.name} onChange={s('name')} placeholder="Company name" /></div>
         <div><ML>Category</ML><MS value={f.cat} onChange={s('cat')}>{['Machinery','Raw Materials','Chemicals','Consumables','Services'].map(o=><option key={o}>{o}</option>)}</MS></div>
@@ -1123,11 +1143,12 @@ function ModalSupplier({ onClose, onAdd }) {
   )
 }
 
-function ModalTask({ onClose, onAdd }) {
-  const [f, setF] = useState({ title:'', assign:'', pri:'High', due:'', sec:'Supply Chain', st:'To Do' })
+function ModalTask({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial ? { ...initial } : { title:'', assign:'', pri:'High', due:'', sec:'Supply Chain', st:'To Do' })
   const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  const isEdit = !!initial
   return (
-    <Modal title="Add Task" sub="Create a new operations task" onClose={onClose} onSave={() => f.title.trim() && onAdd(f)} saveLabel="Add Task">
+    <Modal title={isEdit ? 'Edit Task' : 'Add Task'} sub={isEdit ? 'Update task details' : 'Create a new operations task'} onClose={onClose} onSave={() => f.title.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Add Task'}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
         <div><ML>Task Title</ML><MI value={f.title} onChange={s('title')} placeholder="Task description" /></div>
         <div><ML>Assigned To</ML><MI value={f.assign} onChange={s('assign')} placeholder="Team member" /></div>
@@ -1144,11 +1165,12 @@ function ModalTask({ onClose, onAdd }) {
   )
 }
 
-function ModalIncident({ onClose, onAdd }) {
-  const [f, setF] = useState({ route:'Route KAZ-1 (Primary)', sev:'High', type:'Route Breach', vendor:'SecureForce KZ', desc:'' })
+function ModalIncident({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial ? { ...initial, desc:initial.res||'' } : { route:'Route KAZ-1 (Primary)', sev:'High', type:'Route Breach', vendor:'SecureForce KZ', desc:'' })
   const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  const isEdit = !!initial
   return (
-    <Modal title="Report Security Incident" sub="Log a new security incident on a transport route" onClose={onClose} onSave={() => onAdd(f)} saveLabel="Submit Incident">
+    <Modal title={isEdit ? 'Edit Incident' : 'Report Security Incident'} sub={isEdit ? 'Update incident record' : 'Log a new security incident on a transport route'} onClose={onClose} onSave={() => onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Submit Incident'}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
         <div><ML>Route</ML><MS value={f.route} onChange={s('route')}>{['Route KAZ-1 (Primary)','Route KAZ-2 (Alternate)','Route AIR-1','Route RAIL-1'].map(o=><option key={o}>{o}</option>)}</MS></div>
         <div><ML>Severity</ML><MS value={f.sev} onChange={s('sev')}>{['Critical','High','Medium','Low'].map(o=><option key={o}>{o}</option>)}</MS></div>
@@ -1158,6 +1180,147 @@ function ModalIncident({ onClose, onAdd }) {
         <div><ML>Security Vendor</ML><MS value={f.vendor} onChange={s('vendor')}>{['SecureForce KZ','AlphaGuard Ltd','Internal'].map(o=><option key={o}>{o}</option>)}</MS></div>
       </div>
       <ML>Description</ML><MTA value={f.desc} onChange={s('desc')} placeholder="Describe what happened..." />
+    </Modal>
+  )
+}
+
+// ─── Extra Modals ──────────────────────────────────────────────────────────────
+function ModalGoldChannel({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial ? { ...initial, vol:String(initial.vol), actual:String(initial.actual) } : { name:'', region:'', vol:'', actual:'', stage:'Contract Signed', cst:'Active', comp:'No', officer:'', risk:'Low', nextAction:'' })
+  const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  const isEdit = !!initial
+  return (
+    <Modal title={isEdit ? 'Edit Gold Channel' : 'Add Gold Channel'} sub="Confidential — gold sourcing channel" onClose={onClose} onSave={() => f.name.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Add Channel'}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Channel Name</ML><MI value={f.name} onChange={s('name')} placeholder="e.g. Altyn Partners" /></div>
+        <div><ML>Region</ML><MI value={f.region} onChange={s('region')} placeholder="e.g. East KZ" /></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Volume Target (kg)</ML><MI type="number" value={f.vol} onChange={s('vol')} placeholder="0" /></div>
+        <div><ML>Actual Volume (kg)</ML><MI type="number" value={f.actual} onChange={s('actual')} placeholder="0" /></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Stage</ML><MS value={f.stage} onChange={s('stage')}>{['Contract Signed','Final Negotiation','MoU Stage','On Hold'].map(o=><option key={o}>{o}</option>)}</MS></div>
+        <div><ML>Contract Status</ML><MS value={f.cst} onChange={s('cst')}>{['Active','Pending','Draft','Suspended'].map(o=><option key={o}>{o}</option>)}</MS></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Risk Level</ML><MS value={f.risk} onChange={s('risk')}>{['Low','Medium','High'].map(o=><option key={o}>{o}</option>)}</MS></div>
+        <div><ML>Compliance</ML><MS value={f.comp} onChange={s('comp')}>{['Yes','No'].map(o=><option key={o}>{o}</option>)}</MS></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Officer</ML><MI value={f.officer} onChange={s('officer')} placeholder="Officer name" /></div>
+        <div><ML>Next Action</ML><MI value={f.nextAction} onChange={s('nextAction')} placeholder="Next steps" /></div>
+      </div>
+    </Modal>
+  )
+}
+
+function ModalRoute({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial ? { ...initial } : { name:'', origin:'', dest:'', carrier:'', mode:'Road', eta:'', st:'Active', risk:'Low', notes:'' })
+  const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  const isEdit = !!initial
+  return (
+    <Modal title={isEdit ? 'Edit Route' : 'Add Route'} sub="Transport route configuration" onClose={onClose} onSave={() => f.name.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Add Route'}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Route Name</ML><MI value={f.name} onChange={s('name')} placeholder="e.g. Route KAZ-3" /></div>
+        <div><ML>Mode</ML><MS value={f.mode} onChange={s('mode')}>{['Road','Air','Rail','Sea'].map(o=><option key={o}>{o}</option>)}</MS></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Origin</ML><MI value={f.origin} onChange={s('origin')} placeholder="Origin city/hub" /></div>
+        <div><ML>Destination</ML><MI value={f.dest} onChange={s('dest')} placeholder="Destination" /></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Carrier</ML><MI value={f.carrier} onChange={s('carrier')} placeholder="Carrier name" /></div>
+        <div><ML>ETA</ML><MI value={f.eta} onChange={s('eta')} placeholder="e.g. 6 hrs" /></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Status</ML><MS value={f.st} onChange={s('st')}>{['Active','On Hold','Suspended'].map(o=><option key={o}>{o}</option>)}</MS></div>
+        <div><ML>Risk Level</ML><MS value={f.risk} onChange={s('risk')}>{['Low','Medium','High'].map(o=><option key={o}>{o}</option>)}</MS></div>
+      </div>
+      <ML>Notes</ML><MTA value={f.notes} onChange={s('notes')} placeholder="Security notes, special instructions..." />
+    </Modal>
+  )
+}
+
+function ModalSecVendor({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial ? { ...initial } : { vendor:'', proto:'Pending Review', escort:'Pending', threat:'Medium', route:'', nextRev:'' })
+  const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  const isEdit = !!initial
+  return (
+    <Modal title={isEdit ? 'Edit Security Vendor' : 'Add Security Vendor'} sub="Security vendor protocol and escort details" onClose={onClose} onSave={() => f.vendor.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Add Vendor'}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Vendor Name</ML><MI value={f.vendor} onChange={s('vendor')} placeholder="Security company" /></div>
+        <div><ML>Protocol Status</ML><MS value={f.proto} onChange={s('proto')}>{['Approved','Pending Review','Suspended'].map(o=><option key={o}>{o}</option>)}</MS></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Escort</ML><MS value={f.escort} onChange={s('escort')}>{['Yes','Pending','No'].map(o=><option key={o}>{o}</option>)}</MS></div>
+        <div><ML>Threat Level</ML><MS value={f.threat} onChange={s('threat')}>{['Low','Medium','High'].map(o=><option key={o}>{o}</option>)}</MS></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Assigned Routes</ML><MI value={f.route} onChange={s('route')} placeholder="e.g. KAZ-1, AIR-1" /></div>
+        <div><ML>Next Review Date</ML><input type="date" value={f.nextRev||''} onChange={s('nextRev')} style={IS} /></div>
+      </div>
+    </Modal>
+  )
+}
+
+function ModalVendor({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial ? { ...initial, rating:String(initial.rating||3) } : { name:'', svc:'', val:'', signed:'No', exp:'', terms:'Net 30', mgr:'', rating:'3', renewal:'Active' })
+  const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  const isEdit = !!initial
+  return (
+    <Modal title={isEdit ? 'Edit Vendor' : 'Add Vendor'} sub="Vendor contract details" onClose={onClose} onSave={() => f.name.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Add Vendor'}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Vendor Name</ML><MI value={f.name} onChange={s('name')} placeholder="Company name" /></div>
+        <div><ML>Service</ML><MI value={f.svc} onChange={s('svc')} placeholder="e.g. Road Freight" /></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Contract Value</ML><MI value={f.val} onChange={s('val')} placeholder="e.g. $50,000" /></div>
+        <div><ML>Signed</ML><MS value={f.signed} onChange={s('signed')}>{['Yes','No','Pending'].map(o=><option key={o}>{o}</option>)}</MS></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Expiry Date</ML><input type="date" value={f.exp||''} onChange={s('exp')} style={IS} /></div>
+        <div><ML>Payment Terms</ML><MI value={f.terms} onChange={s('terms')} placeholder="e.g. Net 30" /></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Account Manager</ML><MI value={f.mgr} onChange={s('mgr')} placeholder="Name" /></div>
+        <div><ML>Rating (1-5)</ML><MS value={f.rating} onChange={s('rating')}>{['1','2','3','4','5'].map(o=><option key={o}>{o}</option>)}</MS></div>
+      </div>
+      <ML>Renewal Status</ML><MS value={f.renewal} onChange={s('renewal')}>{['Active','Renewal Due','Under Negotiation'].map(o=><option key={o}>{o}</option>)}</MS>
+    </Modal>
+  )
+}
+
+function ModalInventoryItem({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial ? { ...initial, stock:String(initial.stock), min:String(initial.min) } : { item:'', stock:'0', min:'0', sup:'', last:'' })
+  const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  const isEdit = !!initial
+  return (
+    <Modal title={isEdit ? 'Edit Inventory Item' : 'Add Inventory Item'} sub="Stock item and supplier details" onClose={onClose} onSave={() => f.item.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Add Item'}>
+      <div><ML>Item Name</ML><MI value={f.item} onChange={s('item')} placeholder="Item description" /></div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Current Stock (units)</ML><MI type="number" value={f.stock} onChange={s('stock')} min="0" /></div>
+        <div><ML>Minimum Level (units)</ML><MI type="number" value={f.min} onChange={s('min')} min="0" /></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Supplier</ML><MI value={f.sup} onChange={s('sup')} placeholder="Supplier name" /></div>
+        <div><ML>Last Restocked</ML><input type="date" value={f.last||''} onChange={s('last')} style={IS} /></div>
+      </div>
+    </Modal>
+  )
+}
+
+function ModalChecklistItem({ onClose, onSave }) {
+  const [f, setF] = useState({ item:'', assign:'', due:'', st:'In Progress' })
+  const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  return (
+    <Modal title="Add Checklist Item" sub="Add a new readiness checklist item" onClose={onClose} onSave={() => f.item.trim() && onSave(f)} saveLabel="Add Item">
+      <div><ML>Checklist Item</ML><MI value={f.item} onChange={s('item')} placeholder="Item description" /></div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Assigned To</ML><MI value={f.assign} onChange={s('assign')} placeholder="Team member" /></div>
+        <div><ML>Due Date</ML><MI value={f.due} onChange={s('due')} placeholder="e.g. Apr 30" /></div>
+      </div>
+      <ML>Initial Status</ML><MS value={f.st} onChange={s('st')}>{['In Progress','Blocked','To Do'].map(o=><option key={o}>{o}</option>)}</MS>
     </Modal>
   )
 }
@@ -1219,17 +1382,19 @@ export default function OperationsTab() {
   const [activeTab, setActiveTab] = useState('kpi')
   const [suppliers, setSuppliers] = useState(INIT_SUPPLIERS)
   const [gold,      setGold]      = useState(INIT_GOLD)
-  const [routes]                  = useState(INIT_ROUTES)
-  const [secVendors]              = useState(INIT_SEC_VENDORS)
+  const [routes,    setRoutes]    = useState(INIT_ROUTES)
+  const [secVendors,setSecVendors]= useState(INIT_SEC_VENDORS)
   const [incidents, setIncidents] = useState(INIT_INCIDENTS)
   const [vendors,   setVendors]   = useState(INIT_VENDORS)
   const [inventory, setInventory] = useState(INIT_INVENTORY)
   const [tasks,     setTasks]     = useState(INIT_TASKS)
   const [checklist, setChecklist] = useState(INIT_CHECKLIST)
   const [notifs,    setNotifs]    = useState(INIT_NOTIFS)
-  const [modal,     setModal]     = useState(null)  // 'supplier'|'task'|'incident'
+  const [modal,     setModal]     = useState({ type:null, data:null })
   const [notifOpen, setNotifOpen] = useState(false)
   const [toast,     setToast]     = useState(null)
+
+  const closeModal = () => setModal({ type:null, data:null })
 
   function showToast(title, msg) {
     setToast({ title, msg })
@@ -1239,24 +1404,81 @@ export default function OperationsTab() {
 
   function addSupplier(f) {
     setSuppliers(p => [...p, { id:Date.now(), name:f.name.trim(), cat:f.cat, od:f.od||'—', ed:f.ed||'—', ad:'—', qty:f.qty||'—', qr:'0', pay:'Not Paid', qc:'Pending', st:f.st, notes:f.notes||'—' }])
-    setModal(null)
-    showToast('Supplier Added', f.name.trim() + ' added to supply chain')
+    closeModal(); showToast('Supplier Added', f.name.trim() + ' added to supply chain')
+  }
+  function editSupplier(f) {
+    setSuppliers(p => p.map(x => x.id===f.id ? { ...x, ...f } : x))
+    closeModal(); showToast('Supplier Updated', f.name + ' updated')
   }
   function addTask(f) {
     setTasks(p => [...p, { id:Date.now(), title:f.title.trim(), assign:f.assign||'Unassigned', pri:f.pri, due:f.due||'TBD', st:f.st, sec:f.sec }])
-    setModal(null)
-    showToast('Task Added', f.title.trim() + ' added to task board')
+    closeModal(); showToast('Task Added', f.title.trim() + ' added')
+  }
+  function editTask(f) {
+    setTasks(p => p.map(x => x.id===f.id ? { ...x, ...f } : x))
+    closeModal(); showToast('Task Updated', f.title + ' updated')
   }
   function addIncident(f) {
     const newInc = { id:`INC-${String(incidents.length+4).padStart(3,'0')}`, date:'Today', route:f.route, vendor:f.vendor, type:f.type, sev:f.sev, st:'Open', res:f.desc||'Under review' }
     setIncidents(p => [newInc, ...p])
     setNotifs(p => [{ id:'INN'+Date.now(), lv:'crit', read:false, title:`🔴 New Incident Reported — ${f.route}`, desc:`${f.type} incident (${f.sev}) reported on ${f.route}. Immediate investigation required.`, time:'Just now' }, ...p])
-    setModal(null)
-    showToast('Incident Reported', `${f.type} on ${f.route} — security team notified`)
+    closeModal(); showToast('Incident Reported', `${f.type} on ${f.route} — security team notified`)
+  }
+  function editIncident(f) {
+    setIncidents(p => p.map(x => x.id===f.id ? { ...x, ...f } : x))
+    closeModal(); showToast('Incident Updated', f.id + ' updated')
+  }
+  function addGold(f) {
+    setGold(p => [...p, { id:Date.now(), code:`GS-${String(p.length+5).padStart(3,'0')}`, name:f.name, vol:Number(f.vol)||0, actual:Number(f.actual)||0, stage:f.stage, cst:f.cst, comp:f.comp, officer:f.officer||'—', region:f.region, risk:f.risk, lastAct:'Today', nextAction:f.nextAction||'—' }])
+    closeModal(); showToast('Channel Added', f.name + ' added')
+  }
+  function editGold(f) {
+    setGold(p => p.map(x => x.id===f.id ? { ...x, ...f, vol:Number(f.vol)||0, actual:Number(f.actual)||0 } : x))
+    closeModal(); showToast('Channel Updated', f.name + ' updated')
+  }
+  function addRoute(f) {
+    setRoutes(p => [...p, { id:Date.now(), name:f.name, origin:f.origin, dest:f.dest, carrier:f.carrier, mode:f.mode, eta:f.eta, st:f.st, risk:f.risk, lastInc:'None', insurance:'Active', gps:'Active', checkpoints:'0/0', notes:f.notes||'—' }])
+    closeModal(); showToast('Route Added', f.name + ' added')
+  }
+  function editRoute(f) {
+    setRoutes(p => p.map(x => x.id===f.id ? { ...x, ...f } : x))
+    closeModal(); showToast('Route Updated', f.name + ' updated')
+  }
+  function addSecVendor(f) {
+    setSecVendors(p => [...p, { id:Date.now(), vendor:f.vendor, proto:f.proto, escort:f.escort, lastRev:'Today', nextRev:f.nextRev||'—', incidents:0, threat:f.threat, route:f.route }])
+    closeModal(); showToast('Security Vendor Added', f.vendor + ' added')
+  }
+  function editSecVendor(f) {
+    setSecVendors(p => p.map(x => x.id===f.id ? { ...x, ...f } : x))
+    closeModal(); showToast('Vendor Updated', f.vendor + ' updated')
+  }
+  function addVendor(f) {
+    setVendors(p => [...p, { id:Date.now(), name:f.name, svc:f.svc, val:f.val||'—', signed:f.signed, exp:f.exp||'—', terms:f.terms||'TBD', mgr:f.mgr||'—', rating:Number(f.rating)||3, renewal:f.renewal, days:null }])
+    closeModal(); showToast('Vendor Added', f.name + ' added')
+  }
+  function editVendor(f) {
+    setVendors(p => p.map(x => x.id===f.id ? { ...x, ...f, rating:Number(f.rating)||x.rating } : x))
+    closeModal(); showToast('Vendor Updated', f.name + ' updated')
+  }
+  function addInventoryItem(f) {
+    const stock = Number(f.stock)||0, min = Number(f.min)||0
+    const st = stock === 0 ? 'Critical' : stock <= min ? 'Low Stock' : 'Sufficient'
+    setInventory(p => [...p, { id:`INV-${String(p.length+7).padStart(3,'0')}`, item:f.item, stock, min, sup:f.sup||'—', last:f.last||'Today', st }])
+    closeModal(); showToast('Item Added', f.item + ' added to inventory')
+  }
+  function editInventoryItem(f) {
+    const stock = Number(f.stock)||0, min = Number(f.min)||0
+    const st = stock === 0 ? 'Critical' : stock <= min ? 'Low Stock' : 'Sufficient'
+    setInventory(p => p.map(x => x.id===f.id ? { ...x, item:f.item, stock, min, sup:f.sup, last:f.last||x.last, st } : x))
+    closeModal(); showToast('Item Updated', f.item + ' updated')
+  }
+  function addChecklistItem(f) {
+    setChecklist(p => [...p, { item:f.item, assign:f.assign||'—', st:f.st||'In Progress', due:f.due||'—', by:'—', ts:'—' }])
+    closeModal(); showToast('Item Added', f.item + ' added to checklist')
   }
 
   const unreadCount = notifs.filter(n => !n.read).length
-  const shared = { suppliers, setSuppliers, gold, setGold, routes, secVendors, incidents, setIncidents, vendors, setVendors, inventory, setInventory, tasks, setTasks, checklist, setChecklist, canEdit, isAdmin, isHead, isMgmt, isUser, isExternal, showToast }
+  const shared = { suppliers, setSuppliers, gold, setGold, routes, setRoutes, secVendors, setSecVendors, incidents, setIncidents, vendors, setVendors, inventory, setInventory, tasks, setTasks, checklist, setChecklist, canEdit, isAdmin, isHead, isMgmt, isUser, isExternal, showToast, setModal }
 
   return (
     <div style={{ fontFamily:'inherit', color:C.t1 }}>
@@ -1286,19 +1508,33 @@ export default function OperationsTab() {
 
       {activeTab === 'kpi'       && <TabKPI       {...shared} />}
       {activeTab === 'checklist' && <TabChecklist  {...shared} />}
-      {activeTab === 'supply'    && <TabSupply     {...shared} onOpenAdd={() => setModal('supplier')} />}
+      {activeTab === 'supply'    && <TabSupply     {...shared} onOpenAdd={() => setModal({ type:'supplier-add', data:null })} />}
       {activeTab === 'gold'      && <TabGold       {...shared} />}
-      {activeTab === 'routes'    && <TabRoutes     {...shared} onOpenIncident={() => setModal('incident')} />}
-      {activeTab === 'security'  && <TabSecurity   {...shared} onOpenIncident={() => setModal('incident')} />}
-      {activeTab === 'vendors'   && <TabVendors    {...shared} onOpenAdd={() => showToast('Add Vendor','Vendor form opens here')} />}
+      {activeTab === 'routes'    && <TabRoutes     {...shared} onOpenIncident={() => setModal({ type:'incident-add', data:null })} />}
+      {activeTab === 'security'  && <TabSecurity   {...shared} onOpenIncident={() => setModal({ type:'incident-add', data:null })} />}
+      {activeTab === 'vendors'   && <TabVendors    {...shared} onOpenAdd={() => setModal({ type:'vendor-add', data:null })} />}
       {activeTab === 'inventory' && <TabInventory  {...shared} />}
       {activeTab === 'map'       && <TabMap        {...shared} />}
       {activeTab === 'analytics' && <TabAnalytics  {...shared} />}
-      {activeTab === 'tasks'     && <TabTasks      {...shared} onOpenAdd={() => setModal('task')} />}
+      {activeTab === 'tasks'     && <TabTasks      {...shared} onOpenAdd={() => setModal({ type:'task-add', data:null })} />}
 
-      {modal === 'supplier' && <ModalSupplier  onClose={() => setModal(null)} onAdd={addSupplier}  />}
-      {modal === 'task'     && <ModalTask      onClose={() => setModal(null)} onAdd={addTask}      />}
-      {modal === 'incident' && <ModalIncident  onClose={() => setModal(null)} onAdd={addIncident}  />}
+      {modal.type === 'supplier-add'   && <ModalSupplier      onClose={closeModal} onSave={addSupplier} />}
+      {modal.type === 'supplier-edit'  && <ModalSupplier      initial={modal.data} onClose={closeModal} onSave={editSupplier} />}
+      {modal.type === 'task-add'       && <ModalTask          onClose={closeModal} onSave={addTask} />}
+      {modal.type === 'task-edit'      && <ModalTask          initial={modal.data} onClose={closeModal} onSave={editTask} />}
+      {modal.type === 'incident-add'   && <ModalIncident      onClose={closeModal} onSave={addIncident} />}
+      {modal.type === 'incident-edit'  && <ModalIncident      initial={modal.data} onClose={closeModal} onSave={editIncident} />}
+      {modal.type === 'gold-add'       && <ModalGoldChannel   onClose={closeModal} onSave={addGold} />}
+      {modal.type === 'gold-edit'      && <ModalGoldChannel   initial={modal.data} onClose={closeModal} onSave={editGold} />}
+      {modal.type === 'route-add'      && <ModalRoute         onClose={closeModal} onSave={addRoute} />}
+      {modal.type === 'route-edit'     && <ModalRoute         initial={modal.data} onClose={closeModal} onSave={editRoute} />}
+      {modal.type === 'secvendor-add'  && <ModalSecVendor     onClose={closeModal} onSave={addSecVendor} />}
+      {modal.type === 'secvendor-edit' && <ModalSecVendor     initial={modal.data} onClose={closeModal} onSave={editSecVendor} />}
+      {modal.type === 'vendor-add'     && <ModalVendor        onClose={closeModal} onSave={addVendor} />}
+      {modal.type === 'vendor-edit'    && <ModalVendor        initial={modal.data} onClose={closeModal} onSave={editVendor} />}
+      {modal.type === 'inventory-add'  && <ModalInventoryItem onClose={closeModal} onSave={addInventoryItem} />}
+      {modal.type === 'inventory-edit' && <ModalInventoryItem initial={modal.data} onClose={closeModal} onSave={editInventoryItem} />}
+      {modal.type === 'checklist-add'  && <ModalChecklistItem onClose={closeModal} onSave={addChecklistItem} />}
 
       {notifOpen && <NotifPanel notifs={notifs} setNotifs={setNotifs} onClose={() => setNotifOpen(false)} />}
 
