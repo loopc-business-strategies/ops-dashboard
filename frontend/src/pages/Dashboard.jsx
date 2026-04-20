@@ -32,6 +32,7 @@ const TrainingTab = lazy(() => import('../components/tabs/TrainingTab'))
 const OperationsTab = lazy(() => import('../components/tabs/OperationsTab'))
 const SalesTab = lazy(() => import('../components/tabs/SalesTab'))
 const ERPTab = lazy(() => import('../components/tabs/ERPTab'))
+const ComplianceTab = lazy(() => import('../components/tabs/ComplianceTab'))
 const PlaceholderTab = lazy(() => import('../components/tabs/PlaceholderTab'))
 
 class TabErrorBoundary extends Component {
@@ -149,14 +150,7 @@ function renderTab(tabId, setActiveTab, setChatUnread) {
       return <HRTab />
 
     case 'compliance':
-      return (
-        <PlaceholderTab
-          title="Government & Compliance"
-          icon="🏛️"
-          description="Track regulatory approvals, documentation, and compliance status"
-          subTabs={['Eligibility Status', 'Approvals Tracker', 'Documentation', 'Regulatory Updates', 'Agreements']}
-        />
-      )
+      return <ComplianceTab />
 
     case 'production':
       return <ProductionTab />
