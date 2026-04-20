@@ -548,6 +548,11 @@ function Equipment({ canEdit, showToast }) {
 
   const openAdd = () => { setForm({ name: '', line: 'L1', type: '', status: 'operational', lastMaint: '', nextMaint: '', age: '' }); setEditItem(null); setModal(true) }
   const openEdit = item => { setForm({ name: item.name, line: item.line, type: item.type, status: item.status, lastMaint: item.lastMaint, nextMaint: item.nextMaint, age: item.age }); setEditItem(item.id); setModal(true) }
+  const removeItem = item => {
+    if (!window.confirm(`Delete equipment "${item.name}"?`)) return
+    setEquipment(p => p.filter(eq => eq.id !== item.id))
+    showToast('Equipment Deleted', `${item.name} removed from registry.`)
+  }
 
   const handleSave = e => {
     e.preventDefault()
@@ -599,6 +604,10 @@ function Equipment({ canEdit, showToast }) {
                       <button onClick={() => openEdit(eq)}
                               className="text-xs px-3 py-1 rounded-md border border-violet-500/30 text-violet-400 hover:bg-violet-500/10 transition-colors">
                         Edit
+                      </button>
+                      <button onClick={() => removeItem(eq)}
+                              className="text-xs px-3 py-1 ml-2 rounded-md border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">
+                        Delete
                       </button>
                     </td>
                   )}
@@ -656,7 +665,8 @@ function Equipment({ canEdit, showToast }) {
 function Maintenance({ canEdit, showToast }) {
   const [orders, setOrders] = useState(DEFAULT_WORK_ORDERS)
   const [modal, setModal]   = useState(false)
-  const [form, setForm] = useState({ equipment: '', type: 'preventive', priority: 'medium', assignee: '', scheduled: '', desc: '' })
+  const [editId, setEditId] = useState(null)
+  const [form, setForm] = useState({ equipment: '', type: 'preventive', priority: 'medium', status: 'open', assignee: '', scheduled: '', desc: '' })
 
   const set = f => e => setForm(p => ({ ...p, [f]: e.target.value }))
 
@@ -665,12 +675,44 @@ function Maintenance({ canEdit, showToast }) {
     showToast('Work Order Approved', `WO ${id} has been approved.`)
   }
 
+  const openAdd = () => {
+    setEditId(null)
+    setForm({ equipment: '', type: 'preventive', priority: 'medium', status: 'open', assignee: '', scheduled: '', desc: '' })
+    setModal(true)
+  }
+
+  const openEdit = order => {
+    setEditId(order.id)
+    setForm({
+      equipment: order.equipment,
+      type: order.type,
+      priority: order.priority,
+      status: order.status,
+      assignee: order.assignee,
+      scheduled: order.scheduled || '',
+      desc: order.desc || '',
+    })
+    setModal(true)
+  }
+
+  const deleteOrder = order => {
+    if (!window.confirm(`Delete work order ${order.id}?`)) return
+    setOrders(p => p.filter(x => x.id !== order.id))
+    showToast('Work Order Deleted', `${order.id} removed.`)
+  }
+
   const handleCreate = e => {
     e.preventDefault()
     if (!form.equipment.trim()) return
-    const id = `WO-${String(orders.length + 1).padStart(3, '0')}`
-    setOrders(p => [...p, { ...form, id, status: 'open', reported: new Date().toISOString().slice(0, 10) }])
-    showToast('Work Order Created', `${id} has been created.`)
+    if (editId) {
+      setOrders(p => p.map(o => o.id === editId ? { ...o, ...form } : o))
+      showToast('Work Order Updated', `${editId} has been updated.`)
+    } else {
+      const id = `WO-${String(orders.length + 1).padStart(3, '0')}`
+      setOrders(p => [...p, { ...form, id, reported: new Date().toISOString().slice(0, 10) }])
+      showToast('Work Order Created', `${id} has been created.`)
+    }
+    setEditId(null)
     setModal(false)
   }
 
@@ -690,7 +732,7 @@ function Maintenance({ canEdit, showToast }) {
         title="Maintenance Management"
         sub={`${orders.filter(o => o.status !== 'closed').length} open work orders`}
         action={canEdit && (
-          <button onClick={() => setModal(true)} className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-opacity hover:opacity-90"
+          <button onClick={openAdd} className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-opacity hover:opacity-90"
                   style={{ background: C.grad }}>+ Create Work Order</button>
         )}
       />
@@ -723,6 +765,14 @@ function Maintenance({ canEdit, showToast }) {
                         Approve
                       </button>
                     )}
+                    <button onClick={() => openEdit(o)}
+                            className="text-xs px-3 py-1 ml-2 rounded-md border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition-colors">
+                      Edit
+                    </button>
+                    <button onClick={() => deleteOrder(o)}
+                            className="text-xs px-3 py-1 ml-2 rounded-md border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">
+                      Delete
+                    </button>
                   </td>
                 )}
               </tr>
@@ -759,7 +809,7 @@ function Maintenance({ canEdit, showToast }) {
         </div>
       </div>
 
-      <Modal open={modal} title="Create Work Order" onClose={() => setModal(false)} wide>
+      <Modal open={modal} title={editId ? 'Edit Work Order' : 'Create Work Order'} onClose={() => setModal(false)} wide>
         <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="Equipment" required>
             <select className="input-field" value={form.equipment} onChange={set('equipment')}>
@@ -781,6 +831,14 @@ function Maintenance({ canEdit, showToast }) {
               <option value="high">High</option>
             </select>
           </Field>
+          <Field label="Status">
+            <select className="input-field" value={form.status} onChange={set('status')}>
+              <option value="open">Open</option>
+              <option value="in-progress">In Progress</option>
+              <option value="approved">Approved</option>
+              <option value="closed">Closed</option>
+            </select>
+          </Field>
           <Field label="Assignee">
             <input className="input-field" value={form.assignee} onChange={set('assignee')} placeholder="e.g. Maint Team A" />
           </Field>
@@ -796,7 +854,7 @@ function Maintenance({ canEdit, showToast }) {
             <button type="button" onClick={() => setModal(false)}
                     className="px-4 py-2 text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg transition-colors">Cancel</button>
             <button type="submit" className="px-5 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90"
-                    style={{ background: C.grad }}>Create Work Order</button>
+                    style={{ background: C.grad }}>{editId ? 'Update Work Order' : 'Create Work Order'}</button>
           </div>
         </form>
       </Modal>
@@ -808,9 +866,28 @@ function Maintenance({ canEdit, showToast }) {
 function QualityControl({ canEdit, showToast }) {
   const [checks, setChecks] = useState(DEFAULT_QC)
   const [modal, setModal]   = useState(false)
+  const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ product: '', line: 'L1', batch: '', inspector: '', passed: '', failed: '' })
 
   const set = f => e => setForm(p => ({ ...p, [f]: e.target.value }))
+
+  const openAdd = () => {
+    setEditId(null)
+    setForm({ product: '', line: 'L1', batch: '', inspector: '', passed: '', failed: '' })
+    setModal(true)
+  }
+
+  const openEdit = item => {
+    setEditId(item.id)
+    setForm({ product: item.product, line: item.line, batch: item.batch, inspector: item.inspector, passed: String(item.passed), failed: String(item.failed) })
+    setModal(true)
+  }
+
+  const deleteCheck = item => {
+    if (!window.confirm(`Delete QC check for batch ${item.batch}?`)) return
+    setChecks(p => p.filter(x => x.id !== item.id))
+    showToast('QC Check Deleted', `Batch ${item.batch} removed.`)
+  }
 
   const handleLog = e => {
     e.preventDefault()
@@ -819,13 +896,23 @@ function QualityControl({ canEdit, showToast }) {
     const failed = parseInt(form.failed) || 0
     const total  = passed + failed
     const defectRate = total > 0 ? ((failed / total) * 100).toFixed(1) : '0.0'
-    setChecks(p => [{
-      id: Date.now(), ...form, passed, failed,
+    const payload = {
+      id: editId || Date.now(),
+      ...form,
+      passed,
+      failed,
       defectRate: parseFloat(defectRate),
       status: parseFloat(defectRate) < 2.5 ? 'approved' : 'review',
       date: new Date().toISOString().slice(0, 10),
-    }, ...p])
-    showToast('Quality Check Logged', `Batch ${form.batch} recorded.`)
+    }
+    if (editId) {
+      setChecks(p => p.map(x => x.id === editId ? payload : x))
+      showToast('QC Check Updated', `Batch ${form.batch} updated.`)
+    } else {
+      setChecks(p => [payload, ...p])
+      showToast('Quality Check Logged', `Batch ${form.batch} recorded.`)
+    }
+    setEditId(null)
     setModal(false)
   }
 
@@ -837,7 +924,7 @@ function QualityControl({ canEdit, showToast }) {
         title="Quality Control"
         sub={`Avg defect rate: ${avgDefect}% — Target: < 2.5%`}
         action={canEdit && (
-          <button onClick={() => setModal(true)} className="px-4 py-2 text-white text-sm font-medium rounded-lg hover:opacity-90"
+          <button onClick={openAdd} className="px-4 py-2 text-white text-sm font-medium rounded-lg hover:opacity-90"
                   style={{ background: C.grad }}>+ Log QC Check</button>
         )}
       />
@@ -871,7 +958,7 @@ function QualityControl({ canEdit, showToast }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-800">
-              {['Product', 'Batch', 'Line', 'Inspector', 'Date', 'Passed', 'Failed', 'Defect %', 'Status'].map(h => (
+              {['Product', 'Batch', 'Line', 'Inspector', 'Date', 'Passed', 'Failed', 'Defect %', 'Status', ...(canEdit ? ['Actions'] : [])].map(h => (
                 <th key={h} className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider pb-3 pr-4">{h}</th>
               ))}
             </tr>
@@ -894,13 +981,19 @@ function QualityControl({ canEdit, showToast }) {
                 <td className="py-3 pr-4">
                   <Badge color={QC_STATUS[c.status]?.badge || 'gray'}>{QC_STATUS[c.status]?.label}</Badge>
                 </td>
+                {canEdit && (
+                  <td className="py-3 pr-4">
+                    <button onClick={() => openEdit(c)} className="text-xs px-3 py-1 rounded-md border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition-colors">Edit</button>
+                    <button onClick={() => deleteCheck(c)} className="text-xs px-3 py-1 ml-2 rounded-md border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">Delete</button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <Modal open={modal} title="Log Quality Check" onClose={() => setModal(false)}>
+      <Modal open={modal} title={editId ? 'Edit Quality Check' : 'Log Quality Check'} onClose={() => setModal(false)}>
         <form onSubmit={handleLog} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="Product" required>
             <input className="input-field" value={form.product} onChange={set('product')} placeholder="e.g. Gold Bar 99.99%" />
@@ -926,7 +1019,7 @@ function QualityControl({ canEdit, showToast }) {
             <button type="button" onClick={() => setModal(false)}
                     className="px-4 py-2 text-sm text-gray-400 border border-gray-700 rounded-lg hover:text-white transition-colors">Cancel</button>
             <button type="submit" className="px-5 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90"
-                    style={{ background: C.grad }}>Log QC Check</button>
+                    style={{ background: C.grad }}>{editId ? 'Update QC Check' : 'Log QC Check'}</button>
           </div>
         </form>
       </Modal>
@@ -940,10 +1033,37 @@ function ShiftManagement({ canEdit, showToast }) {
 
   const shiftColor = s => s === 0 ? 'bg-blue-500/20 text-blue-400' : s === 1 ? 'bg-green-500/20 text-green-400' : s === 2 ? 'bg-violet-500/20 text-violet-400' : 'bg-gray-800/50 text-gray-600'
   const shiftLabel = s => s === null ? 'Off' : SHIFTS[s].split(' ')[0]
+  const cycleShift = (lineId, day) => {
+    if (!canEdit) return
+    setGrid(p => {
+      const cur = p[lineId]?.[day]
+      const next = cur === null ? 0 : cur === 0 ? 1 : cur === 1 ? 2 : null
+      return { ...p, [lineId]: { ...p[lineId], [day]: next } }
+    })
+  }
+
+  const autoBalance = () => {
+    if (!canEdit) return
+    const rows = {}
+    LINES.forEach((line, li) => {
+      rows[line.id] = {}
+      DAYS.forEach((d, di) => {
+        rows[line.id][d] = di === 6 ? null : (li + di) % 3
+      })
+    })
+    setGrid(rows)
+    showToast('Shifts Rebalanced', 'Weekly assignments auto-balanced.')
+  }
 
   return (
     <div className="space-y-6">
       <SectionHeader title="Shift Management" sub="Weekly schedule — 3 shifts per line" />
+
+      {canEdit && (
+        <div className="flex gap-2">
+          <button onClick={autoBalance} className="px-3 py-1.5 text-xs rounded-md border border-violet-500/30 text-violet-400 hover:bg-violet-500/10 transition-colors">Auto-balance Week</button>
+        </div>
+      )}
 
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 overflow-x-auto">
         <table className="w-full text-sm">
@@ -966,9 +1086,11 @@ function ShiftManagement({ canEdit, showToast }) {
                   const s = grid[line.id]?.[d]
                   return (
                     <td key={d} className="py-3 px-2 text-center">
-                      <span className={`inline-block px-2 py-1 rounded-md text-xs font-medium ${shiftColor(s)}`}>
+                      <button
+                        onClick={() => cycleShift(line.id, d)}
+                        className={`inline-block px-2 py-1 rounded-md text-xs font-medium ${shiftColor(s)} ${canEdit ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}>
                         {shiftLabel(s)}
-                      </span>
+                      </button>
                     </td>
                   )
                 })}
@@ -1008,16 +1130,41 @@ function ShiftManagement({ canEdit, showToast }) {
 function Planning({ canEdit, showToast }) {
   const [orders, setOrders] = useState(DEFAULT_ORDERS)
   const [modal, setModal]   = useState(false)
-  const [form, setForm] = useState({ product: '', quantity: '', unit: 'pcs', line: 'L1', startDate: '', dueDate: '' })
+  const [editId, setEditId] = useState(null)
+  const [form, setForm] = useState({ product: '', quantity: '', unit: 'pcs', line: 'L1', startDate: '', dueDate: '', status: 'scheduled', progress: 0 })
 
   const set = f => e => setForm(p => ({ ...p, [f]: e.target.value }))
+
+  const openAdd = () => {
+    setEditId(null)
+    setForm({ product: '', quantity: '', unit: 'pcs', line: 'L1', startDate: '', dueDate: '', status: 'scheduled', progress: 0 })
+    setModal(true)
+  }
+
+  const openEdit = order => {
+    setEditId(order.id)
+    setForm({ ...order })
+    setModal(true)
+  }
+
+  const deleteOrder = order => {
+    if (!window.confirm(`Delete order ${order.id}?`)) return
+    setOrders(p => p.filter(x => x.id !== order.id))
+    showToast('Order Deleted', `${order.id} removed.`)
+  }
 
   const handleCreate = e => {
     e.preventDefault()
     if (!form.product.trim() || !form.quantity) return
-    const id = `PO-2406-${String(orders.length + 1).padStart(2, '0')}`
-    setOrders(p => [...p, { ...form, id, quantity: parseInt(form.quantity), status: 'scheduled', progress: 0 }])
-    showToast('Production Order Created', `${id} scheduled.`)
+    if (editId) {
+      setOrders(p => p.map(x => x.id === editId ? { ...x, ...form, quantity: parseInt(form.quantity, 10) || 0, progress: parseInt(form.progress, 10) || 0 } : x))
+      showToast('Production Order Updated', `${editId} updated.`)
+    } else {
+      const id = `PO-2406-${String(orders.length + 1).padStart(2, '0')}`
+      setOrders(p => [...p, { ...form, id, quantity: parseInt(form.quantity, 10), status: 'scheduled', progress: 0 }])
+      showToast('Production Order Created', `${id} scheduled.`)
+    }
+    setEditId(null)
     setModal(false)
   }
 
@@ -1036,7 +1183,7 @@ function Planning({ canEdit, showToast }) {
         title="Production Planning"
         sub="Production orders and weekly forecast"
         action={canEdit && (
-          <button onClick={() => setModal(true)} className="px-4 py-2 text-white text-sm font-medium rounded-lg hover:opacity-90"
+          <button onClick={openAdd} className="px-4 py-2 text-white text-sm font-medium rounded-lg hover:opacity-90"
                   style={{ background: C.grad }}>+ Create Order</button>
         )}
       />
@@ -1073,7 +1220,7 @@ function Planning({ canEdit, showToast }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-800">
-              {['Order ID', 'Product', 'Qty', 'Line', 'Start', 'Due', 'Progress', 'Status'].map(h => (
+              {['Order ID', 'Product', 'Qty', 'Line', 'Start', 'Due', 'Progress', 'Status', ...(canEdit ? ['Actions'] : [])].map(h => (
                 <th key={h} className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider pb-3 pr-4">{h}</th>
               ))}
             </tr>
@@ -1099,13 +1246,19 @@ function Planning({ canEdit, showToast }) {
                 <td className="py-3 pr-4">
                   <Badge color={ORDER_STATUS[o.status]?.badge || 'gray'}>{ORDER_STATUS[o.status]?.label}</Badge>
                 </td>
+                {canEdit && (
+                  <td className="py-3 pr-4">
+                    <button onClick={() => openEdit(o)} className="text-xs px-3 py-1 rounded-md border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition-colors">Edit</button>
+                    <button onClick={() => deleteOrder(o)} className="text-xs px-3 py-1 ml-2 rounded-md border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">Delete</button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <Modal open={modal} title="Create Production Order" onClose={() => setModal(false)} wide>
+      <Modal open={modal} title={editId ? 'Edit Production Order' : 'Create Production Order'} onClose={() => setModal(false)} wide>
         <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="Product Name" required>
             <input className="input-field" value={form.product} onChange={set('product')} placeholder="e.g. Gold Bar 99.99%" />
@@ -1136,11 +1289,19 @@ function Planning({ canEdit, showToast }) {
           <Field label="Due Date">
             <input type="date" className="input-field" value={form.dueDate} onChange={set('dueDate')} />
           </Field>
+          <Field label="Status">
+            <select className="input-field" value={form.status} onChange={set('status')}>
+              {Object.entries(ORDER_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Progress %">
+            <input type="number" min="0" max="100" className="input-field" value={form.progress} onChange={set('progress')} />
+          </Field>
           <div className="md:col-span-2 flex gap-3 justify-end pt-2">
             <button type="button" onClick={() => setModal(false)}
                     className="px-4 py-2 text-sm text-gray-400 border border-gray-700 rounded-lg hover:text-white transition-colors">Cancel</button>
             <button type="submit" className="px-5 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90"
-                    style={{ background: C.grad }}>Create Order</button>
+                    style={{ background: C.grad }}>{editId ? 'Update Order' : 'Create Order'}</button>
           </div>
         </form>
       </Modal>
@@ -1153,7 +1314,26 @@ function AlertsReports({ canEdit, showToast }) {
   const [alerts, setAlerts] = useState(DEFAULT_ALERTS)
   const [filter, setFilter] = useState('all')
   const [modal, setModal]   = useState(false)
+  const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ type: 'warning', category: 'production', line: 'L1', title: '', msg: '' })
+  const openAdd = () => {
+    setEditId(null)
+    setForm({ type: 'warning', category: 'production', line: 'L1', title: '', msg: '' })
+    setModal(true)
+  }
+
+  const openEdit = alert => {
+    setEditId(alert.id)
+    setForm({ type: alert.type, category: alert.category, line: alert.line, title: alert.title, msg: alert.msg })
+    setModal(true)
+  }
+
+  const deleteAlert = alert => {
+    if (!window.confirm('Delete this alert?')) return
+    setAlerts(p => p.filter(x => x.id !== alert.id))
+    showToast('Alert Deleted', 'Alert removed from list.')
+  }
+
 
   const set = f => e => setForm(p => ({ ...p, [f]: e.target.value }))
 
@@ -1165,8 +1345,14 @@ function AlertsReports({ canEdit, showToast }) {
   const handleReport = e => {
     e.preventDefault()
     if (!form.title.trim()) return
-    setAlerts(p => [{ ...form, id: Date.now(), time: new Date().toISOString().slice(0, 16).replace('T', ' '), ack: false }, ...p])
-    showToast('Issue Reported', `Alert "${form.title}" created.`)
+    if (editId) {
+      setAlerts(p => p.map(a => a.id === editId ? { ...a, ...form } : a))
+      showToast('Alert Updated', `Alert "${form.title}" updated.`)
+    } else {
+      setAlerts(p => [{ ...form, id: Date.now(), time: new Date().toISOString().slice(0, 16).replace('T', ' '), ack: false }, ...p])
+      showToast('Issue Reported', `Alert "${form.title}" created.`)
+    }
+    setEditId(null)
     setModal(false)
   }
 
@@ -1178,7 +1364,7 @@ function AlertsReports({ canEdit, showToast }) {
         title="Alerts & Reports"
         sub={`${alerts.filter(a => !a.ack).length} unacknowledged alerts`}
         action={canEdit && (
-          <button onClick={() => setModal(true)} className="px-4 py-2 text-white text-sm font-medium rounded-lg hover:opacity-90"
+          <button onClick={openAdd} className="px-4 py-2 text-white text-sm font-medium rounded-lg hover:opacity-90"
                   style={{ background: C.grad }}>+ Report Issue</button>
         )}
       />
@@ -1224,13 +1410,25 @@ function AlertsReports({ canEdit, showToast }) {
                     Acknowledge
                   </button>
                 )}
+                {canEdit && (
+                  <button onClick={() => openEdit(a)}
+                          className="text-xs px-3 py-1.5 rounded-md border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 transition-colors shrink-0">
+                    Edit
+                  </button>
+                )}
+                {canEdit && (
+                  <button onClick={() => deleteAlert(a)}
+                          className="text-xs px-3 py-1.5 rounded-md border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors shrink-0">
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           )
         })}
       </div>
 
-      <Modal open={modal} title="Report Issue" onClose={() => setModal(false)}>
+      <Modal open={modal} title={editId ? 'Edit Alert' : 'Report Issue'} onClose={() => setModal(false)}>
         <form onSubmit={handleReport} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Alert Type">
@@ -1263,7 +1461,7 @@ function AlertsReports({ canEdit, showToast }) {
             <button type="button" onClick={() => setModal(false)}
                     className="px-4 py-2 text-sm text-gray-400 border border-gray-700 rounded-lg hover:text-white transition-colors">Cancel</button>
             <button type="submit" className="px-5 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90"
-                    style={{ background: C.grad }}>Submit Report</button>
+                    style={{ background: C.grad }}>{editId ? 'Update Alert' : 'Submit Report'}</button>
           </div>
         </form>
       </Modal>
@@ -1479,8 +1677,10 @@ export default function ProductionTab() {
   const [notifications, setNotifications] = useState(NOTIFICATIONS_DATA)
   const [notifFilter, setNotifFilter]     = useState('all')
 
-  // Edit access: super_admin and department_head (production) can edit; management is read-only
-  const canEdit = isSuperAdmin || isDepartmentHead || (user?.role === 'department_user' && ['equipment', 'maintenance', 'quality', 'alerts'].includes(activeTab))
+  // Edit access: super_admin and department_head can edit all production modules.
+  // department_user can edit most operational tabs but not KPI/Cost.
+  const deptUserEditableTabs = ['monitor', 'equipment', 'maintenance', 'quality', 'shifts', 'planning', 'alerts']
+  const canEdit = isSuperAdmin || isDepartmentHead || (user?.role === 'department_user' && deptUserEditableTabs.includes(activeTab))
   // Cost Tracking: only super_admin and management (finance/exec level)
   const canViewCosts = isSuperAdmin || isManagement
 
