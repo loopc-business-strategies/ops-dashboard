@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const BASE = 'http://localhost:5000/api/erp-accounting'
+const BASE = '/api/erp-accounting'
 
 // Helper to get auth config
 const getAuthConfig = (_token, params = null) => {
