@@ -341,14 +341,14 @@ function TabKPI({ batches, certs, sessions }) {
 }
 
 // ─── TAB: Calendar ──────────────────────────────────────────────────────────────
-function TabCalendar({ sessions, setSessions, canEdit, isTrainee, showToast, onShowSession }) {
+function TabCalendar({ sessions, setSessions, canEdit, isTrainee, showToast, onShowSession, setModal }) {
   const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
   const myBatch = 'Batch A'
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Training Calendar" sub={`April 2026 — ${isTrainee ? 'Your sessions only' : 'All scheduled sessions'}`}>
-        {canEdit && <button style={B.pri} onClick={() => showToast('Add Session','Session form opens')}>+ Add Session</button>}
+        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'session', data:null })}>+ Add Session</button>}
       </SH>
 
       <div style={{ display:'flex', gap:12, marginBottom:4, fontSize:11 }}>
@@ -383,18 +383,45 @@ function TabCalendar({ sessions, setSessions, canEdit, isTrainee, showToast, onS
           )
         })}
       </div>
+
+      {canEdit && !isTrainee && (
+        <TableWrap>
+          <TableHead title="Session List" subtitle="Quick manage sessions" />
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', minWidth:780 }}>
+              <thead><tr>{['Title','Date','Time','Trainer','Batch','Status','Actions'].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
+              <tbody>
+                {sessions.map(s => (
+                  <tr key={s.id}>
+                    <td style={{ ...TD, fontWeight:700, color:C.t1 }}>{s.title}</td>
+                    <td style={{ ...TD, color:C.t3 }}>{s.date}</td>
+                    <td style={TD}>{s.time}</td>
+                    <td style={TD}>{s.trainer}</td>
+                    <td style={TD}>{s.batch}</td>
+                    <td style={TD}><Badge s={s.st} /></td>
+                    <td style={TD}>
+                      <button onClick={() => setModal({ type:'session', data:s })} style={{ ...B.sec, ...B.sm, marginRight:6 }}>Edit</button>
+                      <button onClick={() => { if (window.confirm('Delete this session?')) { setSessions(p => p.filter(x => x.id !== s.id)); showToast('Deleted', 'Session removed') } }} style={{ background:'none', border:'none', color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Del</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </TableWrap>
+      )}
     </div>
   )
 }
 
 // ─── TAB: Batches ───────────────────────────────────────────────────────────────
-function TabBatches({ batches, setBatches, canEdit, isTrainee, showToast, onOpenCreate }) {
+function TabBatches({ batches, setBatches, canEdit, isTrainee, showToast, setModal }) {
   const showData = isTrainee ? batches.filter(b => b.name.includes('Batch A')) : batches
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Batch Management" sub={`${showData.length} batches${isTrainee ? ' — your enrollment' : ''}`}>
-        {canEdit && <button style={B.pri} onClick={onOpenCreate}>+ Create Batch</button>}
+        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'batch', data:null })}>+ Create Batch</button>}
       </SH>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:12 }}>
@@ -420,8 +447,9 @@ function TabBatches({ batches, setBatches, canEdit, isTrainee, showToast, onOpen
               <ProgBar p={b.completion} color={barColor} height={6} />
               {canEdit && (
                 <div style={{ marginTop:10, display:'flex', gap:6 }}>
-                  <button onClick={e => { e.stopPropagation(); showToast('Edit Batch', `${b.name} edit form opens here`) }} style={{ ...B.sec, ...B.sm }}>Edit</button>
+                  <button onClick={e => { e.stopPropagation(); setModal({ type:'batch', data:b }) }} style={{ ...B.sec, ...B.sm }}>Edit</button>
                   <button onClick={e => { e.stopPropagation(); showToast('Trainees', `View all ${b.trainees} trainees in ${b.name}`) }} style={{ ...B.ghost, ...B.sm }}>View Trainees</button>
+                  <button onClick={e => { e.stopPropagation(); if (window.confirm('Delete this batch?')) { setBatches(p => p.filter(x => x.id !== b.id)); showToast('Deleted', 'Batch removed') } }} style={{ background:'none', border:'none', color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Del</button>
                 </div>
               )}
             </div>
@@ -445,7 +473,7 @@ function TabAttendance({ attendance, trainees, canEdit, isTrainee, showToast, on
         <div style={{ overflowX:'auto' }}>
           <table style={{ width:'100%', borderCollapse:'collapse', minWidth:750 }}>
             <thead><tr>
-              {['Session','Date','Batch','Present','Absent','Late','Total','Attendance %','Status'].map(h => <th key={h} style={TH}>{h}</th>)}
+              {['Session','Date','Batch','Present','Absent','Late','Total','Attendance %','Status', ...(canEdit ? ['Actions'] : [])].map(h => <th key={h} style={TH}>{h}</th>)}
             </tr></thead>
             <tbody>
               {attendance.map((a, i) => {
@@ -467,6 +495,7 @@ function TabAttendance({ attendance, trainees, canEdit, isTrainee, showToast, on
                       </div>
                     </td>
                     <td style={TD}>{p < 75 ? <Badge s="Absent" /> : p >= 90 ? <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:'rgba(0,200,150,.12)', color:C.green, border:'1px solid rgba(0,200,150,.3)' }}>Excellent</span> : <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:'rgba(255,214,0,.1)', color:C.yellow, border:'1px solid rgba(255,214,0,.3)' }}>Acceptable</span>}</td>
+                    {canEdit && <td style={TD}><button onClick={() => showToast('Tip', 'Use Mark Attendance to create corrected records')} style={{ ...B.ghost, ...B.sm }}>Amend</button></td>}
                   </tr>
                 )
               })}
@@ -510,13 +539,13 @@ function TabAttendance({ attendance, trainees, canEdit, isTrainee, showToast, on
 }
 
 // ─── TAB: Resources ─────────────────────────────────────────────────────────────
-function TabResources({ resources, setResources, canEdit, isTrainee, showToast }) {
+function TabResources({ resources, setResources, canEdit, isTrainee, showToast, setModal }) {
   const showData = isTrainee ? resources.filter(r => r.prog === 'Gold Safety Essentials') : resources
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Resource Library" sub={isTrainee ? 'Your program materials only' : 'All training materials'}>
-        {canEdit && <button style={B.pri} onClick={() => showToast('Upload', 'File upload dialog opens here')}>⬆ Upload Material</button>}
+        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'resource', data:null })}>⬆ Upload Material</button>}
       </SH>
 
       <select style={{ background:C.inp, border:`1px solid ${C.border}`, color:C.t2, borderRadius:7, padding:'7px 14px', fontFamily:'inherit', fontSize:12, outline:'none', alignSelf:'flex-start' }}>
@@ -548,6 +577,7 @@ function TabResources({ resources, setResources, canEdit, isTrainee, showToast }
                     <td style={{ ...TD, color:C.t3 }}>{r.views} views</td>
                     <td style={TD}>
                       <button onClick={() => showToast('Download', `${r.name} downloaded`)} style={{ ...B.sec, ...B.sm }}>⬇ Download</button>
+                      {canEdit && <button onClick={() => setModal({ type:'resource', data:r })} style={{ ...B.ghost, ...B.sm, marginLeft:6 }}>Edit</button>}
                       {canEdit && <button onClick={() => { setResources(p => p.filter(x => x.id !== r.id)); showToast('Deleted', 'File removed') }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit', marginLeft:8 }}>Del</button>}
                     </td>
                   </tr>
@@ -562,7 +592,7 @@ function TabResources({ resources, setResources, canEdit, isTrainee, showToast }
 }
 
 // ─── TAB: Assessments ───────────────────────────────────────────────────────────
-function TabAssessments({ assessments, setAssessments, canEdit, isTrainee, showToast, onOpenAdd, onShowProfile }) {
+function TabAssessments({ assessments, setAssessments, canEdit, isTrainee, showToast, onOpenAdd, onShowProfile, setModal }) {
   const myData = isTrainee ? assessments.filter(a => a.trainee === 'Ahmad Yusuf') : assessments
   const pass = assessments.filter(a => a.pass).length
   const passRate = pct(pass, assessments.length)
@@ -585,7 +615,7 @@ function TabAssessments({ assessments, setAssessments, canEdit, isTrainee, showT
         <div style={{ overflowX:'auto' }}>
           <table style={{ width:'100%', borderCollapse:'collapse', minWidth: isTrainee ? 500 : 700 }}>
             <thead><tr>
-              {[...(!isTrainee ? ['Trainee'] : []), 'Program','Score','Result','Date','Attempt'].map(h => <th key={h} style={TH}>{h}</th>)}
+              {[...(!isTrainee ? ['Trainee'] : []), 'Program','Score','Result','Date','Attempt', ...(!isTrainee && canEdit ? ['Actions'] : [])].map(h => <th key={h} style={TH}>{h}</th>)}
             </tr></thead>
             <tbody>
               {myData.map((a, i) => (
@@ -606,6 +636,10 @@ function TabAssessments({ assessments, setAssessments, canEdit, isTrainee, showT
                   <td style={TD}><Badge s={a.pass ? 'Pass' : 'Fail'} /></td>
                   <td style={{ ...TD, color:C.t3 }}>{a.date}</td>
                   <td style={{ ...TD, color: a.attempt > 1 ? C.yellow : C.t3 }}>#{a.attempt}{a.attempt > 1 ? ' (Retest)' : ''}</td>
+                  {!isTrainee && canEdit && <td style={TD}>
+                    <button onClick={() => setModal({ type:'assess', data:a })} style={{ ...B.sec, ...B.sm, marginRight:6 }}>Edit</button>
+                    <button onClick={() => { if (window.confirm('Delete this result?')) { setAssessments(p => p.filter((x, idx) => idx !== i)); showToast('Deleted', 'Assessment removed') } }} style={{ background:'none', border:'none', color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Del</button>
+                  </td>}
                 </tr>
               ))}
             </tbody>
@@ -617,13 +651,13 @@ function TabAssessments({ assessments, setAssessments, canEdit, isTrainee, showT
 }
 
 // ─── TAB: Certifications ────────────────────────────────────────────────────────
-function TabCerts({ certs, setCerts, canEdit, isTrainee, showToast, onShowProfile }) {
+function TabCerts({ certs, setCerts, canEdit, canApprove, isTrainee, showToast, onShowProfile, setModal }) {
   const myData = isTrainee ? certs.filter(c => c.trainee === 'Ahmad Yusuf') : certs
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Certification Management" sub={isTrainee ? 'Your certificates' : 'All certifications'}>
-        {canEdit && <button style={B.pri} onClick={() => showToast('Issue Cert', 'Certificate issuance form opens here')}>+ Issue Cert</button>}
+        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'cert', data:null })}>+ Issue Cert</button>}
         <button style={B.ghost}>⬇ Export List</button>
       </SH>
 
@@ -650,11 +684,12 @@ function TabCerts({ certs, setCerts, canEdit, isTrainee, showToast, onShowProfil
                     <td style={TD}><Badge s={c.st} /></td>
                     <td style={TD}>
                       {c.doc !== '—' && <button onClick={() => showToast('Download', `${c.cert} certificate downloaded`)} style={{ background:'none', border:'none', cursor:'pointer', color:C.pur, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>⬇ Download</button>}
-                      {canEdit && c.st === 'Pending' && <button onClick={() => {
+                      {canApprove && c.st === 'Pending' && <button onClick={() => {
                         setCerts(p => p.map(x => x.trainee === c.trainee && x.st === 'Pending' ? {...x, st:'Issued', issued:'Apr 13, 2026', expiry:'Apr 13, 2028'} : x))
                         showToast('Certificate Approved', `${c.trainee} certificate issued`)
                       }} style={{ background:'none', border:'none', cursor:'pointer', color:C.green, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Approve</button>}
-                      {canEdit && c.st === 'Expired' && <button onClick={() => showToast('Renewal', `Renewal process initiated for ${c.trainee}`)} style={{ background:'none', border:'none', cursor:'pointer', color:C.orange, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Renew</button>}
+                      {canEdit && <button onClick={() => setModal({ type:'cert', data:c })} style={{ ...B.ghost, ...B.sm, marginRight:6 }}>Edit</button>}
+                      {canEdit && <button onClick={() => { if (window.confirm('Delete this certificate row?')) { setCerts(p => p.filter((x, idx) => idx !== i)); showToast('Deleted', 'Certificate record removed') } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>}
                     </td>
                   </tr>
                 )
@@ -738,8 +773,8 @@ function TabFeedback({ feedback, setFeedback, canEdit, isTrainee, isTrainer, sho
 }
 
 // ─── TAB: Analytics ─────────────────────────────────────────────────────────────
-function TabAnalytics({ batches, canEdit, isAdmin, isHead }) {
-  if (!isAdmin && !isHead) return <Restrict text="Analytics & Reports are restricted to Training Head and Super Admin." />
+function TabAnalytics({ batches, canEdit, isAdmin, isHead, isMgmt }) {
+  if (!isAdmin && !isHead && !isMgmt) return <Restrict text="Analytics & Reports are restricted to leadership roles." />
 
   const enroll = [{m:'Nov',v:3},{m:'Dec',v:5},{m:'Jan',v:8},{m:'Feb',v:6},{m:'Mar',v:12},{m:'Apr',v:7}]
 
@@ -811,20 +846,20 @@ function TabAnalytics({ batches, canEdit, isAdmin, isHead }) {
 }
 
 // ─── TAB: Trainees ──────────────────────────────────────────────────────────────
-function TabTrainees({ trainees, canEdit, isTrainee, showToast, onShowProfile }) {
+function TabTrainees({ trainees, setTrainees, canEdit, isTrainee, showToast, onShowProfile, setModal }) {
   const showData = isTrainee ? trainees.filter(t => t.name === 'Ahmad Yusuf') : trainees
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
       <SH title="Trainee Profiles" sub={isTrainee ? 'Your profile' : `All ${trainees.length} trainees`}>
-        {canEdit && <button style={B.pri} onClick={() => showToast('Add Trainee','New trainee enrollment form')}>+ Enroll Trainee</button>}
+        {canEdit && <button style={B.pri} onClick={() => setModal({ type:'trainee', data:null })}>+ Enroll Trainee</button>}
       </SH>
 
       <TableWrap>
         <div style={{ overflowX:'auto' }}>
           <table style={{ width:'100%', borderCollapse:'collapse', minWidth:750 }}>
             <thead><tr>
-              {['Trainee','Department','Role','Programs','Attendance','Certs','Profile'].map(h => <th key={h} style={TH}>{h}</th>)}
+              {['Trainee','Department','Role','Programs','Attendance','Certs','Profile', ...(canEdit && !isTrainee ? ['Actions'] : [])].map(h => <th key={h} style={TH}>{h}</th>)}
             </tr></thead>
             <tbody>
               {showData.map(t => (
@@ -849,6 +884,10 @@ function TabTrainees({ trainees, canEdit, isTrainee, showToast, onShowProfile })
                   </td>
                   <td style={TD}><span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background: t.certs > 0 ? 'rgba(0,200,150,.12)':'rgba(255,255,255,.05)', color: t.certs > 0 ? C.green : C.t3, border:`1px solid ${t.certs > 0 ? 'rgba(0,200,150,.3)':'rgba(255,255,255,.1)'}` }}>{t.certs} cert{t.certs !== 1 ? 's' : ''}</span></td>
                   <td style={TD}><button onClick={() => onShowProfile(t.name)} style={{ ...B.sec, ...B.sm }}>View Profile</button></td>
+                  {canEdit && !isTrainee && <td style={TD}>
+                    <button onClick={() => setModal({ type:'trainee', data:t })} style={{ ...B.sec, ...B.sm, marginRight:6 }}>Edit</button>
+                    <button onClick={() => { if (window.confirm(`Delete ${t.name}?`)) { setTrainees(p => p.filter(x => x.name !== t.name)); showToast('Deleted', 'Trainee removed') } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
+                  </td>}
                 </tr>
               ))}
             </tbody>
@@ -860,8 +899,8 @@ function TabTrainees({ trainees, canEdit, isTrainee, showToast, onShowProfile })
 }
 
 // ─── TAB: Skill Gap ─────────────────────────────────────────────────────────────
-function TabSkillGap({ canEdit, isAdmin, isUser, showToast }) {
-  if (!isAdmin && !isUser) return <Restrict text="Skill Gap Analysis is restricted to Super Admin and HR Manager." />
+function TabSkillGap({ canEdit, isAdmin, isHead, isUser, showToast }) {
+  if (!isAdmin && !isHead && !isUser) return <Restrict text="Skill Gap Analysis is restricted to authorized training roles." />
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
@@ -922,11 +961,12 @@ function TabSkillGap({ canEdit, isAdmin, isUser, showToast }) {
 }
 
 // ─── Modals ──────────────────────────────────────────────────────────────────────
-function ModalSession({ onClose, onAdd }) {
-  const [f, setF] = useState({ title:'', prog:'Gold Safety Essentials', date:'', time:'', trainer:'', venue:'Training Room A', batch:'Batch A — Gold Safety', st:'Scheduled' })
+function ModalSession({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial ? { ...initial } : { title:'', prog:'Gold Safety Essentials', date:'', time:'', trainer:'', venue:'Training Room A', batch:'Batch A — Gold Safety', st:'Scheduled' })
   const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  const isEdit = !!initial
   return (
-    <Modal title="Add Training Session" sub="Schedule a new session on the training calendar" onClose={onClose} onSave={() => f.title.trim() && onAdd(f)} saveLabel="Add Session">
+    <Modal title={isEdit ? 'Edit Training Session' : 'Add Training Session'} sub="Schedule or update a training session" onClose={onClose} onSave={() => f.title.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Add Session'}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
         <div><ML>Session Title</ML><MI value={f.title} onChange={s('title')} placeholder="e.g. Gold Safety Induction" /></div>
         <div><ML>Program</ML><MS value={f.prog} onChange={s('prog')}>{['Gold Safety Essentials','Equipment Operation','Compliance & Legal','Leadership Development','Tech Skills'].map(o=><option key={o}>{o}</option>)}</MS></div>
@@ -947,11 +987,12 @@ function ModalSession({ onClose, onAdd }) {
   )
 }
 
-function ModalBatch({ onClose, onAdd }) {
-  const [f, setF] = useState({ name:'', prog:'Gold Safety Essentials', start:'', end:'', trainer:'', st:'Active' })
+function ModalBatch({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial ? { ...initial } : { name:'', prog:'Gold Safety Essentials', start:'', end:'', trainer:'', trainees:0, completion:0, st:'Active' })
   const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  const isEdit = !!initial
   return (
-    <Modal title="Create Batch" sub="Register a new training batch" onClose={onClose} onSave={() => f.name.trim() && onAdd(f)} saveLabel="Create Batch">
+    <Modal title={isEdit ? 'Edit Batch' : 'Create Batch'} sub="Register or update a training batch" onClose={onClose} onSave={() => f.name.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Create Batch'}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
         <div><ML>Batch Name</ML><MI value={f.name} onChange={s('name')} placeholder="e.g. Batch E — New Joiners" /></div>
         <div><ML>Program</ML><MS value={f.prog} onChange={s('prog')}>{['Gold Safety Essentials','Equipment Operation','Compliance & Legal','Leadership Development','Tech Skills'].map(o=><option key={o}>{o}</option>)}</MS></div>
@@ -964,12 +1005,16 @@ function ModalBatch({ onClose, onAdd }) {
         <div><ML>Trainer</ML><MI value={f.trainer} onChange={s('trainer')} placeholder="Trainer name" /></div>
         <div><ML>Status</ML><MS value={f.st} onChange={s('st')}>{['Active','On Hold','Completed'].map(o=><option key={o}>{o}</option>)}</MS></div>
       </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Trainee Count</ML><MI type="number" value={f.trainees} onChange={s('trainees')} min="0" /></div>
+        <div><ML>Completion %</ML><MI type="number" value={f.completion} onChange={s('completion')} min="0" max="100" /></div>
+      </div>
     </Modal>
   )
 }
 
 const ATT_TRAINEES = ['Ahmad Yusuf','Zara Malik','Hassan Ali','Bilal Raza','Omar Khan','Layla Siddiqui','Nadia Khan','Karim H.','Sara A.','Fatima N.','Ali B.','Tariq O.']
-function ModalAttendance({ onClose, showToast }) {
+function ModalAttendance({ onClose, showToast, onSaveRecord }) {
   const [state, setState] = useState({})
   function set(i, v) { setState(p => ({...p,[i]:v})) }
 
@@ -979,6 +1024,7 @@ function ModalAttendance({ onClose, showToast }) {
         const p = Object.values(state).filter(v=>v==='P').length
         const a = Object.values(state).filter(v=>v==='A').length
         const l = Object.values(state).filter(v=>v==='L').length
+        onSaveRecord?.({ sess:'Manual Attendance Entry', date:'Today', batch:'Batch A', present:p, absent:a, late:l, total:p+a+l })
         showToast('Attendance Saved', `Present: ${p} · Absent: ${a} · Late: ${l}`)
         onClose()
       }} saveLabel="Save Attendance">
@@ -1003,12 +1049,13 @@ function ModalAttendance({ onClose, showToast }) {
   )
 }
 
-function ModalAssessment({ onClose, onAdd }) {
-  const [f, setF] = useState({ trainee:'Ahmad Yusuf', prog:'Gold Safety Essentials', score:'', attempt:'1' })
+function ModalAssessment({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial ? { ...initial, score:String(initial.score), attempt:String(initial.attempt) } : { trainee:'Ahmad Yusuf', prog:'Gold Safety Essentials', score:'', attempt:'1', date:'Apr 13, 2026' })
   const s = k => e => setF(p => ({...p,[k]:e.target.value}))
+  const isEdit = !!initial
   return (
-    <Modal title="Add Assessment Result" sub="Record a trainee's assessment score" onClose={onClose}
-      onSave={() => { if (!f.score) return; onAdd(f) }} saveLabel="Save Result">
+    <Modal title={isEdit ? 'Edit Assessment Result' : 'Add Assessment Result'} sub="Record or update a trainee's assessment score" onClose={onClose}
+      onSave={() => { if (!f.score) return; onSave(f) }} saveLabel={isEdit ? 'Save Changes' : 'Save Result'}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
         <div><ML>Trainee</ML><MS value={f.trainee} onChange={s('trainee')}>{['Ahmad Yusuf','Zara Malik','Hassan Ali','Nadia Khan','Layla Siddiqui','Bilal Raza'].map(o=><option key={o}>{o}</option>)}</MS></div>
         <div><ML>Program</ML><MS value={f.prog} onChange={s('prog')}>{['Gold Safety Essentials','Equipment Operation','Compliance & Legal','Leadership Development'].map(o=><option key={o}>{o}</option>)}</MS></div>
@@ -1016,6 +1063,72 @@ function ModalAssessment({ onClose, onAdd }) {
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
         <div><ML>Score (%)</ML><MI type="number" value={f.score} onChange={s('score')} placeholder="0–100" min="0" max="100" /></div>
         <div><ML>Attempt #</ML><MI type="number" value={f.attempt} onChange={s('attempt')} min="1" /></div>
+      </div>
+      <div><ML>Date</ML><MI value={f.date} onChange={s('date')} placeholder="Apr 13, 2026" /></div>
+    </Modal>
+  )
+}
+
+function ModalResource({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial ? { ...initial } : { name:'', prog:'Gold Safety Essentials', type:'PDF', by:'', date:'', views:0 })
+  const s = k => e => setF(p => ({ ...p, [k]: e.target.value }))
+  const isEdit = !!initial
+  return (
+    <Modal title={isEdit ? 'Edit Resource' : 'Upload Resource'} sub="Manage training library files" onClose={onClose} onSave={() => f.name.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Upload'}>
+      <div><ML>File Name</ML><MI value={f.name} onChange={s('name')} placeholder="Resource file name" /></div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Program</ML><MS value={f.prog} onChange={s('prog')}>{['Gold Safety Essentials','Equipment Operation','Compliance & Legal','Leadership Development','Tech Skills'].map(o=><option key={o}>{o}</option>)}</MS></div>
+        <div><ML>Type</ML><MS value={f.type} onChange={s('type')}>{['PDF','Video','Document'].map(o=><option key={o}>{o}</option>)}</MS></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Uploaded By</ML><MI value={f.by} onChange={s('by')} placeholder="Your name" /></div>
+        <div><ML>Date</ML><MI value={f.date} onChange={s('date')} placeholder="Apr 20, 2026" /></div>
+      </div>
+      <div><ML>Views</ML><MI type="number" value={f.views} onChange={s('views')} min="0" /></div>
+    </Modal>
+  )
+}
+
+function ModalCert({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial ? { ...initial } : { trainee:'Ahmad Yusuf', cert:'', issued:'', expiry:'', st:'Pending', doc:'' })
+  const s = k => e => setF(p => ({ ...p, [k]: e.target.value }))
+  const isEdit = !!initial
+  return (
+    <Modal title={isEdit ? 'Edit Certificate' : 'Issue Certificate'} sub="Create or update certification record" onClose={onClose} onSave={() => f.cert.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Issue Cert'}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Trainee</ML><MI value={f.trainee} onChange={s('trainee')} /></div>
+        <div><ML>Certificate</ML><MI value={f.cert} onChange={s('cert')} placeholder="Certificate name" /></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Issued Date</ML><MI value={f.issued} onChange={s('issued')} placeholder="Apr 20, 2026" /></div>
+        <div><ML>Expiry Date</ML><MI value={f.expiry} onChange={s('expiry')} placeholder="Apr 20, 2028" /></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Status</ML><MS value={f.st} onChange={s('st')}>{['Issued','Pending','Expired'].map(o=><option key={o}>{o}</option>)}</MS></div>
+        <div><ML>Doc File</ML><MI value={f.doc} onChange={s('doc')} placeholder="cert_file.pdf" /></div>
+      </div>
+    </Modal>
+  )
+}
+
+function ModalTrainee({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial ? { ...initial, prog:Array.isArray(initial.prog) ? initial.prog.join(', ') : initial.prog } : { name:'', dept:'Operations', role:'', email:'', prog:'Gold Safety Essentials', att:0, certs:0 })
+  const s = k => e => setF(p => ({ ...p, [k]: e.target.value }))
+  const isEdit = !!initial
+  return (
+    <Modal title={isEdit ? 'Edit Trainee' : 'Enroll Trainee'} sub="Create or update trainee profile" onClose={onClose} onSave={() => f.name.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Enroll'}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Name</ML><MI value={f.name} onChange={s('name')} placeholder="Full name" /></div>
+        <div><ML>Email</ML><MI value={f.email} onChange={s('email')} placeholder="name@ops.kz" /></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Department</ML><MS value={f.dept} onChange={s('dept')}>{['Operations','Production','Quality','Training','Sales','Finance','HR'].map(o=><option key={o}>{o}</option>)}</MS></div>
+        <div><ML>Role</ML><MI value={f.role} onChange={s('role')} placeholder="Job title" /></div>
+      </div>
+      <div><ML>Programs (comma-separated)</ML><MI value={f.prog} onChange={s('prog')} placeholder="Gold Safety Essentials, Tech Skills" /></div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><ML>Attendance %</ML><MI type="number" value={f.att} onChange={s('att')} min="0" max="100" /></div>
+        <div><ML>Certificates</ML><MI type="number" value={f.certs} onChange={s('certs')} min="0" /></div>
       </div>
     </Modal>
   )
@@ -1176,7 +1289,8 @@ export default function TrainingTab() {
   const isMgmt   = perms.isManagement
   const isUser   = perms.isDepartmentUser   // Trainer or HR Manager
   const isExternal = perms.isExternal       // Trainee
-  const canEdit  = isAdmin || isHead
+  const canEdit  = isAdmin || isHead || isUser
+  const canApprove = isAdmin || isHead
 
   // For display purposes: trainers see trainer view, trainees see self-only view
   const isTrainee = isExternal
@@ -1185,19 +1299,21 @@ export default function TrainingTab() {
   const [activeTab,   setActiveTab]   = useState('kpi')
   const [sessions,    setSessions]    = useState(INIT_SESSIONS)
   const [batches,     setBatches]     = useState(INIT_BATCHES)
-  const [attendance]                  = useState(INIT_ATTENDANCE)
+  const [attendance,  setAttendance]  = useState(INIT_ATTENDANCE)
   const [resources,   setResources]   = useState(INIT_RESOURCES)
   const [assessments, setAssessments] = useState(INIT_ASSESSMENTS)
   const [certs,       setCerts]       = useState(INIT_CERTS)
   const [feedback,    setFeedback]    = useState(INIT_FEEDBACK)
-  const [trainees]                    = useState(INIT_TRAINEES)
+  const [trainees,    setTrainees]    = useState(INIT_TRAINEES)
   const [notifs,      setNotifs]      = useState(INIT_NOTIFS)
 
-  const [modal,     setModal]     = useState(null)   // 'session'|'batch'|'att'|'assess'|'feedback'|'profile:<name>'|'sessDetail'
+  const [modal,     setModal]     = useState({ type:null, data:null })
   const [sessDet,   setSessDet]   = useState(null)
   const [profName,  setProfName]  = useState(null)
   const [notifOpen, setNotifOpen] = useState(false)
   const [toast,     setToast]     = useState(null)
+
+  function closeModal() { setModal({ type:null, data:null }) }
 
   function showToast(title, msg) {
     setToast({ title, msg })
@@ -1205,31 +1321,106 @@ export default function TrainingTab() {
     showToast._t = setTimeout(() => setToast(null), 3000)
   }
 
-  function addSession(f) {
-    setSessions(p => [...p, { id:Date.now(), title:f.title.trim(), prog:f.prog, date:f.date||'Apr 30', day:30, time:f.time||'09:00', trainer:f.trainer||'TBD', batch:f.batch, venue:f.venue, st:f.st }])
-    setModal(null)
-    showToast('Session Added', f.title.trim() + ' added to calendar')
+  function saveSession(f) {
+    const payload = {
+      id: f.id || Date.now(),
+      title: f.title.trim(),
+      prog: f.prog,
+      date: f.date || 'Apr 30',
+      day: f.day || parseInt((f.date || '').split('-')[2], 10) || 30,
+      time: f.time || '09:00',
+      trainer: f.trainer || 'TBD',
+      batch: f.batch,
+      venue: f.venue,
+      st: f.st,
+    }
+    setSessions(p => f.id ? p.map(x => x.id === f.id ? payload : x) : [...p, payload])
+    closeModal()
+    showToast(f.id ? 'Session Updated' : 'Session Added', payload.title)
   }
-  function addBatch(f) {
-    setBatches(p => [...p, { id:Date.now(), name:f.name.trim(), prog:f.prog, start:f.start||'TBD', end:f.end||'TBD', trainer:f.trainer||'TBD', trainees:0, st:f.st, completion:0 }])
-    setModal(null)
-    showToast('Batch Created', f.name.trim() + ' created successfully')
+  function saveBatch(f) {
+    const payload = {
+      id: f.id || Date.now(),
+      name: f.name.trim(),
+      prog: f.prog,
+      start: f.start || 'TBD',
+      end: f.end || 'TBD',
+      trainer: f.trainer || 'TBD',
+      trainees: Number(f.trainees) || 0,
+      st: f.st,
+      completion: Number(f.completion) || 0,
+    }
+    setBatches(p => f.id ? p.map(x => x.id === f.id ? payload : x) : [...p, payload])
+    closeModal()
+    showToast(f.id ? 'Batch Updated' : 'Batch Created', payload.name)
   }
-  function addAssessment(f) {
+  function saveResource(f) {
+    const payload = {
+      id: f.id || Date.now(),
+      name: f.name.trim(),
+      prog: f.prog,
+      type: f.type,
+      by: f.by || 'You',
+      date: f.date || 'Today',
+      views: Number(f.views) || 0,
+    }
+    setResources(p => f.id ? p.map(x => x.id === f.id ? payload : x) : [...p, payload])
+    closeModal()
+    showToast(f.id ? 'Resource Updated' : 'Resource Added', payload.name)
+  }
+  function saveAssessment(f) {
     const score = parseInt(f.score) || 0
     const pass  = score >= 75
-    setAssessments(p => [...p, { trainee:f.trainee, prog:f.prog, score, pass, date:'Apr 13, 2026', attempt:parseInt(f.attempt)||1 }])
-    setModal(null)
-    showToast('Assessment Saved', `Score: ${score}% — ${pass ? '✓ PASS' : '✗ FAIL'}`)
+    const payload = {
+      id: f.id || Date.now(),
+      trainee: f.trainee,
+      prog: f.prog,
+      score,
+      pass,
+      date: f.date || 'Apr 13, 2026',
+      attempt: parseInt(f.attempt, 10) || 1,
+    }
+    setAssessments(p => f.id ? p.map(x => x.id === f.id ? payload : x) : [...p, payload])
+    closeModal()
+    showToast('Assessment Saved', `Score: ${score}% — ${pass ? 'PASS' : 'FAIL'}`)
+  }
+  function saveCert(f) {
+    const payload = {
+      id: f.id || Date.now(),
+      trainee: f.trainee,
+      cert: f.cert,
+      issued: f.issued || '—',
+      expiry: f.expiry || '—',
+      st: f.st,
+      doc: f.doc || '—',
+    }
+    setCerts(p => f.id ? p.map(x => (x.id || `${x.trainee}-${x.cert}`) === (f.id || `${f.trainee}-${f.cert}`) ? payload : x) : [...p, payload])
+    closeModal()
+    showToast(f.id ? 'Certificate Updated' : 'Certificate Added', payload.cert)
+  }
+  function saveTrainee(f) {
+    const payload = {
+      id: f.id || Date.now(),
+      name: f.name,
+      dept: f.dept,
+      role: f.role,
+      email: f.email,
+      prog: Array.isArray(f.prog) ? f.prog : String(f.prog || '').split(',').map(x => x.trim()).filter(Boolean),
+      att: Number(f.att) || 0,
+      certs: Number(f.certs) || 0,
+    }
+    setTrainees(p => f.id ? p.map(x => x.id === f.id || x.name === f.name ? payload : x) : [...p, payload])
+    closeModal()
+    showToast(f.id ? 'Trainee Updated' : 'Trainee Enrolled', payload.name)
   }
   function addFeedback(f) {
     setFeedback(p => [...p, { trainer:'James O.', trainee:'You', session:'Equipment Operation', trainerRating:f.trainerRating, contentRating:f.contentRating, venueRating:f.venueRating, comment:f.comment }])
-    setModal(null)
+    closeModal()
     showToast('Feedback Submitted', 'Thank you for your feedback!')
   }
 
   const unreadCount = notifs.filter(n => !n.read).length
-  const shared = { sessions, setSessions, batches, setBatches, attendance, resources, setResources, assessments, setAssessments, certs, setCerts, feedback, setFeedback, trainees, notifs, setNotifs, canEdit, isAdmin, isHead, isMgmt, isUser, isTrainee, isTrainer, showToast }
+  const shared = { sessions, setSessions, batches, setBatches, attendance, setAttendance, resources, setResources, assessments, setAssessments, certs, setCerts, feedback, setFeedback, trainees, setTrainees, notifs, setNotifs, canEdit, canApprove, isAdmin, isHead, isMgmt, isUser, isTrainee, isTrainer, showToast, setModal }
 
   return (
     <div style={{ fontFamily:'inherit', color:C.t1 }}>
@@ -1253,24 +1444,27 @@ export default function TrainingTab() {
       </div>
 
       {activeTab === 'kpi'         && <TabKPI         {...shared} />}
-      {activeTab === 'calendar'    && <TabCalendar     {...shared} onShowSession={s => { setSessDet(s); setModal('sessDetail') }} />}
-      {activeTab === 'batches'     && <TabBatches      {...shared} onOpenCreate={() => setModal('batch')} />}
-      {activeTab === 'attendance'  && <TabAttendance   {...shared} onOpenAtt={() => setModal('att')} />}
+      {activeTab === 'calendar'    && <TabCalendar     {...shared} onShowSession={s => { setSessDet(s); setModal({ type:'sessDetail', data:null }) }} />}
+      {activeTab === 'batches'     && <TabBatches      {...shared} />}
+      {activeTab === 'attendance'  && <TabAttendance   {...shared} onOpenAtt={() => setModal({ type:'att', data:null })} />}
       {activeTab === 'resources'   && <TabResources    {...shared} />}
-      {activeTab === 'assessments' && <TabAssessments  {...shared} onOpenAdd={() => setModal('assess')} onShowProfile={n => { setProfName(n); setModal('profile') }} />}
-      {activeTab === 'certs'       && <TabCerts        {...shared} onShowProfile={n => { setProfName(n); setModal('profile') }} />}
-      {activeTab === 'feedback'    && <TabFeedback     {...shared} onOpenFeedback={() => setModal('feedback')} />}
+      {activeTab === 'assessments' && <TabAssessments  {...shared} onOpenAdd={() => setModal({ type:'assess', data:null })} onShowProfile={n => { setProfName(n); setModal({ type:'profile', data:null }) }} />}
+      {activeTab === 'certs'       && <TabCerts        {...shared} onShowProfile={n => { setProfName(n); setModal({ type:'profile', data:null }) }} />}
+      {activeTab === 'feedback'    && <TabFeedback     {...shared} onOpenFeedback={() => setModal({ type:'feedback', data:null })} />}
       {activeTab === 'analytics'   && <TabAnalytics    {...shared} />}
-      {activeTab === 'trainees'    && <TabTrainees     {...shared} onShowProfile={n => { setProfName(n); setModal('profile') }} />}
+      {activeTab === 'trainees'    && <TabTrainees     {...shared} onShowProfile={n => { setProfName(n); setModal({ type:'profile', data:null }) }} />}
       {activeTab === 'skillgap'    && <TabSkillGap     {...shared} />}
 
-      {modal === 'session'   && <ModalSession    onClose={() => setModal(null)} onAdd={addSession}    />}
-      {modal === 'batch'     && <ModalBatch      onClose={() => setModal(null)} onAdd={addBatch}      />}
-      {modal === 'att'       && <ModalAttendance onClose={() => setModal(null)} showToast={showToast} />}
-      {modal === 'assess'    && <ModalAssessment onClose={() => setModal(null)} onAdd={addAssessment} />}
-      {modal === 'feedback'  && <ModalFeedback   onClose={() => setModal(null)} onAdd={addFeedback}   />}
-      {modal === 'profile'   && profName && <ModalProfile name={profName} trainees={trainees} assessments={assessments} certs={certs} canEdit={canEdit} showToast={showToast} onClose={() => setModal(null)} />}
-      {modal === 'sessDetail'&& sessDet  && <ModalSessionDetail sess={sessDet} onClose={() => setModal(null)} onMarkAtt={() => { setModal('att') }} />}
+      {modal.type === 'session'   && <ModalSession    initial={modal.data} onClose={closeModal} onSave={saveSession} />}
+      {modal.type === 'batch'     && <ModalBatch      initial={modal.data} onClose={closeModal} onSave={saveBatch} />}
+      {modal.type === 'resource'  && <ModalResource   initial={modal.data} onClose={closeModal} onSave={saveResource} />}
+      {modal.type === 'att'       && <ModalAttendance onClose={closeModal} showToast={showToast} onSaveRecord={(r) => setAttendance(p => [r, ...p])} />}
+      {modal.type === 'assess'    && <ModalAssessment initial={modal.data} onClose={closeModal} onSave={saveAssessment} />}
+      {modal.type === 'cert'      && <ModalCert       initial={modal.data} onClose={closeModal} onSave={saveCert} />}
+      {modal.type === 'trainee'   && <ModalTrainee    initial={modal.data} onClose={closeModal} onSave={saveTrainee} />}
+      {modal.type === 'feedback'  && <ModalFeedback   onClose={closeModal} onAdd={addFeedback} />}
+      {modal.type === 'profile'   && profName && <ModalProfile name={profName} trainees={trainees} assessments={assessments} certs={certs} canEdit={canEdit} showToast={showToast} onClose={closeModal} />}
+      {modal.type === 'sessDetail'&& sessDet  && <ModalSessionDetail sess={sessDet} onClose={closeModal} onMarkAtt={() => { setModal({ type:'att', data:null }) }} />}
 
       {notifOpen && <NotifPanel notifs={notifs} setNotifs={setNotifs} onClose={() => setNotifOpen(false)} />}
       <Toast t={toast} />
