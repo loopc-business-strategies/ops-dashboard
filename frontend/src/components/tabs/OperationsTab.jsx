@@ -787,7 +787,7 @@ function TabVendors({ vendors, setVendors, canEdit, isAdmin, isHead, isMgmt, isU
                     {canEdit && <td style={TD}>
                       <button onClick={() => setModal({ type:'vendor-edit', data:v })} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
                       <button onClick={() => showToast('Contract','View contract document')} style={{ background:'none', border:'none', cursor:'pointer', color:C.cyan, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>View</button>
-                      {v.days && v.days < 120 && <button onClick={() => showToast('Renewal Started',`Renewal process initiated for ${v.name}`)} style={{ background:'none', border:'none', cursor:'pointer', color:C.green, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Renew</button>}
+                      {v.days && v.days < 120 && <button onClick={() => { setVendors(p => p.map(x => x.id===v.id ? { ...x, renewal:'Under Negotiation' } : x)); showToast('Renewal Started',`Renewal process initiated for ${v.name}`) }} style={{ background:'none', border:'none', cursor:'pointer', color:C.green, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Renew</button>}
                       <button onClick={() => { if (window.confirm(`Delete ${v.name}?`)) { setVendors(p => p.filter(x=>x.id!==v.id)); showToast('Deleted',`${v.name} removed`) } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
                     </td>}
                   </tr>
