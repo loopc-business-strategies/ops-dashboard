@@ -3,7 +3,7 @@
 
 import axios from 'axios'
 
-const BASE = 'http://localhost:5000/api/crm'
+const BASE = '/api/crm'
 const cfg  = ()       => ({ withCredentials: true })
 const cfgP = (params) => ({ withCredentials: true, params })
 
