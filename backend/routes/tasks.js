@@ -8,8 +8,48 @@
 const express = require('express')
 const Task    = require('../models/Task')
 const { protect } = require('../middleware/auth')
+const { Joi, validateBody, validateParams, validateQuery } = require('../middleware/validate')
 
 const router = express.Router()
+
+const taskIdParamSchema = Joi.object({
+  id: Joi.string().hex().length(24).required(),
+})
+
+const listTasksQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).optional(),
+  limit: Joi.number().integer().min(1).max(100).optional(),
+})
+
+const createTaskSchema = Joi.object({
+  title: Joi.string().trim().min(2).max(200).required(),
+  description: Joi.string().allow('').max(4000).optional(),
+  assignedTo: Joi.string().allow('').max(120).optional(),
+  assignedToId: Joi.string().hex().length(24).allow('', null).optional(),
+  department: Joi.string().allow('').max(80).optional(),
+  module: Joi.string().allow('').max(80).optional(),
+  linkedRecord: Joi.string().allow('').max(120).optional(),
+  status: Joi.string().valid('todo', 'in-progress', 'blocked', 'under-review', 'done', 'cancelled').optional(),
+  priority: Joi.string().valid('low', 'medium', 'high', 'critical').optional(),
+  dueDate: Joi.date().iso().allow(null, '').optional(),
+})
+
+const updateTaskSchema = Joi.object({
+  title: Joi.string().trim().min(2).max(200).optional(),
+  description: Joi.string().allow('').max(4000).optional(),
+  assignedTo: Joi.string().allow('').max(120).optional(),
+  assignedToId: Joi.string().hex().length(24).allow('', null).optional(),
+  department: Joi.string().allow('').max(80).optional(),
+  module: Joi.string().allow('').max(80).optional(),
+  linkedRecord: Joi.string().allow('').max(120).optional(),
+  status: Joi.string().valid('todo', 'in-progress', 'blocked', 'under-review', 'done', 'cancelled').optional(),
+  priority: Joi.string().valid('low', 'medium', 'high', 'critical').optional(),
+  dueDate: Joi.date().iso().allow(null, '').optional(),
+}).min(1)
+
+const commentSchema = Joi.object({
+  text: Joi.string().trim().min(1).max(2000).required(),
+})
 
 const normalize = (value = '') => String(value).trim().toLowerCase()
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -79,22 +119,30 @@ const sanitizeDepartmentUserTaskUpdate = (payload = {}) => {
 }
 
 // GET all tasks
-router.get('/', protect, async (req, res) => {
+router.get('/', protect, validateQuery(listTasksQuerySchema), async (req, res) => {
   try {
     const filter = buildTaskReadFilter(req.user)
     if (filter === null) {
       return res.status(403).json({ success: false, message: 'Access denied.' })
     }
 
-    const tasks = await Task.find(filter).sort({ createdAt: -1 })
-    res.json({ success: true, count: tasks.length, tasks })
+    const page = Math.max(1, Number(req.query.page) || 1)
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50))
+    const skip = (page - 1) * limit
+
+    const [tasks, total] = await Promise.all([
+      Task.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Task.countDocuments(filter),
+    ])
+
+    res.json({ success: true, count: tasks.length, total, page, limit, tasks })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })
 
 // POST create task
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, validateBody(createTaskSchema), async (req, res) => {
   try {
     if (isReadOnlyRole(req.user.role) || req.user.role === 'department_user') {
       return res.status(403).json({ success: false, message: 'You do not have permission to create tasks.' })
@@ -119,7 +167,7 @@ router.post('/', protect, async (req, res) => {
 })
 
 // PUT update task
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', protect, validateParams(taskIdParamSchema), validateBody(updateTaskSchema), async (req, res) => {
   try {
     const task = await Task.findById(req.params.id)
     if (!task) return res.status(404).json({ success: false, message: 'Task not found.' })
@@ -160,7 +208,7 @@ router.put('/:id', protect, async (req, res) => {
 })
 
 // POST add comment/note to a task
-router.post('/:id/comments', protect, async (req, res) => {
+router.post('/:id/comments', protect, validateParams(taskIdParamSchema), validateBody(commentSchema), async (req, res) => {
   try {
     const { text } = req.body
     if (!text || !text.trim())
@@ -183,7 +231,7 @@ router.post('/:id/comments', protect, async (req, res) => {
 })
 
 // DELETE task
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, validateParams(taskIdParamSchema), async (req, res) => {
   try {
     const task = await Task.findById(req.params.id)
     if (!task) return res.status(404).json({ success: false, message: 'Task not found.' })

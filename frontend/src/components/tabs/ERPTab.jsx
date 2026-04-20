@@ -4,6 +4,7 @@ import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 import { useAuth } from '../../context/AuthContext'
 import erpAccountingAPI from '../../api/erp-accounting'
+import { formatTransactionAuditEntry, formatTransactionCommentKind, getTransactionBulkSelectionLabel } from './transactionWorkflow'
 
 const LEDGER_REFERENCE_TYPES = ['journal', 'expense', 'invoice', 'payment', 'purchase', 'vendor_payment', 'inventory', 'payroll']
 const LEDGER_DEPARTMENTS = ['finance', 'sales', 'production', 'hr', 'operations', 'management']
@@ -13,6 +14,60 @@ const METAL_UNIT_FACTORS = {
   ounce: 31.1034768,
   kg: 1000,
 }
+
+const TRANSACTION_TYPE_LABELS = {
+  expense: 'Expense',
+  sale: 'Sales / Invoice',
+  purchase: 'Purchase',
+  receipt: 'Receipt',
+  payment: 'Payment',
+  payroll: 'Payroll',
+}
+
+const TRANSACTION_STATUS_STYLES = {
+  draft: { background: '#FEF3C7', color: '#92400E' },
+  submitted: { background: '#DBEAFE', color: '#1D4ED8' },
+  approved: { background: '#DCFCE7', color: '#166534' },
+  posted: { background: '#D1FAE5', color: '#065F46' },
+  returned: { background: '#FCE7F3', color: '#9D174D' },
+  rejected: { background: '#FEE2E2', color: '#B91C1C' },
+}
+
+const TRANSACTION_ACTION_LABELS = {
+  create: 'Created',
+  update: 'Updated',
+  delete: 'Deleted',
+  submit: 'Submitted',
+  approve: 'Approved',
+  post: 'Posted',
+  return: 'Returned For Edit',
+  reject: 'Rejected',
+  comment: 'Commented',
+  upload_attachment: 'Attachment Uploaded',
+  delete_attachment: 'Attachment Deleted',
+}
+
+const resolveTransactionAttachmentUrl = (attachment) => {
+  if (!attachment) return '#'
+  if (attachment.url) return attachment.url
+  if (attachment.relativePath) return `http://localhost:5000${attachment.relativePath}`
+  return '#'
+}
+
+const createTransactionForm = () => ({
+  type: 'expense',
+  amount: '',
+  date: new Date().toISOString().slice(0, 10),
+  currency: 'AED',
+  exchangeRate: '1',
+  description: '',
+  customerId: '',
+  vendorId: '',
+  inventoryItemId: '',
+  mappingId: '',
+  debitAccountId: '',
+  creditAccountId: '',
+})
 
 const C = {
   p1: '#FFFFFF',
@@ -215,16 +270,15 @@ function ERPTab() {
   const [reportBranding, setReportBranding] = useState(DEFAULT_BRANDING)
   const [brandingForm, setBrandingForm] = useState(DEFAULT_BRANDING)
   const [brandingPreviewLogo, setBrandingPreviewLogo] = useState('')
-  const [transactionForm, setTransactionForm] = useState({
-    type: 'expense',
-    amount: '',
-    currency: 'AED',
-    description: '',
-    customerId: '',
-    vendorId: '',
-    inventoryItemId: '',
-    mappingId: '',
-  })
+  const [transactionForm, setTransactionForm] = useState(createTransactionForm)
+  const [editingTransactionId, setEditingTransactionId] = useState('')
+  const [transactionFilters, setTransactionFilters] = useState({ search: '', status: '', type: '', startDate: '', endDate: '' })
+  const [transactionSummary, setTransactionSummary] = useState({ totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
+  const [transactionMeta, setTransactionMeta] = useState({ page: 1, limit: 25, total: 0 })
+  const [selectedTransactionIds, setSelectedTransactionIds] = useState([])
+  const [transactionWorkflowNote, setTransactionWorkflowNote] = useState('')
+  const [transactionCommentDraft, setTransactionCommentDraft] = useState('')
+  const [transactionAttachmentInputKey, setTransactionAttachmentInputKey] = useState(0)
   const [vendorForm, setVendorForm] = useState({
     vendorCode: '',
     name: '',
@@ -266,6 +320,7 @@ function ERPTab() {
   const [showVendorForm, setShowVendorForm] = useState(false)
   const [editingVendorId, setEditingVendorId] = useState('')
   const [productForm, setProductForm] = useState({ sku: '', name: '', category: '', unit: 'pcs', unitCost: '', sellingPrice: '', quantity: '', currency: 'AED' })
+  const [editingProductId, setEditingProductId] = useState('')
   const [stockInForm, setStockInForm] = useState({ itemId: '', vendorId: '', quantity: '', unitCost: '', currency: 'AED', description: '' })
   const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', currency: 'AED', description: '' })
 
@@ -309,6 +364,17 @@ function ERPTab() {
   const canUpdateVendorOperational = canAccessVendors
   const canAccessInventory = isSuperAdmin || isFinance || isOperationsRole
   const canAccessERP = canViewAccounts || canAccessTransactions || canAccessInventory || canViewCustomers
+  const availableTransactionTypes = isSuperAdmin || isFinance
+    ? ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
+    : [
+        ...(isSalesRole ? ['sale', 'receipt'] : []),
+        ...(isOperationsRole ? ['expense', 'purchase'] : []),
+        ...(isHRRole ? ['payroll'] : []),
+      ]
+  const selectedTransaction = transactions.find((tx) => tx._id === selectedTransactionId) || null
+  const transactionPageCount = Math.max(1, Math.ceil(Number(transactionMeta.total || 0) / Number(transactionMeta.limit || 25)))
+  const isTransactionEditMode = Boolean(editingTransactionId)
+  const allVisibleTransactionsSelected = Boolean(transactions.length) && transactions.every((tx) => selectedTransactionIds.includes(tx._id))
 
   const emptyCardStyle = {
     background: '#F9FAFB',
@@ -468,17 +534,88 @@ function ERPTab() {
     }
   }
 
-  const loadTransactions = async () => {
+  const loadTransactions = async (overrides = {}) => {
     if (!canAccessTransactions) return
     setLoading(true)
     try {
-      const data = await erpAccountingAPI.getTransactions(token)
+      const params = {
+        page: overrides.page || transactionMeta.page,
+        limit: overrides.limit || transactionMeta.limit,
+        ...((overrides.search ?? transactionFilters.search) ? { search: overrides.search ?? transactionFilters.search } : {}),
+        ...((overrides.status ?? transactionFilters.status) ? { status: overrides.status ?? transactionFilters.status } : {}),
+        ...((overrides.type ?? transactionFilters.type) ? { type: overrides.type ?? transactionFilters.type } : {}),
+        ...((overrides.startDate ?? transactionFilters.startDate) ? { startDate: overrides.startDate ?? transactionFilters.startDate } : {}),
+        ...((overrides.endDate ?? transactionFilters.endDate) ? { endDate: overrides.endDate ?? transactionFilters.endDate } : {}),
+      }
+      const [data, customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
+        erpAccountingAPI.getTransactions(token, params),
+        canViewCustomers ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
+        canAccessVendors ? erpAccountingAPI.getVendors(token, { limit: 200, includeInactive: true }) : Promise.resolve(null),
+        canAccessInventory ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
+        canViewAccounts ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
+        canViewAccounts ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
+        canViewAccounts ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
+      ])
+
       setTransactions(data.transactions || [])
+      setTransactionSummary(data.summary || { totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
+      setTransactionMeta((prev) => ({ ...prev, page: data.page || params.page || prev.page, limit: data.limit || params.limit || prev.limit, total: data.total || 0 }))
+      if (customerData) setCustomers(customerData.customers || [])
+      if (vendorData) setVendors(vendorData.vendors || [])
+      if (inventoryData) setInventoryProducts(inventoryData.products || [])
+      if (mappingData) setMappings(mappingData.mappings || [])
+      if (accountData) setAccounts(accountData.accounts || [])
+      if (currencyData) setCurrencies(currencyData.currencies || [])
       setError('')
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load transactions')
     }
     setLoading(false)
+  }
+
+  const resetTransactionComposer = () => {
+    setEditingTransactionId('')
+    setTransactionForm(createTransactionForm())
+  }
+
+  const toggleTransactionSelection = (id) => {
+    setSelectedTransactionIds((prev) => prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id])
+  }
+
+  const toggleVisibleTransactionSelection = () => {
+    setSelectedTransactionIds((prev) => {
+      if (allVisibleTransactionsSelected) {
+        return prev.filter((id) => !transactions.some((tx) => tx._id === id))
+      }
+      return Array.from(new Set([...prev, ...transactions.map((tx) => tx._id)]))
+    })
+  }
+
+  const populateTransactionForm = (tx) => {
+    setEditingTransactionId(tx._id)
+    setSelectedTransactionId(tx._id)
+    setTransactionForm({
+      type: tx.type || 'expense',
+      amount: String(tx.amount ?? ''),
+      date: tx.date ? new Date(tx.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+      currency: tx.currency || 'AED',
+      exchangeRate: String(tx.exchangeRate ?? 1),
+      description: tx.description || '',
+      customerId: tx.customerId?._id || tx.customerId || '',
+      vendorId: tx.vendorId?._id || tx.vendorId || '',
+      inventoryItemId: tx.inventoryItemId?._id || tx.inventoryItemId || '',
+      mappingId: tx.mappingId?._id || tx.mappingId || '',
+      debitAccountId: tx.debitAccountId?._id || tx.debitAccountId || '',
+      creditAccountId: tx.creditAccountId?._id || tx.creditAccountId || '',
+    })
+  }
+
+  const getTransactionValidationMessage = () => {
+    if (!transactionForm.type || !transactionForm.amount) return 'Transaction type and amount are required'
+    if (Number(transactionForm.amount) <= 0) return 'Amount must be greater than zero'
+    if (['sale', 'receipt'].includes(transactionForm.type) && !transactionForm.customerId) return 'Customer is required for sales and receipts'
+    if (['purchase', 'payment'].includes(transactionForm.type) && !transactionForm.vendorId) return 'Vendor is required for purchases and payments'
+    return ''
   }
 
   const loadVendors = async (filters = vendorFilters) => {
@@ -672,21 +809,46 @@ function ERPTab() {
 
   const handleCreateTransaction = async (e) => {
     e.preventDefault()
-    if (!transactionForm.type || !transactionForm.amount) {
-      setError('Transaction type and amount are required')
+    const validationMessage = getTransactionValidationMessage()
+    if (validationMessage) {
+      setError(validationMessage)
       return
     }
     try {
       setSaving(true)
-      await erpAccountingAPI.createTransaction(token, {
+      const payload = {
         ...transactionForm,
         amount: Number(transactionForm.amount),
-      })
-      setTransactionForm({ type: 'expense', amount: '', currency: 'AED', description: '', customerId: '', vendorId: '', inventoryItemId: '', mappingId: '' })
-      await loadTransactions()
-      showNotification('✅ Transaction created as draft')
+        exchangeRate: Number(transactionForm.exchangeRate || 1),
+      }
+
+      const response = isTransactionEditMode
+        ? await erpAccountingAPI.updateTransaction(token, editingTransactionId, payload)
+        : await erpAccountingAPI.createTransaction(token, payload)
+
+      resetTransactionComposer()
+      setSelectedTransactionId(response.transaction?._id || '')
+      await loadTransactions({ page: 1 })
+      showNotification(isTransactionEditMode ? '✅ Transaction updated' : '✅ Transaction created as draft')
     } catch (e) {
-      setError(e.response?.data?.message || 'Failed to create transaction')
+      setError(e.response?.data?.message || `Failed to ${isTransactionEditMode ? 'update' : 'create'} transaction`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteTransaction = async (id) => {
+    if (typeof window !== 'undefined' && !window.confirm('Delete this transaction?')) return
+    try {
+      setSaving(true)
+      await erpAccountingAPI.deleteTransaction(token, id)
+      if (selectedTransactionId === id) setSelectedTransactionId('')
+      if (editingTransactionId === id) resetTransactionComposer()
+      setSelectedTransactionIds((prev) => prev.filter((item) => item !== id))
+      await loadTransactions()
+      showNotification('✅ Transaction deleted')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to delete transaction')
     } finally {
       setSaving(false)
     }
@@ -695,13 +857,114 @@ function ERPTab() {
   const handleTransactionAction = async (action, id) => {
     try {
       setSaving(true)
-      if (action === 'submit') await erpAccountingAPI.submitTransaction(token, id)
-      if (action === 'approve') await erpAccountingAPI.approveTransaction(token, id)
-      if (action === 'post') await erpAccountingAPI.postTransaction(token, id)
+      if ((action === 'return' || action === 'reject') && !transactionWorkflowNote.trim()) {
+        setError(action === 'return' ? 'Return reason is required' : 'Rejection reason is required')
+        setSaving(false)
+        return
+      }
+      const payload = {
+        comment: transactionWorkflowNote,
+        ...(transactionForm.debitAccountId ? { debitAccountId: transactionForm.debitAccountId } : {}),
+        ...(transactionForm.creditAccountId ? { creditAccountId: transactionForm.creditAccountId } : {}),
+      }
+      if (action === 'submit') await erpAccountingAPI.submitTransaction(token, id, payload)
+      if (action === 'approve') await erpAccountingAPI.approveTransaction(token, id, payload)
+      if (action === 'return') await erpAccountingAPI.returnTransaction(token, id, payload)
+      if (action === 'reject') await erpAccountingAPI.rejectTransaction(token, id, payload)
+      if (action === 'post') await erpAccountingAPI.postTransaction(token, id, payload)
       await Promise.all([loadTransactions(), loadDashboard()])
-      showNotification(`✅ Transaction ${action}ed`)
+      setTransactionWorkflowNote('')
+      showNotification(`✅ Transaction ${action === 'submit' ? 'submitted' : action === 'approve' ? 'approved' : action === 'return' ? 'returned for edit' : action === 'reject' ? 'rejected' : 'posted'}`)
     } catch (e) {
       setError(e.response?.data?.message || `Failed to ${action} transaction`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleAddTransactionComment = async () => {
+    if (!selectedTransactionId) {
+      setError('Select a transaction first')
+      return
+    }
+    if (!transactionCommentDraft.trim()) {
+      setError('Enter a comment first')
+      return
+    }
+    try {
+      setSaving(true)
+      await erpAccountingAPI.addTransactionComment(token, selectedTransactionId, { message: transactionCommentDraft })
+      await loadTransactions()
+      setTransactionCommentDraft('')
+      showNotification('✅ Transaction comment added')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to add transaction comment')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleUploadTransactionAttachment = async (file) => {
+    if (!selectedTransactionId) {
+      setError('Select a transaction first')
+      return
+    }
+    if (!file) return
+
+    try {
+      setSaving(true)
+      await erpAccountingAPI.uploadTransactionAttachment(token, selectedTransactionId, file)
+      await loadTransactions()
+      setTransactionAttachmentInputKey((prev) => prev + 1)
+      showNotification('✅ Attachment uploaded')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to upload attachment')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteTransactionAttachment = async (attachmentId) => {
+    if (!selectedTransactionId || !attachmentId) return
+    try {
+      setSaving(true)
+      await erpAccountingAPI.deleteTransactionAttachment(token, selectedTransactionId, attachmentId)
+      await loadTransactions()
+      showNotification('✅ Attachment deleted')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to delete attachment')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleBulkTransactionAction = async (action) => {
+    if (!selectedTransactionIds.length) {
+      setError('Select at least one transaction')
+      return
+    }
+    try {
+      setSaving(true)
+      const response = await erpAccountingAPI.bulkTransactionAction(token, {
+        ids: selectedTransactionIds,
+        action,
+        comment: transactionWorkflowNote,
+        mappingOverride: {
+          ...(transactionForm.debitAccountId ? { debitAccountId: transactionForm.debitAccountId } : {}),
+          ...(transactionForm.creditAccountId ? { creditAccountId: transactionForm.creditAccountId } : {}),
+        },
+      })
+      await Promise.all([loadTransactions(), loadDashboard()])
+      setTransactionWorkflowNote('')
+      setSelectedTransactionIds([])
+      if (!response.failureCount) {
+        const label = action === 'submit' ? 'submitted' : action === 'approve' ? 'approved' : 'posted'
+        showNotification(`✅ ${response.successCount} transactions ${label}`)
+      } else {
+        setError(`${response.successCount} succeeded, ${response.failureCount} failed`)
+      }
+    } catch (e) {
+      setError(e.response?.data?.message || `Failed to ${action} selected transactions`)
     } finally {
       setSaving(false)
     }
@@ -926,17 +1189,58 @@ function ERPTab() {
     }
     try {
       setSaving(true)
-      await erpAccountingAPI.createInventoryProduct(token, {
-        ...productForm,
-        unitCost: Number(productForm.unitCost || 0),
-        sellingPrice: Number(productForm.sellingPrice || 0),
-        quantity: Number(productForm.quantity || 0),
-      })
+      if (editingProductId) {
+        await erpAccountingAPI.updateInventoryProduct(token, editingProductId, {
+          sku: productForm.sku,
+          name: productForm.name,
+          category: productForm.category,
+          unit: productForm.unit,
+          unitCost: Number(productForm.unitCost || 0),
+          sellingPrice: Number(productForm.sellingPrice || 0),
+        })
+        setEditingProductId('')
+        showNotification('✅ Product updated')
+      } else {
+        await erpAccountingAPI.createInventoryProduct(token, {
+          ...productForm,
+          unitCost: Number(productForm.unitCost || 0),
+          sellingPrice: Number(productForm.sellingPrice || 0),
+          quantity: Number(productForm.quantity || 0),
+        })
+        showNotification('✅ Product created')
+      }
       setProductForm({ sku: '', name: '', category: '', unit: 'pcs', unitCost: '', sellingPrice: '', quantity: '', currency: 'AED' })
       await loadInventory()
-      showNotification('✅ Product created')
     } catch (e) {
-      setError(e.response?.data?.message || 'Failed to create product')
+      setError(e.response?.data?.message || 'Failed to save product')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleEditProduct = (p) => {
+    setEditingProductId(p._id)
+    setProductForm({
+      sku: p.sku || '',
+      name: p.name || '',
+      category: p.category || '',
+      unit: p.unit || 'pcs',
+      unitCost: String(p.unitCost ?? ''),
+      sellingPrice: String(p.sellingPrice ?? ''),
+      quantity: String(p.quantity ?? ''),
+      currency: p.currency || 'AED',
+    })
+  }
+
+  const handleDeleteProduct = async (p) => {
+    if (!window.confirm(`Delete product "${p.name}"? This cannot be undone.`)) return
+    try {
+      setSaving(true)
+      await erpAccountingAPI.deleteInventoryProduct(token, p._id)
+      await loadInventory()
+      showNotification('✅ Product deleted')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to delete product')
     } finally {
       setSaving(false)
     }
@@ -1090,6 +1394,13 @@ function ERPTab() {
   }, [])
 
   useEffect(() => {
+    setSelectedTransactionIds((prev) => prev.filter((id) => transactions.some((tx) => tx._id === id)))
+    if (selectedTransactionId && !transactions.some((tx) => tx._id === selectedTransactionId)) {
+      setSelectedTransactionId('')
+    }
+  }, [transactions, selectedTransactionId])
+
+  useEffect(() => {
     let cancelled = false
 
     const updatePreviewLogo = async () => {
@@ -1146,14 +1457,7 @@ function ERPTab() {
     else if (activeTab === 'customers') loadCustomers()
     else if (activeTab === 'ledger') loadLedger()
     else if (activeTab === 'mappings') loadMappings()
-    else if (activeTab === 'transactions') {
-      loadTransactions()
-      loadAccounts()
-      loadCustomers()
-      loadVendors()
-      loadInventory()
-      loadMappings()
-    }
+    else if (activeTab === 'transactions') loadTransactions()
     else if (activeTab === 'reports') {
       loadReportBranding()
       loadReports()
@@ -1434,6 +1738,106 @@ function ERPTab() {
     const worksheet = XLSX.utils.aoa_to_sheet(rows)
     XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
     XLSX.writeFile(workbook, fileName)
+  }
+
+  const buildTransactionExportPayload = () => {
+    const scope = selectedTransactionIds.length
+      ? transactions.filter((tx) => selectedTransactionIds.includes(tx._id))
+      : transactions
+
+    if (!scope.length) return null
+
+    const stamp = new Date().toISOString().slice(0, 10)
+    const rows = [
+      ['Ops Dashboard ERP Transactions'],
+      [`Generated`, new Date().toLocaleString()],
+      [`Scope`, selectedTransactionIds.length ? 'Selected transactions' : 'Current visible transactions'],
+      [],
+      ['Date', 'Type', 'Party', 'Amount', 'Currency', 'Status', 'Description', 'Debit Account', 'Credit Account', 'Created By', 'Approved By', 'Posted By', 'Comments', 'Audit Events'],
+    ]
+
+    scope.forEach((tx) => {
+      rows.push([
+        tx.date ? new Date(tx.date).toLocaleString() : '',
+        TRANSACTION_TYPE_LABELS[tx.type] || tx.type,
+        tx.customerId?.name || tx.vendorId?.name || tx.inventoryItemId?.sku || '',
+        Number(tx.amount || 0),
+        tx.currency || 'AED',
+        tx.status || '',
+        tx.description || '',
+        tx.debitAccountId ? `${tx.debitAccountId.accountCode} - ${tx.debitAccountId.accountName}` : '',
+        tx.creditAccountId ? `${tx.creditAccountId.accountCode} - ${tx.creditAccountId.accountName}` : '',
+        tx.createdBy?.name || '',
+        tx.approvedBy?.name || '',
+        tx.postedBy?.name || '',
+        Number(tx.comments?.length || 0),
+        Number(tx.auditTrail?.length || 0),
+      ])
+    })
+
+    return { rows, fileBase: `transactions-${stamp}`, sheetName: 'Transactions' }
+  }
+
+  const handleExportTransactionsCsv = () => {
+    const payload = buildTransactionExportPayload()
+    if (!payload) {
+      setError('No transactions available to export')
+      return
+    }
+    downloadCsv(payload.rows, `${payload.fileBase}.csv`)
+    showNotification('✅ Transactions CSV exported')
+  }
+
+  const handleExportTransactionsXlsx = () => {
+    const payload = buildTransactionExportPayload()
+    if (!payload) {
+      setError('No transactions available to export')
+      return
+    }
+    downloadXlsx(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
+    showNotification('✅ Transactions XLSX exported')
+  }
+
+  const handleExportTransactionsPdf = () => {
+    const scope = selectedTransactionIds.length
+      ? transactions.filter((tx) => selectedTransactionIds.includes(tx._id))
+      : transactions
+
+    if (!scope.length) {
+      setError('No transactions available to export')
+      return
+    }
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(16)
+    doc.text('ERP Transactions Register', 36, 36)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 36, 54)
+    doc.text(`Scope: ${selectedTransactionIds.length ? 'Selected transactions' : 'Current visible transactions'}`, 36, 68)
+
+    autoTable(doc, {
+      head: [['Date', 'Type', 'Party', 'Amount', 'Status', 'Description', 'Comments', 'Audit']],
+      body: scope.map((tx) => [
+        tx.date ? new Date(tx.date).toLocaleDateString() : '',
+        TRANSACTION_TYPE_LABELS[tx.type] || tx.type,
+        tx.customerId?.name || tx.vendorId?.name || tx.inventoryItemId?.sku || '',
+        `${tx.currency || 'AED'} ${Number(tx.amount || 0).toLocaleString()}`,
+        tx.status || '',
+        tx.description || '',
+        String(tx.comments?.length || 0),
+        String(tx.auditTrail?.length || 0),
+      ]),
+      startY: 84,
+      styles: { fontSize: 8, cellPadding: 4 },
+      headStyles: { fillColor: [17, 24, 39] },
+      alternateRowStyles: { fillColor: [249, 250, 251] },
+      margin: { left: 24, right: 24 },
+    })
+
+    doc.save(`transactions-${new Date().toISOString().slice(0, 10)}.pdf`)
+    showNotification('✅ Transactions PDF exported')
   }
 
   const buildReportExportPayload = () => {
@@ -3010,18 +3414,99 @@ function ERPTab() {
               </div>
             )}
           </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
+              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem', fontWeight: '700' }}>TOTAL</p>
+              <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.totalCount || 0).toLocaleString()}</p>
+              <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.82rem' }}>Amount {Number(transactionSummary.totalAmount || 0).toLocaleString()}</p>
+            </div>
+            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
+              <p style={{ margin: 0, color: '#92400E', fontSize: '0.78rem', fontWeight: '700' }}>DRAFT</p>
+              <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.draft || 0).toLocaleString()}</p>
+            </div>
+            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
+              <p style={{ margin: 0, color: '#1D4ED8', fontSize: '0.78rem', fontWeight: '700' }}>SUBMITTED</p>
+              <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.submitted || 0).toLocaleString()}</p>
+            </div>
+            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
+              <p style={{ margin: 0, color: '#166534', fontSize: '0.78rem', fontWeight: '700' }}>APPROVED</p>
+              <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.approved || 0).toLocaleString()}</p>
+            </div>
+            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
+              <p style={{ margin: 0, color: '#065F46', fontSize: '0.78rem', fontWeight: '700' }}>POSTED</p>
+              <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.posted || 0).toLocaleString()}</p>
+            </div>
+            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
+              <p style={{ margin: 0, color: '#9D174D', fontSize: '0.78rem', fontWeight: '700' }}>RETURNED</p>
+              <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.returned || 0).toLocaleString()}</p>
+            </div>
+            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
+              <p style={{ margin: 0, color: '#B91C1C', fontSize: '0.78rem', fontWeight: '700' }}>REJECTED</p>
+              <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.rejected || 0).toLocaleString()}</p>
+            </div>
+          </div>
+          <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.5rem' }}>
+              <input placeholder="Search description/type/currency" value={transactionFilters.search} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, search: e.target.value }))} style={modalInputStyle} />
+              <select value={transactionFilters.status} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, status: e.target.value, page: 1 }))} style={modalInputStyle}>
+                <option value="">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="submitted">Submitted</option>
+                <option value="approved">Approved</option>
+                <option value="posted">Posted</option>
+                <option value="returned">Returned</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              <select value={transactionFilters.type} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, type: e.target.value, page: 1 }))} style={modalInputStyle}>
+                <option value="">All types</option>
+                {availableTransactionTypes.map((type) => <option key={type} value={type}>{TRANSACTION_TYPE_LABELS[type]}</option>)}
+              </select>
+              <input type="date" value={transactionFilters.startDate} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, startDate: e.target.value }))} style={modalInputStyle} />
+              <input type="date" value={transactionFilters.endDate} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, endDate: e.target.value }))} style={modalInputStyle} />
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => loadTransactions({ page: 1 })} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Apply Filters</button>
+              <button type="button" onClick={() => { const resetFilters = { search: '', status: '', type: '', startDate: '', endDate: '' }; setTransactionFilters(resetFilters); loadTransactions({ page: 1, ...resetFilters }) }} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer', fontWeight: '700' }}>Reset</button>
+              <button type="button" onClick={handleExportTransactionsCsv} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontWeight: '700' }}>Export CSV</button>
+              <button type="button" onClick={handleExportTransactionsXlsx} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', cursor: 'pointer', fontWeight: '700' }}>Export XLSX</button>
+              <button type="button" onClick={handleExportTransactionsPdf} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #EF4444', background: '#FEF2F2', color: '#991B1B', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
+            </div>
+          </div>
+          <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.65rem' }}>
+              <div>
+                <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>Bulk workflow actions</p>
+                <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.84rem' }}>{getTransactionBulkSelectionLabel(selectedTransactionIds)}</p>
+              </div>
+              <button type="button" onClick={() => setSelectedTransactionIds([])} style={{ padding: '0.4rem 0.7rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer', fontWeight: '700' }}>Clear Selection</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) minmax(260px, 2fr)', gap: '0.75rem', alignItems: 'start' }}>
+              <textarea value={transactionWorkflowNote} onChange={(e) => setTransactionWorkflowNote(e.target.value)} rows={3} placeholder="Workflow note for submit / approve / post actions" style={{ ...modalInputStyle, marginBottom: 0, resize: 'vertical' }} />
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button type="button" disabled={!selectedTransactionIds.length || saving} onClick={() => handleBulkTransactionAction('submit')} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F59E0B', color: '#111827', cursor: 'pointer', fontWeight: '700' }}>Bulk Submit</button>
+                {(isSuperAdmin || isFinance) && <button type="button" disabled={!selectedTransactionIds.length || saving} onClick={() => handleBulkTransactionAction('approve')} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#0EA5E9', color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Bulk Approve</button>}
+                {(isSuperAdmin || isFinance) && <button type="button" disabled={!selectedTransactionIds.length || saving} onClick={() => handleBulkTransactionAction('post')} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Bulk Post</button>}
+              </div>
+            </div>
+          </div>
           <form onSubmit={handleCreateTransaction} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+              <div>
+                <p style={{ margin: 0, color: C.ink, fontWeight: '700' }}>{isTransactionEditMode ? 'Edit transaction draft' : 'Create a new transaction draft'}</p>
+                <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.84rem' }}>Capture source transaction details, optional mapping, and account overrides in one place.</p>
+              </div>
+              {isTransactionEditMode && <button type="button" onClick={resetTransactionComposer} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer', fontWeight: '700' }}>Cancel edit</button>}
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem' }}>
               <select value={transactionForm.type} onChange={(e) => setTransactionForm((prev) => ({ ...prev, type: e.target.value }))} style={modalInputStyle}>
-                {canAccessTransactions && (isSuperAdmin || isFinance) && <><option value="expense">Expense</option><option value="sale">Sales / Invoice</option><option value="purchase">Purchase</option><option value="receipt">Receipt</option><option value="payment">Payment</option><option value="payroll">Payroll</option></>}
-                {canAccessTransactions && isSalesRole && <><option value="sale">Sales / Invoice</option><option value="receipt">Receipt</option></>}
-                {canAccessTransactions && isOpsRole && <><option value="expense">Expense</option><option value="purchase">Purchase</option></>}
-                {canAccessTransactions && isHRRole && <option value="payroll">Payroll</option>}
+                {availableTransactionTypes.map((type) => <option key={type} value={type}>{TRANSACTION_TYPE_LABELS[type]}</option>)}
               </select>
               <input type="number" step="0.01" placeholder="Amount" value={transactionForm.amount} onChange={(e) => setTransactionForm((prev) => ({ ...prev, amount: e.target.value }))} style={modalInputStyle} />
+              <input type="date" value={transactionForm.date} onChange={(e) => setTransactionForm((prev) => ({ ...prev, date: e.target.value }))} style={modalInputStyle} />
               <select value={transactionForm.currency} onChange={(e) => setTransactionForm((prev) => ({ ...prev, currency: e.target.value }))} style={modalInputStyle}>
                 {(currencies.length ? currencies : [{ code: 'AED' }]).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
               </select>
+              <input type="number" step="0.0001" min="0" placeholder="Exchange Rate" value={transactionForm.exchangeRate} onChange={(e) => setTransactionForm((prev) => ({ ...prev, exchangeRate: e.target.value }))} style={modalInputStyle} />
               <select value={transactionForm.customerId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, customerId: e.target.value }))} style={modalInputStyle}>
                 <option value="">Customer (for Sales/Receipt)</option>
                 {customers.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
@@ -3038,40 +3523,180 @@ function ERPTab() {
                 <option value="">Account Mapping (optional)</option>
                 {mappings.map((m) => <option key={m._id} value={m._id}>{m.mappingType}</option>)}
               </select>
+              <select value={transactionForm.debitAccountId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, debitAccountId: e.target.value }))} style={modalInputStyle}>
+                <option value="">Debit Account Override</option>
+                {accounts.map((account) => <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>)}
+              </select>
+              <select value={transactionForm.creditAccountId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, creditAccountId: e.target.value }))} style={modalInputStyle}>
+                <option value="">Credit Account Override</option>
+                {accounts.map((account) => <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>)}
+              </select>
               <input placeholder="Description" value={transactionForm.description} onChange={(e) => setTransactionForm((prev) => ({ ...prev, description: e.target.value }))} style={modalInputStyle} />
             </div>
-            <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer' }}>{saving ? 'Saving...' : 'Create Transaction (Draft)'}</button>
+            <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer' }}>{saving ? 'Saving...' : isTransactionEditMode ? 'Save Changes' : 'Create Transaction (Draft)'}</button>
           </form>
+
+          {selectedTransaction && (
+            <div style={{ background: '#F9FAFB', border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <div>
+                  <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>{TRANSACTION_TYPE_LABELS[selectedTransaction.type] || selectedTransaction.type}</p>
+                  <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.85rem' }}>{selectedTransaction.description || 'No description provided'}</p>
+                </div>
+                <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: '800', ...(TRANSACTION_STATUS_STYLES[selectedTransaction.status] || { background: '#E5E7EB', color: C.ink }) }}>{selectedTransaction.status}</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginTop: '0.9rem' }}>
+                <div style={emptyCardStyle}><strong>Amount:</strong> {selectedTransaction.currency} {Number(selectedTransaction.amount || 0).toLocaleString()}</div>
+                <div style={emptyCardStyle}><strong>Date:</strong> {selectedTransaction.date ? new Date(selectedTransaction.date).toLocaleDateString() : '-'}</div>
+                <div style={emptyCardStyle}><strong>Customer:</strong> {selectedTransaction.customerId?.name || '-'}</div>
+                <div style={emptyCardStyle}><strong>Vendor:</strong> {selectedTransaction.vendorId?.name || '-'}</div>
+                <div style={emptyCardStyle}><strong>Debit:</strong> {selectedTransaction.debitAccountId ? `${selectedTransaction.debitAccountId.accountCode} - ${selectedTransaction.debitAccountId.accountName}` : '-'}</div>
+                <div style={emptyCardStyle}><strong>Credit:</strong> {selectedTransaction.creditAccountId ? `${selectedTransaction.creditAccountId.accountCode} - ${selectedTransaction.creditAccountId.accountName}` : '-'}</div>
+              </div>
+              <div style={{ background: '#fff', border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', marginTop: '0.9rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.65rem' }}>
+                  <div>
+                    <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>Attachments</p>
+                    <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.82rem' }}>Upload supporting receipts, invoices, approvals, or backup documents.</p>
+                  </div>
+                  <label style={{ padding: '0.5rem 0.85rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1D4ED8', borderRadius: '0.35rem', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: '700' }}>
+                    Upload document
+                    <input
+                      key={transactionAttachmentInputKey}
+                      type="file"
+                      disabled={saving}
+                      onChange={(e) => handleUploadTransactionAttachment(e.target.files?.[0])}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                </div>
+                <div style={{ display: 'grid', gap: '0.55rem' }}>
+                  {(selectedTransaction.attachments || []).map((attachment) => (
+                    <div key={attachment._id || attachment.fileName} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '0.45rem', padding: '0.65rem', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <div>
+                        <a href={resolveTransactionAttachmentUrl(attachment)} target="_blank" rel="noreferrer" style={{ color: '#1D4ED8', fontWeight: '700', textDecoration: 'none' }}>{attachment.originalName}</a>
+                        <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.78rem' }}>
+                          {(attachment.uploadedBy?.name || 'User')} · {attachment.uploadedAt ? new Date(attachment.uploadedAt).toLocaleString() : ''} · {Number(attachment.size || 0).toLocaleString()} bytes
+                        </p>
+                      </div>
+                      <button type="button" disabled={saving} onClick={() => handleDeleteTransactionAttachment(attachment._id)} style={{ padding: '0.35rem 0.65rem', border: 'none', borderRadius: '0.35rem', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer', fontWeight: '700' }}>Remove</button>
+                    </div>
+                  ))}
+                  {!(selectedTransaction.attachments || []).length && <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>No documents uploaded yet.</p>}
+                </div>
+              </div>
+              <div style={{ background: '#fff', border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', marginTop: '0.9rem' }}>
+                <p style={{ margin: '0 0 0.5rem', color: C.ink, fontWeight: '800' }}>Single transaction workflow</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) minmax(260px, 1.4fr)', gap: '0.75rem', alignItems: 'start' }}>
+                  <textarea value={transactionWorkflowNote} onChange={(e) => setTransactionWorkflowNote(e.target.value)} rows={3} placeholder="Workflow note or mandatory return/rejection reason" style={{ ...modalInputStyle, marginBottom: 0, resize: 'vertical' }} />
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {['draft', 'returned', 'rejected'].includes(selectedTransaction.status) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('submit', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F59E0B', color: '#111827', cursor: 'pointer', fontWeight: '700' }}>Submit</button>}
+                    {selectedTransaction.status === 'submitted' && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('approve', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#0EA5E9', color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Approve</button>}
+                    {['submitted', 'approved'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('return', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F472B6', color: '#831843', cursor: 'pointer', fontWeight: '700' }}>Return for Edit</button>}
+                    {['submitted', 'approved', 'returned'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('reject', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer', fontWeight: '700' }}>Reject</button>}
+                    {['submitted', 'approved'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('post', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Post</button>}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1.2fr) minmax(280px, 1fr)', gap: '0.85rem', marginTop: '0.9rem' }}>
+                <div style={{ background: '#fff', border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem' }}>
+                  <p style={{ margin: '0 0 0.5rem', color: C.ink, fontWeight: '800' }}>Comments</p>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.65rem', flexWrap: 'wrap' }}>
+                    <textarea value={transactionCommentDraft} onChange={(e) => setTransactionCommentDraft(e.target.value)} rows={3} placeholder="Add transaction comment, reviewer note, or posting note" style={{ ...modalInputStyle, marginBottom: 0, resize: 'vertical', flex: '1 1 240px' }} />
+                    <button type="button" disabled={saving} onClick={handleAddTransactionComment} style={{ padding: '0.5rem 0.85rem', border: 'none', background: C.s1, color: '#fff', borderRadius: '0.35rem', cursor: 'pointer', fontWeight: '700', alignSelf: 'start' }}>Add Comment</button>
+                  </div>
+                  <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '0.55rem' }}>
+                    {(selectedTransaction.comments || []).map((comment) => (
+                      <div key={`${comment._id || comment.createdAt}-${comment.message}`} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '0.45rem', padding: '0.65rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+                          <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>{comment.createdBy?.name || 'User'}</span>
+                          <span style={{ color: C.inkSoft, fontSize: '0.76rem' }}>{comment.createdAt ? new Date(comment.createdAt).toLocaleString() : ''}</span>
+                        </div>
+                        <p style={{ margin: '0 0 0.2rem', color: '#047857', fontSize: '0.76rem', fontWeight: '700', textTransform: 'uppercase' }}>{formatTransactionCommentKind(comment.kind)}</p>
+                        <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>{comment.message}</p>
+                      </div>
+                    ))}
+                    {!(selectedTransaction.comments || []).length && <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>No comments yet.</p>}
+                  </div>
+                </div>
+                <div style={{ background: '#fff', border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem' }}>
+                  <p style={{ margin: '0 0 0.5rem', color: C.ink, fontWeight: '800' }}>Approval Audit Trail</p>
+                  <div style={{ maxHeight: '280px', overflowY: 'auto', display: 'grid', gap: '0.55rem' }}>
+                    {(selectedTransaction.auditTrail || []).slice().reverse().map((entry) => {
+                      const auditEntry = formatTransactionAuditEntry(entry, TRANSACTION_ACTION_LABELS)
+                      return (
+                      <div key={`${entry._id || entry.createdAt}-${entry.action}`} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '0.45rem', padding: '0.65rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+                          <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>{auditEntry.title}</span>
+                          <span style={{ color: C.inkSoft, fontSize: '0.76rem' }}>{entry.createdAt ? new Date(entry.createdAt).toLocaleString() : ''}</span>
+                        </div>
+                        <p style={{ margin: '0 0 0.2rem', color: C.inkSoft, fontSize: '0.8rem' }}>Actor: {auditEntry.actorName}</p>
+                        <p style={{ margin: '0 0 0.2rem', color: C.inkSoft, fontSize: '0.8rem' }}>Status: {auditEntry.statusText}</p>
+                        {auditEntry.comment && <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>{auditEntry.comment}</p>}
+                      </div>
+                    )})}
+                    {!(selectedTransaction.auditTrail || []).length && <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>No workflow history yet.</p>}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
+                  <th style={{ padding: '0.65rem', textAlign: 'center' }}>
+                    <input type="checkbox" checked={allVisibleTransactionsSelected} onChange={toggleVisibleTransactionSelection} />
+                  </th>
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>Date</th>
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>Type</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Party</th>
                   <th style={{ padding: '0.65rem', textAlign: 'right' }}>Amount</th>
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>Status</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Description</th>
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {transactions.map((tx) => (
-                  <tr id={`erp-transaction-row-${tx._id}`} key={tx._id} style={{ borderBottom: `1px solid ${C.p2}`, background: selectedTransactionId === tx._id ? '#ECFDF5' : 'transparent', outline: selectedTransactionId === tx._id ? '2px solid #10B981' : 'none', outlineOffset: '-2px' }}>
+                  <tr id={`erp-transaction-row-${tx._id}`} key={tx._id} onClick={() => setSelectedTransactionId(tx._id)} style={{ borderBottom: `1px solid ${C.p2}`, background: selectedTransactionId === tx._id ? '#ECFDF5' : 'transparent', outline: selectedTransactionId === tx._id ? '2px solid #10B981' : 'none', outlineOffset: '-2px', cursor: 'pointer' }}>
+                    <td style={{ padding: '0.65rem', textAlign: 'center' }}>
+                      <input type="checkbox" checked={selectedTransactionIds.includes(tx._id)} onChange={(e) => { e.stopPropagation(); toggleTransactionSelection(tx._id) }} onClick={(e) => e.stopPropagation()} />
+                    </td>
                     <td style={{ padding: '0.65rem' }}>{new Date(tx.date).toLocaleDateString()}</td>
-                    <td style={{ padding: '0.65rem', textTransform: 'capitalize' }}>{tx.type}</td>
-                    <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(tx.amount || 0).toLocaleString()}</td>
-                    <td style={{ padding: '0.65rem', textTransform: 'capitalize', fontWeight: '600' }}>{tx.status}</td>
+                    <td style={{ padding: '0.65rem', textTransform: 'capitalize', fontWeight: '700' }}>{TRANSACTION_TYPE_LABELS[tx.type] || tx.type}</td>
+                    <td style={{ padding: '0.65rem' }}>{tx.customerId?.name || tx.vendorId?.name || tx.inventoryItemId?.sku || '-'}</td>
+                    <td style={{ padding: '0.65rem', textAlign: 'right' }}>{tx.currency} {Number(tx.amount || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.65rem', textTransform: 'capitalize', fontWeight: '600' }}><span style={{ padding: '0.25rem 0.5rem', borderRadius: '999px', ...(TRANSACTION_STATUS_STYLES[tx.status] || { background: '#E5E7EB', color: C.ink }) }}>{tx.status}</span></td>
+                    <td style={{ padding: '0.65rem', maxWidth: '260px', color: C.inkSoft }}>{tx.description || '-'}</td>
                     <td style={{ padding: '0.65rem' }}>
                       <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                        {tx.status === 'draft' && <button onClick={() => handleTransactionAction('submit', tx._id)} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#F59E0B', color: '#111827', cursor: 'pointer' }}>Submit</button>}
-                        {tx.status === 'submitted' && (isSuperAdmin || isFinance) && <button onClick={() => handleTransactionAction('approve', tx._id)} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#0EA5E9', color: '#fff', cursor: 'pointer' }}>Approve</button>}
-                        {['submitted', 'approved'].includes(tx.status) && (isSuperAdmin || isFinance) && <button onClick={() => handleTransactionAction('post', tx._id)} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: C.s1, color: '#fff', cursor: 'pointer' }}>Post</button>}
+                        {tx.status !== 'posted' && <button onClick={(e) => { e.stopPropagation(); populateTransactionForm(tx) }} style={{ padding: '0.3rem 0.5rem', border: '1px solid #D1D5DB', borderRadius: '0.3rem', background: '#fff', color: C.ink, cursor: 'pointer' }}>Edit</button>}
+                        {['draft', 'returned', 'rejected'].includes(tx.status) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('submit', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#F59E0B', color: '#111827', cursor: 'pointer' }}>Submit</button>}
+                        {tx.status === 'submitted' && (isSuperAdmin || isFinance) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('approve', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#0EA5E9', color: '#fff', cursor: 'pointer' }}>Approve</button>}
+                        {['submitted', 'approved'].includes(tx.status) && (isSuperAdmin || isFinance) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('return', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#FBCFE8', color: '#9D174D', cursor: 'pointer' }}>Return</button>}
+                        {['submitted', 'approved', 'returned'].includes(tx.status) && (isSuperAdmin || isFinance) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('reject', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer' }}>Reject</button>}
+                        {['submitted', 'approved'].includes(tx.status) && (isSuperAdmin || isFinance) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('post', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: C.s1, color: '#fff', cursor: 'pointer' }}>Post</button>}
+                        {tx.status !== 'posted' && <button onClick={(e) => { e.stopPropagation(); handleDeleteTransaction(tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer' }}>Delete</button>}
                       </div>
                     </td>
                   </tr>
                 ))}
+                {!transactions.length && (
+                  <tr>
+                    <td colSpan={8} style={{ padding: '1rem', textAlign: 'center', color: C.inkSoft }}>No transactions match the current filters.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.85rem' }}>
+            <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>Showing page {transactionMeta.page} of {transactionPageCount} · {Number(transactionMeta.total || 0).toLocaleString()} total transactions</p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button type="button" disabled={transactionMeta.page <= 1 || loading} onClick={() => loadTransactions({ page: Math.max(1, transactionMeta.page - 1) })} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer' }}>Previous</button>
+              <button type="button" disabled={transactionMeta.page >= transactionPageCount || loading} onClick={() => loadTransactions({ page: Math.min(transactionPageCount, transactionMeta.page + 1) })} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer' }}>Next</button>
+            </div>
           </div>
         </div>
       )}
@@ -3957,8 +4582,8 @@ function ERPTab() {
       {activeTab === 'inventory' && (
         <div>
           <h3 style={{ marginBottom: '1rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Inventory</h3>
-          <form onSubmit={handleCreateProduct} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
-            <p style={{ marginTop: 0, marginBottom: '0.5rem', fontWeight: '700' }}>Products</p>
+          <form onSubmit={handleCreateProduct} style={{ background: editingProductId ? '#ECFDF5' : C.p1, border: `1px solid ${editingProductId ? '#6EE7B7' : C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
+            <p style={{ marginTop: 0, marginBottom: '0.5rem', fontWeight: '700' }}>{editingProductId ? 'Edit Product' : 'Products'}</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.5rem' }}>
               <input placeholder="SKU" value={productForm.sku} onChange={(e) => setProductForm((prev) => ({ ...prev, sku: e.target.value }))} style={modalInputStyle} />
               <input placeholder="Name" value={productForm.name} onChange={(e) => setProductForm((prev) => ({ ...prev, name: e.target.value }))} style={modalInputStyle} />
@@ -3966,9 +4591,12 @@ function ERPTab() {
               <input placeholder="Unit" value={productForm.unit} onChange={(e) => setProductForm((prev) => ({ ...prev, unit: e.target.value }))} style={modalInputStyle} />
               <input type="number" step="0.01" placeholder="Cost" value={productForm.unitCost} onChange={(e) => setProductForm((prev) => ({ ...prev, unitCost: e.target.value }))} style={modalInputStyle} />
               <input type="number" step="0.01" placeholder="Price" value={productForm.sellingPrice} onChange={(e) => setProductForm((prev) => ({ ...prev, sellingPrice: e.target.value }))} style={modalInputStyle} />
-              <input type="number" step="0.01" placeholder="Opening Qty" value={productForm.quantity} onChange={(e) => setProductForm((prev) => ({ ...prev, quantity: e.target.value }))} style={modalInputStyle} />
+              {!editingProductId && <input type="number" step="0.01" placeholder="Opening Qty" value={productForm.quantity} onChange={(e) => setProductForm((prev) => ({ ...prev, quantity: e.target.value }))} style={modalInputStyle} />}
             </div>
-            <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer' }}>{saving ? 'Saving...' : 'Create Product'}</button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer' }}>{saving ? 'Saving...' : editingProductId ? 'Save Changes' : 'Create Product'}</button>
+              {editingProductId && <button type="button" onClick={() => { setEditingProductId(''); setProductForm({ sku: '', name: '', category: '', unit: 'pcs', unitCost: '', sellingPrice: '', quantity: '', currency: 'AED' }) }} style={{ padding: '0.5rem 1rem', background: '#F3F4F6', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.4rem', cursor: 'pointer' }}>Cancel</button>}
+            </div>
           </form>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
@@ -3995,21 +4623,37 @@ function ERPTab() {
                 <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>SKU</th>
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>Name</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Category</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Unit</th>
                   <th style={{ padding: '0.65rem', textAlign: 'right' }}>Qty</th>
                   <th style={{ padding: '0.65rem', textAlign: 'right' }}>Cost</th>
                   <th style={{ padding: '0.65rem', textAlign: 'right' }}>Price</th>
+                  {canAccessInventory && <th style={{ padding: '0.65rem', textAlign: 'left' }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {inventoryProducts.map((p) => (
-                  <tr key={p._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                  <tr key={p._id} style={{ borderBottom: `1px solid ${C.p2}`, background: editingProductId === p._id ? '#ECFDF5' : 'transparent' }}>
                     <td style={{ padding: '0.65rem' }}>{p.sku || '-'}</td>
-                    <td style={{ padding: '0.65rem' }}>{p.name}</td>
+                    <td style={{ padding: '0.65rem', fontWeight: '600' }}>{p.name}</td>
+                    <td style={{ padding: '0.65rem', color: C.inkSoft }}>{p.category || '-'}</td>
+                    <td style={{ padding: '0.65rem', color: C.inkSoft }}>{p.unit || 'pcs'}</td>
                     <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.quantity || 0).toLocaleString()}</td>
                     <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.unitCost || 0).toLocaleString()}</td>
                     <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.sellingPrice || 0).toLocaleString()}</td>
+                    {canAccessInventory && (
+                      <td style={{ padding: '0.65rem' }}>
+                        <div style={{ display: 'flex', gap: '0.35rem' }}>
+                          <button onClick={() => handleEditProduct(p)} style={{ padding: '0.3rem 0.55rem', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: '0.3rem', color: '#065F46', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
+                          {(isSuperAdmin || isFinance) && <button onClick={() => handleDeleteProduct(p)} style={{ padding: '0.3rem 0.55rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.3rem', color: '#991B1B', cursor: 'pointer', fontSize: '0.75rem' }}>Delete</button>}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
+                {!inventoryProducts.length && (
+                  <tr><td colSpan={8} style={{ padding: '1rem', textAlign: 'center', color: C.inkSoft }}>No products yet.</td></tr>
+                )}
               </tbody>
             </table>
           </div>

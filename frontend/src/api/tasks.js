@@ -2,13 +2,12 @@
 import axios from 'axios'
 
 const BASE = '/api/tasks'
-const h = (token) => ({ headers: { Authorization: `Bearer ${token}` } })
 
-const getTasks    = async (token)           => (await axios.get(BASE, h(token))).data
-const createTask  = async (token, data)     => (await axios.post(BASE, data, h(token))).data
-const updateTask  = async (token, id, data) => (await axios.put(`${BASE}/${id}`, data, h(token))).data
-const deleteTask  = async (token, id)       => (await axios.delete(`${BASE}/${id}`, h(token))).data
-const addComment  = async (token, id, text) => (await axios.post(`${BASE}/${id}/comments`, { text }, h(token))).data
+const getTasks    = async (_token)           => (await axios.get(BASE)).data
+const createTask  = async (_token, data)     => (await axios.post(BASE, data)).data
+const updateTask  = async (_token, id, data) => (await axios.put(`${BASE}/${id}`, data)).data
+const deleteTask  = async (_token, id)       => (await axios.delete(`${BASE}/${id}`)).data
+const addComment  = async (_token, id, text) => (await axios.post(`${BASE}/${id}/comments`, { text })).data
 
 const tasksAPI = { getTasks, createTask, updateTask, deleteTask, addComment }
 export default tasksAPI

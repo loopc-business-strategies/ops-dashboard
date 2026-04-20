@@ -1,47 +1,46 @@
 import axios from 'axios'
 
 const BASE = '/api/erp'
-const h = (token) => ({ headers: { Authorization: `Bearer ${token}` } })
 
 // Inventory
-const getInventory = async (token, params = {}) => (await axios.get(`${BASE}/inventory`, { params, ...h(token) })).data
-const createInventoryItem = async (token, data) => (await axios.post(`${BASE}/inventory`, data, h(token))).data
-const updateInventoryItem = async (token, id, data) => (await axios.put(`${BASE}/inventory/${id}`, data, h(token))).data
-const deleteInventoryItem = async (token, id) => (await axios.delete(`${BASE}/inventory/${id}`, h(token))).data
-const getInventoryMovements = async (token) => (await axios.get(`${BASE}/inventory/movements`, h(token))).data
+const getInventory = async (_token, params = {}) => (await axios.get(`${BASE}/inventory`, { params })).data
+const createInventoryItem = async (_token, data) => (await axios.post(`${BASE}/inventory`, data)).data
+const updateInventoryItem = async (_token, id, data) => (await axios.put(`${BASE}/inventory/${id}`, data)).data
+const deleteInventoryItem = async (_token, id) => (await axios.delete(`${BASE}/inventory/${id}`)).data
+const getInventoryMovements = async (_token, params = {}) => (await axios.get(`${BASE}/inventory/movements`, { params })).data
 
 // Suppliers
-const getSuppliers = async (token) => (await axios.get(`${BASE}/procurement/suppliers`, h(token))).data
-const createSupplier = async (token, data) => (await axios.post(`${BASE}/procurement/suppliers`, data, h(token))).data
-const updateSupplier = async (token, id, data) => (await axios.put(`${BASE}/procurement/suppliers/${id}`, data, h(token))).data
-const deleteSupplier = async (token, id) => (await axios.delete(`${BASE}/procurement/suppliers/${id}`, h(token))).data
+const getSuppliers = async (_token, params = {}) => (await axios.get(`${BASE}/procurement/suppliers`, { params })).data
+const createSupplier = async (_token, data) => (await axios.post(`${BASE}/procurement/suppliers`, data)).data
+const updateSupplier = async (_token, id, data) => (await axios.put(`${BASE}/procurement/suppliers/${id}`, data)).data
+const deleteSupplier = async (_token, id) => (await axios.delete(`${BASE}/procurement/suppliers/${id}`)).data
 
 // Purchase Orders
-const getPurchaseOrders = async (token, params = {}) => (await axios.get(`${BASE}/procurement/purchase-orders`, { params, ...h(token) })).data
-const createPurchaseOrder = async (token, data) => (await axios.post(`${BASE}/procurement/purchase-orders`, data, h(token))).data
-const updatePurchaseOrder = async (token, id, data) => (await axios.put(`${BASE}/procurement/purchase-orders/${id}`, data, h(token))).data
-const deletePurchaseOrder = async (token, id) => (await axios.delete(`${BASE}/procurement/purchase-orders/${id}`, h(token))).data
+const getPurchaseOrders = async (_token, params = {}) => (await axios.get(`${BASE}/procurement/purchase-orders`, { params })).data
+const createPurchaseOrder = async (_token, data) => (await axios.post(`${BASE}/procurement/purchase-orders`, data)).data
+const updatePurchaseOrder = async (_token, id, data) => (await axios.put(`${BASE}/procurement/purchase-orders/${id}`, data)).data
+const deletePurchaseOrder = async (_token, id) => (await axios.delete(`${BASE}/procurement/purchase-orders/${id}`)).data
 
 // Production Work Orders
-const getWorkOrders = async (token, params = {}) => (await axios.get(`${BASE}/production/work-orders`, { params, ...h(token) })).data
-const createWorkOrder = async (token, data) => (await axios.post(`${BASE}/production/work-orders`, data, h(token))).data
-const updateWorkOrder = async (token, id, data) => (await axios.put(`${BASE}/production/work-orders/${id}`, data, h(token))).data
-const deleteWorkOrder = async (token, id) => (await axios.delete(`${BASE}/production/work-orders/${id}`, h(token))).data
+const getWorkOrders = async (_token, params = {}) => (await axios.get(`${BASE}/production/work-orders`, { params })).data
+const createWorkOrder = async (_token, data) => (await axios.post(`${BASE}/production/work-orders`, data)).data
+const updateWorkOrder = async (_token, id, data) => (await axios.put(`${BASE}/production/work-orders/${id}`, data)).data
+const deleteWorkOrder = async (_token, id) => (await axios.delete(`${BASE}/production/work-orders/${id}`)).data
 
 // Finance Records
-const getFinanceRecords = async (token, params = {}) => (await axios.get(`${BASE}/finance/records`, { params, ...h(token) })).data
-const createFinanceRecord = async (token, data) => (await axios.post(`${BASE}/finance/records`, data, h(token))).data
-const updateFinanceRecord = async (token, id, data) => (await axios.put(`${BASE}/finance/records/${id}`, data, h(token))).data
-const deleteFinanceRecord = async (token, id) => (await axios.delete(`${BASE}/finance/records/${id}`, h(token))).data
+const getFinanceRecords = async (_token, params = {}) => (await axios.get(`${BASE}/finance/records`, { params })).data
+const createFinanceRecord = async (_token, data) => (await axios.post(`${BASE}/finance/records`, data)).data
+const updateFinanceRecord = async (_token, id, data) => (await axios.put(`${BASE}/finance/records/${id}`, data)).data
+const deleteFinanceRecord = async (_token, id) => (await axios.delete(`${BASE}/finance/records/${id}`)).data
 
 // Procurement Documents
-const getProcurementDocuments = async (token, params = {}) => (await axios.get(`${BASE}/procurement/documents`, { params, ...h(token) })).data
-const uploadProcurementDocument = async (token, data) => (await axios.post(`${BASE}/procurement/documents`, data, h(token))).data
-const deleteProcurementDocument = async (token, id) => (await axios.delete(`${BASE}/procurement/documents/${id}`, h(token))).data
+const getProcurementDocuments = async (_token, params = {}) => (await axios.get(`${BASE}/procurement/documents`, { params })).data
+const uploadProcurementDocument = async (_token, data) => (await axios.post(`${BASE}/procurement/documents`, data)).data
+const deleteProcurementDocument = async (_token, id) => (await axios.delete(`${BASE}/procurement/documents/${id}`)).data
 
 // Expiry Alerts
-const getExpiryAlerts = async (token, params = {}) => (await axios.get(`${BASE}/alerts/expiry`, { params, ...h(token) })).data
-const resolveExpiryAlert = async (token, id, notes = '') => (await axios.put(`${BASE}/alerts/expiry/${id}/resolve`, { notes }, h(token))).data
+const getExpiryAlerts = async (_token, params = {}) => (await axios.get(`${BASE}/alerts/expiry`, { params })).data
+const resolveExpiryAlert = async (_token, id, notes = '') => (await axios.put(`${BASE}/alerts/expiry/${id}/resolve`, { notes })).data
 
 const erpAPI = {
   getInventory,

@@ -15,44 +15,48 @@ export function AuthProvider({ children }) {
   const [token,     setToken]     = useState(null)
   const [isLoading, setIsLoading] = useState(true) // checking saved session
 
-  // On app load: restore session from localStorage
+  // On app load: restore session from server cookie
   useEffect(() => {
-    const savedToken = localStorage.getItem('token')
-    const savedUser = localStorage.getItem('user')
+    let mounted = true
 
-    if (savedToken && savedUser) {
+    const restoreSession = async () => {
       try {
-        const parsedUser = JSON.parse(savedUser)
-        if (parsedUser && typeof parsedUser === 'object') {
-          setToken(savedToken)
-          setUser(parsedUser)
-        } else {
-          throw new Error('Invalid user payload')
-        }
+        const data = await authAPI.getMe()
+        if (!mounted) return
+        setUser(data.user)
+        // Keep compatibility for existing token checks in tabs.
+        setToken('cookie-session')
       } catch {
-        // Clear corrupted session data to avoid breaking login flow.
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
+        if (!mounted) return
+        setUser(null)
+        setToken(null)
+      } finally {
+        if (mounted) setIsLoading(false)
       }
     }
 
-    setIsLoading(false)
+    restoreSession()
+
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const login = async (name, password) => {
     const data = await authAPI.login(name, password)
-    setToken(data.token)
     setUser(data.user)
-    localStorage.setItem('token', data.token)
-    localStorage.setItem('user', JSON.stringify(data.user))
+    setToken('cookie-session')
     return data
   }
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await authAPI.logout()
+    } catch {
+      // Clear client state even if server session is already invalid.
+    }
     setToken(null)
     setUser(null)
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
   }
 
   return (

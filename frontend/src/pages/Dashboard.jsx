@@ -16,7 +16,7 @@
 //   Operations     → placeholder (to be built)
 //   Training       → placeholder (to be built)
 
-import { Component, Suspense, lazy, useState } from 'react'
+import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
@@ -91,12 +91,11 @@ function RoleBadge({ role }) {
 }
 
 // ── Sidebar nav item ────────────────────────────
-function NavItem({ icon, label, active, onClick, badge }) {
+function NavItem({ label, active, onClick, badge }) {
   return (
     <button onClick={onClick}
-      className={`sidebar-item${active ? ' active' : ''}`}>
-      <span className="text-base w-5 text-center flex-shrink-0">{icon}</span>
-      <span className="flex-1 truncate">{label}</span>
+      className={`sidebar-item w-full justify-center text-center${active ? ' active' : ''}`}>
+      <span className="truncate">{label}</span>
       {badge && (
         <span style={{ fontSize: 11, background: 'var(--purple)', color: '#fff', borderRadius: 999, padding: '1px 6px', lineHeight: 1.4 }}>
           {badge}
@@ -113,21 +112,21 @@ function NavItem({ icon, label, active, onClick, badge }) {
 function getNavItems(perms, chatUnread = 0) {
   return [
     // ── Main ──
-    { id: 'overview',    icon: '▣',   label: 'Overview',            group: 'main',       show: true },
-    { id: 'chat',        icon: '💬',  label: 'Chat',                group: 'main',       show: true, badge: chatUnread || null },
+    { id: 'overview',    label: 'Overview',            group: 'main',       show: true },
+    { id: 'chat',        label: 'Chat',                group: 'main',       show: true, badge: chatUnread || null },
 
     // ── Admin (super_admin only) ──
-    { id: 'admin',       icon: '🛡️',  label: 'Admin',               group: 'admin',      show: perms.isSuperAdmin },
+    { id: 'admin',       label: 'Admin',               group: 'admin',      show: perms.isSuperAdmin },
 
     // ── Departments ──
-    { id: 'hr',          icon: '👥',  label: 'HR',                  group: 'departments', show: perms.canViewModule('hr') },
-    { id: 'compliance',  icon: '🏛️',  label: 'Compliance',          group: 'departments', show: perms.canViewModule('government') },
-    { id: 'production',  icon: '🏭',  label: 'Production',          group: 'departments', show: perms.canViewModule('production') },
-    { id: 'finance',     icon: '💰',  label: 'Finance',             group: 'departments', show: perms.canViewModule('finance') },
-    { id: 'sales',       icon: '📈',  label: 'Sales',               group: 'departments', show: perms.canViewModule('sales') },
-    { id: 'operations',  icon: '🚛',  label: 'Operations',          group: 'departments', show: perms.canViewModule('operations') },
-    { id: 'training',    icon: '🎓',  label: 'Training',            group: 'departments', show: perms.canViewModule('training') },
-    { id: 'erp',         icon: '🏭',  label: 'ERP',                 group: 'departments', show: !perms.isExternal },
+    { id: 'hr',          label: 'HR',                  group: 'departments', show: perms.canViewModule('hr') },
+    { id: 'compliance',  label: 'Compliance',          group: 'departments', show: perms.canViewModule('government') },
+    { id: 'production',  label: 'Production',          group: 'departments', show: perms.canViewModule('production') },
+    { id: 'finance',     label: 'Finance',             group: 'departments', show: perms.canViewModule('finance') },
+    { id: 'sales',       label: 'Sales',               group: 'departments', show: perms.canViewModule('sales') },
+    { id: 'operations',  label: 'Operations',          group: 'departments', show: perms.canViewModule('operations') },
+    { id: 'training',    label: 'Training',            group: 'departments', show: perms.canViewModule('training') },
+    { id: 'erp',         label: 'ERP',                 group: 'departments', show: !perms.isExternal },
 
     // ── More tabs added here as client requests ──
     // { id: 'reports',  icon: '📊', label: 'Reports', group: 'more', show: true },
@@ -206,9 +205,55 @@ function Dashboard() {
 
   const [activeTab,    setActiveTab]    = useState('overview')
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
+  const [adminOpen,    setAdminOpen]    = useState(true)
+  const [deptOpen,     setDeptOpen]     = useState(true)
   const [chatUnread,   setChatUnread]   = useState(3) // matches seed data initial unread
 
+  const EDGE_TRIGGER_WIDTH = 20
+  const SIDEBAR_WIDTH = 240
+  const HIDE_DELAY_MS = 400
+  const HIDE_THRESHOLD_X = 320
+  const hideTimerRef = useRef(null)
+
   const navItems = getNavItems(perms, chatUnread)
+
+  const clearHideTimer = () => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = null
+    }
+  }
+
+  const openSidebar = () => {
+    clearHideTimer()
+    setSidebarOpen(true)
+  }
+
+  const queueHideSidebar = () => {
+    clearHideTimer()
+    hideTimerRef.current = setTimeout(() => {
+      setSidebarOpen(false)
+      hideTimerRef.current = null
+    }, HIDE_DELAY_MS)
+  }
+
+  useEffect(() => {
+    return () => clearHideTimer()
+  }, [])
+
+  const handleShellMouseMove = (e) => {
+    const x = e.clientX
+
+    if (x <= EDGE_TRIGGER_WIDTH) {
+      if (!sidebarOpen) openSidebar()
+      else clearHideTimer()
+      return
+    }
+
+    if (sidebarOpen && x > HIDE_THRESHOLD_X) {
+      queueHideSidebar()
+    }
+  }
 
   // Group nav items
   const mainItems  = navItems.filter(n => n.group === 'main')
@@ -221,7 +266,16 @@ function Dashboard() {
   const currentTab = navItems.find(n => n.id === activeTab)
 
   return (
-    <div className="min-h-screen flex" style={{ background: 'var(--bg-base)' }}>
+    <div className="h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }} onMouseMove={handleShellMouseMove}>
+
+      {/* Desktop edge sensor: reveal sidebar when mouse nears left edge */}
+      {!sidebarOpen && (
+        <div
+          className="fixed inset-y-0 left-0 z-40"
+          style={{ width: EDGE_TRIGGER_WIDTH }}
+          onMouseEnter={openSidebar}
+        />
+      )}
 
       {/* ══════════════════════════════════════
           SIDEBAR
@@ -231,15 +285,19 @@ function Dashboard() {
         flex flex-col
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:relative lg:translate-x-0 lg:flex
-      `}>
+      `}
+      onMouseEnter={clearHideTimer}
+      onMouseLeave={queueHideSidebar}>
 
         {/* Sidebar top — logo */}
         <div className="sidebar-logo flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm"
               style={{ background: 'var(--grad-brand)' }}>
-              🏢
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M18.6 4.8C14.9 4.8 11.9 6.2 9.9 8.4C7.7 10.8 6.9 14.1 7.4 18.1C11.4 18.6 14.7 17.8 17.1 15.6C19.3 13.6 20.7 10.6 20.7 6.9V4.8H18.6Z" fill="rgba(255,255,255,0.95)"/>
+                <path d="M4.5 19.5C7.5 16.6 10.2 14.9 13.5 13.4" stroke="rgba(255,255,255,0.95)" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
             </div>
             <div className="min-w-0">
               <p className="font-bold text-sm truncate" style={{ color: '#1C2A33' }}>Ops Dashboard</p>
@@ -255,20 +313,21 @@ function Dashboard() {
           {mainItems.map(item => (
             <NavItem key={item.id} {...item}
               active={activeTab === item.id}
-              onClick={() => { setActiveTab(item.id); setSidebarOpen(false) }} />
+              onClick={() => setActiveTab(item.id)} />
           ))}
 
           {/* Admin section */}
           {adminItems.length > 0 && (
             <>
-              <div className="sidebar-section-title">
+              <button className="sidebar-section-title w-full justify-center gap-2"
+                onClick={() => setAdminOpen(v => !v)}>
                 <span>Admin</span>
-                <span className="section-chevron">▾</span>
-              </div>
-              {adminItems.map(item => (
+                <span className="section-chevron">{adminOpen ? '▴' : '▾'}</span>
+              </button>
+              {adminOpen && adminItems.map(item => (
                 <NavItem key={item.id} {...item}
                   active={activeTab === item.id}
-                  onClick={() => { setActiveTab(item.id); setSidebarOpen(false) }} />
+                  onClick={() => setActiveTab(item.id)} />
               ))}
             </>
           )}
@@ -276,14 +335,15 @@ function Dashboard() {
           {/* Departments */}
           {deptItems.length > 0 && (
             <>
-              <div className="sidebar-section-title">
+              <button className="sidebar-section-title w-full justify-center gap-2"
+                onClick={() => setDeptOpen(v => !v)}>
                 <span>Departments</span>
-                <span className="section-chevron">▾</span>
-              </div>
-              {deptItems.map(item => (
+                <span className="section-chevron">{deptOpen ? '▴' : '▾'}</span>
+              </button>
+              {deptOpen && deptItems.map(item => (
                 <NavItem key={item.id} {...item}
                   active={activeTab === item.id}
-                  onClick={() => { setActiveTab(item.id); setSidebarOpen(false) }} />
+                  onClick={() => setActiveTab(item.id)} />
               ))}
             </>
           )}
@@ -326,7 +386,7 @@ function Dashboard() {
       {/* ══════════════════════════════════════
           MAIN CONTENT AREA
           ══════════════════════════════════════ */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={`h-full flex flex-col min-w-0 transition-all duration-300 ${sidebarOpen ? 'lg:ml-[240px]' : 'lg:ml-0'}`}>
 
         {/* Top header bar */}
         <header className="topbar sticky top-0 z-30 flex-shrink-0">
@@ -334,7 +394,7 @@ function Dashboard() {
             <div className="flex items-center gap-3">
               {/* Mobile hamburger */}
               <button onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden p-2 rounded-lg transition-colors"
+                className="p-2 rounded-lg transition-colors"
                 style={{ color: 'var(--text-muted)' }}
                 onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'rgba(255,255,255,0.12)' }}
                 onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}>

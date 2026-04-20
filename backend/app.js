@@ -5,6 +5,7 @@ const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
 const rateLimit = require('express-rate-limit')
+const cookieParser = require('cookie-parser')
 
 const authRoutes = require('./routes/auth')
 const employeeRoutes = require('./routes/employees')
@@ -13,10 +14,12 @@ const erpRoutes = require('./routes/erp')
 const erpAccountingRoutes = require('./routes/erp-accounting')
 const attendanceRoutes = require('./routes/attendance')
 const messageRoutes = require('./routes/messages')
+const crmRoutes = require('./routes/crm')
 
 function createApp() {
   const app = express()
   const REQUEST_BODY_LIMIT = process.env.REQUEST_BODY_LIMIT || '100kb'
+  const isProduction = process.env.NODE_ENV === 'production'
 
   app.set('trust proxy', 1)
 
@@ -25,6 +28,7 @@ function createApp() {
     max: Number(process.env.RATE_LIMIT_MAX || 400),
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => !isProduction,
     message: { success: false, message: 'Too many requests. Please try again shortly.' },
   })
 
@@ -33,6 +37,8 @@ function createApp() {
     max: Number(process.env.AUTH_RATE_LIMIT_MAX || 25),
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => !isProduction,
+    skipSuccessfulRequests: true,
     message: { success: false, message: 'Too many authentication attempts. Please try again later.' },
   })
 
@@ -41,8 +47,10 @@ function createApp() {
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
     credentials: true,
   }))
+  app.use(cookieParser())
   app.use(express.json({ limit: REQUEST_BODY_LIMIT }))
   app.use(express.urlencoded({ extended: true, limit: REQUEST_BODY_LIMIT }))
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
   app.use('/api', apiLimiter)
   app.use('/api/auth/login', authLimiter)
@@ -59,6 +67,7 @@ function createApp() {
   app.use('/api/erp-accounting', erpAccountingRoutes)
   app.use('/api/attendance', attendanceRoutes)
   app.use('/api/messages', messageRoutes)
+  app.use('/api/crm', crmRoutes)
 
   if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.join(__dirname, '../frontend/dist')))

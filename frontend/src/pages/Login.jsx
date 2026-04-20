@@ -40,19 +40,6 @@ function Login() {
     }
   }
 
-  // DEMO — remove this function when done
-  const handleDemoLogin = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      await login('AdminUser', 'demo1234')
-      navigate('/dashboard')
-    } catch (err) {
-      setError(err.response?.data?.message || 'Demo login failed.')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-4">
@@ -101,17 +88,12 @@ function Login() {
                 Username
               </label>
               <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </div>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => { setName(e.target.value); setError('') }}
                   placeholder="Enter your username"
-                  className="input-field pl-10"
+                  className="input-field"
                   autoFocus
                   autoComplete="username"
                   disabled={loading}
@@ -125,17 +107,12 @@ function Login() {
                 Password
               </label>
               <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
                 <input
                   type={showPass ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError('') }}
                   placeholder="Enter your password"
-                  className="input-field pl-10 pr-10"
+                  className="input-field pr-10"
                   autoComplete="current-password"
                   disabled={loading}
                 />
@@ -172,19 +149,6 @@ function Login() {
               ) : 'Sign In'}
             </button>
           </form>
-
-          {/* DEMO LOGIN — delete this block when done */}
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              disabled={loading}
-              className="w-full py-2.5 rounded-lg text-sm font-semibold border border-yellow-500/50 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors disabled:opacity-50"
-            >
-              ⚡ Demo Login (Super Admin)
-            </button>
-            <p className="text-xs text-yellow-600/60 text-center mt-1">For testing only — remove before production</p>
-          </div>
 
           {/* No signup — invitation only */}
           <div className="mt-5 pt-5 border-t border-gray-800 text-center">

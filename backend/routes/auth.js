@@ -18,22 +18,63 @@ const express = require('express')
 const jwt     = require('jsonwebtoken')
 const User    = require('../models/User')
 const { protect, restrictTo } = require('../middleware/auth')
+const { Joi, validateBody, validateParams } = require('../middleware/validate')
 
 const router = express.Router()
 
-const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // Helper: create a JWT token for a user
 const createToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' })
 
+const COOKIE_MAX_AGE = Number(process.env.COOKIE_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000)
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  maxAge: COOKIE_MAX_AGE,
+  path: '/',
+}
+
+const setupSchema = Joi.object({
+  name: Joi.string().trim().min(2).max(80).required(),
+  password: Joi.string().min(6).max(128).required(),
+})
+
+const loginSchema = Joi.object({
+  name: Joi.string().trim().min(2).max(80).required(),
+  password: Joi.string().min(1).max(128).required(),
+})
+
+const userIdParamSchema = Joi.object({
+  id: Joi.string().hex().length(24).required(),
+})
+
+const createUserSchema = Joi.object({
+  name: Joi.string().trim().min(2).max(80).required(),
+  password: Joi.string().min(6).max(128).required(),
+  role: Joi.string().valid('super_admin', 'management', 'department_head', 'department_user', 'external').optional(),
+  department: Joi.string().allow('').max(80).optional(),
+  allowedModules: Joi.array().items(Joi.string().trim().max(80)).max(30).optional(),
+  assignedTasks: Joi.array().items(Joi.string().trim().max(120)).max(200).optional(),
+})
+
+const updateRoleSchema = Joi.object({
+  role: Joi.string().valid('super_admin', 'management', 'department_head', 'department_user', 'external').required(),
+  department: Joi.string().allow('').max(80).optional(),
+  allowedModules: Joi.array().items(Joi.string().trim().max(80)).max(30).optional(),
+  assignedTasks: Joi.array().items(Joi.string().trim().max(120)).max(200).optional(),
+})
+
 // Helper: send user data + token as response
 const sendToken = (user, status, res) => {
   const token = createToken(user._id)
+  res.cookie('sessionToken', token, cookieOptions)
   user.password = undefined // never send password
   res.status(status).json({
     success: true,
-    token,
     user: {
       id:             user._id,
       name:           user.name,
@@ -52,7 +93,7 @@ const sendToken = (user, status, res) => {
 // Only works when database has zero users.
 // After first use, this endpoint is permanently blocked.
 // ==========================================
-router.post('/setup', async (req, res) => {
+router.post('/setup', validateBody(setupSchema), async (req, res) => {
   try {
     const count = await User.countDocuments()
     if (count > 0) {
@@ -87,7 +128,7 @@ router.post('/setup', async (req, res) => {
 // POST /api/auth/login
 // Login using name + password (no email needed)
 // ==========================================
-router.post('/login', async (req, res) => {
+router.post('/login', validateBody(loginSchema), async (req, res) => {
   try {
     const { name, email, password } = req.body
     const identifier = (name || email || '').trim()
@@ -95,13 +136,10 @@ router.post('/login', async (req, res) => {
     if (!identifier || !password)
       return res.status(400).json({ success: false, message: 'Username/email and password are required.' })
 
-    // Find user by username or email (case-insensitive exact match)
-    const exact = new RegExp(`^${escapeRegExp(identifier)}$`, 'i')
+    // Find user by name (case-insensitive search)
+    const safeName = escapeRegex(name.trim())
     const user = await User.findOne({
-      $or: [
-        { name: { $regex: exact } },
-        { email: { $regex: exact } },
-      ],
+      name: { $regex: new RegExp(`^${safeName}$`, 'i') }
     }).select('+password')
 
     if (!user || !(await user.comparePassword(password)))
@@ -140,6 +178,11 @@ router.get('/me', protect, (req, res) => {
   })
 })
 
+router.post('/logout', protect, (req, res) => {
+  res.clearCookie('sessionToken', { ...cookieOptions, maxAge: undefined })
+  res.json({ success: true, message: 'Logged out.' })
+})
+
 // ==========================================
 // GET /api/auth/users — list all users
 // All authenticated users
@@ -157,7 +200,7 @@ router.get('/users', protect, restrictTo('super_admin'), async (req, res) => {
 // POST /api/auth/users — create a new user
 // SUPER ADMIN only — no public signup exists
 // ==========================================
-router.post('/users', protect, restrictTo('super_admin'), async (req, res) => {
+router.post('/users', protect, restrictTo('super_admin'), validateBody(createUserSchema), async (req, res) => {
   try {
     const { name, password, role, department, allowedModules, assignedTasks } = req.body
 
@@ -167,8 +210,8 @@ router.post('/users', protect, restrictTo('super_admin'), async (req, res) => {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' })
 
     // Check if name already taken
-    const escapedName = escapeRegExp(name.trim())
-    const exists = await User.findOne({ name: { $regex: new RegExp(`^${escapedName}$`, 'i') } })
+    const safeName = escapeRegex(name.trim())
+    const exists = await User.findOne({ name: { $regex: new RegExp(`^${safeName}$`, 'i') } })
     if (exists)
       return res.status(400).json({ success: false, message: 'A user with this name already exists.' })
 
@@ -194,7 +237,7 @@ router.post('/users', protect, restrictTo('super_admin'), async (req, res) => {
 // PUT /api/auth/users/:id/role — update role
 // SUPER ADMIN only
 // ==========================================
-router.put('/users/:id/role', protect, restrictTo('super_admin'), async (req, res) => {
+router.put('/users/:id/role', protect, restrictTo('super_admin'), validateParams(userIdParamSchema), validateBody(updateRoleSchema), async (req, res) => {
   try {
     const { role, department, allowedModules, assignedTasks } = req.body
 
@@ -215,7 +258,7 @@ router.put('/users/:id/role', protect, restrictTo('super_admin'), async (req, re
 // DELETE /api/auth/users/:id — permanently delete a user
 // SUPER ADMIN only
 // ==========================================
-router.delete('/users/:id', protect, restrictTo('super_admin'), async (req, res) => {
+router.delete('/users/:id', protect, restrictTo('super_admin'), validateParams(userIdParamSchema), async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
@@ -234,7 +277,7 @@ router.delete('/users/:id', protect, restrictTo('super_admin'), async (req, res)
 // PUT /api/auth/users/:id/toggle — activate/deactivate
 // SUPER ADMIN only
 // ==========================================
-router.put('/users/:id/toggle', protect, restrictTo('super_admin'), async (req, res) => {
+router.put('/users/:id/toggle', protect, restrictTo('super_admin'), validateParams(userIdParamSchema), async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' })

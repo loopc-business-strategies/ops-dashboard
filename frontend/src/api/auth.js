@@ -5,10 +5,7 @@
 
 import axios from 'axios'
 
-const API_ROOT = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-const BASE = `${API_ROOT}/api/auth`
-// Helper: build Authorization header
-const h = (token) => ({ headers: { Authorization: `Bearer ${token}` } })
+const BASE = '/api/auth'
 
 // Login with name + password
 const login = async (name, password) =>
@@ -19,28 +16,31 @@ const setup = async (name, password) =>
   (await axios.post(`${BASE}/setup`, { name, password })).data
 
 // Get my own profile
-const getMe = async (token) =>
-  (await axios.get(`${BASE}/me`, h(token))).data
+const getMe = async () =>
+  (await axios.get(`${BASE}/me`)).data
+
+const logout = async () =>
+  (await axios.post(`${BASE}/logout`)).data
 
 // Get all users (super_admin only)
-const getUsers = async (token) =>
-  (await axios.get(`${BASE}/users`, h(token))).data
+const getUsers = async () =>
+  (await axios.get(`${BASE}/users`)).data
 
 // Create a new user (super_admin only)
-const createUser = async (token, data) =>
-  (await axios.post(`${BASE}/users`, data, h(token))).data
+const createUser = async (_token, data) =>
+  (await axios.post(`${BASE}/users`, data)).data
 
 // Update a user's role/dept/permissions (super_admin only)
-const updateUserRole = async (token, id, data) =>
-  (await axios.put(`${BASE}/users/${id}/role`, data, h(token))).data
+const updateUserRole = async (_token, id, data) =>
+  (await axios.put(`${BASE}/users/${id}/role`, data)).data
 
 // Toggle a user active/inactive (super_admin only)
-const toggleUser = async (token, id) =>
-  (await axios.put(`${BASE}/users/${id}/toggle`, {}, h(token))).data
+const toggleUser = async (_token, id) =>
+  (await axios.put(`${BASE}/users/${id}/toggle`, {})).data
 
 // Permanently delete a user (super_admin only)
-const deleteUser = async (token, id) =>
-  (await axios.delete(`${BASE}/users/${id}`, h(token))).data
+const deleteUser = async (_token, id) =>
+  (await axios.delete(`${BASE}/users/${id}`)).data
 
-const authAPI = { login, setup, getMe, getUsers, createUser, updateUserRole, toggleUser, deleteUser }
+const authAPI = { login, setup, getMe, logout, getUsers, createUser, updateUserRole, toggleUser, deleteUser }
 export default authAPI
