@@ -59,6 +59,13 @@ const createUserSchema = Joi.object({
   department: Joi.string().allow('').max(80).optional(),
   allowedModules: Joi.array().items(Joi.string().trim().max(80)).max(30).optional(),
   assignedTasks: Joi.array().items(Joi.string().trim().max(120)).max(200).optional(),
+  fullName: Joi.string().allow('').trim().max(120).optional(),
+  title: Joi.string().allow('').trim().max(80).optional(),
+  phone: Joi.string().allow('').trim().max(40).optional(),
+  location: Joi.string().allow('').trim().max(120).optional(),
+  timezone: Joi.string().allow('').trim().max(80).optional(),
+  employeeCode: Joi.string().allow('').trim().max(40).optional(),
+  notes: Joi.string().allow('').trim().max(600).optional(),
 })
 
 const updateRoleSchema = Joi.object({
@@ -66,6 +73,15 @@ const updateRoleSchema = Joi.object({
   department: Joi.string().allow('').max(80).optional(),
   allowedModules: Joi.array().items(Joi.string().trim().max(80)).max(30).optional(),
   assignedTasks: Joi.array().items(Joi.string().trim().max(120)).max(200).optional(),
+  name: Joi.string().trim().min(2).max(80).optional(),
+  fullName: Joi.string().allow('').trim().max(120).optional(),
+  title: Joi.string().allow('').trim().max(80).optional(),
+  phone: Joi.string().allow('').trim().max(40).optional(),
+  location: Joi.string().allow('').trim().max(120).optional(),
+  timezone: Joi.string().allow('').trim().max(80).optional(),
+  employeeCode: Joi.string().allow('').trim().max(40).optional(),
+  notes: Joi.string().allow('').trim().max(600).optional(),
+  password: Joi.string().min(6).max(128).allow('').optional(),
 })
 
 // Helper: send user data + token as response
@@ -78,11 +94,18 @@ const sendToken = (user, status, res) => {
     user: {
       id:             user._id,
       name:           user.name,
+      fullName:       user.fullName,
       email:          user.email,
       role:           user.role,
       department:     user.department,
       allowedModules: user.allowedModules,
       assignedTasks:  user.assignedTasks,
+      title:          user.title,
+      phone:          user.phone,
+      location:       user.location,
+      timezone:       user.timezone,
+      employeeCode:   user.employeeCode,
+      notes:          user.notes,
     },
   })
 }
@@ -167,11 +190,18 @@ router.get('/me', protect, (req, res) => {
     user: {
       id:             req.user._id,
       name:           req.user.name,
+      fullName:       req.user.fullName,
       email:          req.user.email,
       role:           req.user.role,
       department:     req.user.department,
       allowedModules: req.user.allowedModules,
       assignedTasks:  req.user.assignedTasks,
+      title:          req.user.title,
+      phone:          req.user.phone,
+      location:       req.user.location,
+      timezone:       req.user.timezone,
+      employeeCode:   req.user.employeeCode,
+      notes:          req.user.notes,
       lastLogin:      req.user.lastLogin,
       createdAt:      req.user.createdAt,
     },
@@ -202,7 +232,7 @@ router.get('/users', protect, restrictTo('super_admin'), async (req, res) => {
 // ==========================================
 router.post('/users', protect, restrictTo('super_admin'), validateBody(createUserSchema), async (req, res) => {
   try {
-    const { name, password, role, department, allowedModules, assignedTasks } = req.body
+    const { name, password, role, department, allowedModules, assignedTasks, fullName, title, phone, location, timezone, employeeCode, notes } = req.body
 
     if (!name || !password)
       return res.status(400).json({ success: false, message: 'Name and password are required.' })
@@ -223,6 +253,13 @@ router.post('/users', protect, restrictTo('super_admin'), validateBody(createUse
       department:     department     || '',
       allowedModules: allowedModules || [],
       assignedTasks:  assignedTasks  || [],
+      fullName:       fullName       || '',
+      title:          title          || '',
+      phone:          phone          || '',
+      location:       location       || '',
+      timezone:       timezone       || 'Africa/Johannesburg',
+      employeeCode:   employeeCode   || '',
+      notes:          notes          || '',
     })
 
     user.password = undefined
@@ -239,17 +276,40 @@ router.post('/users', protect, restrictTo('super_admin'), validateBody(createUse
 // ==========================================
 router.put('/users/:id/role', protect, restrictTo('super_admin'), validateParams(userIdParamSchema), validateBody(updateRoleSchema), async (req, res) => {
   try {
-    const { role, department, allowedModules, assignedTasks } = req.body
+    const { role, department, allowedModules, assignedTasks, name, fullName, title, phone, location, timezone, employeeCode, notes, password } = req.body
 
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { role, department, allowedModules, assignedTasks },
-      { new: true, runValidators: true }
-    ).select('-password')
+    const user = await User.findById(req.params.id).select('+password')
 
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
+
+    if (name && name.trim().toLowerCase() !== user.name.toLowerCase()) {
+      const safeName = escapeRegex(name.trim())
+      const exists = await User.findOne({ _id: { $ne: user._id }, name: { $regex: new RegExp(`^${safeName}$`, 'i') } })
+      if (exists)
+        return res.status(400).json({ success: false, message: 'A user with this name already exists.' })
+      user.name = name.trim()
+      user.email = `${name.trim().toLowerCase().replace(/\s+/g, '.')}@system.local`
+    }
+
+    user.role = role
+    user.department = department || ''
+    user.allowedModules = allowedModules || []
+    user.assignedTasks = assignedTasks || []
+    user.fullName = fullName || ''
+    user.title = title || ''
+    user.phone = phone || ''
+    user.location = location || ''
+    user.timezone = timezone || 'Africa/Johannesburg'
+    user.employeeCode = employeeCode || ''
+    user.notes = notes || ''
+    if (password) user.password = password
+
+    await user.save()
+    user.password = undefined
+
     res.json({ success: true, user })
   } catch (err) {
+    console.error('Update user error:', err)
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })

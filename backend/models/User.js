@@ -19,6 +19,13 @@ const userSchema = new mongoose.Schema(
       minlength: [2, 'Name must be at least 2 characters'],
     },
 
+    fullName: {
+      type: String,
+      trim: true,
+      maxlength: [120, 'Full name must be at most 120 characters'],
+      default: '',
+    },
+
     // Email — must be unique, stored lowercase
     email: {
       type: String,
@@ -68,6 +75,48 @@ const userSchema = new mongoose.Schema(
     assignedTasks: {
       type: [String],
       default: [],
+    },
+
+    title: {
+      type: String,
+      trim: true,
+      maxlength: [80, 'Title must be at most 80 characters'],
+      default: '',
+    },
+
+    phone: {
+      type: String,
+      trim: true,
+      maxlength: [40, 'Phone must be at most 40 characters'],
+      default: '',
+    },
+
+    location: {
+      type: String,
+      trim: true,
+      maxlength: [120, 'Location must be at most 120 characters'],
+      default: '',
+    },
+
+    timezone: {
+      type: String,
+      trim: true,
+      maxlength: [80, 'Timezone must be at most 80 characters'],
+      default: 'Africa/Johannesburg',
+    },
+
+    employeeCode: {
+      type: String,
+      trim: true,
+      maxlength: [40, 'Employee code must be at most 40 characters'],
+      default: '',
+    },
+
+    notes: {
+      type: String,
+      trim: true,
+      maxlength: [600, 'Notes must be at most 600 characters'],
+      default: '',
     },
 
     // Whether the account is active or deactivated
