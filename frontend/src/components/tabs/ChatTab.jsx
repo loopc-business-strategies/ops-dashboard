@@ -18,7 +18,7 @@ const C = {
   inputBg:       '#ffffff',
   border:        'rgba(0,104,74,0.12)',
   accent:        '#00684A',
-  accent2:       '#13AA52',
+  accent2:       '#00684A',
 }
 
 // ─────────────────────────────────────────────────────────
@@ -141,9 +141,9 @@ function FileCard({ file, isMe }) {
       <div style={{ width:36, height:36, borderRadius:8, background:cf.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{cf.icon}</div>
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ fontSize:12, fontWeight:600, color:'#1c2a33', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{file.name}</div>
-        <div style={{ fontSize:10, color:'#6b7280', marginTop:2 }}>{file.size}</div>
+        <div style={{ fontSize:10, color:'#334155', marginTop:2 }}>{file.size}</div>
       </div>
-        <div style={{ fontSize:16, color:'#6b7280', flexShrink:0 }}>⬇️</div>
+        <div style={{ fontSize:16, color:'#334155', flexShrink:0 }}>⬇️</div>
     </div>
   )
 }
@@ -155,7 +155,7 @@ function TypingDots() {
   return (
     <div style={{ display:'flex', gap:3 }}>
       {[0,1,2].map(i => (
-        <div key={i} style={{ width:5, height:5, borderRadius:'50%', background:'#6b7280', animation:'chatBounce 1.2s infinite', animationDelay:`${i*0.2}s` }} />
+        <div key={i} style={{ width:5, height:5, borderRadius:'50%', background:'#334155', animation:'chatBounce 1.2s infinite', animationDelay:`${i*0.2}s` }} />
       ))}
       <style>{`@keyframes chatBounce{0%,60%,100%{opacity:.25;transform:scale(1)}30%{opacity:1;transform:scale(1.35)}}`}</style>
     </div>
@@ -173,7 +173,7 @@ function IBtn({ onClick, title, children, style = {} }) {
       title={title}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      style={{ width:32, height:32, borderRadius:'50%', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color: hover ? '#ffffff' : '#6b7280', background: hover ? C.accent : 'rgba(0,104,74,0.08)', transition:'all .15s', ...style }}
+      style={{ width:32, height:32, borderRadius:'50%', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color: hover ? '#ffffff' : '#334155', background: hover ? C.accent : 'rgba(0,104,74,0.08)', transition:'all .15s', ...style }}
     >
       {children}
     </button>
@@ -310,7 +310,7 @@ function ChatTab({ onUnreadChange }) {
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
             <div>
               <div style={{ fontSize:18, fontWeight:700, color:'#1c2a33', letterSpacing:'-0.3px' }}>💬 Chat</div>
-              <div style={{ fontSize:11, color:'#6b7280', marginTop:2 }}>
+              <div style={{ fontSize:11, color:'#334155', marginTop:2 }}>
                 {new Date().toLocaleDateString('en-US',{ weekday:'short', day:'numeric', month:'short', year:'numeric' })}
               </div>
             </div>
@@ -326,7 +326,7 @@ function ChatTab({ onUnreadChange }) {
 
           {/* Search */}
           <div style={{ position:'relative' }}>
-            <div style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', color:'#6b7280', display:'flex' }}><IconSearch /></div>
+            <div style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', color:'#334155', display:'flex' }}><IconSearch /></div>
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -353,7 +353,7 @@ function ChatTab({ onUnreadChange }) {
             </div>
           </div>
         ) : (
-          <div style={{ margin:'4px 14px 6px', padding:'8px 12px', borderRadius:8, background:'rgba(0,104,74,0.04)', border:`1px solid ${C.border}`, fontSize:11, color:'#6b7280', display:'flex', gap:6, alignItems:'center' }}>
+          <div style={{ margin:'4px 14px 6px', padding:'8px 12px', borderRadius:8, background:'rgba(0,104,74,0.04)', border:`1px solid ${C.border}`, fontSize:11, color:'#334155', display:'flex', gap:6, alignItems:'center' }}>
             <IconLock /> Group creation — Admin / Head only
           </div>
         )}
@@ -364,7 +364,7 @@ function ChatTab({ onUnreadChange }) {
           {/* Groups */}
           {groupChats.length > 0 && (
             <>
-              <div style={{ padding:'10px 16px 5px', fontSize:10, fontWeight:700, color:'#6b7280', letterSpacing:'0.1em', textTransform:'uppercase' }}>Groups</div>
+              <div style={{ padding:'10px 16px 5px', fontSize:10, fontWeight:700, color:'#334155', letterSpacing:'0.1em', textTransform:'uppercase' }}>Groups</div>
               {groupChats.map(chat => {
                 const last   = chat.messages[chat.messages.length - 1]
                 const sender = last ? getUser(last.from) : null
@@ -384,10 +384,10 @@ function ChatTab({ onUnreadChange }) {
                           <span style={{ fontSize:13, fontWeight:600, color:'#1c2a33' }}>{chat.name}</span>
                           <span style={{ fontSize:9, background:'rgba(0,104,74,0.1)', color:'#00684A', padding:'2px 6px', borderRadius:5, fontWeight:600 }}>Group</span>
                         </div>
-                        <span style={{ fontSize:10, color:'#6b7280', flexShrink:0 }}>{last ? msgTime(last.time) : ''}</span>
+                        <span style={{ fontSize:10, color:'#334155', flexShrink:0 }}>{last ? msgTime(last.time) : ''}</span>
                       </div>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                        <span style={{ fontSize:11.5, color: chat.unread ? '#374151' : '#6b7280', fontWeight: chat.unread ? 500 : 400, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
+                        <span style={{ fontSize:11.5, color: chat.unread ? '#374151' : '#334155', fontWeight: chat.unread ? 500 : 400, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
                           {last ? (sender?.name ? sender.name + ': ' : '') + (last.file ? '📎 File' : last.text.substring(0,32)) : 'No messages yet'}
                         </span>
                         {chat.unread > 0 && (
@@ -406,7 +406,7 @@ function ChatTab({ onUnreadChange }) {
           {/* Direct Messages */}
           {directChats.length > 0 && (
             <>
-              <div style={{ padding:'10px 16px 5px', fontSize:10, fontWeight:700, color:'#6b7280', letterSpacing:'0.1em', textTransform:'uppercase', marginTop:6 }}>Direct Messages</div>
+              <div style={{ padding:'10px 16px 5px', fontSize:10, fontWeight:700, color:'#334155', letterSpacing:'0.1em', textTransform:'uppercase', marginTop:6 }}>Direct Messages</div>
               {directChats.map(chat => {
                 const other  = getUser(chat.otherId)
                 const last   = chat.messages[chat.messages.length - 1]
@@ -420,7 +420,7 @@ function ChatTab({ onUnreadChange }) {
                     onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
                   >
                     <div style={{ position:'relative', flexShrink:0 }}>
-                      <div style={{ width:42, height:42, borderRadius:'50%', background:(other?.color || '#6b7280') + '20', color: other?.color || '#9ca3af', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700 }}>
+                      <div style={{ width:42, height:42, borderRadius:'50%', background:(other?.color || '#334155') + '20', color: other?.color || '#475569', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700 }}>
                         {other?.initials || '?'}
                       </div>
                       <div style={{ position:'absolute', bottom:1, right:1, width:11, height:11, borderRadius:'50%', background:'#22c55e', border:`2.5px solid #ffffff` }} />
@@ -428,10 +428,10 @@ function ChatTab({ onUnreadChange }) {
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
                         <span style={{ fontSize:13, fontWeight:600, color:'#1c2a33' }}>{chat.name}</span>
-                        <span style={{ fontSize:10, color:'#6b7280', flexShrink:0 }}>{last ? msgTime(last.time) : ''}</span>
+                        <span style={{ fontSize:10, color:'#334155', flexShrink:0 }}>{last ? msgTime(last.time) : ''}</span>
                       </div>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                        <span style={{ fontSize:11.5, color: chat.unread ? '#374151' : '#6b7280', fontWeight: chat.unread ? 500 : 400, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
+                        <span style={{ fontSize:11.5, color: chat.unread ? '#374151' : '#334155', fontWeight: chat.unread ? 500 : 400, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
                           {last ? (last.file ? '📎 File' : last.text.substring(0,32)) : 'Start a conversation'}
                         </span>
                         {chat.unread > 0 && !chat.muted && (
@@ -448,7 +448,7 @@ function ChatTab({ onUnreadChange }) {
           )}
 
           {filtered.length === 0 && (
-            <div style={{ textAlign:'center', padding:'40px 16px', fontSize:13, color:'#6b7280' }}>No chats found</div>
+            <div style={{ textAlign:'center', padding:'40px 16px', fontSize:13, color:'#334155' }}>No chats found</div>
           )}
         </div>
       </div>
@@ -457,7 +457,7 @@ function ChatTab({ onUnreadChange }) {
       <div style={{ flex:1, display:'flex', flexDirection:'column', background:C.main, minWidth:0 }}>
 
         {!activeChat ? (
-          <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, color:'#6b7280' }}>
+          <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, color:'#334155' }}>
             <div style={{ fontSize:52, opacity:.2 }}>💬</div>
             <div style={{ fontSize:14, fontWeight:600 }}>Select a conversation</div>
             <div style={{ fontSize:12, opacity:.6 }}>Choose from the list on the left</div>
@@ -470,7 +470,7 @@ function ChatTab({ onUnreadChange }) {
                 <div style={{ width:40, height:40, borderRadius:'50%', background:'rgba(0,104,74,0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>👥</div>
               ) : (
                 <div style={{ position:'relative', flexShrink:0 }}>
-                  <div style={{ width:40, height:40, borderRadius:'50%', background:(getUser(activeChat.otherId)?.color || '#6b7280') + '20', color: getUser(activeChat.otherId)?.color || '#9ca3af', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700 }}>
+                  <div style={{ width:40, height:40, borderRadius:'50%', background:(getUser(activeChat.otherId)?.color || '#334155') + '20', color: getUser(activeChat.otherId)?.color || '#475569', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700 }}>
                     {getUser(activeChat.otherId)?.initials || '?'}
                   </div>
                   <div style={{ position:'absolute', bottom:0, right:0, width:11, height:11, borderRadius:'50%', background:'#22c55e', border:`2.5px solid #ffffff` }} />
@@ -510,7 +510,7 @@ function ChatTab({ onUnreadChange }) {
 
             {/* Messages */}
             <div style={{ flex:1, overflowY:'auto', padding:'20px 18px', display:'flex', flexDirection:'column', gap:4, scrollbarWidth:'thin', scrollbarColor:`rgba(0,104,74,0.3) transparent` }}>
-              <div style={{ alignSelf:'center', fontSize:11, fontWeight:600, color:'#6b7280', background:'#f0f2f5', padding:'4px 14px', borderRadius:20, marginBottom:8 }}>Today</div>
+              <div style={{ alignSelf:'center', fontSize:11, fontWeight:600, color:'#334155', background:'#f0f2f5', padding:'4px 14px', borderRadius:20, marginBottom:8 }}>Today</div>
 
               {activeChat.messages.map((msg, idx) => {
                 const isMe    = msg.from === myId
@@ -525,7 +525,7 @@ function ChatTab({ onUnreadChange }) {
                     {/* Avatar */}
                     <div style={{ width:30, height:30, flexShrink:0 }}>
                       {!isMe && showAvatar ? (
-                        <div style={{ width:30, height:30, borderRadius:'50%', background:(sender?.color || '#6b7280') + '20', color: sender?.color || '#9ca3af', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700 }}>
+                        <div style={{ width:30, height:30, borderRadius:'50%', background:(sender?.color || '#334155') + '20', color: sender?.color || '#475569', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700 }}>
                           {sender?.initials || '?'}
                         </div>
                       ) : null}
@@ -533,7 +533,7 @@ function ChatTab({ onUnreadChange }) {
 
                     <div style={{ maxWidth:'62%', display:'flex', flexDirection:'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
                       {showName && (
-                        <div style={{ fontSize:11, fontWeight:700, color: sender?.color || '#9ca3af', marginBottom:4, marginLeft:2 }}>
+                        <div style={{ fontSize:11, fontWeight:700, color: sender?.color || '#475569', marginBottom:4, marginLeft:2 }}>
                           {sender?.name}
                         </div>
                       )}
@@ -551,7 +551,7 @@ function ChatTab({ onUnreadChange }) {
                         {msg.text && <div>{msg.text}</div>}
                         {msg.file && <FileCard file={msg.file} isMe={isMe} />}
                         <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:4, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
-                          <span style={{ fontSize:10, color: isMe ? 'rgba(255,255,255,0.55)' : '#6b7280' }}>{msgTime(msg.time)}</span>
+                          <span style={{ fontSize:10, color: isMe ? 'rgba(255,255,255,0.55)' : '#334155' }}>{msgTime(msg.time)}</span>
                           {isMe && <span style={{ fontSize:12, color:'#60a5fa' }}>✓✓</span>}
                         </div>
                       </div>
@@ -563,10 +563,10 @@ function ChatTab({ onUnreadChange }) {
               {/* Typing indicator */}
               {typingChatId === activeChatId && (
                 <div style={{ display:'flex', alignItems:'flex-end', gap:9, marginTop:12 }}>
-                  <div style={{ width:30, height:30, borderRadius:'50%', background:(getUser(activeChat.otherId)?.color || '#6b7280') + '20', color: getUser(activeChat.otherId)?.color || '#9ca3af', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, flexShrink:0 }}>
+                  <div style={{ width:30, height:30, borderRadius:'50%', background:(getUser(activeChat.otherId)?.color || '#334155') + '20', color: getUser(activeChat.otherId)?.color || '#475569', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, flexShrink:0 }}>
                     {getUser(activeChat.otherId)?.initials || '?'}
                   </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'12px 16px', borderRadius:16, borderBottomLeftRadius:4, background:C.bubbleIn, fontSize:11, color:'#6b7280' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'12px 16px', borderRadius:16, borderBottomLeftRadius:4, background:C.bubbleIn, fontSize:11, color:'#334155' }}>
                     <TypingDots />
                     <span>{getUser(activeChat.otherId)?.name} is typing…</span>
                   </div>
@@ -645,9 +645,9 @@ function ChatTab({ onUnreadChange }) {
           <div style={{ background:'#ffffff', border:`1px solid ${C.border}`, borderRadius:18, padding:24, width:380, maxWidth:'92vw', boxShadow:'0 20px 40px rgba(0,0,0,0.15)' }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
               <div style={{ fontSize:17, fontWeight:700, color:'#1c2a33' }}>Create New Group</div>
-              <button onClick={() => setShowGroupModal(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#6b7280', fontSize:18 }}>✕</button>
+              <button onClick={() => setShowGroupModal(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#334155', fontSize:18 }}>✕</button>
             </div>
-            <div style={{ fontSize:12, color:'#6b7280', marginBottom:18 }}>Only Super Admin &amp; Dept Heads can create groups</div>
+            <div style={{ fontSize:12, color:'#334155', marginBottom:18 }}>Only Super Admin &amp; Dept Heads can create groups</div>
 
             <div style={{ marginBottom:12 }}>
               <input
@@ -675,7 +675,7 @@ function ChatTab({ onUnreadChange }) {
               </select>
             </div>
 
-            <div style={{ fontSize:11, color:'#6b7280', fontWeight:600, marginBottom:8, letterSpacing:'0.05em', textTransform:'uppercase' }}>Add Members</div>
+            <div style={{ fontSize:11, color:'#334155', fontWeight:600, marginBottom:8, letterSpacing:'0.05em', textTransform:'uppercase' }}>Add Members</div>
             <div style={{ maxHeight:160, overflowY:'auto', marginBottom:18, scrollbarWidth:'thin', scrollbarColor:'rgba(0,104,74,0.3) transparent' }}>
               {SEED_USERS.filter(u => u.id !== myId).map(u => (
                 <label key={u.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:8, cursor:'pointer', transition:'background .15s' }}
@@ -690,7 +690,7 @@ function ChatTab({ onUnreadChange }) {
                   />
                   <div style={{ width:30, height:30, borderRadius:'50%', background:u.color + '20', color:u.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, flexShrink:0 }}>{u.initials}</div>
                   <span style={{ flex:1, fontSize:13, color:'#1c2a33' }}>{u.name}</span>
-                  <span style={{ fontSize:10, color:'#6b7280' }}>{u.dept}</span>
+                  <span style={{ fontSize:10, color:'#334155' }}>{u.dept}</span>
                 </label>
               ))}
             </div>
@@ -725,9 +725,9 @@ function ChatTab({ onUnreadChange }) {
           <div style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
             <div style={{ flex:1 }}>
               <div style={{ fontSize:13, fontWeight:700, color:'#1c2a33', marginBottom:3 }}>{toast.title}</div>
-              <div style={{ fontSize:12, color:'#6b7280' }}>{toast.text}</div>
+              <div style={{ fontSize:12, color:'#334155' }}>{toast.text}</div>
             </div>
-            <button onClick={() => setToast(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#6b7280', fontSize:16, lineHeight:1 }}>✕</button>
+            <button onClick={() => setToast(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#334155', fontSize:16, lineHeight:1 }}>✕</button>
           </div>
         </div>
       )}

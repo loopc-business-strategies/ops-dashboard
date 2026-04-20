@@ -8,18 +8,18 @@ import { usePermissions } from '../../hooks/usePermissions'
 const C = {
   grad:   'linear-gradient(135deg,#00684A,#00ED64)',
   gbar:   'linear-gradient(90deg,#00684A,#00b4d8)',
-  green:  '#00c896', cyan:   '#00b4d8', yellow: '#ffd600',
-  orange: '#ff7043', red:    '#ff4757', gold:   '#f59e0b',
-  t1:'#1c2a33', t2:'#374151', t3:'#6b7280', t4:'#9ca3af',
+  green:  '#065f46', cyan:   '#00b4d8', yellow: '#ffd600',
+  orange: '#9a3412', red:    '#ff4757', gold:   '#f59e0b',
+  t1:'#1c2a33', t2:'#374151', t3:'#334155', t4:'#475569',
   border: 'rgba(0,104,74,0.15)', border2:'rgba(0,104,74,0.35)',
   card:'#ffffff', card2:'#f8f9fa', inp:'#f8f9fa',
-  pur: '#13AA52',
+  pur: '#00684A',
 }
 const B = {
   pri:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', border:'none', background:C.grad, color:'#fff', boxShadow:'0 4px 15px rgba(0,104,74,.35)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#13AA52', border:'1px solid #00684A', whiteSpace:'nowrap', fontFamily:'inherit' },
-  ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#8b8fa8', border:`1px solid ${C.border}`, whiteSpace:'nowrap', fontFamily:'inherit' },
-  succ:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(0,200,150,.15)', color:'#00c896', border:'1px solid rgba(0,200,150,.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
+  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#00684A', border:'1px solid #00684A', whiteSpace:'nowrap', fontFamily:'inherit' },
+  ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#475569', border:`1px solid ${C.border}`, whiteSpace:'nowrap', fontFamily:'inherit' },
+  succ:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(0,200,150,.15)', color:'#065f46', border:'1px solid rgba(0,200,150,.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
   sm:    { padding:'5px 11px', fontSize:11 },
 }
 
@@ -135,11 +135,11 @@ function pct(v, t) { return Math.max(0, Math.min(100, Math.round((v / Math.max(t
 function avg(arr, key) { if (!arr.length) return 0; return (arr.reduce((a, b) => a + b[key], 0) / arr.length).toFixed(1) }
 
 const BADGE_MAP = {
-  'Active':        { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
+  'Active':        { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
   'Completed':     { bg:'rgba(0,180,216,.12)',   color:'#00b4d8', b:'rgba(0,180,216,.3)' },
-  'Issued':        { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
-  'Pass':          { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
-  'Present':       { bg:'rgba(0,200,150,.12)',   color:'#00c896', b:'rgba(0,200,150,.3)' },
+  'Issued':        { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
+  'Pass':          { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
+  'Present':       { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
   'On Hold':       { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
   'Pending':       { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
   'Late':          { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
@@ -148,17 +148,17 @@ const BADGE_MAP = {
   'Fail':          { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
   'Absent':        { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
   'Cancelled':     { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
-  'PDF':           { bg:'rgba(0,104,74,.15)',  color:'#13AA52', b:'rgba(0,104,74,.3)' },
-  'Video':         { bg:'rgba(255,112,67,.12)',  color:'#ff7043', b:'rgba(255,112,67,.3)' },
-  'Document':      { bg:'rgba(255,255,255,.05)', color:'#8b8fa8', b:'rgba(255,255,255,.1)' },
+  'PDF':           { bg:'rgba(0,104,74,.15)',  color:'#00684A', b:'rgba(0,104,74,.3)' },
+  'Video':         { bg:'rgba(255,112,67,.12)',  color:'#9a3412', b:'rgba(255,112,67,.3)' },
+  'Document':      { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
   'Advanced':      { bg:'rgba(0,180,216,.12)',   color:'#00b4d8', b:'rgba(0,180,216,.3)' },
-  'Intermediate':  { bg:'rgba(255,255,255,.05)', color:'#8b8fa8', b:'rgba(255,255,255,.1)' },
-  'Expert':        { bg:'rgba(0,104,74,.15)',  color:'#13AA52', b:'rgba(0,104,74,.3)' },
-  'Basic':         { bg:'rgba(255,255,255,.05)', color:'#8b8fa8', b:'rgba(255,255,255,.1)' },
+  'Intermediate':  { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
+  'Expert':        { bg:'rgba(0,104,74,.15)',  color:'#00684A', b:'rgba(0,104,74,.3)' },
+  'Basic':         { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
   'Beginner':      { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
 }
 function Badge({ s }) {
-  const cf = BADGE_MAP[s] || { bg:'rgba(255,255,255,.05)', color:'#8b8fa8', b:'rgba(255,255,255,.1)' }
+  const cf = BADGE_MAP[s] || { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' }
   return <span style={{ display:'inline-flex', alignItems:'center', fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:cf.bg, color:cf.color, border:`1px solid ${cf.b}`, whiteSpace:'nowrap' }}>{s}</span>
 }
 
@@ -1431,7 +1431,7 @@ export default function TrainingTab() {
             const active = t.id === activeTab
             return (
               <button key={t.id} onClick={() => setActiveTab(t.id)}
-                style={{ padding:'10px 14px', fontSize:12, fontWeight: active ? 700 : 600, cursor:'pointer', border:'none', background:'transparent', color: active ? '#13AA52' : C.t3, borderBottom: active ? '2px solid #00684A' : '2px solid transparent', transition:'all .15s', fontFamily:'inherit', whiteSpace:'nowrap', flexShrink:0, marginBottom:-1 }}>
+                style={{ padding:'10px 14px', fontSize:12, fontWeight: active ? 700 : 600, cursor:'pointer', border:'none', background:'transparent', color: active ? '#00684A' : C.t3, borderBottom: active ? '2px solid #00684A' : '2px solid transparent', transition:'all .15s', fontFamily:'inherit', whiteSpace:'nowrap', flexShrink:0, marginBottom:-1 }}>
                 {t.label}
               </button>
             )

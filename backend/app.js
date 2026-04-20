@@ -7,6 +7,9 @@ const helmet = require('helmet')
 const rateLimit = require('express-rate-limit')
 const cookieParser = require('cookie-parser')
 
+const sanitizeMiddleware = require('./middleware/sanitize')
+const { requestLoggerMiddleware } = require('./middleware/logger')
+
 const authRoutes = require('./routes/auth')
 const employeeRoutes = require('./routes/employees')
 const taskRoutes = require('./routes/tasks')
@@ -50,6 +53,11 @@ function createApp() {
   app.use(cookieParser())
   app.use(express.json({ limit: REQUEST_BODY_LIMIT }))
   app.use(express.urlencoded({ extended: true, limit: REQUEST_BODY_LIMIT }))
+  
+  // ─── Security & Logging Middleware ─────────────────────────────────────────
+  app.use(sanitizeMiddleware)        // Sanitize inputs (XSS, NoSQL injection protection)
+  app.use(requestLoggerMiddleware)   // Log all requests & responses
+
   app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
   app.use('/api', apiLimiter)

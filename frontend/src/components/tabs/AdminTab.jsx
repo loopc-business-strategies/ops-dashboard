@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import authAPI from '../../api/auth'
 
@@ -100,7 +100,7 @@ function SettingTile({ title, desc, children }) {
     <div className="rounded-2xl border border-gray-800 bg-gray-900/60 p-5">
       <div className="mb-4">
         <h4 className="text-sm font-semibold text-white">{title}</h4>
-        <p className="text-xs text-gray-500 mt-1">{desc}</p>
+        <p className="text-xs text-gray-300 mt-1">{desc}</p>
       </div>
       {children}
     </div>
@@ -116,7 +116,7 @@ function Toggle({ checked, onChange, label, desc }) {
     >
       <div>
         <p className="text-sm font-medium text-white">{label}</p>
-        <p className="text-xs text-gray-500 mt-1">{desc}</p>
+        <p className="text-xs text-gray-300 mt-1">{desc}</p>
       </div>
       <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition-all ${checked ? 'bg-emerald-700' : 'bg-gray-700'}`}>
         <span className={`h-4 w-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -139,48 +139,48 @@ function UserFormFields({ form, setForm, isEdit = false }) {
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Username <span className="text-emerald-700">*</span></label>
+          <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Username <span className="text-emerald-700">*</span></label>
           <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. john.smith" className="input-field" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Full Name</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Full Name</label>
           <input type="text" value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} placeholder="e.g. John Smith" className="input-field" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">{isEdit ? 'Reset Password' : 'Password'} {!isEdit && <span className="text-emerald-700">*</span>}</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">{isEdit ? 'Reset Password' : 'Password'} {!isEdit && <span className="text-emerald-700">*</span>}</label>
           <input type="text" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder={isEdit ? 'Leave blank to keep current password' : 'Min. 6 characters'} className="input-field" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Job Title</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Job Title</label>
           <input type="text" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Operations Supervisor" className="input-field" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Phone</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Phone</label>
           <input type="text" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+27 82 555 1234" className="input-field" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Location</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Location</label>
           <input type="text" value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} placeholder="Johannesburg HQ" className="input-field" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Timezone</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Timezone</label>
           <input type="text" value={form.timezone} onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))} placeholder="Africa/Johannesburg" className="input-field" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Employee Code</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Employee Code</label>
           <input type="text" value={form.employeeCode} onChange={(e) => setForm((f) => ({ ...f, employeeCode: e.target.value }))} placeholder="EMP-021" className="input-field" />
         </div>
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Role</label>
+        <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Role</label>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {ROLES.map((r) => (
             <label key={r.value} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${form.role === r.value ? 'border-emerald-700/50 bg-emerald-700/10' : 'border-gray-700 hover:border-gray-600'}`}>
               <input type="radio" name={isEdit ? 'edit-role' : 'create-role'} value={r.value} checked={form.role === r.value} onChange={() => setForm((f) => ({ ...f, role: r.value, department: '', allowedModules: [] }))} className="accent-emerald-700" />
               <div>
                 <p className="text-xs font-semibold text-white">{r.label}</p>
-                <p className="text-xs text-gray-500">{r.desc}</p>
+                <p className="text-xs text-gray-300">{r.desc}</p>
               </div>
             </label>
           ))}
@@ -189,7 +189,7 @@ function UserFormFields({ form, setForm, isEdit = false }) {
 
       {(form.role === 'department_head' || form.role === 'department_user') && (
         <div>
-          <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Department</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Department</label>
           <select value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))} className="input-field appearance-none">
             {DEPTS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
           </select>
@@ -198,10 +198,10 @@ function UserFormFields({ form, setForm, isEdit = false }) {
 
       {form.role === 'external' && (
         <div>
-          <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Allowed Modules</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Allowed Modules</label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {ALL_MODULES.map((mod) => (
-              <label key={mod} className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer text-sm transition-all ${form.allowedModules.includes(mod) ? 'border-green-500/50 bg-green-500/10 text-green-300' : 'border-gray-700 text-gray-400 hover:border-gray-600'}`}>
+              <label key={mod} className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer text-sm transition-all ${form.allowedModules.includes(mod) ? 'border-green-500/50 bg-green-500/10 text-green-300' : 'border-gray-700 text-gray-300 hover:border-gray-600'}`}>
                 <input type="checkbox" checked={form.allowedModules.includes(mod)} onChange={() => toggleModule(mod)} className="accent-green-500" />
                 <span className="capitalize text-xs">{mod}</span>
               </label>
@@ -212,14 +212,14 @@ function UserFormFields({ form, setForm, isEdit = false }) {
 
       {form.role === 'department_user' && (
         <div>
-          <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Assigned Task IDs</label>
+          <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Assigned Task IDs</label>
           <input type="text" value={form.assignedTasks} onChange={(e) => setForm((f) => ({ ...f, assignedTasks: e.target.value }))} placeholder="task-001, task-002" className="input-field" />
-          <p className="text-xs text-gray-600 mt-1">Comma-separated operational tasks.</p>
+          <p className="text-xs text-gray-300 mt-1">Comma-separated operational tasks.</p>
         </div>
       )}
 
       <div>
-        <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Access Notes</label>
+        <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Access Notes</label>
         <textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Onboarding notes, escalation owner, special access considerations" className="input-field resize-none" />
       </div>
     </div>
@@ -267,7 +267,7 @@ function CreateUserForm({ token, onCreated, onCancel }) {
       <div className="flex items-start justify-between gap-4 mb-5">
         <div>
           <h3 className="text-base font-semibold text-white mb-1">Create New User</h3>
-          <p className="text-gray-500 text-sm">Create user accounts with operational metadata, department ownership, and access notes.</p>
+          <p className="text-gray-300 text-sm">Create user accounts with operational metadata, department ownership, and access notes.</p>
         </div>
       </div>
 
@@ -341,9 +341,9 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
         <div className="flex items-center justify-between mb-5">
           <div>
             <h3 className="text-base font-bold text-white">Edit User</h3>
-            <p className="text-gray-500 text-xs mt-0.5">{u.name}</p>
+            <p className="text-gray-300 text-xs mt-0.5">{u.name}</p>
           </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 text-lg leading-none">x</button>
+          <button onClick={onClose} className="text-gray-300 hover:text-white text-lg leading-none">x</button>
         </div>
 
         {error && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{error}</div>}
@@ -351,7 +351,7 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
         <UserFormFields form={form} setForm={setForm} isEdit />
 
         <div className="flex gap-3 mt-5">
-          <button onClick={onClose} className="flex-1 py-2.5 text-sm font-medium text-gray-400 border border-gray-700 rounded-lg hover:bg-gray-800 transition-all">Cancel</button>
+          <button onClick={onClose} className="flex-1 py-2.5 text-sm font-medium text-gray-300 border border-gray-700 rounded-lg hover:bg-gray-800 transition-all">Cancel</button>
           <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 text-sm font-medium text-white rounded-lg transition-all disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}>
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
@@ -438,7 +438,7 @@ function UsersTab({ users, token, onRefresh }) {
       <div className="flex items-center justify-between gap-4 mb-5 flex-wrap">
         <div>
           <h3 className="text-base font-semibold text-white">Users & Access</h3>
-          <p className="text-gray-500 text-sm mt-0.5">Manage user accounts, departments, role profiles, and access metadata.</p>
+          <p className="text-gray-300 text-sm mt-0.5">Manage user accounts, departments, role profiles, and access metadata.</p>
         </div>
         {!showCreate && <button onClick={() => setShowCreate(true)} className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors" style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}>+ Add User</button>}
       </div>
@@ -448,18 +448,18 @@ function UsersTab({ users, token, onRefresh }) {
       <div className="rounded-2xl border border-gray-800 bg-gray-900/50 p-4 mb-5">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Search</label>
+            <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Search</label>
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search user, title, code, phone or location" className="input-field" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Role Filter</label>
+            <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Role Filter</label>
             <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="input-field appearance-none">
               <option value="all">All roles</option>
               {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Department Filter</label>
+            <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Department Filter</label>
             <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="input-field appearance-none">
               <option value="all">All departments</option>
               {DEPTS.filter((d) => d.value).map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
@@ -472,7 +472,7 @@ function UsersTab({ users, token, onRefresh }) {
         <table className="w-full">
           <thead>
             <tr className="bg-gray-800/60 border-b border-gray-700">
-              {['User', 'Role', 'Department', 'Access Profile', 'Status', 'Actions'].map((h) => <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">{h}</th>)}
+              {['User', 'Role', 'Department', 'Access Profile', 'Status', 'Actions'].map((h) => <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-300 uppercase tracking-wider">{h}</th>)}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800/60">
@@ -483,16 +483,16 @@ function UsersTab({ users, token, onRefresh }) {
                     <div className="w-9 h-9 bg-emerald-700 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0">{u.name?.[0]?.toUpperCase()}</div>
                     <div>
                       <p className="text-sm font-medium text-white">{u.fullName || u.name}{u._id === me?.id && <span className="ml-2 text-xs text-emerald-700">(you)</span>}</p>
-                      <p className="text-xs text-gray-500">@{u.name}</p>
-                      <p className="text-xs text-gray-600 mt-1">{u.title || 'No title'}{u.employeeCode ? ` | ${u.employeeCode}` : ''}</p>
-                      <p className="text-xs text-gray-600 mt-1">{u.phone || 'No phone'}{u.location ? ` | ${u.location}` : ''}</p>
+                      <p className="text-xs text-gray-300">@{u.name}</p>
+                      <p className="text-xs text-gray-300 mt-1">{u.title || 'No title'}{u.employeeCode ? ` | ${u.employeeCode}` : ''}</p>
+                      <p className="text-xs text-gray-300 mt-1">{u.phone || 'No phone'}{u.location ? ` | ${u.location}` : ''}</p>
                     </div>
                   </div>
                 </td>
                 <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-lg text-xs font-medium border ${ROLE_COLOR[u.role]}`}>{roleLabel(u.role)}</span></td>
-                <td className="px-4 py-3"><span className="text-xs text-gray-400">{deptLabel(u.department)}</span></td>
+                <td className="px-4 py-3"><span className="text-xs text-gray-300">{deptLabel(u.department)}</span></td>
                 <td className="px-4 py-3">
-                  <div className="text-xs text-gray-400 space-y-1">
+                  <div className="text-xs text-gray-300 space-y-1">
                     <p>Timezone: <span className="text-gray-300">{u.timezone || '—'}</span></p>
                     <p>Tasks: <span className="text-gray-300">{u.assignedTasks?.length || 0}</span></p>
                     <p>Modules: <span className="text-gray-300">{u.allowedModules?.length ? u.allowedModules.join(', ') : 'Default role access'}</span></p>
@@ -512,13 +512,13 @@ function UsersTab({ users, token, onRefresh }) {
                       <button onClick={() => handleToggle(u)} className={`px-3 py-1 text-xs font-medium rounded-lg transition-all border ${u.isActive ? 'text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/10' : 'text-green-400 border-green-500/30 hover:bg-green-500/10'}`}>{u.isActive ? 'Deactivate' : 'Activate'}</button>
                       <button onClick={() => handleDelete(u)} className="px-3 py-1 text-xs font-medium text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/10 transition-all">Delete</button>
                     </div>
-                  ) : <span className="text-xs text-gray-600">Self account protected</span>}
+                  ) : <span className="text-xs text-gray-300">Self account protected</span>}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {filteredUsers.length === 0 && <div className="text-center py-10 text-gray-500 text-sm">No users match the current filters.</div>}
+        {filteredUsers.length === 0 && <div className="text-center py-10 text-gray-300 text-sm">No users match the current filters.</div>}
       </div>
     </div>
   )
@@ -561,7 +561,7 @@ function SettingsTab() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h3 className="text-base font-semibold text-white">Admin Settings</h3>
-          <p className="text-gray-500 text-sm mt-0.5">Configure the operating profile for user access, approvals, alerts, and onboarding defaults.</p>
+          <p className="text-gray-300 text-sm mt-0.5">Configure the operating profile for user access, approvals, alerts, and onboarding defaults.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={resetSettings} className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-all">Reset</button>
@@ -573,19 +573,19 @@ function SettingsTab() {
         <SettingTile title="System Profile" desc="Base operational defaults used across admin-managed processes.">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Company Name</label>
+              <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Company Name</label>
               <input value={settings.companyName} onChange={(e) => setSettings((s) => ({ ...s, companyName: e.target.value }))} className="input-field" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Primary Region</label>
+              <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Primary Region</label>
               <input value={settings.primaryRegion} onChange={(e) => setSettings((s) => ({ ...s, primaryRegion: e.target.value }))} className="input-field" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Default Timezone</label>
+              <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Default Timezone</label>
               <input value={settings.defaultTimezone} onChange={(e) => setSettings((s) => ({ ...s, defaultTimezone: e.target.value }))} className="input-field" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Document Warning Days</label>
+              <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Document Warning Days</label>
               <input value={settings.documentWarningDays} onChange={(e) => setSettings((s) => ({ ...s, documentWarningDays: e.target.value }))} className="input-field" />
             </div>
           </div>
@@ -594,11 +594,11 @@ function SettingsTab() {
         <SettingTile title="Security Defaults" desc="Define baseline controls for admin and team access.">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Session Timeout (minutes)</label>
+              <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Session Timeout (minutes)</label>
               <input value={settings.sessionTimeoutMinutes} onChange={(e) => setSettings((s) => ({ ...s, sessionTimeoutMinutes: e.target.value }))} className="input-field" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Password Rotation (days)</label>
+              <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Password Rotation (days)</label>
               <input value={settings.passwordRotationDays} onChange={(e) => setSettings((s) => ({ ...s, passwordRotationDays: e.target.value }))} className="input-field" />
             </div>
           </div>
@@ -625,7 +625,7 @@ function SettingsTab() {
                 {ROLES.map((role) => (
                   <div key={role.value} className="rounded-lg border border-gray-800 px-3 py-2 bg-gray-900/40">
                     <p className="text-xs font-semibold text-white">{role.label}</p>
-                    <p className="text-xs text-gray-500 mt-1">{role.desc}</p>
+                    <p className="text-xs text-gray-300 mt-1">{role.desc}</p>
                   </div>
                 ))}
               </div>
@@ -666,7 +666,7 @@ function AdminTab() {
     <div>
       <div className="flex gap-2 mb-6 border-b border-gray-800 pb-3 overflow-x-auto">
         {ADMIN_SUB_TABS.map((t) => (
-          <button key={t.id} onClick={() => setSubTab(t.id)} className={`px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all ${subTab === t.id ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-gray-400 hover:text-gray-300 border-b-2 border-transparent'}`}>
+          <button key={t.id} onClick={() => setSubTab(t.id)} className={`px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all ${subTab === t.id ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-gray-300 hover:text-white border-b-2 border-transparent'}`}>
             {t.label}
           </button>
         ))}
@@ -687,3 +687,4 @@ function AdminTab() {
 }
 
 export default AdminTab
+

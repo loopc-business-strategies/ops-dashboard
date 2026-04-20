@@ -78,7 +78,7 @@ const C = {
   inkSoft: '#374151',
   t1: '#111827',
   t2: '#374151',
-  t3: '#6B7280',
+  t3: '#334155',
   danger: '#DC2626',
 }
 
@@ -1543,7 +1543,7 @@ function ERPTab() {
           <style>
             body { font-family: Georgia, 'Times New Roman', serif; color: #111827; margin: 0; padding: 32px; }
             .sheet { max-width: 980px; margin: 0 auto; }
-            .brandbar { height: 10px; background: linear-gradient(135deg, #00684A, #13AA52); border-radius: 999px; margin-bottom: 14px; }
+            .brandbar { height: 10px; background: linear-gradient(135deg, #00684A, #00684A); border-radius: 999px; margin-bottom: 14px; }
             .head { border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 20px; }
             .title { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
             .subtitle { color: #065F46; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin: 0 0 8px; }
@@ -1556,11 +1556,11 @@ function ERPTab() {
             .num { text-align: right; }
             .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
             .card { border: 1px solid #D1D5DB; padding: 10px; }
-            .card-label { color: #6B7280; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+            .card-label { color: #334155; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
             .card-value { font-size: 18px; font-weight: 700; margin-top: 4px; }
             .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 36px; }
-            .sign-box { padding-top: 18px; border-top: 1px solid #9CA3AF; font-size: 12px; color: #374151; }
-            .footer { margin-top: 18px; font-size: 11px; color: #6B7280; display: flex; justify-content: space-between; }
+            .sign-box { padding-top: 18px; border-top: 1px solid #475569; font-size: 12px; color: #374151; }
+            .footer { margin-top: 18px; font-size: 11px; color: #334155; display: flex; justify-content: space-between; }
             @media print { body { padding: 0; } .sheet { max-width: none; } }
           </style>
         </head>
@@ -4850,7 +4850,7 @@ function ERPTab() {
 
               <div style={{ marginBottom: '1rem', padding: '1rem', borderRadius: '0.75rem', border: `1px solid ${C.p2}`, background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)' }}>
                 <p style={{ marginTop: 0, marginBottom: '0.75rem', color: C.ink, fontWeight: '700' }}>Company Profile Preview</p>
-                <div style={{ height: '10px', background: 'linear-gradient(135deg, #00684A, #13AA52)', borderRadius: '999px', marginBottom: '14px' }} />
+                <div style={{ height: '10px', background: 'linear-gradient(135deg, #00684A, #00684A)', borderRadius: '999px', marginBottom: '14px' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '2px solid #111827', paddingBottom: '0.9rem', marginBottom: '0.9rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                   <div style={{ minWidth: '260px', flex: '1 1 320px' }}>
                     <p style={{ margin: '0 0 0.35rem', color: '#065F46', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>{brandingPreview.companyName || DEFAULT_BRANDING.companyName}</p>
@@ -4867,11 +4867,11 @@ function ERPTab() {
                   ) : null}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(120px, 1fr))', gap: '0.75rem', marginBottom: '0.9rem' }}>
-                  <div style={{ paddingTop: '0.85rem', borderTop: '1px solid #9CA3AF', color: '#374151', fontSize: '0.78rem' }}>{brandingPreview.preparedByTitle || DEFAULT_BRANDING.preparedByTitle}<br />{brandingPreview.preparedByName || DEFAULT_BRANDING.preparedByName}</div>
-                  <div style={{ paddingTop: '0.85rem', borderTop: '1px solid #9CA3AF', color: '#374151', fontSize: '0.78rem' }}>{brandingPreview.reviewedByTitle || DEFAULT_BRANDING.reviewedByTitle}<br />{brandingPreview.reviewedByName || DEFAULT_BRANDING.reviewedByName}</div>
-                  <div style={{ paddingTop: '0.85rem', borderTop: '1px solid #9CA3AF', color: '#374151', fontSize: '0.78rem' }}>{brandingPreview.approvedByTitle || DEFAULT_BRANDING.approvedByTitle}<br />{brandingPreview.approvedByName || DEFAULT_BRANDING.approvedByName}</div>
+                  <div style={{ paddingTop: '0.85rem', borderTop: '1px solid #475569', color: '#374151', fontSize: '0.78rem' }}>{brandingPreview.preparedByTitle || DEFAULT_BRANDING.preparedByTitle}<br />{brandingPreview.preparedByName || DEFAULT_BRANDING.preparedByName}</div>
+                  <div style={{ paddingTop: '0.85rem', borderTop: '1px solid #475569', color: '#374151', fontSize: '0.78rem' }}>{brandingPreview.reviewedByTitle || DEFAULT_BRANDING.reviewedByTitle}<br />{brandingPreview.reviewedByName || DEFAULT_BRANDING.reviewedByName}</div>
+                  <div style={{ paddingTop: '0.85rem', borderTop: '1px solid #475569', color: '#374151', fontSize: '0.78rem' }}>{brandingPreview.approvedByTitle || DEFAULT_BRANDING.approvedByTitle}<br />{brandingPreview.approvedByName || DEFAULT_BRANDING.approvedByName}</div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', color: '#6B7280', fontSize: '0.74rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', color: '#334155', fontSize: '0.74rem', flexWrap: 'wrap' }}>
                   <span>{brandingPreview.companyName || DEFAULT_BRANDING.companyName} Reporting Suite</span>
                   <span>{brandingPreview.reportFooter || DEFAULT_BRANDING.reportFooter}</span>
                 </div>
