@@ -46,8 +46,33 @@ function createApp() {
   })
 
   app.use(helmet())
+
+  // Build CORS allowlist from environment.
+  // CLIENT_URL may be a single origin or comma-separated list.
+  // In development, localhost and 127.0.0.1 variants are always allowed.
+  const rawOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+
+  const devOrigins = isProduction
+    ? []
+    : [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:5174',
+        'http://127.0.0.1:5174',
+      ]
+
+  const allowedOrigins = Array.from(new Set([...rawOrigins, ...devOrigins]))
+
   app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      // Allow server-to-server / health checks (no Origin header)
+      if (!origin) return callback(null, true)
+      if (allowedOrigins.includes(origin)) return callback(null, true)
+      callback(new Error(`CORS: origin not allowed — ${origin}`))
+    },
     credentials: true,
   }))
   app.use(cookieParser())

@@ -3,13 +3,14 @@
  * Logs all API requests with:
  * - HTTP method, URL, status
  * - Response time
- * - User info (if authenticated)
+ * - User info (resolved from cookie session even before protect middleware)
  * - Request/Response size
  * - Errors (if any)
  */
 
 const fs = require('fs')
 const path = require('path')
+const jwt = require('jsonwebtoken')
 
 // Ensure logs directory exists
 const logsDir = path.join(__dirname, '../logs')
@@ -22,6 +23,28 @@ const requestLogFile = path.join(logsDir, 'requests.log')
 const errorLogFile = path.join(logsDir, 'errors.log')
 
 // ──────────────────────────────────────────────────────────────
+// Attempt to resolve user identity from cookie token without
+// blocking the request — logger should never fail a request.
+// ──────────────────────────────────────────────────────────────
+function resolveUserFromRequest(req) {
+  // If protect middleware already ran and attached user, use it
+  if (req.user) {
+    return { userId: String(req.user._id || req.user.id), userRole: req.user.role || 'unknown' }
+  }
+  // Otherwise try to decode the session cookie passively
+  try {
+    const token = req.cookies?.sessionToken
+    if (token && process.env.JWT_SECRET) {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET)
+      return { userId: String(decoded.id || 'decoded'), userRole: 'session' }
+    }
+  } catch {
+    // Expired / invalid — not an error at log level
+  }
+  return { userId: 'anonymous', userRole: 'guest' }
+}
+
+// ──────────────────────────────────────────────────────────────
 // Format log entry
 // ──────────────────────────────────────────────────────────────
 function formatLogEntry(req, res, duration, reqSize, resSize) {
@@ -29,9 +52,8 @@ function formatLogEntry(req, res, duration, reqSize, resSize) {
   const method = req.method
   const url = req.originalUrl
   const status = res.statusCode
-  const userId = req.user?.id || req.user?._id || 'anonymous'
-  const userRole = req.user?.role || 'guest'
-  const ip = req.ip || req.connection.remoteAddress
+  const { userId, userRole } = resolveUserFromRequest(req)
+  const ip = req.ip || req.connection?.remoteAddress || 'unknown'
 
   return {
     timestamp,

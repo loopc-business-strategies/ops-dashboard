@@ -153,13 +153,12 @@ router.post('/setup', validateBody(setupSchema), async (req, res) => {
 // ==========================================
 router.post('/login', validateBody(loginSchema), async (req, res) => {
   try {
-    const { name, email, password } = req.body
-    const identifier = (name || email || '').trim()
+    const { name, password } = req.body
 
-    if (!identifier || !password)
-      return res.status(400).json({ success: false, message: 'Username/email and password are required.' })
+    if (!name || !password)
+      return res.status(400).json({ success: false, message: 'Username and password are required.' })
 
-    // Find user by name (case-insensitive search)
+    // Find user by name (case-insensitive, schema-validated above)
     const safeName = escapeRegex(name.trim())
     const user = await User.findOne({
       name: { $regex: new RegExp(`^${safeName}$`, 'i') }
