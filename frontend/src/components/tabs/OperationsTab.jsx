@@ -573,20 +573,16 @@ function TabGold({ gold, setGold, canEdit, isAdmin, isHead, isMgmt, isExternal, 
         </div>
       </TableWrap>
 
-                    {!limitedView && <>
-                      <td style={TD}><Badge s={g.comp === 'Yes' ? 'Yes' : 'No'} /></td>
-                      <td style={TD}><Badge s={g.risk} /></td>
-                      <td style={{ ...TD, color:C.t3 }}>{g.lastAct}</td>
-                      <td style={{ ...TD, color:C.cyan, fontSize:11 }}>{g.nextAction}</td>
-                    </>}
-                    {isAdmin && !limitedView && <td style={TD} onClick={e => e.stopPropagation()}>
-                      <button onClick={() => setModal({ type:'gold-edit', data:g })} style={{ background:'none', border:'none', cursor:'pointer', color:'#13AA52', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
-                      <button onClick={() => { if (window.confirm('Delete channel?')) { setGold(p => p.filter(x => x.id!==g.id)); showToast('Deleted','Channel removed') } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
-                    </td>}
+      {!limitedView && (
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+          <Card>
+            <CardTitle>Volume Performance by Channel</CardTitle>
+            {gold.map(g => <ProgRow key={g.id} label={`${g.code} — ${g.region}`} p={pct(g.actual, g.vol || 1)} color={g.risk==='High' ? C.red : g.risk==='Medium' ? C.yellow : C.green} />)}
+          </Card>
           <Card>
             <CardTitle>Channel Risk Distribution</CardTitle>
-            {[['Low',C.green],['Medium',C.yellow],['High',C.red]].map(([r,c]) => (
-              <ProgRow key={r} label={`Risk Level: ${r}`} p={pct(gold.filter(g=>g.risk===r).length, gold.length)} color={c} />
+            {[['Low', C.green], ['Medium', C.yellow], ['High', C.red]].map(([r, c]) => (
+              <ProgRow key={r} label={`Risk Level: ${r}`} p={pct(gold.filter(g => g.risk === r).length, gold.length)} color={c} />
             ))}
           </Card>
         </div>
