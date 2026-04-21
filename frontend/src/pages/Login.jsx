@@ -21,6 +21,20 @@ function Login() {
   const [loading,  setLoading]  = useState(false)
   const [showPass, setShowPass] = useState(false)
 
+  const handleDemoLogin = async (demoRole) => {
+    const demoAccounts = {
+      superadmin: { username: 'spr', password: 'admin123' },
+      admin:      { username: 'admin', password: 'admin123' },
+      manager:    { username: 'manager', password: 'admin123' },
+    }
+    const account = demoAccounts[demoRole] || demoAccounts.superadmin
+    try {
+      await login(account.username, account.password)
+    } catch (err) {
+      console.error('Demo login failed', err)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!name.trim() || !password) return setError(t('loginErrEmpty'))
