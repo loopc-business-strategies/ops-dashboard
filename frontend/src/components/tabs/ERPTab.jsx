@@ -247,6 +247,8 @@ function ERPTab() {
   const [metalRateForm, setMetalRateForm] = useState({ goldPrice: '285', silverPrice: '3.5', priceCurrency: 'AED' })
   const [enquiryHistory, setEnquiryHistory] = useState([])
   const [metalUnit, setMetalUnit] = useState('gram')
+  const [showEnquiryModal, setShowEnquiryModal] = useState(false)
+  const [excessCurrency, setExcessCurrency] = useState('USD')
   const [transactions, setTransactions] = useState([])
   const [vendors, setVendors] = useState([])
   const [inventoryProducts, setInventoryProducts] = useState([])
@@ -391,6 +393,60 @@ function ERPTab() {
       ]
   const selectedTransaction = transactions.find((tx) => tx._id === selectedTransactionId) || null
   const rawStatementEntries = accountEnquiryData?.statement?.entries || []
+  
+  // Trading platform calculations (metal price driven)
+  const xauBalance = accountEnquiryData ? Number(accountEnquiryData.metals?.goldBalance || 0) : 0
+  const xagBalance = accountEnquiryData ? Number(accountEnquiryData.metals?.silverBalance || 0) : 0
+  const goldPriceUSD = accountEnquiryData ? Number(accountEnquiryData.metals?.goldPrice || 0) : 0
+  const silverPriceUSD = accountEnquiryData ? Number(accountEnquiryData.metals?.silverPrice || 0) : 0
+  const totalFunds = accountEnquiryData ? Number(accountEnquiryData.balances?.absoluteNetBalance || 0) : 0
+  
+  // Derived calculations
+  const xauCurrentValue = xauBalance * goldPriceUSD
+  const modalRevaluation = xauCurrentValue  // P&L mirrors position
+  const modalTotalFunds = totalFunds
+  const modalNetEquity = modalTotalFunds + modalRevaluation
+  const modalMarginAmt = -(Math.abs(xauBalance) * goldPriceUSD * 0.02)  // 2% margin on position
+  const modalExcess = modalNetEquity - Math.abs(modalMarginAmt)
+  const modalMarginPct = Math.abs(modalMarginAmt) !== 0 ? (modalNetEquity / Math.abs(modalMarginAmt)) * 100 : 0
+  const breakEvenPrice = Math.abs(xauBalance) !== 0 ? totalFunds / Math.abs(xauBalance) : 0
+  const modalStatementCurrency = 'USD'  // Trading platform uses USD
+  const formatStatementValue = (value, digits = 2) => {
+    const num = Number(value || 0)
+    return num.toLocaleString(undefined, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    })
+  }
+
+  const getSignedColor = (value) => {
+    const num = Number(value || 0)
+    return num >= 0 ? '#111827' : '#c0392b'  // Red for negative
+  }
+  const modalPositionRows = accountEnquiryData ? [
+    {
+      key: 'xau',
+      type: 'XAU',
+      limits: 0,
+      balance: xauBalance,
+      price: goldPriceUSD,
+      currentValue: xauCurrentValue,
+      breakEven: breakEvenPrice,
+    },
+    {
+      key: 'xag',
+      type: 'XAG',
+      limits: 0,
+      balance: xagBalance,
+      price: silverPriceUSD,
+      currentValue: xagBalance * silverPriceUSD,
+      breakEven: Math.abs(xagBalance) !== 0 ? totalFunds / Math.abs(xagBalance) : 0,
+    },
+  ] : []
+  const modalFundsRows = [
+    { currency: 'USD', limits: 0, value: modalTotalFunds },
+    { currency: 'PDC', limits: 0, value: 0 },
+  ]
   const statementReferenceTypes = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
   const statementDepartments = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean))).sort()
   const filteredStatementEntries = rawStatementEntries.filter((entry) => {
@@ -1361,6 +1417,7 @@ function ERPTab() {
     }
 
     try {
+      setShowEnquiryModal(true)
       setEnquiryLoading(true)
       setEnquiryStatus({ type: '', message: '' })
       const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode)
@@ -3283,7 +3340,7 @@ function ERPTab() {
                       ))}
                   </select>
                   <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <button type="submit" disabled={enquiryLoading} style={{ padding: '0.6rem 1rem', background: '#3F4B2E', color: '#FFFFFF', border: 'none', borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}>
+                    <button type="submit" disabled={enquiryLoading} style={{ padding: '0.6rem 1rem', background: '#1a7a3a', color: '#FFFFFF', border: 'none', borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}>
                       {enquiryLoading ? 'Loading...' : 'Load Summary'}
                     </button>
                     <span style={{ fontSize: '0.8rem', color: '#6B7280' }}>Live from ERP accounting balances</span>
@@ -3407,248 +3464,6 @@ function ERPTab() {
                 </div>
               )}
 
-              {accountEnquiryData && (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                    <div>
-                      <p style={{ margin: 0, fontSize: '0.76rem', color: '#6B7280', fontWeight: '700', letterSpacing: '0.08em' }}>ACCOUNT DETAILS</p>
-                      <p style={{ margin: '0.2rem 0 0', color: '#374151', fontWeight: '700' }}>{accountEnquiryData.account.accountCode} - {accountEnquiryData.account.accountName}</p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {canExportAccountSummary ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={handleExportEnquiryExcel}
-                          style={{ padding: '0.45rem 0.8rem', borderRadius: '0.4rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}
-                        >
-                          Export Excel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleExportEnquiryPdf}
-                          style={{ padding: '0.45rem 0.8rem', borderRadius: '0.4rem', border: '1px solid #60A5FA', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}
-                        >
-                          Export PDF
-                        </button>
-                      </>
-                    ) : (
-                      <span style={{ alignSelf: 'center', color: '#6B7280', fontSize: '0.82rem', fontWeight: '700' }}>Export available for Super Admin only</span>
-                    )}
-                    </div>
-                  </div>
-                  <div style={{ background: '#F4F6ED', border: '1px solid #C7CFB3', borderRadius: '1rem', padding: '1rem', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.75)' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.35fr) minmax(220px, 0.9fr)', gap: '1rem', marginBottom: '1rem' }}>
-                      <div style={{ background: '#FFFFFF', border: '1px solid #B7C09E', borderRadius: '0.9rem', overflow: 'hidden' }}>
-                        <div style={{ padding: '0.6rem 0.9rem', background: 'linear-gradient(90deg, #96A97B 0%, #B9C7A4 100%)', color: '#FFFFFF', fontWeight: '800', fontSize: '0.9rem' }}>Account Details</div>
-                        <div style={{ padding: '0.85rem 0.95rem' }}>
-                          <p style={{ margin: 0, color: '#374151', fontWeight: '800', fontSize: '1rem' }}>{accountEnquiryData.account.accountName}</p>
-                          <p style={{ margin: '0.25rem 0 0.7rem', color: '#6B7280', fontFamily: 'monospace', fontSize: '0.85rem' }}>{accountEnquiryData.account.accountCode}</p>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem' }}>
-                            <div style={{ background: '#F8FAFC', borderRadius: '0.5rem', padding: '0.6rem' }}>
-                              <p style={{ margin: 0, fontSize: '0.72rem', color: '#6B7280', fontWeight: '700' }}>Type</p>
-                              <p style={{ margin: '0.15rem 0 0', color: '#111827', fontWeight: '700' }}>{accountEnquiryData.account.accountType}</p>
-                            </div>
-                            <div style={{ background: '#F8FAFC', borderRadius: '0.5rem', padding: '0.6rem' }}>
-                              <p style={{ margin: 0, fontSize: '0.72rem', color: '#6B7280', fontWeight: '700' }}>Currency</p>
-                              <p style={{ margin: '0.15rem 0 0', color: '#111827', fontWeight: '700' }}>{accountEnquiryData.account.currency}</p>
-                            </div>
-                            <div style={{ background: '#F8FAFC', borderRadius: '0.5rem', padding: '0.6rem' }}>
-                              <p style={{ margin: 0, fontSize: '0.72rem', color: '#6B7280', fontWeight: '700' }}>Department</p>
-                              <p style={{ margin: '0.15rem 0 0', color: '#111827', fontWeight: '700' }}>{accountEnquiryData.account.department || 'Finance'}</p>
-                            </div>
-                            <div style={{ background: '#F8FAFC', borderRadius: '0.5rem', padding: '0.6rem' }}>
-                              <p style={{ margin: 0, fontSize: '0.72rem', color: '#6B7280', fontWeight: '700' }}>Status</p>
-                              <p style={{ margin: '0.15rem 0 0', color: accountEnquiryData.account.isActive ? '#166534' : '#B91C1C', fontWeight: '700' }}>{accountEnquiryData.account.isActive ? 'Active' : 'Inactive'}</p>
-                            </div>
-                          </div>
-                          {accountEnquiryData.account.description && (
-                            <div style={{ marginTop: '0.7rem', padding: '0.7rem', background: '#FFFBEB', borderRadius: '0.5rem', border: '1px solid #FDE68A' }}>
-                              <p style={{ margin: 0, fontSize: '0.72rem', color: '#92400E', fontWeight: '700' }}>Description</p>
-                              <p style={{ margin: '0.15rem 0 0', color: '#78350F', fontSize: '0.84rem' }}>{accountEnquiryData.account.description}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'grid', gap: '0.55rem' }}>
-                        {[
-                          ['Debit Total', Number(accountEnquiryData.balances.debitTotal || 0), '#1D4ED8'],
-                          ['Credit Total', Number(accountEnquiryData.balances.creditTotal || 0), '#B91C1C'],
-                          ['Net Balance', Number(accountEnquiryData.balances.netBalance || 0), accountEnquiryData.balances.netDirection === 'Debit' ? '#166534' : accountEnquiryData.balances.netDirection === 'Credit' ? '#B91C1C' : '#374151'],
-                          ['Value Balance', Number(accountEnquiryData.balances.rateCurrencyBalance || 0), '#4338CA'],
-                          ['Gold Equivalent', Number(convertMetalBalanceByUnit(accountEnquiryData.metals.goldBalance || 0)), '#B45309'],
-                          ['Silver Equivalent', Number(convertMetalBalanceByUnit(accountEnquiryData.metals.silverBalance || 0)), '#475569'],
-                        ].map(([label, value, color]) => (
-                          <div key={label} style={{ background: '#FFFFFF', border: '1px solid #D6D3C4', borderRadius: '0.75rem', padding: '0.7rem 0.85rem' }}>
-                            <p style={{ margin: 0, fontSize: '0.74rem', color: '#6B7280', fontWeight: '700' }}>{label}</p>
-                            <p style={{ margin: '0.2rem 0 0', color, fontWeight: '800', fontSize: '1.2rem' }}>{value.toLocaleString(undefined, { maximumFractionDigits: 6 })}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.25fr) minmax(220px, 0.85fr)', gap: '1rem' }}>
-                      <div style={{ background: '#FFFFFF', border: '1px solid #D6D3C4', borderRadius: '0.9rem', overflow: 'hidden' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', background: '#6B7F49', color: '#FFFFFF', fontWeight: '800', fontSize: '0.8rem' }}>
-                          <div style={{ padding: '0.6rem 0.75rem' }}>Metric</div>
-                          <div style={{ padding: '0.6rem 0.75rem' }}>Value</div>
-                          <div style={{ padding: '0.6rem 0.75rem' }}>Direction</div>
-                          <div style={{ padding: '0.6rem 0.75rem' }}>Unit</div>
-                        </div>
-                        {[
-                          ['Net Balance', Number(accountEnquiryData.balances.absoluteNetBalance || 0), accountEnquiryData.balances.netDirection || 'Flat', accountEnquiryData.account.currency],
-                          ['Rate Balance', Number(accountEnquiryData.balances.rateCurrencyBalance || 0), 'Converted', accountEnquiryData.balances.rateCurrency],
-                          ['Gold Position', Number(convertMetalBalanceByUnit(accountEnquiryData.metals.goldBalance || 0)), 'Equivalent', metalUnit],
-                          ['Silver Position', Number(convertMetalBalanceByUnit(accountEnquiryData.metals.silverBalance || 0)), 'Equivalent', metalUnit],
-                        ].map((row, index) => (
-                          <div key={row[0]} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', borderTop: index === 0 ? 'none' : '1px solid #EEF2F7', background: index % 2 === 0 ? '#FFFFFF' : '#FAFAF7' }}>
-                            <div style={{ padding: '0.65rem 0.75rem', color: '#374151', fontWeight: '700', fontSize: '0.82rem' }}>{row[0]}</div>
-                            <div style={{ padding: '0.65rem 0.75rem', color: '#111827', fontWeight: '700', fontSize: '0.82rem' }}>{Number(row[1]).toLocaleString(undefined, { maximumFractionDigits: 6 })}</div>
-                            <div style={{ padding: '0.65rem 0.75rem', color: '#6B7280', fontSize: '0.82rem' }}>{row[2]}</div>
-                            <div style={{ padding: '0.65rem 0.75rem', color: '#6B7280', fontSize: '0.82rem' }}>{row[3]}</div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div style={{ background: '#FFFFFF', border: '1px solid #D6D3C4', borderRadius: '0.9rem', overflow: 'hidden' }}>
-                        <div style={{ padding: '0.6rem 0.75rem', background: '#8FA568', color: '#FFFFFF', fontWeight: '800', fontSize: '0.85rem' }}>Rate Snapshot</div>
-                        <div style={{ padding: '0.8rem 0.85rem', display: 'grid', gap: '0.55rem' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                            <span style={{ color: '#6B7280', fontSize: '0.8rem' }}>Gold Rate</span>
-                            <span style={{ color: '#92400E', fontWeight: '800' }}>{accountEnquiryData.metals.priceCurrency} {Number(accountEnquiryData.metals.goldPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                            <span style={{ color: '#6B7280', fontSize: '0.8rem' }}>Silver Rate</span>
-                            <span style={{ color: '#475569', fontWeight: '800' }}>{accountEnquiryData.metals.priceCurrency} {Number(accountEnquiryData.metals.silverPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                            <span style={{ color: '#6B7280', fontSize: '0.8rem' }}>Account Currency</span>
-                            <span style={{ color: '#111827', fontWeight: '800' }}>{accountEnquiryData.account.currency}</span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                            <span style={{ color: '#6B7280', fontSize: '0.8rem' }}>Rate Currency</span>
-                            <span style={{ color: '#111827', fontWeight: '800' }}>{accountEnquiryData.balances.rateCurrency}</span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                            <span style={{ color: '#6B7280', fontSize: '0.8rem' }}>Updated</span>
-                            <span style={{ color: '#111827', fontWeight: '700', textAlign: 'right', fontSize: '0.79rem' }}>{accountEnquiryData.metals.updatedAt ? new Date(accountEnquiryData.metals.updatedAt).toLocaleString() : 'Default values'}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.15fr) minmax(320px, 1.35fr)', gap: '1rem', marginTop: '1rem' }}>
-                      <div style={{ background: '#FFFFFF', border: '1px solid #D6D3C4', borderRadius: '0.9rem', overflow: 'hidden' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 0.9fr 1fr 1fr', background: '#6B7F49', color: '#FFFFFF', fontWeight: '800', fontSize: '0.8rem' }}>
-                          <div style={{ padding: '0.6rem 0.75rem' }}>Position</div>
-                          <div style={{ padding: '0.6rem 0.75rem' }}>Limits</div>
-                          <div style={{ padding: '0.6rem 0.75rem' }}>Balance</div>
-                          <div style={{ padding: '0.6rem 0.75rem' }}>Price</div>
-                          <div style={{ padding: '0.6rem 0.75rem' }}>Current Value</div>
-                        </div>
-                        {(accountEnquiryData.positions || []).map((position, index) => (
-                          <div key={position.key || position.type} style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 0.9fr 1fr 1fr', borderTop: index === 0 ? 'none' : '1px solid #EEF2F7', background: index % 2 === 0 ? '#FFFFFF' : '#FAFAF7' }}>
-                            <div style={{ padding: '0.65rem 0.75rem', color: '#374151', fontWeight: '700', fontSize: '0.82rem' }}>{position.type}</div>
-                            <div style={{ padding: '0.65rem 0.75rem', color: '#111827', fontSize: '0.82rem' }}>{Number(position.limitValue || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                            <div style={{ padding: '0.65rem 0.75rem', color: '#111827', fontSize: '0.82rem' }}>{Number(position.balance || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</div>
-                            <div style={{ padding: '0.65rem 0.75rem', color: '#111827', fontSize: '0.82rem' }}>{position.valueCurrency || accountEnquiryData.balances.rateCurrency} {Number(position.price || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</div>
-                            <div style={{ padding: '0.65rem 0.75rem', color: '#111827', fontWeight: '700', fontSize: '0.82rem' }}>{position.valueCurrency || accountEnquiryData.balances.rateCurrency} {Number(position.currentValue || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div style={{ background: '#FFFFFF', border: '1px solid #D6D3C4', borderRadius: '0.9rem', overflow: 'hidden' }}>
-                        <div style={{ padding: '0.75rem', borderBottom: '1px solid #EEF2F7', background: '#F8FAFC' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.5rem' }}>
-                            <input type="date" value={statementFilters.startDate} onChange={(e) => setStatementFilters((prev) => ({ ...prev, startDate: e.target.value }))} style={{ ...modalInputStyle, marginBottom: 0 }} />
-                            <input type="date" value={statementFilters.endDate} onChange={(e) => setStatementFilters((prev) => ({ ...prev, endDate: e.target.value }))} style={{ ...modalInputStyle, marginBottom: 0 }} />
-                            <select value={statementFilters.referenceType} onChange={(e) => setStatementFilters((prev) => ({ ...prev, referenceType: e.target.value }))} style={{ ...modalInputStyle, marginBottom: 0 }}>
-                              <option value="">All types</option>
-                              {statementReferenceTypes.map((type) => <option key={type} value={type}>{String(type).replace(/_/g, ' ')}</option>)}
-                            </select>
-                            <select value={statementFilters.department} onChange={(e) => setStatementFilters((prev) => ({ ...prev, department: e.target.value }))} style={{ ...modalInputStyle, marginBottom: 0 }}>
-                              <option value="">All departments</option>
-                              {statementDepartments.map((department) => <option key={department} value={department}>{department}</option>)}
-                            </select>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-                            <span style={{ color: '#6B7280', fontSize: '0.78rem', fontWeight: '700' }}>Statement rows: {filteredStatementEntries.length} / {rawStatementEntries.length}</span>
-                            <button type="button" onClick={() => setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '' })} style={{ padding: '0.35rem 0.65rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#FFFFFF', color: '#374151', cursor: 'pointer', fontWeight: '600', fontSize: '0.78rem' }}>Reset Filters</button>
-                          </div>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '0.85fr 0.85fr 1.15fr 0.8fr 0.8fr 0.95fr 0.95fr 0.85fr 0.7fr 1fr', background: '#8FA568', color: '#FFFFFF', fontWeight: '800', fontSize: '0.74rem' }}>
-                          <div style={{ padding: '0.6rem 0.65rem' }}>Date</div>
-                          <div style={{ padding: '0.6rem 0.65rem' }}>Type</div>
-                          <div style={{ padding: '0.6rem 0.65rem' }}>Description</div>
-                          <div style={{ padding: '0.6rem 0.65rem' }}>Debit</div>
-                          <div style={{ padding: '0.6rem 0.65rem' }}>Credit</div>
-                          <div style={{ padding: '0.6rem 0.65rem' }}>Balance</div>
-                          <div style={{ padding: '0.6rem 0.65rem' }}>Current Value</div>
-                          <div style={{ padding: '0.6rem 0.65rem' }}>Department</div>
-                          <div style={{ padding: '0.6rem 0.65rem' }}>Open</div>
-                          <div style={{ padding: '0.6rem 0.65rem' }}>Open In Transactions</div>
-                        </div>
-                        {filteredStatementEntries.length ? (
-                          filteredStatementEntries.map((entry, index) => (
-                            <div
-                              key={entry._id}
-                              onClick={() => handleOpenVoucherSource(entry._id)}
-                              style={{ display: 'grid', gridTemplateColumns: '0.85fr 0.85fr 1.15fr 0.8fr 0.8fr 0.95fr 0.95fr 0.85fr 0.7fr 1fr', borderTop: index === 0 ? 'none' : '1px solid #EEF2F7', background: index % 2 === 0 ? '#FFFFFF' : '#FAFAF7', cursor: 'pointer' }}
-                            >
-                              <div style={{ padding: '0.65rem 0.65rem', color: '#374151', fontSize: '0.78rem' }}>{new Date(entry.date).toLocaleDateString()}</div>
-                              <div style={{ padding: '0.65rem 0.65rem', color: '#374151', fontSize: '0.78rem', textTransform: 'capitalize' }}>{String(entry.referenceType || 'journal').replace(/_/g, ' ')}</div>
-                              <div style={{ padding: '0.65rem 0.65rem', color: '#111827', fontSize: '0.78rem' }}>
-                                <div style={{ fontWeight: '700' }}>{entry.description || 'Ledger entry'}</div>
-                                <div style={{ color: '#6B7280', marginTop: '0.1rem' }}>{entry.offsetAccountCode ? `${entry.offsetAccountCode} - ${entry.offsetAccountName}` : 'System'}</div>
-                              </div>
-                              <div style={{ padding: '0.65rem 0.65rem', color: '#166534', fontSize: '0.78rem' }}>{Number(entry.debitAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                              <div style={{ padding: '0.65rem 0.65rem', color: '#B91C1C', fontSize: '0.78rem' }}>{Number(entry.creditAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                              <div style={{ padding: '0.65rem 0.65rem', color: Number(entry.runningBalance || 0) >= 0 ? '#166534' : '#B91C1C', fontWeight: '700', fontSize: '0.78rem' }}>{Number(entry.runningBalance || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                              <div style={{ padding: '0.65rem 0.65rem', color: '#4338CA', fontWeight: '700', fontSize: '0.78rem' }}>{accountEnquiryData.balances.rateCurrency} {Number(entry.currentValue || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                              <div style={{ padding: '0.65rem 0.65rem' }}>
-                                <span style={{ ...getDepartmentBadgeStyle(entry.department), padding: '0.18rem 0.5rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: '700', textTransform: 'capitalize' }}>
-                                  {entry.department || 'shared'}
-                                </span>
-                              </div>
-                              <div style={{ padding: '0.55rem 0.55rem' }}>
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation()
-                                    handleOpenVoucherSource(entry._id)
-                                  }}
-                                  style={{ padding: '0.28rem 0.5rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#FFFFFF', color: C.ink, cursor: 'pointer', fontSize: '0.72rem', fontWeight: '700' }}
-                                >
-                                  Open
-                                </button>
-                              </div>
-                              <div style={{ padding: '0.55rem 0.55rem' }}>
-                                {entry.sourceTransactionId ? (
-                                  <button
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.stopPropagation()
-                                      handleJumpToTransaction(entry.sourceTransactionId)
-                                    }}
-                                    style={{ padding: '0.28rem 0.45rem', borderRadius: '0.35rem', border: '1px solid #BBF7D0', background: '#ECFDF5', color: '#166534', cursor: 'pointer', fontSize: '0.71rem', fontWeight: '700' }}
-                                  >
-                                    Open In Transactions
-                                  </button>
-                                ) : (
-                                  <span style={{ color: '#9CA3AF', fontSize: '0.71rem', fontWeight: '700' }}>Manual / No source</span>
-                                )}
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div style={{ padding: '1rem', color: '#6B7280', fontSize: '0.82rem' }}>No recent statement rows found for this account.</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
             </>
           )}
         </div>
@@ -5583,6 +5398,178 @@ function ERPTab() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ACCOUNT SUMMARY POPUP MODAL - TRADING PLATFORM STYLE */}
+      {showEnquiryModal && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setShowEnquiryModal(false) }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}
+        >
+          <div style={{ background: '#fff', borderRadius: '8px', width: 'min(1100px, 100%)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 42px rgba(0,0,0,0.35)' }}>
+
+            {/* Header - Dark Green Bar */}
+            <div style={{ background: '#3F4B2E', color: '#FFFFFF', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontWeight: '700', fontSize: '1.1rem' }}>Account Details — Statement of Account</span>
+                {enquiryLoading && <span style={{ fontSize: '0.9rem', opacity: 0.8 }}>(Loading…)</span>}
+              </div>
+              <button onClick={() => setShowEnquiryModal(false)} style={{ background: 'transparent', border: 'none', color: '#FFFFFF', cursor: 'pointer', fontSize: '20px', padding: '0', lineHeight: 1 }}>✕</button>
+            </div>
+
+            {/* Scrollable Content Area */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '1.2rem 1.5rem' }}>
+
+              {/* Account lookup row */}
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1.2rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <label style={{ fontSize: '0.95rem', color: '#374151', fontWeight: '600' }}>Account Number</label>
+                  <input
+                    value={accountEnquiryCode}
+                    onChange={(e) => setAccountEnquiryCode(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') fetchAccountEnquiryByCode(accountEnquiryCode) }}
+                    placeholder="Enter A/C code"
+                    style={{ border: '1px solid #CBD5E0', padding: '0.6rem 0.8rem', fontSize: '0.95rem', width: '180px', borderRadius: '0.5rem', background: '#FFFFFF' }}
+                  />
+                  <button
+                    onClick={() => fetchAccountEnquiryByCode(accountEnquiryCode)}
+                    disabled={enquiryLoading}
+                    style={{ padding: '0.6rem 1.2rem', background: '#1a7a3a', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: enquiryLoading ? 'not-allowed' : 'pointer', fontWeight: '700', fontSize: '0.95rem', opacity: enquiryLoading ? 0.7 : 1 }}
+                  >
+                    {enquiryLoading ? 'Loading…' : 'Load Summary'}
+                  </button>
+                </div>
+              </div>
+
+              {enquiryStatus.message && !enquiryLoading && (
+                <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: enquiryStatus.type === 'success' ? '#047857' : '#c0392b', fontWeight: '600' }}>{enquiryStatus.message}</p>
+              )}
+
+              {!accountEnquiryData ? (
+                <div style={{ border: '1px solid #E5E7EB', borderRadius: '0.6rem', background: '#F9FAFB', padding: '1.5rem', color: '#6B7280', fontSize: '0.95rem', textAlign: 'center' }}>
+                  {enquiryLoading ? '⟳ Loading account statement...' : '→ Enter account number and click Load Summary to view position'}
+                </div>
+              ) : (
+                <>
+                  {/* 2-Column Layout */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+
+                    {/* LEFT COLUMN - Account Details Box with Position Table */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+
+                      {/* Account Details Panel */}
+                      <div style={{ border: '2px solid #3F4B2E', borderRadius: '0.6rem', background: '#F5F7F0', padding: '1rem', position: 'relative' }}>
+                        <div style={{ borderBottom: '1px solid #D1D5DB', paddingBottom: '0.8rem', marginBottom: '0.8rem' }}>
+                          <h3 style={{ margin: '0 0 0.4rem', color: '#111827', fontWeight: '800', fontSize: '1.1rem' }}>{reportBranding.companyName || accountEnquiryData.account.accountName}</h3>
+                          <p style={{ margin: 0, color: '#6B7280', fontSize: '0.9rem', lineHeight: '1.4' }}>{accountEnquiryData.account.description || accountEnquiryData.account.accountName}</p>
+                          {accountEnquiryData.account.description && (
+                            <p style={{ margin: '0.4rem 0 0', color: '#6B7280', fontSize: '0.85rem' }}>Code: {accountEnquiryData.account.accountCode}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Position Table with Tabs */}
+                      <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', overflow: 'hidden', background: '#FFFFFF' }}>
+                        {/* Tab Header */}
+                        <div style={{ background: '#3F4B2E', padding: '0', display: 'flex', borderBottom: '1px solid #2D3620' }}>
+                          <button style={{ flex: 1, padding: '0.7rem 1rem', color: '#FFFFFF', background: '#3F4B2E', border: 'none', fontWeight: '700', fontSize: '0.95rem', cursor: 'pointer', borderRight: '1px solid #2D3620' }}>Position</button>
+                          <button style={{ flex: 1, padding: '0.7rem 1rem', color: '#999999', background: '#EEEEEE', border: 'none', fontWeight: '600', fontSize: '0.95rem', cursor: 'pointer', opacity: 0.6 }}>UnAllocated</button>
+                        </div>
+                        
+                        {/* Position Table */}
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                            <thead>
+                              <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
+                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Type</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Limits</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Balance</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Price</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Current Value</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Break Even</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {modalPositionRows.map((row, index) => (
+                                <tr key={row.key} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                                  <td style={{ padding: '0.7rem', fontWeight: '700', color: '#111827' }}>{row.type}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.limits, 0)}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.balance), fontWeight: '600' }}>{formatStatementValue(row.balance, 6)}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.price, 4)}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.currentValue), fontWeight: '700' }}>{formatStatementValue(row.currentValue, 2)}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.breakEven, 4)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* RIGHT COLUMN - Financial Metrics */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem', background: '#F9FAFB', borderRadius: '0.6rem', border: '1px solid #E5E7EB' }}>
+                      {/* Total Funds */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
+                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Total Funds</span>
+                        <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalTotalFunds, 2)}</span>
+                      </div>
+
+                      {/* Revaluation */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
+                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Revaluation</span>
+                        <span style={{ color: getSignedColor(modalRevaluation), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalRevaluation, 2)}</span>
+                      </div>
+
+                      {/* Net Equity */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
+                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Net Equity</span>
+                        <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalNetEquity, 2)}</span>
+                      </div>
+
+                      {/* Margin Amt @ 2% */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
+                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin Amt @ 2.0%</span>
+                        <span style={{ color: getSignedColor(modalMarginAmt), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalMarginAmt, 2)}</span>
+                      </div>
+
+                      {/* Excess with Currency Dropdown */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
+                        <label style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Excess</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <select value={excessCurrency} onChange={(e) => setExcessCurrency(e.target.value)} style={{ border: '1px solid #CBD5E0', borderRadius: '0.4rem', background: '#FFFFFF', fontSize: '0.85rem', padding: '0.3rem 0.5rem', fontWeight: '600' }}>
+                            <option value="USD">USD</option>
+                            <option value="PDC">PDC</option>
+                          </select>
+                          <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>{formatStatementValue(modalExcess, 2)}</span>
+                        </div>
+                      </div>
+
+                      {/* Margin % */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.4rem' }}>
+                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin %</span>
+                        <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.1rem' }}>{formatStatementValue(modalMarginPct, 2)}%</span>
+                      </div>
+                    </div>
+
+                  </div>
+                </>
+              )}
+
+            </div>
+
+            {/* Footer */}
+            <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              {canExportAccountSummary && accountEnquiryData && (
+                <>
+                  <button onClick={handleExportEnquiryPdf} style={{ padding: '0.6rem 1.2rem', background: '#1a7a3a', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
+                </>
+              )}
+              <button onClick={() => setShowEnquiryModal(false)} style={{ padding: '0.6rem 1.2rem', background: '#6B7280', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Close</button>
+            </div>
+
           </div>
         </div>
       )}
