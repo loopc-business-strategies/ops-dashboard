@@ -6,12 +6,15 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import hrAPI from '../../api/hr'
+import { useLanguage } from '../../context/LanguageContext'
 
-const HR_SUB_TABS = [
-  { id: 'employee_list',   label: 'Employee List' },
-  { id: 'labour_law',      label: 'Labour Law' },
-  { id: 'current_updates', label: 'Current Updates' },
-]
+function getHRSubTabs(t) {
+  return [
+    { id: 'employee_list',   label: t('employeeList') },
+    { id: 'labour_law',      label: t('labourLaw') },
+    { id: 'current_updates', label: t('currentUpdates') },
+  ]
+}
 
 const DEPARTMENTS = [
   { value: '',            label: 'Select department' },
@@ -60,6 +63,7 @@ function StarRating({ value, onChange }) {
 
 // ── Add Employee form ────────────────────────────
 function AddEmployeeForm({ onSave, onCancel, token }) {
+  const { t } = useLanguage()
   const [form,    setForm]    = useState(EMPTY_EMPLOYEE)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
@@ -68,16 +72,16 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.name.trim())         return setError('Name is required.')
-    if (!form.idNumber.trim())     return setError('ID number is required.')
-    if (!form.employeeCode.trim()) return setError('Employee code is required.')
+    if (!form.name.trim())         return setError(t('hrErrName'))
+    if (!form.idNumber.trim())     return setError(t('hrErrId'))
+    if (!form.employeeCode.trim()) return setError(t('hrErrCode'))
     setLoading(true)
     setError('')
     try {
       await hrAPI.createEmployee(token, form)
       onSave()
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save employee.')
+      setError(err.response?.data?.message || t('hrErrSave'))
     } finally {
       setLoading(false)
     }
@@ -85,8 +89,8 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">
-      <h3 className="text-base font-semibold text-white mb-1">Add New Employee</h3>
-      <p className="text-gray-500 text-sm mb-5">Fill in the employee details below.</p>
+      <h3 className="text-base font-semibold text-white mb-1">{t('addNewEmployee')}</h3>
+      <p className="text-gray-500 text-sm mb-5">{t('fillEmployeeDetails')}</p>
 
       {error && (
         <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
@@ -100,7 +104,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
           {/* Name */}
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
-              Full Name <span className="text-emerald-700">*</span>
+              {t('fullName')} <span className="text-emerald-700">*</span>
             </label>
             <input
               type="text"
@@ -114,7 +118,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
           {/* ID Number */}
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
-              ID Number <span className="text-emerald-700">*</span>
+              {t('idNumber')} <span className="text-emerald-700">*</span>
             </label>
             <input
               type="text"
@@ -128,7 +132,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
           {/* Employee Code */}
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
-              Employee Code <span className="text-emerald-700">*</span>
+              {t('employeeCode')} <span className="text-emerald-700">*</span>
             </label>
             <input
               type="text"
@@ -142,7 +146,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
           {/* Phone Number */}
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
-              Phone Number
+              {t('phoneNumber')}
             </label>
             <input
               type="text"
@@ -156,7 +160,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
           {/* Department */}
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
-              Department
+              {t('department')}
             </label>
             <select
               value={form.department}
@@ -172,7 +176,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
           {/* Rating */}
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
-              Rating
+              {t('rating')}
             </label>
             <StarRating value={form.rating} onChange={(val) => setForm(f => ({ ...f, rating: val }))} />
           </div>
@@ -181,7 +185,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
         {/* Address — full width */}
         <div className="mb-6">
           <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
-            Address
+            {t('address')}
           </label>
           <textarea
             value={form.address}
@@ -198,14 +202,14 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
             disabled={loading}
             className="px-5 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}
           >
-            {loading ? 'Saving...' : 'Save Employee'}
+            {loading ? t('saving') : t('saveEmployee')}
           </button>
           <button
             type="button"
             onClick={onCancel}
             className="px-5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium rounded-lg transition-colors"
           >
-            Cancel
+            {t('cancel')}
           </button>
         </div>
       </form>
@@ -365,6 +369,8 @@ function CurrentUpdates() {
 export default function HRTab() {
   const { token } = useAuth()
   const [subTab, setSubTab] = useState('employee_list')
+  const { t } = useLanguage()
+  const HR_SUB_TABS = getHRSubTabs(t)
 
   const renderSubTab = () => {
     switch (subTab) {
@@ -379,17 +385,17 @@ export default function HRTab() {
     <div>
       {/* Sub-tab bar */}
       <div className="flex gap-2 mb-6 border-b border-gray-800 pb-3 overflow-x-auto">
-        {HR_SUB_TABS.map(t => (
+        {HR_SUB_TABS.map(tab => (
           <button
-            key={t.id}
-            onClick={() => setSubTab(t.id)}
+            key={tab.id}
+            onClick={() => setSubTab(tab.id)}
             className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-all ${
-              subTab === t.id
+              subTab === tab.id
                 ? 'text-emerald-700 border-b-2 border-emerald-700'
                 : 'text-gray-400 hover:text-gray-900 border-b-2 border-transparent'
             }`}
           >
-            {t.label}
+            {tab.label}
           </button>
         ))}
       </div>

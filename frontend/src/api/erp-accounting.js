@@ -12,9 +12,9 @@ const getAuthConfig = (_token, params = null) => {
 }
 
 // Chart of Accounts
-const getAccounts = async (token) => (await axios.get(`${BASE}/accounts`, getAuthConfig(token))).data
+const getAccounts = async (token, params) => (await axios.get(`${BASE}/accounts`, getAuthConfig(token, params))).data
 const getAccount = async (token, id) => (await axios.get(`${BASE}/accounts/${id}`, getAuthConfig(token))).data
-const getAccountEnquiry = async (token, accountCode) => (await axios.get(`${BASE}/accounts/enquiry`, getAuthConfig(token, { accountCode }))).data
+const getAccountEnquiry = async (token, accountCode, params = {}) => (await axios.get(`${BASE}/accounts/enquiry`, getAuthConfig(token, { accountCode, ...params }))).data
 const createAccount = async (token, payload) => (await axios.post(`${BASE}/accounts`, payload, getAuthConfig(token))).data
 const updateAccount = async (token, id, payload) => (await axios.put(`${BASE}/accounts/${id}`, payload, getAuthConfig(token))).data
 const deleteAccount = async (token, id) => (await axios.delete(`${BASE}/accounts/${id}`, getAuthConfig(token))).data
@@ -33,7 +33,7 @@ const updateLedgerEntry = async (token, id, payload) => (await axios.put(`${BASE
 const deleteLedgerEntry = async (token, id) => (await axios.delete(`${BASE}/ledger/${id}`, getAuthConfig(token))).data
 
 // Account Mappings
-const getMappings = async (token) => (await axios.get(`${BASE}/mappings`, getAuthConfig(token))).data
+const getMappings = async (token, params) => (await axios.get(`${BASE}/mappings`, getAuthConfig(token, params))).data
 const createMapping = async (token, payload) => (await axios.post(`${BASE}/mappings`, payload, getAuthConfig(token))).data
 const updateMapping = async (token, id, payload) => (await axios.put(`${BASE}/mappings/${id}`, payload, getAuthConfig(token))).data
 const deleteMapping = async (token, id) => (await axios.delete(`${BASE}/mappings/${id}`, getAuthConfig(token))).data
@@ -47,6 +47,12 @@ const getReportBranding = async (token, params) => (await axios.get(`${BASE}/rep
 const updateReportBranding = async (token, payload) => (await axios.put(`${BASE}/report-branding`, payload, getAuthConfig(token))).data
 const getMetalRates = async (token) => (await axios.get(`${BASE}/metal-rates`, getAuthConfig(token))).data
 const updateMetalRates = async (token, payload) => (await axios.put(`${BASE}/metal-rates`, payload, getAuthConfig(token))).data
+
+// Direct Deals (Fixing / Non-Fixing)
+const getDirectDeals = async (token, params) => (await axios.get(`${BASE}/direct-deals`, getAuthConfig(token, params))).data
+const createDirectDeal = async (token, payload) => (await axios.post(`${BASE}/direct-deals`, payload, getAuthConfig(token))).data
+const updateDirectDeal = async (token, id, payload) => (await axios.put(`${BASE}/direct-deals/${id}`, payload, getAuthConfig(token))).data
+const deleteDirectDeal = async (token, id) => (await axios.delete(`${BASE}/direct-deals/${id}`, getAuthConfig(token))).data
 
 // Transactions
 const getTransactions = async (token, params) => (await axios.get(`${BASE}/transactions`, getAuthConfig(token, params))).data
@@ -134,6 +140,10 @@ const erpAccountingAPI = {
   updateReportBranding,
   getMetalRates,
   updateMetalRates,
+  getDirectDeals,
+  createDirectDeal,
+  updateDirectDeal,
+  deleteDirectDeal,
   getTransactions,
   createTransaction,
   updateTransaction,

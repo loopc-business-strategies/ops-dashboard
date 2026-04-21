@@ -8,6 +8,7 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { LanguageProvider } from './context/LanguageContext'
 import ProtectedRoute  from './components/ProtectedRoute'
 import Login           from './pages/Login'
 import Setup           from './pages/Setup'
@@ -15,6 +16,7 @@ import Dashboard       from './pages/Dashboard'
 
 function App() {
   return (
+    <LanguageProvider>
     <BrowserRouter>
       <AuthProvider>
         <Routes>
@@ -45,6 +47,7 @@ function App() {
         </Routes>
       </AuthProvider>
     </BrowserRouter>
+    </LanguageProvider>
   )
 }
 

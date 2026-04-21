@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import authAPI from '../../api/auth'
+import { useLanguage } from '../../context/LanguageContext'
 
 const ROLES = [
   { value: 'super_admin', label: 'Super Admin', desc: 'Full access + user management' },
@@ -637,13 +638,17 @@ function SettingsTab() {
   )
 }
 
-const ADMIN_SUB_TABS = [
-  { id: 'users', label: 'Users' },
-  { id: 'settings', label: 'Settings' },
-]
+function getAdminSubTabs(t) {
+  return [
+    { id: 'users', label: t('users') },
+    { id: 'settings', label: t('settings') },
+  ]
+}
 
 function AdminTab() {
   const { token } = useAuth()
+  const { t } = useLanguage()
+  const ADMIN_SUB_TABS = useMemo(() => getAdminSubTabs(t), [t])
   const [subTab, setSubTab] = useState('users')
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)

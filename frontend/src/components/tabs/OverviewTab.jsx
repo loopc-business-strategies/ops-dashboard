@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useLanguage } from '../../context/LanguageContext'
 import tasksAPI from '../../api/tasks'
 import authAPI from '../../api/auth'
 import hrAPI from '../../api/hr'
@@ -208,6 +209,7 @@ function Section({ title, action, children }) {
 function OverviewTab({ onNavigate }) {
   const { user, token } = useAuth()
   const perms = usePermissions()
+  const { t } = useLanguage()
 
   const [tasks, setTasks] = useState([])
   const [assignees, setAssignees] = useState([])
@@ -1425,8 +1427,8 @@ function OverviewTab({ onNavigate }) {
 
           <div className="border border-gray-800 rounded-xl p-3 bg-gray-950">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold text-white">Leave Requests</p>
-              <button className="text-xs text-emerald-700 hover:text-emerald-800">View All</button>
+              <p className="text-sm font-semibold text-white">{t('leaveRequests')}</p>
+              <button className="text-xs text-emerald-700 hover:text-emerald-800">{t('viewAll')}</button>
             </div>
             <div className="space-y-2">
               {visibleLeaveRequests
@@ -1532,7 +1534,7 @@ function OverviewTab({ onNavigate }) {
         </div>
       </Section>
 
-      <Section title="Quick Actions">
+      <Section title={t('quickActions')}>
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
           {(QUICK_ACTIONS[role] || QUICK_ACTIONS.department_user).map((action) => (
             <button key={action} onClick={() => onQuickAction(action)} className="px-3 py-2 text-xs rounded-lg border border-gray-700 bg-gray-900 text-gray-300 hover:text-white hover:border-emerald-500/30">
@@ -1556,7 +1558,7 @@ function OverviewTab({ onNavigate }) {
 
         <div ref={messagesSectionRef} className={`rounded-2xl transition-all duration-700 ${highlightTarget === 'messages' ? 'ring-2 ring-emerald-400/70 ring-offset-2 ring-offset-gray-100 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]' : ''}`}>
         <Section
-          title="Latest Messages (Group & DM)"
+          title={t('latestMessages')}
           action={
             <div className="flex gap-2">
               <button onClick={() => setMessageFilter('all')} className={`px-2 py-1 text-xs rounded ${messageFilter === 'all' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>All</button>

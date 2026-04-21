@@ -1,8 +1,9 @@
 // FILE: src/components/tabs/TrainingTab.jsx
 // Training & Development — 11 sub-tabs, role-based access, full feature set
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useLanguage } from '../../context/LanguageContext'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -23,19 +24,21 @@ const B = {
   sm:    { padding:'5px 11px', fontSize:11 },
 }
 
-const TABS = [
-  { id:'kpi',         label:'📊 Overview' },
-  { id:'calendar',    label:'📅 Calendar' },
-  { id:'batches',     label:'👥 Batches' },
-  { id:'attendance',  label:'📋 Attendance' },
-  { id:'resources',   label:'📚 Resources' },
-  { id:'assessments', label:'📝 Assessments' },
-  { id:'certs',       label:'🏆 Certifications' },
-  { id:'feedback',    label:'💬 Feedback' },
-  { id:'analytics',   label:'📈 Analytics' },
-  { id:'trainees',    label:'👤 Trainees' },
-  { id:'skillgap',    label:'🗓️ Skill Gap' },
-]
+function getTrainingTabs(t) {
+  return [
+    { id:'kpi',         label:`📊 ${t('overview')}` },
+    { id:'calendar',    label:`📅 ${t('calendar')}` },
+    { id:'batches',     label:`👥 ${t('batches')}` },
+    { id:'attendance',  label:`📋 ${t('attendance')}` },
+    { id:'resources',   label:`📚 ${t('resources')}` },
+    { id:'assessments', label:`📝 ${t('assessments')}` },
+    { id:'certs',       label:`🏆 ${t('certifications')}` },
+    { id:'feedback',    label:`💬 ${t('feedback')}` },
+    { id:'analytics',   label:`📈 ${t('analytics')}` },
+    { id:'trainees',    label:`👤 ${t('trainees')}` },
+    { id:'skillgap',    label:`🗓️ ${t('skillGap')}` },
+  ]
+}
 
 // ─── Seed data ──────────────────────────────────────────────────────────────────
 const INIT_SESSIONS = [
@@ -1285,6 +1288,8 @@ function NotifPanel({ notifs, setNotifs, onClose }) {
 export default function TrainingTab() {
   const perms    = usePermissions()
   const isAdmin  = perms.isSuperAdmin
+  const { t } = useLanguage()
+  const TABS = useMemo(() => getTrainingTabs(t), [t])
   const isHead   = perms.isDepartmentHead   // Training Head
   const isMgmt   = perms.isManagement
   const isUser   = perms.isDepartmentUser   // Trainer or HR Manager

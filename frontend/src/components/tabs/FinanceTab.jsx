@@ -4,6 +4,7 @@
 import { useState, useMemo } from 'react'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
 
 // ─── Design tokens ────────────────────────────────────────────
 const C = {
@@ -26,20 +27,22 @@ const B = {
 }
 
 // ─── Sub-tabs ─────────────────────────────────────────────────
-const TABS = [
-  { id:'kpi',     label:'📊 KPI Overview' },
-  { id:'revenue', label:'💰 Revenue' },
-  { id:'expense', label:'💸 Expenses' },
-  { id:'invoice', label:'📄 Invoices' },
-  { id:'budget',  label:'📅 Budget' },
-  { id:'payroll', label:'👥 Payroll' },
-  { id:'arpa',    label:'🏦 AR & AP' },
-  { id:'gold',    label:'🪙 Gold Tracker' },
-  { id:'tax',     label:'📑 Tax' },
-  { id:'reports', label:'📈 Reports' },
-  { id:'ledger',  label:'📕 General Ledger' },
-  { id:'audit',   label:'🔍 Audit Trail' },
-]
+function getFinanceTabs(t) {
+  return [
+    { id:'kpi',     label:`📊 ${t('kpiOverview')}` },
+    { id:'revenue', label:`💰 ${t('revenue')}` },
+    { id:'expense', label:`💸 ${t('expenses')}` },
+    { id:'invoice', label:`📄 ${t('invoices')}` },
+    { id:'budget',  label:`📅 ${t('budget')}` },
+    { id:'payroll', label:`👥 ${t('payroll')}` },
+    { id:'arpa',    label:`🏦 ${t('arAp')}` },
+    { id:'gold',    label:`🪙 ${t('goldTracker')}` },
+    { id:'tax',     label:`📑 ${t('tax')}` },
+    { id:'reports', label:`📈 ${t('reports')}` },
+    { id:'ledger',  label:`📕 ${t('generalLedger')}` },
+    { id:'audit',   label:`🔍 ${t('auditTrail')}` },
+  ]
+}
 
 // ─── Seed data ────────────────────────────────────────────────
 const INIT_INVOICES = [
@@ -1399,6 +1402,8 @@ function AuditTrail({ finRole, can, auditLog }) {
 export default function FinanceTab() {
   const { isSuperAdmin, isManagement, isDepartmentHead, isDepartmentUser, isExternal } = usePermissions()
   const { user } = useAuth()
+  const { t } = useLanguage()
+  const TABS = useMemo(() => getFinanceTabs(t), [t])
 
   // Map dashboard roles → finance-specific role
   const finRole = useMemo(() => {

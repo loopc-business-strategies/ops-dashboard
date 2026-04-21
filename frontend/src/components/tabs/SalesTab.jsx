@@ -40,6 +40,7 @@ import {
 } from '../../api/crm'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useLanguage } from '../../context/LanguageContext'
 
 const C = {
   bg: '#f4f7f6',
@@ -818,6 +819,7 @@ function ContactProfile({ contact, tab, setTab, activities, deals, canSeeKyc, on
 export default function SalesTab() {
   const { user } = useAuth()
   const perms = usePermissions()
+  const { t } = useLanguage()
   const role = user?.role || ''
   const dep = (user?.department || '').toLowerCase()
 
@@ -1164,13 +1166,13 @@ export default function SalesTab() {
       <Card style={{ marginBottom: 12 }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <TabBtn active={section === 'dashboard'} onClick={() => setSection('dashboard')}>CRM Dashboard</TabBtn>
-            <TabBtn active={section === 'contacts'} onClick={() => setSection('contacts')}>Contacts</TabBtn>
-            <TabBtn active={section === 'leads'} onClick={() => setSection('leads')}>Leads</TabBtn>
-            <TabBtn active={section === 'companies'} onClick={() => setSection('companies')}>Companies</TabBtn>
-            <TabBtn active={section === 'deals'} onClick={() => setSection('deals')}>Deals</TabBtn>
-            <TabBtn active={section === 'activities'} onClick={() => setSection('activities')}>Activities</TabBtn>
-            <TabBtn active={section === 'followups'} onClick={() => setSection('followups')}>Follow-ups</TabBtn>
+            <TabBtn active={section === 'dashboard'} onClick={() => setSection('dashboard')}>{t('crmDashboard')}</TabBtn>
+            <TabBtn active={section === 'contacts'} onClick={() => setSection('contacts')}>{t('contacts')}</TabBtn>
+            <TabBtn active={section === 'leads'} onClick={() => setSection('leads')}>{t('leads')}</TabBtn>
+            <TabBtn active={section === 'companies'} onClick={() => setSection('companies')}>{t('companies')}</TabBtn>
+            <TabBtn active={section === 'deals'} onClick={() => setSection('deals')}>{t('deals')}</TabBtn>
+            <TabBtn active={section === 'activities'} onClick={() => setSection('activities')}>{t('activities')}</TabBtn>
+            <TabBtn active={section === 'followups'} onClick={() => setSection('followups')}>{t('followups')}</TabBtn>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {quickActions.map((a) => <Button key={a.label} onClick={a.onClick}>{a.label}</Button>)}

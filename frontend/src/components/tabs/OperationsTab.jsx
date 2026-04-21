@@ -1,8 +1,9 @@
 // FILE: src/components/tabs/OperationsTab.jsx
 // Operations & Logistics — 11 sub-tabs, role-based access, full feature set
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useLanguage } from '../../context/LanguageContext'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -24,19 +25,21 @@ const B = {
   sm:    { padding:'5px 11px', fontSize:11 },
 }
 
-const TABS = [
-  { id:'kpi',       label:'📊 KPI Overview' },
-  { id:'checklist', label:'✅ Readiness' },
-  { id:'supply',    label:'🏭 Supply Chain' },
-  { id:'gold',      label:'🥇 Gold Sourcing' },
-  { id:'routes',    label:'🚛 Transport' },
-  { id:'security',  label:'🔒 Security' },
-  { id:'vendors',   label:'📄 Contracts' },
-  { id:'inventory', label:'📦 Inventory' },
-  { id:'map',       label:'🗺️ Live Map' },
-  { id:'analytics', label:'📈 Analytics' },
-  { id:'tasks',     label:'📋 Task Board' },
-]
+function getOpsTabs(t) {
+  return [
+    { id:'kpi',       label:`📊 ${t('kpiOverview')}` },
+    { id:'checklist', label:`✅ ${t('readiness')}` },
+    { id:'supply',    label:`🏭 ${t('supplyChain')}` },
+    { id:'gold',      label:`🥇 ${t('goldSourcing')}` },
+    { id:'routes',    label:`🚛 ${t('transport')}` },
+    { id:'security',  label:`🔒 ${t('security')}` },
+    { id:'vendors',   label:`📄 ${t('contracts')}` },
+    { id:'inventory', label:`📦 ${t('inventory')}` },
+    { id:'map',       label:`🗺️ ${t('liveMap')}` },
+    { id:'analytics', label:`📈 ${t('analytics')}` },
+    { id:'tasks',     label:`📋 ${t('taskBoard')}` },
+  ]
+}
 
 // ─── Seed data ──────────────────────────────────────────────────────────────────
 const INIT_SUPPLIERS = [
@@ -1369,6 +1372,8 @@ function NotifPanel({ notifs, setNotifs, onClose }) {
 export default function OperationsTab() {
   const perms = usePermissions()
   const isAdmin    = perms.isSuperAdmin
+  const { t } = useLanguage()
+  const TABS = useMemo(() => getOpsTabs(t), [t])
   const isHead     = perms.isDepartmentHead
   const isMgmt     = perms.isManagement
   const isUser     = perms.isDepartmentUser

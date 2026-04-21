@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useLanguage } from '../../context/LanguageContext'
 
 const C = {
   bg: '#f4f7f6',
@@ -16,13 +17,15 @@ const C = {
   blue: '#1662c4',
 }
 
-const TABS = [
-  { id: 'eligibility', label: 'Eligibility Status' },
-  { id: 'approvals', label: 'Approvals Tracker' },
-  { id: 'docs', label: 'Documentation' },
-  { id: 'updates', label: 'Regulatory Updates' },
-  { id: 'agreements', label: 'Agreements' },
-]
+function getComplianceTabs(t) {
+  return [
+    { id: 'eligibility', label: t('eligibilityStatus') },
+    { id: 'approvals',   label: t('approvalsTracker') },
+    { id: 'docs',        label: t('documentation') },
+    { id: 'updates',     label: t('regulatoryUpdates') },
+    { id: 'agreements',  label: t('agreements') },
+  ]
+}
 
 const INIT_ELIGIBILITY = [
   { id: 'EL-1001', entity: 'Factory Site A', permit: 'Operating License', status: 'Eligible', lastReview: '2026-03-15', owner: 'Gov Team', notes: 'All prerequisites validated' },
@@ -172,6 +175,8 @@ function RowActions({ canEdit, onEdit, onDelete, extra }) {
 function ComplianceTab() {
   const { user } = useAuth()
   const perms = usePermissions()
+  const { t } = useLanguage()
+  const TABS = useMemo(() => getComplianceTabs(t), [t])
 
   const [tab, setTab] = useState('eligibility')
   const [toast, setToast] = useState('')

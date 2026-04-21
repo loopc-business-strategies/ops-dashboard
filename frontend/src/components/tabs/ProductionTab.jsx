@@ -4,6 +4,7 @@
 import { useState, useMemo } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useLanguage } from '../../context/LanguageContext'
 
 // ── Design tokens ─────────────────────────────────
 const C = {
@@ -13,17 +14,19 @@ const C = {
   grad: 'linear-gradient(135deg, #00684A, #00ED64)',
 }
 
-const SUB_TABS = [
-  { id: 'kpi',       label: '📊 KPI Overview' },
-  { id: 'monitor',   label: '📺 Live Monitor' },
-  { id: 'equipment', label: '⚙️ Equipment' },
-  { id: 'maintenance', label: '🔧 Maintenance' },
-  { id: 'quality',   label: '🔍 Quality Control' },
-  { id: 'shifts',    label: '👥 Shift Management' },
-  { id: 'planning',  label: '📅 Planning' },
-  { id: 'alerts',    label: '🚨 Alerts & Reports' },
-  { id: 'costs',     label: '💰 Cost Tracking' },
-]
+function getProductionTabs(t) {
+  return [
+    { id: 'kpi',         label: `📊 ${t('kpiOverview')}` },
+    { id: 'monitor',     label: `📺 ${t('liveMonitor')}` },
+    { id: 'equipment',   label: `⚙️ ${t('equipment')}` },
+    { id: 'maintenance', label: `🔧 ${t('maintenance')}` },
+    { id: 'quality',     label: `🔍 ${t('qualityControl')}` },
+    { id: 'shifts',      label: `👥 ${t('shiftManagement')}` },
+    { id: 'planning',    label: `📅 ${t('planning')}` },
+    { id: 'alerts',      label: `🚨 ${t('alertsReports')}` },
+    { id: 'costs',       label: `💰 ${t('costTracking')}` },
+  ]
+}
 
 // ── Helpers ───────────────────────────────────────
 function Badge({ children, color = 'gray' }) {
@@ -1670,6 +1673,8 @@ function NotificationsPanel({ open, onClose, notifications, onAcknowledge, onEsc
 export default function ProductionTab() {
   const { user } = useAuth()
   const { isSuperAdmin, isManagement, isDepartmentHead, isReadOnly } = usePermissions()
+  const { t } = useLanguage()
+  const SUB_TABS = useMemo(() => getProductionTabs(t), [t])
 
   const [activeTab, setActiveTab] = useState('kpi')
   const [toast, setToast] = useState(null)

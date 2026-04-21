@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useLanguage } from '../../context/LanguageContext'
 
 // ─────────────────────────────────────────────────────────
 // DESIGN TOKENS (matching prototype exactly)
@@ -186,6 +187,7 @@ function IBtn({ onClick, title, children, style = {} }) {
 function ChatTab({ onUnreadChange }) {
   const { user }  = useAuth()
   const perms     = usePermissions()
+  const { t } = useLanguage()
 
   const [chats,         setChats]         = useState(INITIAL_CHATS)
   const [activeChatId,  setActiveChatId]  = useState(null)
@@ -309,7 +311,7 @@ function ChatTab({ onUnreadChange }) {
         <div style={{ padding:'16px 16px 12px' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
             <div>
-              <div style={{ fontSize:18, fontWeight:700, color:'#1c2a33', letterSpacing:'-0.3px' }}>💬 Chat</div>
+              <div style={{ fontSize:18, fontWeight:700, color:'#1c2a33', letterSpacing:'-0.3px' }}>💬 {t('chat')}</div>
               <div style={{ fontSize:11, color:'#334155', marginTop:2 }}>
                 {new Date().toLocaleDateString('en-US',{ weekday:'short', day:'numeric', month:'short', year:'numeric' })}
               </div>
@@ -330,7 +332,7 @@ function ChatTab({ onUnreadChange }) {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search chats..."
+              placeholder={t('searchChats')}
               style={{ width:'100%', background:'#f8f9fa', border:'1.5px solid rgba(0,104,74,0.2)', borderRadius:10, padding:'9px 12px 9px 36px', fontSize:13, color:'#1c2a33', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
               onFocus={e => e.target.style.borderColor = C.accent}
               onBlur={e  => e.target.style.borderColor = 'rgba(0,104,74,0.2)'}
@@ -348,7 +350,7 @@ function ChatTab({ onUnreadChange }) {
           >
             <div style={{ width:28, height:28, borderRadius:8, background:C.accent, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, color:'#fff', flexShrink:0, fontWeight:700 }}>+</div>
             <div>
-              <div style={{ fontSize:12, fontWeight:600, color:C.accent }}>Create New Group</div>
+              <div style={{ fontSize:12, fontWeight:600, color:C.accent }}>{t('createNewGroup')}</div>
               <div style={{ fontSize:10, color:'rgba(0,104,74,0.6)', marginTop:1 }}>Admin &amp; Dept Heads only</div>
             </div>
           </div>
@@ -364,7 +366,7 @@ function ChatTab({ onUnreadChange }) {
           {/* Groups */}
           {groupChats.length > 0 && (
             <>
-              <div style={{ padding:'10px 16px 5px', fontSize:10, fontWeight:700, color:'#334155', letterSpacing:'0.1em', textTransform:'uppercase' }}>Groups</div>
+              <div style={{ padding:'10px 16px 5px', fontSize:10, fontWeight:700, color:'#334155', letterSpacing:'0.1em', textTransform:'uppercase' }}>{t('groups')}</div>
               {groupChats.map(chat => {
                 const last   = chat.messages[chat.messages.length - 1]
                 const sender = last ? getUser(last.from) : null
@@ -406,7 +408,7 @@ function ChatTab({ onUnreadChange }) {
           {/* Direct Messages */}
           {directChats.length > 0 && (
             <>
-              <div style={{ padding:'10px 16px 5px', fontSize:10, fontWeight:700, color:'#334155', letterSpacing:'0.1em', textTransform:'uppercase', marginTop:6 }}>Direct Messages</div>
+              <div style={{ padding:'10px 16px 5px', fontSize:10, fontWeight:700, color:'#334155', letterSpacing:'0.1em', textTransform:'uppercase', marginTop:6 }}>{t('directMessages')}</div>
               {directChats.map(chat => {
                 const other  = getUser(chat.otherId)
                 const last   = chat.messages[chat.messages.length - 1]
@@ -448,7 +450,7 @@ function ChatTab({ onUnreadChange }) {
           )}
 
           {filtered.length === 0 && (
-            <div style={{ textAlign:'center', padding:'40px 16px', fontSize:13, color:'#334155' }}>No chats found</div>
+            <div style={{ textAlign:'center', padding:'40px 16px', fontSize:13, color:'#334155' }}>{t('noChatsFound')}</div>
           )}
         </div>
       </div>
@@ -459,8 +461,8 @@ function ChatTab({ onUnreadChange }) {
         {!activeChat ? (
           <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, color:'#334155' }}>
             <div style={{ fontSize:52, opacity:.2 }}>💬</div>
-            <div style={{ fontSize:14, fontWeight:600 }}>Select a conversation</div>
-            <div style={{ fontSize:12, opacity:.6 }}>Choose from the list on the left</div>
+            <div style={{ fontSize:14, fontWeight:600 }}>{t('selectConversation')}</div>
+            <div style={{ fontSize:12, opacity:.6 }}>{t('chooseFromList')}</div>
           </div>
         ) : (
           <>
@@ -617,7 +619,7 @@ function ChatTab({ onUnreadChange }) {
                     value={msgText}
                     onChange={e => setMsgText(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMessage(activeChatId))}
-                    placeholder="Type a message..."
+                    placeholder={t('typeMessage')}
                     style={{ flex:1, background:'none', border:'none', outline:'none', fontSize:13, color:'#1c2a33', fontFamily:'inherit' }}
                   />
                   <button style={{ background:'none', border:'none', cursor:'pointer', fontSize:18, opacity:.6 }} onClick={() => {}}>😊</button>
@@ -644,10 +646,10 @@ function ChatTab({ onUnreadChange }) {
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500, backdropFilter:'blur(6px)' }}>
           <div style={{ background:'#ffffff', border:`1px solid ${C.border}`, borderRadius:18, padding:24, width:380, maxWidth:'92vw', boxShadow:'0 20px 40px rgba(0,0,0,0.15)' }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
-              <div style={{ fontSize:17, fontWeight:700, color:'#1c2a33' }}>Create New Group</div>
+              <div style={{ fontSize:17, fontWeight:700, color:'#1c2a33' }}>{t('createNewGroup')}</div>
               <button onClick={() => setShowGroupModal(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#334155', fontSize:18 }}>✕</button>
             </div>
-            <div style={{ fontSize:12, color:'#334155', marginBottom:18 }}>Only Super Admin &amp; Dept Heads can create groups</div>
+            <div style={{ fontSize:12, color:'#334155', marginBottom:18 }}>{t('groupCreationRestricted')}</div>
 
             <div style={{ marginBottom:12 }}>
               <input
@@ -668,14 +670,14 @@ function ChatTab({ onUnreadChange }) {
                 onFocus={e => e.target.style.borderColor = C.accent}
                 onBlur={e  => e.target.style.borderColor = 'rgba(0,104,74,0.2)'}
               >
-                <option value="" style={{ background:'#ffffff' }}>Select department scope</option>
+                <option value="" style={{ background:'#ffffff' }}>{t('selectDepartmentScope')}</option>
                 {['All Departments','Production & Factory','HR & Hiring','Finance & Accounts','Govt. & Compliance','Sales & Marketing','Operations & Logistics','Training & Dev.'].map(d => (
                   <option key={d} value={d} style={{ background:'#ffffff' }}>{d}</option>
                 ))}
               </select>
             </div>
 
-            <div style={{ fontSize:11, color:'#334155', fontWeight:600, marginBottom:8, letterSpacing:'0.05em', textTransform:'uppercase' }}>Add Members</div>
+            <div style={{ fontSize:11, color:'#334155', fontWeight:600, marginBottom:8, letterSpacing:'0.05em', textTransform:'uppercase' }}>{t('addMembers')}</div>
             <div style={{ maxHeight:160, overflowY:'auto', marginBottom:18, scrollbarWidth:'thin', scrollbarColor:'rgba(0,104,74,0.3) transparent' }}>
               {SEED_USERS.filter(u => u.id !== myId).map(u => (
                 <label key={u.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:8, cursor:'pointer', transition:'background .15s' }}
@@ -702,7 +704,7 @@ function ChatTab({ onUnreadChange }) {
                 onMouseEnter={e => e.currentTarget.style.background='#e5e7eb'}
                 onMouseLeave={e => e.currentTarget.style.background='#f3f4f6'}
               >
-                Cancel
+                {t('cancel')}
               </button>
               <button
                 onClick={createGroup}
@@ -711,7 +713,7 @@ function ChatTab({ onUnreadChange }) {
                 onMouseEnter={e => { if (groupForm.name.trim()) e.currentTarget.style.background=C.accent2 }}
                 onMouseLeave={e => { e.currentTarget.style.background = groupForm.name.trim() ? C.accent : 'rgba(0,104,74,0.3)' }}
               >
-                Create Group
+                {t('createGroup')}
               </button>
             </div>
           </div>

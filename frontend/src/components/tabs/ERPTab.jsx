@@ -3,8 +3,12 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
 import erpAccountingAPI from '../../api/erp-accounting'
 import { formatTransactionAuditEntry, formatTransactionCommentKind, getTransactionBulkSelectionLabel } from './transactionWorkflow'
+import ChartOfAccountsTree from './ChartOfAccountsTree'
+import VoucherTab from './VoucherTab'
+import DirectDealsTab from './DirectDealsTab'
 
 const LEDGER_REFERENCE_TYPES = ['journal', 'expense', 'invoice', 'payment', 'purchase', 'vendor_payment', 'inventory', 'payroll']
 const LEDGER_DEPARTMENTS = ['finance', 'sales', 'production', 'hr', 'operations', 'management']
@@ -15,13 +19,15 @@ const METAL_UNIT_FACTORS = {
   kg: 1000,
 }
 
-const TRANSACTION_TYPE_LABELS = {
-  expense: 'Expense',
-  sale: 'Sales / Invoice',
-  purchase: 'Purchase',
-  receipt: 'Receipt',
-  payment: 'Payment',
-  payroll: 'Payroll',
+function getTransactionTypeLabels(t) {
+  return {
+    expense: t('expense'),
+    sale: t('salesInvoice'),
+    purchase: t('purchase'),
+    receipt: t('receipt'),
+    payment: t('payment'),
+    payroll: t('payroll'),
+  }
 }
 
 const TRANSACTION_STATUS_STYLES = {
@@ -33,18 +39,20 @@ const TRANSACTION_STATUS_STYLES = {
   rejected: { background: '#FEE2E2', color: '#B91C1C' },
 }
 
-const TRANSACTION_ACTION_LABELS = {
-  create: 'Created',
-  update: 'Updated',
-  delete: 'Deleted',
-  submit: 'Submitted',
-  approve: 'Approved',
-  post: 'Posted',
-  return: 'Returned For Edit',
-  reject: 'Rejected',
-  comment: 'Commented',
-  upload_attachment: 'Attachment Uploaded',
-  delete_attachment: 'Attachment Deleted',
+function getTransactionActionLabels(t) {
+  return {
+    create: t('created'),
+    update: t('updated'),
+    delete: t('deleted'),
+    submit: t('submitted'),
+    approve: t('approved'),
+    post: t('posted'),
+    return: t('returnedForEdit'),
+    reject: t('rejected'),
+    comment: t('commented'),
+    upload_attachment: t('attachmentUploaded'),
+    delete_attachment: t('attachmentDeleted'),
+  }
 }
 
 const resolveTransactionAttachmentUrl = (attachment) => {
@@ -177,8 +185,12 @@ const createLogoRenderAsset = async (logoUrl, width, height, fit = 'contain') =>
 
 function ERPTab() {
   const { user, token } = useAuth()
+  const { t } = useLanguage()
+  const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
+  const TRANSACTION_ACTION_LABELS = getTransactionActionLabels(t)
   const [activeTab, setActiveTab] = useState('dashboard')
   const [accounts, setAccounts] = useState([])
+  const [summaryAccounts, setSummaryAccounts] = useState([])
   const [customers, setCustomers] = useState([])
   const [ledger, setLedger] = useState([])
   const [mappings, setMappings] = useState([])
@@ -199,7 +211,9 @@ function ERPTab() {
     currency: 'AED',
   })
   const [currencyForm, setCurrencyForm] = useState({ code: '', name: '', symbol: '', exchangeRate: 1, baseCurrency: false })
-  const [mappingForm, setMappingForm] = useState({ mappingType: '', debitAccountId: '', creditAccountId: '', description: '' })
+  const [mappingForm, setMappingForm] = useState({ mappingType: '', debitAccountId: '', creditAccountId: '', department: '', description: '' })
+  const [mappingFilters, setMappingFilters] = useState({ department: '' })
+  const [mappingSummary, setMappingSummary] = useState({ total: 0, shared: 0, byDepartment: {} })
   const [customerForm, setCustomerForm] = useState({
     name: '',
     phone: '',
@@ -228,6 +242,7 @@ function ERPTab() {
   const [accountEnquiryData, setAccountEnquiryData] = useState(null)
   const [enquiryLoading, setEnquiryLoading] = useState(false)
   const [enquiryStatus, setEnquiryStatus] = useState({ type: '', message: '' })
+  const [statementFilters, setStatementFilters] = useState({ startDate: '', endDate: '', referenceType: '', department: '' })
   const [metalRates, setMetalRates] = useState({ goldPrice: 285, silverPrice: 3.5, priceCurrency: 'AED', updatedAt: null })
   const [metalRateForm, setMetalRateForm] = useState({ goldPrice: '285', silverPrice: '3.5', priceCurrency: 'AED' })
   const [enquiryHistory, setEnquiryHistory] = useState([])
@@ -355,14 +370,17 @@ function ERPTab() {
   const canViewLedger = isSuperAdmin || isFinance
   const canViewCustomers = isSuperAdmin || isFinance || isSalesRole || user?.role === 'management'
   const canManageCustomers = isSuperAdmin || isFinance || isSalesRole
-  const canViewBalanceEnquiry = canViewAccounts
-  const canUpdateMetalRates = canManageAccounts
+  const canViewBalanceEnquiry = isSuperAdmin || isFinance || isDepartmentHead
+  const canUpdateMetalRates = isDepartmentHead && dept === 'finance'
+  const canExportAccountSummary = isSuperAdmin
   const canAccessTransactions = isSuperAdmin || isFinance || isSalesRole || isOperationsRole || isHRRole
   const canAccessReports = isSuperAdmin || isFinance
   const canAccessVendors = isSuperAdmin || isFinance || isOperationsRole
   const canManageVendors = isSuperAdmin || isFinance
   const canUpdateVendorOperational = canAccessVendors
   const canAccessInventory = isSuperAdmin || isFinance || isOperationsRole
+  const canAccessVouchers = isSuperAdmin || isFinance || isSalesRole || isManagementRole
+  const canAccessDirectDeals = isSuperAdmin || isFinance || isSalesRole || isManagementRole
   const canAccessERP = canViewAccounts || canAccessTransactions || canAccessInventory || canViewCustomers
   const availableTransactionTypes = isSuperAdmin || isFinance
     ? ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
@@ -372,6 +390,24 @@ function ERPTab() {
         ...(isHRRole ? ['payroll'] : []),
       ]
   const selectedTransaction = transactions.find((tx) => tx._id === selectedTransactionId) || null
+  const rawStatementEntries = accountEnquiryData?.statement?.entries || []
+  const statementReferenceTypes = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
+  const statementDepartments = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean))).sort()
+  const filteredStatementEntries = rawStatementEntries.filter((entry) => {
+    const entryDate = entry.date ? new Date(entry.date) : null
+    if (statementFilters.startDate) {
+      const start = new Date(statementFilters.startDate)
+      if (!entryDate || entryDate < start) return false
+    }
+    if (statementFilters.endDate) {
+      const end = new Date(statementFilters.endDate)
+      end.setHours(23, 59, 59, 999)
+      if (!entryDate || entryDate > end) return false
+    }
+    if (statementFilters.referenceType && String(entry.referenceType || '') !== statementFilters.referenceType) return false
+    if (statementFilters.department && String(entry.department || '') !== statementFilters.department) return false
+    return true
+  })
   const transactionPageCount = Math.max(1, Math.ceil(Number(transactionMeta.total || 0) / Number(transactionMeta.limit || 25)))
   const isTransactionEditMode = Boolean(editingTransactionId)
   const allVisibleTransactionsSelected = Boolean(transactions.length) && transactions.every((tx) => selectedTransactionIds.includes(tx._id))
@@ -428,15 +464,17 @@ function ERPTab() {
     setLoading(false)
   }
 
-  const loadAccounts = async () => {
-    if (!canViewAccounts) return
+  const loadAccounts = async (params = {}) => {
+    const isSummaryScope = params.scope === 'summary'
+    if (!canViewAccounts && !(isSummaryScope && canViewBalanceEnquiry)) return
     setLoading(true)
     try {
-      const data = await erpAccountingAPI.getAccounts(token)
-      setAccounts(data.accounts || [])
+      const data = await erpAccountingAPI.getAccounts(token, params)
+      if (isSummaryScope) setSummaryAccounts(data.accounts || [])
+      else setAccounts(data.accounts || [])
       setError('')
     } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load accounts')
+      setError(e.response?.data?.message || `Failed to load ${isSummaryScope ? 'account summary options' : 'accounts'}`)
     }
     setLoading(false)
   }
@@ -475,15 +513,16 @@ function ERPTab() {
     setLoading(false)
   }
 
-  const loadMappings = async () => {
+  const loadMappings = async (params = mappingFilters) => {
     if (!canViewAccounts) return
     setLoading(true)
     try {
       const [mappingData, accountData] = await Promise.all([
-        erpAccountingAPI.getMappings(token),
+        erpAccountingAPI.getMappings(token, params),
         erpAccountingAPI.getAccounts(token),
       ])
       setMappings(mappingData.mappings || [])
+      setMappingSummary(mappingData.summary || { total: 0, shared: 0, byDepartment: {} })
       setAccounts(accountData.accounts || [])
       setError('')
     } catch (e) {
@@ -1327,18 +1366,26 @@ function ERPTab() {
       const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode)
       setAccountEnquiryCode(cleanCode)
       setAccountEnquiryData(data)
+      setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '' })
       pushEnquiryHistory(data.account)
       setError('')
-      setEnquiryStatus({ type: 'success', message: `Account ${data.account.accountCode} loaded successfully` })
-      showNotification('✅ Account enquiry loaded')
+      setEnquiryStatus({ type: 'success', message: `Account ${data.account.accountCode} summary loaded successfully` })
+      showNotification('✅ Account summary loaded')
     } catch (e) {
       setAccountEnquiryData(null)
-      const msg = e.response?.data?.message || 'Failed to fetch account enquiry'
+      const msg = e.response?.data?.message || 'Failed to fetch account summary'
       setError(msg)
       setEnquiryStatus({ type: 'error', message: msg })
     } finally {
       setEnquiryLoading(false)
     }
+  }
+
+  const handleOpenAccountSummaryFromTree = async (account) => {
+    if (!account?.accountCode) return
+    setActiveTab('enquiry')
+    setAccountEnquiryCode(account.accountCode)
+    await fetchAccountEnquiryByCode(account.accountCode)
   }
 
   const handleAccountEnquiry = async (e) => {
@@ -1456,7 +1503,7 @@ function ERPTab() {
     else if (activeTab === 'accounts') loadAccounts()
     else if (activeTab === 'customers') loadCustomers()
     else if (activeTab === 'ledger') loadLedger()
-    else if (activeTab === 'mappings') loadMappings()
+    else if (activeTab === 'mappings') loadMappings(mappingFilters)
     else if (activeTab === 'transactions') loadTransactions()
     else if (activeTab === 'reports') {
       loadReportBranding()
@@ -1482,7 +1529,7 @@ function ERPTab() {
     }
     else if (activeTab === 'enquiry') {
       loadMetalRates()
-      loadAccounts()
+      loadAccounts({ scope: 'summary' })
     }
   }, [
     activeTab,
@@ -1495,6 +1542,7 @@ function ERPTab() {
     reportFilters.period,
     reportFilters.startDate,
     reportFilters.endDate,
+    mappingFilters.department,
     reportFilters.accountType,
     reportFilters.includeZeroAccounts,
     reportFilters.sortBy,
@@ -1511,6 +1559,15 @@ function ERPTab() {
   }
 
   const formatMoney = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
+  const getDepartmentBadgeStyle = (department) => {
+    const deptValue = String(department || '').trim().toLowerCase()
+    if (deptValue === 'finance') return { background: '#DBEAFE', color: '#1D4ED8' }
+    if (deptValue === 'sales') return { background: '#FCE7F3', color: '#BE185D' }
+    if (deptValue === 'operations') return { background: '#DCFCE7', color: '#166534' }
+    if (deptValue === 'production') return { background: '#FEF3C7', color: '#92400E' }
+    if (deptValue === 'hr') return { background: '#EDE9FE', color: '#6D28D9' }
+    return { background: '#E5E7EB', color: '#374151' }
+  }
   const branding = { ...DEFAULT_BRANDING, ...reportBranding }
   const brandingPreview = { ...DEFAULT_BRANDING, ...brandingForm }
 
@@ -1657,7 +1714,7 @@ function ERPTab() {
 
   const handleExportEnquiryExcel = () => {
     if (!accountEnquiryData) {
-      setError('Load an enquiry first to export')
+      setError('Load an account summary first to export')
       return
     }
 
@@ -1669,7 +1726,7 @@ function ERPTab() {
     const link = document.createElement('a')
     const stamp = new Date().toISOString().slice(0, 10)
     link.href = url
-    link.download = `account-enquiry-${accountEnquiryData.account.accountCode}-${stamp}.csv`
+    link.download = `account-summary-${accountEnquiryData.account.accountCode}-${stamp}.csv`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -1679,7 +1736,7 @@ function ERPTab() {
 
   const handleExportEnquiryPdf = () => {
     if (!accountEnquiryData) {
-      setError('Load an enquiry first to export')
+      setError('Load an account summary first to export')
       return
     }
 
@@ -1697,7 +1754,7 @@ function ERPTab() {
     w.document.write(`
       <html>
         <head>
-          <title>Account Enquiry ${accountEnquiryData.account.accountCode}</title>
+          <title>Account Summary ${accountEnquiryData.account.accountCode}</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; color: #111827; }
             h1 { margin: 0 0 8px 0; font-size: 20px; }
@@ -1706,7 +1763,7 @@ function ERPTab() {
           </style>
         </head>
         <body>
-          <h1>Account Balance Enquiry</h1>
+          <h1>Account Summary</h1>
           <p>${accountEnquiryData.account.accountCode} - ${accountEnquiryData.account.accountName}</p>
           <table>${htmlRows}</table>
         </body>
@@ -2314,6 +2371,7 @@ function ERPTab() {
         mappingType: record.mappingType || '',
         debitAccountId: record.debitAccountId?._id || '',
         creditAccountId: record.creditAccountId?._id || '',
+        department: record.department || '',
         description: record.description || '',
       }
     }
@@ -2419,7 +2477,7 @@ function ERPTab() {
     setSaving(true)
     try {
       await erpAccountingAPI.createMapping(token, mappingForm)
-      setMappingForm({ mappingType: '', debitAccountId: '', creditAccountId: '', description: '' })
+      setMappingForm({ mappingType: '', debitAccountId: '', creditAccountId: '', department: '', description: '' })
       setShowMappingForm(false)
       await loadMappings()
       showNotification('✅ Mapping created successfully')
@@ -2556,13 +2614,16 @@ function ERPTab() {
       {(() => {
         const visibleTabs = [
           'dashboard',
-          ...(canViewAccounts ? ['accounts', 'mappings', 'enquiry', 'settings'] : []),
+          ...(canViewAccounts ? ['accounts', 'mappings', 'settings'] : []),
+          ...(canViewBalanceEnquiry ? ['enquiry'] : []),
           ...(canViewCustomers ? ['customers'] : []),
           ...(canViewLedger ? ['ledger'] : []),
           ...(canAccessTransactions ? ['transactions'] : []),
           ...(canAccessReports ? ['reports'] : []),
           ...(canAccessVendors ? ['vendors'] : []),
           ...(canAccessInventory ? ['inventory'] : []),
+          ...(canAccessVouchers ? ['vouchers'] : []),
+          ...(canAccessDirectDeals ? ['direct-deals'] : []),
         ]
         const uniqueTabs = Array.from(new Set(visibleTabs))
         return (
@@ -2585,17 +2646,21 @@ function ERPTab() {
               boxShadow: activeTab === tab ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
             }}
           >
-            {tab === 'enquiry'
-              ? 'Balance Enquiry'
-              : tab === 'transactions'
-                ? 'Transactions'
-                : tab === 'reports'
-                  ? 'Reports'
-                  : tab === 'vendors'
-                    ? 'Vendors'
-                    : tab === 'inventory'
-                      ? 'Inventory'
-                      : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === 'enquiry'
+                ? t('accountSummary')
+                : tab === 'transactions'
+                  ? t('transactions')
+                  : tab === 'reports'
+                    ? t('reports')
+                    : tab === 'vendors'
+                      ? t('vendors')
+                      : tab === 'inventory'
+                        ? t('inventory')
+                        : tab === 'vouchers'
+                          ? `💳 ${t('vouchers')}`
+                          : tab === 'direct-deals'
+                            ? t('directDeals')
+                          : tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
         ))}
       </div>
@@ -2673,113 +2738,13 @@ function ERPTab() {
       {/* CHART OF ACCOUNTS TAB */}
       {activeTab === 'accounts' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3 style={{ color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Chart of Accounts</h3>
-            {canManageAccounts && (
-              <button
-                onClick={() => setShowForm(!showForm)}
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: C.s1,
-                  color: C.t1,
-                  border: 'none',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                }}
-              >
-                + Add Account
-              </button>
-            )}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <h3 style={{ color: C.ink, fontSize: '1.25rem', fontWeight: '700', margin: 0 }}>Chart of Accounts</h3>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: C.inkSoft }}>
+              Hierarchical account tree — right-click any account for more options.
+            </p>
           </div>
-
-          {showForm && (
-            <form onSubmit={handleCreateAccount} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
-              <input
-                placeholder="Account Name"
-                value={form.accountName || ''}
-                onChange={(e) => setForm({ ...form, accountName: e.target.value })}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              />
-              <input
-                placeholder="Account Code"
-                value={form.accountCode || ''}
-                onChange={(e) => setForm({ ...form, accountCode: e.target.value })}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              />
-              <select
-                value={form.accountType || ''}
-                onChange={(e) => setForm({ ...form, accountType: e.target.value })}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              >
-                <option value="">Select Type</option>
-                <option value="Asset">Asset</option>
-                <option value="Liability">Liability</option>
-                <option value="Income">Income</option>
-                <option value="Expense">Expense</option>
-                <option value="Equity">Equity</option>
-              </select>
-              <button type="submit" style={{ padding: '0.5rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', marginRight: '0.5rem' }}>
-                Create
-              </button>
-              <button type="button" onClick={() => setShowForm(false)} style={{ padding: '0.5rem 1rem', background: C.p1, color: C.t2, border: `1px solid ${C.p1}`, borderRadius: '0.375rem', cursor: 'pointer' }}>
-                Cancel
-              </button>
-            </form>
-          )}
-
-          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                  <th onClick={() => setSorting({...sorting, accounts: {by: 'code', asc: !sorting.accounts.asc}})} style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.accounts.by === 'code' ? C.p2 : 'transparent' }}>Code {sorting.accounts.by === 'code' && (sorting.accounts.asc ? '▲' : '▼')}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Name</th>
-                  <th onClick={() => setSorting({...sorting, accounts: {by: 'type', asc: !sorting.accounts.asc}})} style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.accounts.by === 'type' ? C.p2 : 'transparent' }}>Type {sorting.accounts.by === 'type' && (sorting.accounts.asc ? '▲' : '▼')}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Status</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {accounts
-                  .sort((a, b) => {
-                    if (sorting.accounts.by === 'code') {
-                      return sorting.accounts.asc ? a.accountCode.localeCompare(b.accountCode) : b.accountCode.localeCompare(a.accountCode)
-                    } else if (sorting.accounts.by === 'type') {
-                      return sorting.accounts.asc ? a.accountType.localeCompare(b.accountType) : b.accountType.localeCompare(a.accountType)
-                    }
-                    return 0
-                  })
-                  .slice((pagination.accounts - 1) * ITEMS_PER_PAGE, pagination.accounts * ITEMS_PER_PAGE)
-                  .map((acc) => (
-                    <tr key={acc._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>{acc.accountCode}</td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>{acc.accountName}</td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>{acc.accountType}</td>
-                      <td style={{ padding: '0.75rem', color: acc.isActive ? C.s1 : C.danger }}>{acc.isActive ? '✓ Active' : '✗ Inactive'}</td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <button onClick={() => handleEditAccount(acc)} style={{ padding: '0.35rem 0.7rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
-                          <button onClick={() => handleDeleteAccount(acc)} style={{ padding: '0.35rem 0.7rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Delete</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination for Accounts */}
-          {Math.ceil(accounts.length / ITEMS_PER_PAGE) > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-              <button onClick={() => setPagination({...pagination, accounts: Math.max(1, pagination.accounts - 1)})} disabled={pagination.accounts === 1} style={{padding: '0.4rem 0.8rem', background: pagination.accounts === 1 ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.accounts === 1 ? 'default' : 'pointer', borderRadius: '0.35rem'}}>← Prev</button>
-              {Array.from({length: Math.ceil(accounts.length / ITEMS_PER_PAGE)}, (_, i) => i + 1).map(p => (
-                <button key={p} onClick={() => setPagination({...pagination, accounts: p})} style={{padding: '0.4rem 0.6rem', background: p === pagination.accounts ? C.s1 : '#E5E7EB', color: p === pagination.accounts ? '#fff' : C.ink, border: 'none', cursor: 'pointer', borderRadius: '0.35rem', fontWeight: p === pagination.accounts ? '600' : '400'}}>{p}</button>
-              ))}
-              <button onClick={() => setPagination({...pagination, accounts: Math.min(Math.ceil(accounts.length / ITEMS_PER_PAGE), pagination.accounts + 1)})} disabled={pagination.accounts === Math.ceil(accounts.length / ITEMS_PER_PAGE)} style={{padding: '0.4rem 0.8rem', background: pagination.accounts === Math.ceil(accounts.length / ITEMS_PER_PAGE) ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.accounts === Math.ceil(accounts.length / ITEMS_PER_PAGE) ? 'default' : 'pointer', borderRadius: '0.35rem'}}>Next →</button>
-            </div>
-          )}
-
-          {accounts.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No accounts created yet.</p>}
+          <ChartOfAccountsTree canManageAccounts={canManageAccounts} onOpenSummary={handleOpenAccountSummaryFromTree} />
         </div>
       )}
 
@@ -3108,6 +3073,34 @@ function ERPTab() {
           <p style={{ color: C.inkSoft, marginBottom: '1rem', fontSize: '0.875rem' }}>
             📌 Auto-map accounts for transactions. When a user selects a transaction type, the system auto-fills debit and credit accounts.
           </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 320px) auto', gap: '0.75rem', marginBottom: '1rem', alignItems: 'center' }}>
+            <select
+              value={mappingFilters.department}
+              onChange={(e) => setMappingFilters((prev) => ({ ...prev, department: e.target.value }))}
+              style={{ display: 'block', width: '100%', padding: '0.6rem 0.75rem', background: '#F9FAFB', border: '1px solid #D1D5DB', color: C.ink, borderRadius: '0.5rem' }}
+            >
+              <option value="">All departments</option>
+              {LEDGER_DEPARTMENTS.map((department) => (
+                <option key={department} value={department}>{department}</option>
+              ))}
+            </select>
+            <div style={{ color: C.inkSoft, fontSize: '0.82rem', fontWeight: '700' }}>Filter scoped mappings by department</div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+            <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#EEF2FF', color: '#3730A3', fontSize: '0.76rem', fontWeight: '700' }}>Total: {Number(mappingSummary.total || 0).toLocaleString()}</span>
+            <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#F3F4F6', color: '#374151', fontSize: '0.76rem', fontWeight: '700' }}>Shared: {Number(mappingSummary.shared || 0).toLocaleString()}</span>
+            {Object.entries(mappingSummary.byDepartment || {})
+              .sort((left, right) => {
+                const countDifference = Number(right[1] || 0) - Number(left[1] || 0)
+                if (countDifference !== 0) return countDifference
+                return String(left[0] || '').localeCompare(String(right[0] || ''))
+              })
+              .map(([department, count]) => (
+              <span key={department} style={{ ...getDepartmentBadgeStyle(department), padding: '0.3rem 0.55rem', borderRadius: '999px', fontSize: '0.76rem', fontWeight: '700', textTransform: 'capitalize' }}>
+                {department}: {Number(count || 0).toLocaleString()}
+              </span>
+            ))}
+          </div>
           {showMappingForm && (
             <form onSubmit={handleCreateMapping} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
               <input
@@ -3136,6 +3129,16 @@ function ERPTab() {
                   <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
                 ))}
               </select>
+              <select
+                value={mappingForm.department}
+                onChange={(e) => setMappingForm({ ...mappingForm, department: e.target.value })}
+                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+              >
+                <option value="">Shared / All Departments</option>
+                {LEDGER_DEPARTMENTS.map((department) => (
+                  <option key={department} value={department}>{department}</option>
+                ))}
+              </select>
               <input
                 placeholder="Description"
                 value={mappingForm.description}
@@ -3157,6 +3160,7 @@ function ERPTab() {
                   <th onClick={() => setSorting({...sorting, mappings: {by: 'type', asc: !sorting.mappings.asc}})} style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.mappings.by === 'type' ? C.p2 : 'transparent' }}>Type {sorting.mappings.by === 'type' && (sorting.mappings.asc ? '▲' : '▼')}</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Debit Account</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Credit Account</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Department</th>
                   <th style={{ padding: '0.75rem', textAlign: 'center', color: C.t1, fontWeight: '600' }}>Usage</th>
                   <th style={{ padding: '0.75rem', textAlign: 'center', color: C.t1, fontWeight: '600' }}>Active</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Actions</th>
@@ -3176,6 +3180,11 @@ function ERPTab() {
                       <td style={{ padding: '0.75rem', color: C.t1, fontWeight: '600' }}>{m.mappingType}</td>
                       <td style={{ padding: '0.75rem', color: C.t2 }}>{m.debitAccountId?.accountCode} - {m.debitAccountId?.accountName}</td>
                       <td style={{ padding: '0.75rem', color: C.t2 }}>{m.creditAccountId?.accountCode} - {m.creditAccountId?.accountName}</td>
+                      <td style={{ padding: '0.75rem' }}>
+                        <span style={{ ...getDepartmentBadgeStyle(m.department), padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.74rem', fontWeight: '700', textTransform: 'capitalize' }}>
+                          {m.department || 'shared'}
+                        </span>
+                      </td>
                       <td style={{ padding: '0.75rem', textAlign: 'center', color: m.usageCount > 0 ? C.s1 : C.t3, fontWeight: '600' }}>{m.usageCount || 0}</td>
                       <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                         <input type="checkbox" checked={m.isActive !== false} onChange={async () => {
@@ -3216,21 +3225,30 @@ function ERPTab() {
         </div>
       )}
 
-      {/* BALANCE ENQUIRY TAB */}
+      {/* ACCOUNT SUMMARY TAB */}
       {activeTab === 'enquiry' && (
         <div>
-          <div style={{ marginBottom: '1rem' }}>
-            <h3 style={{ marginBottom: '0.4rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Quick Account Balance Enquiry</h3>
-            <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.9rem' }}>Enter account number to check debit, credit, net balance, and live gold/silver converted balances.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+            <div>
+              <h3 style={{ marginBottom: '0.35rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Account Summary</h3>
+              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.9rem' }}>Search any chart-of-account code to view balances, value conversion, metal equivalents, and exportable summary details.</p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ padding: '0.4rem 0.7rem', borderRadius: '999px', background: '#ECFDF5', color: '#065F46', fontSize: '0.78rem', fontWeight: '700' }}>{isSuperAdmin ? 'Super Admin' : isFinance ? 'Finance' : 'Department Head'}</span>
+              <span style={{ padding: '0.4rem 0.7rem', borderRadius: '999px', background: '#EFF6FF', color: '#1D4ED8', fontSize: '0.78rem', fontWeight: '700' }}>Role Based</span>
+            </div>
           </div>
 
           {!canViewBalanceEnquiry ? (
-            <div style={emptyCardStyle}>⛔ Balance enquiry access restricted by role.</div>
+            <div style={{ ...emptyCardStyle, borderStyle: 'solid', background: '#FEF2F2', color: '#991B1B' }}>⛔ Account summary access restricted. Super Admin, Finance, or Department Head with mapped-account visibility only.</div>
           ) : (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(280px, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
-                <form onSubmit={handleAccountEnquiry} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
-                  <p style={{ marginTop: 0, marginBottom: '0.6rem', color: C.ink, fontWeight: '700' }}>Account Balance Search</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.4fr) minmax(280px, 0.9fr)', gap: '1rem', marginBottom: '1rem' }}>
+                <form onSubmit={handleAccountEnquiry} style={{ background: '#FAFAF7', border: '1px solid #D6D3C4', borderRadius: '0.75rem', padding: '1rem', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                    <p style={{ margin: 0, color: '#3F4B2E', fontWeight: '800', letterSpacing: '0.02em' }}>Account Lookup</p>
+                    <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>Code or dropdown search</span>
+                  </div>
                   <input
                     placeholder="Enter Account Number (e.g. 1000)"
                     value={accountEnquiryCode}
@@ -3239,10 +3257,10 @@ function ERPTab() {
                       setEnquiryStatus({ type: '', message: '' })
                     }}
                     list="erp-account-code-list"
-                    style={{ display: 'block', width: '100%', padding: '0.65rem 0.75rem', marginBottom: '0.75rem', background: '#F9FAFB', border: '1px solid #D1D5DB', color: C.ink, borderRadius: '0.5rem' }}
+                    style={{ display: 'block', width: '100%', padding: '0.7rem 0.8rem', marginBottom: '0.75rem', background: '#FFFFFF', border: '1px solid #B8BEA0', color: C.ink, borderRadius: '0.5rem' }}
                   />
                   <datalist id="erp-account-code-list">
-                    {accounts.map((account) => (
+                    {summaryAccounts.map((account) => (
                       <option key={account._id} value={account.accountCode}>{account.accountName}</option>
                     ))}
                   </datalist>
@@ -3252,10 +3270,10 @@ function ERPTab() {
                       setAccountEnquiryCode(e.target.value)
                       setEnquiryStatus({ type: '', message: '' })
                     }}
-                    style={{ display: 'block', width: '100%', padding: '0.65rem 0.75rem', marginBottom: '0.75rem', background: '#F9FAFB', border: '1px solid #D1D5DB', color: C.ink, borderRadius: '0.5rem' }}
+                    style={{ display: 'block', width: '100%', padding: '0.7rem 0.8rem', marginBottom: '0.75rem', background: '#FFFFFF', border: '1px solid #B8BEA0', color: C.ink, borderRadius: '0.5rem' }}
                   >
-                    <option value="">Select Account Number (Dropdown)</option>
-                    {accounts
+                    <option value="">Select Account Number</option>
+                    {summaryAccounts
                       .slice()
                       .sort((a, b) => a.accountCode.localeCompare(b.accountCode))
                       .map((account) => (
@@ -3264,18 +3282,54 @@ function ERPTab() {
                         </option>
                       ))}
                   </select>
-                  <button type="submit" disabled={enquiryLoading} style={{ padding: '0.55rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.4rem', cursor: 'pointer', fontWeight: '600' }}>
-                    {enquiryLoading ? 'Checking...' : 'Check Balance'}
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button type="submit" disabled={enquiryLoading} style={{ padding: '0.6rem 1rem', background: '#3F4B2E', color: '#FFFFFF', border: 'none', borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}>
+                      {enquiryLoading ? 'Loading...' : 'Load Summary'}
+                    </button>
+                    <span style={{ fontSize: '0.8rem', color: '#6B7280' }}>Live from ERP accounting balances</span>
+                  </div>
                   {enquiryStatus.message && (
                     <p style={{ marginTop: '0.6rem', marginBottom: 0, color: enquiryStatus.type === 'success' ? '#047857' : C.danger, fontWeight: '600', fontSize: '0.85rem' }}>
                       {enquiryStatus.message}
                     </p>
                   )}
+
+                  {!summaryAccounts.length && (
+                    <p style={{ margin: '0.7rem 0 0', color: '#92400E', fontSize: '0.82rem', fontWeight: '600' }}>
+                      No accounts available for your role. Department heads only see mapped accounts in Account Summary.
+                    </p>
+                  )}
+
+                  <div style={{ marginTop: '0.9rem', paddingTop: '0.85rem', borderTop: '1px solid #E5E7EB' }}>
+                    <p style={{ margin: '0 0 0.5rem', color: '#6B7280', fontWeight: '700', fontSize: '0.78rem' }}>Quick Accounts</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                      {summaryAccounts
+                        .slice()
+                        .sort((a, b) => a.accountCode.localeCompare(b.accountCode))
+                        .slice(0, 8)
+                        .map((account) => (
+                          <button
+                            key={account._id}
+                            type="button"
+                            onClick={() => {
+                              setAccountEnquiryCode(account.accountCode)
+                              fetchAccountEnquiryByCode(account.accountCode)
+                            }}
+                            style={{ padding: '0.35rem 0.6rem', borderRadius: '999px', border: '1px solid #C7D2FE', background: '#EEF2FF', color: '#3730A3', cursor: 'pointer', fontSize: '0.76rem', fontWeight: '700' }}
+                            title={account.accountName}
+                          >
+                            {account.accountCode}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
                 </form>
 
-                <form onSubmit={handleUpdateMetalRates} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
-                  <p style={{ marginTop: 0, marginBottom: '0.6rem', color: C.ink, fontWeight: '700' }}>Gold / Silver Current Price</p>
+                <form onSubmit={handleUpdateMetalRates} style={{ background: '#FFFFFF', border: '1px solid #D1D5DB', borderRadius: '0.75rem', padding: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.65rem', flexWrap: 'wrap' }}>
+                    <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>Metal Conversion Rates</p>
+                    <span style={{ fontSize: '0.78rem', color: C.inkSoft }}>{canUpdateMetalRates ? 'Editable' : 'Read only'}</span>
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: '0.5rem', marginBottom: '0.75rem' }}>
                     <input
                       type="number"
@@ -3320,12 +3374,23 @@ function ERPTab() {
                       {saving ? 'Updating...' : 'Update Rates'}
                     </button>
                   </div>
+
+                  <div style={{ marginTop: '0.9rem', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.5rem' }}>
+                    <div style={{ padding: '0.7rem', borderRadius: '0.5rem', background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                      <p style={{ margin: 0, color: '#92400E', fontSize: '0.72rem', fontWeight: '700' }}>Gold / {metalUnit}</p>
+                      <p style={{ margin: '0.2rem 0 0', color: '#B45309', fontWeight: '800' }}>{metalRates.priceCurrency || 'AED'} {Number(metalRates.goldPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</p>
+                    </div>
+                    <div style={{ padding: '0.7rem', borderRadius: '0.5rem', background: '#F8FAFC', border: '1px solid #CBD5E1' }}>
+                      <p style={{ margin: 0, color: '#475569', fontSize: '0.72rem', fontWeight: '700' }}>Silver / {metalUnit}</p>
+                      <p style={{ margin: '0.2rem 0 0', color: '#334155', fontWeight: '800' }}>{metalRates.priceCurrency || 'AED'} {Number(metalRates.silverPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</p>
+                    </div>
+                  </div>
                 </form>
               </div>
 
               {enquiryHistory.length > 0 && (
                 <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem', marginBottom: '1rem' }}>
-                  <p style={{ margin: 0, color: C.ink, fontWeight: '700', marginBottom: '0.55rem' }}>Recent Enquiry History (Last 10)</p>
+                  <p style={{ margin: 0, color: C.ink, fontWeight: '700', marginBottom: '0.55rem' }}>Recent Account Summary History</p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                     {enquiryHistory.map((item) => (
                       <button
@@ -3344,56 +3409,243 @@ function ERPTab() {
 
               {accountEnquiryData && (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={handleExportEnquiryExcel}
-                      style={{ padding: '0.45rem 0.8rem', borderRadius: '0.4rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}
-                    >
-                      Export Excel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleExportEnquiryPdf}
-                      style={{ padding: '0.45rem 0.8rem', borderRadius: '0.4rem', border: '1px solid #60A5FA', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}
-                    >
-                      Export PDF
-                    </button>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                    <div>
+                      <p style={{ margin: 0, fontSize: '0.76rem', color: '#6B7280', fontWeight: '700', letterSpacing: '0.08em' }}>ACCOUNT DETAILS</p>
+                      <p style={{ margin: '0.2rem 0 0', color: '#374151', fontWeight: '700' }}>{accountEnquiryData.account.accountCode} - {accountEnquiryData.account.accountName}</p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {canExportAccountSummary ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleExportEnquiryExcel}
+                          style={{ padding: '0.45rem 0.8rem', borderRadius: '0.4rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}
+                        >
+                          Export Excel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleExportEnquiryPdf}
+                          style={{ padding: '0.45rem 0.8rem', borderRadius: '0.4rem', border: '1px solid #60A5FA', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}
+                        >
+                          Export PDF
+                        </button>
+                      </>
+                    ) : (
+                      <span style={{ alignSelf: 'center', color: '#6B7280', fontSize: '0.82rem', fontWeight: '700' }}>Export available for Super Admin only</span>
+                    )}
+                    </div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                  <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
-                    <p style={{ margin: 0, color: C.t3, fontSize: '0.8rem', fontWeight: '600' }}>ACCOUNT DETAILS</p>
-                    <p style={{ margin: '0.35rem 0', color: C.ink, fontWeight: '700' }}>{accountEnquiryData.account.accountCode} - {accountEnquiryData.account.accountName}</p>
-                    <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.88rem' }}>Type: {accountEnquiryData.account.accountType}</p>
-                    <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.88rem' }}>Currency: {accountEnquiryData.account.currency}</p>
-                  </div>
+                  <div style={{ background: '#F4F6ED', border: '1px solid #C7CFB3', borderRadius: '1rem', padding: '1rem', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.75)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.35fr) minmax(220px, 0.9fr)', gap: '1rem', marginBottom: '1rem' }}>
+                      <div style={{ background: '#FFFFFF', border: '1px solid #B7C09E', borderRadius: '0.9rem', overflow: 'hidden' }}>
+                        <div style={{ padding: '0.6rem 0.9rem', background: 'linear-gradient(90deg, #96A97B 0%, #B9C7A4 100%)', color: '#FFFFFF', fontWeight: '800', fontSize: '0.9rem' }}>Account Details</div>
+                        <div style={{ padding: '0.85rem 0.95rem' }}>
+                          <p style={{ margin: 0, color: '#374151', fontWeight: '800', fontSize: '1rem' }}>{accountEnquiryData.account.accountName}</p>
+                          <p style={{ margin: '0.25rem 0 0.7rem', color: '#6B7280', fontFamily: 'monospace', fontSize: '0.85rem' }}>{accountEnquiryData.account.accountCode}</p>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem' }}>
+                            <div style={{ background: '#F8FAFC', borderRadius: '0.5rem', padding: '0.6rem' }}>
+                              <p style={{ margin: 0, fontSize: '0.72rem', color: '#6B7280', fontWeight: '700' }}>Type</p>
+                              <p style={{ margin: '0.15rem 0 0', color: '#111827', fontWeight: '700' }}>{accountEnquiryData.account.accountType}</p>
+                            </div>
+                            <div style={{ background: '#F8FAFC', borderRadius: '0.5rem', padding: '0.6rem' }}>
+                              <p style={{ margin: 0, fontSize: '0.72rem', color: '#6B7280', fontWeight: '700' }}>Currency</p>
+                              <p style={{ margin: '0.15rem 0 0', color: '#111827', fontWeight: '700' }}>{accountEnquiryData.account.currency}</p>
+                            </div>
+                            <div style={{ background: '#F8FAFC', borderRadius: '0.5rem', padding: '0.6rem' }}>
+                              <p style={{ margin: 0, fontSize: '0.72rem', color: '#6B7280', fontWeight: '700' }}>Department</p>
+                              <p style={{ margin: '0.15rem 0 0', color: '#111827', fontWeight: '700' }}>{accountEnquiryData.account.department || 'Finance'}</p>
+                            </div>
+                            <div style={{ background: '#F8FAFC', borderRadius: '0.5rem', padding: '0.6rem' }}>
+                              <p style={{ margin: 0, fontSize: '0.72rem', color: '#6B7280', fontWeight: '700' }}>Status</p>
+                              <p style={{ margin: '0.15rem 0 0', color: accountEnquiryData.account.isActive ? '#166534' : '#B91C1C', fontWeight: '700' }}>{accountEnquiryData.account.isActive ? 'Active' : 'Inactive'}</p>
+                            </div>
+                          </div>
+                          {accountEnquiryData.account.description && (
+                            <div style={{ marginTop: '0.7rem', padding: '0.7rem', background: '#FFFBEB', borderRadius: '0.5rem', border: '1px solid #FDE68A' }}>
+                              <p style={{ margin: 0, fontSize: '0.72rem', color: '#92400E', fontWeight: '700' }}>Description</p>
+                              <p style={{ margin: '0.15rem 0 0', color: '#78350F', fontSize: '0.84rem' }}>{accountEnquiryData.account.description}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
 
-                  <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
-                    <p style={{ margin: 0, color: C.t3, fontSize: '0.8rem', fontWeight: '600' }}>DEBIT / CREDIT</p>
-                    <p style={{ margin: '0.35rem 0', color: C.ink, fontWeight: '700' }}>Debit: {Number(accountEnquiryData.balances.debitTotal || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
-                    <p style={{ margin: 0, color: C.ink, fontWeight: '700' }}>Credit: {Number(accountEnquiryData.balances.creditTotal || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
-                    <p style={{ margin: '0.35rem 0 0', color: accountEnquiryData.balances.netDirection === 'Debit' ? C.s1 : accountEnquiryData.balances.netDirection === 'Credit' ? C.danger : C.inkSoft, fontWeight: '800' }}>
-                      Net: {Number(accountEnquiryData.balances.absoluteNetBalance || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} ({accountEnquiryData.balances.netDirection})
-                    </p>
-                  </div>
+                      <div style={{ display: 'grid', gap: '0.55rem' }}>
+                        {[
+                          ['Debit Total', Number(accountEnquiryData.balances.debitTotal || 0), '#1D4ED8'],
+                          ['Credit Total', Number(accountEnquiryData.balances.creditTotal || 0), '#B91C1C'],
+                          ['Net Balance', Number(accountEnquiryData.balances.netBalance || 0), accountEnquiryData.balances.netDirection === 'Debit' ? '#166534' : accountEnquiryData.balances.netDirection === 'Credit' ? '#B91C1C' : '#374151'],
+                          ['Value Balance', Number(accountEnquiryData.balances.rateCurrencyBalance || 0), '#4338CA'],
+                          ['Gold Equivalent', Number(convertMetalBalanceByUnit(accountEnquiryData.metals.goldBalance || 0)), '#B45309'],
+                          ['Silver Equivalent', Number(convertMetalBalanceByUnit(accountEnquiryData.metals.silverBalance || 0)), '#475569'],
+                        ].map(([label, value, color]) => (
+                          <div key={label} style={{ background: '#FFFFFF', border: '1px solid #D6D3C4', borderRadius: '0.75rem', padding: '0.7rem 0.85rem' }}>
+                            <p style={{ margin: 0, fontSize: '0.74rem', color: '#6B7280', fontWeight: '700' }}>{label}</p>
+                            <p style={{ margin: '0.2rem 0 0', color, fontWeight: '800', fontSize: '1.2rem' }}>{value.toLocaleString(undefined, { maximumFractionDigits: 6 })}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
 
-                  <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
-                    <p style={{ margin: 0, color: C.t3, fontSize: '0.8rem', fontWeight: '600' }}>CURRENCY BALANCE</p>
-                    <p style={{ margin: '0.35rem 0', color: C.ink, fontWeight: '700' }}>{accountEnquiryData.balances.rateCurrency} {Number(accountEnquiryData.balances.rateCurrencyBalance || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
-                    <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.88rem' }}>Based on account balance conversion</p>
-                  </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.25fr) minmax(220px, 0.85fr)', gap: '1rem' }}>
+                      <div style={{ background: '#FFFFFF', border: '1px solid #D6D3C4', borderRadius: '0.9rem', overflow: 'hidden' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', background: '#6B7F49', color: '#FFFFFF', fontWeight: '800', fontSize: '0.8rem' }}>
+                          <div style={{ padding: '0.6rem 0.75rem' }}>Metric</div>
+                          <div style={{ padding: '0.6rem 0.75rem' }}>Value</div>
+                          <div style={{ padding: '0.6rem 0.75rem' }}>Direction</div>
+                          <div style={{ padding: '0.6rem 0.75rem' }}>Unit</div>
+                        </div>
+                        {[
+                          ['Net Balance', Number(accountEnquiryData.balances.absoluteNetBalance || 0), accountEnquiryData.balances.netDirection || 'Flat', accountEnquiryData.account.currency],
+                          ['Rate Balance', Number(accountEnquiryData.balances.rateCurrencyBalance || 0), 'Converted', accountEnquiryData.balances.rateCurrency],
+                          ['Gold Position', Number(convertMetalBalanceByUnit(accountEnquiryData.metals.goldBalance || 0)), 'Equivalent', metalUnit],
+                          ['Silver Position', Number(convertMetalBalanceByUnit(accountEnquiryData.metals.silverBalance || 0)), 'Equivalent', metalUnit],
+                        ].map((row, index) => (
+                          <div key={row[0]} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', borderTop: index === 0 ? 'none' : '1px solid #EEF2F7', background: index % 2 === 0 ? '#FFFFFF' : '#FAFAF7' }}>
+                            <div style={{ padding: '0.65rem 0.75rem', color: '#374151', fontWeight: '700', fontSize: '0.82rem' }}>{row[0]}</div>
+                            <div style={{ padding: '0.65rem 0.75rem', color: '#111827', fontWeight: '700', fontSize: '0.82rem' }}>{Number(row[1]).toLocaleString(undefined, { maximumFractionDigits: 6 })}</div>
+                            <div style={{ padding: '0.65rem 0.75rem', color: '#6B7280', fontSize: '0.82rem' }}>{row[2]}</div>
+                            <div style={{ padding: '0.65rem 0.75rem', color: '#6B7280', fontSize: '0.82rem' }}>{row[3]}</div>
+                          </div>
+                        ))}
+                      </div>
 
-                  <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
-                    <p style={{ margin: 0, color: C.t3, fontSize: '0.8rem', fontWeight: '600' }}>GOLD BALANCE</p>
-                    <p style={{ margin: '0.35rem 0', color: '#B45309', fontWeight: '800' }}>{Number(convertMetalBalanceByUnit(accountEnquiryData.metals.goldBalance || 0)).toLocaleString(undefined, { maximumFractionDigits: 6 })} {metalUnit}</p>
-                    <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.88rem' }}>Rate: {accountEnquiryData.metals.priceCurrency} {Number(accountEnquiryData.metals.goldPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</p>
-                  </div>
+                      <div style={{ background: '#FFFFFF', border: '1px solid #D6D3C4', borderRadius: '0.9rem', overflow: 'hidden' }}>
+                        <div style={{ padding: '0.6rem 0.75rem', background: '#8FA568', color: '#FFFFFF', fontWeight: '800', fontSize: '0.85rem' }}>Rate Snapshot</div>
+                        <div style={{ padding: '0.8rem 0.85rem', display: 'grid', gap: '0.55rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+                            <span style={{ color: '#6B7280', fontSize: '0.8rem' }}>Gold Rate</span>
+                            <span style={{ color: '#92400E', fontWeight: '800' }}>{accountEnquiryData.metals.priceCurrency} {Number(accountEnquiryData.metals.goldPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+                            <span style={{ color: '#6B7280', fontSize: '0.8rem' }}>Silver Rate</span>
+                            <span style={{ color: '#475569', fontWeight: '800' }}>{accountEnquiryData.metals.priceCurrency} {Number(accountEnquiryData.metals.silverPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+                            <span style={{ color: '#6B7280', fontSize: '0.8rem' }}>Account Currency</span>
+                            <span style={{ color: '#111827', fontWeight: '800' }}>{accountEnquiryData.account.currency}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+                            <span style={{ color: '#6B7280', fontSize: '0.8rem' }}>Rate Currency</span>
+                            <span style={{ color: '#111827', fontWeight: '800' }}>{accountEnquiryData.balances.rateCurrency}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+                            <span style={{ color: '#6B7280', fontSize: '0.8rem' }}>Updated</span>
+                            <span style={{ color: '#111827', fontWeight: '700', textAlign: 'right', fontSize: '0.79rem' }}>{accountEnquiryData.metals.updatedAt ? new Date(accountEnquiryData.metals.updatedAt).toLocaleString() : 'Default values'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-                  <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
-                    <p style={{ margin: 0, color: C.t3, fontSize: '0.8rem', fontWeight: '600' }}>SILVER BALANCE</p>
-                    <p style={{ margin: '0.35rem 0', color: '#475569', fontWeight: '800' }}>{Number(convertMetalBalanceByUnit(accountEnquiryData.metals.silverBalance || 0)).toLocaleString(undefined, { maximumFractionDigits: 6 })} {metalUnit}</p>
-                    <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.88rem' }}>Rate: {accountEnquiryData.metals.priceCurrency} {Number(accountEnquiryData.metals.silverPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</p>
-                  </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.15fr) minmax(320px, 1.35fr)', gap: '1rem', marginTop: '1rem' }}>
+                      <div style={{ background: '#FFFFFF', border: '1px solid #D6D3C4', borderRadius: '0.9rem', overflow: 'hidden' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 0.9fr 1fr 1fr', background: '#6B7F49', color: '#FFFFFF', fontWeight: '800', fontSize: '0.8rem' }}>
+                          <div style={{ padding: '0.6rem 0.75rem' }}>Position</div>
+                          <div style={{ padding: '0.6rem 0.75rem' }}>Limits</div>
+                          <div style={{ padding: '0.6rem 0.75rem' }}>Balance</div>
+                          <div style={{ padding: '0.6rem 0.75rem' }}>Price</div>
+                          <div style={{ padding: '0.6rem 0.75rem' }}>Current Value</div>
+                        </div>
+                        {(accountEnquiryData.positions || []).map((position, index) => (
+                          <div key={position.key || position.type} style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 0.9fr 1fr 1fr', borderTop: index === 0 ? 'none' : '1px solid #EEF2F7', background: index % 2 === 0 ? '#FFFFFF' : '#FAFAF7' }}>
+                            <div style={{ padding: '0.65rem 0.75rem', color: '#374151', fontWeight: '700', fontSize: '0.82rem' }}>{position.type}</div>
+                            <div style={{ padding: '0.65rem 0.75rem', color: '#111827', fontSize: '0.82rem' }}>{Number(position.limitValue || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                            <div style={{ padding: '0.65rem 0.75rem', color: '#111827', fontSize: '0.82rem' }}>{Number(position.balance || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</div>
+                            <div style={{ padding: '0.65rem 0.75rem', color: '#111827', fontSize: '0.82rem' }}>{position.valueCurrency || accountEnquiryData.balances.rateCurrency} {Number(position.price || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</div>
+                            <div style={{ padding: '0.65rem 0.75rem', color: '#111827', fontWeight: '700', fontSize: '0.82rem' }}>{position.valueCurrency || accountEnquiryData.balances.rateCurrency} {Number(position.currentValue || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ background: '#FFFFFF', border: '1px solid #D6D3C4', borderRadius: '0.9rem', overflow: 'hidden' }}>
+                        <div style={{ padding: '0.75rem', borderBottom: '1px solid #EEF2F7', background: '#F8FAFC' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.5rem' }}>
+                            <input type="date" value={statementFilters.startDate} onChange={(e) => setStatementFilters((prev) => ({ ...prev, startDate: e.target.value }))} style={{ ...modalInputStyle, marginBottom: 0 }} />
+                            <input type="date" value={statementFilters.endDate} onChange={(e) => setStatementFilters((prev) => ({ ...prev, endDate: e.target.value }))} style={{ ...modalInputStyle, marginBottom: 0 }} />
+                            <select value={statementFilters.referenceType} onChange={(e) => setStatementFilters((prev) => ({ ...prev, referenceType: e.target.value }))} style={{ ...modalInputStyle, marginBottom: 0 }}>
+                              <option value="">All types</option>
+                              {statementReferenceTypes.map((type) => <option key={type} value={type}>{String(type).replace(/_/g, ' ')}</option>)}
+                            </select>
+                            <select value={statementFilters.department} onChange={(e) => setStatementFilters((prev) => ({ ...prev, department: e.target.value }))} style={{ ...modalInputStyle, marginBottom: 0 }}>
+                              <option value="">All departments</option>
+                              {statementDepartments.map((department) => <option key={department} value={department}>{department}</option>)}
+                            </select>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                            <span style={{ color: '#6B7280', fontSize: '0.78rem', fontWeight: '700' }}>Statement rows: {filteredStatementEntries.length} / {rawStatementEntries.length}</span>
+                            <button type="button" onClick={() => setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '' })} style={{ padding: '0.35rem 0.65rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#FFFFFF', color: '#374151', cursor: 'pointer', fontWeight: '600', fontSize: '0.78rem' }}>Reset Filters</button>
+                          </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '0.85fr 0.85fr 1.15fr 0.8fr 0.8fr 0.95fr 0.95fr 0.85fr 0.7fr 1fr', background: '#8FA568', color: '#FFFFFF', fontWeight: '800', fontSize: '0.74rem' }}>
+                          <div style={{ padding: '0.6rem 0.65rem' }}>Date</div>
+                          <div style={{ padding: '0.6rem 0.65rem' }}>Type</div>
+                          <div style={{ padding: '0.6rem 0.65rem' }}>Description</div>
+                          <div style={{ padding: '0.6rem 0.65rem' }}>Debit</div>
+                          <div style={{ padding: '0.6rem 0.65rem' }}>Credit</div>
+                          <div style={{ padding: '0.6rem 0.65rem' }}>Balance</div>
+                          <div style={{ padding: '0.6rem 0.65rem' }}>Current Value</div>
+                          <div style={{ padding: '0.6rem 0.65rem' }}>Department</div>
+                          <div style={{ padding: '0.6rem 0.65rem' }}>Open</div>
+                          <div style={{ padding: '0.6rem 0.65rem' }}>Open In Transactions</div>
+                        </div>
+                        {filteredStatementEntries.length ? (
+                          filteredStatementEntries.map((entry, index) => (
+                            <div
+                              key={entry._id}
+                              onClick={() => handleOpenVoucherSource(entry._id)}
+                              style={{ display: 'grid', gridTemplateColumns: '0.85fr 0.85fr 1.15fr 0.8fr 0.8fr 0.95fr 0.95fr 0.85fr 0.7fr 1fr', borderTop: index === 0 ? 'none' : '1px solid #EEF2F7', background: index % 2 === 0 ? '#FFFFFF' : '#FAFAF7', cursor: 'pointer' }}
+                            >
+                              <div style={{ padding: '0.65rem 0.65rem', color: '#374151', fontSize: '0.78rem' }}>{new Date(entry.date).toLocaleDateString()}</div>
+                              <div style={{ padding: '0.65rem 0.65rem', color: '#374151', fontSize: '0.78rem', textTransform: 'capitalize' }}>{String(entry.referenceType || 'journal').replace(/_/g, ' ')}</div>
+                              <div style={{ padding: '0.65rem 0.65rem', color: '#111827', fontSize: '0.78rem' }}>
+                                <div style={{ fontWeight: '700' }}>{entry.description || 'Ledger entry'}</div>
+                                <div style={{ color: '#6B7280', marginTop: '0.1rem' }}>{entry.offsetAccountCode ? `${entry.offsetAccountCode} - ${entry.offsetAccountName}` : 'System'}</div>
+                              </div>
+                              <div style={{ padding: '0.65rem 0.65rem', color: '#166534', fontSize: '0.78rem' }}>{Number(entry.debitAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                              <div style={{ padding: '0.65rem 0.65rem', color: '#B91C1C', fontSize: '0.78rem' }}>{Number(entry.creditAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                              <div style={{ padding: '0.65rem 0.65rem', color: Number(entry.runningBalance || 0) >= 0 ? '#166534' : '#B91C1C', fontWeight: '700', fontSize: '0.78rem' }}>{Number(entry.runningBalance || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                              <div style={{ padding: '0.65rem 0.65rem', color: '#4338CA', fontWeight: '700', fontSize: '0.78rem' }}>{accountEnquiryData.balances.rateCurrency} {Number(entry.currentValue || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                              <div style={{ padding: '0.65rem 0.65rem' }}>
+                                <span style={{ ...getDepartmentBadgeStyle(entry.department), padding: '0.18rem 0.5rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: '700', textTransform: 'capitalize' }}>
+                                  {entry.department || 'shared'}
+                                </span>
+                              </div>
+                              <div style={{ padding: '0.55rem 0.55rem' }}>
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    handleOpenVoucherSource(entry._id)
+                                  }}
+                                  style={{ padding: '0.28rem 0.5rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#FFFFFF', color: C.ink, cursor: 'pointer', fontSize: '0.72rem', fontWeight: '700' }}
+                                >
+                                  Open
+                                </button>
+                              </div>
+                              <div style={{ padding: '0.55rem 0.55rem' }}>
+                                {entry.sourceTransactionId ? (
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      handleJumpToTransaction(entry.sourceTransactionId)
+                                    }}
+                                    style={{ padding: '0.28rem 0.45rem', borderRadius: '0.35rem', border: '1px solid #BBF7D0', background: '#ECFDF5', color: '#166534', cursor: 'pointer', fontSize: '0.71rem', fontWeight: '700' }}
+                                  >
+                                    Open In Transactions
+                                  </button>
+                                ) : (
+                                  <span style={{ color: '#9CA3AF', fontSize: '0.71rem', fontWeight: '700' }}>Manual / No source</span>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{ padding: '1rem', color: '#6B7280', fontSize: '0.82rem' }}>No recent statement rows found for this account.</div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
@@ -5081,6 +5333,16 @@ function ERPTab() {
                       <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
                     ))}
                   </select>
+                  <select
+                    value={editState.form.department || ''}
+                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, department: e.target.value } }))}
+                    style={modalInputStyle}
+                  >
+                    <option value="">Shared / All Departments</option>
+                    {LEDGER_DEPARTMENTS.map((department) => (
+                      <option key={department} value={department}>{department}</option>
+                    ))}
+                  </select>
                   <input
                     value={editState.form.description || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))}
@@ -5255,6 +5517,28 @@ function ERPTab() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* VOUCHERS TAB */}
+      {activeTab === 'vouchers' && (
+        <VoucherTab
+          token={token}
+          user={user}
+          accounts={accounts}
+          customers={customers}
+          currencies={currencies}
+        />
+      )}
+
+      {/* DIRECT DEALS TAB */}
+      {activeTab === 'direct-deals' && (
+        <DirectDealsTab
+          token={token}
+          customers={customers}
+          currencies={currencies}
+          canManage={isSuperAdmin || isFinance || isSalesRole}
+          isSuperAdmin={isSuperAdmin}
+        />
       )}
 
       {/* TEST MAPPING MODAL */}
