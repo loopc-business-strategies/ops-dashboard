@@ -64,7 +64,13 @@ function createApp() {
         'http://127.0.0.1:5174',
       ]
 
-  const allowedOrigins = Array.from(new Set([...rawOrigins, ...devOrigins]))
+  const vercelOrigins = [
+    'https://ops-dashboard-eta-rose.vercel.app',
+    'https://ops-dashboard-git-main-beulah-4360s-projects.vercel.app',
+    'https://ops-dashboard-bdnocc5c0-beulah-4360s-projects.vercel.app',
+  ]
+
+  const allowedOrigins = Array.from(new Set([...rawOrigins, ...devOrigins, ...vercelOrigins]))
 
   app.use(cors({
     origin: (origin, callback) => {
