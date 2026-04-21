@@ -43,9 +43,44 @@ const btnStyle = (variant = 'primary') => {
   return { ...base, background: COLORS.green, color: '#FFFFFF' }
 }
 
+// ERP window inline styles
+const tbBtnSt = {
+  width: 26, height: 22,
+  background: 'linear-gradient(180deg,#e8e8e8,#c8c8c8)',
+  border: '1px solid #999', borderRadius: 2,
+  cursor: 'pointer', fontSize: 12,
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  color: '#333', padding: 0,
+}
+const btmBtnSt = {
+  padding: '4px 14px', border: '1px solid #888', borderRadius: 2,
+  fontSize: 12, cursor: 'pointer',
+  background: 'linear-gradient(180deg,#e8e8e8,#c8c8c8)', color: '#222',
+  fontFamily: 'inherit',
+}
+const erpInpSt = {
+  border: '1px solid #999', padding: '4px 8px', fontSize: 12,
+  background: '#fff', borderRadius: 1, fontFamily: 'inherit',
+  boxSizing: 'border-box',
+}
+const erpSelSt = {
+  border: '1px solid #bbb', padding: '3px 3px', fontSize: 12,
+  background: '#fff', fontFamily: 'inherit', cursor: 'pointer',
+  width: '100%', boxSizing: 'border-box',
+}
+
 const fmtMoney = (v) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmtQty = (v) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 6 })
+const fmtFixed = (v, digits) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const today = () => new Date().toISOString().slice(0, 10)
+
+const toNumber = (value) => {
+  const raw = String(value ?? '').replace(/,/g, '').trim()
+  const num = Number(raw)
+  return Number.isFinite(num) ? num : 0
+}
+
+const stockToOzMap = { OZ: 1, GRAM: 0.0321507, KG: 32.1507 }
 
 const makeLine = () => ({
   customerId: '',
@@ -95,6 +130,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
   })
 
   const [editingId, setEditingId] = useState('')
+  const [showModal, setShowModal] = useState(false)
   const [importPreviewRows, setImportPreviewRows] = useState([])
   const [importPreviewFileName, setImportPreviewFileName] = useState('')
   const [form, setForm] = useState({
@@ -145,8 +181,8 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
   }
 
   const formTotals = useMemo(() => {
-    const totalQty = form.lineItems.reduce((sum, line) => sum + Number(line.qty || 0), 0)
-    const totalAmount = form.lineItems.reduce((sum, line) => sum + Number(line.amount || (Number(line.qty || 0) * Number(line.price || 0))), 0)
+    const totalQty = form.lineItems.reduce((sum, line) => sum + toNumber(line.qty), 0)
+    const totalAmount = form.lineItems.reduce((sum, line) => sum + toNumber(line.amount || (toNumber(line.qty) * toNumber(line.price))), 0)
     return { totalQty, totalAmount }
   }, [form.lineItems])
 
@@ -202,6 +238,21 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     }
   }
 
+  const openCreateModal = () => {
+    const year = new Date().getFullYear()
+    const maxSeq = deals.reduce((max, deal) => {
+      const match = String(deal.docNo || '').match(/^ORD\/(\d{4})\/(\d{6})$/)
+      if (!match) return max
+      if (Number(match[1]) !== year) return max
+      return Math.max(max, Number(match[2]))
+    }, 0)
+    const nextDocNo = `ORD/${year}/${String(maxSeq + 1).padStart(6, '0')}`
+
+    resetForm()
+    setForm((prev) => ({ ...prev, docNo: nextDocNo }))
+    setShowModal(true)
+  }
+
   const updateLine = (idx, key, value) => {
     setForm((prev) => {
       const next = prev.lineItems.map((line, i) => {
@@ -214,14 +265,52 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
             updated.customerName = customer.name || ''
           }
         }
-        if (key === 'qty' || key === 'price') {
-          const qty = Number(key === 'qty' ? value : updated.qty || 0)
-          const price = Number(key === 'price' ? value : updated.price || 0)
+        if (key === 'qty' || key === 'price' || key === 'stockCode') {
+          const qty = toNumber(updated.qty)
+          const price = toNumber(updated.price)
+          const stock = String(updated.stockCode || 'OZ').toUpperCase()
+          const ratio = stockToOzMap[stock] || 1
+          const eqOz = qty * ratio
           const amount = qty * price
-          updated.amount = amount ? String(Number(amount.toFixed(2))) : ''
-          if (!updated.eqOz) updated.eqOz = updated.qty
+          updated.eqOz = eqOz ? eqOz.toFixed(3) : ''
+          updated.amount = amount ? amount.toFixed(2) : ''
         }
         return updated
+      })
+      return { ...prev, lineItems: next }
+    })
+  }
+
+  const updateLineCustomerCode = (idx, value) => {
+    setForm((prev) => {
+      const code = String(value || '').trim()
+      const matched = customers.find((c) => String(c.code || '').toLowerCase() === code.toLowerCase())
+      const next = prev.lineItems.map((line, i) => {
+        if (i !== idx) return line
+        return {
+          ...line,
+          customerCode: code,
+          customerId: matched?._id || line.customerId,
+          customerName: matched?.name || line.customerName,
+        }
+      })
+      return { ...prev, lineItems: next }
+    })
+  }
+
+  const pickCustomer = (idx) => {
+    if (typeof window === 'undefined') return
+    const val = window.prompt('Enter Customer ID (e.g. 000001, GC0007):')
+    if (!val) return
+    updateLineCustomerCode(idx, val)
+  }
+
+  const formatLineNumber = (idx, key, digits) => {
+    setForm((prev) => {
+      const next = prev.lineItems.map((line, i) => {
+        if (i !== idx) return line
+        const num = toNumber(line[key])
+        return { ...line, [key]: num ? fmtFixed(num, digits) : '' }
       })
       return { ...prev, lineItems: next }
     })
@@ -513,7 +602,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
         direction: line.direction || 'buy',
         metal: line.metal || 'XAU',
         qty: String(line.qty ?? ''),
-        stockCode: line.stockCode || 'OZ',
+        stockCode: String(line.stockCode || 'OZ').toUpperCase(),
         price: String(line.price ?? ''),
         eqOz: String(line.eqOz ?? ''),
         amount: String(line.amount ?? ''),
@@ -521,7 +610,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
       })),
     })
     setError('')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setShowModal(true)
   }
 
   const validate = () => {
@@ -531,14 +620,13 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     for (const [idx, line] of form.lineItems.entries()) {
       if (!line.direction || !['buy', 'sell'].includes(line.direction)) return `Line ${idx + 1}: direction must be Buy or Sell`
       if (!line.metal) return `Line ${idx + 1}: metal is required`
-      if (Number(line.qty || 0) <= 0) return `Line ${idx + 1}: quantity must be greater than zero`
-      if (Number(line.price || 0) <= 0) return `Line ${idx + 1}: price must be greater than zero`
+      if (toNumber(line.qty) <= 0) return `Line ${idx + 1}: quantity must be greater than zero`
+      if (toNumber(line.price) <= 0) return `Line ${idx + 1}: price must be greater than zero`
     }
     return ''
   }
 
-  const submitForm = async (e) => {
-    e.preventDefault()
+  const saveFormData = async (statusOverride) => {
     if (!hasManage || isEditingLocked) {
       setError('You have read-only access for direct deals')
       return
@@ -555,12 +643,13 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     try {
       const payload = {
         ...form,
+        status: statusOverride || form.status,
         lineItems: form.lineItems.map((line) => ({
           ...line,
-          qty: Number(line.qty || 0),
-          price: Number(line.price || 0),
-          eqOz: Number(line.eqOz || line.qty || 0),
-          amount: Number(line.amount || (Number(line.qty || 0) * Number(line.price || 0))),
+          qty: toNumber(line.qty),
+          price: toNumber(line.price),
+          eqOz: toNumber(line.eqOz || line.qty),
+          amount: toNumber(line.amount || (toNumber(line.qty) * toNumber(line.price))),
         })),
       }
 
@@ -573,12 +662,18 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
       }
 
       resetForm()
+      setShowModal(false)
       await loadDeals()
     } catch (e2) {
       setError(e2.response?.data?.message || 'Failed to save direct deal')
     } finally {
       setSaving(false)
     }
+  }
+
+  const submitForm = (e) => {
+    e.preventDefault()
+    saveFormData()
   }
 
   const removeDeal = async (id) => {
@@ -599,11 +694,17 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     }
   }
 
+  // Derive ORD badge text from doc number
+  const ordBadge = form.docNo
+    ? (form.docNo.split('/').pop() || 'ORD')
+    : 'ORD'
+
   return (
     <div>
       {error && <div style={{ background: '#FEE2E2', color: COLORS.red, border: '1px solid #FCA5A5', borderRadius: '0.45rem', padding: '0.6rem 0.75rem', marginBottom: '0.9rem' }}>{error}</div>}
       {success && <div style={{ background: '#ECFDF5', color: '#065F46', border: '1px solid #6EE7B7', borderRadius: '0.45rem', padding: '0.6rem 0.75rem', marginBottom: '0.9rem' }}>{success}</div>}
 
+      {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.7rem', marginBottom: '1rem' }}>
         <div style={{ background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '0.5rem', padding: '0.7rem' }}>
           <p style={{ margin: 0, color: COLORS.muted, fontSize: '0.75rem' }}>{t('fixingEntries')}</p>
@@ -623,106 +724,268 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
         </div>
       </div>
 
-      <form onSubmit={submitForm} style={{ background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '0.55rem', padding: '0.85rem', marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
-          <h3 style={{ margin: 0, color: COLORS.ink, fontSize: '1rem', fontWeight: 800 }}>{editingId ? 'Edit Entry' : 'New Entry'} - Fixing / Non-Fixing</h3>
-          <div style={{ display: 'flex', gap: '0.45rem' }}>
-            {editingId && <button type='button' onClick={resetForm} style={btnStyle('ghost')}>{t('cancelEdit')}</button>}
-            <button type='submit' disabled={saving || !hasManage || isEditingLocked} style={btnStyle()}>{saving ? 'Saving...' : (editingId ? 'Update Entry' : 'Create Entry')}</button>
-          </div>
+      {/* ── Create Entry button ── */}
+      {hasManage && (
+        <div style={{ marginBottom: '1rem' }}>
+          <button
+            type="button"
+            style={{ ...btnStyle(), padding: '0.5rem 1.3rem', fontSize: '0.88rem' }}
+            onClick={openCreateModal}
+          >
+            + Create Entry
+          </button>
         </div>
+      )}
 
-        {editingId && isEditingLocked && (
-          <div style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FCD34D', borderRadius: '0.4rem', padding: '0.5rem 0.65rem', marginBottom: '0.65rem', fontSize: '0.82rem', fontWeight: 700 }}>
-            This entry is confirmed and locked. Only super admin can edit or reopen it.
-          </div>
-        )}
+      {/* ══════════════════════════════════════════════
+          ERP CLASSIC WINDOW MODAL
+      ══════════════════════════════════════════════ */}
+      {showModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 860, maxWidth: '98vw', border: '2px solid #6a8cbf', borderRadius: 4, boxShadow: '4px 4px 18px rgba(0,0,0,.5)', background: '#f0f0f0', display: 'flex', flexDirection: 'column', maxHeight: '92vh' }}>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.55rem', marginBottom: '0.6rem' }}>
-          <input placeholder='Doc No (auto if blank)' value={form.docNo} onChange={(e) => setForm((prev) => ({ ...prev, docNo: e.target.value }))} style={inputStyle} disabled={!hasManage || saving} />
-          <select value={form.entryType} onChange={(e) => setForm((prev) => ({ ...prev, entryType: e.target.value }))} style={inputStyle} disabled={!hasManage || saving}>
-            <option value='fixing'>{t('fixing')}</option>
-            <option value='non_fixing'>{t('nonFixing')}</option>
-          </select>
-          <input type='date' value={form.docDate} onChange={(e) => setForm((prev) => ({ ...prev, docDate: e.target.value }))} style={inputStyle} disabled={!hasManage || saving} />
-          <input type='date' value={form.valueDate} onChange={(e) => setForm((prev) => ({ ...prev, valueDate: e.target.value }))} style={inputStyle} disabled={!hasManage || saving} />
-          <select value={form.currency} onChange={(e) => setForm((prev) => ({ ...prev, currency: e.target.value }))} style={inputStyle} disabled={!hasManage || saving}>
-            {[{ _id: 'aed', code: 'AED' }, ...currencies].map((c, i) => <option key={`${c.code}-${i}`} value={c.code}>{c.code}</option>)}
-          </select>
-          <input placeholder='Branch' value={form.branch} onChange={(e) => setForm((prev) => ({ ...prev, branch: e.target.value }))} style={inputStyle} disabled={!hasManage || saving} />
-          <select value={form.status} onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))} style={inputStyle} disabled={!hasManage || saving}>
-            <option value='draft'>{t('statusDraft')}</option>
-            <option value='confirmed'>{t('statusConfirmed')}</option>
-          </select>
-        </div>
-
-        <textarea placeholder='Remarks / Notes' value={form.remarks} onChange={(e) => setForm((prev) => ({ ...prev, remarks: e.target.value }))} style={{ ...inputStyle, minHeight: '58px', marginBottom: '0.7rem' }} disabled={!hasManage || saving} />
-
-        <div style={{ overflowX: 'auto', border: `1px solid ${COLORS.border}`, borderRadius: '0.45rem' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-            <thead>
-              <tr style={{ background: '#F3F4F6' }}>
-                {['Customer', 'Direction', 'Metal', 'Qty', 'Stock', 'Price', 'EQ.OZ', 'Amount', ''].map((h) => (
-                  <th key={h} style={{ padding: '0.45rem', borderBottom: `1px solid ${COLORS.border}`, textAlign: h === 'Qty' || h === 'Price' || h === 'EQ.OZ' || h === 'Amount' ? 'right' : 'left', whiteSpace: 'nowrap' }}>{h}</th>
+            {/* ── Title bar ── */}
+            <div style={{ background: 'linear-gradient(180deg,#6a8cbf 0%,#3a5f9a 40%,#2a4f8a 100%)', color: '#fff', padding: '5px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #2a4f8a', flexShrink: 0 }}>
+              <div style={{ width: 60 }} />
+              <span style={{ fontSize: 13, fontWeight: 700, flex: 1, textAlign: 'center', letterSpacing: '.3px' }}>Direct Deals</span>
+              <div style={{ display: 'flex', gap: 2 }}>
+                {['─', '□'].map((ch) => (
+                  <button key={ch} type="button" style={{ width: 18, height: 16, background: 'linear-gradient(180deg,#d0d0d0,#a0a0a0)', border: '1px solid #888', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#222', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{ch}</button>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {form.lineItems.map((line, idx) => (
-                <tr key={`line-${idx}`} style={{ background: idx % 2 ? '#FCFCFD' : '#FFFFFF' }}>
-                  <td style={{ padding: '0.35rem', borderBottom: `1px solid ${COLORS.border}`, minWidth: '220px' }}>
-                    <select value={line.customerId} onChange={(e) => updateLine(idx, 'customerId', e.target.value)} style={inputStyle} disabled={!hasManage || saving}>
-                      <option value=''>{t('selectCustomer')}</option>
-                      {customers.map((c) => <option key={c._id} value={c._id}>{c.code || 'N/A'} - {c.name}</option>)}
-                    </select>
-                  </td>
-                  <td style={{ padding: '0.35rem', borderBottom: `1px solid ${COLORS.border}`, minWidth: '120px' }}>
-                    <select value={line.direction} onChange={(e) => updateLine(idx, 'direction', e.target.value)} style={inputStyle} disabled={!hasManage || saving}>
-                      <option value='buy'>Buy</option>
-                      <option value='sell'>Sell</option>
-                    </select>
-                  </td>
-                  <td style={{ padding: '0.35rem', borderBottom: `1px solid ${COLORS.border}`, minWidth: '95px' }}>
-                    <select value={line.metal} onChange={(e) => updateLine(idx, 'metal', e.target.value)} style={inputStyle} disabled={!hasManage || saving}>
-                      <option value='XAU'>XAU</option>
-                      <option value='XAG'>XAG</option>
-                      <option value='XPT'>XPT</option>
-                      <option value='XPD'>XPD</option>
-                    </select>
-                  </td>
-                  <td style={{ padding: '0.35rem', borderBottom: `1px solid ${COLORS.border}`, minWidth: '95px' }}>
-                    <input type='number' step='0.000001' value={line.qty} onChange={(e) => updateLine(idx, 'qty', e.target.value)} style={{ ...inputStyle, textAlign: 'right' }} disabled={!hasManage || saving} />
-                  </td>
-                  <td style={{ padding: '0.35rem', borderBottom: `1px solid ${COLORS.border}`, minWidth: '95px' }}>
-                    <input value={line.stockCode} onChange={(e) => updateLine(idx, 'stockCode', e.target.value.toUpperCase())} style={inputStyle} disabled={!hasManage || saving} />
-                  </td>
-                  <td style={{ padding: '0.35rem', borderBottom: `1px solid ${COLORS.border}`, minWidth: '95px' }}>
-                    <input type='number' step='0.01' value={line.price} onChange={(e) => updateLine(idx, 'price', e.target.value)} style={{ ...inputStyle, textAlign: 'right' }} disabled={!hasManage || saving} />
-                  </td>
-                  <td style={{ padding: '0.35rem', borderBottom: `1px solid ${COLORS.border}`, minWidth: '95px' }}>
-                    <input type='number' step='0.000001' value={line.eqOz} onChange={(e) => updateLine(idx, 'eqOz', e.target.value)} style={{ ...inputStyle, textAlign: 'right' }} disabled={!hasManage || saving} />
-                  </td>
-                  <td style={{ padding: '0.35rem', borderBottom: `1px solid ${COLORS.border}`, minWidth: '115px' }}>
-                    <input type='number' step='0.01' value={line.amount} onChange={(e) => updateLine(idx, 'amount', e.target.value)} style={{ ...inputStyle, textAlign: 'right' }} disabled={!hasManage || saving} />
-                  </td>
-                  <td style={{ padding: '0.35rem', borderBottom: `1px solid ${COLORS.border}`, minWidth: '72px' }}>
-                    <button type='button' onClick={() => removeLine(idx)} style={btnStyle('danger')} disabled={!hasManage || saving || form.lineItems.length === 1}>Del</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                <button type="button" onClick={() => setShowModal(false)} style={{ width: 18, height: 16, background: 'linear-gradient(180deg,#d0d0d0,#a0a0a0)', border: '1px solid #888', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#222', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              </div>
+            </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.7rem', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button type='button' style={btnStyle('secondary')} onClick={addLine} disabled={!hasManage || saving}>+ Add Line</button>
-          <div style={{ display: 'flex', gap: '1rem', fontSize: '0.82rem', color: COLORS.ink, fontWeight: 700 }}>
-            <span>Total Qty: {fmtQty(formTotals.totalQty)}</span>
-            <span>Total Amount: {form.currency} {fmtMoney(formTotals.totalAmount)}</span>
+            {/* ── Toolbar ── */}
+            <div style={{ background: 'linear-gradient(180deg,#d8d8d8,#c0c0c0)', borderBottom: '2px solid #888', padding: '3px 6px', display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+              <button type="button" title="First" style={tbBtnSt} onClick={() => showSuccess('First record')}>«</button>
+              <button type="button" title="Previous" style={tbBtnSt} onClick={() => showSuccess('Previous record')}>‹</button>
+              <button type="button" title="Next" style={tbBtnSt} onClick={() => showSuccess('Next record')}>›</button>
+              <button type="button" title="Last" style={tbBtnSt} onClick={() => showSuccess('Last record')}>»</button>
+              <div style={{ width: 1, height: 20, background: '#999', margin: '0 3px' }} />
+              <button type="button" title="Refresh" style={tbBtnSt} onClick={async () => { await loadDeals(); showSuccess('Refreshed') }}>↻</button>
+              <button
+                type="button"
+                title="Delete"
+                style={{ ...tbBtnSt, color: '#c00' }}
+                onClick={() => {
+                  if (!editingId) {
+                    setError('Open an existing entry to delete')
+                    return
+                  }
+                  removeDeal(editingId)
+                  setShowModal(false)
+                }}
+              >
+                🗑
+              </button>
+              <div style={{ width: 1, height: 20, background: '#999', margin: '0 3px' }} />
+              <button
+                type="button"
+                title="Print"
+                style={tbBtnSt}
+                onClick={() => {
+                  if (editingId && currentEditingDeal) {
+                    exportDealToPdf(currentEditingDeal)
+                    return
+                  }
+                  showSuccess('Printing...')
+                }}
+              >
+                🖨
+              </button>
+              <button type="button" title="Search" style={tbBtnSt} onClick={() => showSuccess('Search mode')}>🔍</button>
+              <div style={{ width: 1, height: 20, background: '#999', margin: '0 3px' }} />
+              <button type="button" title="Save" style={{ ...tbBtnSt, color: '#060' }} onClick={() => saveFormData()} disabled={saving || !hasManage || isEditingLocked}>💾</button>
+              <button type="button" title="Post" style={{ ...tbBtnSt, color: '#060' }} onClick={() => saveFormData('confirmed')} disabled={saving || !hasManage || isEditingLocked}>✓</button>
+              <div style={{ width: 1, height: 20, background: '#999', margin: '0 3px' }} />
+              <button type="button" title="Tools" style={tbBtnSt} onClick={() => showSuccess('Tools')}>⚙</button>
+              <button type="button" title="Exit" style={{ ...tbBtnSt, color: '#c00' }} onClick={() => setShowModal(false)}>■</button>
+              <div style={{ flex: 1 }} />
+              <div style={{ background: '#fff', border: '1px solid #ccc', padding: '3px 14px', fontSize: 18, fontWeight: 700, color: '#1a1a1a', borderRadius: 2, minWidth: 70, textAlign: 'center', letterSpacing: 1, fontFamily: 'monospace' }}>
+                {ordBadge}
+              </div>
+            </div>
+
+            {/* ── Body ── */}
+            <div style={{ padding: 12, flex: 1, overflowY: 'auto', background: '#f0f0f0' }}>
+
+              {/* Inline errors */}
+              {error && (
+                <div style={{ background: '#FEE2E2', color: COLORS.red, border: '1px solid #FCA5A5', borderRadius: '0.4rem', padding: '0.5rem 0.65rem', marginBottom: '0.65rem', fontSize: '0.82rem' }}>{error}</div>
+              )}
+              {editingId && isEditingLocked && (
+                <div style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FCD34D', borderRadius: '0.4rem', padding: '0.5rem 0.65rem', marginBottom: '0.65rem', fontSize: '0.82rem', fontWeight: 700 }}>
+                  This entry is confirmed and locked. Only super admin can edit or reopen it.
+                </div>
+              )}
+
+              {/* Top fields row */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <label style={{ fontSize: 12, color: '#222', fontWeight: 500, whiteSpace: 'nowrap' }}>Doc No :</label>
+                  <input
+                    value={form.docNo}
+                    onChange={(e) => setForm((prev) => ({ ...prev, docNo: e.target.value }))}
+                    style={{ ...erpInpSt, width: 155 }}
+                    disabled={!hasManage || saving}
+                    readOnly
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <label style={{ fontSize: 12, color: '#222', fontWeight: 500, whiteSpace: 'nowrap' }}>Doc Date :</label>
+                  <input
+                    type="date"
+                    value={form.docDate}
+                    onChange={(e) => setForm((prev) => ({ ...prev, docDate: e.target.value }))}
+                    style={{ ...erpInpSt, width: 120 }}
+                    disabled={!hasManage || saving}
+                  />
+                  <span style={{ width: 22, height: 22, border: '1px solid #999', borderRadius: 2, background: 'linear-gradient(180deg,#e8e8e8,#c8c8c8)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>📅</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <label style={{ fontSize: 12, color: '#222', fontWeight: 500, whiteSpace: 'nowrap' }}>Value Date :</label>
+                  <input
+                    type="date"
+                    value={form.valueDate}
+                    onChange={(e) => setForm((prev) => ({ ...prev, valueDate: e.target.value }))}
+                    style={{ ...erpInpSt, width: 120 }}
+                    disabled={!hasManage || saving}
+                  />
+                  <span style={{ width: 22, height: 22, border: '1px solid #999', borderRadius: 2, background: 'linear-gradient(180deg,#e8e8e8,#c8c8c8)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>📅</span>
+                </div>
+              </div>
+
+              {/* Customer tab */}
+              <div style={{ display: 'flex', marginBottom: 0 }}>
+                <div style={{ background: 'linear-gradient(180deg,#7a9a60,#5a7a40)', color: '#fff', padding: '5px 18px', fontSize: 12, fontWeight: 500, border: '1px solid #4a6a30', borderBottom: 'none', borderRadius: '3px 3px 0 0', cursor: 'default' }}>
+                  Customer
+                </div>
+              </div>
+
+              {/* Lines table */}
+              <div style={{ border: '2px solid #888', background: '#fff' }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed', minWidth: 780 }}>
+                    <colgroup>
+                      <col style={{ width: 160 }} />
+                      <col style={{ width: 80 }} />
+                      <col style={{ width: 68 }} />
+                      <col style={{ width: 95 }} />
+                      <col style={{ width: 80 }} />
+                      <col style={{ width: 95 }} />
+                      <col style={{ width: 90 }} />
+                      <col style={{ width: 110 }} />
+                      <col style={{ width: 34 }} />
+                    </colgroup>
+                    <thead>
+                      <tr style={{ background: '#4a6a30' }}>
+                        {['Customer', 'Direction', 'Metal', 'Qty', 'Stock Code', 'Price', 'EQ.OZ', 'Amount', ''].map((h) => (
+                          <th key={h} style={{ padding: '6px 4px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#fff', borderRight: '1px solid #5a7a40', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {form.lineItems.map((line, idx) => (
+                        <tr key={`line-${idx}`} style={{ borderBottom: '1px solid #ccc', background: '#fff' }}>
+                          {/* Customer */}
+                          <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <input
+                                value={line.customerCode}
+                                onChange={(e) => updateLineCustomerCode(idx, e.target.value)}
+                                style={{ ...erpInpSt, width: '100%', border: '1px solid #bbb', padding: '4px 4px' }}
+                                disabled={!hasManage || saving}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => pickCustomer(idx)}
+                                style={{ width: 20, height: 22, background: 'linear-gradient(180deg,#e8e8e8,#c8c8c8)', border: '1px solid #999', borderRadius: 1, cursor: 'pointer', fontSize: 11, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                                title="Search"
+                                disabled={!hasManage || saving}
+                              >
+                                🔍
+                              </button>
+                            </div>
+                          </td>
+                          {/* Direction */}
+                          <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
+                            <select value={line.direction} onChange={(e) => updateLine(idx, 'direction', e.target.value)} style={erpSelSt} disabled={!hasManage || saving}>
+                              <option value="buy">Buy</option>
+                              <option value="sell">Sell</option>
+                            </select>
+                          </td>
+                          {/* Metal */}
+                          <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
+                            <select value={line.metal} onChange={(e) => updateLine(idx, 'metal', e.target.value)} style={erpSelSt} disabled={!hasManage || saving}>
+                              <option value="XAU">XAU</option>
+                              <option value="XAG">XAG</option>
+                            </select>
+                          </td>
+                          {/* Qty */}
+                          <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
+                            <input value={line.qty} onChange={(e) => updateLine(idx, 'qty', e.target.value)} onBlur={() => formatLineNumber(idx, 'qty', 3)} style={{ ...erpInpSt, textAlign: 'right', width: '100%', border: '1px solid #bbb', padding: '4px 5px' }} disabled={!hasManage || saving} placeholder="0.000" />
+                          </td>
+                          {/* Stock Code */}
+                          <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
+                            <select value={line.stockCode} onChange={(e) => updateLine(idx, 'stockCode', e.target.value)} style={erpSelSt} disabled={!hasManage || saving}>
+                              <option value="OZ">OZ</option>
+                              <option value="GRAM">Gram</option>
+                              <option value="KG">KG</option>
+                            </select>
+                          </td>
+                          {/* Price */}
+                          <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
+                            <input value={line.price} onChange={(e) => updateLine(idx, 'price', e.target.value)} onBlur={() => formatLineNumber(idx, 'price', 4)} style={{ ...erpInpSt, textAlign: 'right', width: '100%', border: '1px solid #bbb', padding: '4px 5px' }} disabled={!hasManage || saving} placeholder="0.0000" />
+                          </td>
+                          {/* EQ.OZ */}
+                          <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
+                            <input value={line.eqOz ? fmtFixed(line.eqOz, 3) : ''} readOnly style={{ ...erpInpSt, textAlign: 'right', width: '100%', background: '#f5f5f5', border: '1px solid #bbb', padding: '4px 5px' }} tabIndex={-1} />
+                          </td>
+                          {/* Amount */}
+                          <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
+                            <input value={line.amount ? fmtMoney(line.amount) : ''} readOnly style={{ ...erpInpSt, textAlign: 'right', width: '100%', background: '#f5f5f5', border: '1px solid #bbb', padding: '4px 5px' }} tabIndex={-1} />
+                          </td>
+                          {/* Delete */}
+                          <td style={{ padding: '3px 3px', textAlign: 'center' }}>
+                            <button type="button" onClick={() => removeLine(idx)} disabled={!hasManage || saving || form.lineItems.length === 1} style={{ width: 24, height: 20, background: 'linear-gradient(180deg,#e0e0e0,#b8b8b8)', border: '1px solid #888', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#444', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                          </td>
+                        </tr>
+                      ))}
+                      {Array.from({ length: Math.max(0, 6 - form.lineItems.length) }).map((_, idx) => (
+                        <tr key={`empty-${idx}`} style={{ borderBottom: '1px solid #ccc', background: '#fff' }}>
+                          {Array.from({ length: 8 }).map((__, colIdx) => (
+                            <td key={`empty-cell-${idx}-${colIdx}`} style={{ height: 22, borderRight: colIdx === 7 ? 'none' : '1px solid #e0e0e0' }} />
+                          ))}
+                          <td style={{ height: 22 }} />
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>{/* end body */}
+
+            {/* ── Bottom bar ── */}
+            <div style={{ background: 'linear-gradient(180deg,#d8d8d8,#c0c0c0)', borderTop: '2px solid #888', padding: '5px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button type="button" onClick={addLine} style={btmBtnSt} disabled={!hasManage || saving}>+ Add Line</button>
+                <button type="button" onClick={() => saveFormData()} disabled={saving || !hasManage || isEditingLocked} style={btmBtnSt}>💾 Save Draft</button>
+                <button type="button" onClick={() => saveFormData('confirmed')} disabled={saving || !hasManage || isEditingLocked} style={{ ...btmBtnSt, background: 'linear-gradient(180deg,#7aba70,#4a8a40)', color: '#fff', borderColor: '#3a6a30' }}>✓ Post</button>
+                <button type="button" onClick={() => { resetForm(); setShowModal(false) }} style={btmBtnSt}>Cancel</button>
+              </div>
+              <div style={{ display: 'flex', gap: 20, fontSize: 12 }}>
+                <span><span style={{ color: '#555' }}>Total Qty: </span><span style={{ fontWeight: 600, color: '#222' }}>{fmtQty(formTotals.totalQty)}</span></span>
+                <span><span style={{ color: '#555' }}>Total Amount: {form.currency} </span><span style={{ fontWeight: 600, color: '#222' }}>{fmtMoney(formTotals.totalAmount)}</span></span>
+              </div>
+            </div>
+
           </div>
         </div>
-      </form>
+      )}
 
+      {/* ── Filters + list ── */}
       <div style={{ background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '0.55rem', padding: '0.85rem' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.55rem', marginBottom: '0.7rem' }}>
           <input placeholder='Search doc/customer/metal' value={filters.search} onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))} style={inputStyle} />
@@ -738,24 +1001,12 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
           </select>
           <input type='date' value={filters.startDate} onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))} style={inputStyle} />
           <input type='date' value={filters.endDate} onChange={(e) => setFilters((prev) => ({ ...prev, endDate: e.target.value }))} style={inputStyle} />
-            <button type='button' style={btnStyle('ghost')} onClick={loadDeals}>{t('applyFilters')}</button>
+          <button type='button' style={btnStyle('ghost')} onClick={loadDeals}>{t('applyFilters')}</button>
         </div>
 
         <div style={{ display: 'flex', gap: '0.45rem', marginBottom: '0.7rem', flexWrap: 'wrap' }}>
-          <button
-            type='button'
-            style={btnStyle('ghost')}
-            onClick={downloadCsvTemplate}
-          >
-            Download CSV Template
-          </button>
-          <button
-            type='button'
-            style={btnStyle('ghost')}
-            onClick={downloadXlsxTemplate}
-          >
-            Download XLSX Template
-          </button>
+          <button type='button' style={btnStyle('ghost')} onClick={downloadCsvTemplate}>Download CSV Template</button>
+          <button type='button' style={btnStyle('ghost')} onClick={downloadXlsxTemplate}>Download XLSX Template</button>
           <label style={{ ...btnStyle('secondary'), display: 'inline-flex', alignItems: 'center' }}>
             Bulk Import Excel/CSV
             <input
