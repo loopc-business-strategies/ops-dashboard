@@ -150,6 +150,7 @@ async function seed() {
           mappingType: mapping.mappingType,
           debitAccountId: accountMap.get(mapping.debit)._id,
           creditAccountId: accountMap.get(mapping.credit)._id,
+          department: mapping.department || '',
           description: mapping.description,
           isActive: true,
         },

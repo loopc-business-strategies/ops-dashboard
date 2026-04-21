@@ -16,10 +16,11 @@
 //   Operations     → placeholder (to be built)
 //   Training       → placeholder (to be built)
 
-import { Component, Suspense, lazy, useState } from 'react'
+import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
+import { useLanguage, LANGUAGES } from '../context/LanguageContext'
 
 // Import tab content components
 import OverviewTab     from '../components/tabs/OverviewTab'
@@ -32,6 +33,7 @@ const TrainingTab = lazy(() => import('../components/tabs/TrainingTab'))
 const OperationsTab = lazy(() => import('../components/tabs/OperationsTab'))
 const SalesTab = lazy(() => import('../components/tabs/SalesTab'))
 const ERPTab = lazy(() => import('../components/tabs/ERPTab'))
+const ComplianceTab = lazy(() => import('../components/tabs/ComplianceTab'))
 const PlaceholderTab = lazy(() => import('../components/tabs/PlaceholderTab'))
 
 class TabErrorBoundary extends Component {
@@ -73,15 +75,18 @@ function TabLoadingFallback() {
 }
 
 // ── Role badge config ────────────────────────────
-const ROLE_LABELS = {
-  super_admin:     { label: 'Super Admin',  style: { color: '#00684A', background: 'rgba(0,104,74,0.1)', border: '1px solid rgba(0,104,74,0.3)' } },
-  management:      { label: 'Management',   style: { color: '#60a5fa', background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.25)' } },
-  department_head: { label: 'Dept. Head',   style: { color: '#fbbf24', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' } },
-  department_user: { label: 'Dept. User',   style: { color: 'var(--text-secondary)', background: 'var(--bg-card-hover)', border: '1px solid var(--border)' } },
-  external:        { label: 'External',     style: { color: '#4ade80', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)' } },
+function getRoleLabels(t) {
+  return {
+    super_admin:     { label: t('superAdmin'),  style: { color: '#00684A', background: 'rgba(0,104,74,0.1)', border: '1px solid rgba(0,104,74,0.3)' } },
+    management:      { label: t('management'),  style: { color: '#60a5fa', background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.25)' } },
+    department_head: { label: t('deptHead'),    style: { color: '#fbbf24', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' } },
+    department_user: { label: t('deptUser'),    style: { color: 'var(--text-secondary)', background: 'var(--bg-card-hover)', border: '1px solid var(--border)' } },
+    external:        { label: t('external'),    style: { color: '#4ade80', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)' } },
+  }
 }
 
-function RoleBadge({ role }) {
+function RoleBadge({ role, t }) {
+  const ROLE_LABELS = getRoleLabels(t)
   const cfg = ROLE_LABELS[role] || ROLE_LABELS.department_user
   return (
     <span style={{ ...cfg.style, padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
@@ -91,12 +96,11 @@ function RoleBadge({ role }) {
 }
 
 // ── Sidebar nav item ────────────────────────────
-function NavItem({ icon, label, active, onClick, badge }) {
+function NavItem({ label, active, onClick, badge }) {
   return (
     <button onClick={onClick}
-      className={`sidebar-item${active ? ' active' : ''}`}>
-      <span className="text-base w-5 text-center flex-shrink-0">{icon}</span>
-      <span className="flex-1 truncate">{label}</span>
+      className={`sidebar-item w-full justify-center text-center${active ? ' active' : ''}`}>
+      <span className="truncate">{label}</span>
       {badge && (
         <span style={{ fontSize: 11, background: 'var(--purple)', color: '#fff', borderRadius: 999, padding: '1px 6px', lineHeight: 1.4 }}>
           {badge}
@@ -107,30 +111,24 @@ function NavItem({ icon, label, active, onClick, badge }) {
 }
 
 // ── All sidebar tabs definition ─────────────────
-// To ADD a new tab later:
-//   1. Add an entry here
-//   2. Add a case in the renderTab() function below
-function getNavItems(perms, chatUnread = 0) {
+function getNavItems(perms, t, chatUnread = 0) {
   return [
     // ── Main ──
-    { id: 'overview',    icon: '▣',   label: 'Overview',            group: 'main',       show: true },
-    { id: 'chat',        icon: '💬',  label: 'Chat',                group: 'main',       show: true, badge: chatUnread || null },
+    { id: 'overview',    label: t('overview'),    group: 'main',       show: true },
+    { id: 'chat',        label: t('chat'),        group: 'main',       show: true, badge: chatUnread || null },
 
     // ── Admin (super_admin only) ──
-    { id: 'admin',       icon: '🛡️',  label: 'Admin',               group: 'admin',      show: perms.isSuperAdmin },
+    { id: 'admin',       label: t('admin'),       group: 'admin',      show: perms.isSuperAdmin },
 
     // ── Departments ──
-    { id: 'hr',          icon: '👥',  label: 'HR',                  group: 'departments', show: perms.canViewModule('hr') },
-    { id: 'compliance',  icon: '🏛️',  label: 'Compliance',          group: 'departments', show: perms.canViewModule('government') },
-    { id: 'production',  icon: '🏭',  label: 'Production',          group: 'departments', show: perms.canViewModule('production') },
-    { id: 'finance',     icon: '💰',  label: 'Finance',             group: 'departments', show: perms.canViewModule('finance') },
-    { id: 'sales',       icon: '📈',  label: 'Sales',               group: 'departments', show: perms.canViewModule('sales') },
-    { id: 'operations',  icon: '🚛',  label: 'Operations',          group: 'departments', show: perms.canViewModule('operations') },
-    { id: 'training',    icon: '🎓',  label: 'Training',            group: 'departments', show: perms.canViewModule('training') },
-    { id: 'erp',         icon: '🏭',  label: 'ERP',                 group: 'departments', show: !perms.isExternal },
-
-    // ── More tabs added here as client requests ──
-    // { id: 'reports',  icon: '📊', label: 'Reports', group: 'more', show: true },
+    { id: 'hr',          label: t('hr'),          group: 'departments', show: perms.canViewModule('hr') },
+    { id: 'compliance',  label: t('compliance'),  group: 'departments', show: perms.canViewModule('government') },
+    { id: 'production',  label: t('production'),  group: 'departments', show: perms.canViewModule('production') },
+    { id: 'finance',     label: t('finance'),     group: 'departments', show: perms.canViewModule('finance') },
+    { id: 'sales',       label: t('sales'),       group: 'departments', show: perms.canViewModule('sales') },
+    { id: 'operations',  label: t('operations'),  group: 'departments', show: perms.canViewModule('operations') },
+    { id: 'training',    label: t('training'),    group: 'departments', show: perms.canViewModule('training') },
+    { id: 'erp',         label: t('erp'),         group: 'departments', show: !perms.isExternal },
   ].filter(n => n.show)
 }
 
@@ -150,14 +148,7 @@ function renderTab(tabId, setActiveTab, setChatUnread) {
       return <HRTab />
 
     case 'compliance':
-      return (
-        <PlaceholderTab
-          title="Government & Compliance"
-          icon="🏛️"
-          description="Track regulatory approvals, documentation, and compliance status"
-          subTabs={['Eligibility Status', 'Approvals Tracker', 'Documentation', 'Regulatory Updates', 'Agreements']}
-        />
-      )
+      return <ComplianceTab />
 
     case 'production':
       return <ProductionTab />
@@ -203,12 +194,73 @@ function Dashboard() {
   const { user, logout } = useAuth()
   const perms = usePermissions()
   const navigate = useNavigate()
+  const { t, isRTL, switchLanguage, langMeta } = useLanguage()
 
   const [activeTab,    setActiveTab]    = useState('overview')
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
+  const [adminOpen,    setAdminOpen]    = useState(true)
+  const [deptOpen,     setDeptOpen]     = useState(true)
   const [chatUnread,   setChatUnread]   = useState(3) // matches seed data initial unread
+  const [langMenuOpen, setLangMenuOpen] = useState(false)
+  const langMenuRef = useRef(null)
 
-  const navItems = getNavItems(perms, chatUnread)
+  const EDGE_TRIGGER_WIDTH = 20
+  const SIDEBAR_WIDTH = 240
+  const HIDE_DELAY_MS = 400
+  const HIDE_THRESHOLD_X = 320
+  const hideTimerRef = useRef(null)
+
+  const navItems = getNavItems(perms, t, chatUnread)
+
+  const clearHideTimer = () => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = null
+    }
+  }
+
+  const openSidebar = () => {
+    clearHideTimer()
+    setSidebarOpen(true)
+  }
+
+  const queueHideSidebar = () => {
+    clearHideTimer()
+    hideTimerRef.current = setTimeout(() => {
+      setSidebarOpen(false)
+      hideTimerRef.current = null
+    }, HIDE_DELAY_MS)
+  }
+
+  useEffect(() => {
+    return () => clearHideTimer()
+  }, [])
+
+  // Close language menu when clicking outside
+  useEffect(() => {
+    if (!langMenuOpen) return
+    const handler = (e) => {
+      if (langMenuRef.current && !langMenuRef.current.contains(e.target)) {
+        setLangMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [langMenuOpen])
+
+  const handleShellMouseMove = (e) => {
+    const x = e.clientX
+
+    if (x <= EDGE_TRIGGER_WIDTH) {
+      if (!sidebarOpen) openSidebar()
+      else clearHideTimer()
+      return
+    }
+
+    if (sidebarOpen && x > HIDE_THRESHOLD_X) {
+      queueHideSidebar()
+    }
+  }
 
   // Group nav items
   const mainItems  = navItems.filter(n => n.group === 'main')
@@ -221,29 +273,41 @@ function Dashboard() {
   const currentTab = navItems.find(n => n.id === activeTab)
 
   return (
-    <div className="min-h-screen flex" style={{ background: 'var(--bg-base)' }}>
+    <div className="h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }} onMouseMove={handleShellMouseMove}>
+
+      {/* Desktop edge sensor: reveal sidebar when mouse nears left/right edge */}
+      {!sidebarOpen && (
+        <div
+          className={`fixed inset-y-0 z-40 ${isRTL ? 'right-0' : 'left-0'}`}
+          style={{ width: EDGE_TRIGGER_WIDTH }}
+          onMouseEnter={openSidebar}
+        />
+      )}
 
       {/* ══════════════════════════════════════
           SIDEBAR
           ══════════════════════════════════════ */}
-      <aside className={`
-        sidebar fixed inset-y-0 left-0 z-50
-        flex flex-col
-        transform transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:relative lg:translate-x-0 lg:flex
-      `}>
+      <aside
+        className={`sidebar fixed inset-y-0 z-50 flex flex-col transform transition-transform duration-300 ease-in-out
+          ${isRTL ? 'right-0' : 'left-0'}
+          ${sidebarOpen ? 'translate-x-0' : isRTL ? 'translate-x-full' : '-translate-x-full'}
+        `}
+        onMouseEnter={clearHideTimer}
+        onMouseLeave={queueHideSidebar}>
 
         {/* Sidebar top — logo */}
         <div className="sidebar-logo flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm"
               style={{ background: 'var(--grad-brand)' }}>
-              🏢
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M18.6 4.8C14.9 4.8 11.9 6.2 9.9 8.4C7.7 10.8 6.9 14.1 7.4 18.1C11.4 18.6 14.7 17.8 17.1 15.6C19.3 13.6 20.7 10.6 20.7 6.9V4.8H18.6Z" fill="rgba(255,255,255,0.95)"/>
+                <path d="M4.5 19.5C7.5 16.6 10.2 14.9 13.5 13.4" stroke="rgba(255,255,255,0.95)" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
             </div>
             <div className="min-w-0">
-              <p className="font-bold text-sm truncate" style={{ color: '#1C2A33' }}>Ops Dashboard</p>
-              <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>Control System</p>
+              <p className="font-bold text-sm truncate" style={{ color: '#1C2A33' }}>{t('appName')}</p>
+              <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{t('controlSystem')}</p>
             </div>
           </div>
         </div>
@@ -255,20 +319,21 @@ function Dashboard() {
           {mainItems.map(item => (
             <NavItem key={item.id} {...item}
               active={activeTab === item.id}
-              onClick={() => { setActiveTab(item.id); setSidebarOpen(false) }} />
+              onClick={() => setActiveTab(item.id)} />
           ))}
 
           {/* Admin section */}
           {adminItems.length > 0 && (
             <>
-              <div className="sidebar-section-title">
-                <span>Admin</span>
-                <span className="section-chevron">▾</span>
-              </div>
-              {adminItems.map(item => (
+              <button className="sidebar-section-title w-full justify-center gap-2"
+                onClick={() => setAdminOpen(v => !v)}>
+                <span>{t('adminSection')}</span>
+                <span className="section-chevron">{adminOpen ? '▴' : '▾'}</span>
+              </button>
+              {adminOpen && adminItems.map(item => (
                 <NavItem key={item.id} {...item}
                   active={activeTab === item.id}
-                  onClick={() => { setActiveTab(item.id); setSidebarOpen(false) }} />
+                  onClick={() => setActiveTab(item.id)} />
               ))}
             </>
           )}
@@ -276,14 +341,15 @@ function Dashboard() {
           {/* Departments */}
           {deptItems.length > 0 && (
             <>
-              <div className="sidebar-section-title">
-                <span>Departments</span>
-                <span className="section-chevron">▾</span>
-              </div>
-              {deptItems.map(item => (
+              <button className="sidebar-section-title w-full justify-center gap-2"
+                onClick={() => setDeptOpen(v => !v)}>
+                <span>{t('departments')}</span>
+                <span className="section-chevron">{deptOpen ? '▴' : '▾'}</span>
+              </button>
+              {deptOpen && deptItems.map(item => (
                 <NavItem key={item.id} {...item}
                   active={activeTab === item.id}
-                  onClick={() => { setActiveTab(item.id); setSidebarOpen(false) }} />
+                  onClick={() => setActiveTab(item.id)} />
               ))}
             </>
           )}
@@ -299,7 +365,7 @@ function Dashboard() {
             </div>
             <div className="flex-1 min-w-100px">
               <p className="text-sm font-medium truncate" style={{ color: '#1C2A33' }}>{user?.name}</p>
-              <RoleBadge role={user?.role} />
+              <RoleBadge role={user?.role} t={t} />
             </div>
           </div>
           <button onClick={handleLogout}
@@ -311,7 +377,7 @@ function Dashboard() {
               <path strokeLinecap="round" strokeLinejoin="round"
                 d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            Sign out
+            {t('signOut')}
           </button>
         </div>
       </aside>
@@ -326,15 +392,16 @@ function Dashboard() {
       {/* ══════════════════════════════════════
           MAIN CONTENT AREA
           ══════════════════════════════════════ */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={`h-full flex flex-col min-w-0 transition-all duration-300
+        ${sidebarOpen ? (isRTL ? 'lg:mr-[240px]' : 'lg:ml-[240px]') : (isRTL ? 'lg:mr-0' : 'lg:ml-0')}`}>
 
         {/* Top header bar */}
         <header className="topbar sticky top-0 z-30 flex-shrink-0">
           <div className="flex items-center justify-between gap-10">
             <div className="flex items-center gap-3">
-              {/* Mobile hamburger */}
+              {/* Hamburger */}
               <button onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden p-2 rounded-lg transition-colors"
+                className="p-2 rounded-lg transition-colors"
                 style={{ color: 'var(--text-muted)' }}
                 onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'rgba(255,255,255,0.12)' }}
                 onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}>
@@ -346,23 +413,79 @@ function Dashboard() {
               {/* Breadcrumb */}
               <div>
                 <h1 className="topbar-title">
-                  {currentTab?.label || 'Dashboard'}
+                  {currentTab?.label || t('dashboard')}
                 </h1>
                 <p className="topbar-subtitle hidden sm:block">
-                  {new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' })}
+                  {new Date().toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' })}
                 </p>
               </div>
             </div>
 
             {/* Right side of header */}
             <div className="flex items-center gap-3">
-              {/* Read-only badge for management/external */}
+              {/* Read-only badge */}
               {perms.isReadOnly && (
                 <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs"
                   style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)', color: '#60a5fa' }}>
-                  🔒 Read Only
+                  🔒 {t('readOnly')}
                 </span>
               )}
+
+              {/* ── Language Switcher ── */}
+              <div className="relative" ref={langMenuRef}>
+                <button
+                  onClick={() => setLangMenuOpen(v => !v)}
+                  title={t('language')}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm transition-all"
+                  style={{
+                    background: langMenuOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#ffffff',
+                  }}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>{langMeta.flag}</span>
+                  <span className="hidden sm:inline font-medium" style={{ fontSize: 12 }}>{langMeta.nativeLabel}</span>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ opacity: 0.5, marginTop: 1 }}>
+                    <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+
+                {langMenuOpen && (
+                  <div
+                    className="absolute mt-1 py-1 rounded-xl shadow-2xl"
+                    style={{
+                      [isRTL ? 'left' : 'right']: 0,
+                      top: '100%',
+                      minWidth: 170,
+                      zIndex: 9999,
+                      background: '#1e293b',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+                    }}>
+                    {LANGUAGES.map(lang => (
+                      <button
+                        key={lang.code}
+                        onClick={() => { switchLanguage(lang.code); setLangMenuOpen(false) }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-all"
+                        style={{
+                          color: lang.code === langMeta.code ? '#a78bfa' : 'rgba(255,255,255,0.8)',
+                          background: lang.code === langMeta.code ? 'rgba(139,92,246,0.15)' : 'transparent',
+                          fontWeight: lang.code === langMeta.code ? 600 : 400,
+                          textAlign: isRTL ? 'right' : 'left',
+                        }}
+                        onMouseEnter={e => { if (lang.code !== langMeta.code) e.currentTarget.style.background = 'rgba(255,255,255,0.07)' }}
+                        onMouseLeave={e => { if (lang.code !== langMeta.code) e.currentTarget.style.background = 'transparent' }}>
+                        <span style={{ fontSize: 18, lineHeight: 1 }}>{lang.flag}</span>
+                        <span style={{ flex: 1 }}>{lang.nativeLabel}</span>
+                        {lang.code === langMeta.code && (
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M2 7l3.5 3.5L12 3" stroke="#a78bfa" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* Current user role — desktop */}
               <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg"
@@ -372,7 +495,7 @@ function Dashboard() {
                   {user?.name?.[0]?.toUpperCase()}
                 </div>
                 <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{user?.name}</span>
-                <RoleBadge role={user?.role} />
+                <RoleBadge role={user?.role} t={t} />
               </div>
             </div>
           </div>

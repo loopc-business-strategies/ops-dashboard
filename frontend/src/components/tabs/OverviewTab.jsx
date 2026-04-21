@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useLanguage } from '../../context/LanguageContext'
 import tasksAPI from '../../api/tasks'
 import authAPI from '../../api/auth'
 import hrAPI from '../../api/hr'
@@ -37,8 +38,8 @@ const STATUS_OPTIONS = [
 const PRIORITY_OPTIONS = [
   { value: 'low', label: 'Low', tone: 'text-gray-300 border-gray-700 bg-gray-800/70' },
   { value: 'medium', label: 'Medium', tone: 'text-yellow-300 border-yellow-500/30 bg-yellow-500/10' },
-  { value: 'high', label: 'High', tone: 'text-red-300 border-red-500/30 bg-red-500/10' },
-  { value: 'critical', label: 'Critical', tone: 'text-red-200 border-red-500/40 bg-red-600/20' },
+  { value: 'high', label: 'High', tone: 'text-red-800 border-red-300 bg-red-100' },
+  { value: 'critical', label: 'Critical', tone: 'text-red-900 border-red-300 bg-red-100' },
 ]
 
 const TAB_BY_DEPT = {
@@ -91,6 +92,7 @@ const DEFAULT_TASK_FORM = {
   linkedRecord: '',
   notifyText: '',
   alsoNotify: [],
+  reminderAt: '',
 }
 
 const DEPT_STATUS = {
@@ -171,9 +173,9 @@ function roleQuickCreates(role) {
 }
 
 function getSeverityTone(severity) {
-  if (severity === 'critical') return 'text-red-300 border-red-500/40 bg-red-600/10'
-  if (severity === 'high') return 'text-orange-300 border-orange-500/30 bg-orange-500/10'
-  return 'text-yellow-300 border-yellow-500/30 bg-yellow-500/10'
+  if (severity === 'critical') return 'text-red-800 border-red-300 bg-red-100'
+  if (severity === 'high') return 'text-orange-800 border-orange-300 bg-orange-100'
+  return 'text-yellow-800 border-yellow-300 bg-yellow-100'
 }
 
 function KpiCard({ title, value, hint, tone = 'green', onClick, readOnly }) {
@@ -207,6 +209,7 @@ function Section({ title, action, children }) {
 function OverviewTab({ onNavigate }) {
   const { user, token } = useAuth()
   const perms = usePermissions()
+  const { t } = useLanguage()
 
   const [tasks, setTasks] = useState([])
   const [assignees, setAssignees] = useState([])
@@ -221,10 +224,12 @@ function OverviewTab({ onNavigate }) {
   const [taskSearch, setTaskSearch] = useState('')
   const [expandedTaskId, setExpandedTaskId] = useState('')
   const [showTaskCreate, setShowTaskCreate] = useState(false)
+  const [editingTaskId, setEditingTaskId] = useState('')
   const [taskForm, setTaskForm] = useState(DEFAULT_TASK_FORM)
   const [commentText, setCommentText] = useState({})
   const [toast, setToast] = useState('')
   const [messageFilter, setMessageFilter] = useState('all')
+  const [notificationFilter, setNotificationFilter] = useState('all')
   const [latestMessages, setLatestMessages] = useState([])
   const [newMessage, setNewMessage] = useState('')
   const [attendanceRowsApi, setAttendanceRowsApi] = useState([])
@@ -236,20 +241,115 @@ function OverviewTab({ onNavigate }) {
   const [attendanceDeptFilter, setAttendanceDeptFilter] = useState('all')
   const [attendanceStatusFilter, setAttendanceStatusFilter] = useState('all')
   const [attendanceSearch, setAttendanceSearch] = useState('')
+  const [ackedAlerts, setAckedAlerts] = useState({})
+  const tasksSectionRef = useRef(null)
+  const messagesSectionRef = useRef(null)
+  const highlightTimerRef = useRef(null)
+  const [highlightTarget, setHighlightTarget] = useState('')
 
   const role = user?.role || 'department_user'
   const roleView = overviewConfig[role] || overviewConfig.department_user
   const today = new Date()
 
-  const canCreateTasks = perms.isSuperAdmin || perms.isDepartmentHead
+  const canCreateTasks = !perms.isManagement && !perms.isExternal
   const isReadOnlyExec = perms.isManagement
   const isPersonalView = perms.isDepartmentUser
   const canViewExecutiveCharts = perms.isSuperAdmin || perms.isManagement
+  const canManageAttendance = perms.isSuperAdmin || perms.isDepartmentHead || ((user?.department || '').toLowerCase() === 'hr')
+
+  const resetTaskComposer = () => {
+    setShowTaskCreate(false)
+    setEditingTaskId('')
+    setTaskForm(DEFAULT_TASK_FORM)
+  }
+
+  const openTaskComposer = (task = null) => {
+    if (!task) {
+      setEditingTaskId('')
+      setTaskForm({
+        ...DEFAULT_TASK_FORM,
+        department: perms.isDepartmentHead || perms.isDepartmentUser ? (user?.department || 'sales') : 'sales',
+        assignedToId: perms.isDepartmentUser ? (user?.id || '') : '',
+        assignedTo: perms.isDepartmentUser ? (user?.name || '') : '',
+      })
+      setShowTaskCreate(true)
+      return
+    }
+
+    setEditingTaskId(task._id)
+    setTaskForm({
+      title: task.title || '',
+      description: task.description || '',
+      department: task.department || (user?.department || 'sales'),
+      module: task.module || 'General',
+      assignedToId: task.assignedToId || '',
+      assignedTo: task.assignedTo || '',
+      priority: task.priority || 'high',
+      status: task.status || 'todo',
+      dueDate: task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : '',
+      linkedRecord: task.linkedRecord || '',
+      notifyText: '',
+      alsoNotify: [],
+      reminderAt: task.reminderAt ? new Date(task.reminderAt).toISOString().slice(0, 16) : '',
+    })
+    setShowTaskCreate(true)
+  }
 
   const showToast = (msg) => {
     setToast(msg)
     window.clearTimeout(window.__overviewToastTimer)
     window.__overviewToastTimer = window.setTimeout(() => setToast(''), 2500)
+  }
+
+  const focusSection = (ref) => {
+    window.requestAnimationFrame(() => {
+      ref?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+
+  const highlightSection = (target) => {
+    setHighlightTarget(target)
+    if (highlightTimerRef.current) window.clearTimeout(highlightTimerRef.current)
+    highlightTimerRef.current = window.setTimeout(() => setHighlightTarget(''), 900)
+  }
+
+  const runTaskShortcut = (kind) => {
+    if (kind === 'create') {
+      if (!canCreateTasks) {
+        showToast('Task creation is disabled for this role')
+      } else {
+        openTaskComposer()
+      }
+      setTaskView('list')
+      focusSection(tasksSectionRef)
+      highlightSection('tasks')
+      return
+    }
+
+    if (kind === 'my') {
+      setTaskView('list')
+      setTaskFilter('my')
+      focusSection(tasksSectionRef)
+      highlightSection('tasks')
+      showToast('Showing My Tasks')
+      return
+    }
+
+    if (kind === 'overdue') {
+      setTaskView('list')
+      setTaskFilter('overdue')
+      focusSection(tasksSectionRef)
+      highlightSection('tasks')
+      showToast('Showing Overdue Tasks')
+      return
+    }
+
+    if (kind === 'dm') {
+      setMessageFilter('dm')
+      focusSection(messagesSectionRef)
+      highlightSection('messages')
+      showToast('Showing Direct Messages')
+    }
   }
 
   const loadTasks = async () => {
@@ -356,10 +456,11 @@ function OverviewTab({ onNavigate }) {
   }, [token])
 
   const scopedTasks = useMemo(() => {
-    if (perms.isSuperAdmin || perms.isManagement) return tasks
-    if (perms.isDepartmentHead) return tasks.filter((t) => (t.department || '').toLowerCase() === (user?.department || '').toLowerCase())
-    if (perms.isDepartmentUser) return tasks.filter((t) => t.assignedToId === user?.id || (t.assignedTo || '').toLowerCase() === (user?.name || '').toLowerCase())
-    if (perms.isExternal) return tasks.filter((t) => (user?.allowedModules || []).includes(t.department))
+    const activeTasks = tasks.filter((t) => !t.archivedAt)
+    if (perms.isSuperAdmin || perms.isManagement) return activeTasks
+    if (perms.isDepartmentHead) return activeTasks.filter((t) => (t.department || '').toLowerCase() === (user?.department || '').toLowerCase())
+    if (perms.isDepartmentUser) return activeTasks.filter((t) => t.assignedToId === user?.id || (t.assignedTo || '').toLowerCase() === (user?.name || '').toLowerCase() || (t.createdBy || '').toLowerCase() === (user?.name || '').toLowerCase())
+    if (perms.isExternal) return activeTasks.filter((t) => (user?.allowedModules || []).includes(t.department))
     return []
   }, [tasks, perms.isSuperAdmin, perms.isManagement, perms.isDepartmentHead, perms.isDepartmentUser, perms.isExternal, user?.department, user?.id, user?.name, user?.allowedModules])
 
@@ -520,12 +621,23 @@ function OverviewTab({ onNavigate }) {
     if (perms.isManagement || perms.isExternal) return false
     if (perms.isSuperAdmin || perms.isDepartmentHead) return true
     const mine = task.assignedToId === user?.id || (task.assignedTo || '').toLowerCase() === (user?.name || '').toLowerCase()
-    return perms.isDepartmentUser && mine
+    const createdByMe = (task.createdById && task.createdById === user?.id) || (task.createdBy || '').toLowerCase() === (user?.name || '').toLowerCase()
+    return perms.isDepartmentUser && (mine || createdByMe)
   }
 
-  const onCreateTask = async () => {
+  const canDeleteTask = (task) => {
+    if (perms.isSuperAdmin || perms.isDepartmentHead) return true
+    const createdByMe = (task.createdById && task.createdById === user?.id) || (task.createdBy || '').toLowerCase() === (user?.name || '').toLowerCase()
+    return perms.isDepartmentUser && createdByMe
+  }
+
+  const onSaveTask = async () => {
     if (!taskForm.title.trim()) {
       showToast('Task title is required')
+      return
+    }
+    if (!taskForm.assignedTo.trim()) {
+      showToast('Task assignee is required')
       return
     }
 
@@ -541,25 +653,33 @@ function OverviewTab({ onNavigate }) {
         status: taskForm.status,
         priority: taskForm.priority,
         dueDate: taskForm.dueDate || undefined,
+        reminderAt: taskForm.reminderAt || undefined,
+        notifyText: taskForm.notifyText,
+        alsoNotifyNames: taskForm.alsoNotify,
       }
 
-      await tasksAPI.createTask(token, payload)
+      if (editingTaskId) {
+        await tasksAPI.updateTask(token, editingTaskId, payload)
+      } else {
+        await tasksAPI.createTask(token, payload)
+      }
       await loadTasks()
-      setShowTaskCreate(false)
-      setTaskForm(DEFAULT_TASK_FORM)
+      await loadAttendanceAndMessages()
+      resetTaskComposer()
 
       const assignee = taskForm.assignedTo || 'assignee'
       const notifyCount = taskForm.alsoNotify.length
-      showToast(`Task created and ${assignee} notified${notifyCount ? ` (+${notifyCount})` : ''}`)
+      showToast(`${editingTaskId ? 'Task updated' : 'Task created'} and ${assignee} notified${notifyCount ? ` (+${notifyCount})` : ''}`)
     } catch {
-      showToast('Failed to create task')
+      showToast(`Failed to ${editingTaskId ? 'update' : 'create'} task`)
     }
   }
 
   const onTaskStatusChange = async (task, status) => {
     try {
-      await tasksAPI.updateTask(token, task._id, { status })
+      await tasksAPI.updateTask(token, task._id, { status, notifyText: `${user?.name || 'User'} changed task status to ${statusLabel(status)}` })
       setTasks((prev) => prev.map((t) => (t._id === task._id ? { ...t, status } : t)))
+      await loadAttendanceAndMessages()
       showToast('Task status updated')
     } catch {
       showToast('Unable to update task status')
@@ -577,16 +697,78 @@ function OverviewTab({ onNavigate }) {
       await tasksAPI.addComment(token, task._id, text)
       setCommentText((prev) => ({ ...prev, [task._id]: '' }))
       await loadTasks()
+      await loadAttendanceAndMessages()
       showToast('Message added to task')
     } catch {
       showToast('Failed to post message')
     }
   }
 
+  const onDeleteTask = async (task) => {
+    if (!window.confirm(`Delete task "${task.title}"?`)) return
+    try {
+      await tasksAPI.deleteTask(token, task._id)
+      await loadTasks()
+      await loadAttendanceAndMessages()
+      if (expandedTaskId === task._id) setExpandedTaskId('')
+      showToast('Task deleted')
+    } catch {
+      showToast('Failed to delete task')
+    }
+  }
+
+  const onDuplicateTask = async (task) => {
+    try {
+      await tasksAPI.createTask(token, {
+        title: `${task.title} (Copy)`,
+        description: task.description,
+        assignedToId: task.assignedToId || undefined,
+        assignedTo: task.assignedTo || undefined,
+        department: task.department,
+        module: task.module,
+        linkedRecord: task.linkedRecord,
+        status: 'todo',
+        priority: task.priority,
+        dueDate: task.dueDate || undefined,
+        reminderAt: task.reminderAt || undefined,
+        notifyText: `Duplicate task created from ${task.title}`,
+      })
+      await loadTasks()
+      await loadAttendanceAndMessages()
+      showToast('Task duplicated')
+    } catch {
+      showToast('Failed to duplicate task')
+    }
+  }
+
+  const onArchiveTask = async (task) => {
+    try {
+      await tasksAPI.updateTask(token, task._id, { archivedAt: new Date().toISOString(), notifyText: `${user?.name || 'User'} archived ${task.title}` })
+      await loadTasks()
+      await loadAttendanceAndMessages()
+      showToast('Task archived')
+    } catch {
+      showToast('Failed to archive task')
+    }
+  }
+
+  const onSetReminder = async (task) => {
+    const reminderAt = window.prompt('Set reminder date and time (YYYY-MM-DDTHH:mm)', task.reminderAt ? new Date(task.reminderAt).toISOString().slice(0, 16) : '')
+    if (!reminderAt) return
+    try {
+      await tasksAPI.updateTask(token, task._id, { reminderAt, notifyText: `Reminder set for ${task.title} at ${fmtDateTime(reminderAt)}` })
+      await loadTasks()
+      await loadAttendanceAndMessages()
+      showToast('Reminder scheduled')
+    } catch {
+      showToast('Failed to set reminder')
+    }
+  }
+
   const onQuickAction = (name) => {
     const lower = name.toLowerCase()
     if (lower.includes('task')) {
-      setShowTaskCreate(true)
+      openTaskComposer()
       return
     }
     if (lower.includes('employee')) {
@@ -631,6 +813,30 @@ function OverviewTab({ onNavigate }) {
     return [...taskEvents, ...staticFeed].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 8)
   }, [scopedTasks])
 
+  const notificationRows = useMemo(() => {
+    const taskNotifications = scopedTasks
+      .filter((t) => t.createdAt || t.updatedAt)
+      .slice(0, 6)
+      .map((t) => ({
+        id: `nt-${t._id}`,
+        type: 'task',
+        title: t.title,
+        text: `${t.assignedTo || 'Team'} · ${statusLabel(t.status)} · ${t.priority || 'medium'} priority`,
+        time: t.updatedAt || t.createdAt,
+      }))
+
+    const messageNotifications = (latestMessages.length ? latestMessages : FALLBACK_LATEST_MESSAGES).map((m) => ({
+      id: `nm-${m.id}`,
+      type: 'message',
+      title: `${m.sender} in ${m.room}`,
+      text: m.text,
+      time: m.ago,
+    }))
+
+    const combined = [...taskNotifications, ...messageNotifications]
+    return combined.filter((item) => notificationFilter === 'all' ? true : item.type === notificationFilter).slice(0, 8)
+  }, [latestMessages, notificationFilter, scopedTasks])
+
   const deadlineRows = useMemo(() => {
     const base = [
       { id: 'd1', when: 'TODAY', text: 'Follow-up call - South Africa', dept: 'sales' },
@@ -663,6 +869,39 @@ function OverviewTab({ onNavigate }) {
 
     return [...taskOverdues, ...byRole].slice(0, 7)
   }, [perms.isSuperAdmin, perms.isManagement, perms.isDepartmentHead, perms.isDepartmentUser, scopedTasks, user?.department, todayStart])
+
+  const markAttendance = async (row, status) => {
+    try {
+      await attendanceAPI.markRecord(token, {
+        employeeName: row.name,
+        department: row.department,
+        status,
+        date: new Date().toISOString().slice(0, 10),
+        checkIn: status === 'present' ? '08:55 AM' : status === 'late' ? '09:12 AM' : '-',
+        shift: row.shift || 'Shift 1',
+      })
+      await loadAttendanceAndMessages()
+      showToast(`Attendance marked ${status}`)
+    } catch {
+      showToast('Failed to mark attendance')
+    }
+  }
+
+  const sendAttendanceReminder = async (row) => {
+    try {
+      await messagesAPI.createMessage(token, {
+        type: 'dm',
+        room: `Attendance: ${row.name}`,
+        department: row.department,
+        recipientNames: [row.name],
+        text: `Reminder: please update your attendance status for today.`,
+      })
+      await loadAttendanceAndMessages()
+      showToast(`Reminder sent to ${row.name}`)
+    } catch {
+      showToast('Failed to send reminder')
+    }
+  }
 
   const attendanceByDept = attendanceByDeptApi.length
     ? attendanceByDeptApi
@@ -732,7 +971,7 @@ function OverviewTab({ onNavigate }) {
   return (
     <div className="space-y-6 pb-8">
       {toast && (
-        <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 text-emerald-200 text-sm">
+        <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-100 text-emerald-800 text-sm">
           {toast}
         </div>
       )}
@@ -754,14 +993,49 @@ function OverviewTab({ onNavigate }) {
               className="input-field w-44"
             />
             {roleCreateOptions.length > 0 && !isReadOnlyExec && (
-              <select className="input-field w-44" onChange={(e) => e.target.value && onQuickAction(e.target.value)} value="">
+              <select className="input-field w-44" onChange={(e) => { if (e.target.value) onQuickAction(e.target.value); e.target.value = '' }} defaultValue="">
                 <option value="">+ Quick Create</option>
                 {roleCreateOptions.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
             )}
-            <button className="px-3 py-2 text-xs rounded-lg border border-yellow-500/30 bg-yellow-500/10 text-yellow-200">Alerts {alertRows.length}</button>
-            {perms.isSuperAdmin && <button className="px-3 py-2 text-xs rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-200">Export Board Report</button>}
-            {isReadOnlyExec && <span className="px-3 py-2 text-xs rounded-lg border border-sky-500/30 bg-sky-500/10 text-sky-200">Read only</span>}
+            <button className="px-3 py-2 text-xs rounded-lg border border-yellow-300 bg-yellow-100 text-yellow-800">Alerts {alertRows.filter((a) => !ackedAlerts[a.id]).length}</button>
+            {perms.isSuperAdmin && <button className="px-3 py-2 text-xs rounded-lg border border-blue-300 bg-blue-100 text-blue-800">Export Board Report</button>}
+            {isReadOnlyExec && <span className="px-3 py-2 text-xs rounded-lg border border-sky-300 bg-sky-100 text-sky-800">Read only</span>}
+          </div>
+        </div>
+      </Section>
+
+      <Section
+        title="Notifications & New Tasks"
+        action={
+          <div className="flex gap-2">
+            <button onClick={() => setNotificationFilter('all')} className={`px-2 py-1 text-xs rounded ${notificationFilter === 'all' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>All</button>
+            <button onClick={() => setNotificationFilter('task')} className={`px-2 py-1 text-xs rounded ${notificationFilter === 'task' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>Tasks</button>
+            <button onClick={() => setNotificationFilter('message')} className={`px-2 py-1 text-xs rounded ${notificationFilter === 'message' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>Messages</button>
+          </div>
+        }
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-4">
+          <div className="space-y-2">
+            {notificationRows.map((item) => (
+              <div key={item.id} className="border border-gray-300 rounded-xl p-3 bg-white">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-gray-900">{item.title}</p>
+                  <span className={`text-[11px] px-2 py-0.5 rounded border ${item.type === 'task' ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-blue-300 bg-blue-100 text-blue-800'}`}>{item.type}</span>
+                </div>
+                <p className="text-xs text-gray-700 mt-1">{item.text}</p>
+                <p className="text-[11px] text-gray-500 mt-2">{String(item.time)}</p>
+              </div>
+            ))}
+          </div>
+          <div className="border border-gray-300 rounded-xl p-4 bg-white">
+            <p className="text-sm font-semibold text-gray-900">Task Action Shortcuts</p>
+            <div className="grid grid-cols-1 gap-2 mt-3">
+              <button onClick={() => runTaskShortcut('create')} disabled={!canCreateTasks} className="px-3 py-2 text-xs rounded-lg border border-emerald-300 bg-emerald-100 text-emerald-800 disabled:opacity-50">+ Create Task</button>
+              <button onClick={() => runTaskShortcut('my')} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white text-gray-800">Open My Tasks</button>
+              <button onClick={() => runTaskShortcut('overdue')} className="px-3 py-2 text-xs rounded-lg border border-red-300 bg-red-100 text-red-800">Review Overdue</button>
+              <button onClick={() => runTaskShortcut('dm')} className="px-3 py-2 text-xs rounded-lg border border-blue-300 bg-blue-100 text-blue-800">View Direct Messages</button>
+            </div>
           </div>
         </div>
       </Section>
@@ -783,15 +1057,15 @@ function OverviewTab({ onNavigate }) {
       <Section title="Executive Summary by Department">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {visibleDeptMetrics.map((m) => (
-            <div key={m.dept} className={`bg-gray-950 border rounded-xl p-4 ${DEPT_STATUS[m.status] || DEPT_STATUS.attention}`}>
+            <div key={m.dept} className={`bg-white border rounded-xl p-4 ${DEPT_STATUS[m.status] || DEPT_STATUS.attention}`}>
               <div className="flex items-center justify-between mb-2">
-                <p className="font-semibold text-white">{m.title}</p>
-                <span className="text-xs text-gray-400">{m.status}</span>
+                <p className="font-semibold text-gray-900">{m.title}</p>
+                <span className="text-xs text-gray-700">{m.status}</span>
               </div>
-              <p className="text-sm text-gray-300">{m.line1}</p>
-              <p className="text-xs text-gray-500 mt-1">{m.line2}</p>
-              <p className="text-xs text-gray-500">{m.line3}</p>
-              <button onClick={() => onNavigate?.(TAB_BY_DEPT[m.dept])} className="mt-3 text-xs text-emerald-300 hover:text-emerald-200">
+              <p className="text-sm text-gray-800">{m.line1}</p>
+              <p className="text-xs text-gray-700 mt-1">{m.line2}</p>
+              <p className="text-xs text-gray-700">{m.line3}</p>
+              <button onClick={() => onNavigate?.(TAB_BY_DEPT[m.dept])} className="mt-3 text-xs text-emerald-700 hover:text-emerald-800 font-medium">
                 View {'->'}
               </button>
             </div>
@@ -799,6 +1073,7 @@ function OverviewTab({ onNavigate }) {
         </div>
       </Section>
 
+      <div ref={tasksSectionRef} className={`rounded-2xl transition-all duration-700 ${highlightTarget === 'tasks' ? 'ring-2 ring-emerald-400/70 ring-offset-2 ring-offset-gray-100 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]' : ''}`}>
       <Section
         title="Tasks Command Center"
         action={
@@ -843,7 +1118,7 @@ function OverviewTab({ onNavigate }) {
           </select>
           <input className="input-field flex-1 min-w-[180px]" placeholder="Search tasks" value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} />
           {canCreateTasks && (
-            <button onClick={() => setShowTaskCreate((v) => !v)} className="px-3 py-2 text-xs rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
+            <button onClick={() => showTaskCreate ? resetTaskComposer() : openTaskComposer()} className="px-3 py-2 text-xs rounded-lg border border-emerald-300 bg-emerald-100 text-emerald-800">
               + Create Task
             </button>
           )}
@@ -852,8 +1127,8 @@ function OverviewTab({ onNavigate }) {
         {showTaskCreate && canCreateTasks && (
           <div className="mb-5 p-4 rounded-xl border border-gray-700 bg-gray-900/70 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">Quick Create Task</p>
-              <button onClick={() => setShowTaskCreate(false)} className="text-gray-400 hover:text-white">x</button>
+              <p className="text-sm font-semibold text-white">{editingTaskId ? 'Edit Task' : 'Quick Create Task'}</p>
+              <button onClick={resetTaskComposer} className="text-gray-400 hover:text-white">x</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <input className="input-field" placeholder="Task Title *" value={taskForm.title} onChange={(e) => setTaskForm((p) => ({ ...p, title: e.target.value }))} />
@@ -881,6 +1156,8 @@ function OverviewTab({ onNavigate }) {
               </select>
               <input type="date" className="input-field" value={taskForm.dueDate} onChange={(e) => setTaskForm((p) => ({ ...p, dueDate: e.target.value }))} />
               <input className="input-field" placeholder="Linked record" value={taskForm.linkedRecord} onChange={(e) => setTaskForm((p) => ({ ...p, linkedRecord: e.target.value }))} />
+              <input type="datetime-local" className="input-field" value={taskForm.reminderAt} onChange={(e) => setTaskForm((p) => ({ ...p, reminderAt: e.target.value }))} />
+              <div className="text-xs text-gray-500 flex items-center">Reminder for assignee or watchers</div>
               <select
                 multiple
                 className="input-field md:col-span-2 min-h-24"
@@ -895,8 +1172,8 @@ function OverviewTab({ onNavigate }) {
               <textarea className="input-field md:col-span-2" rows={2} placeholder="Message to assignee (optional)" value={taskForm.notifyText} onChange={(e) => setTaskForm((p) => ({ ...p, notifyText: e.target.value }))} />
             </div>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowTaskCreate(false)} className="px-3 py-2 rounded-lg bg-gray-800 text-gray-300 text-xs">Cancel</button>
-              <button onClick={onCreateTask} className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-xs">Create & Notify</button>
+              <button onClick={resetTaskComposer} className="px-3 py-2 rounded-lg bg-gray-800 text-gray-300 text-xs">Cancel</button>
+              <button onClick={onSaveTask} className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-xs">{editingTaskId ? 'Save & Notify' : 'Create & Notify'}</button>
             </div>
           </div>
         )}
@@ -933,7 +1210,12 @@ function OverviewTab({ onNavigate }) {
                     </div>
                     <div className="flex flex-wrap gap-2 mt-3">
                       <button onClick={() => setExpandedTaskId(isExpanded ? '' : task._id)} className="px-2 py-1 text-xs rounded bg-gray-800 text-gray-300">Open</button>
+                      <button onClick={() => openTaskComposer(task)} disabled={!canUpdateTask(task)} className="px-2 py-1 text-xs rounded bg-blue-700/70 text-white disabled:opacity-40">Edit</button>
                       <button onClick={() => onTaskMarkDone(task)} disabled={!canUpdateTask(task)} className="px-2 py-1 text-xs rounded bg-emerald-700 text-white disabled:opacity-40">Mark Done</button>
+                      <button onClick={() => onDuplicateTask(task)} disabled={!canCreateTasks} className="px-2 py-1 text-xs rounded bg-gray-800 text-gray-200 disabled:opacity-40">Duplicate</button>
+                      <button onClick={() => onSetReminder(task)} disabled={!canUpdateTask(task)} className="px-2 py-1 text-xs rounded bg-yellow-600/80 text-white disabled:opacity-40">Reminder</button>
+                      <button onClick={() => onArchiveTask(task)} disabled={!canUpdateTask(task)} className="px-2 py-1 text-xs rounded bg-purple-700/80 text-white disabled:opacity-40">Archive</button>
+                      <button onClick={() => onDeleteTask(task)} disabled={!canDeleteTask(task)} className="px-2 py-1 text-xs rounded bg-red-700 text-white disabled:opacity-40">Delete</button>
                     </div>
                   </div>
 
@@ -945,8 +1227,11 @@ function OverviewTab({ onNavigate }) {
                         <div className="text-xs text-gray-500 mt-3 space-y-1">
                           <p>Priority: {task.priority}</p>
                           <p>Status: {statusLabel(task.status)}</p>
+                          <p>Created by: {task.createdBy || 'System'}</p>
                           <p>Created: {fmtDateTime(task.createdAt)}</p>
                           <p>Linked: {task.linkedRecord || '-'}</p>
+                          <p>Reminder: {task.reminderAt ? fmtDateTime(task.reminderAt) : '-'}</p>
+                          <p>Archived: {task.archivedAt ? fmtDateTime(task.archivedAt) : 'No'}</p>
                         </div>
                       </div>
                       <div>
@@ -991,7 +1276,7 @@ function OverviewTab({ onNavigate }) {
                       </div>
                     ))}
                     {canCreateTasks && (
-                      <button onClick={() => setShowTaskCreate(true)} className="w-full py-2 text-xs rounded border border-dashed border-gray-700 text-gray-500 hover:text-gray-300">
+                      <button onClick={() => openTaskComposer()} className="w-full py-2 text-xs rounded border border-dashed border-gray-700 text-gray-500 hover:text-gray-300">
                         + Add Task
                       </button>
                     )}
@@ -1021,6 +1306,7 @@ function OverviewTab({ onNavigate }) {
           </div>
         )}
       </Section>
+      </div>
 
       <Section title="Attendance Command Center">
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
@@ -1032,18 +1318,18 @@ function OverviewTab({ onNavigate }) {
 
         {!isPersonalView && (
           <div className="mb-4 border border-gray-800 rounded-xl p-3 bg-gray-950">
-            <p className="text-xs uppercase tracking-wide text-gray-500 mb-3">Attendance by Department</p>
+            <p className="text-xs uppercase tracking-wide text-gray-700 mb-3">Attendance by Department</p>
             <div className="space-y-2">
               {attendanceByDept.map((row) => (
                 <div key={`bar-${row.value}`} className="grid grid-cols-[90px_1fr_90px] gap-2 items-center">
-                  <span className="text-xs text-gray-300 capitalize">{row.label}</span>
+                  <span className="text-xs text-gray-800 capitalize">{row.label}</span>
                   <div className="h-2 rounded bg-gray-800 overflow-hidden">
                     <div
                       className={`h-full ${row.pct >= 90 ? 'bg-emerald-500' : row.pct >= 80 ? 'bg-yellow-500' : 'bg-red-500'}`}
                       style={{ width: `${row.pct}%` }}
                     />
                   </div>
-                  <span className="text-xs text-gray-400">{row.present}/{row.total} ({row.pct}%)</span>
+                  <span className="text-xs text-gray-700">{row.present}/{row.total} ({row.pct}%)</span>
                 </div>
               ))}
             </div>
@@ -1071,36 +1357,43 @@ function OverviewTab({ onNavigate }) {
             <thead className="bg-gray-900">
               <tr>
                 {['AVT', 'Name', 'Dept', 'Check-in', 'Status', 'Shift', 'Actions'].map((h) => (
-                  <th key={h} className="text-left px-3 py-2 text-gray-400 uppercase tracking-wider">{h}</th>
+                  <th key={h} className="text-left px-3 py-2 text-gray-700 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {attendanceFilteredRows.map((r) => (
                 <tr key={r.id} className="border-t border-gray-800">
-                  <td className="px-3 py-2 text-gray-400">{initials(r.name)}</td>
-                  <td className="px-3 py-2 text-gray-200">{r.name}</td>
-                  <td className="px-3 py-2 text-gray-400 capitalize">{r.department || '-'}</td>
-                  <td className="px-3 py-2 text-gray-400">{r.checkIn}</td>
+                  <td className="px-3 py-2 text-gray-700">{initials(r.name)}</td>
+                  <td className="px-3 py-2 text-gray-900">{r.name}</td>
+                  <td className="px-3 py-2 text-gray-700 capitalize">{r.department || '-'}</td>
+                  <td className="px-3 py-2 text-gray-700">{r.checkIn}</td>
                   <td className="px-3 py-2">
                     <span className={`px-2 py-0.5 rounded border text-[11px] ${
                       r.status === 'present'
-                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                        ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
                         : r.status === 'absent'
-                        ? 'border-red-500/30 bg-red-500/10 text-red-200'
+                        ? 'border-red-300 bg-red-100 text-red-800'
                         : r.status === 'leave'
-                        ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
+                        ? 'border-cyan-300 bg-cyan-100 text-cyan-800'
                         : r.status === 'late'
-                        ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-200'
-                        : 'border-purple-500/30 bg-purple-500/10 text-purple-200'
+                        ? 'border-yellow-300 bg-yellow-100 text-yellow-800'
+                        : 'border-purple-300 bg-purple-100 text-purple-800'
                     }`}
                     >
                       {r.status.toUpperCase()}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-gray-400">{r.shift}</td>
-                  <td className="px-3 py-2 text-gray-500">
-                    {(perms.isSuperAdmin || perms.isDepartmentHead || (user?.department || '').toLowerCase() === 'hr') ? 'Mark · History · Remind' : '-'}
+                  <td className="px-3 py-2 text-gray-700">{r.shift}</td>
+                  <td className="px-3 py-2 text-gray-700">
+                    {canManageAttendance ? (
+                      <div className="flex gap-2 flex-wrap text-[11px]">
+                        <button onClick={() => markAttendance(r, 'present')} className="text-emerald-700 hover:text-emerald-800">Present</button>
+                        <button onClick={() => markAttendance(r, 'late')} className="text-yellow-700 hover:text-yellow-800">Late</button>
+                        <button onClick={() => markAttendance(r, 'absent')} className="text-red-700 hover:text-red-800">Absent</button>
+                        <button onClick={() => sendAttendanceReminder(r)} className="text-blue-300">Remind</button>
+                      </div>
+                    ) : '-'}
                   </td>
                 </tr>
               ))}
@@ -1112,11 +1405,11 @@ function OverviewTab({ onNavigate }) {
           <div className="border border-gray-800 rounded-xl p-3 bg-gray-950">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-semibold text-white">My Attendance - April 2026</p>
-              <button className="text-xs text-emerald-300">View Full History</button>
+              <button className="text-xs text-emerald-700 hover:text-emerald-800">View Full History</button>
             </div>
-            <p className="text-xs text-gray-400">This Month: {myAttendance?.presentDays ?? 20}/{myAttendance?.totalDays ?? 22} days ({myAttendance?.attendancePct ?? 91}%)</p>
-            <p className="text-xs text-gray-500 mt-1">Today: {String(myAttendance?.todayStatus || 'absent').toUpperCase()} at {myAttendance?.todayCheckIn || '-'}</p>
-            <p className="text-xs text-gray-500 mt-1">Leaves taken: {myAttendance?.leaveDays ?? 2} days</p>
+            <p className="text-xs text-gray-700">This Month: {myAttendance?.presentDays ?? 20}/{myAttendance?.totalDays ?? 22} days ({myAttendance?.attendancePct ?? 91}%)</p>
+            <p className="text-xs text-gray-700 mt-1">Today: {String(myAttendance?.todayStatus || 'absent').toUpperCase()} at {myAttendance?.todayCheckIn || '-'}</p>
+            <p className="text-xs text-gray-700 mt-1">Leaves taken: {myAttendance?.leaveDays ?? 2} days</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
               <input type="date" value={leaveForm.startDate} onChange={(e) => setLeaveForm((p) => ({ ...p, startDate: e.target.value }))} className="input-field" />
               <input type="date" value={leaveForm.endDate} onChange={(e) => setLeaveForm((p) => ({ ...p, endDate: e.target.value }))} className="input-field" />
@@ -1134,8 +1427,8 @@ function OverviewTab({ onNavigate }) {
 
           <div className="border border-gray-800 rounded-xl p-3 bg-gray-950">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold text-white">Leave Requests</p>
-              <button className="text-xs text-emerald-300">View All</button>
+              <p className="text-sm font-semibold text-white">{t('leaveRequests')}</p>
+              <button className="text-xs text-emerald-700 hover:text-emerald-800">{t('viewAll')}</button>
             </div>
             <div className="space-y-2">
               {visibleLeaveRequests
@@ -1143,13 +1436,13 @@ function OverviewTab({ onNavigate }) {
                 .map((x) => (
                   <div key={x.id || x._id} className="border border-gray-800 rounded-lg p-2">
                     <p className="text-xs text-gray-200">{x.name || x.employeeName} ({x.dept || x.department})</p>
-                    <p className="text-xs text-gray-500">{x.dates || `${fmtDate(x.startDate)} - ${fmtDate(x.endDate)}`} · {x.days} days · {x.reason}</p>
-                    <div className="mt-2 text-xs text-gray-400 flex gap-2">
+                    <p className="text-xs text-gray-700">{x.dates || `${fmtDate(x.startDate)} - ${fmtDate(x.endDate)}`} · {x.days} days · {x.reason}</p>
+                    <div className="mt-2 text-xs text-gray-700 flex gap-2">
                       {(perms.isSuperAdmin || perms.isDepartmentHead || (user?.department || '').toLowerCase() === 'hr') && x.status !== 'approved' && (
-                        <button onClick={() => reviewLeaveRequest(x.id || x._id, 'approved')} className="text-emerald-300">Approve</button>
+                        <button onClick={() => reviewLeaveRequest(x.id || x._id, 'approved')} className="text-emerald-700 hover:text-emerald-800">Approve</button>
                       )}
                       {(perms.isSuperAdmin || perms.isDepartmentHead || (user?.department || '').toLowerCase() === 'hr') && x.status !== 'rejected' && (
-                        <button onClick={() => reviewLeaveRequest(x.id || x._id, 'rejected')} className="text-red-300">Reject</button>
+                        <button onClick={() => reviewLeaveRequest(x.id || x._id, 'rejected')} className="text-red-700 hover:text-red-800">Reject</button>
                       )}
                       <span>View</span>
                     </div>
@@ -1160,15 +1453,18 @@ function OverviewTab({ onNavigate }) {
         </div>
       </Section>
 
-      <Section title="Critical Alerts" action={<button className="text-xs text-emerald-300">View All Alerts</button>}>
+      <Section title="Critical Alerts" action={<button className="text-xs text-emerald-700 hover:text-emerald-800">View All Alerts</button>}>
         <div className="space-y-2">
           {alertRows.map((a) => (
             <div key={a.id} className="border border-gray-800 rounded-xl p-3 bg-gray-950 flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm text-gray-200">{a.text}</p>
-                <p className="text-xs text-gray-500 mt-1 capitalize">{a.dept} · {a.age}</p>
+                <p className="text-xs text-gray-700 mt-1 capitalize">{a.dept} · {a.age}</p>
               </div>
-              <span className={`px-2 py-1 rounded border text-[11px] uppercase ${getSeverityTone(a.severity)}`}>{a.severity}</span>
+              <div className="flex items-center gap-2">
+                {!ackedAlerts[a.id] && <button onClick={() => { setAckedAlerts((p) => ({ ...p, [a.id]: true })); showToast('Alert acknowledged') }} className="px-2 py-1 rounded border border-gray-400 bg-white text-[11px] text-gray-800">Acknowledge</button>}
+                <span className={`px-2 py-1 rounded border text-[11px] uppercase ${getSeverityTone(a.severity)}`}>{ackedAlerts[a.id] ? 'acked' : a.severity}</span>
+              </div>
             </div>
           ))}
         </div>
@@ -1238,7 +1534,7 @@ function OverviewTab({ onNavigate }) {
         </div>
       </Section>
 
-      <Section title="Quick Actions">
+      <Section title={t('quickActions')}>
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
           {(QUICK_ACTIONS[role] || QUICK_ACTIONS.department_user).map((action) => (
             <button key={action} onClick={() => onQuickAction(action)} className="px-3 py-2 text-xs rounded-lg border border-gray-700 bg-gray-900 text-gray-300 hover:text-white hover:border-emerald-500/30">
@@ -1260,8 +1556,9 @@ function OverviewTab({ onNavigate }) {
           </div>
         </Section>
 
+        <div ref={messagesSectionRef} className={`rounded-2xl transition-all duration-700 ${highlightTarget === 'messages' ? 'ring-2 ring-emerald-400/70 ring-offset-2 ring-offset-gray-100 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]' : ''}`}>
         <Section
-          title="Latest Messages (Group & DM)"
+          title={t('latestMessages')}
           action={
             <div className="flex gap-2">
               <button onClick={() => setMessageFilter('all')} className={`px-2 py-1 text-xs rounded ${messageFilter === 'all' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>All</button>
@@ -1284,6 +1581,7 @@ function OverviewTab({ onNavigate }) {
             </div>
           </div>
         </Section>
+        </div>
       </div>
 
       {(loadingEmployees || loadingTasks) && (

@@ -29,6 +29,13 @@ const canManageProduction = (user) => isSuperAdmin(user) || isDeptHead(user, 'pr
 const canManageFinance = (user) => isSuperAdmin(user) || isDeptHead(user, 'finance')
 const canUploadProcDocs = (user) => isSuperAdmin(user) || isDeptHead(user, 'operations') || isFinanceRole(user)
 
+const parsePagination = (query, defaultLimit = 20, maxLimit = 100) => {
+  const page = Math.max(1, Number(query.page) || 1)
+  const limit = Math.min(maxLimit, Math.max(1, Number(query.limit) || defaultLimit))
+  const skip = (page - 1) * limit
+  return { page, limit, skip }
+}
+
 const toInventoryResponse = (item, includeCostFields) => {
   const base = {
     _id: item._id,
@@ -234,8 +241,12 @@ router.delete('/inventory/:id', protect, async (req, res) => {
 
 router.get('/inventory/movements', protect, async (req, res) => {
   try {
-    const movements = await StockMovement.find({}).sort({ createdAt: -1 }).limit(200)
-    res.json({ success: true, count: movements.length, movements })
+    const { page, limit, skip } = parsePagination(req.query, 50, 200)
+    const [movements, total] = await Promise.all([
+      StockMovement.find({}).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      StockMovement.countDocuments({}),
+    ])
+    res.json({ success: true, count: movements.length, total, page, limit, movements })
   } catch {
     res.status(500).json({ success: false, message: 'Failed to load stock movements.' })
   }
@@ -243,10 +254,17 @@ router.get('/inventory/movements', protect, async (req, res) => {
 
 router.get('/procurement/suppliers', protect, async (req, res) => {
   try {
-    const suppliers = await Supplier.find({}).sort({ updatedAt: -1 })
+    const { page, limit, skip } = parsePagination(req.query, 20, 100)
+    const [suppliers, total] = await Promise.all([
+      Supplier.find({}).sort({ updatedAt: -1 }).skip(skip).limit(limit),
+      Supplier.countDocuments({}),
+    ])
     res.json({
       success: true,
       count: suppliers.length,
+      total,
+      page,
+      limit,
       suppliers,
       permissions: { canEdit: canManageSuppliers(req.user) },
     })

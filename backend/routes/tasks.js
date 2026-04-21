@@ -7,14 +7,123 @@
 
 const express = require('express')
 const Task    = require('../models/Task')
+const Message = require('../models/Message')
 const { protect } = require('../middleware/auth')
+const { Joi, validateBody, validateParams, validateQuery } = require('../middleware/validate')
 
 const router = express.Router()
+
+const taskIdParamSchema = Joi.object({
+  id: Joi.string().hex().length(24).required(),
+})
+
+const listTasksQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).optional(),
+  limit: Joi.number().integer().min(1).max(100).optional(),
+})
+
+const createTaskSchema = Joi.object({
+  title: Joi.string().trim().min(2).max(200).required(),
+  description: Joi.string().allow('').max(4000).optional(),
+  assignedTo: Joi.string().allow('').max(120).optional(),
+  assignedToId: Joi.string().hex().length(24).allow('', null).optional(),
+  department: Joi.string().allow('').max(80).optional(),
+  module: Joi.string().allow('').max(80).optional(),
+  linkedRecord: Joi.string().allow('').max(120).optional(),
+  status: Joi.string().valid('todo', 'in-progress', 'blocked', 'under-review', 'done', 'cancelled').optional(),
+  priority: Joi.string().valid('low', 'medium', 'high', 'critical').optional(),
+  dueDate: Joi.date().iso().allow(null, '').optional(),
+  reminderAt: Joi.date().iso().allow(null, '').optional(),
+  notifyText: Joi.string().allow('').max(1000).optional(),
+  alsoNotifyIds: Joi.array().items(Joi.string().hex().length(24)).max(50).optional(),
+  alsoNotifyNames: Joi.array().items(Joi.string().trim().max(120)).max(50).optional(),
+})
+
+const updateTaskSchema = Joi.object({
+  title: Joi.string().trim().min(2).max(200).optional(),
+  description: Joi.string().allow('').max(4000).optional(),
+  assignedTo: Joi.string().allow('').max(120).optional(),
+  assignedToId: Joi.string().hex().length(24).allow('', null).optional(),
+  department: Joi.string().allow('').max(80).optional(),
+  module: Joi.string().allow('').max(80).optional(),
+  linkedRecord: Joi.string().allow('').max(120).optional(),
+  status: Joi.string().valid('todo', 'in-progress', 'blocked', 'under-review', 'done', 'cancelled').optional(),
+  priority: Joi.string().valid('low', 'medium', 'high', 'critical').optional(),
+  dueDate: Joi.date().iso().allow(null, '').optional(),
+  reminderAt: Joi.date().iso().allow(null, '').optional(),
+  archivedAt: Joi.date().iso().allow(null, '').optional(),
+  notifyText: Joi.string().allow('').max(1000).optional(),
+  alsoNotifyIds: Joi.array().items(Joi.string().hex().length(24)).max(50).optional(),
+  alsoNotifyNames: Joi.array().items(Joi.string().trim().max(120)).max(50).optional(),
+}).min(1)
+
+const commentSchema = Joi.object({
+  text: Joi.string().trim().min(1).max(2000).required(),
+})
 
 const normalize = (value = '') => String(value).trim().toLowerCase()
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const isReadOnlyRole = (role) => role === 'management' || role === 'external'
+
+const canCreateTask = (user) => user && !isReadOnlyRole(user.role)
+
+const isTaskCreator = (user, task) => {
+  if (!user || !task) return false
+  const byId = task.createdById && task.createdById.toString() === user._id.toString()
+  const byName = normalize(task.createdBy) === normalize(user.name)
+  return Boolean(byId || byName)
+}
+
+const canMutateTask = (user, task) => {
+  if (!user || !task) return false
+  if (user.role === 'super_admin') return true
+  if (isReadOnlyRole(user.role)) return false
+  if (user.role === 'department_head') return normalize(user.department) === normalize(task.department)
+  if (user.role === 'department_user') {
+    const mineById = task.assignedToId && task.assignedToId.toString() === user._id.toString()
+    const mineByName = normalize(task.assignedTo) === normalize(user.name)
+    return Boolean(mineById || mineByName || isTaskCreator(user, task))
+  }
+  return false
+}
+
+const canDeleteTask = (user, task) => {
+  if (!user || !task) return false
+  if (user.role === 'super_admin') return true
+  if (user.role === 'department_head') return normalize(user.department) === normalize(task.department)
+  if (user.role === 'department_user') return isTaskCreator(user, task)
+  return false
+}
+
+const taskMessageRecipients = ({ assignedToId, assignedTo, alsoNotifyIds = [], alsoNotifyNames = [] }) => {
+  const ids = Array.isArray(alsoNotifyIds) ? [...alsoNotifyIds] : []
+  const names = Array.isArray(alsoNotifyNames) ? [...alsoNotifyNames] : []
+
+  if (assignedToId) ids.push(assignedToId)
+  if (assignedTo) names.push(assignedTo)
+
+  return {
+    recipientIds: Array.from(new Set(ids.filter(Boolean).map(String))),
+    recipientNames: Array.from(new Set(names.filter(Boolean).map((value) => String(value).trim()).filter(Boolean))),
+  }
+}
+
+const createTaskMessage = async (user, task, text, recipients) => {
+  if (!text || !String(text).trim()) return
+  if (!recipients.recipientIds.length && !recipients.recipientNames.length) return
+
+  await Message.create({
+    type: 'dm',
+    room: `Task: ${task.title}`,
+    department: normalize(task.department),
+    senderId: user._id,
+    senderName: user.name,
+    recipientIds: recipients.recipientIds,
+    recipientNames: recipients.recipientNames,
+    text: String(text).trim(),
+  })
+}
 
 const canViewTask = (user, task) => {
   if (!user || !task) return false
@@ -74,36 +183,58 @@ const buildTaskReadFilter = (user) => {
 }
 
 const sanitizeDepartmentUserTaskUpdate = (payload = {}) => {
-  const allowedFields = ['status', 'description', 'priority', 'dueDate']
+  const allowedFields = ['status', 'description', 'priority', 'dueDate', 'module', 'linkedRecord', 'reminderAt', 'archivedAt']
   return Object.fromEntries(Object.entries(payload).filter(([key]) => allowedFields.includes(key)))
 }
 
 // GET all tasks
-router.get('/', protect, async (req, res) => {
+router.get('/', protect, validateQuery(listTasksQuerySchema), async (req, res) => {
   try {
     const filter = buildTaskReadFilter(req.user)
     if (filter === null) {
       return res.status(403).json({ success: false, message: 'Access denied.' })
     }
 
-    const tasks = await Task.find(filter).sort({ createdAt: -1 })
-    res.json({ success: true, count: tasks.length, tasks })
+    const page = Math.max(1, Number(req.query.page) || 1)
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50))
+    const skip = (page - 1) * limit
+
+    const [tasks, total] = await Promise.all([
+      Task.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Task.countDocuments(filter),
+    ])
+
+    res.json({ success: true, count: tasks.length, total, page, limit, tasks })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })
 
 // POST create task
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, validateBody(createTaskSchema), async (req, res) => {
   try {
-    if (isReadOnlyRole(req.user.role) || req.user.role === 'department_user') {
+    if (!canCreateTask(req.user)) {
       return res.status(403).json({ success: false, message: 'You do not have permission to create tasks.' })
     }
 
-    const { title, description, assignedTo, assignedToId, department, module, linkedRecord, status, priority, dueDate } = req.body
+    const { title, description, assignedTo, assignedToId, department, module, linkedRecord, status, priority, dueDate, reminderAt, notifyText, alsoNotifyIds, alsoNotifyNames } = req.body
     if (!title) return res.status(400).json({ success: false, message: 'Title is required.' })
 
-    const payload = { title, description, assignedTo, assignedToId, department, module, linkedRecord, status, priority, dueDate }
+    const payload = {
+      title,
+      description,
+      assignedTo,
+      assignedToId,
+      department,
+      module,
+      linkedRecord,
+      status,
+      priority,
+      dueDate,
+      reminderAt,
+      createdBy: req.user.name,
+      createdById: req.user._id,
+    }
     if (req.user.role === 'department_head') {
       if (!normalize(req.user.department)) {
         return res.status(400).json({ success: false, message: 'Department head account is missing department.' })
@@ -111,15 +242,30 @@ router.post('/', protect, async (req, res) => {
       payload.department = normalize(req.user.department)
     }
 
+    if (req.user.role === 'department_user') {
+      const userDept = normalize(req.user.department)
+      if (!userDept) {
+        return res.status(400).json({ success: false, message: 'Department user account is missing department.' })
+      }
+      payload.department = userDept
+      payload.assignedTo = req.user.name
+      payload.assignedToId = req.user._id
+    }
+
     const task = await Task.create(payload)
+
+    const recipients = taskMessageRecipients({ assignedToId: payload.assignedToId, assignedTo: payload.assignedTo, alsoNotifyIds, alsoNotifyNames })
+    await createTaskMessage(req.user, task, notifyText || `New task assigned: ${task.title}`, recipients)
+
     res.status(201).json({ success: true, task })
   } catch (err) {
+    console.error('Create task error:', err)
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })
 
 // PUT update task
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', protect, validateParams(taskIdParamSchema), validateBody(updateTaskSchema), async (req, res) => {
   try {
     const task = await Task.findById(req.params.id)
     if (!task) return res.status(404).json({ success: false, message: 'Task not found.' })
@@ -128,20 +274,17 @@ router.put('/:id', protect, async (req, res) => {
       return res.status(403).json({ success: false, message: 'You do not have permission to update this task.' })
     }
 
-    if (isReadOnlyRole(req.user.role)) {
-      return res.status(403).json({ success: false, message: 'Read-only role cannot update tasks.' })
+    if (!canMutateTask(req.user, task)) {
+      return res.status(403).json({ success: false, message: 'You do not have permission to update this task.' })
     }
 
     let updatePayload = req.body
+    const prevAssignedTo = task.assignedTo
+    const prevAssignedToId = task.assignedToId ? task.assignedToId.toString() : ''
+    const prevStatus = task.status
+    const prevPriority = task.priority
 
     if (req.user.role === 'department_user') {
-      const mineById = task.assignedToId && task.assignedToId.toString() === req.user._id.toString()
-      const mineByName = normalize(task.assignedTo) === normalize(req.user.name)
-
-      if (!mineById && !mineByName) {
-        return res.status(403).json({ success: false, message: 'Department users can only update tasks assigned to them.' })
-      }
-
       updatePayload = sanitizeDepartmentUserTaskUpdate(req.body)
       if (!Object.keys(updatePayload).length) {
         return res.status(400).json({ success: false, message: 'No updatable fields provided.' })
@@ -152,15 +295,36 @@ router.put('/:id', protect, async (req, res) => {
       updatePayload = { ...req.body, department: normalize(req.user.department) }
     }
 
-    const updatedTask = await Task.findByIdAndUpdate(req.params.id, updatePayload, { new: true, runValidators: true })
+    const { notifyText, alsoNotifyIds, alsoNotifyNames, ...dbUpdatePayload } = updatePayload
+    const updatedTask = await Task.findByIdAndUpdate(req.params.id, dbUpdatePayload, { new: true, runValidators: true })
+
+    const assigneeChanged = (updatedTask.assignedTo || '') !== (prevAssignedTo || '') || String(updatedTask.assignedToId || '') !== prevAssignedToId
+    const statusChanged = updatedTask.status !== prevStatus
+    const priorityChanged = updatedTask.priority !== prevPriority
+
+    if (assigneeChanged || statusChanged || priorityChanged || notifyText) {
+      const recipients = taskMessageRecipients({
+        assignedToId: updatedTask.assignedToId,
+        assignedTo: updatedTask.assignedTo,
+        alsoNotifyIds,
+        alsoNotifyNames,
+      })
+      const parts = []
+      if (statusChanged) parts.push(`status changed to ${updatedTask.status}`)
+      if (priorityChanged) parts.push(`priority changed to ${updatedTask.priority}`)
+      if (assigneeChanged) parts.push(`assignee changed to ${updatedTask.assignedTo || 'unassigned'}`)
+      await createTaskMessage(req.user, updatedTask, notifyText || `Task updated: ${updatedTask.title}${parts.length ? ` (${parts.join(', ')})` : ''}`, recipients)
+    }
+
     res.json({ success: true, task: updatedTask })
   } catch (err) {
+    console.error('Update task error:', err)
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })
 
 // POST add comment/note to a task
-router.post('/:id/comments', protect, async (req, res) => {
+router.post('/:id/comments', protect, validateParams(taskIdParamSchema), validateBody(commentSchema), async (req, res) => {
   try {
     const { text } = req.body
     if (!text || !text.trim())
@@ -176,29 +340,34 @@ router.post('/:id/comments', protect, async (req, res) => {
     task.comments.push({ author: req.user.name, authorId: req.user._id, text: text.trim() })
     await task.save()
 
+    const recipients = taskMessageRecipients({ assignedToId: task.assignedToId, assignedTo: task.assignedTo })
+    await createTaskMessage(req.user, task, `${req.user.name} commented on task: ${task.title}`, recipients)
+
     res.json({ success: true, task })
   } catch (err) {
+    console.error('Task comment error:', err)
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })
 
 // DELETE task
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, validateParams(taskIdParamSchema), async (req, res) => {
   try {
     const task = await Task.findById(req.params.id)
     if (!task) return res.status(404).json({ success: false, message: 'Task not found.' })
 
-    if (req.user.role !== 'super_admin' && req.user.role !== 'department_head') {
-      return res.status(403).json({ success: false, message: 'Only super admin or department head can delete tasks.' })
-    }
-
-    if (!canViewTask(req.user, task)) {
+    if (!canDeleteTask(req.user, task)) {
       return res.status(403).json({ success: false, message: 'You do not have permission to delete this task.' })
     }
 
     await Task.findByIdAndDelete(req.params.id)
+
+    const recipients = taskMessageRecipients({ assignedToId: task.assignedToId, assignedTo: task.assignedTo })
+    await createTaskMessage(req.user, task, `Task removed: ${task.title}`, recipients)
+
     res.json({ success: true, message: 'Task deleted.' })
   } catch (err) {
+    console.error('Delete task error:', err)
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })

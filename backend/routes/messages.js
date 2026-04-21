@@ -1,8 +1,23 @@
 const express = require('express')
 const { protect } = require('../middleware/auth')
 const Message = require('../models/Message')
+const { Joi, validateBody, validateQuery } = require('../middleware/validate')
 
 const router = express.Router()
+
+const latestQuerySchema = Joi.object({
+  type: Joi.string().valid('all', 'group', 'dm').optional(),
+  limit: Joi.number().integer().min(1).max(100).optional(),
+})
+
+const createMessageSchema = Joi.object({
+  type: Joi.string().valid('group', 'dm').optional(),
+  room: Joi.string().allow('').max(120).optional(),
+  text: Joi.string().trim().min(1).max(4000).required(),
+  department: Joi.string().allow('').max(80).optional(),
+  recipientIds: Joi.array().items(Joi.string().hex().length(24)).max(100).optional(),
+  recipientNames: Joi.array().items(Joi.string().trim().max(120)).max(100).optional(),
+})
 
 const normalize = (value = '') => String(value).trim().toLowerCase()
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -27,16 +42,17 @@ const buildMessageScope = (user) => {
   return { $or: or }
 }
 
-router.get('/latest', protect, async (req, res) => {
+router.get('/latest', protect, validateQuery(latestQuerySchema), async (req, res) => {
   try {
-    const { type = 'all', limit = 20 } = req.query
+    const { type = 'all' } = req.query
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20))
     const query = buildMessageScope(req.user)
 
     if (type !== 'all') {
       query.type = String(type)
     }
 
-    const messages = await Message.find(query).sort({ createdAt: -1 }).limit(Number(limit) || 20)
+    const messages = await Message.find(query).sort({ createdAt: -1 }).limit(limit)
 
     res.json({ success: true, count: messages.length, messages })
   } catch {
@@ -44,7 +60,7 @@ router.get('/latest', protect, async (req, res) => {
   }
 })
 
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, validateBody(createMessageSchema), async (req, res) => {
   try {
     const { type = 'group', room = '', text = '', department = '', recipientIds = [], recipientNames = [] } = req.body
 

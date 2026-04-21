@@ -1,22 +1,20 @@
 import axios from 'axios'
 
-const BASE = 'http://localhost:5000/api/erp-accounting'
+const BASE = '/api/erp-accounting'
 
 // Helper to get auth config
-const getAuthConfig = (token, params = null) => {
+const getAuthConfig = (_token, params = null) => {
   const config = {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    withCredentials: true,
   }
   if (params) config.params = params
   return config
 }
 
 // Chart of Accounts
-const getAccounts = async (token) => (await axios.get(`${BASE}/accounts`, getAuthConfig(token))).data
+const getAccounts = async (token, params) => (await axios.get(`${BASE}/accounts`, getAuthConfig(token, params))).data
 const getAccount = async (token, id) => (await axios.get(`${BASE}/accounts/${id}`, getAuthConfig(token))).data
-const getAccountEnquiry = async (token, accountCode) => (await axios.get(`${BASE}/accounts/enquiry`, getAuthConfig(token, { accountCode }))).data
+const getAccountEnquiry = async (token, accountCode, params = {}) => (await axios.get(`${BASE}/accounts/enquiry`, getAuthConfig(token, { accountCode, ...params }))).data
 const createAccount = async (token, payload) => (await axios.post(`${BASE}/accounts`, payload, getAuthConfig(token))).data
 const updateAccount = async (token, id, payload) => (await axios.put(`${BASE}/accounts/${id}`, payload, getAuthConfig(token))).data
 const deleteAccount = async (token, id) => (await axios.delete(`${BASE}/accounts/${id}`, getAuthConfig(token))).data
@@ -35,7 +33,7 @@ const updateLedgerEntry = async (token, id, payload) => (await axios.put(`${BASE
 const deleteLedgerEntry = async (token, id) => (await axios.delete(`${BASE}/ledger/${id}`, getAuthConfig(token))).data
 
 // Account Mappings
-const getMappings = async (token) => (await axios.get(`${BASE}/mappings`, getAuthConfig(token))).data
+const getMappings = async (token, params) => (await axios.get(`${BASE}/mappings`, getAuthConfig(token, params))).data
 const createMapping = async (token, payload) => (await axios.post(`${BASE}/mappings`, payload, getAuthConfig(token))).data
 const updateMapping = async (token, id, payload) => (await axios.put(`${BASE}/mappings/${id}`, payload, getAuthConfig(token))).data
 const deleteMapping = async (token, id) => (await axios.delete(`${BASE}/mappings/${id}`, getAuthConfig(token))).data
@@ -50,14 +48,33 @@ const updateReportBranding = async (token, payload) => (await axios.put(`${BASE}
 const getMetalRates = async (token) => (await axios.get(`${BASE}/metal-rates`, getAuthConfig(token))).data
 const updateMetalRates = async (token, payload) => (await axios.put(`${BASE}/metal-rates`, payload, getAuthConfig(token))).data
 
+// Direct Deals (Fixing / Non-Fixing)
+const getDirectDeals = async (token, params) => (await axios.get(`${BASE}/direct-deals`, getAuthConfig(token, params))).data
+const createDirectDeal = async (token, payload) => (await axios.post(`${BASE}/direct-deals`, payload, getAuthConfig(token))).data
+const updateDirectDeal = async (token, id, payload) => (await axios.put(`${BASE}/direct-deals/${id}`, payload, getAuthConfig(token))).data
+const deleteDirectDeal = async (token, id) => (await axios.delete(`${BASE}/direct-deals/${id}`, getAuthConfig(token))).data
+
 // Transactions
-const getTransactions = async (token) => (await axios.get(`${BASE}/transactions`, getAuthConfig(token))).data
+const getTransactions = async (token, params) => (await axios.get(`${BASE}/transactions`, getAuthConfig(token, params))).data
 const createTransaction = async (token, payload) => (await axios.post(`${BASE}/transactions`, payload, getAuthConfig(token))).data
 const updateTransaction = async (token, id, payload) => (await axios.put(`${BASE}/transactions/${id}`, payload, getAuthConfig(token))).data
 const deleteTransaction = async (token, id) => (await axios.delete(`${BASE}/transactions/${id}`, getAuthConfig(token))).data
-const submitTransaction = async (token, id) => (await axios.post(`${BASE}/transactions/${id}/submit`, {}, getAuthConfig(token))).data
-const approveTransaction = async (token, id) => (await axios.post(`${BASE}/transactions/${id}/approve`, {}, getAuthConfig(token))).data
+const submitTransaction = async (token, id, payload = {}) => (await axios.post(`${BASE}/transactions/${id}/submit`, payload, getAuthConfig(token))).data
+const approveTransaction = async (token, id, payload = {}) => (await axios.post(`${BASE}/transactions/${id}/approve`, payload, getAuthConfig(token))).data
+const returnTransaction = async (token, id, payload = {}) => (await axios.post(`${BASE}/transactions/${id}/return`, payload, getAuthConfig(token))).data
+const rejectTransaction = async (token, id, payload = {}) => (await axios.post(`${BASE}/transactions/${id}/reject`, payload, getAuthConfig(token))).data
 const postTransaction = async (token, id, payload = {}) => (await axios.post(`${BASE}/transactions/${id}/post`, payload, getAuthConfig(token))).data
+const addTransactionComment = async (token, id, payload) => (await axios.post(`${BASE}/transactions/${id}/comments`, payload, getAuthConfig(token))).data
+const uploadTransactionAttachment = async (token, id, file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return (await axios.post(`${BASE}/transactions/${id}/attachments`, formData, {
+    withCredentials: true,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })).data
+}
+const deleteTransactionAttachment = async (token, id, attachmentId) => (await axios.delete(`${BASE}/transactions/${id}/attachments/${attachmentId}`, getAuthConfig(token))).data
+const bulkTransactionAction = async (token, payload) => (await axios.post(`${BASE}/transactions/bulk-action`, payload, getAuthConfig(token))).data
 const getTransactionSourceByLedger = async (token, ledgerId) => (await axios.get(`${BASE}/transactions/source-by-ledger/${ledgerId}`, getAuthConfig(token))).data
 
 // Vendors
@@ -78,6 +95,8 @@ const deleteVendor = async (token, id) => (await axios.delete(`${BASE}/vendors/$
 // Inventory
 const getInventoryProducts = async (token) => (await axios.get(`${BASE}/inventory/products`, getAuthConfig(token))).data
 const createInventoryProduct = async (token, payload) => (await axios.post(`${BASE}/inventory/products`, payload, getAuthConfig(token))).data
+const updateInventoryProduct = async (token, id, payload) => (await axios.put(`${BASE}/inventory/products/${id}`, payload, getAuthConfig(token))).data
+const deleteInventoryProduct = async (token, id) => (await axios.delete(`${BASE}/inventory/products/${id}`, getAuthConfig(token))).data
 const stockInInventory = async (token, payload) => (await axios.post(`${BASE}/inventory/stock-in`, payload, getAuthConfig(token))).data
 const stockOutInventory = async (token, payload) => (await axios.post(`${BASE}/inventory/stock-out`, payload, getAuthConfig(token))).data
 const getStockLedger = async (token) => (await axios.get(`${BASE}/inventory/stock-ledger`, getAuthConfig(token))).data
@@ -121,13 +140,23 @@ const erpAccountingAPI = {
   updateReportBranding,
   getMetalRates,
   updateMetalRates,
+  getDirectDeals,
+  createDirectDeal,
+  updateDirectDeal,
+  deleteDirectDeal,
   getTransactions,
   createTransaction,
   updateTransaction,
   deleteTransaction,
   submitTransaction,
   approveTransaction,
+  returnTransaction,
+  rejectTransaction,
   postTransaction,
+  addTransactionComment,
+  uploadTransactionAttachment,
+  deleteTransactionAttachment,
+  bulkTransactionAction,
   getTransactionSourceByLedger,
   getVendors,
   getVendorDetails,
@@ -144,6 +173,8 @@ const erpAccountingAPI = {
   deleteVendor,
   getInventoryProducts,
   createInventoryProduct,
+  updateInventoryProduct,
+  deleteInventoryProduct,
   stockInInventory,
   stockOutInventory,
   getStockLedger,

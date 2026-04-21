@@ -1,4 +1,7 @@
+const fs = require('fs')
+const path = require('path')
 const express = require('express')
+const multer = require('multer')
 const { protect } = require('../middleware/auth')
 const Ledger = require('../models/Ledger')
 const ChartOfAccount = require('../models/ChartOfAccount')
@@ -11,6 +14,7 @@ const StockMovement = require('../models/StockMovement')
 const Supplier = require('../models/Supplier')
 const Vendor = require('../models/Vendor')
 const Transaction = require('../models/Transaction')
+const DirectDeal = require('../models/DirectDeal')
 const Employee = require('../models/Employee')
 const Customer = require('../models/Customer')
 
@@ -20,6 +24,7 @@ const router = express.Router()
 // ROLE-BASED ACCESS CONTROL
 // ==========================================
 const isSuperAdmin = (user) => user?.role === 'super_admin'
+const isDepartmentHead = (user) => user?.role === 'department_head'
 const isFinance = (user) => user?.role === 'super_admin' || (user?.role === 'department_head' && (user?.department || '').toLowerCase() === 'finance')
 const isSales = (user) => user?.role === 'super_admin' || user?.role === 'management' || (user?.role === 'department_head' && (user?.department || '').toLowerCase() === 'sales')
 const isOperations = (user) => user?.role === 'super_admin' || (user?.role === 'department_head' && (user?.department || '').toLowerCase() === 'operations')
@@ -39,6 +44,7 @@ const canViewAccounts = (user) => isSuperAdmin(user) || isFinance(user)
 const canManageAccounts = (user) => isSuperAdmin(user) || isFinance(user)
 const canViewMappings = (user) => isSuperAdmin(user) || isFinance(user)
 const canManageMappings = (user) => isSuperAdmin(user) || isFinance(user)
+const canViewAccountSummary = (user) => isSuperAdmin(user) || isFinance(user) || isDepartmentHead(user)
 
 // Ledger (Finance and Department-level transaction posting)
 const canViewLedger = (user) => isSuperAdmin(user) || isFinance(user)
@@ -59,12 +65,285 @@ const canAccessVendors = (user) => isSuperAdmin(user) || isFinance(user) || isOp
 const canManageVendors = (user) => isSuperAdmin(user) || isFinance(user)
 const canUpdateVendorOperational = (user) => isSuperAdmin(user) || isFinance(user) || isOperations(user)
 const canAccessInventory = (user) => isSuperAdmin(user) || isFinance(user) || isOperations(user) || isProduction(user)
+const canAccessTransactions = (user) => isSuperAdmin(user) || isFinance(user) || isSales(user) || isOperations(user) || isProduction(user) || isHR(user)
+const canAccessDirectDeals = (user) => isSuperAdmin(user) || isFinance(user) || isSales(user)
+const canManageDirectDeals = (user) => isSuperAdmin(user) || isFinance(user) || isSales(user)
+
+const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
+const TRANSACTION_STATUSES = ['draft', 'submitted', 'approved', 'posted', 'returned', 'rejected']
 
 const toMoney = (value) => Number(Number(value || 0).toFixed(2))
+const toQty = (value) => Number(Number(value || 0).toFixed(6))
+
+const sanitizeOptionalRef = (value) => (value ? value : null)
+
+const nextDirectDealDocNo = async () => {
+  const year = new Date().getFullYear()
+  const prefix = `ORD/${year}/`
+  const latest = await DirectDeal.findOne({ docNo: new RegExp(`^${prefix}`) })
+    .sort({ createdAt: -1 })
+    .select('docNo')
+    .lean()
+
+  const seq = Number((latest?.docNo || '').split('/').pop() || 0) + 1
+  return `${prefix}${String(seq).padStart(6, '0')}`
+}
+
+const getRoleTransactionTypes = (user) => {
+  if (isSuperAdmin(user) || isFinance(user)) return TRANSACTION_TYPES
+  if (isSales(user)) return ['sale', 'receipt']
+  if (isOperations(user) || isProduction(user)) return ['purchase', 'expense']
+  if (isHR(user)) return ['payroll']
+  return []
+}
+
+const getMappedAccountIds = async (user) => {
+  const dept = String(user?.department || '').trim().toLowerCase()
+  const mappings = await AccountMapping.find({ isActive: true })
+    .select('debitAccountId creditAccountId department')
+    .populate('debitAccountId', 'department')
+    .populate('creditAccountId', 'department')
+    .lean()
+
+  const canIncludeAccount = (account) => {
+    if (!account) return false
+    const accountDept = String(account.department || '').trim().toLowerCase()
+    if (!dept) return true
+    return !accountDept || accountDept === dept
+  }
+
+  const ids = new Set()
+  mappings.forEach((mapping) => {
+    const mappingDept = String(mapping.department || '').trim().toLowerCase()
+    const mappingMatchesDepartment = !dept || !mappingDept || mappingDept === dept
+    const useAccountFallback = !mappingDept
+    if (!mappingMatchesDepartment) return
+    if (canIncludeAccount(mapping.debitAccountId) || (useAccountFallback && canIncludeAccount(mapping.debitAccountId))) {
+      ids.add(String(mapping.debitAccountId._id || mapping.debitAccountId))
+    }
+    if (canIncludeAccount(mapping.creditAccountId) || (useAccountFallback && canIncludeAccount(mapping.creditAccountId))) {
+      ids.add(String(mapping.creditAccountId._id || mapping.creditAccountId))
+    }
+  })
+  return Array.from(ids)
+}
+
+const getAccountSummaryScope = async (user) => {
+  if (isSuperAdmin(user) || isFinance(user)) return null
+  if (isDepartmentHead(user)) return await getMappedAccountIds(user)
+  return []
+}
+
+const validateTransactionPayload = (payload) => {
+  if (!TRANSACTION_TYPES.includes(String(payload.type || ''))) {
+    return 'Invalid transaction type'
+  }
+
+  const amount = Number(payload.amount)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return 'Amount must be greater than zero'
+  }
+
+  if (['sale', 'receipt'].includes(payload.type) && !payload.customerId) {
+    return 'Customer is required for sales and receipts'
+  }
+
+  if (['purchase', 'payment'].includes(payload.type) && !payload.vendorId) {
+    return 'Vendor is required for purchases and payments'
+  }
+
+  return ''
+}
+
+const normalizeTransactionNote = (value) => String(value || '').trim()
+
+const appendTransactionComment = (transaction, user, message, kind = 'comment') => {
+  const note = normalizeTransactionNote(message)
+  if (!note) return
+  transaction.comments.push({
+    message: note,
+    kind,
+    createdBy: user._id,
+    createdAt: new Date(),
+  })
+}
+
+const appendTransactionAudit = (transaction, user, action, options = {}) => {
+  transaction.auditTrail.push({
+    action,
+    fromStatus: options.fromStatus || '',
+    toStatus: options.toStatus || '',
+    comment: normalizeTransactionNote(options.comment),
+    actorId: user._id,
+    createdAt: new Date(),
+  })
+}
+
+const getTransactionWorkflowErrorStatus = (message) => {
+  if (/Only Admin\/Finance|Forbidden/i.test(message || '')) return 403
+  if (/not found/i.test(message || '')) return 404
+  if (/Only draft|Only submitted|must be approved|required|greater than zero|Credit limit exceeded|Invalid|Unable to resolve|returned|rejected/i.test(message || '')) return 400
+  return 500
+}
+
+const transactionUploadDir = path.resolve(process.env.TRANSACTION_UPLOAD_DIR || path.join(__dirname, '../uploads/transactions'))
+fs.mkdirSync(transactionUploadDir, { recursive: true })
+
+const transactionUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, transactionUploadDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || '')
+      const base = path.basename(file.originalname || 'attachment', ext).replace(/[^a-zA-Z0-9-_]+/g, '-').slice(0, 48) || 'attachment'
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${base}${ext}`)
+    },
+  }),
+  limits: { fileSize: Number(process.env.TRANSACTION_ATTACHMENT_MAX_BYTES || 10 * 1024 * 1024) },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [
+      'application/pdf',
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+      'text/plain',
+      'text/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ]
+    if (allowed.includes(file.mimetype)) return cb(null, true)
+    cb(new Error('Unsupported attachment type'))
+  },
+})
+
+const buildTransactionAttachment = (file, user) => {
+  const relativePath = `/uploads/transactions/${file.filename}`
+  const backendBaseUrl = process.env.SERVER_BASE_URL || `http://localhost:${process.env.PORT || 5000}`
+  return {
+    originalName: file.originalname,
+    fileName: file.filename,
+    relativePath,
+    url: `${backendBaseUrl}${relativePath}`,
+    mimeType: file.mimetype || 'application/octet-stream',
+    size: Number(file.size || 0),
+    uploadedBy: user._id,
+    uploadedAt: new Date(),
+  }
+}
+
+const populateTransactionQuery = (query) => query
+  .populate('customerId', 'name')
+  .populate('vendorId', 'name')
+  .populate('inventoryItemId', 'name sku')
+  .populate('debitAccountId', 'accountCode accountName')
+  .populate('creditAccountId', 'accountCode accountName')
+  .populate('mappingId', 'mappingType description')
+  .populate('createdBy', 'name')
+  .populate('approvedBy', 'name')
+  .populate('postedBy', 'name')
+  .populate('attachments.uploadedBy', 'name')
+  .populate('comments.createdBy', 'name')
+  .populate('auditTrail.actorId', 'name')
+
+const applyTransactionWorkflowAction = async (tx, user, action, options = {}) => {
+  const note = normalizeTransactionNote(options.comment)
+  const fromStatus = tx.status
+
+  if (action === 'submit') {
+    if (!['draft', 'returned', 'rejected'].includes(tx.status)) throw new Error('Only draft, returned, or rejected transactions can be submitted')
+    tx.status = 'submitted'
+    tx.updatedBy = user._id
+    appendTransactionComment(tx, user, note, 'submit_note')
+    appendTransactionAudit(tx, user, 'submit', { fromStatus, toStatus: 'submitted', comment: note })
+    await tx.save()
+    return { transaction: tx }
+  }
+
+  if (action === 'approve') {
+    if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can approve transactions')
+    if (tx.status !== 'submitted') throw new Error('Only submitted transactions can be approved')
+    tx.status = 'approved'
+    tx.approvedBy = user._id
+    tx.updatedBy = user._id
+    appendTransactionComment(tx, user, note, 'approval_note')
+    appendTransactionAudit(tx, user, 'approve', { fromStatus, toStatus: 'approved', comment: note })
+    await tx.save()
+    return { transaction: tx }
+  }
+
+  if (action === 'return') {
+    if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can return transactions for edit')
+    if (!['submitted', 'approved'].includes(tx.status)) throw new Error('Only submitted or approved transactions can be returned for edit')
+    if (!note) throw new Error('Return reason is required')
+    tx.status = 'returned'
+    tx.updatedBy = user._id
+    appendTransactionComment(tx, user, note, 'return_note')
+    appendTransactionAudit(tx, user, 'return', { fromStatus, toStatus: 'returned', comment: note })
+    await tx.save()
+    return { transaction: tx }
+  }
+
+  if (action === 'reject') {
+    if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can reject transactions')
+    if (!['submitted', 'approved', 'returned'].includes(tx.status)) throw new Error('Only submitted, approved, or returned transactions can be rejected')
+    if (!note) throw new Error('Rejection reason is required')
+    tx.status = 'rejected'
+    tx.updatedBy = user._id
+    appendTransactionComment(tx, user, note, 'reject_note')
+    appendTransactionAudit(tx, user, 'reject', { fromStatus, toStatus: 'rejected', comment: note })
+    await tx.save()
+    return { transaction: tx }
+  }
+
+  if (action === 'post') {
+    if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can post transactions')
+    if (!['approved', 'submitted'].includes(tx.status)) throw new Error('Transaction must be approved/submitted before posting')
+
+    if (tx.type === 'sale' && tx.customerId) {
+      const customer = await Customer.findById(tx.customerId)
+      if (customer && Number(customer.creditLimit || 0) > 0 && customer.ledgerAccountId) {
+        const currentOutstanding = await getOutstandingForAccount(customer.ledgerAccountId)
+        const projected = Number(currentOutstanding || 0) + Number(tx.amount || 0)
+        if (projected > Number(customer.creditLimit || 0)) {
+          throw new Error(`Credit limit exceeded for customer ${customer.name}`)
+        }
+      }
+    }
+
+    const resolved = await resolveTransactionAccounts({ user, tx, mappingOverride: options.mappingOverride || {} })
+    tx.debitAccountId = resolved.debitAccountId
+    tx.creditAccountId = resolved.creditAccountId
+
+    const ledgerEntry = await createLedgerFromTransaction({
+      user,
+      transaction: tx,
+      referenceType: tx.type,
+    })
+
+    tx.journalEntryId = ledgerEntry._id
+    tx.status = 'posted'
+    tx.postedBy = user._id
+    tx.updatedBy = user._id
+    appendTransactionComment(tx, user, note, 'posting_note')
+    appendTransactionAudit(tx, user, 'post', { fromStatus, toStatus: 'posted', comment: note })
+    await tx.save()
+    return { transaction: tx, ledgerEntry }
+  }
+
+  throw new Error('Unsupported transaction action')
+}
 
 // Customers
 const canViewCustomers = (user) => isSuperAdmin(user) || isFinance(user) || isSales(user)
 const canManageCustomers = (user) => isSuperAdmin(user) || isFinance(user) || isSales(user)
+
+const parsePagination = (query, defaultLimit = 25, maxLimit = 100) => {
+  const page = Math.max(1, Number(query.page) || 1)
+  const limit = Math.min(maxLimit, Math.max(1, Number(query.limit) || defaultLimit))
+  const skip = (page - 1) * limit
+  return { page, limit, skip }
+}
 
 const DEFAULT_METAL_RATES = {
   goldPrice: 285,
@@ -639,9 +918,16 @@ router.get('/customers', protect, async (req, res) => {
   try {
     if (!canViewCustomers(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
-    const customers = await Customer.find({ isActive: true })
+    const { page, limit, skip } = parsePagination(req.query, 25, 100)
+
+    const [customers, total] = await Promise.all([
+      Customer.find({ isActive: true })
       .populate('ledgerAccountId', 'accountName accountCode accountType')
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+      Customer.countDocuments({ isActive: true }),
+    ])
 
     const data = await Promise.all(
       customers.map(async (customer) => {
@@ -654,7 +940,7 @@ router.get('/customers', protect, async (req, res) => {
       })
     )
 
-    res.json({ success: true, customers: data })
+    res.json({ success: true, customers: data, total, page, limit })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -755,7 +1041,7 @@ router.post('/customers', protect, async (req, res) => {
 
     res.status(201).json({ success: true, customer })
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message || 'Server error' })
+    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
   }
 })
 
@@ -811,9 +1097,27 @@ router.delete('/customers/:id', protect, async (req, res) => {
 // ==========================================
 router.get('/accounts', protect, async (req, res) => {
   try {
-    if (!canViewAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const accounts = await ChartOfAccount.find({ isActive: true }).populate('parentAccountId', 'accountName accountCode')
-    res.json({ success: true, accounts })
+    const isSummaryScope = String(req.query.scope || '').trim().toLowerCase() === 'summary'
+    if (!canViewAccounts(req.user) && !(isSummaryScope && canViewAccountSummary(req.user))) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+    const { page, limit, skip } = parsePagination(req.query, 50, 200)
+    const query = { isActive: true }
+    if (isSummaryScope) {
+      const scopedIds = await getAccountSummaryScope(req.user)
+      if (Array.isArray(scopedIds)) {
+        query._id = { $in: scopedIds }
+      }
+    }
+    const [accounts, total] = await Promise.all([
+      ChartOfAccount.find(query)
+        .populate('parentAccountId', 'accountName accountCode')
+        .sort({ accountCode: 1 })
+        .skip(skip)
+        .limit(limit),
+      ChartOfAccount.countDocuments(query),
+    ])
+    res.json({ success: true, accounts, total, page, limit })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -821,25 +1125,31 @@ router.get('/accounts', protect, async (req, res) => {
 
 router.get('/accounts/enquiry', protect, async (req, res) => {
   try {
-    if (!canViewAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    if (!canViewAccountSummary(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
     const accountCode = String(req.query.accountCode || '').trim()
     if (!accountCode) {
       return res.status(400).json({ success: false, message: 'Account number is required' })
     }
 
-    const account = await ChartOfAccount.findOne({ accountCode, isActive: true })
+    const scopedIds = await getAccountSummaryScope(req.user)
+    const accountQuery = { accountCode, isActive: true }
+    if (Array.isArray(scopedIds)) {
+      accountQuery._id = { $in: scopedIds }
+    }
+
+    const account = await ChartOfAccount.findOne(accountQuery)
     if (!account) {
       return res.status(404).json({ success: false, message: 'Account not found' })
     }
 
     const [debitAgg, creditAgg] = await Promise.all([
       Ledger.aggregate([
-        { $match: { debitAccountId: account._id } },
+        { $match: { debitAccountId: account._id, isDeleted: { $ne: true } } },
         { $group: { _id: null, total: { $sum: '$amount' } } },
       ]),
       Ledger.aggregate([
-        { $match: { creditAccountId: account._id } },
+        { $match: { creditAccountId: account._id, isDeleted: { $ne: true } } },
         { $group: { _id: null, total: { $sum: '$amount' } } },
       ]),
     ])
@@ -872,6 +1182,95 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     const goldBalance = rates.goldPrice > 0 ? convertedToRateCurrency / rates.goldPrice : 0
     const silverBalance = rates.silverPrice > 0 ? convertedToRateCurrency / rates.silverPrice : 0
 
+    const ledgerEntries = await Ledger.find({
+      isDeleted: { $ne: true },
+      $or: [{ debitAccountId: account._id }, { creditAccountId: account._id }],
+    })
+      .populate('debitAccountId', 'accountCode accountName')
+      .populate('creditAccountId', 'accountCode accountName')
+      .populate('createdBy', 'name')
+      .sort({ date: -1, createdAt: -1 })
+      .limit(12)
+
+    const ledgerIds = ledgerEntries.map((entry) => entry._id)
+    const referenceIds = ledgerEntries.map((entry) => entry.referenceId).filter(Boolean)
+    const linkedTransactions = await Transaction.find({
+      isDeleted: { $ne: true },
+      $or: [
+        { journalEntryId: { $in: ledgerIds } },
+        { _id: { $in: referenceIds } },
+      ],
+    })
+      .select('_id journalEntryId')
+      .lean()
+
+    const transactionByLedgerId = new Map()
+    const transactionById = new Map()
+    linkedTransactions.forEach((tx) => {
+      if (tx.journalEntryId) transactionByLedgerId.set(String(tx.journalEntryId), String(tx._id))
+      transactionById.set(String(tx._id), String(tx._id))
+    })
+
+    let runningBalance = netBalance
+    const statementEntries = ledgerEntries.map((entry) => {
+      const isDebitEntry = String(entry.debitAccountId?._id || entry.debitAccountId) === String(account._id)
+      const signedAmount = isDebitEntry ? Number(entry.amount || 0) : -Number(entry.amount || 0)
+      const row = {
+        _id: entry._id,
+        date: entry.date,
+        description: entry.description || entry.notes || '',
+        referenceType: entry.referenceType || 'journal',
+        department: entry.department || '',
+        currency: entry.currency || accountCurrencyCode,
+        exchangeRate: Number(entry.exchangeRate || 1),
+        debitAmount: isDebitEntry ? Number(entry.amount || 0) : 0,
+        creditAmount: isDebitEntry ? 0 : Number(entry.amount || 0),
+        signedAmount,
+        runningBalance,
+        currentValue: Number(runningBalance || 0) * Number(entry.exchangeRate || exchangeRateToBase || 1),
+        limitValue: Number(account.openingBalance || 0),
+        offsetAccountCode: isDebitEntry ? (entry.creditAccountId?.accountCode || '') : (entry.debitAccountId?.accountCode || ''),
+        offsetAccountName: isDebitEntry ? (entry.creditAccountId?.accountName || '') : (entry.debitAccountId?.accountName || ''),
+        createdBy: entry.createdBy?.name || '',
+        sourceTransactionId: transactionByLedgerId.get(String(entry._id)) || transactionById.get(String(entry.referenceId || '')) || '',
+      }
+      runningBalance -= signedAmount
+      return row
+    })
+
+    const positions = [
+      {
+        key: 'base-currency',
+        type: 'Base Currency',
+        limitValue: Number(account.openingBalance || 0),
+        balance: Number(Math.abs(netBalance) || 0),
+        price: 1,
+        currentValue: Number(convertedToRateCurrency || 0),
+        valueCurrency: rates.priceCurrency,
+        unit: accountCurrencyCode,
+      },
+      {
+        key: 'gold',
+        type: 'Gold Equivalent',
+        limitValue: 0,
+        balance: Number(goldBalance || 0),
+        price: Number(rates.goldPrice || 0),
+        currentValue: Number(convertedToRateCurrency || 0),
+        valueCurrency: rates.priceCurrency,
+        unit: 'gram',
+      },
+      {
+        key: 'silver',
+        type: 'Silver Equivalent',
+        limitValue: 0,
+        balance: Number(silverBalance || 0),
+        price: Number(rates.silverPrice || 0),
+        currentValue: Number(convertedToRateCurrency || 0),
+        valueCurrency: rates.priceCurrency,
+        unit: 'gram',
+      },
+    ]
+
     res.json({
       success: true,
       account: {
@@ -883,6 +1282,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         department: account.department || '',
         isActive: account.isActive,
         description: account.description || '',
+        openingBalance: Number(account.openingBalance || 0),
       },
       balances: {
         debitTotal,
@@ -901,6 +1301,12 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         goldBalance,
         silverBalance,
       },
+      statement: {
+        limitValue: Number(account.openingBalance || 0),
+        entryCount: statementEntries.length,
+        entries: statementEntries,
+      },
+      positions,
     })
   } catch (e) {
     console.error('Account enquiry error:', e)
@@ -937,10 +1343,14 @@ router.put('/accounts/:id', protect, async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const updates = {}
-    const allowedFields = ['accountName', 'description', 'isActive', 'currency', 'department']
+    const allowedFields = ['accountName', 'description', 'isActive', 'currency', 'department', 'parentAccountId']
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field]
     })
+    // Allow explicitly clearing the parent (move to root)
+    if (Object.prototype.hasOwnProperty.call(req.body, 'parentAccountId') && req.body.parentAccountId === null) {
+      updates.parentAccountId = null
+    }
     const account = await ChartOfAccount.findByIdAndUpdate(req.params.id, updates, { new: true })
     if (!account) return res.status(404).json({ success: false, message: 'Account not found' })
     res.json({ success: true, account })
@@ -967,6 +1377,7 @@ router.get('/ledger', protect, async (req, res) => {
   try {
     if (!canViewLedger(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { startDate, endDate, accountId, department, referenceType, limit = 500 } = req.query
+    const safeLimit = Math.min(500, Math.max(1, Number(limit) || 500))
     const query = {}
     if (startDate || endDate) {
       query.date = {}
@@ -987,8 +1398,8 @@ router.get('/ledger', protect, async (req, res) => {
       .populate('creditAccountId', 'accountName accountCode')
       .populate('createdBy', 'name')
       .sort({ date: -1 })
-      .limit(Number(limit))
-    res.json({ success: true, count: entries.length, entries })
+      .limit(safeLimit)
+    res.json({ success: true, count: entries.length, limit: safeLimit, entries })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -1088,9 +1499,22 @@ router.delete('/ledger/:id', protect, async (req, res) => {
 router.get('/mappings', protect, async (req, res) => {
   try {
     if (!canViewMappings(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const mappings = await AccountMapping.find({ isActive: true })
-      .populate('debitAccountId', 'accountName accountCode')
-      .populate('creditAccountId', 'accountName accountCode')
+    const { page, limit, skip } = parsePagination(req.query, 25, 100)
+    const department = String(req.query.department || '').trim().toLowerCase()
+    const query = { isActive: true }
+    if (department) {
+      query.department = department
+    }
+    const [mappings, total, summaryDocs] = await Promise.all([
+      AccountMapping.find(query)
+        .populate('debitAccountId', 'accountName accountCode department')
+        .populate('creditAccountId', 'accountName accountCode department')
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      AccountMapping.countDocuments(query),
+      AccountMapping.find({ isActive: true }).select('department').lean(),
+    ])
     
     // Count usage for each mapping
     const mappingsWithUsage = await Promise.all(
@@ -1108,7 +1532,17 @@ router.get('/mappings', protect, async (req, res) => {
       })
     )
     
-    res.json({ success: true, mappings: mappingsWithUsage })
+    const summary = { total: summaryDocs.length, shared: 0, byDepartment: {} }
+    summaryDocs.forEach((doc) => {
+      const key = String(doc.department || '').trim().toLowerCase()
+      if (!key) {
+        summary.shared += 1
+      } else {
+        summary.byDepartment[key] = (summary.byDepartment[key] || 0) + 1
+      }
+    })
+
+    res.json({ success: true, mappings: mappingsWithUsage, total, page, limit, summary })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -1117,9 +1551,9 @@ router.get('/mappings', protect, async (req, res) => {
 router.post('/mappings', protect, async (req, res) => {
   try {
     if (!canManageMappings(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const { mappingType, debitAccountId, creditAccountId, description } = req.body
+    const { mappingType, debitAccountId, creditAccountId, description, department } = req.body
     if (!mappingType || !debitAccountId || !creditAccountId) return res.status(400).json({ success: false, message: 'Required fields missing' })
-    const mapping = await AccountMapping.create({ mappingType, debitAccountId, creditAccountId, description })
+    const mapping = await AccountMapping.create({ mappingType, debitAccountId, creditAccountId, description, department: String(department || '').trim().toLowerCase() })
     res.status(201).json({ success: true, mapping })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
@@ -1130,10 +1564,11 @@ router.put('/mappings/:id', protect, async (req, res) => {
   try {
     if (!canManageMappings(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const updates = {}
-    const allowedFields = ['mappingType', 'debitAccountId', 'creditAccountId', 'description', 'isActive']
+    const allowedFields = ['mappingType', 'debitAccountId', 'creditAccountId', 'description', 'department', 'isActive']
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field]
     })
+    if (updates.department !== undefined) updates.department = String(updates.department || '').trim().toLowerCase()
     const mapping = await AccountMapping.findByIdAndUpdate(req.params.id, updates, { new: true })
     if (!mapping) return res.status(404).json({ success: false, message: 'Mapping not found' })
     res.json({ success: true, mapping })
@@ -1158,8 +1593,12 @@ router.delete('/mappings/:id', protect, async (req, res) => {
 // ==========================================
 router.get('/currencies', protect, async (req, res) => {
   try {
-    const currencies = await Currency.find({ isActive: true })
-    res.json({ success: true, currencies })
+    const { page, limit, skip } = parsePagination(req.query, 25, 100)
+    const [currencies, total] = await Promise.all([
+      Currency.find({ isActive: true }).sort({ code: 1 }).skip(skip).limit(limit),
+      Currency.countDocuments({ isActive: true }),
+    ])
+    res.json({ success: true, currencies, total, page, limit })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -1346,6 +1785,8 @@ router.get('/vendors', protect, async (req, res) => {
   try {
     if (!canAccessVendors(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
+    const { page, limit, skip } = parsePagination(req.query, 25, 100)
+
     const includeInactive = String(req.query.includeInactive || 'false').toLowerCase() === 'true'
     const search = String(req.query.search || '').trim()
     const status = String(req.query.status || '').trim()
@@ -1369,9 +1810,14 @@ router.get('/vendors', protect, async (req, res) => {
       ]
     }
 
-    const vendors = await Vendor.find(query)
-      .populate('ledgerAccountId', 'accountCode accountName accountType')
-      .sort({ createdAt: -1 })
+    const [vendors, total] = await Promise.all([
+      Vendor.find(query)
+        .populate('ledgerAccountId', 'accountCode accountName accountType')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Vendor.countDocuments(query),
+    ])
 
     const data = await Promise.all(vendors.map(async (vendor) => {
       const summary = await buildVendorSummary(vendor)
@@ -1397,6 +1843,9 @@ router.get('/vendors', protect, async (req, res) => {
     res.json({
       success: true,
       vendors: data,
+      total,
+      page,
+      limit,
       summary: {
         totalVendors: totals.count,
         totalOutstanding: toMoney(totals.outstanding),
@@ -1422,11 +1871,20 @@ router.get('/vendors/compliance-summary', protect, async (req, res) => {
   try {
     if (!canAccessVendors(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
+    const { page, limit, skip } = parsePagination(req.query, 25, 100)
+
     const includeInactive = String(req.query.includeInactive || 'false').toLowerCase() === 'true'
     const query = { deletedAt: null }
     if (!includeInactive) query.isActive = true
 
-    const vendors = await Vendor.find(query).select('name vendorCode category approvalStatus status documents')
+    const [vendors, total] = await Promise.all([
+      Vendor.find(query)
+        .select('name vendorCode category approvalStatus status documents')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Vendor.countDocuments(query),
+    ])
 
     const complianceRows = vendors.map((vendor) => {
       const compliance = evaluateVendorCompliance(vendor)
@@ -1458,6 +1916,9 @@ router.get('/vendors/compliance-summary', protect, async (req, res) => {
     res.json({
       success: true,
       rules: REQUIRED_VENDOR_DOCUMENTS_BY_CATEGORY,
+      total,
+      page,
+      limit,
       summary,
       expiryBuckets: expiry.buckets,
       atRisk: complianceRows
@@ -1475,8 +1936,16 @@ router.get('/vendors/alerts/overdue-queue', protect, async (req, res) => {
     if (!canAccessVendors(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
     const horizonDays = Number(req.query.horizonDays || 120)
-    const vendors = await Vendor.find({ isActive: true, deletedAt: null })
-      .select('name vendorCode email contactPerson paymentTermsDays currency approvalStatus status ledgerAccountId')
+    const { page, limit, skip } = parsePagination(req.query, 25, 100)
+    const vendorQuery = { isActive: true, deletedAt: null }
+    const [vendors, totalVendors] = await Promise.all([
+      Vendor.find(vendorQuery)
+        .select('name vendorCode email contactPerson paymentTermsDays currency approvalStatus status ledgerAccountId')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Vendor.countDocuments(vendorQuery),
+    ])
 
     const queue = []
 
@@ -1540,7 +2009,7 @@ router.get('/vendors/alerts/overdue-queue', protect, async (req, res) => {
       return acc
     }, { total: 0, withRecipient: 0, critical: 0, totalAmountDue: 0 })
 
-    res.json({ success: true, summary, queue })
+    res.json({ success: true, summary, queue, page, limit, totalVendors })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -1916,8 +2385,17 @@ router.get('/vendors/payment-calendar', protect, async (req, res) => {
     const horizonDays = Number(req.query.horizonDays || 45)
     const startDate = req.query.startDate ? new Date(req.query.startDate) : null
     const endDate = req.query.endDate ? new Date(req.query.endDate) : null
+    const { page, limit, skip } = parsePagination(req.query, 25, 100)
 
-    const vendors = await Vendor.find({ isActive: true, deletedAt: null }).select('name vendorCode paymentTermsDays currency status approvalStatus')
+    const vendorQuery = { isActive: true, deletedAt: null }
+    const [vendors, totalVendors] = await Promise.all([
+      Vendor.find(vendorQuery)
+        .select('name vendorCode paymentTermsDays currency status approvalStatus')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Vendor.countDocuments(vendorQuery),
+    ])
     const rows = []
     for (let i = 0; i < vendors.length; i += 1) {
       const vendor = vendors[i]
@@ -1941,7 +2419,7 @@ router.get('/vendors/payment-calendar', protect, async (req, res) => {
       return acc
     }, { overdue: 0, due_soon: 0, upcoming: 0, later: 0, totalDue: 0 })
 
-    res.json({ success: true, rows, alerts })
+    res.json({ success: true, rows, alerts, page, limit, totalVendors })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -1977,10 +2455,17 @@ router.delete('/vendors/:id', protect, async (req, res) => {
 router.get('/inventory/products', protect, async (req, res) => {
   try {
     if (!canAccessInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const products = await InventoryItem.find({ isDeleted: { $ne: true } })
-      .populate('ledgerAccountId', 'accountCode accountName')
-      .sort({ updatedAt: -1 })
-    res.json({ success: true, products })
+    const { page, limit, skip } = parsePagination(req.query, 25, 100)
+    const query = { isDeleted: { $ne: true } }
+    const [products, total] = await Promise.all([
+      InventoryItem.find(query)
+        .populate('ledgerAccountId', 'accountCode accountName')
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      InventoryItem.countDocuments(query),
+    ])
+    res.json({ success: true, products, total, page, limit })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -2140,13 +2625,296 @@ router.post('/inventory/stock-out', protect, async (req, res) => {
   }
 })
 
+router.put('/inventory/products/:id', protect, async (req, res) => {
+  try {
+    if (!canAccessInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const product = await InventoryItem.findById(req.params.id)
+    if (!product || product.isDeleted) return res.status(404).json({ success: false, message: 'Product not found' })
+
+    const { sku, name, category, unit, unitCost, sellingPrice } = req.body
+    if (name !== undefined) product.name = name
+    if (sku !== undefined) product.sku = sku
+    if (category !== undefined) product.category = category
+    if (unit !== undefined) product.unit = unit
+    if (unitCost !== undefined) product.unitCost = Number(unitCost || 0)
+    if (sellingPrice !== undefined) product.sellingPrice = Number(sellingPrice || 0)
+    product.updatedBy = req.user._id
+    await product.save()
+
+    res.json({ success: true, product })
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message || 'Server error' })
+  }
+})
+
+router.delete('/inventory/products/:id', protect, async (req, res) => {
+  try {
+    if (!(isSuperAdmin(req.user) || isFinance(req.user))) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const product = await InventoryItem.findById(req.params.id)
+    if (!product || product.isDeleted) return res.status(404).json({ success: false, message: 'Product not found' })
+
+    if (Number(product.quantity || 0) > 0) {
+      return res.status(400).json({ success: false, message: 'Cannot delete a product with stock on hand. Reduce stock to zero first.' })
+    }
+
+    product.isDeleted = true
+    product.updatedBy = req.user._id
+    await product.save()
+
+    res.json({ success: true, message: 'Product deleted' })
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message || 'Server error' })
+  }
+})
+
 router.get('/inventory/stock-ledger', protect, async (req, res) => {
   try {
     if (!canAccessInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const movements = await StockMovement.find({}).sort({ createdAt: -1 }).limit(500)
-    res.json({ success: true, movements })
+    const { page, limit, skip } = parsePagination(req.query, 50, 200)
+    const [movements, total] = await Promise.all([
+      StockMovement.find({}).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      StockMovement.countDocuments({}),
+    ])
+    res.json({ success: true, movements, total, page, limit })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+// ==========================================
+// DIRECT DEALS MODULE (FIXING / NON-FIXING)
+// ==========================================
+router.get('/direct-deals', protect, async (req, res) => {
+  try {
+    if (!canAccessDirectDeals(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+
+    const { page, limit, skip } = parsePagination(req.query, 25, 100)
+    const query = { isDeleted: { $ne: true } }
+
+    if (req.query.entryType && ['fixing', 'non_fixing'].includes(String(req.query.entryType))) {
+      query.entryType = String(req.query.entryType)
+    }
+    if (req.query.status && ['draft', 'confirmed'].includes(String(req.query.status))) {
+      query.status = String(req.query.status)
+    }
+    if (req.query.startDate || req.query.endDate) {
+      query.docDate = {}
+      if (req.query.startDate) query.docDate.$gte = new Date(req.query.startDate)
+      if (req.query.endDate) {
+        const end = new Date(req.query.endDate)
+        end.setHours(23, 59, 59, 999)
+        query.docDate.$lte = end
+      }
+    }
+    if (req.query.search) {
+      const rx = new RegExp(String(req.query.search).trim(), 'i')
+      query.$or = [
+        { docNo: rx },
+        { remarks: rx },
+        { 'lineItems.customerName': rx },
+        { 'lineItems.customerCode': rx },
+        { 'lineItems.metal': rx },
+      ]
+    }
+
+    const [deals, total] = await Promise.all([
+      DirectDeal.find(query)
+        .populate('createdBy', 'name')
+        .populate('updatedBy', 'name')
+        .populate('lineItems.customerId', 'name code')
+        .sort({ docDate: -1, updatedAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      DirectDeal.countDocuments(query),
+    ])
+
+    const summary = deals.reduce((acc, deal) => {
+      acc.totalQty = toQty(acc.totalQty + Number(deal.totalQty || 0))
+      acc.totalAmount = toMoney(acc.totalAmount + Number(deal.totalAmount || 0))
+      acc.fixing = acc.fixing + (deal.entryType === 'fixing' ? 1 : 0)
+      acc.nonFixing = acc.nonFixing + (deal.entryType === 'non_fixing' ? 1 : 0)
+      return acc
+    }, { totalQty: 0, totalAmount: 0, fixing: 0, nonFixing: 0 })
+
+    res.json({ success: true, deals, total, page, limit, summary, permissions: { canManage: canManageDirectDeals(req.user) } })
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message || 'Server error' })
+  }
+})
+
+router.post('/direct-deals', protect, async (req, res) => {
+  try {
+    if (!canManageDirectDeals(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+
+    const {
+      docNo,
+      entryType = 'fixing',
+      docDate,
+      valueDate,
+      currency = 'AED',
+      branch = 'HO',
+      status = 'draft',
+      remarks = '',
+      lineItems = [],
+    } = req.body || {}
+
+    if (!['fixing', 'non_fixing'].includes(String(entryType))) {
+      return res.status(400).json({ success: false, message: 'Entry type must be fixing or non_fixing' })
+    }
+    if (!Array.isArray(lineItems) || !lineItems.length) {
+      return res.status(400).json({ success: false, message: 'At least one line item is required' })
+    }
+
+    const normalizedLines = lineItems.map((line) => {
+      const qty = Number(line.qty || 0)
+      const price = Number(line.price || 0)
+      const amount = Number(line.amount || (qty * price) || 0)
+      if (!['buy', 'sell'].includes(String(line.direction || '').toLowerCase())) {
+        throw new Error('Line direction must be buy or sell')
+      }
+      if (!Number.isFinite(qty) || qty <= 0) throw new Error('Line quantity must be greater than zero')
+      if (!Number.isFinite(price) || price <= 0) throw new Error('Line price must be greater than zero')
+
+      return {
+        customerId: sanitizeOptionalRef(line.customerId),
+        customerCode: String(line.customerCode || '').trim(),
+        customerName: String(line.customerName || '').trim(),
+        direction: String(line.direction).toLowerCase(),
+        metal: String(line.metal || 'XAU').toUpperCase(),
+        qty: toQty(qty),
+        stockCode: String(line.stockCode || 'OZ').toUpperCase(),
+        price: toMoney(price),
+        eqOz: toQty(Number(line.eqOz || qty || 0)),
+        amount: toMoney(amount),
+        notes: String(line.notes || '').trim(),
+      }
+    })
+
+    const totalQty = toQty(normalizedLines.reduce((sum, line) => sum + Number(line.qty || 0), 0))
+    const totalAmount = toMoney(normalizedLines.reduce((sum, line) => sum + Number(line.amount || 0), 0))
+
+    const deal = await DirectDeal.create({
+      docNo: String(docNo || '').trim() || await nextDirectDealDocNo(),
+      entryType,
+      docDate: docDate ? new Date(docDate) : new Date(),
+      valueDate: valueDate ? new Date(valueDate) : (docDate ? new Date(docDate) : new Date()),
+      currency: String(currency || 'AED').toUpperCase(),
+      branch: String(branch || 'HO').trim(),
+      status: ['draft', 'confirmed'].includes(String(status)) ? String(status) : 'draft',
+      remarks: String(remarks || '').trim(),
+      lineItems: normalizedLines,
+      totalQty,
+      totalAmount,
+      createdBy: req.user._id,
+      updatedBy: req.user._id,
+    })
+
+    res.status(201).json({ success: true, deal })
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message || 'Invalid direct deal payload' })
+  }
+})
+
+router.put('/direct-deals/:id', protect, async (req, res) => {
+  try {
+    if (!canManageDirectDeals(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const deal = await DirectDeal.findById(req.params.id)
+    if (!deal || deal.isDeleted) return res.status(404).json({ success: false, message: 'Direct deal not found' })
+    if (deal.status === 'confirmed' && !isSuperAdmin(req.user)) {
+      return res.status(403).json({ success: false, message: 'Confirmed direct deals are locked. Only Admin can edit.' })
+    }
+
+    const {
+      docNo,
+      entryType,
+      docDate,
+      valueDate,
+      currency,
+      branch,
+      status,
+      remarks,
+      lineItems,
+    } = req.body || {}
+
+    if (entryType !== undefined) {
+      if (!['fixing', 'non_fixing'].includes(String(entryType))) {
+        return res.status(400).json({ success: false, message: 'Entry type must be fixing or non_fixing' })
+      }
+      deal.entryType = String(entryType)
+    }
+    if (docNo !== undefined) deal.docNo = String(docNo || '').trim() || deal.docNo
+    if (docDate !== undefined) deal.docDate = docDate ? new Date(docDate) : deal.docDate
+    if (valueDate !== undefined) deal.valueDate = valueDate ? new Date(valueDate) : deal.valueDate
+    if (currency !== undefined) deal.currency = String(currency || deal.currency).toUpperCase()
+    if (branch !== undefined) deal.branch = String(branch || '').trim()
+    if (status !== undefined && ['draft', 'confirmed'].includes(String(status))) {
+      const nextStatus = String(status)
+      if (deal.status === 'confirmed' && nextStatus !== 'confirmed' && !isSuperAdmin(req.user)) {
+        return res.status(403).json({ success: false, message: 'Only Admin can reopen confirmed direct deals' })
+      }
+      deal.status = nextStatus
+    }
+    if (remarks !== undefined) deal.remarks = String(remarks || '').trim()
+
+    if (lineItems !== undefined) {
+      if (!Array.isArray(lineItems) || !lineItems.length) {
+        return res.status(400).json({ success: false, message: 'At least one line item is required' })
+      }
+      const normalizedLines = lineItems.map((line) => {
+        const qty = Number(line.qty || 0)
+        const price = Number(line.price || 0)
+        const amount = Number(line.amount || (qty * price) || 0)
+        if (!['buy', 'sell'].includes(String(line.direction || '').toLowerCase())) {
+          throw new Error('Line direction must be buy or sell')
+        }
+        if (!Number.isFinite(qty) || qty <= 0) throw new Error('Line quantity must be greater than zero')
+        if (!Number.isFinite(price) || price <= 0) throw new Error('Line price must be greater than zero')
+
+        return {
+          customerId: sanitizeOptionalRef(line.customerId),
+          customerCode: String(line.customerCode || '').trim(),
+          customerName: String(line.customerName || '').trim(),
+          direction: String(line.direction).toLowerCase(),
+          metal: String(line.metal || 'XAU').toUpperCase(),
+          qty: toQty(qty),
+          stockCode: String(line.stockCode || 'OZ').toUpperCase(),
+          price: toMoney(price),
+          eqOz: toQty(Number(line.eqOz || qty || 0)),
+          amount: toMoney(amount),
+          notes: String(line.notes || '').trim(),
+        }
+      })
+      deal.lineItems = normalizedLines
+      deal.totalQty = toQty(normalizedLines.reduce((sum, line) => sum + Number(line.qty || 0), 0))
+      deal.totalAmount = toMoney(normalizedLines.reduce((sum, line) => sum + Number(line.amount || 0), 0))
+    }
+
+    deal.updatedBy = req.user._id
+    await deal.save()
+
+    res.json({ success: true, deal })
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message || 'Invalid update payload' })
+  }
+})
+
+router.delete('/direct-deals/:id', protect, async (req, res) => {
+  try {
+    if (!canManageDirectDeals(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const deal = await DirectDeal.findById(req.params.id)
+    if (!deal || deal.isDeleted) return res.status(404).json({ success: false, message: 'Direct deal not found' })
+    if (deal.status === 'confirmed' && !isSuperAdmin(req.user)) {
+      return res.status(403).json({ success: false, message: 'Confirmed direct deals are locked. Only Admin can delete.' })
+    }
+
+    deal.isDeleted = true
+    deal.deletedAt = new Date()
+    deal.updatedBy = req.user._id
+    await deal.save()
+
+    res.json({ success: true, message: 'Direct deal deleted', deal })
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message || 'Server error' })
   }
 })
 
@@ -2155,23 +2923,86 @@ router.get('/inventory/stock-ledger', protect, async (req, res) => {
 // ==========================================
 router.get('/transactions', protect, async (req, res) => {
   try {
-    const role = roleName(req.user)
+    if (!canAccessTransactions(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+
+    const { page, limit, skip } = parsePagination(req.query, 50, 200)
     const query = { isDeleted: { $ne: true } }
-    if (role === 'sales') query.type = { $in: ['sale', 'receipt'] }
-    if (role === 'operations') query.type = { $in: ['purchase', 'expense'] }
-    if (role === 'hr') query.type = 'payroll'
+    const allowedTypes = getRoleTransactionTypes(req.user)
 
-    const transactions = await Transaction.find(query)
-      .populate('customerId', 'name')
-      .populate('vendorId', 'name')
-      .populate('inventoryItemId', 'name sku')
-      .populate('debitAccountId', 'accountCode accountName')
-      .populate('creditAccountId', 'accountCode accountName')
-      .populate('createdBy', 'name')
-      .sort({ createdAt: -1 })
-      .limit(500)
+    query.type = allowedTypes.length === 1 ? allowedTypes[0] : { $in: allowedTypes }
 
-    res.json({ success: true, transactions })
+    if (req.query.type) {
+      const requestedType = String(req.query.type)
+      if (!allowedTypes.includes(requestedType)) {
+        query.type = { $in: [] }
+      } else {
+        query.type = requestedType
+      }
+    }
+
+    if (req.query.status && TRANSACTION_STATUSES.includes(String(req.query.status))) {
+      query.status = String(req.query.status)
+    }
+
+    if (req.query.customerId) query.customerId = req.query.customerId
+    if (req.query.vendorId) query.vendorId = req.query.vendorId
+
+    if (req.query.startDate || req.query.endDate) {
+      query.date = {}
+      if (req.query.startDate) query.date.$gte = new Date(req.query.startDate)
+      if (req.query.endDate) query.date.$lte = new Date(`${req.query.endDate}T23:59:59.999Z`)
+    }
+
+    if (req.query.search) {
+      const search = String(req.query.search).trim()
+      if (search) {
+        const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+        query.$or = [
+          { description: regex },
+          { type: regex },
+          { currency: regex },
+        ]
+      }
+    }
+
+    const [transactions, total, summaryRows] = await Promise.all([
+      populateTransactionQuery(Transaction.find(query))
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Transaction.countDocuments(query),
+      Transaction.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalCount: { $sum: 1 },
+            totalAmount: { $sum: '$amount' },
+            draft: { $sum: { $cond: [{ $eq: ['$status', 'draft'] }, 1, 0] } },
+            submitted: { $sum: { $cond: [{ $eq: ['$status', 'submitted'] }, 1, 0] } },
+            approved: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] } },
+            posted: { $sum: { $cond: [{ $eq: ['$status', 'posted'] }, 1, 0] } },
+            returned: { $sum: { $cond: [{ $eq: ['$status', 'returned'] }, 1, 0] } },
+            rejected: { $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] } },
+          },
+        },
+      ]),
+    ])
+
+    const summary = summaryRows[0] || {
+      totalCount: 0,
+      totalAmount: 0,
+      draft: 0,
+      submitted: 0,
+      approved: 0,
+      posted: 0,
+      returned: 0,
+      rejected: 0,
+    }
+
+    res.json({ success: true, transactions, total, page, limit, summary })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -2179,10 +3010,20 @@ router.get('/transactions', protect, async (req, res) => {
 
 router.post('/transactions', protect, async (req, res) => {
   try {
-    const { type, amount, date, description, currency, exchangeRate, customerId, vendorId, inventoryItemId, mappingId, debitAccountId, creditAccountId } = req.body
+    const { type, amount, date, description, currency, exchangeRate, customerId, vendorId, inventoryItemId, mappingId, debitAccountId, creditAccountId, voucherMeta } = req.body
     if (!type || !amount) return res.status(400).json({ success: false, message: 'Type and amount are required' })
     if (!canCreateTransactionFor(req.user, type)) {
       return res.status(403).json({ success: false, message: 'You are not allowed to create this transaction type' })
+    }
+
+    const validationMessage = validateTransactionPayload({
+      type,
+      amount,
+      customerId,
+      vendorId,
+    })
+    if (validationMessage) {
+      return res.status(400).json({ success: false, message: validationMessage })
     }
 
     const tx = await Transaction.create({
@@ -2192,16 +3033,20 @@ router.post('/transactions', protect, async (req, res) => {
       description,
       currency: (currency || 'AED').toUpperCase(),
       exchangeRate: Number(exchangeRate || 1),
-      customerId: customerId || null,
-      vendorId: vendorId || null,
-      inventoryItemId: inventoryItemId || null,
-      mappingId: mappingId || null,
-      debitAccountId: debitAccountId || null,
-      creditAccountId: creditAccountId || null,
+      customerId: sanitizeOptionalRef(customerId),
+      vendorId: sanitizeOptionalRef(vendorId),
+      inventoryItemId: sanitizeOptionalRef(inventoryItemId),
+      mappingId: sanitizeOptionalRef(mappingId),
+      debitAccountId: sanitizeOptionalRef(debitAccountId),
+      creditAccountId: sanitizeOptionalRef(creditAccountId),
+      voucherMeta: voucherMeta || undefined,
       status: 'draft',
       createdBy: req.user._id,
       updatedBy: req.user._id,
     })
+
+    appendTransactionAudit(tx, req.user, 'create', { fromStatus: '', toStatus: 'draft', comment: description })
+    await tx.save()
 
     res.status(201).json({ success: true, transaction: tx })
   } catch (e) {
@@ -2215,15 +3060,37 @@ router.put('/transactions/:id', protect, async (req, res) => {
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
     if (tx.status === 'posted') return res.status(400).json({ success: false, message: 'Posted transaction cannot be modified' })
 
-    if (!canCreateTransactionFor(req.user, tx.type) && !isFinance(req.user) && !isSuperAdmin(req.user)) {
+    const nextType = req.body.type || tx.type
+    if (!canCreateTransactionFor(req.user, nextType) && !isFinance(req.user) && !isSuperAdmin(req.user)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
 
-    const allowed = ['amount', 'date', 'description', 'currency', 'exchangeRate', 'customerId', 'vendorId', 'inventoryItemId', 'mappingId', 'debitAccountId', 'creditAccountId']
-    allowed.forEach((field) => {
-      if (req.body[field] !== undefined) tx[field] = req.body[field]
+    const validationMessage = validateTransactionPayload({
+      ...tx.toObject(),
+      ...req.body,
+      type: nextType,
+      customerId: req.body.customerId !== undefined ? sanitizeOptionalRef(req.body.customerId) : tx.customerId,
+      vendorId: req.body.vendorId !== undefined ? sanitizeOptionalRef(req.body.vendorId) : tx.vendorId,
     })
+    if (validationMessage) {
+      return res.status(400).json({ success: false, message: validationMessage })
+    }
+
+    if (req.body.type !== undefined) tx.type = req.body.type
+    if (req.body.amount !== undefined) tx.amount = Number(req.body.amount)
+    if (req.body.date !== undefined) tx.date = req.body.date ? new Date(req.body.date) : tx.date
+    if (req.body.description !== undefined) tx.description = req.body.description
+    if (req.body.currency !== undefined) tx.currency = String(req.body.currency || 'AED').toUpperCase()
+    if (req.body.exchangeRate !== undefined) tx.exchangeRate = Number(req.body.exchangeRate || 1)
+    if (req.body.customerId !== undefined) tx.customerId = sanitizeOptionalRef(req.body.customerId)
+    if (req.body.vendorId !== undefined) tx.vendorId = sanitizeOptionalRef(req.body.vendorId)
+    if (req.body.inventoryItemId !== undefined) tx.inventoryItemId = sanitizeOptionalRef(req.body.inventoryItemId)
+    if (req.body.mappingId !== undefined) tx.mappingId = sanitizeOptionalRef(req.body.mappingId)
+    if (req.body.debitAccountId !== undefined) tx.debitAccountId = sanitizeOptionalRef(req.body.debitAccountId)
+    if (req.body.creditAccountId !== undefined) tx.creditAccountId = sanitizeOptionalRef(req.body.creditAccountId)
+    if (req.body.voucherMeta !== undefined) tx.voucherMeta = req.body.voucherMeta
     tx.updatedBy = req.user._id
+    appendTransactionAudit(tx, req.user, 'update', { fromStatus: tx.status, toStatus: tx.status, comment: req.body.description || '' })
     await tx.save()
     res.json({ success: true, transaction: tx })
   } catch {
@@ -2238,6 +3105,7 @@ router.delete('/transactions/:id', protect, async (req, res) => {
     tx.isDeleted = true
     tx.deletedAt = new Date()
     tx.updatedBy = req.user._id
+    appendTransactionAudit(tx, req.user, 'delete', { fromStatus: tx.status, toStatus: tx.status })
     await tx.save()
     res.json({ success: true, message: 'Transaction deleted (soft)', transaction: tx })
   } catch {
@@ -2249,75 +3117,167 @@ router.post('/transactions/:id/submit', protect, async (req, res) => {
   try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
-    if (tx.status !== 'draft') return res.status(400).json({ success: false, message: 'Only draft transactions can be submitted' })
-    tx.status = 'submitted'
-    tx.updatedBy = req.user._id
-    await tx.save()
-    res.json({ success: true, transaction: tx })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+    const result = await applyTransactionWorkflowAction(tx, req.user, 'submit', { comment: req.body?.comment })
+    const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
+    res.json({ success: true, transaction: populated })
+  } catch (e) {
+    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
   }
 })
 
 router.post('/transactions/:id/approve', protect, async (req, res) => {
   try {
-    if (!isSuperAdmin(req.user) && !isFinance(req.user)) {
-      return res.status(403).json({ success: false, message: 'Only Admin/Finance can approve transactions' })
-    }
-
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
-    if (tx.status !== 'submitted') return res.status(400).json({ success: false, message: 'Only submitted transactions can be approved' })
-    tx.status = 'approved'
-    tx.approvedBy = req.user._id
-    tx.updatedBy = req.user._id
-    await tx.save()
-    res.json({ success: true, transaction: tx })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+    const result = await applyTransactionWorkflowAction(tx, req.user, 'approve', { comment: req.body?.comment })
+    const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
+    res.json({ success: true, transaction: populated })
+  } catch (e) {
+    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
   }
 })
 
 router.post('/transactions/:id/post', protect, async (req, res) => {
   try {
-    if (!isSuperAdmin(req.user) && !isFinance(req.user)) {
-      return res.status(403).json({ success: false, message: 'Only Admin/Finance can post transactions' })
+    const tx = await Transaction.findById(req.params.id)
+    if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+    const result = await applyTransactionWorkflowAction(tx, req.user, 'post', { comment: req.body?.comment, mappingOverride: req.body || {} })
+    const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
+    res.json({ success: true, transaction: populated, ledgerEntry: result.ledgerEntry })
+  } catch (e) {
+    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
+  }
+})
+
+router.post('/transactions/:id/comments', protect, async (req, res) => {
+  try {
+    if (!canAccessTransactions(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
     }
 
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
-    if (!['approved', 'submitted'].includes(tx.status)) {
-      return res.status(400).json({ success: false, message: 'Transaction must be approved/submitted before posting' })
-    }
 
-    if (tx.type === 'sale' && tx.customerId) {
-      const customer = await Customer.findById(tx.customerId)
-      if (customer && Number(customer.creditLimit || 0) > 0 && customer.ledgerAccountId) {
-        const currentOutstanding = await getOutstandingForAccount(customer.ledgerAccountId)
-        const projected = Number(currentOutstanding || 0) + Number(tx.amount || 0)
-        if (projected > Number(customer.creditLimit || 0)) {
-          return res.status(400).json({ success: false, message: `Credit limit exceeded for customer ${customer.name}` })
-        }
-      }
-    }
+    const message = normalizeTransactionNote(req.body?.message)
+    if (!message) return res.status(400).json({ success: false, message: 'Comment is required' })
 
-    const resolved = await resolveTransactionAccounts({ user: req.user, tx, mappingOverride: req.body || {} })
-    tx.debitAccountId = resolved.debitAccountId
-    tx.creditAccountId = resolved.creditAccountId
-
-    const ledgerEntry = await createLedgerFromTransaction({
-      user: req.user,
-      transaction: tx,
-      referenceType: tx.type,
-    })
-
-    tx.journalEntryId = ledgerEntry._id
-    tx.status = 'posted'
-    tx.postedBy = req.user._id
+    appendTransactionComment(tx, req.user, message, 'comment')
+    appendTransactionAudit(tx, req.user, 'comment', { fromStatus: tx.status, toStatus: tx.status, comment: message })
     tx.updatedBy = req.user._id
     await tx.save()
 
-    res.json({ success: true, transaction: tx, ledgerEntry })
+    const populated = await populateTransactionQuery(Transaction.findById(tx._id))
+    res.json({ success: true, transaction: populated })
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message || 'Server error' })
+  }
+})
+
+router.post('/transactions/:id/attachments', protect, transactionUpload.single('file'), async (req, res) => {
+  try {
+    if (!canAccessTransactions(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+
+    const tx = await Transaction.findById(req.params.id)
+    if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+    if (!req.file) return res.status(400).json({ success: false, message: 'Attachment file is required' })
+
+    const attachment = buildTransactionAttachment(req.file, req.user)
+    tx.attachments.push(attachment)
+    tx.updatedBy = req.user._id
+    appendTransactionAudit(tx, req.user, 'upload_attachment', { fromStatus: tx.status, toStatus: tx.status, comment: attachment.originalName })
+    await tx.save()
+
+    const populated = await populateTransactionQuery(Transaction.findById(tx._id))
+    res.status(201).json({ success: true, transaction: populated, attachment: populated.attachments[populated.attachments.length - 1] })
+  } catch (e) {
+    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
+  }
+})
+
+router.delete('/transactions/:id/attachments/:attachmentId', protect, async (req, res) => {
+  try {
+    if (!canAccessTransactions(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+
+    const tx = await Transaction.findById(req.params.id)
+    if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+
+    const attachment = tx.attachments.id(req.params.attachmentId)
+    if (!attachment) return res.status(404).json({ success: false, message: 'Attachment not found' })
+
+    const filePath = path.resolve(transactionUploadDir, attachment.fileName)
+    tx.attachments.pull({ _id: attachment._id })
+    tx.updatedBy = req.user._id
+    appendTransactionAudit(tx, req.user, 'delete_attachment', { fromStatus: tx.status, toStatus: tx.status, comment: attachment.originalName })
+    await tx.save()
+
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+
+    const populated = await populateTransactionQuery(Transaction.findById(tx._id))
+    res.json({ success: true, transaction: populated })
+  } catch (e) {
+    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
+  }
+})
+
+router.post('/transactions/:id/return', protect, async (req, res) => {
+  try {
+    const tx = await Transaction.findById(req.params.id)
+    if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+    const result = await applyTransactionWorkflowAction(tx, req.user, 'return', { comment: req.body?.comment })
+    const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
+    res.json({ success: true, transaction: populated })
+  } catch (e) {
+    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
+  }
+})
+
+router.post('/transactions/:id/reject', protect, async (req, res) => {
+  try {
+    const tx = await Transaction.findById(req.params.id)
+    if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+    const result = await applyTransactionWorkflowAction(tx, req.user, 'reject', { comment: req.body?.comment })
+    const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
+    res.json({ success: true, transaction: populated })
+  } catch (e) {
+    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
+  }
+})
+
+router.post('/transactions/bulk-action', protect, async (req, res) => {
+  try {
+    if (!canAccessTransactions(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter(Boolean) : []
+    const action = String(req.body?.action || '')
+    const comment = normalizeTransactionNote(req.body?.comment)
+    const mappingOverride = req.body?.mappingOverride || {}
+
+    if (!ids.length) return res.status(400).json({ success: false, message: 'Select at least one transaction' })
+    if (!['submit', 'approve', 'post'].includes(action)) return res.status(400).json({ success: false, message: 'Invalid bulk action' })
+
+    const transactions = await Transaction.find({ _id: { $in: ids }, isDeleted: { $ne: true } }).sort({ createdAt: -1 })
+    const results = { successIds: [], failed: [] }
+
+    for (const tx of transactions) {
+      try {
+        if (!canCreateTransactionFor(req.user, tx.type) && !isFinance(req.user) && !isSuperAdmin(req.user)) {
+          throw new Error('Forbidden')
+        }
+        const actionResult = await applyTransactionWorkflowAction(tx, req.user, action, { comment, mappingOverride })
+        results.successIds.push(String(actionResult.transaction._id))
+      } catch (e) {
+        results.failed.push({ id: String(tx._id), message: e.message || 'Failed' })
+      }
+    }
+
+    const refreshed = await populateTransactionQuery(Transaction.find({ _id: { $in: results.successIds } }))
+    res.json({ success: true, action, processed: transactions.length, successCount: results.successIds.length, failureCount: results.failed.length, transactions: refreshed, ...results })
   } catch (e) {
     res.status(500).json({ success: false, message: e.message || 'Server error' })
   }

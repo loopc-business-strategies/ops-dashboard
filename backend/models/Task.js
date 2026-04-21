@@ -24,6 +24,16 @@ const taskSchema = new mongoose.Schema(
       ref: 'User',
       default: null,
     },
+    createdBy: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    createdById: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     department: {
       type: String,
       trim: true,
@@ -50,6 +60,14 @@ const taskSchema = new mongoose.Schema(
       default: 'medium',
     },
     dueDate: {
+      type: Date,
+      default: null,
+    },
+    reminderAt: {
+      type: Date,
+      default: null,
+    },
+    archivedAt: {
       type: Date,
       default: null,
     },

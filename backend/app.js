@@ -5,6 +5,10 @@ const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
 const rateLimit = require('express-rate-limit')
+const cookieParser = require('cookie-parser')
+
+const sanitizeMiddleware = require('./middleware/sanitize')
+const { requestLoggerMiddleware } = require('./middleware/logger')
 
 const authRoutes = require('./routes/auth')
 const employeeRoutes = require('./routes/employees')
@@ -13,10 +17,12 @@ const erpRoutes = require('./routes/erp')
 const erpAccountingRoutes = require('./routes/erp-accounting')
 const attendanceRoutes = require('./routes/attendance')
 const messageRoutes = require('./routes/messages')
+const crmRoutes = require('./routes/crm')
 
 function createApp() {
   const app = express()
   const REQUEST_BODY_LIMIT = process.env.REQUEST_BODY_LIMIT || '100kb'
+  const isProduction = process.env.NODE_ENV === 'production'
 
   app.set('trust proxy', 1)
 
@@ -25,6 +31,7 @@ function createApp() {
     max: Number(process.env.RATE_LIMIT_MAX || 400),
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => !isProduction,
     message: { success: false, message: 'Too many requests. Please try again shortly.' },
   })
 
@@ -33,16 +40,50 @@ function createApp() {
     max: Number(process.env.AUTH_RATE_LIMIT_MAX || 25),
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => !isProduction,
+    skipSuccessfulRequests: true,
     message: { success: false, message: 'Too many authentication attempts. Please try again later.' },
   })
 
   app.use(helmet())
+
+  // Build CORS allowlist from environment.
+  // CLIENT_URL may be a single origin or comma-separated list.
+  // In development, localhost and 127.0.0.1 variants are always allowed.
+  const rawOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+
+  const devOrigins = isProduction
+    ? []
+    : [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:5174',
+        'http://127.0.0.1:5174',
+      ]
+
+  const allowedOrigins = Array.from(new Set([...rawOrigins, ...devOrigins]))
+
   app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      // Allow server-to-server / health checks (no Origin header)
+      if (!origin) return callback(null, true)
+      if (allowedOrigins.includes(origin)) return callback(null, true)
+      callback(new Error(`CORS: origin not allowed — ${origin}`))
+    },
     credentials: true,
   }))
+  app.use(cookieParser())
   app.use(express.json({ limit: REQUEST_BODY_LIMIT }))
   app.use(express.urlencoded({ extended: true, limit: REQUEST_BODY_LIMIT }))
+  
+  // ─── Security & Logging Middleware ─────────────────────────────────────────
+  app.use(sanitizeMiddleware)        // Sanitize inputs (XSS, NoSQL injection protection)
+  app.use(requestLoggerMiddleware)   // Log all requests & responses
+
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
   app.use('/api', apiLimiter)
   app.use('/api/auth/login', authLimiter)
@@ -59,6 +100,7 @@ function createApp() {
   app.use('/api/erp-accounting', erpAccountingRoutes)
   app.use('/api/attendance', attendanceRoutes)
   app.use('/api/messages', messageRoutes)
+  app.use('/api/crm', crmRoutes)
 
   if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.join(__dirname, '../frontend/dist')))

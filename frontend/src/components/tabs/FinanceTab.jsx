@@ -4,41 +4,45 @@
 import { useState, useMemo } from 'react'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
 
 // ─── Design tokens ────────────────────────────────────────────
 const C = {
   grad:   'linear-gradient(135deg,#00684A,#00ED64)',
   gbar:   'linear-gradient(90deg,#00684A,#00b4d8)',
   gfin:   'linear-gradient(90deg,#00ED64,#00684A)',
-  green:  '#00c896', cyan:   '#00b4d8', yellow: '#ffd600',
-  orange: '#ff7043', red:    '#ff4757', gold:   '#f59e0b',
-  t1:'#1c2a33', t2:'#374151', t3:'#6b7280', t4:'#9ca3af',
+  green:  '#065f46', cyan:   '#00b4d8', yellow: '#ffd600',
+  orange: '#9a3412', red:    '#ff4757', gold:   '#f59e0b',
+  t1:'#1c2a33', t2:'#374151', t3:'#334155', t4:'#475569',
   border: 'rgba(0,104,74,0.15)', border2:'rgba(0,104,74,0.35)',
   card:'#ffffff', inp:'#f8f9fa',
 }
 
 const B = {
   pri:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', border:'none', background:C.grad, color:'#fff', boxShadow:'0 4px 15px rgba(0,104,74,.35)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#13AA52', border:'1px solid #00684A', whiteSpace:'nowrap', fontFamily:'inherit' },
-  ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#8b8fa8', border:`1px solid rgba(0,104,74,0.15)`, whiteSpace:'nowrap', fontFamily:'inherit' },
-  succ:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(0,200,150,0.15)', color:'#00c896', border:'1px solid rgba(0,200,150,0.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
+  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#00684A', border:'1px solid #00684A', whiteSpace:'nowrap', fontFamily:'inherit' },
+  ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#475569', border:`1px solid rgba(0,104,74,0.15)`, whiteSpace:'nowrap', fontFamily:'inherit' },
+  succ:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(0,200,150,0.15)', color:'#065f46', border:'1px solid rgba(0,200,150,0.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
   sm:    { padding:'5px 11px', fontSize:11 },
 }
 
 // ─── Sub-tabs ─────────────────────────────────────────────────
-const TABS = [
-  { id:'kpi',     label:'📊 KPI Overview' },
-  { id:'revenue', label:'💰 Revenue' },
-  { id:'expense', label:'💸 Expenses' },
-  { id:'invoice', label:'📄 Invoices' },
-  { id:'budget',  label:'📅 Budget' },
-  { id:'payroll', label:'👥 Payroll' },
-  { id:'arpa',    label:'🏦 AR & AP' },
-  { id:'gold',    label:'🪙 Gold Tracker' },
-  { id:'tax',     label:'📑 Tax' },
-  { id:'reports', label:'📈 Reports' },
-  { id:'audit',   label:'🔍 Audit Trail' },
-]
+function getFinanceTabs(t) {
+  return [
+    { id:'kpi',     label:`📊 ${t('kpiOverview')}` },
+    { id:'revenue', label:`💰 ${t('revenue')}` },
+    { id:'expense', label:`💸 ${t('expenses')}` },
+    { id:'invoice', label:`📄 ${t('invoices')}` },
+    { id:'budget',  label:`📅 ${t('budget')}` },
+    { id:'payroll', label:`👥 ${t('payroll')}` },
+    { id:'arpa',    label:`🏦 ${t('arAp')}` },
+    { id:'gold',    label:`🪙 ${t('goldTracker')}` },
+    { id:'tax',     label:`📑 ${t('tax')}` },
+    { id:'reports', label:`📈 ${t('reports')}` },
+    { id:'ledger',  label:`📕 ${t('generalLedger')}` },
+    { id:'audit',   label:`🔍 ${t('auditTrail')}` },
+  ]
+}
 
 // ─── Seed data ────────────────────────────────────────────────
 const INIT_INVOICES = [
@@ -124,12 +128,12 @@ function pct(v,t)    { return Math.max(0,Math.min(100,Math.round((v/t)*100))) }
 // ─── Shared UI ────────────────────────────────────────────────
 function Badge({ status }) {
   const V = {
-    Confirmed:     ['rgba(0,200,150,.15)','#00c896','rgba(0,200,150,.3)'],
-    Paid:          ['rgba(0,200,150,.15)','#00c896','rgba(0,200,150,.3)'],
-    Approved:      ['rgba(0,200,150,.15)','#00c896','rgba(0,200,150,.3)'],
-    Filed:         ['rgba(0,200,150,.15)','#00c896','rgba(0,200,150,.3)'],
-    'On Track':    ['rgba(0,200,150,.15)','#00c896','rgba(0,200,150,.3)'],
-    Processed:     ['rgba(0,200,150,.15)','#00c896','rgba(0,200,150,.3)'],
+    Confirmed:     ['rgba(0,200,150,.15)','#065f46','rgba(0,200,150,.3)'],
+    Paid:          ['rgba(0,200,150,.15)','#065f46','rgba(0,200,150,.3)'],
+    Approved:      ['rgba(0,200,150,.15)','#065f46','rgba(0,200,150,.3)'],
+    Filed:         ['rgba(0,200,150,.15)','#065f46','rgba(0,200,150,.3)'],
+    'On Track':    ['rgba(0,200,150,.15)','#065f46','rgba(0,200,150,.3)'],
+    Processed:     ['rgba(0,200,150,.15)','#065f46','rgba(0,200,150,.3)'],
     Sent:          ['rgba(0,180,216,.12)','#00b4d8','rgba(0,180,216,.3)'],
     Current:       ['rgba(0,180,216,.12)','#00b4d8','rgba(0,180,216,.3)'],
     'Under Review':['rgba(0,180,216,.12)','#00b4d8','rgba(0,180,216,.3)'],
@@ -137,13 +141,13 @@ function Badge({ status }) {
     Pending:       ['rgba(255,214,0,.12)','#ffd600','rgba(255,214,0,.3)'],
     'Due Soon':    ['rgba(255,214,0,.12)','#ffd600','rgba(255,214,0,.3)'],
     Warning:       ['rgba(255,214,0,.12)','#ffd600','rgba(255,214,0,.3)'],
-    Draft:         ['rgba(255,255,255,.05)','#8b8fa8','rgba(255,255,255,.1)'],
+    Draft:         ['rgba(255,255,255,.05)','#475569','rgba(255,255,255,.1)'],
     Overdue:       ['rgba(255,71,87,.12)','#ff4757','rgba(255,71,87,.3)'],
     Rejected:      ['rgba(255,71,87,.12)','#ff4757','rgba(255,71,87,.3)'],
     'Over Budget': ['rgba(255,71,87,.12)','#ff4757','rgba(255,71,87,.3)'],
-    Disputed:      ['rgba(255,112,67,.12)','#ff7043','rgba(255,112,67,.3)'],
+    Disputed:      ['rgba(255,112,67,.12)','#9a3412','rgba(255,112,67,.3)'],
   }
-  const [bg,color,border] = V[status] || ['rgba(255,255,255,.05)','#8b8fa8','rgba(255,255,255,.1)']
+  const [bg,color,border] = V[status] || ['rgba(255,255,255,.05)','#475569','rgba(255,255,255,.1)']
   return <span style={{ display:'inline-flex', alignItems:'center', borderRadius:999, padding:'4px 12px', fontSize:11, fontWeight:700, whiteSpace:'nowrap', background:bg, color, border:`1px solid ${border}` }}>{status}</span>
 }
 
@@ -511,7 +515,7 @@ function KPIOverview({ finRole, can, canEdit, invoices, openModal, onToast }) {
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:11 }}>
           <StatCard label="Total Payroll This Month" value="$284,600" color={C.cyan} sub="47 employees" />
           <StatCard label="Payroll vs Budget" value="94%" color={C.green} sub="Within HR budget" />
-          <StatCard label="Next Payroll Date" value="Apr 30" color="#13AA52" sub="17 days away" />
+          <StatCard label="Next Payroll Date" value="Apr 30" color="#00684A" sub="17 days away" />
         </div>
       )}
       {isSales && (
@@ -534,7 +538,7 @@ function KPIOverview({ finRole, can, canEdit, invoices, openModal, onToast }) {
           <StatCard label="Operating Expenses"  value="$1.32M" color={C.red}    sub={<span style={{color:C.red,fontWeight:700}}>↑8% YoY</span>} />
           <StatCard label="Net Profit"          value="$1.13M" color={C.green}  sub={<span style={{color:C.green,fontWeight:700}}>↑15% YoY</span>} />
           <StatCard label="Cash Flow"           value="$890k"  color={C.cyan}   sub={<span style={{color:C.green,fontWeight:700}}>↑18% YoY</span>} />
-          <StatCard label="Gross Margin"        value="46.1%"  color="#13AA52"  sub="(Rev−COGS)/Rev" />
+          <StatCard label="Gross Margin"        value="46.1%"  color="#00684A"  sub="(Rev−COGS)/Rev" />
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(5,minmax(0,1fr))', gap:11 }}>
           <StatCard label="Accounts Receivable" value="$6.09M" color={C.yellow} sub={<><span style={{color:C.red}}>●</span> $1.45M overdue</>} />
@@ -564,7 +568,7 @@ function KPIOverview({ finRole, can, canEdit, invoices, openModal, onToast }) {
           <Card title="Revenue by Source">
             <PieLegend items={[
               { label:'Gold Sales',    pct:77, color:C.gold   },
-              { label:'Partner Deals', pct:12, color:'#13AA52' },
+              { label:'Partner Deals', pct:12, color:'#00684A' },
               { label:'Service Fees',  pct:7,  color:C.cyan   },
               { label:'Other Income',  pct:4,  color:C.t3     },
             ]} />
@@ -605,7 +609,7 @@ function RevenueTracking({ finRole, can, canEdit, onToast }) {
         </Card>
         <Card title="Revenue by Region">
           <PieLegend items={[
-            { label:'Kazakhstan', pct:38, color:'#13AA52' },
+            { label:'Kazakhstan', pct:38, color:'#00684A' },
             { label:'UAE',        pct:22, color:C.cyan   },
             { label:'Uzbekistan', pct:18, color:C.green  },
             { label:'Russia',     pct:14, color:C.yellow },
@@ -667,7 +671,7 @@ function ExpenseManagement({ finRole, can, canEdit, expenses, setExpenses, addAu
         <ProgressRow label="Operations"      value={42000}  max={100000} color={C.gbar} valLabel="$42k"  />
         <ProgressRow label="HR & Payroll"    value={284600} max={400000} color={C.gfin} valLabel="$285k" />
         <ProgressRow label="Sales & Marketing" value={15000} max={100000} color="linear-gradient(90deg,#00c896,#00b4d8)" valLabel={<span style={{color:C.red}}>$15k ⚠</span>} />
-        <ProgressRow label="Production"      value={42600}  max={100000} color="linear-gradient(90deg,#ffd600,#ff7043)"  valLabel="$43k"  />
+        <ProgressRow label="Production"      value={42600}  max={100000} color="linear-gradient(90deg,#ffd600,#9a3412)"  valLabel="$43k"  />
         <ProgressRow label="Compliance"      value={8500}   max={100000} color={C.gbar} valLabel="$8.5k" />
       </Card>
       <DataTable title="Expense Register" headers={['Expense ID','Date','Dept','Category','Amount','Submitted By','Status','Approved By',...(canEdit()?['Actions']:[])]}>
@@ -690,7 +694,7 @@ function ExpenseManagement({ finRole, can, canEdit, expenses, setExpenses, addAu
               {canEdit() && (
                 <Td>
                   {(e.status==='Pending'||e.status==='Under Review') && <>
-                    <button onClick={() => approve(e.id)} style={{ ...B.link, color:'#13AA52', marginRight:8 }}>Approve</button>
+                    <button onClick={() => approve(e.id)} style={{ ...B.link, color:'#00684A', marginRight:8 }}>Approve</button>
                     <button onClick={() => reject(e.id)}  style={{ ...B.link, color:C.red }}>Reject</button>
                   </>}
                   {(e.status==='Approved'||e.status==='Rejected') && <span style={{ color:C.t4, fontSize:11 }}>—</span>}
@@ -754,7 +758,7 @@ function InvoiceManagement({ finRole, can, canEdit, invoices, setInvoices, addAu
               <Td>
                 {inv.type==='Sales'
                   ? <span style={{ background:'rgba(0,180,216,.12)', color:C.cyan, border:'1px solid rgba(0,180,216,.3)', borderRadius:999, padding:'4px 10px', fontSize:11, fontWeight:700 }}>↗ Sales</span>
-                  : <span style={{ background:'rgba(0,104,74,.15)', color:'#13AA52', border:'1px solid rgba(0,104,74,.3)', borderRadius:999, padding:'4px 10px', fontSize:11, fontWeight:700 }}>↙ Purchase</span>
+                  : <span style={{ background:'rgba(0,104,74,.15)', color:'#00684A', border:'1px solid rgba(0,104,74,.3)', borderRadius:999, padding:'4px 10px', fontSize:11, fontWeight:700 }}>↙ Purchase</span>
                 }
               </Td>
               <Td style={{ color:inv.status==='Overdue'?C.red:inv.status==='Paid'?C.green:C.t1, fontWeight:700 }}>{fmtFull(inv.amount)}</Td>
@@ -766,9 +770,9 @@ function InvoiceManagement({ finRole, can, canEdit, invoices, setInvoices, addAu
               <Td><Badge status={inv.status} /></Td>
               {!myOnly && (
                 <Td style={{ whiteSpace:'nowrap' }}>
-                  {(inv.status==='Sent'||inv.status==='Overdue') && <button onClick={() => markPaid(inv.id)} style={{...B.link,color:'#13AA52',marginRight:8}}>Mark Paid</button>}
-                  {inv.status==='Draft' && <button onClick={() => onToast('Invoice Sent',inv.id+' sent to client')} style={{...B.link,color:'#13AA52',marginRight:8}}>Send</button>}
-                  <button onClick={() => onToast('PDF','Generating invoice PDF...')} style={{...B.link,color:'#13AA52',marginRight:8}}>PDF</button>
+                  {(inv.status==='Sent'||inv.status==='Overdue') && <button onClick={() => markPaid(inv.id)} style={{...B.link,color:'#00684A',marginRight:8}}>Mark Paid</button>}
+                  {inv.status==='Draft' && <button onClick={() => onToast('Invoice Sent',inv.id+' sent to client')} style={{...B.link,color:'#00684A',marginRight:8}}>Send</button>}
+                  <button onClick={() => onToast('PDF','Generating invoice PDF...')} style={{...B.link,color:'#00684A',marginRight:8}}>PDF</button>
                   {inv.status==='Overdue' && <button onClick={() => onToast('Reminder Sent','Payment reminder sent to '+inv.client)} style={{...B.link,color:C.cyan}}>Remind</button>}
                 </Td>
               )}
@@ -781,18 +785,53 @@ function InvoiceManagement({ finRole, can, canEdit, invoices, setInvoices, addAu
 }
 
 // ─── Budget Planning ──────────────────────────────────────────
-function BudgetPlanning({ finRole, can, canEdit, onToast, openModal }) {
+function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, setBudgets }) {
   if (can('vendor','sales_head','hr_mgr')) return <Restricted msg="Budget planning is not available for your role." />
   const deptOnly = finRole === 'dept_head'
-  const data     = deptOnly ? BUDGETS.filter(b=>b.dept==='Operations & Logistics') : BUDGETS
-  const totalB   = BUDGETS.reduce((a,b)=>a+b.annual,0)
-  const totalS   = BUDGETS.reduce((a,b)=>a+b.spent,0)
+  const data     = deptOnly ? budgets.filter(b=>b.dept==='Operations & Logistics') : budgets
+  const totalB   = budgets.reduce((a,b)=>a+b.annual,0)
+  const totalS   = budgets.reduce((a,b)=>a+b.spent,0)
+  const [budgetModal, setBudgetModal] = useState(false)
+  const [editDept, setEditDept] = useState('')
+  const [bf, setBf] = useState({ dept:'', annual:'', spent:'' })
+
+  function openBudgetEditor(row) {
+    if (row) {
+      setEditDept(row.dept)
+      setBf({ dept:row.dept, annual:String(row.annual), spent:String(row.spent) })
+    } else {
+      setEditDept('')
+      setBf({ dept:'', annual:'', spent:'' })
+    }
+    setBudgetModal(true)
+  }
+
+  function saveBudget() {
+    if (!bf.dept.trim() || !bf.annual) return
+    const annual = Number(bf.annual) || 0
+    const spent = Number(bf.spent) || 0
+    const status = spent > annual ? 'Over Budget' : pct(spent, annual || 1) >= 80 ? 'Warning' : 'On Track'
+    if (editDept) {
+      setBudgets(p => p.map(x => x.dept === editDept ? { dept:bf.dept.trim(), annual, spent, status } : x))
+      onToast('Budget Updated', bf.dept.trim() + ' budget updated')
+    } else {
+      setBudgets(p => [...p, { dept:bf.dept.trim(), annual, spent, status }])
+      onToast('Budget Added', bf.dept.trim() + ' added')
+    }
+    setBudgetModal(false)
+  }
+
+  function deleteBudget(row) {
+    if (!window.confirm('Delete budget for ' + row.dept + '?')) return
+    setBudgets(p => p.filter(x => x.dept !== row.dept))
+    onToast('Budget Deleted', row.dept + ' budget removed')
+  }
 
   return (
     <div className="space-y-4">
       <SectionHeader title="Budget Planning" sub="FY 2026 — Annual Budget Overview">
         {finRole==='dept_head' && <button style={{...B.sec,...B.sm}} onClick={() => openModal('budget')}>↑ Request Increase</button>}
-        {canEdit() && <button style={{...B.pri,...B.sm}} onClick={() => onToast('Budget','Budget editor opens here')}>Edit Budgets</button>}
+        {canEdit() && <button style={{...B.pri,...B.sm}} onClick={() => openBudgetEditor(null)}>+ Add / Edit Budgets</button>}
       </SectionHeader>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:11 }}>
         <StatCard label="Total Annual Budget" value={fmt(totalB)} color={C.cyan}  sub="FY 2026" />
@@ -811,7 +850,10 @@ function BudgetPlanning({ finRole, can, canEdit, onToast, openModal }) {
               <Td style={{ color:b.annual-b.spent>0?C.green:C.red, fontWeight:700 }}>{fmtFull(b.annual-b.spent)}</Td>
               <Td><InlineBar value={b.spent} max={b.annual} color={p>=100?C.red:p>=80?C.yellow:C.green} /></Td>
               <Td><Badge status={b.status} /></Td>
-              {canEdit() && <Td><button onClick={() => onToast('Budget','Edit budget for '+b.dept)} style={{...B.link,color:'#13AA52'}}>Edit</button></Td>}
+              {canEdit() && <Td style={{ whiteSpace:'nowrap' }}>
+                <button onClick={() => openBudgetEditor(b)} style={{...B.link,color:'#00684A',marginRight:8}}>Edit</button>
+                <button onClick={() => deleteBudget(b)} style={{...B.link,color:C.red}}>Del</button>
+              </Td>}
             </tr>
           )
         })}
@@ -820,10 +862,22 @@ function BudgetPlanning({ finRole, can, canEdit, onToast, openModal }) {
         <Card title="🪙 Gold Operations Budget — Separate Tracking">
           <ProgressRow label="Gold Procurement"      value={72} max={100} color={C.gold}  valLabel="72%" />
           <ProgressRow label="Transport & Security"  value={60} max={100} color={C.cyan}  valLabel="60%" />
-          <ProgressRow label="Refining Costs"        value={45} max={100} color="#13AA52" valLabel="45%" />
+          <ProgressRow label="Refining Costs"        value={45} max={100} color="#00684A" valLabel="45%" />
           <ProgressRow label="Compliance Costs"      value={38} max={100} color={C.green} valLabel="38%" />
         </Card>
       )}
+
+      <ModalShell open={budgetModal} title={editDept ? 'Edit Budget' : 'Add Budget'} onClose={() => setBudgetModal(false)}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          <div><ML>Department</ML><input value={bf.dept} onChange={e=>setBf(p=>({...p,dept:e.target.value}))} style={iStyle} placeholder="Department" /></div>
+          <div><ML>Annual Budget ($)</ML><input type="number" value={bf.annual} onChange={e=>setBf(p=>({...p,annual:e.target.value}))} style={iStyle} /></div>
+          <div><ML>Spent to Date ($)</ML><input type="number" value={bf.spent} onChange={e=>setBf(p=>({...p,spent:e.target.value}))} style={iStyle} /></div>
+        </div>
+        <div style={{ display:'flex', gap:8, marginTop:8 }}>
+          <button style={{ ...B.ghost, flex:1 }} onClick={() => setBudgetModal(false)}>Cancel</button>
+          <button style={{ ...B.pri, flex:1 }} onClick={saveBudget}>{editDept ? 'Save Changes' : 'Add Budget'}</button>
+        </div>
+      </ModalShell>
     </div>
   )
 }
@@ -848,7 +902,7 @@ function PayrollManagement({ finRole, can, canEdit, payroll, setPayroll, addAudi
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>
         <StatCard label="Total Payroll"  value="$284,600" color={C.cyan}   sub="Apr 2026" />
         <StatCard label="Employees"      value="47"       color={C.t1}     sub="All active" />
-        <StatCard label="Next Payroll"   value="Apr 30"   color="#13AA52"  sub="17 days away" />
+        <StatCard label="Next Payroll"   value="Apr 30"   color="#00684A"  sub="17 days away" />
         <StatCard label="Status">
           <div style={{ marginTop:6 }}><Badge status="Pending" /></div>
           <div style={{ fontSize:11, color:C.t3, marginTop:7 }}>Awaiting Finance approval</div>
@@ -888,14 +942,14 @@ function PayrollManagement({ finRole, can, canEdit, payroll, setPayroll, addAudi
 }
 
 // ─── AR & AP ──────────────────────────────────────────────────
-function ARAndAP({ finRole, can, canEdit, onToast }) {
+function ARAndAP({ finRole, can, canEdit, onToast, receivables, setReceivables, payables, setPayables }) {
   if (can('vendor','hr_mgr')) return <Restricted msg="Accounts Receivable & Payable is restricted." />
   const payOnly = finRole === 'dept_head'
   const recOnly = finRole === 'sales_head'
 
-  const totalRec    = RECEIVABLES.reduce((a,r)=>a+r.amount,0)
-  const overdueRec  = RECEIVABLES.filter(r=>r.overdue>0).reduce((a,r)=>a+r.amount,0)
-  const totalPay    = PAYABLES.reduce((a,p)=>a+p.amount,0)
+  const totalRec    = receivables.reduce((a,r)=>a+r.amount,0)
+  const overdueRec  = receivables.filter(r=>r.overdue>0).reduce((a,r)=>a+r.amount,0)
+  const totalPay    = payables.reduce((a,p)=>a+p.amount,0)
 
   return (
     <div className="space-y-4">
@@ -912,7 +966,7 @@ function ARAndAP({ finRole, can, canEdit, onToast }) {
             <StatCard label="Current"           value={fmt(totalRec-overdueRec)} color={C.cyan}  />
           </div>
           <DataTable title="" headers={['Client','Invoice','Amount','Due Date','Days Overdue','Status','Action']}>
-            {RECEIVABLES.map((r,i) => (
+            {receivables.map((r,i) => (
               <tr key={i} style={{ background:r.overdue>0?'rgba(255,71,87,.05)':'rgba(0,200,150,.04)', borderBottom:'1px solid rgba(255,255,255,.04)' }}>
                 <Td style={{ fontWeight:700, color:C.t1 }}>{r.client}</Td>
                 <Td style={{ color:C.t3 }}>{r.inv}</Td>
@@ -930,14 +984,14 @@ function ARAndAP({ finRole, can, canEdit, onToast }) {
       {!recOnly && (
         <Card title={<>Accounts Payable <span style={{ color:C.orange, fontSize:12, fontWeight:600 }}>{fmt(totalPay)} total</span></>}>
           <DataTable title="" headers={['Vendor','Invoice','Amount','Due Date','Status',...(canEdit()?['Action']:[])]}>
-            {PAYABLES.map((p,i) => (
+            {payables.map((p,i) => (
               <tr key={i} style={{ background:p.pstatus==='Overdue'?'rgba(255,71,87,.05)':(i%2===0?'#ffffff':'#f8f9fa'), borderBottom:'1px solid rgba(255,255,255,.04)' }}>
                 <Td style={{ fontWeight:700, color:C.t1 }}>{p.vendor}</Td>
                 <Td style={{ color:C.t3 }}>{p.inv}</Td>
                 <Td style={{ color:p.pstatus==='Overdue'?C.red:C.t1, fontWeight:700 }}>{fmtFull(p.amount)}</Td>
                 <Td style={{ color:p.pstatus==='Overdue'?C.red:C.t3 }}>{p.due}</Td>
                 <Td><Badge status={p.pstatus} /></Td>
-                {canEdit() && <Td><button style={{...B.succ,...B.sm}} onClick={() => onToast('Marked Paid',p.vendor+' payment of '+fmtFull(p.amount)+' marked as paid')}>Mark Paid</button></Td>}
+                {canEdit() && <Td><button style={{...B.succ,...B.sm}} onClick={() => { setPayables(prev => prev.map(x => x.inv===p.inv ? {...x, pstatus:'Paid'} : x)); onToast('Marked Paid',p.vendor+' payment of '+fmtFull(p.amount)+' marked as paid') }}>Mark Paid</button></Td>}
               </tr>
             ))}
           </DataTable>
@@ -961,7 +1015,7 @@ function GoldTracker({ finRole, can, canEdit, onToast }) {
         {!salesOnly && <StatCard label="Gold Procurement Cost" value="$1.12M" color={C.orange} sub="This quarter" />}
         <StatCard label="Gold Revenue"      value="$1.89M"  color={C.gold}   sub={<span style={{color:C.green,fontWeight:700}}>↑9% QoQ</span>} />
         {(canEdit()||finRole==='auditor') && <StatCard label="Gold Margin" value="$770k" color={C.green} sub="40.7% margin" />}
-        <StatCard label="Market Price / kg" value="$58,420" color="#13AA52"  sub="Last updated: Today" />
+        <StatCard label="Market Price / kg" value="$58,420" color="#00684A"  sub="Last updated: Today" />
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
         <Card title="Volume vs Revenue — Last 6 Months">
@@ -996,7 +1050,7 @@ function GoldTracker({ finRole, can, canEdit, onToast }) {
               </tr>
             ))}
           </DataTable>
-          {canEdit() && <div style={{ fontSize:11, color:C.t3, marginTop:10, display:'flex', alignItems:'center', gap:5 }}><span style={{ width:6, height:6, borderRadius:'50%', background:'#13AA52', display:'inline-block' }} />Gold Inventory Value: $2.34M (40.2kg in stock × $58,420/kg)</div>}
+          {canEdit() && <div style={{ fontSize:11, color:C.t3, marginTop:10, display:'flex', alignItems:'center', gap:5 }}><span style={{ width:6, height:6, borderRadius:'50%', background:'#00684A', display:'inline-block' }} />Gold Inventory Value: $2.34M (40.2kg in stock × $58,420/kg)</div>}
         </Card>
       </div>
     </div>
@@ -1004,13 +1058,47 @@ function GoldTracker({ finRole, can, canEdit, onToast }) {
 }
 
 // ─── Tax & Compliance ─────────────────────────────────────────
-function TaxCompliance({ finRole, can, canEdit, onToast }) {
+function TaxCompliance({ finRole, can, canEdit, onToast, taxes, setTaxes }) {
   if (can('vendor','hr_mgr','dept_head','sales_head')) return <Restricted msg="Tax & Compliance Financials are restricted to Finance Manager, Super Admin and Auditor." />
+
+  const [taxModal, setTaxModal] = useState(false)
+  const [editType, setEditType] = useState('')
+  const [tf, setTf] = useState({ type:'', period:'', amount:'', due:'', filed:'—', status:'Pending' })
+
+  function openTaxForm(row) {
+    if (row) {
+      setEditType(row.type + row.period)
+      setTf({ type:row.type, period:row.period, amount:String(row.amount), due:row.due, filed:row.filed, status:row.status })
+    } else {
+      setEditType('')
+      setTf({ type:'', period:'', amount:'', due:'', filed:'—', status:'Pending' })
+    }
+    setTaxModal(true)
+  }
+
+  function saveTax() {
+    if (!tf.type.trim() || !tf.period.trim() || !tf.amount) return
+    const payload = { type:tf.type.trim(), period:tf.period.trim(), amount:Number(tf.amount)||0, due:tf.due||'—', filed:tf.filed||'—', status:tf.status }
+    if (editType) {
+      setTaxes(p => p.map(x => (x.type + x.period) === editType ? payload : x))
+      onToast('Tax Updated', payload.type + ' updated')
+    } else {
+      setTaxes(p => [payload, ...p])
+      onToast('Tax Entry Added', payload.type + ' added')
+    }
+    setTaxModal(false)
+  }
+
+  function deleteTax(row) {
+    if (!window.confirm('Delete tax row for ' + row.type + '?')) return
+    setTaxes(p => p.filter(x => !(x.type === row.type && x.period === row.period)))
+    onToast('Tax Deleted', row.type + ' removed')
+  }
 
   return (
     <div className="space-y-4">
       <SectionHeader title="Tax & Compliance Financials" sub="Q1 2026 · KZ Jurisdiction">
-        {canEdit() && <button style={{...B.pri,...B.sm}} onClick={() => onToast('Tax Filing','Tax filing form opens here')}>+ File Tax Return</button>}
+        {canEdit() && <button style={{...B.pri,...B.sm}} onClick={() => openTaxForm(null)}>+ File / Add Tax Return</button>}
       </SectionHeader>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>
         <StatCard label="Tax Liability (Q1)"  value="$430,900" color={C.yellow} sub="All tax types combined" />
@@ -1025,16 +1113,16 @@ function TaxCompliance({ finRole, can, canEdit, onToast }) {
         <div style={{ display:'flex', gap:10, marginTop:4 }}>
           {[{v:'17',l:'Days'},{v:'0',l:'Hours'},{v:'0',l:'Mins'}].map(c => (
             <div key={c.l} style={{ background:'rgba(255,255,255,.05)', borderRadius:10, padding:'8px 12px', textAlign:'center', flex:1 }}>
-              <div style={{ fontSize:20, fontWeight:800, color:'#13AA52' }}>{c.v}</div>
+              <div style={{ fontSize:20, fontWeight:800, color:'#00684A' }}>{c.v}</div>
               <div style={{ fontSize:9, color:C.t3, textTransform:'uppercase', letterSpacing:'.08em', marginTop:2 }}>{c.l}</div>
             </div>
           ))}
         </div>
         <div style={{ fontSize:11, color:C.t3, marginTop:10, display:'flex', alignItems:'center', gap:5 }}><span style={{ width:6, height:6, borderRadius:'50%', background:C.red, display:'inline-block' }} />Corporate Tax $282,500 due April 30, 2026 — not yet filed</div>
       </Card>
-      <DataTable title="Tax Register" toolbar={canEdit() && <button style={{...B.pri,...B.sm}} onClick={() => onToast('Tax Entry','Add tax record form')}>+ Add Tax Entry</button>}
+      <DataTable title="Tax Register" toolbar={canEdit() && <button style={{...B.pri,...B.sm}} onClick={() => openTaxForm(null)}>+ Add Tax Entry</button>}
         headers={['Tax Type','Period','Amount','Due Date','Filed Date','Status',...(canEdit()?['Actions']:[])]}>
-        {TAXES.map((t,i) => (
+        {taxes.map((t,i) => (
           <tr key={i} style={{ background:t.status==='Filed'?'rgba(0,200,150,.04)':'rgba(255,214,0,.04)', borderBottom:'1px solid rgba(255,255,255,.04)' }}>
             <Td style={{ fontWeight:700, color:C.t1 }}>{t.type}</Td>
             <Td style={{ color:C.t3 }}>{t.period}</Td>
@@ -1042,10 +1130,29 @@ function TaxCompliance({ finRole, can, canEdit, onToast }) {
             <Td style={{ color:t.status==='Due Soon'?C.red:C.t3 }}>{t.due}</Td>
             <Td style={{ color:t.filed==='—'?C.t4:C.green }}>{t.filed}</Td>
             <Td><Badge status={t.status} /></Td>
-            {canEdit() && <Td>{t.filed==='—' ? <button onClick={() => onToast('Filed',t.type+' marked as filed')} style={{...B.link,color:'#13AA52'}}>Mark Filed</button> : <span style={{ color:C.t4 }}>—</span>}</Td>}
+            {canEdit() && <Td style={{ whiteSpace:'nowrap' }}>
+              {t.filed==='—' ? <button onClick={() => { setTaxes(p => p.map(x => x.type===t.type && x.period===t.period ? {...x, filed:'Today', status:'Filed'} : x)); onToast('Filed',t.type+' marked as filed') }} style={{...B.link,color:'#00684A',marginRight:8}}>Mark Filed</button> : <span style={{ color:C.t4, marginRight:8 }}>—</span>}
+              <button onClick={() => openTaxForm(t)} style={{...B.link,color:C.cyan,marginRight:8}}>Edit</button>
+              <button onClick={() => deleteTax(t)} style={{...B.link,color:C.red}}>Del</button>
+            </Td>}
           </tr>
         ))}
       </DataTable>
+
+      <ModalShell open={taxModal} title={editType ? 'Edit Tax Entry' : 'Add Tax Entry'} onClose={() => setTaxModal(false)}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          <div><ML>Tax Type</ML><input value={tf.type} onChange={e=>setTf(p=>({...p,type:e.target.value}))} style={iStyle} /></div>
+          <div><ML>Period</ML><input value={tf.period} onChange={e=>setTf(p=>({...p,period:e.target.value}))} style={iStyle} placeholder="Q2 2026" /></div>
+          <div><ML>Amount ($)</ML><input type="number" value={tf.amount} onChange={e=>setTf(p=>({...p,amount:e.target.value}))} style={iStyle} /></div>
+          <div><ML>Due Date</ML><input value={tf.due} onChange={e=>setTf(p=>({...p,due:e.target.value}))} style={iStyle} placeholder="Apr 30, 2026" /></div>
+          <div><ML>Filed Date</ML><input value={tf.filed} onChange={e=>setTf(p=>({...p,filed:e.target.value}))} style={iStyle} placeholder="—" /></div>
+          <div><ML>Status</ML><select value={tf.status} onChange={e=>setTf(p=>({...p,status:e.target.value}))} style={iStyle}><option>Pending</option><option>Due Soon</option><option>Filed</option></select></div>
+        </div>
+        <div style={{ display:'flex', gap:8, marginTop:8 }}>
+          <button style={{ ...B.ghost, flex:1 }} onClick={() => setTaxModal(false)}>Cancel</button>
+          <button style={{ ...B.pri, flex:1 }} onClick={saveTax}>{editType ? 'Save Changes' : 'Add Entry'}</button>
+        </div>
+      </ModalShell>
     </div>
   )
 }
@@ -1084,7 +1191,7 @@ function ReportsAnalytics({ finRole, can, canEdit, onToast }) {
               <span onClick={e => { e.stopPropagation(); onToast('PDF','Generating '+r.n+' PDF...') }}
                 style={{ background:'rgba(0,180,216,.12)', color:C.cyan, border:'1px solid rgba(0,180,216,.3)', borderRadius:999, fontSize:9, padding:'3px 8px', fontWeight:700, cursor:'pointer' }}>⬇ PDF</span>
               <span onClick={e => { e.stopPropagation(); onToast('Excel','Generating '+r.n+' Excel...') }}
-                style={{ background:'rgba(0,104,74,.15)', color:'#13AA52', border:'1px solid rgba(0,104,74,.3)', borderRadius:999, fontSize:9, padding:'3px 8px', fontWeight:700, cursor:'pointer' }}>⬇ Excel</span>
+                style={{ background:'rgba(0,104,74,.15)', color:'#00684A', border:'1px solid rgba(0,104,74,.3)', borderRadius:999, fontSize:9, padding:'3px 8px', fontWeight:700, cursor:'pointer' }}>⬇ Excel</span>
             </div>
           </div>
         ))}
@@ -1102,6 +1209,148 @@ function ReportsAnalytics({ finRole, can, canEdit, onToast }) {
           ))}
         </div>
       </Card>
+    </div>
+  )
+}
+
+// ─── General Ledger Management ────────────────────────────────
+function GeneralLedger({ finRole, can, canEdit, onToast }) {
+  if (can('vendor','hr_mgr','dept_head','sales_head')) return <Restricted msg="General Ledger is restricted to Finance Manager, Super Admin and Auditor." />
+  
+  const [ledgerEntries, setLedgerEntries] = useState([
+    { _id:'LE-001', date:'Apr 1, 2026', debitAccount:'Cash', creditAccount:'Revenue', amount:100000, description:'Sales invoice INV-001', status:'Posted' },
+    { _id:'LE-002', date:'Apr 2, 2026', debitAccount:'Accounts Receivable', creditAccount:'Revenue', amount:250000, description:'Accrued revenue', status:'Posted' },
+    { _id:'LE-003', date:'Apr 3, 2026', debitAccount:'Expenses', creditAccount:'Cash', amount:45000, description:'Office supplies purchase', status:'Posted' },
+    { _id:'LE-004', date:'Apr 4, 2026', debitAccount:'Equipment', creditAccount:'Accounts Payable', amount:500000, description:'Equipment acquisition', status:'Draft' },
+  ])
+  
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const pageSize = limit
+  const totalPages = Math.ceil(ledgerEntries.length / pageSize)
+  const paginatedEntries = ledgerEntries.slice((page - 1) * pageSize, page * pageSize)
+  
+  const [editModal, setEditModal] = useState(false)
+  const [editEntry, setEditEntry] = useState(null)
+  const [formData, setFormData] = useState({ date:'', debitAccount:'', creditAccount:'', amount:'', description:'' })
+
+  function openEditForm(entry) {
+    setEditEntry(entry)
+    setFormData({
+      date: entry.date,
+      debitAccount: entry.debitAccount,
+      creditAccount: entry.creditAccount,
+      amount: String(entry.amount),
+      description: entry.description,
+    })
+    setEditModal(true)
+  }
+
+  function saveEntry() {
+    if (!formData.date || !formData.debitAccount || !formData.creditAccount || !formData.amount) {
+      onToast('Missing Fields', 'Please fill all required fields')
+      return
+    }
+    if (formData.debitAccount === formData.creditAccount) {
+      onToast('Invalid Entry', 'Debit and Credit accounts must be different')
+      return
+    }
+    
+    setLedgerEntries(p => p.map(e => e._id === editEntry._id 
+      ? { ...e, ...formData, amount: Number(formData.amount) }
+      : e
+    ))
+    onToast('Saved', `Ledger entry ${editEntry._id} updated`)
+    setEditModal(false)
+  }
+
+  function deleteEntry(entry) {
+    if (!window.confirm(`Create reversal for ${entry._id}? Original will be marked as reversed.`)) return
+    
+    // Create reversal entry
+    const reversal = {
+      _id: `REV-${entry._id}`,
+      date: new Date().toISOString().split('T')[0],
+      debitAccount: entry.creditAccount,
+      creditAccount: entry.debitAccount,
+      amount: entry.amount,
+      description: `REVERSAL of ${entry._id}: ${entry.description}`,
+      status: 'Posted',
+    }
+    
+    setLedgerEntries(p => [reversal, ...p.map(e => e._id === entry._id ? {...e, status:'Reversed'} : e)])
+    onToast('Reversed', `Reversal entry created for ${entry._id}`)
+  }
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="General Ledger" sub="Journal entries and ledger account balances">
+        {canEdit() && <button style={{...B.pri,...B.sm}} onClick={() => { setEditEntry(null); setFormData({ date:'', debitAccount:'', creditAccount:'', amount:'', description:'' }); setEditModal(true) }}>+ New Entry</button>}
+      </SectionHeader>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:11 }}>
+        <StatCard label="Total Entries" value={ledgerEntries.length} color={C.cyan} sub="This month" />
+        <StatCard label="Posted" value={ledgerEntries.filter(e=>e.status==='Posted').length} color={C.green} sub="Ready for closing" />
+        <StatCard label="Draft" value={ledgerEntries.filter(e=>e.status==='Draft').length} color={C.yellow} sub="Awaiting posting" />
+        <StatCard label="Reversed" value={ledgerEntries.filter(e=>e.status==='Reversed').length} color={C.orange} sub="Audit trail maintained" />
+      </div>
+
+      <Card title={`Ledger Entries — Page ${page} of ${totalPages}`}>
+        <DataTable title="" headers={['Date','Debit Account','Credit Account','Amount','Description','Status',...(canEdit()?['Actions']:[])]}>
+          {paginatedEntries.map((entry,i) => (
+            <tr key={entry._id} style={{ background:entry.status==='Reversed'?'rgba(255,71,87,.05)':entry.status==='Draft'?'rgba(255,214,0,.04)':(i%2===0?'#ffffff':'#f8f9fa'), borderBottom:'1px solid rgba(255,255,255,.04)' }}>
+              <Td style={{ color:C.t3 }}>{entry.date}</Td>
+              <Td style={{ fontWeight:700 }}>{entry.debitAccount}</Td>
+              <Td style={{ fontWeight:700 }}>{entry.creditAccount}</Td>
+              <Td style={{ color:C.cyan, fontWeight:700 }}>{fmtFull(entry.amount)}</Td>
+              <Td style={{ color:C.t3, fontSize:11 }}>{entry.description}</Td>
+              <Td><Badge status={entry.status} /></Td>
+              {canEdit() && (
+                <Td style={{ whiteSpace:'nowrap' }}>
+                  {entry.status !== 'Reversed' && entry.status === 'Draft' && (
+                    <>
+                      <button onClick={() => openEditForm(entry)} style={{...B.link,color:'#00684A',marginRight:8}}>Edit</button>
+                      <button onClick={() => deleteEntry(entry)} style={{...B.link,color:C.red}}>Reverse</button>
+                    </>
+                  )}
+                  {entry.status === 'Reversed' && <span style={{ color:C.t4, fontSize:11 }}>—</span>}
+                </Td>
+              )}
+            </tr>
+          ))}
+        </DataTable>
+
+        {/* Pagination Controls */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:14, paddingTop:12, borderTop:`1px solid ${C.border}` }}>
+          <div style={{ fontSize:12, color:C.t3 }}>
+            Showing {paginatedEntries.length > 0 ? (page-1)*pageSize + 1 : 0}–{Math.min(page*pageSize, ledgerEntries.length)} of {ledgerEntries.length}
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <select value={limit} onChange={e => { setLimit(Number(e.target.value)); setPage(1) }} style={{ background:C.inp, border:`1px solid ${C.border}`, color:C.t2, borderRadius:6, padding:'5px 8px', fontSize:12 }}>
+              <option>10</option><option>25</option><option>50</option><option>100</option>
+            </select>
+            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} style={{...B.ghost,...B.sm, opacity:page===1?0.5:1}}>← Prev</button>
+            <span style={{ fontSize:12, color:C.t3, minWidth:'30px', textAlign:'center' }}>{page}/{totalPages}</span>
+            <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} style={{...B.ghost,...B.sm, opacity:page===totalPages?0.5:1}}>Next →</button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Edit Modal */}
+      <ModalShell open={editModal} title={editEntry ? 'Edit Ledger Entry' : 'New Ledger Entry'} onClose={() => setEditModal(false)}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          <div><ML>Date</ML><input type="date" value={formData.date} onChange={e=>setFormData(p=>({...p,date:e.target.value}))} style={iStyle} /></div>
+          <div><ML>Amount ($)</ML><input type="number" value={formData.amount} onChange={e=>setFormData(p=>({...p,amount:e.target.value}))} style={iStyle} /></div>
+          <div><ML>Debit Account</ML><input value={formData.debitAccount} onChange={e=>setFormData(p=>({...p,debitAccount:e.target.value}))} style={iStyle} placeholder="e.g. Cash" /></div>
+          <div><ML>Credit Account</ML><input value={formData.creditAccount} onChange={e=>setFormData(p=>({...p,creditAccount:e.target.value}))} style={iStyle} placeholder="e.g. Revenue" /></div>
+        </div>
+        <ML>Description</ML>
+        <textarea value={formData.description} onChange={e=>setFormData(p=>({...p,description:e.target.value}))} style={{ ...iStyle, resize:'vertical', minHeight:65 }} placeholder="Transaction description..." />
+        <div style={{ display:'flex', gap:8, marginTop:8 }}>
+          <button style={{ ...B.ghost, flex:1 }} onClick={() => setEditModal(false)}>Cancel</button>
+          <button style={{ ...B.pri, flex:1 }} onClick={saveEntry}>{editEntry ? 'Save Changes' : 'Create Entry'}</button>
+        </div>
+      </ModalShell>
     </div>
   )
 }
@@ -1130,7 +1379,7 @@ function AuditTrail({ finRole, can, auditLog }) {
             <Td style={{ fontWeight:700, color:C.t1 }}>{a.action}</Td>
             <Td>
               <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(0,104,74,.2)', color:'#13AA52', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, flexShrink:0 }}>{a.user[0]}</div>
+                <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(0,104,74,.2)', color:'#00684A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, flexShrink:0 }}>{a.user[0]}</div>
                 {a.user}
               </div>
             </Td>
@@ -1153,6 +1402,8 @@ function AuditTrail({ finRole, can, auditLog }) {
 export default function FinanceTab() {
   const { isSuperAdmin, isManagement, isDepartmentHead, isDepartmentUser, isExternal } = usePermissions()
   const { user } = useAuth()
+  const { t } = useLanguage()
+  const TABS = useMemo(() => getFinanceTabs(t), [t])
 
   // Map dashboard roles → finance-specific role
   const finRole = useMemo(() => {
@@ -1179,6 +1430,10 @@ export default function FinanceTab() {
   const [invoices,     setInvoices]     = useState(INIT_INVOICES)
   const [expenses,     setExpenses]     = useState(INIT_EXPENSES)
   const [payroll,      setPayroll]      = useState(INIT_PAYROLL)
+  const [budgets,      setBudgets]      = useState(BUDGETS)
+  const [taxes,        setTaxes]        = useState(TAXES)
+  const [receivables,  setReceivables]  = useState(RECEIVABLES)
+  const [payables,     setPayables]     = useState(PAYABLES)
   const [auditLog,     setAuditLog]     = useState(INIT_AUDIT)
   const [notifications,setNotifications]= useState(INIT_NOTIFS)
   const [toast,        setToast]        = useState(null)
@@ -1201,7 +1456,7 @@ export default function FinanceTab() {
   const unreadCount = roleNotifs.filter(n => !n.read).length
 
   // Shared props passed to every sub-tab
-  const sh = { finRole, can, canEdit, invoices, setInvoices, expenses, setExpenses, payroll, setPayroll, auditLog, addAudit, onToast:showToast, openModal:setModal }
+  const sh = { finRole, can, canEdit, invoices, setInvoices, expenses, setExpenses, payroll, setPayroll, budgets, setBudgets, taxes, setTaxes, receivables, setReceivables, payables, setPayables, auditLog, addAudit, onToast:showToast, openModal:setModal }
 
   function renderTab() {
     switch (activeTab) {
@@ -1215,6 +1470,7 @@ export default function FinanceTab() {
       case 'gold':    return <GoldTracker     {...sh} />
       case 'tax':     return <TaxCompliance   {...sh} />
       case 'reports': return <ReportsAnalytics {...sh} />
+      case 'ledger':  return <GeneralLedger    finRole={finRole} can={can} canEdit={canEdit} onToast={showToast} />
       case 'audit':   return <AuditTrail      finRole={finRole} can={can} auditLog={auditLog} />
       default:        return null
     }
@@ -1248,7 +1504,7 @@ export default function FinanceTab() {
               padding:'10px 14px', fontSize:12, fontWeight:600,
               background:'transparent', border:'none',
               borderBottom: activeTab===t.id ? '2px solid #00684A' : '2px solid transparent',
-              color: activeTab===t.id ? '#13AA52' : C.t3,
+              color: activeTab===t.id ? '#00684A' : C.t3,
               cursor:'pointer', whiteSpace:'nowrap', fontFamily:'inherit',
               marginBottom:-1, transition:'all .15s',
             }}>

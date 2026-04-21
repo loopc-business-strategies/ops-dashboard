@@ -5,7 +5,10 @@
 //   As client adds requirements, each tab gets replaced
 //   with its real content.
 
+import { useLanguage } from '../../context/LanguageContext'
+
 function PlaceholderTab({ title, icon, description, subTabs = [] }) {
+  const { t } = useLanguage()
   return (
     <div>
       {/* Header */}
@@ -22,7 +25,7 @@ function PlaceholderTab({ title, icon, description, subTabs = [] }) {
       {/* Planned sub-tabs preview */}
       {subTabs.length > 0 && (
         <div className="mb-8">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">Planned Sections</p>
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">{t('plannedSections')}</p>
           <div className="flex flex-wrap gap-2">
             {subTabs.map((st, i) => (
               <span key={i}
@@ -46,9 +49,9 @@ function PlaceholderTab({ title, icon, description, subTabs = [] }) {
       </div>
 
       <div className="mt-8 p-6 bg-emerald-700/5 border border-emerald-700/20 rounded-xl text-center">
-        <p className="text-violet-400 font-medium text-sm">🔧 Module Under Construction</p>
+        <p className="text-violet-400 font-medium text-sm">🔧 {t('moduleUnderConstruction')}</p>
         <p className="text-gray-500 text-xs mt-1">
-          This section will be built as requirements are confirmed with the client.
+          {t('builtAsRequired')}
         </p>
       </div>
     </div>

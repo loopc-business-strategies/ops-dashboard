@@ -15,31 +15,48 @@ export function AuthProvider({ children }) {
   const [token,     setToken]     = useState(null)
   const [isLoading, setIsLoading] = useState(true) // checking saved session
 
-  // On app load: restore session from localStorage
+  // On app load: restore session from server cookie
   useEffect(() => {
-    const savedToken = localStorage.getItem('token')
-    const savedUser  = localStorage.getItem('user')
-    if (savedToken && savedUser) {
-      setToken(savedToken)
-      setUser(JSON.parse(savedUser))
+    let mounted = true
+
+    const restoreSession = async () => {
+      try {
+        const data = await authAPI.getMe()
+        if (!mounted) return
+        setUser(data.user)
+        // Keep compatibility for existing token checks in tabs.
+        setToken('cookie-session')
+      } catch {
+        if (!mounted) return
+        setUser(null)
+        setToken(null)
+      } finally {
+        if (mounted) setIsLoading(false)
+      }
     }
-    setIsLoading(false)
+
+    restoreSession()
+
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const login = async (name, password) => {
     const data = await authAPI.login(name, password)
-    setToken(data.token)
     setUser(data.user)
-    localStorage.setItem('token', data.token)
-    localStorage.setItem('user', JSON.stringify(data.user))
+    setToken('cookie-session')
     return data
   }
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await authAPI.logout()
+    } catch {
+      // Clear client state even if server session is already invalid.
+    }
     setToken(null)
     setUser(null)
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
   }
 
   return (
