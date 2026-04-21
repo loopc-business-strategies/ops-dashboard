@@ -248,6 +248,8 @@ function ERPTab() {
   const [enquiryHistory, setEnquiryHistory] = useState([])
   const [metalUnit, setMetalUnit] = useState('gram')
   const [showEnquiryModal, setShowEnquiryModal] = useState(false)
+  const [enquiryModalOffset, setEnquiryModalOffset] = useState({ x: 0, y: 0 })
+  const [enquiryModalDrag, setEnquiryModalDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
   const [excessCurrency, setExcessCurrency] = useState('USD')
   const [transactions, setTransactions] = useState([])
   const [vendors, setVendors] = useState([])
@@ -506,6 +508,49 @@ function ERPTab() {
     color: C.ink,
     borderRadius: '0.5rem',
   }
+
+  const enquiryBackdropColor = enquiryModalDrag.active ? 'rgba(15, 23, 42, 0.12)' : 'rgba(15, 23, 42, 0.45)'
+
+  const beginEnquiryModalDrag = (event) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    setEnquiryModalDrag({
+      active: true,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      startX: enquiryModalOffset.x,
+      startY: enquiryModalOffset.y,
+    })
+  }
+
+  useEffect(() => {
+    if (!showEnquiryModal) {
+      setEnquiryModalOffset({ x: 0, y: 0 })
+      setEnquiryModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+      return undefined
+    }
+
+    if (!enquiryModalDrag.active) return undefined
+
+    const handlePointerMove = (event) => {
+      setEnquiryModalOffset({
+        x: enquiryModalDrag.startX + (event.clientX - enquiryModalDrag.pointerX),
+        y: enquiryModalDrag.startY + (event.clientY - enquiryModalDrag.pointerY),
+      })
+    }
+
+    const handlePointerUp = () => {
+      setEnquiryModalDrag((prev) => ({ ...prev, active: false }))
+    }
+
+    window.addEventListener('mousemove', handlePointerMove)
+    window.addEventListener('mouseup', handlePointerUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handlePointerMove)
+      window.removeEventListener('mouseup', handlePointerUp)
+    }
+  }, [showEnquiryModal, enquiryModalDrag])
 
   const loadDashboard = async () => {
     if (!canViewAccounts) return
@@ -5406,12 +5451,15 @@ function ERPTab() {
       {showEnquiryModal && (
         <div
           onClick={(e) => { if (e.target === e.currentTarget) setShowEnquiryModal(false) }}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}
+          style={{ position: 'fixed', inset: 0, background: enquiryBackdropColor, transition: 'background 120ms ease', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}
         >
-          <div style={{ background: '#fff', borderRadius: '8px', width: 'min(1100px, 100%)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 42px rgba(0,0,0,0.35)' }}>
+          <div style={{ background: '#fff', borderRadius: '8px', width: 'min(1100px, 100%)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 42px rgba(0,0,0,0.35)', transform: `translate(${enquiryModalOffset.x}px, ${enquiryModalOffset.y}px)` }}>
 
             {/* Header - Dark Green Bar */}
-            <div style={{ background: '#3F4B2E', color: '#FFFFFF', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div
+              onMouseDown={beginEnquiryModalDrag}
+              style={{ background: '#3F4B2E', color: '#FFFFFF', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', cursor: enquiryModalDrag.active ? 'grabbing' : 'grab', userSelect: 'none' }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ fontWeight: '700', fontSize: '1.1rem' }}>Account Details — Statement of Account</span>
                 {enquiryLoading && <span style={{ fontSize: '0.9rem', opacity: 0.8 }}>(Loading…)</span>}
