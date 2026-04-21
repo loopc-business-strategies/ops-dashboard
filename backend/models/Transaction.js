@@ -10,7 +10,7 @@ const transactionSchema = new mongoose.Schema(
     amount: { type: Number, required: true, min: 0 },
     date: { type: Date, default: Date.now },
     description: { type: String, trim: true, default: '' },
-    currency: { type: String, trim: true, default: 'AED' },
+    currency: { type: String, trim: true, default: 'USD' },
     exchangeRate: { type: Number, default: 1 },
 
     customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
@@ -81,7 +81,7 @@ const transactionSchema = new mongoose.Schema(
           acCode: { type: String, trim: true, default: '' },
           type: { type: String, trim: true, default: 'Cash' }, // Cash, Cheque, Transfer
           typeCode: { type: String, trim: true, default: '' },
-          currCode: { type: String, trim: true, default: 'AED' },
+          currCode: { type: String, trim: true, default: 'USD' },
           currRate: { type: Number, default: 1 },
           exp: { type: String, trim: true, default: '' },
           trnNumber: { type: String, trim: true, default: '' },
@@ -112,5 +112,18 @@ const transactionSchema = new mongoose.Schema(
 )
 
 transactionSchema.index({ type: 1, date: -1 })
+
+transactionSchema.pre('validate', function enforceUsdCurrency(next) {
+  this.currency = 'USD'
+  this.exchangeRate = 1
+  if (Array.isArray(this.voucherMeta?.lineItems)) {
+    this.voucherMeta.lineItems = this.voucherMeta.lineItems.map((line) => ({
+      ...line,
+      currCode: 'USD',
+      currRate: 1,
+    }))
+  }
+  next()
+})
 
 module.exports = mongoose.model('Transaction', transactionSchema)

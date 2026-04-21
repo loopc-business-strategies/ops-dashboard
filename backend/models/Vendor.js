@@ -60,7 +60,7 @@ const vendorSchema = new mongoose.Schema(
     tags: [{ type: String, trim: true }],
     documents: [vendorDocumentSchema],
     openingBalance: { type: Number, min: 0, default: 0 },
-    currency: { type: String, trim: true, default: 'AED' },
+    currency: { type: String, trim: true, default: 'USD' },
     ledgerAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
     isActive: { type: Boolean, default: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -76,5 +76,11 @@ vendorSchema.index({ email: 1 })
 vendorSchema.index({ status: 1 })
 vendorSchema.index({ approvalStatus: 1 })
 vendorSchema.index({ category: 1 })
+
+vendorSchema.pre('validate', function enforceUsdCurrency(next) {
+  this.preferredCurrency = 'USD'
+  this.currency = 'USD'
+  next()
+})
 
 module.exports = mongoose.model('Vendor', vendorSchema)

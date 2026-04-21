@@ -45,7 +45,7 @@ const customerSchema = new mongoose.Schema(
     },
     currency: {
       type: String,
-      default: 'AED',
+      default: 'USD',
       trim: true,
     },
     notes: {
@@ -74,5 +74,10 @@ const customerSchema = new mongoose.Schema(
 customerSchema.index({ name: 1 })
 customerSchema.index({ email: 1 })
 customerSchema.index({ isActive: 1 })
+
+customerSchema.pre('validate', function enforceUsdCurrency(next) {
+  this.currency = 'USD'
+  next()
+})
 
 module.exports = mongoose.model('Customer', customerSchema)

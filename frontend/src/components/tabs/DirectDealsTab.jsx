@@ -138,7 +138,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     entryType: 'fixing',
     docDate: today(),
     valueDate: today(),
-    currency: 'AED',
+    currency: 'USD',
     branch: 'HO',
     status: 'draft',
     remarks: '',
@@ -326,7 +326,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
       entryType: 'fixing',
       docDate: today(),
       valueDate: today(),
-      currency: 'AED',
+      currency: 'USD',
       branch: 'HO',
       status: 'draft',
       remarks: '',
@@ -441,7 +441,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     pdf.text(`Currency: ${deal.currency || '-'}`, 220, 72)
     pdf.text(`Status: ${deal.status || '-'}`, 380, 72)
     pdf.text(`Total Qty: ${fmtQty(deal.totalQty)}`, 40, 88)
-    pdf.text(`Total Amount: ${deal.currency || 'AED'} ${fmtMoney(deal.totalAmount)}`, 220, 88)
+    pdf.text(`Total Amount: ${deal.currency || 'USD'} ${fmtMoney(deal.totalAmount)}`, 220, 88)
 
     autoTable(pdf, {
       startY: 104,
@@ -591,7 +591,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
       entryType: deal.entryType || 'fixing',
       docDate: deal.docDate ? String(deal.docDate).slice(0, 10) : today(),
       valueDate: deal.valueDate ? String(deal.valueDate).slice(0, 10) : today(),
-      currency: deal.currency || 'AED',
+      currency: deal.currency || 'USD',
       branch: deal.branch || 'HO',
       status: deal.status || 'draft',
       remarks: deal.remarks || '',
@@ -720,7 +720,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
         </div>
         <div style={{ background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '0.5rem', padding: '0.7rem' }}>
           <p style={{ margin: 0, color: COLORS.muted, fontSize: '0.75rem' }}>{t('totalAmount')}</p>
-          <p style={{ margin: '0.25rem 0 0', color: COLORS.ink, fontSize: '1.1rem', fontWeight: 800 }}>{form.currency || 'AED'} {fmtMoney(summary.totalAmount)}</p>
+          <p style={{ margin: '0.25rem 0 0', color: COLORS.ink, fontSize: '1.1rem', fontWeight: 800 }}>{form.currency || 'USD'} {fmtMoney(summary.totalAmount)}</p>
         </div>
       </div>
 

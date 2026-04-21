@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -99,7 +99,7 @@ const emptyLine = () => ({
   acCode: '',
   type: 'Cash',
   typeCode: '',
-  currCode: 'AED',
+  currCode: 'USD',
   currRate: '',
   exp: '',
   trnNumber: '',
@@ -125,7 +125,7 @@ const emptyHeader = () => ({
   branch: 'HO',
   partyCode: '',
   partyName: '',
-  currCode: 'AED',
+  currCode: 'USD',
   currRate: '1.000000',
   vocDate: today(),
   vocNo: '',
@@ -136,7 +136,42 @@ const emptyHeader = () => ({
   postedDate: today(),
 })
 
-export default function VoucherTab({ token, user, accounts = [], customers = [], currencies = [] }) {
+const normalizeLookupValue = (value) => String(value || '').trim().toLowerCase()
+const normalizeLineType = (value) => (value === 'Transfer' ? 'TT' : (value || 'Cash'))
+
+const getAccountCodeValue = (account) => String(account?.code || account?.accountCode || '').trim()
+const getAccountNameValue = (account) => String(account?.name || account?.accountName || '').trim().toLowerCase()
+
+const pickDefaultAccountCodeByType = (accounts, lineType) => {
+  const normalizedType = normalizeLineType(lineType)
+  const accountList = Array.isArray(accounts) ? accounts : []
+
+  if (normalizedType === 'TT') {
+    const bank = accountList.find((a) => {
+      const name = getAccountNameValue(a)
+      return name.includes('bank')
+    })
+    return getAccountCodeValue(bank)
+  }
+
+  if (normalizedType === 'Cash') {
+    const petty = accountList.find((a) => {
+      const name = getAccountNameValue(a)
+      return name.includes('petty cash')
+    })
+    if (petty) return getAccountCodeValue(petty)
+
+    const cash = accountList.find((a) => {
+      const name = getAccountNameValue(a)
+      return name.includes('cash')
+    })
+    return getAccountCodeValue(cash)
+  }
+
+  return ''
+}
+
+export default function VoucherTab({ token, user, accounts = [], customers = [], vendors = [], currencies = [] }) {
   const { t } = useLanguage()
   const role = user?.role || ''
   const dept = (user?.department || '').toLowerCase()
@@ -163,10 +198,187 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   const [innerTab, setInnerTab] = useState('lineItems')   // 'lineItems' | 'attachments'
   const [headerTab, setHeaderTab] = useState('header')    // 'header' | 'accounts'
   const [workflowNote, setWorkflowNote] = useState('')
+  const [selectedPartyId, setSelectedPartyId] = useState('')
+  const [recentPartyVouchers, setRecentPartyVouchers] = useState([])
+  const [loadingRecentPartyVouchers, setLoadingRecentPartyVouchers] = useState(false)
+  const [modalOffset, setModalOffset] = useState({ x: 0, y: 0 })
+  const [modalDrag, setModalDrag] = useState(null)
+  const dragMetaRef = useRef({ moved: false })
 
   // ─── header form ────────────────────────────────────────────────────────────
   const [header, setHeader] = useState(emptyHeader())
   const setHdr = (k, v) => setHeader(prev => ({ ...prev, [k]: v }))
+
+  const resolveVoucherParty = useCallback((partyCode) => {
+    const lookupValue = normalizeLookupValue(partyCode)
+    if (!lookupValue) return null
+
+    if (voucherType === 'payment') {
+      const vendor = vendors.find((item) => {
+        const ledgerCode = normalizeLookupValue(item.ledgerAccountId?.accountCode)
+        return lookupValue === normalizeLookupValue(item._id)
+          || lookupValue === normalizeLookupValue(item.vendorCode)
+          || lookupValue === ledgerCode
+      })
+      if (vendor) {
+        return {
+          customerId: '',
+          vendorId: vendor._id,
+          partyName: vendor.name || '',
+          partyCode: vendor.vendorCode || vendor.ledgerAccountId?.accountCode || String(vendor._id),
+          partyId: `vendor:${String(vendor._id)}`,
+          partyType: 'vendor',
+        }
+      }
+
+      const customer = customers.find((item) => {
+        const ledgerCode = normalizeLookupValue(item.ledgerAccountId?.accountCode)
+        return lookupValue === normalizeLookupValue(item._id) || lookupValue === ledgerCode
+      })
+
+      return customer
+        ? {
+            customerId: customer._id,
+            vendorId: '',
+            partyName: customer.name || '',
+            partyCode: customer.ledgerAccountId?.accountCode || String(customer._id),
+            partyId: `customer:${String(customer._id)}`,
+            partyType: 'customer',
+          }
+        : null
+    }
+
+    const customer = customers.find((item) => {
+      const ledgerCode = normalizeLookupValue(item.ledgerAccountId?.accountCode)
+      return lookupValue === normalizeLookupValue(item._id) || lookupValue === ledgerCode
+    })
+
+    return customer
+      ? {
+          customerId: customer._id,
+          vendorId: '',
+          partyName: customer.name || '',
+          partyCode: customer.ledgerAccountId?.accountCode || String(customer._id),
+          partyId: `customer:${String(customer._id)}`,
+          partyType: 'customer',
+        }
+      : null
+  }, [customers, vendors, voucherType])
+
+  const partyGroups = voucherType === 'payment'
+    ? [
+        {
+          label: 'Vendors - Linked',
+          options: vendors
+            .filter((item) => Boolean(item.ledgerAccountId?.accountCode))
+            .map((item) => ({
+              id: `vendor:${String(item._id)}`,
+              label: `${item.name || 'Vendor'}${item.vendorCode ? ` (${item.vendorCode})` : ''}`,
+              partyCode: item.vendorCode || item.ledgerAccountId?.accountCode || String(item._id),
+              partyName: item.name || '',
+            })),
+        },
+        {
+          label: 'Vendors - Other',
+          options: vendors
+            .filter((item) => !item.ledgerAccountId?.accountCode)
+            .map((item) => ({
+              id: `vendor:${String(item._id)}`,
+              label: `${item.name || 'Vendor'}${item.vendorCode ? ` (${item.vendorCode})` : ''}`,
+              partyCode: item.vendorCode || String(item._id),
+              partyName: item.name || '',
+            })),
+        },
+        {
+          label: 'Customers - Linked',
+          options: customers
+            .filter((item) => Boolean(item.ledgerAccountId?.accountCode))
+            .map((item) => ({
+              id: `customer:${String(item._id)}`,
+              label: `${item.name || 'Customer'}${item.ledgerAccountId?.accountCode ? ` (${item.ledgerAccountId.accountCode})` : ''}`,
+              partyCode: item.ledgerAccountId?.accountCode || String(item._id),
+              partyName: item.name || '',
+            })),
+        },
+        {
+          label: 'Customers - Other',
+          options: customers
+            .filter((item) => !item.ledgerAccountId?.accountCode)
+            .map((item) => ({
+              id: `customer:${String(item._id)}`,
+              label: `${item.name || 'Customer'}`,
+              partyCode: String(item._id),
+              partyName: item.name || '',
+            })),
+        },
+      ]
+    : [
+        {
+          label: 'Linked Customers',
+          options: customers
+            .filter((item) => Boolean(item.ledgerAccountId?.accountCode))
+            .map((item) => ({
+              id: `customer:${String(item._id)}`,
+              label: `${item.name || 'Customer'}${item.ledgerAccountId?.accountCode ? ` (${item.ledgerAccountId.accountCode})` : ''}`,
+              partyCode: item.ledgerAccountId?.accountCode || String(item._id),
+              partyName: item.name || '',
+            })),
+        },
+        {
+          label: 'Other Customers',
+          options: customers
+            .filter((item) => !item.ledgerAccountId?.accountCode)
+            .map((item) => ({
+              id: `customer:${String(item._id)}`,
+              label: `${item.name || 'Customer'}`,
+              partyCode: String(item._id),
+              partyName: item.name || '',
+            })),
+        },
+      ]
+
+  const partyOptions = partyGroups.flatMap((group) => group.options)
+
+  const loadRecentPartyVouchers = useCallback(async (resolvedParty) => {
+    if (!resolvedParty || (!resolvedParty.customerId && !resolvedParty.vendorId)) {
+      setRecentPartyVouchers([])
+      return
+    }
+
+    setLoadingRecentPartyVouchers(true)
+    try {
+      const params = {
+        limit: 5,
+        type: voucherType,
+      }
+      if (resolvedParty.customerId) params.customerId = resolvedParty.customerId
+      if (resolvedParty.vendorId) params.vendorId = resolvedParty.vendorId
+
+      const response = await axios.get(`${BASE}/transactions`, {
+        ...cfg(),
+        params,
+      })
+
+      const items = (response.data.transactions || [])
+        .filter((item) => item.voucherMeta?.vocNo)
+        .slice(0, 5)
+        .map((item) => ({
+          id: item._id,
+          vocNo: item.voucherMeta?.vocNo || '-',
+          date: item.date ? String(item.date).slice(0, 10) : '-',
+          amount: Number(item.amount || 0),
+          currency: item.currency || 'USD',
+          type: item.type || '-',
+          status: item.status || 'draft',
+        }))
+
+      setRecentPartyVouchers(items)
+    } catch {
+      setRecentPartyVouchers([])
+    } finally {
+      setLoadingRecentPartyVouchers(false)
+    }
+  }, [voucherType])
 
   // ─── line items ─────────────────────────────────────────────────────────────
   const [lineItems, setLineItems] = useState([])
@@ -207,6 +419,34 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
 
   useEffect(() => { loadVouchers() }, [loadVouchers])
 
+  useEffect(() => {
+    if (!modalDrag) return
+
+    const onMouseMove = (e) => {
+      const dx = e.clientX - modalDrag.startX
+      const dy = e.clientY - modalDrag.startY
+      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+        dragMetaRef.current.moved = true
+      }
+      setModalOffset({
+        x: modalDrag.baseX + dx,
+        y: modalDrag.baseY + dy,
+      })
+    }
+
+    const onMouseUp = () => {
+      setModalDrag(null)
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [modalDrag])
+
   // ─── next voucher number ─────────────────────────────────────────────────────
   const nextVocNo = () => {
     const nos = vouchers.map(v => parseInt(v.voucherMeta?.vocNo) || 0).filter(n => n > 0)
@@ -217,24 +457,51 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   const openCreate = () => {
     setEditingId(null)
     setHeader({ ...emptyHeader(), vocNo: nextVocNo() })
+    setSelectedPartyId('')
+    setRecentPartyVouchers([])
     setLineItems([])
     setShowLineForm(false)
     setInnerTab('lineItems')
     setHeaderTab('header')
     setWorkflowNote('')
+    setModalOffset({ x: 0, y: 0 })
+    setModalDrag(null)
     setError('')
     setMode('create')
+  }
+
+  const handleModalHeaderMouseDown = (e) => {
+    if (mode !== 'create' || e.button !== 0) return
+    if (e.target instanceof Element && e.target.closest('button')) return
+
+    dragMetaRef.current.moved = false
+    setModalDrag({
+      startX: e.clientX,
+      startY: e.clientY,
+      baseX: modalOffset.x,
+      baseY: modalOffset.y,
+    })
+  }
+
+  const handleCreateModalBackdropClick = () => {
+    if (mode !== 'create') return
+    if (dragMetaRef.current.moved) {
+      dragMetaRef.current.moved = false
+      return
+    }
+    setMode('list')
   }
 
   // ─── open view/edit ──────────────────────────────────────────────────────────
   const openVoucher = (v) => {
     const m = v.voucherMeta || {}
+    const resolvedParty = resolveVoucherParty(m.partyCode || '')
     setEditingId(v._id)
     setHeader({
       branch: m.branch || 'HO',
       partyCode: m.partyCode || '',
       partyName: m.partyName || '',
-      currCode: v.currency || 'AED',
+      currCode: v.currency || 'USD',
       currRate: String(v.exchangeRate || '1.000000'),
       vocDate: v.date ? v.date.slice(0, 10) : today(),
       vocNo: m.vocNo || '',
@@ -244,7 +511,8 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       narration: v.description || '',
       postedDate: m.postedDate ? m.postedDate.slice(0, 10) : today(),
     })
-    setLineItems(m.lineItems || [])
+    setSelectedPartyId(resolvedParty?.partyId || '')
+    setLineItems((m.lineItems || []).map((line) => ({ ...line, type: normalizeLineType(line.type) })))
     setShowLineForm(false)
     setInnerTab('lineItems')
     setHeaderTab('header')
@@ -296,8 +564,41 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   // ─── save voucher ────────────────────────────────────────────────────────────
   const saveVoucher = async () => {
     clearError()
+
+    let effectiveLineItems = [...lineItems]
+    if (showLineForm) {
+      if (!lineForm.acCode.trim() || (!lineForm.amountLC && !lineForm.amountFC)) {
+        setError('Complete line details and click Save Line, or cancel the open line before saving voucher')
+        return
+      }
+      const draftLine = {
+        ...lineForm,
+        type: normalizeLineType(lineForm.type),
+        amountWithTRN: lineForm.amountWithTRN || lineForm.amountLC || lineForm.amountFC,
+      }
+      if (editingLineIdx !== null) {
+        effectiveLineItems = effectiveLineItems.map((l, i) => (i === editingLineIdx ? draftLine : l))
+      } else {
+        effectiveLineItems.push(draftLine)
+      }
+      setLineItems(effectiveLineItems)
+      setShowLineForm(false)
+      setEditingLineIdx(null)
+    }
+
     if (!header.partyCode.trim()) { setError('Party Code is required'); return }
-    if (!lineItems.length) { setError('Add at least one line item'); return }
+    if (!effectiveLineItems.length) { setError('Add at least one line item'); return }
+    const resolvedParty = resolveVoucherParty(header.partyCode)
+    if (voucherType === 'receipt' && !resolvedParty?.customerId) {
+      setError('Party Code must match an existing customer account for receipt vouchers')
+      return
+    }
+    if (voucherType === 'payment' && !resolvedParty?.vendorId) {
+      if (!resolvedParty?.customerId) {
+        setError('Party Code must match an existing vendor or customer account for payment vouchers')
+        return
+      }
+    }
     const payload = {
       type: voucherType,
       amount: totals.grandTotal || 0.01,
@@ -305,16 +606,18 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       description: header.narration,
       currency: header.currCode,
       exchangeRate: parseFloat(header.currRate) || 1,
+      customerId: resolvedParty?.customerId || undefined,
+      vendorId: resolvedParty?.vendorId || undefined,
       voucherMeta: {
         branch: header.branch,
         partyCode: header.partyCode,
-        partyName: header.partyName,
+        partyName: header.partyName || resolvedParty?.partyName || '',
         salesman: header.salesman,
         vocNo: header.vocNo,
         refNo: header.refNo,
         refDate: header.refDate || null,
         postedDate: header.postedDate || null,
-        lineItems: lineItems.map(l => ({
+        lineItems: effectiveLineItems.map(l => ({
           ...l,
           amountFC: parseFloat(l.amountFC) || 0,
           amountLC: parseFloat(l.amountLC) || 0,
@@ -328,6 +631,8 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
         })),
       },
     }
+    const payloadLineTotal = effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithTRN) || parseFloat(l.amountLC) || 0), 0)
+    payload.amount = payloadLineTotal || 0.01
     setSaving(true)
     try {
       if (editingId) {
@@ -349,13 +654,27 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   // ─── line form actions ───────────────────────────────────────────────────────
   const openAddLine = () => {
     setEditingLineIdx(null)
-    setLineForm({ ...emptyLine(), branch: header.branch || 'HO', currCode: header.currCode || 'AED' })
+    const defaultType = 'Cash'
+    const defaultAccountCode = pickDefaultAccountCodeByType(accounts, defaultType)
+    setLineForm({
+      ...emptyLine(),
+      branch: header.branch || 'HO',
+      currCode: header.currCode || 'USD',
+      type: defaultType,
+      typeCode: defaultType.toUpperCase(),
+      acCode: defaultAccountCode || '',
+    })
     setShowLineForm(true)
   }
 
   const openEditLine = (idx) => {
     setEditingLineIdx(idx)
-    setLineForm({ ...lineItems[idx] })
+    const normalizedType = normalizeLineType(lineItems[idx]?.type)
+    setLineForm({
+      ...lineItems[idx],
+      type: normalizedType,
+      typeCode: normalizedType.toUpperCase(),
+    })
     setShowLineForm(true)
   }
 
@@ -368,6 +687,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     if (!lineForm.amountLC && !lineForm.amountFC) { setError('Amount is required'); return }
     const line = {
       ...lineForm,
+      type: normalizeLineType(lineForm.type),
       amountWithTRN: lineForm.amountWithTRN || lineForm.amountLC || lineForm.amountFC,
     }
     if (editingLineIdx !== null) {
@@ -382,8 +702,16 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
 
   // When type changes to Cash, clear cheque fields
   const handleLineTypeChange = (val) => {
-    setLF('type', val)
-    if (val === 'Cash') {
+    const normalized = normalizeLineType(val)
+    setLF('type', normalized)
+    setLF('typeCode', normalized.toUpperCase())
+
+    const suggestedAccountCode = pickDefaultAccountCodeByType(accounts, normalized)
+    if (suggestedAccountCode) {
+      setLF('acCode', suggestedAccountCode)
+    }
+
+    if (normalized === 'Cash') {
       setLF('chqNo', '')
       setLF('chqDate', '')
       setLF('chqBank', '')
@@ -404,11 +732,41 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     setLF('amountWithTRN', val)
   }
 
-  // Lookup party name from customers
-  const lookupParty = (code) => {
-    const c = customers.find(x => x.code === code || x._id === code)
-    if (c) setHdr('partyName', c.name)
+  const handleLineAmountEnter = (e) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    if (!showLineForm) return
+    saveLine()
   }
+
+  // Lookup party name from the relevant customer/vendor master record.
+  const lookupParty = (code) => {
+    const resolvedParty = resolveVoucherParty(code)
+    setSelectedPartyId(resolvedParty?.partyId || '')
+    setHdr('partyName', resolvedParty?.partyName || '')
+  }
+
+  const handlePartySelect = (partyId) => {
+    setSelectedPartyId(partyId)
+    const selected = partyOptions.find((item) => item.id === partyId)
+    if (!selected) {
+      setHdr('partyCode', '')
+      setHdr('partyName', '')
+      return
+    }
+    setHdr('partyCode', selected.partyCode)
+    setHdr('partyName', selected.partyName)
+  }
+
+  useEffect(() => {
+    if (headerTab !== 'accounts') return
+    const resolvedParty = resolveVoucherParty(header.partyCode)
+    if (!resolvedParty) {
+      setRecentPartyVouchers([])
+      return
+    }
+    loadRecentPartyVouchers(resolvedParty)
+  }, [headerTab, header.partyCode, resolveVoucherParty, loadRecentPartyVouchers])
 
   // ─── filtered list ───────────────────────────────────────────────────────────
   const filteredVouchers = selectedStatus
@@ -572,9 +930,49 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
 
       {/* ═══════════════════════════════════════════════════════ CREATE / VIEW MODE */}
       {(mode === 'create' || mode === 'view') && (
-        <div>
+        <div
+          style={mode === 'create'
+            ? {
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(15, 23, 42, 0.45)',
+                zIndex: 1200,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '1rem',
+              }
+            : undefined}
+          onClick={mode === 'create' ? handleCreateModalBackdropClick : undefined}
+        >
+          <div
+            style={mode === 'create'
+              ? {
+                  width: 'min(1180px, 96vw)',
+                  maxHeight: '92vh',
+                  overflowY: 'auto',
+                  background: S.white,
+                  borderRadius: '0.7rem',
+                  border: `1px solid ${S.border}`,
+                  boxShadow: '0 24px 64px rgba(15, 23, 42, 0.35)',
+                  padding: '0.9rem',
+                  transform: `translate(${modalOffset.x}px, ${modalOffset.y}px)`,
+                }
+              : undefined}
+            onClick={mode === 'create' ? (e) => e.stopPropagation() : undefined}
+          >
           {/* ── Top title bar ── */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '0.75rem',
+              cursor: mode === 'create' ? (modalDrag ? 'grabbing' : 'grab') : 'default',
+              userSelect: mode === 'create' ? 'none' : 'auto',
+            }}
+            onMouseDown={mode === 'create' ? handleModalHeaderMouseDown : undefined}
+          >
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '700', color: S.ink }}>
                 {voucherLabelT} {header.vocNo ? `— #${header.vocNo}` : ''}
@@ -586,9 +984,16 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
               )}
             </div>
             {!isReadOnly && (
-              <button style={{ ...btn('primary'), background: '#B45309' }}>
-                🖨 Print Cheque
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button style={{ ...btn('primary'), background: '#B45309' }}>
+                  🖨 Print Cheque
+                </button>
+                {mode === 'create' && (
+                  <button style={btn('secondary')} onClick={() => setMode('list')}>
+                    ✕
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
@@ -608,6 +1013,26 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
               <div style={sectionBody}>
                 {/* Row 1 */}
                 <div style={fieldRow}>
+                  <div style={fieldGroup('Party Account')}>
+                    <label style={labelStyle}>Party Account</label>
+                    <select
+                      style={isReadOnly ? readInput : inputStyle}
+                      value={selectedPartyId}
+                      onChange={e => handlePartySelect(e.target.value)}
+                      disabled={isReadOnly}
+                    >
+                      <option value="">Select {voucherType === 'payment' ? 'Vendor / Customer' : 'Customer'}</option>
+                      {partyGroups.map((group) => (
+                        group.options.length > 0 ? (
+                          <optgroup key={group.label} label={group.label}>
+                            {group.options.map((item) => (
+                              <option key={item.id} value={item.id}>{item.label}</option>
+                            ))}
+                          </optgroup>
+                        ) : null
+                      ))}
+                    </select>
+                  </div>
                   <div style={fieldGroup('Branch')}>
                     <label style={labelStyle}>Branch</label>
                     <input style={isReadOnly ? readInput : inputStyle} value={header.branch} onChange={e => setHdr('branch', e.target.value)} readOnly={isReadOnly} />
@@ -615,16 +1040,16 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                   <div style={fieldGroup('Party Code')}>
                     <label style={labelStyle}>Party Code</label>
                     <input
-                      style={isReadOnly ? readInput : inputStyle}
+                      style={readInput}
                       value={header.partyCode}
                       onChange={e => { setHdr('partyCode', e.target.value); lookupParty(e.target.value) }}
-                      placeholder="e.g. AS0001"
-                      readOnly={isReadOnly}
+                      placeholder={voucherType === 'payment' ? 'Auto from vendor' : 'Auto from customer'}
+                      readOnly
                     />
                   </div>
-                  <div style={{ ...fieldGroup('Party Name'), gridColumn: 'span 2' }}>
+                  <div style={{ ...fieldGroup('Party Name'), gridColumn: 'span 1' }}>
                     <label style={labelStyle}>Party Name</label>
-                    <input style={{ ...inputStyle, fontWeight: '700', color: S.green }} value={header.partyName} onChange={e => setHdr('partyName', e.target.value)} readOnly={isReadOnly} placeholder="Party / Company Name" />
+                    <input style={{ ...readInput, fontWeight: '700', color: S.green }} value={header.partyName} onChange={e => setHdr('partyName', e.target.value)} readOnly placeholder="Party / Company Name" />
                   </div>
                 </div>
 
@@ -637,15 +1062,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                   <div style={fieldGroup('Curr. Code')}>
                     <label style={labelStyle}>Curr. Code</label>
                     <select style={isReadOnly ? readInput : inputStyle} value={header.currCode} onChange={e => setHdr('currCode', e.target.value)} disabled={isReadOnly}>
-                      <option value="AED">AED</option>
                       <option value="USD">USD</option>
-                      <option value="EUR">EUR</option>
-                      <option value="GBP">GBP</option>
-                      <option value="SAR">SAR</option>
-                      <option value="INR">INR</option>
-                      {currencies.filter(c => !['AED','USD','EUR','GBP','SAR','INR'].includes(c.code)).map(c => (
-                        <option key={c._id} value={c.code}>{c.code}</option>
-                      ))}
                     </select>
                   </div>
                   <div style={fieldGroup('Curr. Rate')}>
@@ -704,6 +1121,43 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
           {headerTab === 'accounts' && (
             <div style={sectionBox}>
               <div style={sectionBody}>
+                <div style={{ marginBottom: '0.85rem', border: `1px solid ${S.border}`, borderRadius: '0.45rem', padding: '0.6rem 0.7rem', background: '#FAFAFA' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', marginBottom: '0.45rem' }}>
+                    <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: '700', color: S.ink }}>
+                      Recent {voucherType === 'payment' ? 'Payment' : 'Receipt'} Vouchers (Last 5)
+                    </p>
+                    {loadingRecentPartyVouchers && <span style={{ fontSize: '0.75rem', color: S.muted }}>Loading...</span>}
+                  </div>
+                  {!recentPartyVouchers.length ? (
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: S.muted }}>
+                      No recent vouchers found for this account.
+                    </p>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                        <thead>
+                          <tr style={{ background: S.headerBg }}>
+                            {['Voc No', 'Date', 'Type', 'Amount', 'Status'].map((headerCell) => (
+                              <th key={headerCell} style={{ padding: '0.38rem 0.5rem', textAlign: headerCell === 'Amount' ? 'right' : 'left', borderBottom: `1px solid ${S.border}`, color: S.ink }}>{headerCell}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {recentPartyVouchers.map((item, idx) => (
+                            <tr key={item.id} style={{ background: idx % 2 === 0 ? S.white : S.bg, borderBottom: `1px solid ${S.border}` }}>
+                              <td style={{ padding: '0.35rem 0.5rem', fontWeight: '700', color: S.green }}>{item.vocNo}</td>
+                              <td style={{ padding: '0.35rem 0.5rem' }}>{item.date}</td>
+                              <td style={{ padding: '0.35rem 0.5rem', textTransform: 'capitalize' }}>{item.type}</td>
+                              <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', fontWeight: '700' }}>{item.currency} {fmt(item.amount)}</td>
+                              <td style={{ padding: '0.35rem 0.5rem', textTransform: 'capitalize' }}>{item.status}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
                 {lineItems.length === 0 ? (
                   <p style={{ color: S.muted, fontSize: '0.875rem' }}>No line items added yet. Switch to Line Items tab to add entries.</p>
                 ) : (
@@ -778,8 +1232,8 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                         <td style={{ padding: '0.4rem 0.6rem' }}>{l.branch}</td>
                         <td style={{ padding: '0.4rem 0.6rem', fontWeight: '600' }}>{l.acCode}</td>
                         <td style={{ padding: '0.4rem 0.6rem' }}>
-                          <span style={{ padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '700', background: l.type === 'Cash' ? '#D1FAE5' : l.type === 'Cheque' ? '#DBEAFE' : '#FEF3C7', color: l.type === 'Cash' ? '#065F46' : l.type === 'Cheque' ? '#1D4ED8' : '#92400E' }}>
-                            {l.type}
+                          <span style={{ padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '700', background: normalizeLineType(l.type) === 'Cash' ? '#D1FAE5' : normalizeLineType(l.type) === 'Cheque' || normalizeLineType(l.type) === 'TT' ? '#DBEAFE' : '#FEF3C7', color: normalizeLineType(l.type) === 'Cash' ? '#065F46' : normalizeLineType(l.type) === 'Cheque' || normalizeLineType(l.type) === 'TT' ? '#1D4ED8' : '#92400E' }}>
+                            {normalizeLineType(l.type) === 'TT' ? 'TT' : normalizeLineType(l.type)}
                           </span>
                         </td>
                         <td style={{ padding: '0.4rem 0.6rem' }}>{l.chqNo || '-'}</td>
@@ -820,7 +1274,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                       <select style={inputStyle} value={lineForm.type} onChange={e => handleLineTypeChange(e.target.value)}>
                         <option value="Cash">Cash</option>
                         <option value="Cheque">Cheque</option>
-                        <option value="Transfer">Transfer</option>
+                        <option value="TT">TT</option>
                         <option value="Card">Card</option>
                       </select>
                     </div>
@@ -842,15 +1296,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                     <div>
                       <label style={labelStyle}>Curr Code</label>
                       <select style={inputStyle} value={lineForm.currCode} onChange={e => setLF('currCode', e.target.value)}>
-                        <option value="AED">AED</option>
                         <option value="USD">USD</option>
-                        <option value="EUR">EUR</option>
-                        <option value="GBP">GBP</option>
-                        <option value="SAR">SAR</option>
-                        <option value="INR">INR</option>
-                        {currencies.filter(c => !['AED','USD','EUR','GBP','SAR','INR'].includes(c.code)).map(c => (
-                          <option key={c._id} value={c.code}>{c.code}</option>
-                        ))}
                       </select>
                     </div>
                     <div>
@@ -913,11 +1359,25 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                   <div style={{ ...fieldRow, gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
                     <div>
                       <label style={labelStyle}>Amount FC</label>
-                      <input style={inputStyle} type="number" step="0.01" value={lineForm.amountFC} onChange={e => handleAmountFC(e.target.value)} />
+                      <input
+                        style={inputStyle}
+                        type="number"
+                        step="0.01"
+                        value={lineForm.amountFC}
+                        onChange={e => handleAmountFC(e.target.value)}
+                        onKeyDown={handleLineAmountEnter}
+                      />
                     </div>
                     <div>
                       <label style={labelStyle}>Amount LC *</label>
-                      <input style={inputStyle} type="number" step="0.01" value={lineForm.amountLC} onChange={e => handleAmountLC(e.target.value)} />
+                      <input
+                        style={inputStyle}
+                        type="number"
+                        step="0.01"
+                        value={lineForm.amountLC}
+                        onChange={e => handleAmountLC(e.target.value)}
+                        onKeyDown={handleLineAmountEnter}
+                      />
                     </div>
                     <div>
                       <label style={labelStyle}>Header Amt</label>
@@ -1097,6 +1557,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
               <button style={btn('secondary')} onClick={() => setMode('list')}>← Back</button>
             </div>
           )}
+          </div>
         </div>
       )}
     </div>

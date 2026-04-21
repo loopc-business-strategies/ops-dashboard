@@ -36,7 +36,7 @@ const createDraftTransaction = async (user, overrides = {}) => Transaction.creat
   type: 'expense',
   amount: 1250,
   date: new Date('2024-05-10T00:00:00.000Z'),
-  currency: 'AED',
+  currency: 'USD',
   exchangeRate: 1,
   description: 'Office expense',
   status: 'draft',
@@ -83,7 +83,7 @@ describe('ERP accounting transactions workflow', () => {
         type: 'expense',
         amount: 980,
         description: 'Travel reimbursement',
-        currency: 'AED',
+        currency: 'USD',
       })
 
     expect(createRes.status).toBe(201)

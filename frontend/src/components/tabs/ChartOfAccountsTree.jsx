@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import erpAccountingAPI from '../../api/erp-accounting'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
@@ -74,10 +74,12 @@ const emptyForm = () => ({
   accountCode: '',
   accountType: '',
   parentAccountId: '',
-  currency: 'AED',
+  currency: 'USD',
   description: '',
   openingBalance: '',
   department: '',
+  createAs: 'standard',
+  linkedCustomerId: '',
 })
 
 // ─── main component ────────────────────────────────────────────────────────────
@@ -109,6 +111,20 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
   const [form, setForm]       = useState(emptyForm())
   const [moveTarget, setMoveTarget] = useState('')
   const [saving, setSaving]   = useState(false)
+  const [modalOffset, setModalOffset] = useState({ x: 0, y: 0 })
+  const [modalDrag, setModalDrag] = useState({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 })
+  const [customers, setCustomers] = useState([])
+  const [loadingCustomers, setLoadingCustomers] = useState(false)
+  const receivableParentAccountId = accounts.find((item) => {
+    const code = String(item.accountCode || '').trim()
+    const name = String(item.accountName || '').toLowerCase()
+    return code === '1100' || name.includes('accounts receivable') || name.includes('receivable')
+  })?._id || ''
+  const unlinkedCustomers = useMemo(
+    () => customers.filter((item) => !item.ledgerAccountId),
+    [customers]
+  )
+  const customerOptions = unlinkedCustomers.length > 0 ? unlinkedCustomers : customers
 
   // ── data loading ─────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -124,7 +140,48 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     }
   }, [token, t])
 
+  const loadCustomers = useCallback(async () => {
+    setLoadingCustomers(true)
+    try {
+      const data = await erpAccountingAPI.getCustomers(token, { limit: 500 })
+      setCustomers(data.customers || [])
+    } catch {
+      setCustomers([])
+    } finally {
+      setLoadingCustomers(false)
+    }
+  }, [token])
+
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (!modal) {
+      setModalOffset({ x: 0, y: 0 })
+      setModalDrag({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 })
+    }
+  }, [modal])
+
+  useEffect(() => {
+    if (!modalDrag.active) return undefined
+
+    const onMouseMove = (event) => {
+      const dx = event.clientX - modalDrag.startX
+      const dy = event.clientY - modalDrag.startY
+      setModalOffset({ x: modalDrag.originX + dx, y: modalDrag.originY + dy })
+    }
+
+    const onMouseUp = () => {
+      setModalDrag((prev) => ({ ...prev, active: false }))
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [modalDrag])
 
   // ── close context menu on outside click ──────────────────────────────────────
   useEffect(() => {
@@ -174,8 +231,12 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
   const openAdd = (action, parentNode) => {
     setCtxMenu(null)
     const preset = ACTION_PRESETS[action] || {}
+    if (action === 'customer') {
+      loadCustomers()
+    }
     setForm({
       ...emptyForm(),
+      createAs: action === 'customer' ? 'customer' : 'standard',
       accountType: preset.accountType || (parentNode?.accountType || ''),
       parentAccountId: parentNode?._id || '',
     })
@@ -189,7 +250,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
       accountCode:     node.accountCode,
       accountType:     node.accountType,
       parentAccountId: node.parentAccountId?._id || node.parentAccountId || '',
-      currency:        node.currency || 'AED',
+      currency:        node.currency || 'USD',
       description:     node.description || '',
       openingBalance:  node.openingBalance ?? '',
       department:      node.department || '',
@@ -225,22 +286,34 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     setError('')
     try {
       if (modal.mode === 'add') {
-        await erpAccountingAPI.createAccount(token, {
+        const creatingCustomerAccount = modal.action === 'customer' || form.createAs === 'customer'
+        if (creatingCustomerAccount && !form.linkedCustomerId) {
+          setError('Please select a customer')
+          setSaving(false)
+          return
+        }
+
+        const created = await erpAccountingAPI.createAccount(token, {
           accountName:     form.accountName.trim(),
           accountCode:     form.accountCode.trim(),
           accountType:     form.accountType,
           parentAccountId: form.parentAccountId || null,
-          currency:        form.currency || 'AED',
+          currency:        form.currency || 'USD',
           description:     form.description,
           openingBalance:  form.openingBalance ? Number(form.openingBalance) : 0,
           department:      form.department,
         })
+
+        if (creatingCustomerAccount && form.linkedCustomerId && created?.account?._id) {
+          await erpAccountingAPI.updateCustomer(token, form.linkedCustomerId, { ledgerAccountId: created.account._id })
+        }
+
         setSuccess('Account created')
       } else if (modal.mode === 'edit') {
         await erpAccountingAPI.updateAccount(token, modal.node._id, {
           accountName:  form.accountName.trim(),
           description:  form.description,
-          currency:     form.currency || 'AED',
+          currency:     form.currency || 'USD',
           department:   form.department,
           isActive:     true,
         })
@@ -258,6 +331,18 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     } finally {
       setSaving(false)
     }
+  }
+
+  const beginModalDrag = (event) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    setModalDrag({
+      active: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: modalOffset.x,
+      originY: modalOffset.y,
+    })
   }
 
   // ── render a single tree node ─────────────────────────────────────────────────
@@ -473,7 +558,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
             {/* info grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
               {[
-                { label: 'Currency',        value: selectedNode.currency || 'AED' },
+                { label: 'Currency',        value: selectedNode.currency || 'USD' },
                 { label: 'Department',      value: selectedNode.department || '—' },
                 { label: 'Opening Balance', value: Number(selectedNode.openingBalance || 0).toLocaleString() },
                 { label: 'Parent Account',  value: selectedNode.parentAccountId?.accountName || 'Root Account' },
@@ -612,16 +697,45 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
       {/* ── MODAL ────────────────────────────────────────────────────────────── */}
       {modal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-          <div style={{ background: '#FFFFFF', borderRadius: '0.75rem', width: '500px', maxWidth: '95vw', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: '0.75rem',
+              width: '500px',
+              maxWidth: '95vw',
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+              transform: `translate(${modalOffset.x}px, ${modalOffset.y}px)`,
+            }}
+          >
 
             {/* modal header */}
-            <div style={{ padding: '1.1rem 1.5rem', borderBottom: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div
+              onMouseDown={beginModalDrag}
+              style={{
+                padding: '1.1rem 1.5rem',
+                borderBottom: '1px solid #F3F4F6',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: modalDrag.active ? 'grabbing' : 'grab',
+                userSelect: 'none',
+              }}
+              title="Drag to move"
+            >
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '700', color: '#111827' }}>
                 {modal.mode === 'edit' ? `Edit: ${modal.node.accountName}`
                   : modal.mode === 'move' ? `Move: ${modal.node.accountName}`
                   : ACTION_PRESETS[modal.action]?.label || 'Add Account'}
               </h3>
-              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#9CA3AF', lineHeight: 1 }}>✕</button>
+              <button
+                onClick={() => setModal(null)}
+                onMouseDown={(e) => e.stopPropagation()}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#9CA3AF', lineHeight: 1 }}
+              >
+                ✕
+              </button>
             </div>
 
             <form onSubmit={handleSubmit} style={{ padding: '1.25rem 1.5rem' }}>
@@ -646,6 +760,73 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
               {/* ── ADD / EDIT mode ── */}
               {modal.mode !== 'move' && (
                 <>
+                  {modal.mode === 'add' && (
+                    <Field label="Create As">
+                      <select
+                        value={form.createAs}
+                        onChange={(e) => {
+                          const nextMode = e.target.value
+                          if (nextMode === 'customer') {
+                            loadCustomers()
+                          }
+                          setForm((prev) => ({
+                            ...prev,
+                            createAs: nextMode,
+                            linkedCustomerId: nextMode === 'customer' ? prev.linkedCustomerId : '',
+                          }))
+                        }}
+                        style={inputStyle}
+                      >
+                        <option value="standard">Standard Account</option>
+                        <option value="customer">Customer Account</option>
+                      </select>
+                    </Field>
+                  )}
+
+                  {modal.mode === 'add' && (modal.action === 'customer' || form.createAs === 'customer') && (
+                    <Field label="Customer *">
+                      <select
+                        value={form.linkedCustomerId}
+                        onChange={(e) => {
+                          const customerId = e.target.value
+                          const selected = customers.find((item) => item._id === customerId)
+                          if (!selected) {
+                            setForm({ ...form, linkedCustomerId: '' })
+                            return
+                          }
+
+                          const generatedCode = `CUST-${selected._id.slice(-6).toUpperCase()}`
+                          setForm({
+                            ...form,
+                            createAs: 'customer',
+                            linkedCustomerId: customerId,
+                            accountName: `${selected.name || 'Customer'} (Debtor)`,
+                            accountCode: generatedCode,
+                            accountType: 'Asset',
+                            parentAccountId: receivableParentAccountId || form.parentAccountId,
+                            currency: selected.currency || form.currency || 'USD',
+                            description: form.description || `Auto-created customer ledger account for ${selected.name || 'customer'}`,
+                          })
+                        }}
+                        style={inputStyle}
+                        required
+                        disabled={loadingCustomers}
+                      >
+                        <option value="">{loadingCustomers ? 'Loading customers...' : 'Select customer'}</option>
+                        {customerOptions.map((item) => (
+                          <option key={item._id} value={item._id}>
+                            {item.name}{item.ledgerAccountId ? ' (already linked)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#6B7280' }}>
+                        {unlinkedCustomers.length > 0
+                          ? 'Selecting a customer will auto-fill account fields and link this account to that customer.'
+                          : 'All listed customers are already linked. Selecting one will create a new customer account and replace its ledger link.'}
+                      </p>
+                    </Field>
+                  )}
+
                   <Field label="Account Name *">
                     <input required value={form.accountName} onChange={e => setForm({ ...form, accountName: e.target.value })} style={inputStyle} />
                   </Field>

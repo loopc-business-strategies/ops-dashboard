@@ -20,7 +20,7 @@ const updateAccount = async (token, id, payload) => (await axios.put(`${BASE}/ac
 const deleteAccount = async (token, id) => (await axios.delete(`${BASE}/accounts/${id}`, getAuthConfig(token))).data
 
 // Customers
-const getCustomers = async (token) => (await axios.get(`${BASE}/customers`, getAuthConfig(token))).data
+const getCustomers = async (token, params) => (await axios.get(`${BASE}/customers`, getAuthConfig(token, params))).data
 const createCustomer = async (token, payload) => (await axios.post(`${BASE}/customers`, payload, getAuthConfig(token))).data
 const updateCustomer = async (token, id, payload) => (await axios.put(`${BASE}/customers/${id}`, payload, getAuthConfig(token))).data
 const deleteCustomer = async (token, id) => (await axios.delete(`${BASE}/customers/${id}`, getAuthConfig(token))).data

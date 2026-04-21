@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
@@ -13,6 +13,8 @@ import DirectDealsTab from './DirectDealsTab'
 const LEDGER_REFERENCE_TYPES = ['journal', 'expense', 'invoice', 'payment', 'purchase', 'vendor_payment', 'inventory', 'payroll']
 const LEDGER_DEPARTMENTS = ['finance', 'sales', 'production', 'hr', 'operations', 'management']
 const ENQUIRY_HISTORY_STORAGE_KEY = 'erp-account-enquiry-history'
+const ENQUIRY_DETAILS_PANEL_STORAGE_KEY = 'erp-account-enquiry-details-panel'
+const ACCOUNT_TYPE_ORDER = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
 const METAL_UNIT_FACTORS = {
   gram: 1,
   ounce: 31.1034768,
@@ -66,7 +68,7 @@ const createTransactionForm = () => ({
   type: 'expense',
   amount: '',
   date: new Date().toISOString().slice(0, 10),
-  currency: 'AED',
+  currency: 'USD',
   exchangeRate: '1',
   description: '',
   customerId: '',
@@ -208,7 +210,7 @@ function ERPTab() {
     amount: '',
     description: '',
     referenceType: 'journal',
-    currency: 'AED',
+    currency: 'USD',
   })
   const [currencyForm, setCurrencyForm] = useState({ code: '', name: '', symbol: '', exchangeRate: 1, baseCurrency: false })
   const [mappingForm, setMappingForm] = useState({ mappingType: '', debitAccountId: '', creditAccountId: '', department: '', description: '' })
@@ -223,7 +225,7 @@ function ERPTab() {
     openingBalance: '',
     creditLimit: '',
     paymentTermsDays: '',
-    currency: 'AED',
+    currency: 'USD',
     notes: '',
   })
   const [showForm, setShowForm] = useState(false)
@@ -243,13 +245,24 @@ function ERPTab() {
   const [enquiryLoading, setEnquiryLoading] = useState(false)
   const [enquiryStatus, setEnquiryStatus] = useState({ type: '', message: '' })
   const [statementFilters, setStatementFilters] = useState({ startDate: '', endDate: '', referenceType: '', department: '' })
-  const [metalRates, setMetalRates] = useState({ goldPrice: 285, silverPrice: 3.5, priceCurrency: 'AED', updatedAt: null })
-  const [metalRateForm, setMetalRateForm] = useState({ goldPrice: '285', silverPrice: '3.5', priceCurrency: 'AED' })
+  const [metalRates, setMetalRates] = useState({ goldPrice: 285, silverPrice: 3.5, priceCurrency: 'USD', updatedAt: null })
+  const [metalRateForm, setMetalRateForm] = useState({ goldPrice: '285', silverPrice: '3.5', priceCurrency: 'USD' })
   const [enquiryHistory, setEnquiryHistory] = useState([])
   const [metalUnit, setMetalUnit] = useState('gram')
   const [showEnquiryModal, setShowEnquiryModal] = useState(false)
   const [enquiryModalOffset, setEnquiryModalOffset] = useState({ x: 0, y: 0 })
   const [enquiryModalDrag, setEnquiryModalDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+  const [detailsPanel, setDetailsPanel] = useState({
+    pinned: false,
+    floating: false,
+    x: 120,
+    y: 150,
+    width: 500,
+    height: 520,
+  })
+  const [detailsPanelDrag, setDetailsPanelDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+  const [detailsPanelResize, setDetailsPanelResize] = useState({ active: false, pointerX: 0, pointerY: 0, startW: 500, startH: 520 })
+  const detailsPanelRef = useRef(null)
   const [excessCurrency, setExcessCurrency] = useState('USD')
   const [transactions, setTransactions] = useState([])
   const [vendors, setVendors] = useState([])
@@ -319,12 +332,12 @@ function ERPTab() {
     status: 'active',
     notes: '',
     tags: '',
-    preferredCurrency: 'AED',
+    preferredCurrency: 'USD',
     bankName: '',
     bankAccountNumber: '',
     iban: '',
     swiftCode: '',
-    currency: 'AED',
+    currency: 'USD',
   })
   const [vendorFilters, setVendorFilters] = useState({ search: '', status: '', approvalStatus: '', riskLevel: '', category: '', includeInactive: false })
   const [vendorSummary, setVendorSummary] = useState({ totalVendors: 0, totalOutstanding: 0, overLimit: 0, blacklisted: 0, onHold: 0, nonCompliant: 0 })
@@ -338,10 +351,10 @@ function ERPTab() {
   const [vendorOverdueQueue, setVendorOverdueQueue] = useState({ summary: { total: 0, withRecipient: 0, critical: 0, totalAmountDue: 0 }, queue: [] })
   const [showVendorForm, setShowVendorForm] = useState(false)
   const [editingVendorId, setEditingVendorId] = useState('')
-  const [productForm, setProductForm] = useState({ sku: '', name: '', category: '', unit: 'pcs', unitCost: '', sellingPrice: '', quantity: '', currency: 'AED' })
+  const [productForm, setProductForm] = useState({ sku: '', name: '', category: '', unit: 'pcs', unitCost: '', sellingPrice: '', quantity: '', currency: 'USD' })
   const [editingProductId, setEditingProductId] = useState('')
-  const [stockInForm, setStockInForm] = useState({ itemId: '', vendorId: '', quantity: '', unitCost: '', currency: 'AED', description: '' })
-  const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', currency: 'AED', description: '' })
+  const [stockInForm, setStockInForm] = useState({ itemId: '', vendorId: '', quantity: '', unitCost: '', currency: 'USD', description: '' })
+  const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', currency: 'USD', description: '' })
 
   const ITEMS_PER_PAGE = 25
   const showNotification = (msg) => {
@@ -363,12 +376,10 @@ function ERPTab() {
   const isDepartmentHead = user?.role === 'department_head'
   const isManagementRole = user?.role === 'management'
   const dept = (user?.department || '').toLowerCase()
-  // Keep client-side visibility in sync with backend route guards in erp-accounting.
   const isFinance = isSuperAdmin || (isDepartmentHead && dept === 'finance')
   const isSalesRole = isSuperAdmin || isManagementRole || (isDepartmentHead && dept === 'sales')
-  const isOperationsRole = isSuperAdmin || (isDepartmentHead && (dept === 'operations' || dept === 'production'))
+  const isOperationsRole = isSuperAdmin || (isDepartmentHead && ['operations', 'production'].includes(dept))
   const isHRRole = isSuperAdmin || (isDepartmentHead && dept === 'hr')
-
   const canViewAccounts = isSuperAdmin || isFinance
   const canManageAccounts = isSuperAdmin || isFinance
   const canViewLedger = isSuperAdmin || isFinance
@@ -447,7 +458,6 @@ function ERPTab() {
   ] : []
   const modalFundsRows = [
     { currency: 'USD', limits: 0, value: modalTotalFunds },
-    { currency: 'PDC', limits: 0, value: 0 },
   ]
   const statementReferenceTypes = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
   const statementDepartments = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean))).sort()
@@ -509,6 +519,73 @@ function ERPTab() {
     borderRadius: '0.5rem',
   }
 
+  const detailsPanelIsFloating = detailsPanel.floating || detailsPanel.pinned
+
+  const getCurrentDetailsPanelGeometry = () => {
+    const rect = detailsPanelRef.current?.getBoundingClientRect()
+    if (!rect) {
+      return {
+        x: detailsPanel.x,
+        y: detailsPanel.y,
+        width: detailsPanel.width,
+        height: detailsPanel.height,
+      }
+    }
+
+    return {
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height,
+    }
+  }
+
+  const beginDetailsPanelDrag = (event) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    const geometry = getCurrentDetailsPanelGeometry()
+    setDetailsPanel((prev) => ({
+      ...prev,
+      floating: true,
+      x: geometry.x,
+      y: geometry.y,
+      width: geometry.width,
+      height: geometry.height,
+    }))
+    setDetailsPanelDrag({
+      active: true,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      startX: geometry.x,
+      startY: geometry.y,
+    })
+  }
+
+  const beginDetailsPanelResize = (event) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    setDetailsPanelResize({
+      active: true,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      startW: detailsPanel.width,
+      startH: detailsPanel.height,
+    })
+  }
+
+  const handleCloseDetailsPanel = () => {
+    setDetailsPanel((prev) => ({
+      ...prev,
+      pinned: false,
+      floating: false,
+      x: 120,
+      y: 150,
+      width: 500,
+      height: 520,
+    }))
+  }
+
   const enquiryBackdropColor = enquiryModalDrag.active ? 'rgba(15, 23, 42, 0.12)' : 'rgba(15, 23, 42, 0.45)'
 
   const beginEnquiryModalDrag = (event) => {
@@ -525,8 +602,11 @@ function ERPTab() {
 
   useEffect(() => {
     if (!showEnquiryModal) {
-      setEnquiryModalOffset({ x: 0, y: 0 })
-      setEnquiryModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+      setEnquiryModalOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
+      setEnquiryModalDrag((prev) => {
+        if (!prev.active && prev.pointerX === 0 && prev.pointerY === 0 && prev.startX === 0 && prev.startY === 0) return prev
+        return { active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 }
+      })
       return undefined
     }
 
@@ -552,6 +632,62 @@ function ERPTab() {
     }
   }, [showEnquiryModal, enquiryModalDrag])
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(ENQUIRY_DETAILS_PANEL_STORAGE_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (!parsed || typeof parsed !== 'object') return
+      setDetailsPanel((prev) => ({
+        ...prev,
+        pinned: Boolean(parsed.pinned),
+        floating: Boolean(parsed.floating),
+        x: Number.isFinite(parsed.x) ? parsed.x : prev.x,
+        y: Number.isFinite(parsed.y) ? parsed.y : prev.y,
+        width: Number.isFinite(parsed.width) ? parsed.width : prev.width,
+        height: Number.isFinite(parsed.height) ? parsed.height : prev.height,
+      }))
+    } catch {
+      // ignore malformed local settings
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!detailsPanelDrag.active && !detailsPanelResize.active) return undefined
+
+    const onMouseMove = (event) => {
+      if (detailsPanelDrag.active) {
+        setDetailsPanel((prev) => ({
+          ...prev,
+          x: detailsPanelDrag.startX + (event.clientX - detailsPanelDrag.pointerX),
+          y: detailsPanelDrag.startY + (event.clientY - detailsPanelDrag.pointerY),
+        }))
+      }
+
+      if (detailsPanelResize.active) {
+        const nextWidth = Math.max(380, detailsPanelResize.startW + (event.clientX - detailsPanelResize.pointerX))
+        const nextHeight = Math.max(360, detailsPanelResize.startH + (event.clientY - detailsPanelResize.pointerY))
+        setDetailsPanel((prev) => ({ ...prev, width: nextWidth, height: nextHeight }))
+      }
+    }
+
+    const onMouseUp = () => {
+      setDetailsPanelDrag((prev) => ({ ...prev, active: false }))
+      setDetailsPanelResize((prev) => ({ ...prev, active: false }))
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [detailsPanelDrag, detailsPanelResize])
+
+  useEffect(() => {
+    localStorage.setItem(ENQUIRY_DETAILS_PANEL_STORAGE_KEY, JSON.stringify(detailsPanel))
+  }, [detailsPanel])
+
   const loadDashboard = async () => {
     if (!canViewAccounts) return
     setLoading(true)
@@ -570,15 +706,70 @@ function ERPTab() {
     if (!canViewAccounts && !(isSummaryScope && canViewBalanceEnquiry)) return
     setLoading(true)
     try {
-      const data = await erpAccountingAPI.getAccounts(token, params)
-      if (isSummaryScope) setSummaryAccounts(data.accounts || [])
-      else setAccounts(data.accounts || [])
+      if (isSummaryScope) {
+        const pageSize = 200
+        let page = 1
+        let total = 0
+        let merged = []
+
+        do {
+          const data = await erpAccountingAPI.getAccounts(token, { ...params, page, limit: pageSize })
+          const rows = data.accounts || []
+          total = Number(data.total || 0)
+          merged = merged.concat(rows)
+          page += 1
+          if (!rows.length) break
+        } while (merged.length < total)
+
+        const uniqueById = new Map()
+        merged.forEach((item) => {
+          if (item?._id) uniqueById.set(item._id, item)
+        })
+        setSummaryAccounts(Array.from(uniqueById.values()))
+      } else {
+        const data = await erpAccountingAPI.getAccounts(token, params)
+        setAccounts(data.accounts || [])
+      }
       setError('')
     } catch (e) {
       setError(e.response?.data?.message || `Failed to load ${isSummaryScope ? 'account summary options' : 'accounts'}`)
     }
     setLoading(false)
   }
+
+  const formatSummaryAccountLabel = (account) => {
+    const code = String(account?.accountCode || '').trim()
+    const name = String(account?.accountName || '').trim()
+    const type = String(account?.accountType || '').trim()
+    return [code, name, type].filter(Boolean).join(' - ')
+  }
+
+  const filteredGroupedSummaryAccounts = summaryAccounts
+    .filter((account) => {
+      const lookup = String(accountEnquiryCode || '').trim().toLowerCase()
+      if (!lookup) return true
+      return [account.accountCode, account.accountName, account.accountType]
+        .some((value) => String(value || '').toLowerCase().includes(lookup))
+    })
+    .slice()
+    .sort((a, b) => {
+      const aType = String(a.accountType || '').trim()
+      const bType = String(b.accountType || '').trim()
+      const aTypeIndex = ACCOUNT_TYPE_ORDER.indexOf(aType)
+      const bTypeIndex = ACCOUNT_TYPE_ORDER.indexOf(bType)
+      const normalizedATypeIndex = aTypeIndex === -1 ? ACCOUNT_TYPE_ORDER.length : aTypeIndex
+      const normalizedBTypeIndex = bTypeIndex === -1 ? ACCOUNT_TYPE_ORDER.length : bTypeIndex
+      const typeCompare = normalizedATypeIndex - normalizedBTypeIndex
+      if (typeCompare !== 0) return typeCompare
+      return String(a.accountCode || '').localeCompare(String(b.accountCode || ''))
+    })
+    .reduce((groups, account) => {
+      const type = String(account.accountType || 'Other').trim() || 'Other'
+      const existingGroup = groups.find((group) => group.type === type)
+      if (existingGroup) existingGroup.accounts.push(account)
+      else groups.push({ type, accounts: [account] })
+      return groups
+    }, [])
 
   const loadLedger = async () => {
     if (!canViewLedger) return
@@ -601,11 +792,11 @@ function ERPTab() {
     setLoading(false)
   }
 
-  const loadCustomers = async () => {
+  const loadCustomers = async (params) => {
     if (!canViewCustomers) return
     setLoading(true)
     try {
-      const data = await erpAccountingAPI.getCustomers(token)
+      const data = await erpAccountingAPI.getCustomers(token, params)
       setCustomers(data.customers || [])
       setError('')
     } catch (e) {
@@ -661,12 +852,12 @@ function ERPTab() {
   const loadMetalRates = async () => {
     try {
       const data = await erpAccountingAPI.getMetalRates(token)
-      const rates = data.rates || { goldPrice: 285, silverPrice: 3.5, priceCurrency: 'AED', updatedAt: null }
+      const rates = data.rates || { goldPrice: 285, silverPrice: 3.5, priceCurrency: 'USD', updatedAt: null }
       setMetalRates(rates)
       setMetalRateForm({
         goldPrice: String(rates.goldPrice ?? 285),
         silverPrice: String(rates.silverPrice ?? 3.5),
-        priceCurrency: rates.priceCurrency || 'AED',
+        priceCurrency: rates.priceCurrency || 'USD',
       })
       setError('')
     } catch (e) {
@@ -738,7 +929,7 @@ function ERPTab() {
       type: tx.type || 'expense',
       amount: String(tx.amount ?? ''),
       date: tx.date ? new Date(tx.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-      currency: tx.currency || 'AED',
+      currency: tx.currency || 'USD',
       exchangeRate: String(tx.exchangeRate ?? 1),
       description: tx.description || '',
       customerId: tx.customerId?._id || tx.customerId || '',
@@ -1160,12 +1351,12 @@ function ERPTab() {
         status: 'active',
         notes: '',
         tags: '',
-        preferredCurrency: 'AED',
+        preferredCurrency: 'USD',
         bankName: '',
         bankAccountNumber: '',
         iban: '',
         swiftCode: '',
-        currency: 'AED',
+        currency: 'USD',
       })
       setShowVendorForm(false)
       setEditingVendorId('')
@@ -1218,12 +1409,12 @@ function ERPTab() {
       status: vendor.status || 'active',
       notes: vendor.notes || '',
       tags: Array.isArray(vendor.tags) ? vendor.tags.join(', ') : '',
-      preferredCurrency: vendor.preferredCurrency || vendor.currency || 'AED',
+      preferredCurrency: vendor.preferredCurrency || vendor.currency || 'USD',
       bankName: vendor.bankName || '',
       bankAccountNumber: vendor.bankAccountNumber || '',
       iban: vendor.iban || '',
       swiftCode: vendor.swiftCode || '',
-      currency: vendor.currency || 'AED',
+      currency: vendor.currency || 'USD',
     })
   }
 
@@ -1349,7 +1540,7 @@ function ERPTab() {
         })
         showNotification('✅ Product created')
       }
-      setProductForm({ sku: '', name: '', category: '', unit: 'pcs', unitCost: '', sellingPrice: '', quantity: '', currency: 'AED' })
+      setProductForm({ sku: '', name: '', category: '', unit: 'pcs', unitCost: '', sellingPrice: '', quantity: '', currency: 'USD' })
       await loadInventory()
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to save product')
@@ -1368,7 +1559,7 @@ function ERPTab() {
       unitCost: String(p.unitCost ?? ''),
       sellingPrice: String(p.sellingPrice ?? ''),
       quantity: String(p.quantity ?? ''),
-      currency: p.currency || 'AED',
+      currency: p.currency || 'USD',
     })
   }
 
@@ -1395,7 +1586,7 @@ function ERPTab() {
         quantity: Number(stockInForm.quantity || 0),
         unitCost: Number(stockInForm.unitCost || 0),
       })
-      setStockInForm({ itemId: '', vendorId: '', quantity: '', unitCost: '', currency: 'AED', description: '' })
+      setStockInForm({ itemId: '', vendorId: '', quantity: '', unitCost: '', currency: 'USD', description: '' })
       await Promise.all([loadInventory(), loadDashboard()])
       showNotification('✅ Stock IN posted')
     } catch (e) {
@@ -1413,7 +1604,7 @@ function ERPTab() {
         ...stockOutForm,
         quantity: Number(stockOutForm.quantity || 0),
       })
-      setStockOutForm({ itemId: '', quantity: '', currency: 'AED', description: '' })
+      setStockOutForm({ itemId: '', quantity: '', currency: 'USD', description: '' })
       await Promise.all([loadInventory(), loadDashboard()])
       showNotification('✅ Stock OUT posted')
     } catch (e) {
@@ -1453,8 +1644,9 @@ function ERPTab() {
     persistEnquiryHistory(nextHistory)
   }
 
-  const fetchAccountEnquiryByCode = async (accountCode) => {
+  const fetchAccountEnquiryByCode = async (accountCode, options = {}) => {
     const cleanCode = String(accountCode || '').trim()
+    const shouldOpenModal = Boolean(options.openModal)
     if (!cleanCode) {
       setError('Please enter account number')
       setEnquiryStatus({ type: 'error', message: 'Please enter account number' })
@@ -1462,7 +1654,7 @@ function ERPTab() {
     }
 
     try {
-      setShowEnquiryModal(true)
+      if (shouldOpenModal) setShowEnquiryModal(true)
       setEnquiryLoading(true)
       setEnquiryStatus({ type: '', message: '' })
       const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode)
@@ -1505,7 +1697,7 @@ function ERPTab() {
     const payload = {
       goldPrice: Number(metalRateForm.goldPrice),
       silverPrice: Number(metalRateForm.silverPrice),
-      priceCurrency: String(metalRateForm.priceCurrency || 'AED').toUpperCase(),
+      priceCurrency: String(metalRateForm.priceCurrency || 'USD').toUpperCase(),
     }
 
     if (!payload.goldPrice || payload.goldPrice <= 0 || !payload.silverPrice || payload.silverPrice <= 0) {
@@ -1629,10 +1821,7 @@ function ERPTab() {
       loadCurrencies()
       loadReportBranding()
     }
-    else if (activeTab === 'enquiry') {
-      loadMetalRates()
-      loadAccounts({ scope: 'summary' })
-    }
+    else if (activeTab === 'enquiry') loadAccounts({ scope: 'summary' })
   }, [
     activeTab,
     token,
@@ -1654,6 +1843,14 @@ function ERPTab() {
     reportFilters.minAmount,
     selectedReportAccountId,
   ])
+
+  useEffect(() => {
+    if (activeTab !== 'vouchers' || !token) return
+    if (!customers.length) loadCustomers({ limit: 200 })
+    if (!vendors.length) loadVendors()
+    if (!currencies.length) loadCurrencies()
+    if (!accounts.length) loadAccounts()
+  }, [activeTab, token, customers.length, vendors.length, currencies.length, accounts.length])
 
   const convertMetalBalanceByUnit = (valueInGram) => {
     const factor = METAL_UNIT_FACTORS[metalUnit] || 1
@@ -1921,7 +2118,7 @@ function ERPTab() {
         TRANSACTION_TYPE_LABELS[tx.type] || tx.type,
         tx.customerId?.name || tx.vendorId?.name || tx.inventoryItemId?.sku || '',
         Number(tx.amount || 0),
-        tx.currency || 'AED',
+        tx.currency || 'USD',
         tx.status || '',
         tx.description || '',
         tx.debitAccountId ? `${tx.debitAccountId.accountCode} - ${tx.debitAccountId.accountName}` : '',
@@ -1982,7 +2179,7 @@ function ERPTab() {
         tx.date ? new Date(tx.date).toLocaleDateString() : '',
         TRANSACTION_TYPE_LABELS[tx.type] || tx.type,
         tx.customerId?.name || tx.vendorId?.name || tx.inventoryItemId?.sku || '',
-        `${tx.currency || 'AED'} ${Number(tx.amount || 0).toLocaleString()}`,
+        `${tx.currency || 'USD'} ${Number(tx.amount || 0).toLocaleString()}`,
         tx.status || '',
         tx.description || '',
         String(tx.comments?.length || 0),
@@ -2046,7 +2243,7 @@ function ERPTab() {
           row.debitAccountId?.accountCode || '',
           row.creditAccountId?.accountCode || '',
           row.amount,
-          row.currency || 'AED',
+          row.currency || 'USD',
         ])
       })
       return { rows, fileBase: `day-book-${stamp}`, sheetName: 'Day Book', successLabel: 'Day book' }
@@ -2410,7 +2607,7 @@ function ERPTab() {
         amount: '',
         description: '',
         referenceType: 'journal',
-        currency: currencies.find((currency) => currency.baseCurrency)?.code || 'AED',
+        currency: currencies.find((currency) => currency.baseCurrency)?.code || 'USD',
       })
       setShowLedgerForm(false)
       await Promise.all([loadLedger(), loadDashboard()])
@@ -2445,7 +2642,7 @@ function ERPTab() {
         openingBalance: '',
         creditLimit: '',
         paymentTermsDays: '',
-        currency: currencies.find((currency) => currency.baseCurrency)?.code || 'AED',
+        currency: currencies.find((currency) => currency.baseCurrency)?.code || 'USD',
         notes: '',
       })
       setShowCustomerForm(false)
@@ -2464,7 +2661,7 @@ function ERPTab() {
       formState = {
         accountName: record.accountName || '',
         description: record.description || '',
-        currency: record.currency || 'AED',
+        currency: record.currency || 'USD',
         department: record.department || '',
       }
     }
@@ -2495,7 +2692,7 @@ function ERPTab() {
         gstVat: record.gstVat || '',
         creditLimit: record.creditLimit || 0,
         paymentTermsDays: record.paymentTermsDays || 0,
-        currency: record.currency || 'AED',
+        currency: record.currency || 'USD',
         notes: record.notes || '',
       }
     }
@@ -2780,15 +2977,15 @@ function ERPTab() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
                 <div style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', borderLeft: `4px solid ${C.s1}` }}>
                   <p style={{ color: C.t3, fontSize: '0.875rem', marginBottom: '0.5rem' }}>Month Income</p>
-                  <p style={{ color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>AED {dashboard.summary?.monthIncome?.toLocaleString()}</p>
+                  <p style={{ color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>USD {dashboard.summary?.monthIncome?.toLocaleString()}</p>
                 </div>
                 <div style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', borderLeft: `4px solid ${C.danger}` }}>
                   <p style={{ color: C.t3, fontSize: '0.875rem', marginBottom: '0.5rem' }}>Month Expense</p>
-                  <p style={{ color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>AED {dashboard.summary?.monthExpense?.toLocaleString()}</p>
+                  <p style={{ color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>USD {dashboard.summary?.monthExpense?.toLocaleString()}</p>
                 </div>
                 <div style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', borderLeft: `4px solid ${C.s1}` }}>
                   <p style={{ color: C.t3, fontSize: '0.875rem', marginBottom: '0.5rem' }}>Month Profit</p>
-                  <p style={{ color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>AED {dashboard.summary?.monthProfit?.toLocaleString()}</p>
+                  <p style={{ color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>USD {dashboard.summary?.monthProfit?.toLocaleString()}</p>
                 </div>
                 <div style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', borderLeft: '4px solid #0EA5E9' }}>
                   <p style={{ color: C.t3, fontSize: '0.875rem', marginBottom: '0.3rem' }}>Document Expiry Warnings</p>
@@ -2883,7 +3080,7 @@ function ERPTab() {
               <input type="number" step="0.01" placeholder="Opening Balance" value={customerForm.openingBalance} onChange={(e) => setCustomerForm({ ...customerForm, openingBalance: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
               <input type="number" step="0.01" placeholder="Credit Limit" value={customerForm.creditLimit} onChange={(e) => setCustomerForm({ ...customerForm, creditLimit: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
               <input type="number" placeholder="Payment Terms (Days)" value={customerForm.paymentTermsDays} onChange={(e) => setCustomerForm({ ...customerForm, paymentTermsDays: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
-              <input placeholder="Currency (e.g. AED)" value={customerForm.currency} onChange={(e) => setCustomerForm({ ...customerForm, currency: e.target.value.toUpperCase() })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
+              <input placeholder="Currency (e.g. USD)" value={customerForm.currency} onChange={(e) => setCustomerForm({ ...customerForm, currency: e.target.value.toUpperCase() })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
               <input placeholder="Notes" value={customerForm.notes} onChange={(e) => setCustomerForm({ ...customerForm, notes: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.75rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
 
               <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', marginRight: '0.5rem' }}>
@@ -3025,7 +3222,7 @@ function ERPTab() {
                 onChange={(e) => setLedgerForm({ ...ledgerForm, currency: e.target.value })}
                 style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
               >
-                {(currencies.length ? currencies : [{ code: 'AED', name: 'UAE Dirham' }]).map((currency) => (
+                {(currencies.length ? currencies : [{ code: 'USD', name: 'US Dollar' }]).map((currency) => (
                   <option key={currency.code} value={currency.code}>{currency.code} - {currency.name}</option>
                 ))}
               </select>
@@ -3333,7 +3530,7 @@ function ERPTab() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
             <div>
               <h3 style={{ marginBottom: '0.35rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Account Summary</h3>
-              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.9rem' }}>Search any chart-of-account code to view balances, value conversion, metal equivalents, and exportable summary details.</p>
+              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.9rem' }}>Search any chart-of-account code to view balances, account details, and exportable summary details.</p>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <span style={{ padding: '0.4rem 0.7rem', borderRadius: '999px', background: '#ECFDF5', color: '#065F46', fontSize: '0.78rem', fontWeight: '700' }}>{isSuperAdmin ? 'Super Admin' : isFinance ? 'Finance' : 'Department Head'}</span>
@@ -3349,7 +3546,7 @@ function ERPTab() {
                 <form onSubmit={handleAccountEnquiry} style={{ background: '#FAFAF7', border: '1px solid #D6D3C4', borderRadius: '0.75rem', padding: '1rem', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
                     <p style={{ margin: 0, color: '#3F4B2E', fontWeight: '800', letterSpacing: '0.02em' }}>Account Lookup</p>
-                    <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>Code or dropdown search</span>
+                    <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>Type account code</span>
                   </div>
                   <input
                     placeholder="Enter Account Number (e.g. 1000)"
@@ -3358,32 +3555,36 @@ function ERPTab() {
                       setAccountEnquiryCode(e.target.value)
                       setEnquiryStatus({ type: '', message: '' })
                     }}
-                    list="erp-account-code-list"
                     style={{ display: 'block', width: '100%', padding: '0.7rem 0.8rem', marginBottom: '0.75rem', background: '#FFFFFF', border: '1px solid #B8BEA0', color: C.ink, borderRadius: '0.5rem' }}
                   />
-                  <datalist id="erp-account-code-list">
-                    {summaryAccounts.map((account) => (
-                      <option key={account._id} value={account.accountCode}>{account.accountName}</option>
-                    ))}
-                  </datalist>
-                  <select
-                    value={accountEnquiryCode}
-                    onChange={(e) => {
-                      setAccountEnquiryCode(e.target.value)
-                      setEnquiryStatus({ type: '', message: '' })
-                    }}
-                    style={{ display: 'block', width: '100%', padding: '0.7rem 0.8rem', marginBottom: '0.75rem', background: '#FFFFFF', border: '1px solid #B8BEA0', color: C.ink, borderRadius: '0.5rem' }}
-                  >
-                    <option value="">Select Account Number</option>
-                    {summaryAccounts
-                      .slice()
-                      .sort((a, b) => a.accountCode.localeCompare(b.accountCode))
-                      .map((account) => (
-                        <option key={account._id} value={account.accountCode}>
-                          {account.accountCode} - {account.accountName}
-                        </option>
+                  {filteredGroupedSummaryAccounts.length > 0 && (
+                    <div style={{ marginTop: '-0.35rem', marginBottom: '0.75rem', border: '1px solid #D6D3C4', borderRadius: '0.6rem', background: '#FFFFFF', maxHeight: '300px', overflowY: 'auto', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.08)' }}>
+                      {filteredGroupedSummaryAccounts.map((group) => (
+                        <div key={group.type}>
+                          <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: '0.45rem 0.75rem', background: '#F5F7F0', borderBottom: '1px solid #E5E7EB', color: '#3F4B2E', fontSize: '0.76rem', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                            {group.type}
+                          </div>
+                          {group.accounts.map((account) => (
+                            <button
+                              key={account._id}
+                              type="button"
+                              onMouseDown={(event) => {
+                                event.preventDefault()
+                                setAccountEnquiryCode(account.accountCode)
+                                setEnquiryStatus({ type: '', message: '' })
+                                fetchAccountEnquiryByCode(account.accountCode)
+                              }}
+                              style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.65rem 0.75rem', border: 'none', borderBottom: '1px solid #F3F4F6', background: '#FFFFFF', color: C.ink, cursor: 'pointer', textAlign: 'left' }}
+                            >
+                              <span style={{ fontWeight: '800', minWidth: '56px', color: '#111827' }}>{account.accountCode}</span>
+                              <span style={{ flex: 1, color: '#4B5563', fontSize: '0.86rem' }}>{account.accountName}</span>
+                              <span style={{ color: '#6B7280', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{account.accountType}</span>
+                            </button>
+                          ))}
+                        </div>
                       ))}
-                  </select>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <button type="submit" disabled={enquiryLoading} style={{ padding: '0.6rem 1rem', background: '#1a7a3a', color: '#FFFFFF', border: 'none', borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}>
                       {enquiryLoading ? 'Loading...' : 'Load Summary'}
@@ -3427,67 +3628,98 @@ function ERPTab() {
                   </div>
                 </form>
 
-                <form onSubmit={handleUpdateMetalRates} style={{ background: '#FFFFFF', border: '1px solid #D1D5DB', borderRadius: '0.75rem', padding: '1rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.65rem', flexWrap: 'wrap' }}>
-                    <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>Metal Conversion Rates</p>
-                    <span style={{ fontSize: '0.78rem', color: C.inkSoft }}>{canUpdateMetalRates ? 'Editable' : 'Read only'}</span>
+                <div ref={detailsPanelRef} style={{ position: detailsPanelIsFloating ? 'fixed' : 'relative', top: detailsPanelIsFloating ? `${detailsPanel.y}px` : 'auto', left: detailsPanelIsFloating ? `${detailsPanel.x}px` : 'auto', width: detailsPanelIsFloating ? `${detailsPanel.width}px` : '100%', minHeight: detailsPanelIsFloating ? `${detailsPanel.height}px` : 'auto', zIndex: detailsPanelIsFloating ? 940 : 'auto', background: '#FFFFFF', border: '1px solid #D1D5DB', borderRadius: '0.75rem', padding: '0.9rem', boxShadow: detailsPanelIsFloating ? '0 18px 42px rgba(15, 23, 42, 0.18)' : 'none' }}>
+                  <div onMouseDown={beginDetailsPanelDrag} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', cursor: detailsPanelDrag.active ? 'grabbing' : 'grab', userSelect: 'none', borderBottom: '1px solid #E5E7EB', paddingBottom: '0.5rem' }}>
+                    <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>Account Details</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontSize: '0.78rem', color: C.inkSoft }}>{accountEnquiryData?.account?.accountCode ? 'Loaded' : 'Awaiting selection'}</span>
+                      <button
+                        type="button"
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={() => {
+                          const geometry = getCurrentDetailsPanelGeometry()
+                          setDetailsPanel((prev) => ({
+                            ...prev,
+                            pinned: !prev.pinned,
+                            floating: true,
+                            x: geometry.x,
+                            y: geometry.y,
+                            width: geometry.width,
+                            height: geometry.height,
+                          }))
+                        }}
+                        style={{ border: '1px solid #CBD5E1', background: detailsPanel.pinned ? '#DBEAFE' : '#FFFFFF', color: detailsPanel.pinned ? '#1D4ED8' : '#475569', borderRadius: '0.35rem', padding: '0.25rem 0.45rem', fontSize: '0.76rem', fontWeight: '700', cursor: 'pointer' }}
+                        title="Pin/Unpin panel"
+                      >
+                        {detailsPanel.pinned ? 'Pinned' : 'Pin'}
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={handleCloseDetailsPanel}
+                        style={{ border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', borderRadius: '0.35rem', padding: '0.25rem 0.45rem', fontSize: '0.76rem', fontWeight: '700', cursor: 'pointer' }}
+                        title="Dock panel"
+                      >
+                        Dock
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                    <input
-                      type="number"
-                      step="0.0001"
-                      placeholder="Gold Price"
-                      value={metalRateForm.goldPrice}
-                      onChange={(e) => setMetalRateForm((prev) => ({ ...prev, goldPrice: e.target.value }))}
-                      style={{ padding: '0.65rem 0.75rem', background: '#F9FAFB', border: '1px solid #D1D5DB', color: C.ink, borderRadius: '0.5rem' }}
-                    />
-                    <input
-                      type="number"
-                      step="0.0001"
-                      placeholder="Silver Price"
-                      value={metalRateForm.silverPrice}
-                      onChange={(e) => setMetalRateForm((prev) => ({ ...prev, silverPrice: e.target.value }))}
-                      style={{ padding: '0.65rem 0.75rem', background: '#F9FAFB', border: '1px solid #D1D5DB', color: C.ink, borderRadius: '0.5rem' }}
-                    />
-                    <input
-                      placeholder="Currency"
-                      value={metalRateForm.priceCurrency}
-                      onChange={(e) => setMetalRateForm((prev) => ({ ...prev, priceCurrency: e.target.value.toUpperCase() }))}
-                      style={{ padding: '0.65rem 0.75rem', background: '#F9FAFB', border: '1px solid #D1D5DB', color: C.ink, borderRadius: '0.5rem' }}
-                    />
-                  </div>
-                  <div style={{ marginBottom: '0.75rem' }}>
-                    <label style={{ display: 'block', marginBottom: '0.35rem', color: C.inkSoft, fontSize: '0.82rem', fontWeight: '600' }}>Metal Unit</label>
-                    <select
-                      value={metalUnit}
-                      onChange={(e) => setMetalUnit(e.target.value)}
-                      style={{ padding: '0.65rem 0.75rem', background: '#F9FAFB', border: '1px solid #D1D5DB', color: C.ink, borderRadius: '0.5rem', width: '100%' }}
-                    >
-                      <option value="gram">Gram</option>
-                      <option value="ounce">Ounce</option>
-                      <option value="kg">Kilogram</option>
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    <span style={{ color: C.inkSoft, fontSize: '0.82rem' }}>
-                      Last Updated: {metalRates.updatedAt ? new Date(metalRates.updatedAt).toLocaleString() : 'Default values'}
-                    </span>
-                    <button type="submit" disabled={!canUpdateMetalRates || saving} style={{ padding: '0.55rem 1rem', background: canUpdateMetalRates ? '#F59E0B' : '#D1D5DB', color: '#111827', border: 'none', borderRadius: '0.4rem', cursor: canUpdateMetalRates ? 'pointer' : 'not-allowed', fontWeight: '700' }}>
-                      {saving ? 'Updating...' : 'Update Rates'}
-                    </button>
-                  </div>
+                  {!accountEnquiryData?.account ? (
+                    <div style={{ border: '1px dashed #D1D5DB', borderRadius: '0.6rem', background: '#F9FAFB', padding: '1.2rem', color: '#6B7280', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                      Select an account from the lookup list or type a code and click Load Summary to show account details here.
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ border: '2px solid #3F4B2E', borderRadius: '0.6rem', background: '#F5F7F0', padding: '1rem', position: 'relative', marginBottom: '0.9rem' }}>
+                        <div style={{ borderBottom: '1px solid #D1D5DB', paddingBottom: '0.8rem', marginBottom: '0.8rem' }}>
+                          <h3 style={{ margin: '0 0 0.4rem', color: '#111827', fontWeight: '800', fontSize: '1.1rem' }}>{accountEnquiryData.account.accountName || 'Account'}</h3>
+                          <p style={{ margin: 0, color: '#6B7280', fontSize: '0.9rem', lineHeight: '1.4' }}>{accountEnquiryData.account.description || accountEnquiryData.account.accountName}</p>
+                          {accountEnquiryData.account.description && (
+                            <p style={{ margin: '0.4rem 0 0', color: '#6B7280', fontSize: '0.85rem' }}>Code: {accountEnquiryData.account.accountCode}</p>
+                          )}
+                        </div>
+                      </div>
 
-                  <div style={{ marginTop: '0.9rem', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.5rem' }}>
-                    <div style={{ padding: '0.7rem', borderRadius: '0.5rem', background: '#FFFBEB', border: '1px solid #FDE68A' }}>
-                      <p style={{ margin: 0, color: '#92400E', fontSize: '0.72rem', fontWeight: '700' }}>Gold / {metalUnit}</p>
-                      <p style={{ margin: '0.2rem 0 0', color: '#B45309', fontWeight: '800' }}>{metalRates.priceCurrency || 'AED'} {Number(metalRates.goldPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</p>
-                    </div>
-                    <div style={{ padding: '0.7rem', borderRadius: '0.5rem', background: '#F8FAFC', border: '1px solid #CBD5E1' }}>
-                      <p style={{ margin: 0, color: '#475569', fontSize: '0.72rem', fontWeight: '700' }}>Silver / {metalUnit}</p>
-                      <p style={{ margin: '0.2rem 0 0', color: '#334155', fontWeight: '800' }}>{metalRates.priceCurrency || 'AED'} {Number(metalRates.silverPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</p>
-                    </div>
-                  </div>
-                </form>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem', background: '#F9FAFB', borderRadius: '0.6rem', border: '1px solid #E5E7EB' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
+                          <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Total Funds</span>
+                          <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalTotalFunds, 2)}</span>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
+                          <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Revaluation</span>
+                          <span style={{ color: getSignedColor(modalRevaluation), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalRevaluation, 2)}</span>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
+                          <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Net Equity</span>
+                          <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalNetEquity, 2)}</span>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
+                          <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin Amt @ 2.0%</span>
+                          <span style={{ color: getSignedColor(modalMarginAmt), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalMarginAmt, 2)}</span>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
+                          <label style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Excess</label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <select value={excessCurrency} onChange={(e) => setExcessCurrency(e.target.value)} style={{ border: '1px solid #CBD5E0', borderRadius: '0.4rem', background: '#FFFFFF', fontSize: '0.85rem', padding: '0.3rem 0.5rem', fontWeight: '600' }}>
+                              <option value="USD">USD</option>
+                            </select>
+                            <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>{formatStatementValue(modalExcess, 2)}</span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.4rem' }}>
+                          <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin %</span>
+                          <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.1rem' }}>{formatStatementValue(modalMarginPct, 2)}%</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  <div onMouseDown={beginDetailsPanelResize} style={{ position: 'absolute', right: '6px', bottom: '6px', width: '14px', height: '14px', cursor: 'nwse-resize', borderRight: '2px solid #94A3B8', borderBottom: '2px solid #94A3B8', borderRadius: '0 0 2px 0', opacity: 0.8 }} title="Resize" />
+                </div>
               </div>
 
               {enquiryHistory.length > 0 && (
@@ -3616,7 +3848,7 @@ function ERPTab() {
               <input type="number" step="0.01" placeholder="Amount" value={transactionForm.amount} onChange={(e) => setTransactionForm((prev) => ({ ...prev, amount: e.target.value }))} style={modalInputStyle} />
               <input type="date" value={transactionForm.date} onChange={(e) => setTransactionForm((prev) => ({ ...prev, date: e.target.value }))} style={modalInputStyle} />
               <select value={transactionForm.currency} onChange={(e) => setTransactionForm((prev) => ({ ...prev, currency: e.target.value }))} style={modalInputStyle}>
-                {(currencies.length ? currencies : [{ code: 'AED' }]).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                {(currencies.length ? currencies : [{ code: 'USD' }]).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
               </select>
               <input type="number" step="0.0001" min="0" placeholder="Exchange Rate" value={transactionForm.exchangeRate} onChange={(e) => setTransactionForm((prev) => ({ ...prev, exchangeRate: e.target.value }))} style={modalInputStyle} />
               <select value={transactionForm.customerId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, customerId: e.target.value }))} style={modalInputStyle}>
@@ -4250,7 +4482,7 @@ function ERPTab() {
                       <>
                         <p style={{ margin: '0.35rem 0 0' }}>Status: {voucherSource.sourceTransaction.status}</p>
                         <p style={{ margin: '0.2rem 0 0' }}>Type: {voucherSource.sourceTransaction.type}</p>
-                        <p style={{ margin: '0.2rem 0 0' }}>Amount: {formatMoney(voucherSource.sourceTransaction.amount)} {voucherSource.sourceTransaction.currency || 'AED'}</p>
+                        <p style={{ margin: '0.2rem 0 0' }}>Amount: {formatMoney(voucherSource.sourceTransaction.amount)} {voucherSource.sourceTransaction.currency || 'USD'}</p>
                         <p style={{ margin: '0.2rem 0 0' }}>Customer: {voucherSource.sourceTransaction.customerId?.name || '-'}</p>
                         <p style={{ margin: '0.2rem 0 0' }}>Vendor: {voucherSource.sourceTransaction.vendorId?.name || '-'}</p>
                         <p style={{ margin: '0.2rem 0 0' }}>Inventory: {voucherSource.sourceTransaction.inventoryItemId?.sku || voucherSource.sourceTransaction.inventoryItemId?.name || '-'}</p>
@@ -4604,7 +4836,7 @@ function ERPTab() {
                         <div key={tx._id} style={{ padding: '0.5rem', borderBottom: `1px solid ${C.p2}` }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.4rem' }}>
                             <span style={{ color: C.ink, fontWeight: '600', fontSize: '0.77rem', textTransform: 'capitalize' }}>{tx.type} ({tx.status})</span>
-                            <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.77rem' }}>{Number(tx.amount || 0).toLocaleString()} {tx.currency || 'AED'}</span>
+                            <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.77rem' }}>{Number(tx.amount || 0).toLocaleString()} {tx.currency || 'USD'}</span>
                           </div>
                           <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{new Date(tx.date).toLocaleString()}</div>
                         </div>
@@ -4620,7 +4852,7 @@ function ERPTab() {
                         <div key={entry._id} style={{ padding: '0.5rem', borderBottom: `1px solid ${C.p2}` }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.4rem' }}>
                             <span style={{ color: C.ink, fontWeight: '600', fontSize: '0.77rem', textTransform: 'capitalize' }}>{entry.referenceType}</span>
-                            <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.77rem' }}>{Number(entry.amount || 0).toLocaleString()} {entry.currency || 'AED'}</span>
+                            <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.77rem' }}>{Number(entry.amount || 0).toLocaleString()} {entry.currency || 'USD'}</span>
                           </div>
                           <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{new Date(entry.date).toLocaleString()}</div>
                         </div>
@@ -4674,7 +4906,7 @@ function ERPTab() {
                       {(selectedVendorDetails.paymentCalendar || []).map((due) => (
                         <div key={`${due.purchaseTransactionId}-${due.dueDate}`} style={{ padding: '0.45rem', borderBottom: `1px solid ${C.p2}` }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.35rem' }}>
-                            <span style={{ fontSize: '0.74rem', fontWeight: '600', color: C.ink }}>{Number(due.remaining || 0).toLocaleString()} {due.currency || 'AED'}</span>
+                            <span style={{ fontSize: '0.74rem', fontWeight: '600', color: C.ink }}>{Number(due.remaining || 0).toLocaleString()} {due.currency || 'USD'}</span>
                             <span style={{ fontSize: '0.71rem', color: due.alertLevel === 'overdue' ? '#991B1B' : due.alertLevel === 'due_soon' ? '#92400E' : C.inkSoft }}>{due.alertLevel} ({due.daysToDue}d)</span>
                           </div>
                           <div style={{ fontSize: '0.71rem', color: C.inkSoft }}>Due {new Date(due.dueDate).toLocaleDateString()}</div>
@@ -4707,7 +4939,7 @@ function ERPTab() {
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer' }}>{saving ? 'Saving...' : editingProductId ? 'Save Changes' : 'Create Product'}</button>
-              {editingProductId && <button type="button" onClick={() => { setEditingProductId(''); setProductForm({ sku: '', name: '', category: '', unit: 'pcs', unitCost: '', sellingPrice: '', quantity: '', currency: 'AED' }) }} style={{ padding: '0.5rem 1rem', background: '#F3F4F6', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.4rem', cursor: 'pointer' }}>Cancel</button>}
+              {editingProductId && <button type="button" onClick={() => { setEditingProductId(''); setProductForm({ sku: '', name: '', category: '', unit: 'pcs', unitCost: '', sellingPrice: '', quantity: '', currency: 'USD' }) }} style={{ padding: '0.5rem 1rem', background: '#F3F4F6', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.4rem', cursor: 'pointer' }}>Cancel</button>}
             </div>
           </form>
 
@@ -5123,7 +5355,7 @@ function ERPTab() {
               <li style={{ marginBottom: '0.5rem' }}>✓ Central Ledger System: Every transaction creates one ledger entry</li>
               <li style={{ marginBottom: '0.5rem' }}>✓ Auto Journal Logic: Debit/Credit pairs auto-populated based on mappings</li>
               <li style={{ marginBottom: '0.5rem' }}>✓ Role-Based Access: Finance and Super Admin only</li>
-              <li style={{ marginBottom: '0.5rem' }}>✓ Multi-Currency Support: AED, USD, EUR, and more</li>
+              <li style={{ marginBottom: '0.5rem' }}>✓ Currency Standardization: USD only</li>
               <li style={{ marginBottom: '0.5rem' }}>✓ Reports: Trial Balance, Ledger, and Dashboard all from ledger data</li>
             </ul>
           </div>
@@ -5386,6 +5618,7 @@ function ERPTab() {
           user={user}
           accounts={accounts}
           customers={customers}
+          vendors={vendors}
           currencies={currencies}
         />
       )}
@@ -5589,7 +5822,6 @@ function ERPTab() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <select value={excessCurrency} onChange={(e) => setExcessCurrency(e.target.value)} style={{ border: '1px solid #CBD5E0', borderRadius: '0.4rem', background: '#FFFFFF', fontSize: '0.85rem', padding: '0.3rem 0.5rem', fontWeight: '600' }}>
                             <option value="USD">USD</option>
-                            <option value="PDC">PDC</option>
                           </select>
                           <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>{formatStatementValue(modalExcess, 2)}</span>
                         </div>

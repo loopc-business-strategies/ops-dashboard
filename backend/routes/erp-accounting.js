@@ -71,11 +71,33 @@ const canManageDirectDeals = (user) => isSuperAdmin(user) || isFinance(user) || 
 
 const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
 const TRANSACTION_STATUSES = ['draft', 'submitted', 'approved', 'posted', 'returned', 'rejected']
+const BASE_CURRENCY_CODE = 'USD'
 
 const toMoney = (value) => Number(Number(value || 0).toFixed(2))
 const toQty = (value) => Number(Number(value || 0).toFixed(6))
 
 const sanitizeOptionalRef = (value) => (value ? value : null)
+
+const ensureUsdCurrencyConfig = async () => {
+  const usd = await Currency.findOneAndUpdate(
+    { code: BASE_CURRENCY_CODE },
+    {
+      $set: {
+        code: BASE_CURRENCY_CODE,
+        name: 'US Dollar',
+        symbol: '$',
+        baseCurrency: true,
+        exchangeRate: 1,
+        isActive: true,
+        rateUpdatedAt: new Date(),
+      },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  )
+
+  await Currency.updateMany({ _id: { $ne: usd._id } }, { $set: { isActive: false, baseCurrency: false } })
+  return usd
+}
 
 const nextDirectDealDocNo = async () => {
   const year = new Date().getFullYear()
@@ -129,8 +151,7 @@ const getMappedAccountIds = async (user) => {
 }
 
 const getAccountSummaryScope = async (user) => {
-  if (isSuperAdmin(user) || isFinance(user)) return null
-  if (isDepartmentHead(user)) return await getMappedAccountIds(user)
+  if (isSuperAdmin(user) || isFinance(user) || isDepartmentHead(user)) return null
   return []
 }
 
@@ -148,8 +169,12 @@ const validateTransactionPayload = (payload) => {
     return 'Customer is required for sales and receipts'
   }
 
-  if (['purchase', 'payment'].includes(payload.type) && !payload.vendorId) {
-    return 'Vendor is required for purchases and payments'
+  if (payload.type === 'purchase' && !payload.vendorId) {
+    return 'Vendor is required for purchases'
+  }
+
+  if (payload.type === 'payment' && !payload.vendorId && !payload.customerId) {
+    return 'Vendor or customer is required for payments'
   }
 
   return ''
@@ -348,7 +373,7 @@ const parsePagination = (query, defaultLimit = 25, maxLimit = 100) => {
 const DEFAULT_METAL_RATES = {
   goldPrice: 285,
   silverPrice: 3.5,
-  priceCurrency: 'AED',
+  priceCurrency: 'USD',
 }
 
 const DEFAULT_REPORT_BRANDING = {
@@ -631,7 +656,7 @@ const buildVendorPaymentCalendar = async (vendor, options = {}) => {
     dueDate: new Date((tx.date ? new Date(tx.date) : new Date()).getTime() + Number(vendor.paymentTermsDays || 0) * 86400000),
     amount: Number(tx.amount || 0),
     remaining: Number(tx.amount || 0),
-    currency: tx.currency || vendor.currency || 'AED',
+    currency: tx.currency || vendor.currency || 'USD',
     description: tx.description || '',
   }))
 
@@ -693,7 +718,7 @@ const nextInventoryAccountCode = async () => {
   return String(code)
 }
 
-const ensureCashBankAccount = async (user, currency = 'AED') => {
+const ensureCashBankAccount = async (user, currency = 'USD') => {
   let account = await ChartOfAccount.findOne({
     isActive: true,
     accountType: 'Asset',
@@ -732,7 +757,7 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride }) => {
       if (transactionType === 'sale') debitAccountId = debitAccountId || customer.ledgerAccountId._id
       if (transactionType === 'receipt') creditAccountId = creditAccountId || customer.ledgerAccountId._id
     }
-    const bank = await ensureCashBankAccount(user, tx.currency || 'AED')
+    const bank = await ensureCashBankAccount(user, tx.currency || 'USD')
     if (transactionType === 'receipt') debitAccountId = debitAccountId || bank._id
   }
 
@@ -742,7 +767,15 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride }) => {
       if (transactionType === 'purchase') creditAccountId = creditAccountId || vendor.ledgerAccountId._id
       if (transactionType === 'payment') debitAccountId = debitAccountId || vendor.ledgerAccountId._id
     }
-    const bank = await ensureCashBankAccount(user, tx.currency || 'AED')
+
+    if (transactionType === 'payment' && !vendor?.ledgerAccountId) {
+      const customer = tx.customerId ? await Customer.findById(tx.customerId).populate('ledgerAccountId') : null
+      if (customer?.ledgerAccountId) {
+        debitAccountId = debitAccountId || customer.ledgerAccountId._id
+      }
+    }
+
+    const bank = await ensureCashBankAccount(user, tx.currency || 'USD')
     if (transactionType === 'payment') creditAccountId = creditAccountId || bank._id
   }
 
@@ -767,7 +800,7 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride }) => {
 }
 
 const createLedgerFromTransaction = async ({ user, transaction, referenceType }) => {
-  const currencyCode = String(transaction.currency || 'AED').toUpperCase()
+  const currencyCode = String(transaction.currency || 'USD').toUpperCase()
   const base = await Currency.findOne({ baseCurrency: true, isActive: true })
   const txCurrency = await Currency.findOne({ code: currencyCode, isActive: true })
   const exchangeRate = Number(transaction.exchangeRate || txCurrency?.exchangeRate || 1)
@@ -789,13 +822,13 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
   })
 
   // Record simplified forex gain/loss when posting non-base currency transaction.
-  if (currencyCode !== String(base?.code || 'AED').toUpperCase() && exchangeRate !== 1) {
+  if (currencyCode !== String(base?.code || 'USD').toUpperCase() && exchangeRate !== 1) {
     const fxAccount = await ChartOfAccount.findOne({
       accountType: 'Income',
       accountName: /forex|exchange gain/i,
       isActive: true,
     })
-    const bank = await ensureCashBankAccount(user, base?.code || 'AED')
+    const bank = await ensureCashBankAccount(user, base?.code || 'USD')
 
     if (fxAccount) {
       await Ledger.create({
@@ -809,7 +842,7 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
         createdBy: user._id,
         updatedBy: user._id,
         department: user.department,
-        currency: base?.code || 'AED',
+        currency: base?.code || 'USD',
         exchangeRate: 1,
       })
     }
@@ -986,12 +1019,22 @@ router.post('/customers', protect, async (req, res) => {
 
     if (!name) return res.status(400).json({ success: false, message: 'Customer name is required' })
 
+    const receivableParent = await ChartOfAccount.findOne({
+      accountType: 'Asset',
+      isActive: true,
+      $or: [
+        { accountCode: '1100' },
+        { accountName: /accounts receivable|receivable/i },
+      ],
+    }).sort({ accountCode: 1 })
+
     const accountCode = await nextCustomerAccountCode()
     const debtorAccount = await ChartOfAccount.create({
       accountName: `${name} (Debtor)`,
       accountCode,
       accountType: 'Asset',
-      currency: currency || 'AED',
+      parentAccountId: receivableParent?._id || null,
+      currency: currency || 'USD',
       description: `Auto-created receivable account for customer ${name}`,
       createdBy: req.user._id,
     })
@@ -1005,7 +1048,7 @@ router.post('/customers', protect, async (req, res) => {
       openingBalance: Number(openingBalance || 0),
       creditLimit: Number(creditLimit || 0),
       paymentTermsDays: Number(paymentTermsDays || 0),
-      currency: currency || 'AED',
+      currency: currency || 'USD',
       notes,
       ledgerAccountId: debtorAccount._id,
       createdBy: req.user._id,
@@ -1020,7 +1063,7 @@ router.post('/customers', protect, async (req, res) => {
           accountName: 'Owner Equity',
           accountCode: '3000',
           accountType: 'Equity',
-          currency: currency || 'AED',
+          currency: currency || 'USD',
           description: 'Default equity account for opening balances',
           createdBy: req.user._id,
         })
@@ -1035,7 +1078,7 @@ router.post('/customers', protect, async (req, res) => {
         referenceType: 'journal',
         createdBy: req.user._id,
         department: req.user.department,
-        currency: currency || 'AED',
+        currency: currency || 'USD',
       })
     }
 
@@ -1049,7 +1092,7 @@ router.put('/customers/:id', protect, async (req, res) => {
   try {
     if (!canManageCustomers(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const updates = {}
-    const allowedFields = ['name', 'phone', 'email', 'address', 'gstVat', 'creditLimit', 'paymentTermsDays', 'currency', 'notes', 'isActive']
+    const allowedFields = ['name', 'phone', 'email', 'address', 'gstVat', 'creditLimit', 'paymentTermsDays', 'currency', 'notes', 'isActive', 'ledgerAccountId']
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field]
     })
@@ -1164,7 +1207,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       ? {
           goldPrice: Number(latestRate.goldPrice || 0),
           silverPrice: Number(latestRate.silverPrice || 0),
-          priceCurrency: latestRate.priceCurrency || 'AED',
+          priceCurrency: latestRate.priceCurrency || 'USD',
           updatedAt: latestRate.updatedAt,
         }
       : {
@@ -1173,7 +1216,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         }
 
     const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true })
-    const accountCurrencyCode = String(account.currency || (baseCurrency?.code || 'AED')).toUpperCase()
+    const accountCurrencyCode = String(account.currency || (baseCurrency?.code || 'USD')).toUpperCase()
     const accountCurrency = await Currency.findOne({ code: accountCurrencyCode, isActive: true })
 
     const exchangeRateToBase = Number(accountCurrency?.exchangeRate || 1)
@@ -1593,12 +1636,8 @@ router.delete('/mappings/:id', protect, async (req, res) => {
 // ==========================================
 router.get('/currencies', protect, async (req, res) => {
   try {
-    const { page, limit, skip } = parsePagination(req.query, 25, 100)
-    const [currencies, total] = await Promise.all([
-      Currency.find({ isActive: true }).sort({ code: 1 }).skip(skip).limit(limit),
-      Currency.countDocuments({ isActive: true }),
-    ])
-    res.json({ success: true, currencies, total, page, limit })
+    const usd = await ensureUsdCurrencyConfig()
+    res.json({ success: true, currencies: [usd], total: 1, page: 1, limit: 1 })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -1690,7 +1729,7 @@ router.get('/metal-rates', protect, async (req, res) => {
       rates: {
         goldPrice: Number(latest.goldPrice || 0),
         silverPrice: Number(latest.silverPrice || 0),
-        priceCurrency: latest.priceCurrency || 'AED',
+        priceCurrency: latest.priceCurrency || 'USD',
         updatedAt: latest.updatedAt,
       },
       canUpdate: canManageAccounts(req.user),
@@ -1706,7 +1745,7 @@ router.put('/metal-rates', protect, async (req, res) => {
 
     const goldPrice = Number(req.body.goldPrice)
     const silverPrice = Number(req.body.silverPrice)
-    const priceCurrency = String(req.body.priceCurrency || 'AED').toUpperCase().trim()
+    const priceCurrency = BASE_CURRENCY_CODE
 
     if (!Number.isFinite(goldPrice) || goldPrice <= 0 || !Number.isFinite(silverPrice) || silverPrice <= 0) {
       return res.status(400).json({ success: false, message: 'Gold and silver rates must be greater than zero' })
@@ -1736,13 +1775,8 @@ router.put('/metal-rates', protect, async (req, res) => {
 router.post('/currencies', protect, async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const { code, name, symbol, baseCurrency, exchangeRate } = req.body
-    if (!code || !name || !symbol) return res.status(400).json({ success: false, message: 'Required fields missing' })
-    if (baseCurrency) {
-      await Currency.updateMany({ baseCurrency: true }, { baseCurrency: false })
-    }
-    const currency = await Currency.create({ code, name, symbol, baseCurrency, exchangeRate })
-    res.status(201).json({ success: true, currency })
+    const currency = await ensureUsdCurrencyConfig()
+    res.status(201).json({ success: true, message: 'USD is the only supported currency.', currency })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -1751,17 +1785,11 @@ router.post('/currencies', protect, async (req, res) => {
 router.put('/currencies/:id', protect, async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const updates = {}
-    const allowedFields = ['code', 'name', 'symbol', 'baseCurrency', 'exchangeRate', 'isActive']
-    allowedFields.forEach((field) => {
-      if (req.body[field] !== undefined) updates[field] = req.body[field]
-    })
-    if (updates.baseCurrency) {
-      await Currency.updateMany({ _id: { $ne: req.params.id }, baseCurrency: true }, { baseCurrency: false })
+    const currency = await ensureUsdCurrencyConfig()
+    if (String(req.params.id) !== String(currency._id)) {
+      return res.status(404).json({ success: false, message: 'Currency not found' })
     }
-    const currency = await Currency.findByIdAndUpdate(req.params.id, updates, { new: true })
-    if (!currency) return res.status(404).json({ success: false, message: 'Currency not found' })
-    res.json({ success: true, currency })
+    res.json({ success: true, message: 'USD is the only supported currency.', currency })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -1770,9 +1798,11 @@ router.put('/currencies/:id', protect, async (req, res) => {
 router.delete('/currencies/:id', protect, async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const currency = await Currency.findByIdAndUpdate(req.params.id, { isActive: false, baseCurrency: false }, { new: true })
-    if (!currency) return res.status(404).json({ success: false, message: 'Currency not found' })
-    res.json({ success: true, message: 'Currency deactivated', currency })
+    const currency = await ensureUsdCurrencyConfig()
+    if (String(req.params.id) !== String(currency._id)) {
+      return res.status(404).json({ success: false, message: 'Currency not found' })
+    }
+    res.status(400).json({ success: false, message: 'USD is mandatory and cannot be deactivated.' })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -1959,7 +1989,7 @@ router.get('/vendors/alerts/overdue-queue', protect, async (req, res) => {
           const overdueDays = Math.abs(Number(entry.daysToDue || 0))
           const subject = `Overdue vendor payment: ${vendor.name} (${vendor.vendorCode || 'N/A'})`
           const recipient = vendor.email || ''
-          const preview = `${dueAmount.toLocaleString()} ${entry.currency || vendor.currency || 'AED'} overdue by ${overdueDays} days`
+          const preview = `${dueAmount.toLocaleString()} ${entry.currency || vendor.currency || 'USD'} overdue by ${overdueDays} days`
 
           queue.push({
             queueId: `VENDOR-DUE-${vendor._id}-${entry.purchaseTransactionId}`,
@@ -1973,7 +2003,7 @@ router.get('/vendors/alerts/overdue-queue', protect, async (req, res) => {
               'Dear Vendor Team,',
               '',
               `This is a payment reminder for ${vendor.name}.`,
-              `Outstanding amount: ${dueAmount.toLocaleString()} ${entry.currency || vendor.currency || 'AED'}.`,
+              `Outstanding amount: ${dueAmount.toLocaleString()} ${entry.currency || vendor.currency || 'USD'}.`,
               `Invoice due date: ${new Date(entry.dueDate).toLocaleDateString()}.`,
               `Overdue by: ${overdueDays} days.`,
               '',
@@ -1992,7 +2022,7 @@ router.get('/vendors/alerts/overdue-queue', protect, async (req, res) => {
               dueDate: entry.dueDate,
               overdueDays,
               purchaseTransactionId: entry.purchaseTransactionId,
-              currency: entry.currency || vendor.currency || 'AED',
+              currency: entry.currency || vendor.currency || 'USD',
               amountDue: toMoney(dueAmount),
             },
             createdAt: new Date(),
@@ -2062,7 +2092,7 @@ router.post('/vendors', protect, async (req, res) => {
       accountName: `${name} (Creditor)`,
       accountCode,
       accountType: 'Liability',
-      currency: currency || 'AED',
+      currency: currency || 'USD',
       description: `Auto-created payable account for vendor ${name}`,
       createdBy: req.user._id,
     })
@@ -2090,12 +2120,12 @@ router.post('/vendors', protect, async (req, res) => {
       approvalHistory: [{ status: 'draft', reason: 'Vendor profile created', changedBy: req.user._id, changedAt: new Date() }],
       notes: notes || '',
       tags: Array.isArray(tags) ? tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 20) : [],
-      preferredCurrency: String(preferredCurrency || currency || 'AED').toUpperCase(),
+      preferredCurrency: String(preferredCurrency || currency || 'USD').toUpperCase(),
       bankName: bankName || '',
       bankAccountNumber: bankAccountNumber || '',
       iban: iban || '',
       swiftCode: swiftCode || '',
-      currency: currency || 'AED',
+      currency: currency || 'USD',
       ledgerAccountId: creditorAccount._id,
       createdBy: req.user._id,
       updatedBy: req.user._id,
@@ -2115,7 +2145,7 @@ router.post('/vendors', protect, async (req, res) => {
           createdBy: req.user._id,
           updatedBy: req.user._id,
           department: req.user.department,
-          currency: currency || 'AED',
+          currency: currency || 'USD',
         })
       }
     }
@@ -2485,7 +2515,7 @@ router.post('/inventory/products', protect, async (req, res) => {
       accountName: `${name} Stock`,
       accountCode,
       accountType: 'Asset',
-      currency: currency || 'AED',
+      currency: currency || 'USD',
       description: `Auto-created stock account for ${name}`,
       createdBy: req.user._id,
     })
@@ -2512,7 +2542,7 @@ router.post('/inventory/products', protect, async (req, res) => {
 router.post('/inventory/stock-in', protect, async (req, res) => {
   try {
     if (!canAccessInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const { itemId, quantity, unitCost, vendorId, currency = 'AED', description = '' } = req.body
+    const { itemId, quantity, unitCost, vendorId, currency = 'USD', description = '' } = req.body
     const qty = Number(quantity || 0)
     const cost = Number(unitCost || 0)
     if (!itemId || qty <= 0) return res.status(400).json({ success: false, message: 'Item and positive quantity are required' })
@@ -2575,7 +2605,7 @@ router.post('/inventory/stock-in', protect, async (req, res) => {
 router.post('/inventory/stock-out', protect, async (req, res) => {
   try {
     if (!canAccessInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const { itemId, quantity, currency = 'AED', description = '' } = req.body
+    const { itemId, quantity, currency = 'USD', description = '' } = req.body
     const qty = Number(quantity || 0)
     if (!itemId || qty <= 0) return res.status(400).json({ success: false, message: 'Item and positive quantity are required' })
 
@@ -2751,7 +2781,7 @@ router.post('/direct-deals', protect, async (req, res) => {
       entryType = 'fixing',
       docDate,
       valueDate,
-      currency = 'AED',
+      currency = 'USD',
       branch = 'HO',
       status = 'draft',
       remarks = '',
@@ -2798,7 +2828,7 @@ router.post('/direct-deals', protect, async (req, res) => {
       entryType,
       docDate: docDate ? new Date(docDate) : new Date(),
       valueDate: valueDate ? new Date(valueDate) : (docDate ? new Date(docDate) : new Date()),
-      currency: String(currency || 'AED').toUpperCase(),
+      currency: String(currency || 'USD').toUpperCase(),
       branch: String(branch || 'HO').trim(),
       status: ['draft', 'confirmed'].includes(String(status)) ? String(status) : 'draft',
       remarks: String(remarks || '').trim(),
@@ -3031,7 +3061,7 @@ router.post('/transactions', protect, async (req, res) => {
       amount: Number(amount),
       date: date ? new Date(date) : new Date(),
       description,
-      currency: (currency || 'AED').toUpperCase(),
+      currency: (currency || 'USD').toUpperCase(),
       exchangeRate: Number(exchangeRate || 1),
       customerId: sanitizeOptionalRef(customerId),
       vendorId: sanitizeOptionalRef(vendorId),
@@ -3080,7 +3110,7 @@ router.put('/transactions/:id', protect, async (req, res) => {
     if (req.body.amount !== undefined) tx.amount = Number(req.body.amount)
     if (req.body.date !== undefined) tx.date = req.body.date ? new Date(req.body.date) : tx.date
     if (req.body.description !== undefined) tx.description = req.body.description
-    if (req.body.currency !== undefined) tx.currency = String(req.body.currency || 'AED').toUpperCase()
+    if (req.body.currency !== undefined) tx.currency = String(req.body.currency || 'USD').toUpperCase()
     if (req.body.exchangeRate !== undefined) tx.exchangeRate = Number(req.body.exchangeRate || 1)
     if (req.body.customerId !== undefined) tx.customerId = sanitizeOptionalRef(req.body.customerId)
     if (req.body.vendorId !== undefined) tx.vendorId = sanitizeOptionalRef(req.body.vendorId)

@@ -11,7 +11,7 @@ const ledgerSchema = new mongoose.Schema(
     referenceId: { type: mongoose.Schema.Types.ObjectId, default: null },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     department: { type: String, default: '' },
-    currency: { type: String, default: 'AED' },
+    currency: { type: String, default: 'USD' },
     exchangeRate: { type: Number, default: 1 },
     notes: { type: String, default: '' },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
@@ -23,5 +23,11 @@ const ledgerSchema = new mongoose.Schema(
 
 ledgerSchema.index({ date: 1, debitAccountId: 1, creditAccountId: 1 })
 ledgerSchema.index({ referenceType: 1, referenceId: 1 })
+
+ledgerSchema.pre('validate', function enforceUsdCurrency(next) {
+  this.currency = 'USD'
+  this.exchangeRate = 1
+  next()
+})
 
 module.exports = mongoose.model('Ledger', ledgerSchema)

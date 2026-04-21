@@ -7,9 +7,7 @@ const AccountMapping = require('../models/AccountMapping')
 const Ledger = require('../models/Ledger')
 
 const currencies = [
-  { code: 'AED', name: 'UAE Dirham', symbol: 'AED', exchangeRate: 1, baseCurrency: true },
-  { code: 'USD', name: 'US Dollar', symbol: '$', exchangeRate: 3.6725, baseCurrency: false },
-  { code: 'EUR', name: 'Euro', symbol: 'EUR', exchangeRate: 3.98, baseCurrency: false },
+  { code: 'USD', name: 'US Dollar', symbol: '$', exchangeRate: 1, baseCurrency: true },
 ]
 
 const accounts = [
@@ -132,7 +130,7 @@ async function seed() {
       {
         $set: {
           ...account,
-          currency: 'AED',
+          currency: 'USD',
           isActive: true,
           createdBy: actor._id,
         },
@@ -173,7 +171,7 @@ async function seed() {
       description: entry.description,
       referenceType: entry.referenceType,
       createdBy: actor._id,
-      currency: 'AED',
+      currency: 'USD',
       exchangeRate: 1,
       department: entry.department || 'finance',
     })

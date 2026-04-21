@@ -23,7 +23,7 @@ const directDealSchema = new mongoose.Schema(
     entryType: { type: String, enum: ['fixing', 'non_fixing'], required: true, default: 'fixing' },
     docDate: { type: Date, required: true },
     valueDate: { type: Date, required: true },
-    currency: { type: String, trim: true, uppercase: true, default: 'AED' },
+    currency: { type: String, trim: true, uppercase: true, default: 'USD' },
     branch: { type: String, trim: true, default: 'HO' },
     status: { type: String, enum: ['draft', 'confirmed'], default: 'draft' },
     remarks: { type: String, trim: true, default: '' },
@@ -42,5 +42,10 @@ const directDealSchema = new mongoose.Schema(
 
 directDealSchema.index({ entryType: 1, docDate: -1 })
 directDealSchema.index({ status: 1, updatedAt: -1 })
+
+directDealSchema.pre('validate', function enforceUsdCurrency(next) {
+  this.currency = 'USD'
+  next()
+})
 
 module.exports = mongoose.model('DirectDeal', directDealSchema)

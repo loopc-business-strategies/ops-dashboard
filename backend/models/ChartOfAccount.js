@@ -6,7 +6,7 @@ const chartOfAccountSchema = new mongoose.Schema(
     accountCode: { type: String, required: true, trim: true },
     accountType: { type: String, enum: ['Asset', 'Liability', 'Income', 'Expense', 'Equity'], required: true },
     parentAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
-    currency: { type: String, default: 'AED' },
+    currency: { type: String, default: 'USD' },
     isActive: { type: Boolean, default: true },
     description: { type: String, default: '' },
     openingBalance: { type: Number, default: 0 },
@@ -20,5 +20,10 @@ const chartOfAccountSchema = new mongoose.Schema(
 chartOfAccountSchema.index({ accountCode: 1 }, { unique: true })
 chartOfAccountSchema.index({ accountType: 1 })
 chartOfAccountSchema.index({ isActive: 1 })
+
+chartOfAccountSchema.pre('validate', function enforceUsdCurrency(next) {
+  this.currency = 'USD'
+  next()
+})
 
 module.exports = mongoose.model('ChartOfAccount', chartOfAccountSchema)
