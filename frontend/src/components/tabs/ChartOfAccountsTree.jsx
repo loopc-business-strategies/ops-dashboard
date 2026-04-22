@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
+const CREATE_NEW_CUSTOMER_VALUE = '__create_new_customer__'
 
 const TYPE_CONFIG = {
   Asset:     { label: 'Assets',      color: '#2563EB', bg: '#EFF6FF', icon: '🏦' },
@@ -115,6 +116,8 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
   const [modalDrag, setModalDrag] = useState({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 })
   const [customers, setCustomers] = useState([])
   const [loadingCustomers, setLoadingCustomers] = useState(false)
+  const [creatingCustomer, setCreatingCustomer] = useState(false)
+  const [newCustomerDraft, setNewCustomerDraft] = useState({ name: '', phone: '', email: '', currency: 'USD' })
   const receivableParentAccountId = accounts.find((item) => {
     const code = String(item.accountCode || '').trim()
     const name = String(item.accountName || '').toLowerCase()
@@ -125,6 +128,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     [customers]
   )
   const customerOptions = unlinkedCustomers.length > 0 ? unlinkedCustomers : customers
+  const creatingNewCustomerInline = modal?.mode === 'add' && (modal?.action === 'customer' || form.createAs === 'customer') && form.linkedCustomerId === CREATE_NEW_CUSTOMER_VALUE
 
   // ── data loading ─────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -143,8 +147,22 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
   const loadCustomers = useCallback(async () => {
     setLoadingCustomers(true)
     try {
-      const data = await erpAccountingAPI.getCustomers(token, { limit: 500 })
-      setCustomers(data.customers || [])
+      const pageSize = 100
+      let page = 1
+      let total = Number.POSITIVE_INFINITY
+      const allCustomers = []
+
+      while (allCustomers.length < total) {
+        const data = await erpAccountingAPI.getCustomers(token, { page, limit: pageSize })
+        const pageCustomers = data?.customers || []
+        if (!pageCustomers.length) break
+        allCustomers.push(...pageCustomers)
+        total = Number(data?.total || allCustomers.length)
+        page += 1
+      }
+
+      const deduped = Array.from(new Map(allCustomers.map((item) => [item._id, item])).values())
+      setCustomers(deduped)
     } catch {
       setCustomers([])
     } finally {
@@ -234,6 +252,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     if (action === 'customer') {
       loadCustomers()
     }
+    setNewCustomerDraft({ name: '', phone: '', email: '', currency: 'USD' })
     setForm({
       ...emptyForm(),
       createAs: action === 'customer' ? 'customer' : 'standard',
@@ -287,7 +306,30 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     try {
       if (modal.mode === 'add') {
         const creatingCustomerAccount = modal.action === 'customer' || form.createAs === 'customer'
-        if (creatingCustomerAccount && !form.linkedCustomerId) {
+        let linkedCustomerId = form.linkedCustomerId
+
+        if (creatingCustomerAccount && linkedCustomerId === CREATE_NEW_CUSTOMER_VALUE) {
+          if (!newCustomerDraft.name.trim()) {
+            setError('Please enter customer name')
+            setSaving(false)
+            return
+          }
+
+          setCreatingCustomer(true)
+          await erpAccountingAPI.createCustomer(token, {
+            name: newCustomerDraft.name.trim(),
+            phone: newCustomerDraft.phone.trim(),
+            email: newCustomerDraft.email.trim(),
+            currency: newCustomerDraft.currency || form.currency || 'USD',
+          })
+          setCreatingCustomer(false)
+          setModal(null)
+          setSuccess('Customer and account created')
+          await Promise.all([load(), loadCustomers()])
+          return
+        }
+
+        if (creatingCustomerAccount && !linkedCustomerId) {
           setError('Please select a customer')
           setSaving(false)
           return
@@ -304,8 +346,8 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
           department:      form.department,
         })
 
-        if (creatingCustomerAccount && form.linkedCustomerId && created?.account?._id) {
-          await erpAccountingAPI.updateCustomer(token, form.linkedCustomerId, { ledgerAccountId: created.account._id })
+        if (creatingCustomerAccount && linkedCustomerId && created?.account?._id) {
+          await erpAccountingAPI.updateCustomer(token, linkedCustomerId, { ledgerAccountId: created.account._id })
         }
 
         setSuccess('Account created')
@@ -329,6 +371,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     } catch (err) {
       setError(err?.response?.data?.message || 'Save failed')
     } finally {
+      setCreatingCustomer(false)
       setSaving(false)
     }
   }
@@ -789,6 +832,20 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                         value={form.linkedCustomerId}
                         onChange={(e) => {
                           const customerId = e.target.value
+                          if (customerId === CREATE_NEW_CUSTOMER_VALUE) {
+                            setForm({
+                              ...form,
+                              createAs: 'customer',
+                              linkedCustomerId: CREATE_NEW_CUSTOMER_VALUE,
+                              accountName: '',
+                              accountCode: '',
+                              accountType: 'Asset',
+                              parentAccountId: receivableParentAccountId || form.parentAccountId,
+                              description: '',
+                            })
+                            return
+                          }
+
                           const selected = customers.find((item) => item._id === customerId)
                           if (!selected) {
                             setForm({ ...form, linkedCustomerId: '' })
@@ -800,12 +857,12 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                             ...form,
                             createAs: 'customer',
                             linkedCustomerId: customerId,
-                            accountName: `${selected.name || 'Customer'} (Debtor)`,
+                            accountName: `${selected.name || 'Customer'}`,
                             accountCode: generatedCode,
                             accountType: 'Asset',
                             parentAccountId: receivableParentAccountId || form.parentAccountId,
                             currency: selected.currency || form.currency || 'USD',
-                            description: form.description || `Auto-created customer ledger account for ${selected.name || 'customer'}`,
+                            description: form.description || `Receivable account for customer ${selected.name || 'customer'}`,
                           })
                         }}
                         style={inputStyle}
@@ -813,12 +870,46 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                         disabled={loadingCustomers}
                       >
                         <option value="">{loadingCustomers ? 'Loading customers...' : 'Select customer'}</option>
+                        <option value={CREATE_NEW_CUSTOMER_VALUE}>+ Create new customer</option>
                         {customerOptions.map((item) => (
                           <option key={item._id} value={item._id}>
                             {item.name}{item.ledgerAccountId ? ' (already linked)' : ''}
                           </option>
                         ))}
                       </select>
+                      {form.linkedCustomerId === CREATE_NEW_CUSTOMER_VALUE && (
+                        <div style={{ marginTop: '0.55rem', padding: '0.6rem', border: '1px solid #D1D5DB', borderRadius: '0.45rem', background: '#F9FAFB' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem' }}>
+                            <input
+                              placeholder="Customer Name *"
+                              value={newCustomerDraft.name}
+                              onChange={(e) => setNewCustomerDraft((prev) => ({ ...prev, name: e.target.value }))}
+                              style={inputStyle}
+                            />
+                            <input
+                              placeholder="Phone"
+                              value={newCustomerDraft.phone}
+                              onChange={(e) => setNewCustomerDraft((prev) => ({ ...prev, phone: e.target.value }))}
+                              style={inputStyle}
+                            />
+                            <input
+                              placeholder="Email"
+                              value={newCustomerDraft.email}
+                              onChange={(e) => setNewCustomerDraft((prev) => ({ ...prev, email: e.target.value }))}
+                              style={inputStyle}
+                            />
+                            <input
+                              placeholder="Currency"
+                              value={newCustomerDraft.currency}
+                              onChange={(e) => setNewCustomerDraft((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))}
+                              style={inputStyle}
+                            />
+                          </div>
+                          <p style={{ margin: '0.4rem 0 0', fontSize: '0.72rem', color: '#6B7280' }}>
+                            New customer will be created and linked when you click Create.
+                          </p>
+                        </div>
+                      )}
                       <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#6B7280' }}>
                         {unlinkedCustomers.length > 0
                           ? 'Selecting a customer will auto-fill account fields and link this account to that customer.'
@@ -827,52 +918,60 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                     </Field>
                   )}
 
-                  <Field label="Account Name *">
-                    <input required value={form.accountName} onChange={e => setForm({ ...form, accountName: e.target.value })} style={inputStyle} />
-                  </Field>
+                  {!creatingNewCustomerInline && (
+                    <>
+                      <Field label="Account Name *">
+                        <input required value={form.accountName} onChange={e => setForm({ ...form, accountName: e.target.value })} style={inputStyle} />
+                      </Field>
 
-                  {modal.mode === 'add' && (
-                    <Field label="Account Code *">
-                      <input required value={form.accountCode} onChange={e => setForm({ ...form, accountCode: e.target.value })} style={inputStyle} placeholder={t('exampleAccountCode')} />
-                    </Field>
-                  )}
+                      {modal.mode === 'add' && (
+                        <Field label="Account Code *">
+                          <input required value={form.accountCode} onChange={e => setForm({ ...form, accountCode: e.target.value })} style={inputStyle} placeholder={t('exampleAccountCode')} />
+                        </Field>
+                      )}
 
-                  {modal.mode === 'add' && (
-                    <Field label="Account Type *">
-                      <select required value={form.accountType} onChange={e => setForm({ ...form, accountType: e.target.value })} style={inputStyle}>
-                        <option value="">{t('selectType')}</option>
-                        {ACCOUNT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                    </Field>
-                  )}
+                      {modal.mode === 'add' && (
+                        <Field label="Account Type *">
+                          <select required value={form.accountType} onChange={e => setForm({ ...form, accountType: e.target.value })} style={inputStyle}>
+                            <option value="">{t('selectType')}</option>
+                            {ACCOUNT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </Field>
+                      )}
 
-                  {modal.mode === 'add' && (
-                    <Field label="Parent Account">
-                      <select value={form.parentAccountId} onChange={e => setForm({ ...form, parentAccountId: e.target.value })} style={inputStyle}>
-                        <option value="">— Root (No Parent) —</option>
-                        {accounts.map(a => <option key={a._id} value={a._id}>{a.accountCode} — {a.accountName}</option>)}
-                      </select>
-                    </Field>
+                      {modal.mode === 'add' && (
+                        <Field label="Parent Account">
+                          <select value={form.parentAccountId} onChange={e => setForm({ ...form, parentAccountId: e.target.value })} style={inputStyle}>
+                            <option value="">— Root (No Parent) —</option>
+                            {accounts.map(a => <option key={a._id} value={a._id}>{a.accountCode} — {a.accountName}</option>)}
+                          </select>
+                        </Field>
+                      )}
+                    </>
                   )}
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                     <Field label="Currency">
                       <input value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value.toUpperCase() })} style={inputStyle} />
                     </Field>
-                    <Field label="Department">
-                      <input value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} style={inputStyle} />
-                    </Field>
+                    {!creatingNewCustomerInline && (
+                      <Field label="Department">
+                        <input value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} style={inputStyle} />
+                      </Field>
+                    )}
                   </div>
 
-                  {modal.mode === 'add' && (
+                  {modal.mode === 'add' && !creatingNewCustomerInline && (
                     <Field label="Opening Balance">
                       <input type="number" step="0.01" value={form.openingBalance} onChange={e => setForm({ ...form, openingBalance: e.target.value })} style={inputStyle} placeholder="0.00" />
                     </Field>
                   )}
 
-                  <Field label="Description">
-                    <textarea rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} style={{ ...inputStyle, resize: 'vertical' }} />
-                  </Field>
+                  {!creatingNewCustomerInline && (
+                    <Field label="Description">
+                      <textarea rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} style={{ ...inputStyle, resize: 'vertical' }} />
+                    </Field>
+                  )}
                 </>
               )}
 
@@ -881,7 +980,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                   {t('cancel')}
                 </button>
                 <button type="submit" disabled={saving} style={{ padding: '0.5rem 1.25rem', background: '#059669', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.875rem', opacity: saving ? 0.7 : 1 }}>
-                  {saving ? t('saving') : modal.mode === 'edit' ? t('update') : modal.mode === 'move' ? t('move') : t('create')}
+                  {(saving || creatingCustomer) ? t('saving') : modal.mode === 'edit' ? t('update') : modal.mode === 'move' ? t('move') : t('create')}
                 </button>
               </div>
             </form>
