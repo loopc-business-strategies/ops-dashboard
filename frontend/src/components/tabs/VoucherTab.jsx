@@ -155,6 +155,12 @@ const pickDefaultAccountCodeByType = (accounts, lineType) => {
   }
 
   if (normalizedType === 'Cash') {
+    const cashOnHand = accountList.find((a) => {
+      const name = getAccountNameValue(a)
+      return name.includes('cash on hand')
+    })
+    if (cashOnHand) return getAccountCodeValue(cashOnHand)
+
     const petty = accountList.find((a) => {
       const name = getAccountNameValue(a)
       return name.includes('petty cash')
@@ -633,14 +639,15 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     }
     const payloadLineTotal = effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithTRN) || parseFloat(l.amountLC) || 0), 0)
     payload.amount = payloadLineTotal || 0.01
+    const isPostedEditing = Boolean(editingId) && currentVoucherStatus === 'posted'
     setSaving(true)
     try {
-      if (editingId) {
+      if (editingId && !isPostedEditing) {
         await axios.put(`${BASE}/transactions/${editingId}`, payload, cfg())
         showMsg('Voucher updated successfully')
       } else {
         await axios.post(`${BASE}/transactions`, payload, cfg())
-        showMsg('Voucher saved successfully')
+        showMsg(isPostedEditing ? 'Posted voucher is locked. Saved as a new draft voucher.' : 'Voucher saved successfully')
       }
       await loadVouchers()
       setMode('list')
@@ -774,6 +781,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     : vouchers
   const currentVoucher = editingId ? vouchers.find(v => v._id === editingId) : null
   const currentVoucherStatus = currentVoucher?.status || 'draft'
+  const isPostedEditing = Boolean(editingId) && currentVoucherStatus === 'posted'
   const canSubmitWorkflow = Boolean(editingId) && !isReadOnly && ['draft', 'returned', 'rejected'].includes(currentVoucherStatus)
   const canApproveWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && currentVoucherStatus === 'submitted'
   const canReturnWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(currentVoucherStatus)
@@ -1288,10 +1296,26 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                   <div style={fieldRow}>
                     <div>
                       <label style={labelStyle}>A/C Code *</label>
-                      <input style={inputStyle} value={lineForm.acCode} onChange={e => setLF('acCode', e.target.value)} placeholder="e.g. 120000" list="accode-list" />
-                      <datalist id="accode-list">
-                        {accounts.map(a => <option key={a._id} value={a.code}>{a.code} — {a.name}</option>)}
-                      </datalist>
+                      <select
+                        style={inputStyle}
+                        value={lineForm.acCode || ''}
+                        onChange={e => setLF('acCode', e.target.value)}
+                      >
+                        <option value="">Select A/C code</option>
+                        {accounts
+                          .map((account) => ({
+                            id: account?._id,
+                            code: getAccountCodeValue(account),
+                            name: account?.accountName || account?.name || '',
+                          }))
+                          .filter((account) => account.code)
+                          .sort((a, b) => a.code.localeCompare(b.code))
+                          .map((account) => (
+                            <option key={account.id || account.code} value={account.code}>
+                              {account.code}{account.name ? ` - ${account.name}` : ''}
+                            </option>
+                          ))}
+                      </select>
                     </div>
                     <div>
                       <label style={labelStyle}>Curr Code</label>
@@ -1545,7 +1569,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                 onClick={saveVoucher}
                 disabled={saving}
               >
-                {saving ? 'Saving...' : (editingId ? '💾 Update Voucher' : '💾 Save Voucher')}
+                {saving ? 'Saving...' : (editingId ? (isPostedEditing ? '💾 Save As New Draft' : '💾 Update Voucher') : '💾 Save Voucher')}
               </button>
               <button style={btn('secondary')} onClick={() => setMode('list')}>
                 {t('cancel')}
