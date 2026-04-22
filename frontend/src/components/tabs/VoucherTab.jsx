@@ -153,6 +153,7 @@ const emptyHeader = () => ({
   refDate: today(),
   narration: '',
   postedDate: today(),
+  fixingType: 'fixing',
 })
 
 const normalizeLookupValue = (value) => String(value || '').trim().toLowerCase()
@@ -599,6 +600,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       refDate: m.refDate ? m.refDate.slice(0, 10) : today(),
       narration: v.description || '',
       postedDate: m.postedDate ? m.postedDate.slice(0, 10) : today(),
+      fixingType: m.fixingType || 'fixing',
     })
     setSelectedPartyId(resolvedParty?.partyId || '')
     setLineItems((m.lineItems || []).map((line) => ({ ...line, type: normalizeLineType(line.type) })))
@@ -716,6 +718,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
         refNo: header.refNo,
         refDate: header.refDate || null,
         postedDate: header.postedDate || null,
+        ...(( voucherType === 'purchase' || voucherType === 'sale') ? { fixingType: header.fixingType || 'fixing' } : {}),
         lineItems: effectiveLineItems.map(l => ({
           ...l,
           amountFC: parseFloat(l.amountFC) || 0,
@@ -1189,6 +1192,20 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                     <label style={labelStyle}>Curr. Rate</label>
                     <input style={isReadOnly ? readInput : inputStyle} value={header.currRate} onChange={e => setHdr('currRate', e.target.value)} type="number" step="0.000001" readOnly={isReadOnly} />
                   </div>
+                  {(voucherType === 'purchase' || voucherType === 'sale') && (
+                    <div style={fieldGroup('Fixing Type')}>
+                      <label style={labelStyle}>Fixing Type</label>
+                      <select
+                        style={isReadOnly ? readInput : inputStyle}
+                        value={header.fixingType}
+                        onChange={e => setHdr('fixingType', e.target.value)}
+                        disabled={isReadOnly}
+                      >
+                        <option value="fixing">Fixing</option>
+                        <option value="non-fixing">Non-Fixing</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 {/* Row 3 */}
