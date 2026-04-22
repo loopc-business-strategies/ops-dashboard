@@ -902,6 +902,53 @@ function ERPTab() {
     }
   }
 
+  const loadAllVendors = async (baseFilters = {}) => {
+    const pageSize = 100
+    let page = 1
+    let total = Number.POSITIVE_INFINITY
+    let merged = []
+    let permissions = { canManage: false, canUpdateOperational: false }
+
+    while (merged.length < total) {
+      const data = await erpAccountingAPI.getVendors(token, { ...baseFilters, page, limit: pageSize })
+      const rows = data.vendors || []
+      merged = merged.concat(rows)
+      total = Number(data.total || merged.length)
+      permissions = data.permissions || permissions
+      if (!rows.length) break
+      page += 1
+    }
+
+    const uniqueById = new Map()
+    merged.forEach((item) => {
+      if (item?._id) uniqueById.set(item._id, item)
+    })
+    const vendors = Array.from(uniqueById.values())
+
+    const summaryTotals = vendors.reduce((acc, row) => {
+      acc.count += 1
+      acc.outstanding += Number(row.outstanding || 0)
+      acc.overLimit += row.isOverLimit ? 1 : 0
+      acc.blacklisted += row.status === 'blacklisted' ? 1 : 0
+      acc.onHold += row.status === 'on_hold' ? 1 : 0
+      acc.nonCompliant += row.compliance?.compliant ? 0 : 1
+      return acc
+    }, { count: 0, outstanding: 0, overLimit: 0, blacklisted: 0, onHold: 0, nonCompliant: 0 })
+
+    return {
+      vendors,
+      permissions,
+      summary: {
+        totalVendors: summaryTotals.count,
+        totalOutstanding: Number(summaryTotals.outstanding.toFixed(2)),
+        overLimit: summaryTotals.overLimit,
+        blacklisted: summaryTotals.blacklisted,
+        onHold: summaryTotals.onHold,
+        nonCompliant: summaryTotals.nonCompliant,
+      },
+    }
+  }
+
   const loadTransactions = async (overrides = {}) => {
     if (!canAccessTransactions) return
     setLoading(true)
@@ -918,7 +965,7 @@ function ERPTab() {
       const [data, customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
         erpAccountingAPI.getTransactions(token, params),
         canViewCustomers ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
-        canAccessVendors ? erpAccountingAPI.getVendors(token, { limit: 200, includeInactive: true }) : Promise.resolve(null),
+        canAccessVendors ? loadAllVendors({ includeInactive: true }) : Promise.resolve(null),
         canAccessInventory ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
         canViewAccounts ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
         canViewAccounts ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
@@ -990,7 +1037,7 @@ function ERPTab() {
     if (!canAccessVendors) return
     setLoading(true)
     try {
-      const data = await erpAccountingAPI.getVendors(token, filters)
+      const data = await loadAllVendors(filters)
       setVendors(data.vendors || [])
       setVendorSummary(data.summary || { totalVendors: 0, totalOutstanding: 0, overLimit: 0, blacklisted: 0, onHold: 0, nonCompliant: 0 })
       setVendorPermissions(data.permissions || { canManage: false, canUpdateOperational: false })

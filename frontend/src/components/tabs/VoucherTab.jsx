@@ -97,6 +97,25 @@ const tabBtn = (active) => ({
 const emptyLine = () => ({
   branch: 'HO',
   acCode: '',
+  stockCode: '',
+  stockGroup: 'G',
+  metalSymbol: 'XAU',
+  metalName: 'Gold',
+  location: '',
+  pcs: '',
+  grossWeight: '',
+  purity: '',
+  pureWeight: '',
+  weightInOz: '',
+  availStock: '',
+  rateType: 'GOZ',
+  metalRate: '',
+  metalAmount: '',
+  totalAmount: '',
+  purityDiff: '',
+  premiumValue: '',
+  silverPurity: '0',
+  remarks: '',
   type: 'Cash',
   typeCode: '',
   currCode: 'USD',
@@ -184,11 +203,15 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   const isSuperAdmin = role === 'super_admin'
   const isFinance = isSuperAdmin || (role === 'department_head' && dept === 'finance')
   const isSales = isSuperAdmin || (role === 'department_head' && dept === 'sales') || role === 'management'
+  const isOperations = isSuperAdmin || (role === 'department_head' && dept === 'operations')
+  const isProduction = isSuperAdmin || (role === 'department_head' && dept === 'production')
   const isManagementOnly = role === 'management'
 
-  const canView = isFinance || isSales || isManagementOnly || isSuperAdmin
+  const canView = isFinance || isSales || isOperations || isProduction || isManagementOnly || isSuperAdmin
   const canCreatePayment = isFinance || isSuperAdmin
   const canCreateReceipt = isFinance || isSales || isSuperAdmin
+  const canCreatePurchase = isFinance || isOperations || isProduction || isSuperAdmin
+  const canCreateSale = isFinance || isSales || isSuperAdmin
   const isReadOnly = isManagementOnly && !isFinance
 
   // ─── top-level state ────────────────────────────────────────────────────────
@@ -215,11 +238,18 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   const [header, setHeader] = useState(emptyHeader())
   const setHdr = (k, v) => setHeader(prev => ({ ...prev, [k]: v }))
 
+  const voucherConfigs = {
+    payment: { key: 'payment', label: 'Payment Voucher', short: t('paymentVoucher'), code: 'PAY', icon: '💳', partySelectLabel: 'Vendor / Customer', partyPlaceholder: 'Auto from vendor' },
+    receipt: { key: 'receipt', label: 'Receipt Voucher', short: t('receiptVoucher'), code: 'REC', icon: '🧾', partySelectLabel: 'Customer', partyPlaceholder: 'Auto from customer' },
+    purchase: { key: 'purchase', label: 'Metal Purchase Voucher', short: 'Metal Purchase', code: 'PUR', icon: '🟫', partySelectLabel: 'Vendor / Customer', partyPlaceholder: 'Auto from vendor/customer' },
+    sale: { key: 'sale', label: 'Metal Sale Voucher', short: 'Metal Sale', code: 'SAL', icon: '🟨', partySelectLabel: 'Vendor / Customer', partyPlaceholder: 'Auto from vendor/customer' },
+  }
+
   const resolveVoucherParty = useCallback((partyCode) => {
     const lookupValue = normalizeLookupValue(partyCode)
     if (!lookupValue) return null
 
-    if (voucherType === 'payment') {
+    if (voucherType === 'payment' || voucherType === 'purchase' || voucherType === 'sale') {
       const vendor = vendors.find((item) => {
         const ledgerCode = normalizeLookupValue(item.ledgerAccountId?.accountCode)
         return lookupValue === normalizeLookupValue(item._id)
@@ -318,6 +348,53 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
             })),
         },
       ]
+    : voucherType === 'purchase' || voucherType === 'sale'
+      ? [
+          {
+            label: 'Vendors - Linked',
+            options: vendors
+              .filter((item) => Boolean(item.ledgerAccountId?.accountCode))
+              .map((item) => ({
+                id: `vendor:${String(item._id)}`,
+                label: `${item.name || 'Vendor'}${item.vendorCode ? ` (${item.vendorCode})` : ''}`,
+                partyCode: item.vendorCode || item.ledgerAccountId?.accountCode || String(item._id),
+                partyName: item.name || '',
+              })),
+          },
+          {
+            label: 'Vendors - Other',
+            options: vendors
+              .filter((item) => !item.ledgerAccountId?.accountCode)
+              .map((item) => ({
+                id: `vendor:${String(item._id)}`,
+                label: `${item.name || 'Vendor'}${item.vendorCode ? ` (${item.vendorCode})` : ''}`,
+                partyCode: item.vendorCode || String(item._id),
+                partyName: item.name || '',
+              })),
+          },
+          {
+            label: 'Customers - Linked',
+            options: customers
+              .filter((item) => Boolean(item.ledgerAccountId?.accountCode))
+              .map((item) => ({
+                id: `customer:${String(item._id)}`,
+                label: `${item.name || 'Customer'}${item.ledgerAccountId?.accountCode ? ` (${item.ledgerAccountId.accountCode})` : ''}`,
+                partyCode: item.ledgerAccountId?.accountCode || String(item._id),
+                partyName: item.name || '',
+              })),
+          },
+          {
+            label: 'Customers - Other',
+            options: customers
+              .filter((item) => !item.ledgerAccountId?.accountCode)
+              .map((item) => ({
+                id: `customer:${String(item._id)}`,
+                label: `${item.name || 'Customer'}`,
+                partyCode: String(item._id),
+                partyName: item.name || '',
+              })),
+          },
+        ]
     : [
         {
           label: 'Linked Customers',
@@ -403,7 +480,13 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     grandTotal: lineItems.reduce((s, l) => s + (parseFloat(l.amountWithTRN) || parseFloat(l.amountLC) || 0), 0),
   }
 
-  const canCreate = voucherType === 'payment' ? canCreatePayment : canCreateReceipt
+  const canCreate = voucherType === 'payment'
+    ? canCreatePayment
+    : voucherType === 'receipt'
+      ? canCreateReceipt
+      : voucherType === 'purchase'
+        ? canCreatePurchase
+        : canCreateSale
 
   // ─── load vouchers ───────────────────────────────────────────────────────────
   const loadVouchers = useCallback(async () => {
@@ -573,13 +656,15 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
 
     let effectiveLineItems = [...lineItems]
     if (showLineForm) {
-      if (!lineForm.acCode.trim() || (!lineForm.amountLC && !lineForm.amountFC)) {
+      const hasLineAmount = Boolean(lineForm.amountLC || lineForm.amountFC || lineForm.totalAmount || lineForm.metalAmount)
+      if ((!isMetalVoucher && !lineForm.acCode.trim()) || !hasLineAmount) {
         setError('Complete line details and click Save Line, or cancel the open line before saving voucher')
         return
       }
       const draftLine = {
         ...lineForm,
         type: normalizeLineType(lineForm.type),
+        amountLC: lineForm.amountLC || lineForm.totalAmount || lineForm.metalAmount || '',
         amountWithTRN: lineForm.amountWithTRN || lineForm.amountLC || lineForm.amountFC,
       }
       if (editingLineIdx !== null) {
@@ -597,6 +682,14 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     const resolvedParty = resolveVoucherParty(header.partyCode)
     if (voucherType === 'receipt' && !resolvedParty?.customerId) {
       setError('Party Code must match an existing customer account for receipt vouchers')
+      return
+    }
+    if (voucherType === 'sale' && !resolvedParty?.vendorId && !resolvedParty?.customerId) {
+      setError('Party Code must match an existing vendor or customer account for sale vouchers')
+      return
+    }
+    if (voucherType === 'purchase' && !resolvedParty?.vendorId && !resolvedParty?.customerId) {
+      setError('Party Code must match an existing vendor or customer account for purchase vouchers')
       return
     }
     if (voucherType === 'payment' && !resolvedParty?.vendorId) {
@@ -690,11 +783,13 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   const cancelLine = () => { setShowLineForm(false); setEditingLineIdx(null); clearError() }
 
   const saveLine = () => {
-    if (!lineForm.acCode.trim()) { setError('A/C Code is required'); return }
-    if (!lineForm.amountLC && !lineForm.amountFC) { setError('Amount is required'); return }
+    if (!isMetalVoucher && !lineForm.acCode.trim()) { setError('A/C Code is required'); return }
+    if (isMetalVoucher && !lineForm.stockCode.trim()) { setError('Stock Code is required for metal vouchers'); return }
+    if (!lineForm.amountLC && !lineForm.amountFC && !lineForm.totalAmount && !lineForm.metalAmount) { setError('Amount is required'); return }
     const line = {
       ...lineForm,
       type: normalizeLineType(lineForm.type),
+      amountLC: lineForm.amountLC || lineForm.totalAmount || lineForm.metalAmount || '',
       amountWithTRN: lineForm.amountWithTRN || lineForm.amountLC || lineForm.amountFC,
     }
     if (editingLineIdx !== null) {
@@ -797,9 +892,14 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     )
   }
 
-  const voucherLabel = voucherType === 'payment' ? 'Payment Voucher' : 'Receipt Voucher'
-  const voucherCode = voucherType === 'payment' ? 'PAY' : 'REC'
-  const voucherLabelT = voucherType === 'payment' ? t('paymentVoucher') : t('receiptVoucher')
+  const voucherConfig = voucherConfigs[voucherType] || voucherConfigs.payment
+  const isMetalVoucher = voucherType === 'purchase' || voucherType === 'sale'
+  const voucherLabel = voucherConfig.label
+  const voucherCode = voucherConfig.code
+  const voucherLabelT = voucherConfig.short
+  const lineTableHeaders = isMetalVoucher
+    ? ['No.', 'Branch', 'Stock Code', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', 'Rate Type', 'Metal Rate', 'Metal Amount', 'Total', '']
+    : ['No.', 'Branch', 'A/C Code', 'Type', 'Cheque No', 'Cheque Dt', 'Bank', 'Curr', 'Amount FC', 'Amount LC', '']
 
   // ────────────────────────────────────────────────────────────────────────────
   // RENDER
@@ -832,6 +932,18 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
           onClick={() => { setVoucherType('receipt'); setMode('list') }}
         >
           🧾 {t('receiptVoucher')}
+        </button>
+        <button
+          style={tabBtn(voucherType === 'purchase')}
+          onClick={() => { setVoucherType('purchase'); setMode('list') }}
+        >
+          🟫 Metal Purchase
+        </button>
+        <button
+          style={tabBtn(voucherType === 'sale')}
+          onClick={() => { setVoucherType('sale'); setMode('list') }}
+        >
+          🟨 Metal Sale
         </button>
         {mode !== 'list' && (
           <button style={btn('secondary')} onClick={() => setMode('list')}>
@@ -1029,7 +1141,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                       onChange={e => handlePartySelect(e.target.value)}
                       disabled={isReadOnly}
                     >
-                      <option value="">Select {voucherType === 'payment' ? 'Vendor / Customer' : 'Customer'}</option>
+                      <option value="">Select {voucherConfig.partySelectLabel}</option>
                       {partyGroups.map((group) => (
                         group.options.length > 0 ? (
                           <optgroup key={group.label} label={group.label}>
@@ -1051,7 +1163,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                       style={readInput}
                       value={header.partyCode}
                       onChange={e => { setHdr('partyCode', e.target.value); lookupParty(e.target.value) }}
-                      placeholder={voucherType === 'payment' ? 'Auto from vendor' : 'Auto from customer'}
+                      placeholder={voucherConfig.partyPlaceholder}
                       readOnly
                     />
                   </div>
@@ -1132,7 +1244,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                 <div style={{ marginBottom: '0.85rem', border: `1px solid ${S.border}`, borderRadius: '0.45rem', padding: '0.6rem 0.7rem', background: '#FAFAFA' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', marginBottom: '0.45rem' }}>
                     <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: '700', color: S.ink }}>
-                      Recent {voucherType === 'payment' ? 'Payment' : 'Receipt'} Vouchers (Last 5)
+                      Recent {voucherLabel} (Last 5)
                     </p>
                     {loadingRecentPartyVouchers && <span style={{ fontSize: '0.75rem', color: S.muted }}>Loading...</span>}
                   </div>
@@ -1172,7 +1284,10 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                     <thead>
                       <tr style={{ background: S.headerBg }}>
-                        {['A/C Code', 'Type', 'Currency', 'Amount FC', 'Amount LC', 'Narration'].map(h => (
+                        {(isMetalVoucher
+                          ? ['Stock Code', 'PCS', 'Gross Wt.', 'Purity', 'Pure Wt.', 'Rate Type', 'Metal Rate', 'Metal Amount', 'Total', 'Narration']
+                          : ['A/C Code', 'Type', 'Currency', 'Amount FC', 'Amount LC', 'Narration']
+                        ).map(h => (
                           <th key={h} style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: '700', color: S.ink, borderBottom: `1px solid ${S.border}` }}>{h}</th>
                         ))}
                       </tr>
@@ -1180,12 +1295,29 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                     <tbody>
                       {lineItems.map((l, i) => (
                         <tr key={i} style={{ borderBottom: `1px solid ${S.border}`, background: i % 2 === 0 ? S.white : S.bg }}>
-                          <td style={{ padding: '0.5rem 0.75rem' }}>{l.acCode}</td>
-                          <td style={{ padding: '0.5rem 0.75rem' }}>{l.type}</td>
-                          <td style={{ padding: '0.5rem 0.75rem' }}>{l.currCode}</td>
-                          <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(l.amountFC)}</td>
-                          <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(l.amountLC)}</td>
-                          <td style={{ padding: '0.5rem 0.75rem' }}>{l.narration}</td>
+                          {isMetalVoucher ? (
+                            <>
+                              <td style={{ padding: '0.5rem 0.75rem', fontWeight: '600' }}>{l.stockCode || '-'}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.pcs || '-'}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.grossWeight || '-'}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.purity || '-'}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.pureWeight || '-'}</td>
+                              <td style={{ padding: '0.5rem 0.75rem' }}>{l.rateType || '-'}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(l.metalRate)}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(l.metalAmount)}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: '700' }}>{fmt(l.totalAmount || l.amountLC)}</td>
+                              <td style={{ padding: '0.5rem 0.75rem' }}>{l.narration || l.remarks || '-'}</td>
+                            </>
+                          ) : (
+                            <>
+                              <td style={{ padding: '0.5rem 0.75rem' }}>{l.acCode}</td>
+                              <td style={{ padding: '0.5rem 0.75rem' }}>{l.type}</td>
+                              <td style={{ padding: '0.5rem 0.75rem' }}>{l.currCode}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(l.amountFC)}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(l.amountLC)}</td>
+                              <td style={{ padding: '0.5rem 0.75rem' }}>{l.narration}</td>
+                            </>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -1222,15 +1354,15 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                   <thead>
                     <tr style={{ background: S.headerBg }}>
-                      {['No.', 'Branch', 'A/C Code', 'Type', 'Cheque No', 'Cheque Dt', 'Bank', 'Curr', 'Amount FC', 'Amount LC', ''].map(h => (
-                        <th key={h} style={{ padding: '0.45rem 0.6rem', textAlign: h === 'Amount FC' || h === 'Amount LC' ? 'right' : 'left', fontWeight: '700', color: S.ink, borderBottom: `1px solid ${S.border}`, whiteSpace: 'nowrap' }}>{h}</th>
+                      {lineTableHeaders.map(h => (
+                        <th key={h} style={{ padding: '0.45rem 0.6rem', textAlign: ['Amount FC', 'Amount LC', 'Metal Rate', 'Metal Amount', 'Total', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.'].includes(h) ? 'right' : 'left', fontWeight: '700', color: S.ink, borderBottom: `1px solid ${S.border}`, whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {lineItems.length === 0 ? (
                       <tr>
-                        <td colSpan={11} style={{ padding: '1.5rem', textAlign: 'center', color: S.muted }}>
+                        <td colSpan={lineTableHeaders.length} style={{ padding: '1.5rem', textAlign: 'center', color: S.muted }}>
                           {isReadOnly ? 'No line items.' : 'Click "+ Add Line" to add entries.'}
                         </td>
                       </tr>
@@ -1238,18 +1370,34 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                       <tr key={i} style={{ background: i % 2 === 0 ? S.white : S.bg, borderBottom: `1px solid ${S.border}` }}>
                         <td style={{ padding: '0.4rem 0.6rem' }}>{i + 1}</td>
                         <td style={{ padding: '0.4rem 0.6rem' }}>{l.branch}</td>
-                        <td style={{ padding: '0.4rem 0.6rem', fontWeight: '600' }}>{l.acCode}</td>
-                        <td style={{ padding: '0.4rem 0.6rem' }}>
-                          <span style={{ padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '700', background: normalizeLineType(l.type) === 'Cash' ? '#D1FAE5' : normalizeLineType(l.type) === 'Cheque' || normalizeLineType(l.type) === 'TT' ? '#DBEAFE' : '#FEF3C7', color: normalizeLineType(l.type) === 'Cash' ? '#065F46' : normalizeLineType(l.type) === 'Cheque' || normalizeLineType(l.type) === 'TT' ? '#1D4ED8' : '#92400E' }}>
-                            {normalizeLineType(l.type) === 'TT' ? 'TT' : normalizeLineType(l.type)}
-                          </span>
-                        </td>
-                        <td style={{ padding: '0.4rem 0.6rem' }}>{l.chqNo || '-'}</td>
-                        <td style={{ padding: '0.4rem 0.6rem' }}>{l.chqDate ? l.chqDate.slice(0, 10) : '-'}</td>
-                        <td style={{ padding: '0.4rem 0.6rem' }}>{l.chqBank || '-'}</td>
-                        <td style={{ padding: '0.4rem 0.6rem' }}>{l.currCode}</td>
-                        <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{fmt(l.amountFC)}</td>
-                        <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right', fontWeight: '700' }}>{fmt(l.amountLC)}</td>
+                        {isMetalVoucher ? (
+                          <>
+                            <td style={{ padding: '0.4rem 0.6rem', fontWeight: '600' }}>{l.stockCode || '-'}</td>
+                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{l.pcs || '-'}</td>
+                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{l.grossWeight || '-'}</td>
+                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{l.purity || '-'}</td>
+                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{l.pureWeight || '-'}</td>
+                            <td style={{ padding: '0.4rem 0.6rem' }}>{l.rateType || '-'}</td>
+                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{fmt(l.metalRate)}</td>
+                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{fmt(l.metalAmount)}</td>
+                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right', fontWeight: '700' }}>{fmt(l.totalAmount || l.amountLC)}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td style={{ padding: '0.4rem 0.6rem', fontWeight: '600' }}>{l.acCode}</td>
+                            <td style={{ padding: '0.4rem 0.6rem' }}>
+                              <span style={{ padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '700', background: normalizeLineType(l.type) === 'Cash' ? '#D1FAE5' : normalizeLineType(l.type) === 'Cheque' || normalizeLineType(l.type) === 'TT' ? '#DBEAFE' : '#FEF3C7', color: normalizeLineType(l.type) === 'Cash' ? '#065F46' : normalizeLineType(l.type) === 'Cheque' || normalizeLineType(l.type) === 'TT' ? '#1D4ED8' : '#92400E' }}>
+                                {normalizeLineType(l.type) === 'TT' ? 'TT' : normalizeLineType(l.type)}
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.4rem 0.6rem' }}>{l.chqNo || '-'}</td>
+                            <td style={{ padding: '0.4rem 0.6rem' }}>{l.chqDate ? l.chqDate.slice(0, 10) : '-'}</td>
+                            <td style={{ padding: '0.4rem 0.6rem' }}>{l.chqBank || '-'}</td>
+                            <td style={{ padding: '0.4rem 0.6rem' }}>{l.currCode}</td>
+                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{fmt(l.amountFC)}</td>
+                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right', fontWeight: '700' }}>{fmt(l.amountLC)}</td>
+                          </>
+                        )}
                         <td style={{ padding: '0.4rem 0.6rem' }}>
                           {!isReadOnly && (
                             <div style={{ display: 'flex', gap: '0.3rem' }}>
@@ -1271,200 +1419,396 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                     {editingLineIdx !== null ? '✏️ Edit Line Item' : '➕ Add Line Item'}
                   </div>
 
-                  {/* Line form row 1 */}
-                  <div style={fieldRow}>
-                    <div>
-                      <label style={labelStyle}>Branch</label>
-                      <input style={inputStyle} value={lineForm.branch} onChange={e => setLF('branch', e.target.value)} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Type</label>
-                      <select style={inputStyle} value={lineForm.type} onChange={e => handleLineTypeChange(e.target.value)}>
-                        <option value="Cash">Cash</option>
-                        <option value="Cheque">Cheque</option>
-                        <option value="TT">TT</option>
-                        <option value="Card">Card</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Type Code</label>
-                      <input style={inputStyle} value={lineForm.typeCode} onChange={e => setLF('typeCode', e.target.value)} />
-                    </div>
-                  </div>
+                  {isMetalVoucher ? (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '2.35fr 1.25fr auto', gap: '0.75rem', alignItems: 'start', marginBottom: '0.6rem' }}>
+                        <div style={{ border: `1px solid ${S.border}`, background: S.white }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '110px 34px 56px minmax(120px, 1fr) 90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, background: S.headerBg }}>Stock Code *</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.25rem', textAlign: 'center' }} value={lineForm.stockGroup} onChange={e => setLF('stockGroup', e.target.value)} />
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.25rem', textAlign: 'center' }} value={lineForm.metalSymbol} onChange={e => setLF('metalSymbol', e.target.value)} />
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.stockCode} onChange={e => setLF('stockCode', e.target.value)} placeholder={lineForm.metalName || 'Gold'} />
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Location</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.location} onChange={e => setLF('location', e.target.value)} />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>PCS</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="1" value={lineForm.pcs} onChange={e => setLF('pcs', e.target.value)} />
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Gross Weight</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.grossWeight} onChange={e => setLF('grossWeight', e.target.value)} />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Purity</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.purity} onChange={e => setLF('purity', e.target.value)} />
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Pure Weight</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.pureWeight} onChange={e => setLF('pureWeight', e.target.value)} />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Weight In OZ.</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} value={lineForm.weightInOz || ((parseFloat(lineForm.pureWeight) || 0) > 0 ? ((parseFloat(lineForm.pureWeight) || 0) / 31.1034768).toFixed(3) : '')} onChange={e => setLF('weightInOz', e.target.value)} />
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Branch</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.branch} onChange={e => setLF('branch', e.target.value)} />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg, fontWeight: '700' }}>Avail. Stock</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.availStock} onChange={e => setLF('availStock', e.target.value)} />
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg, fontWeight: '700' }}>TRN Per%</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.trnPer} onChange={e => {
+                              setLF('trnPer', e.target.value)
+                              const pct = parseFloat(e.target.value) || 0
+                              const base = parseFloat(lineForm.totalAmount || lineForm.metalAmount || lineForm.amountLC) || 0
+                              const trnLC = (base * pct) / 100
+                              setLF('trnAmountLC', trnLC.toFixed(2))
+                              setLF('trnAmountFC', trnLC.toFixed(2))
+                              setLF('amountWithTRN', (base + trnLC).toFixed(2))
+                            }} />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr)' }}>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Remarks</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.remarks} onChange={e => setLF('remarks', e.target.value)} placeholder="Fix buy / sell note" />
+                          </div>
+                        </div>
 
-                  {/* Line form row 2 */}
-                  <div style={fieldRow}>
-                    <div>
-                      <label style={labelStyle}>A/C Code *</label>
-                      <select
-                        style={inputStyle}
-                        value={lineForm.acCode || ''}
-                        onChange={e => setLF('acCode', e.target.value)}
-                      >
-                        <option value="">Select A/C code</option>
-                        {accounts
-                          .map((account) => ({
-                            id: account?._id,
-                            code: getAccountCodeValue(account),
-                            name: account?.accountName || account?.name || '',
-                          }))
-                          .filter((account) => account.code)
-                          .sort((a, b) => a.code.localeCompare(b.code))
-                          .map((account) => (
-                            <option key={account.id || account.code} value={account.code}>
-                              {account.code}{account.name ? ` - ${account.name}` : ''}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Curr Code</label>
-                      <select style={inputStyle} value={lineForm.currCode} onChange={e => setLF('currCode', e.target.value)}>
-                        <option value="USD">USD</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Curr Rate</label>
-                      <input style={inputStyle} type="number" step="0.000001" value={lineForm.currRate} onChange={e => setLF('currRate', e.target.value)} placeholder={header.currRate} />
-                    </div>
-                  </div>
+                        <div style={{ display: 'grid', gap: '0.5rem' }}>
+                          <div style={{ border: `1px solid ${S.border}`, background: S.white }}>
+                            <div style={{ padding: '0.28rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', borderBottom: `1px solid ${S.border}`, background: S.headerBg }}>Making / Margin</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate Type</div>
+                              <select style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)}>
+                                <option value="GOZ">GOZ</option>
+                                <option value="GRAM">GRAM</option>
+                                <option value="KG">KG</option>
+                              </select>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate</div>
+                              <input
+                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }}
+                                type="number"
+                                step="0.01"
+                                value={lineForm.metalRate}
+                                onChange={e => setLF('metalRate', e.target.value)}
+                              />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)' }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Amount</div>
+                              <input
+                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }}
+                                type="number"
+                                step="0.01"
+                                value={lineForm.metalAmount}
+                                onChange={e => {
+                                  setLF('metalAmount', e.target.value)
+                                  if (!lineForm.totalAmount) {
+                                    setLF('amountLC', e.target.value)
+                                    setLF('amountWithTRN', e.target.value)
+                                  }
+                                }}
+                              />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderTop: `1px solid ${S.border}` }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Purity Diff</div>
+                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.purityDiff} onChange={e => setLF('purityDiff', e.target.value)} />
+                            </div>
+                          </div>
 
-                  {/* Line form row 3 */}
-                  <div style={fieldRow}>
-                    <div>
-                      <label style={labelStyle}>Exp</label>
-                      <input style={inputStyle} value={lineForm.exp} onChange={e => setLF('exp', e.target.value)} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>TRN Number</label>
-                      <input style={inputStyle} value={lineForm.trnNumber} onChange={e => setLF('trnNumber', e.target.value)} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>TRN Inv.</label>
-                      <input style={inputStyle} value={lineForm.trnInv} onChange={e => setLF('trnInv', e.target.value)} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>TRN Inv. Date</label>
-                      <input style={inputStyle} type="date" value={lineForm.trnInvDate} onChange={e => setLF('trnInvDate', e.target.value)} />
-                    </div>
-                  </div>
+                          <div style={{ border: `1px solid ${S.border}`, background: S.white }}>
+                            <div style={{ padding: '0.28rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', borderBottom: `1px solid ${S.border}`, background: S.headerBg }}>Premium Values</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Premi. Curr.</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '58px minmax(44px, 1fr)' }}>
+                                <select style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.25rem' }} value={lineForm.currCode} onChange={e => setLF('currCode', e.target.value)}>
+                                  <option value="USD">USD</option>
+                                </select>
+                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.35rem', textAlign: 'right' }} type="number" step="0.000001" value={lineForm.premiumValue} onChange={e => setLF('premiumValue', e.target.value)} />
+                              </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '58px minmax(44px, 1fr)' }}>
+                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.25rem' }} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)} />
+                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.35rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.metalRate} onChange={e => setLF('metalRate', e.target.value)} />
+                              </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Total (FC)</div>
+                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} readOnly value={lineForm.metalAmount || ''} />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)' }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Total (LC)</div>
+                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} readOnly value={lineForm.totalAmount || lineForm.amountLC || ''} />
+                            </div>
+                          </div>
+                        </div>
 
-                  {/* Line form row 4 */}
-                  <div style={fieldRow}>
-                    <div>
-                      <label style={labelStyle}>HSN. A/c</label>
-                      <input style={inputStyle} value={lineForm.hsnAc} onChange={e => setLF('hsnAc', e.target.value)} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>TRN Ref</label>
-                      <input style={inputStyle} value={lineForm.trnRef} onChange={e => setLF('trnRef', e.target.value)} />
-                    </div>
-                  </div>
+                        <div style={{ display: 'grid', gap: '0.5rem' }}>
+                          <div style={{ border: `1px solid ${S.border}`, background: S.white, minWidth: '180px' }}>
+                            <div style={{ padding: '0.28rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', borderBottom: `1px solid ${S.border}`, background: S.headerBg }}>Metal Rate & Amount</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate Type</div>
+                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)} />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate</div>
+                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.metalRate} onChange={e => setLF('metalRate', e.target.value)} />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Metal Amt</div>
+                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', color: '#991B1B', fontWeight: '700' }} type="number" step="0.01" value={lineForm.metalAmount} onChange={e => {
+                                setLF('metalAmount', e.target.value)
+                                if (!lineForm.totalAmount) {
+                                  setLF('amountLC', e.target.value)
+                                  setLF('amountWithTRN', e.target.value)
+                                }
+                              }} />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700' }}>Total</div>
+                              <input
+                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', fontWeight: '700' }}
+                                type="number"
+                                step="0.01"
+                                value={lineForm.totalAmount}
+                                onChange={e => {
+                                  setLF('totalAmount', e.target.value)
+                                  setLF('amountLC', e.target.value)
+                                  setLF('amountWithTRN', e.target.value)
+                                }}
+                              />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)' }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700' }}>Total Amt+TRN</div>
+                              <input
+                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', fontWeight: '700' }}
+                                readOnly
+                                value={lineForm.amountWithTRN || ''}
+                              />
+                            </div>
+                          </div>
 
-                  {/* Cheque fields — show only if type is Cheque */}
-                  {lineForm.type === 'Cheque' && (
-                    <div style={fieldRow}>
-                      <div>
-                        <label style={labelStyle}>Chq No</label>
-                        <input style={inputStyle} value={lineForm.chqNo} onChange={e => setLF('chqNo', e.target.value)} />
+                          <div style={{ display: 'grid', gap: '0.35rem' }}>
+                            <button style={{ ...btn('gray'), minWidth: '92px' }} onClick={() => {
+                              saveLine()
+                              if (!lineForm.stockCode.trim()) return
+                              setTimeout(() => openAddLine(), 50)
+                            }}>
+                              Continue
+                            </button>
+                            <button style={{ ...btn('primary'), minWidth: '92px' }} onClick={saveLine}>Save</button>
+                            <button style={{ ...btn('secondary'), minWidth: '92px' }} onClick={cancelLine}>Cancel</button>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <label style={labelStyle}>Chq Date</label>
-                        <input style={inputStyle} type="date" value={lineForm.chqDate} onChange={e => setLF('chqDate', e.target.value)} />
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: '0.55rem', marginBottom: '0.2rem' }}>
+                        <div>
+                          <label style={labelStyle}>Narration</label>
+                          <input style={inputStyle} value={lineForm.narration} onChange={e => setLF('narration', e.target.value)} />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Silver Purity %</label>
+                          <input style={inputStyle} type="number" step="0.01" value={lineForm.silverPurity} onChange={e => setLF('silverPurity', e.target.value)} />
+                        </div>
                       </div>
-                      <div>
-                        <label style={labelStyle}>Chq Bank</label>
-                        <input style={inputStyle} value={lineForm.chqBank} onChange={e => setLF('chqBank', e.target.value)} />
+                    </>
+                  ) : (
+                    <>
+                      {/* Line form row 1 */}
+                      <div style={fieldRow}>
+                        <div>
+                          <label style={labelStyle}>Branch</label>
+                          <input style={inputStyle} value={lineForm.branch} onChange={e => setLF('branch', e.target.value)} />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Type</label>
+                          <select style={inputStyle} value={lineForm.type} onChange={e => handleLineTypeChange(e.target.value)}>
+                            <option value="Cash">Cash</option>
+                            <option value="Cheque">Cheque</option>
+                            <option value="TT">TT</option>
+                            <option value="Card">Card</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Type Code</label>
+                          <input style={inputStyle} value={lineForm.typeCode} onChange={e => setLF('typeCode', e.target.value)} />
+                        </div>
                       </div>
-                    </div>
+
+                      {/* Line form row 2 */}
+                      <div style={fieldRow}>
+                        <div>
+                          <label style={labelStyle}>A/C Code *</label>
+                          <select
+                            style={inputStyle}
+                            value={lineForm.acCode || ''}
+                            onChange={e => setLF('acCode', e.target.value)}
+                          >
+                            <option value="">Select A/C code</option>
+                            {accounts
+                              .map((account) => ({
+                                id: account?._id,
+                                code: getAccountCodeValue(account),
+                                name: account?.accountName || account?.name || '',
+                              }))
+                              .filter((account) => account.code)
+                              .sort((a, b) => a.code.localeCompare(b.code))
+                              .map((account) => (
+                                <option key={account.id || account.code} value={account.code}>
+                                  {account.code}{account.name ? ` - ${account.name}` : ''}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Curr Code</label>
+                          <select style={inputStyle} value={lineForm.currCode} onChange={e => setLF('currCode', e.target.value)}>
+                            <option value="USD">USD</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Curr Rate</label>
+                          <input style={inputStyle} type="number" step="0.000001" value={lineForm.currRate} onChange={e => setLF('currRate', e.target.value)} placeholder={header.currRate} />
+                        </div>
+                      </div>
+
+                      {/* Line form row 3 */}
+                      <div style={fieldRow}>
+                        <div>
+                          <label style={labelStyle}>Exp</label>
+                          <input style={inputStyle} value={lineForm.exp} onChange={e => setLF('exp', e.target.value)} />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>TRN Number</label>
+                          <input style={inputStyle} value={lineForm.trnNumber} onChange={e => setLF('trnNumber', e.target.value)} />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>TRN Inv.</label>
+                          <input style={inputStyle} value={lineForm.trnInv} onChange={e => setLF('trnInv', e.target.value)} />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>TRN Inv. Date</label>
+                          <input style={inputStyle} type="date" value={lineForm.trnInvDate} onChange={e => setLF('trnInvDate', e.target.value)} />
+                        </div>
+                      </div>
+
+                      {/* Line form row 4 */}
+                      <div style={fieldRow}>
+                        <div>
+                          <label style={labelStyle}>HSN. A/c</label>
+                          <input style={inputStyle} value={lineForm.hsnAc} onChange={e => setLF('hsnAc', e.target.value)} />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>TRN Ref</label>
+                          <input style={inputStyle} value={lineForm.trnRef} onChange={e => setLF('trnRef', e.target.value)} />
+                        </div>
+                      </div>
+
+                      {/* Cheque fields — show only if type is Cheque */}
+                      {lineForm.type === 'Cheque' && (
+                        <div style={fieldRow}>
+                          <div>
+                            <label style={labelStyle}>Chq No</label>
+                            <input style={inputStyle} value={lineForm.chqNo} onChange={e => setLF('chqNo', e.target.value)} />
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Chq Date</label>
+                            <input style={inputStyle} type="date" value={lineForm.chqDate} onChange={e => setLF('chqDate', e.target.value)} />
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Chq Bank</label>
+                            <input style={inputStyle} value={lineForm.chqBank} onChange={e => setLF('chqBank', e.target.value)} />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Amount fields */}
+                      <div style={{ ...fieldRow, gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+                        <div>
+                          <label style={labelStyle}>Amount FC</label>
+                          <input
+                            style={inputStyle}
+                            type="number"
+                            step="0.01"
+                            value={lineForm.amountFC}
+                            onChange={e => handleAmountFC(e.target.value)}
+                            onKeyDown={handleLineAmountEnter}
+                          />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Amount LC *</label>
+                          <input
+                            style={inputStyle}
+                            type="number"
+                            step="0.01"
+                            value={lineForm.amountLC}
+                            onChange={e => handleAmountLC(e.target.value)}
+                            onKeyDown={handleLineAmountEnter}
+                          />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Header Amt</label>
+                          <input style={inputStyle} type="number" step="0.01" value={lineForm.headerAmt} onChange={e => setLF('headerAmt', e.target.value)} />
+                        </div>
+                      </div>
+
+                      {/* TRN amount fields */}
+                      <div style={{ ...fieldRow, gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+                        <div>
+                          <label style={labelStyle}>TRN Per%</label>
+                          <input style={inputStyle} type="number" step="0.01" value={lineForm.trnPer} onChange={e => {
+                            setLF('trnPer', e.target.value)
+                            const pct = parseFloat(e.target.value) || 0
+                            const amtLC = parseFloat(lineForm.amountLC) || 0
+                            const amtFC = parseFloat(lineForm.amountFC) || 0
+                            const trnLC = (amtLC * pct) / 100
+                            const trnFC = (amtFC * pct) / 100
+                            setLF('trnAmountLC', trnLC.toFixed(2))
+                            setLF('trnAmountFC', trnFC.toFixed(2))
+                            setLF('amountWithTRN', (amtLC + trnLC).toFixed(2))
+                          }} />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>TRN Amount FC</label>
+                          <input style={inputStyle} type="number" step="0.01" value={lineForm.trnAmountFC} onChange={e => setLF('trnAmountFC', e.target.value)} />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>TRN Amount LC</label>
+                          <input style={inputStyle} type="number" step="0.01" value={lineForm.trnAmountLC} onChange={e => setLF('trnAmountLC', e.target.value)} />
+                        </div>
+                      </div>
+
+                      <div style={{ ...fieldRow, gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+                        <div>
+                          <label style={labelStyle}>Amount With TRN</label>
+                          <input style={inputStyle} type="number" step="0.01" value={lineForm.amountWithTRN} onChange={e => setLF('amountWithTRN', e.target.value)} />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Header Amt With TRN</label>
+                          <input style={inputStyle} type="number" step="0.01" value={lineForm.headerAmountWithTRN} onChange={e => setLF('headerAmountWithTRN', e.target.value)} />
+                        </div>
+                      </div>
+
+                      {/* Narration */}
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <label style={labelStyle}>Narration</label>
+                        <input style={inputStyle} value={lineForm.narration} onChange={e => setLF('narration', e.target.value)} />
+                      </div>
+
+                      {/* Continue / Save / Cancel */}
+                      <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>
+                        <button style={btn('gray')} onClick={() => {
+                          saveLine()
+                          if (!lineForm.acCode.trim()) return
+                          // Continue = save and open blank form again
+                          setTimeout(() => openAddLine(), 50)
+                        }}>
+                          Continue
+                        </button>
+                        <button style={btn('primary')} onClick={saveLine}>Save Line</button>
+                        <button style={btn('secondary')} onClick={cancelLine}>Cancel</button>
+                      </div>
+                    </>
                   )}
-
-                  {/* Amount fields */}
-                  <div style={{ ...fieldRow, gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
-                    <div>
-                      <label style={labelStyle}>Amount FC</label>
-                      <input
-                        style={inputStyle}
-                        type="number"
-                        step="0.01"
-                        value={lineForm.amountFC}
-                        onChange={e => handleAmountFC(e.target.value)}
-                        onKeyDown={handleLineAmountEnter}
-                      />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Amount LC *</label>
-                      <input
-                        style={inputStyle}
-                        type="number"
-                        step="0.01"
-                        value={lineForm.amountLC}
-                        onChange={e => handleAmountLC(e.target.value)}
-                        onKeyDown={handleLineAmountEnter}
-                      />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Header Amt</label>
-                      <input style={inputStyle} type="number" step="0.01" value={lineForm.headerAmt} onChange={e => setLF('headerAmt', e.target.value)} />
-                    </div>
-                  </div>
-
-                  {/* TRN amount fields */}
-                  <div style={{ ...fieldRow, gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
-                    <div>
-                      <label style={labelStyle}>TRN Per%</label>
-                      <input style={inputStyle} type="number" step="0.01" value={lineForm.trnPer} onChange={e => {
-                        setLF('trnPer', e.target.value)
-                        const pct = parseFloat(e.target.value) || 0
-                        const amtLC = parseFloat(lineForm.amountLC) || 0
-                        const amtFC = parseFloat(lineForm.amountFC) || 0
-                        const trnLC = (amtLC * pct) / 100
-                        const trnFC = (amtFC * pct) / 100
-                        setLF('trnAmountLC', trnLC.toFixed(2))
-                        setLF('trnAmountFC', trnFC.toFixed(2))
-                        setLF('amountWithTRN', (amtLC + trnLC).toFixed(2))
-                      }} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>TRN Amount FC</label>
-                      <input style={inputStyle} type="number" step="0.01" value={lineForm.trnAmountFC} onChange={e => setLF('trnAmountFC', e.target.value)} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>TRN Amount LC</label>
-                      <input style={inputStyle} type="number" step="0.01" value={lineForm.trnAmountLC} onChange={e => setLF('trnAmountLC', e.target.value)} />
-                    </div>
-                  </div>
-
-                  <div style={{ ...fieldRow, gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
-                    <div>
-                      <label style={labelStyle}>Amount With TRN</label>
-                      <input style={inputStyle} type="number" step="0.01" value={lineForm.amountWithTRN} onChange={e => setLF('amountWithTRN', e.target.value)} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Header Amt With TRN</label>
-                      <input style={inputStyle} type="number" step="0.01" value={lineForm.headerAmountWithTRN} onChange={e => setLF('headerAmountWithTRN', e.target.value)} />
-                    </div>
-                  </div>
-
-                  {/* Narration */}
-                  <div style={{ marginBottom: '0.5rem' }}>
-                    <label style={labelStyle}>Narration</label>
-                    <input style={inputStyle} value={lineForm.narration} onChange={e => setLF('narration', e.target.value)} />
-                  </div>
-
-                  {/* Continue / Save / Cancel */}
-                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>
-                    <button style={btn('gray')} onClick={() => {
-                      saveLine()
-                      if (!lineForm.acCode.trim()) return
-                      // Continue = save and open blank form again
-                      setTimeout(() => openAddLine(), 50)
-                    }}>
-                      Continue
-                    </button>
-                    <button style={btn('primary')} onClick={saveLine}>Save Line</button>
-                    <button style={btn('secondary')} onClick={cancelLine}>Cancel</button>
-                  </div>
                 </div>
               )}
 

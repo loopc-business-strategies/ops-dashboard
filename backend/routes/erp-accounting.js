@@ -165,12 +165,16 @@ const validateTransactionPayload = (payload) => {
     return 'Amount must be greater than zero'
   }
 
-  if (['sale', 'receipt'].includes(payload.type) && !payload.customerId) {
-    return 'Customer is required for sales and receipts'
+  if (payload.type === 'receipt' && !payload.customerId) {
+    return 'Customer is required for receipts'
   }
 
-  if (payload.type === 'purchase' && !payload.vendorId) {
-    return 'Vendor is required for purchases'
+  if (payload.type === 'sale' && !payload.customerId && !payload.vendorId) {
+    return 'Customer or vendor is required for sales'
+  }
+
+  if (payload.type === 'purchase' && !payload.vendorId && !payload.customerId) {
+    return 'Vendor or customer is required for purchases'
   }
 
   if (payload.type === 'payment' && !payload.vendorId && !payload.customerId) {
@@ -799,6 +803,14 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride }) => {
       if (transactionType === 'sale') debitAccountId = debitAccountId || customer.ledgerAccountId._id
       if (transactionType === 'receipt') creditAccountId = creditAccountId || customer.ledgerAccountId._id
     }
+
+    if (transactionType === 'sale' && !customer?.ledgerAccountId) {
+      const vendor = tx.vendorId ? await Vendor.findById(tx.vendorId).populate('ledgerAccountId') : null
+      if (vendor?.ledgerAccountId) {
+        debitAccountId = debitAccountId || vendor.ledgerAccountId._id
+      }
+    }
+
     const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank')
     if (transactionType === 'receipt') debitAccountId = voucherSettlementAccountId || debitAccountId || bank._id
   }
@@ -808,6 +820,13 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride }) => {
     if (vendor?.ledgerAccountId) {
       if (transactionType === 'purchase') creditAccountId = creditAccountId || vendor.ledgerAccountId._id
       if (transactionType === 'payment') debitAccountId = debitAccountId || vendor.ledgerAccountId._id
+    }
+
+    if (transactionType === 'purchase' && !vendor?.ledgerAccountId) {
+      const customer = tx.customerId ? await Customer.findById(tx.customerId).populate('ledgerAccountId') : null
+      if (customer?.ledgerAccountId) {
+        creditAccountId = creditAccountId || customer.ledgerAccountId._id
+      }
     }
 
     if (transactionType === 'payment' && !vendor?.ledgerAccountId) {
