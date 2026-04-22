@@ -718,25 +718,66 @@ const nextInventoryAccountCode = async () => {
   return String(code)
 }
 
-const ensureCashBankAccount = async (user, currency = 'USD') => {
-  let account = await ChartOfAccount.findOne({
+const ensureCashBankAccount = async (user, currency = 'USD', preference = 'any') => {
+  const normalizedPreference = String(preference || 'any').toLowerCase()
+  const isBankPreferred = normalizedPreference === 'bank'
+  const isCashPreferred = normalizedPreference === 'cash'
+
+  const query = {
     isActive: true,
     accountType: 'Asset',
-    $or: [{ accountCode: '1010' }, { accountName: /bank|cash/i }],
-  }).sort({ accountCode: 1 })
+    $or: isBankPreferred
+      ? [{ accountCode: '1010' }, { accountName: /bank/i }]
+      : isCashPreferred
+        ? [{ accountCode: '1000' }, { accountName: /petty cash|cash on hand|cash/i }]
+        : [{ accountCode: '1010' }, { accountName: /bank|cash/i }],
+  }
+
+  let account = await ChartOfAccount.findOne(query).sort({ accountCode: 1 })
 
   if (!account) {
     account = await ChartOfAccount.create({
-      accountName: 'Main Bank Account',
-      accountCode: '1010',
+      accountName: isCashPreferred ? 'Petty Cash' : 'Main Bank Account',
+      accountCode: isCashPreferred ? '1000' : '1010',
       accountType: 'Asset',
       currency,
-      description: 'Default bank account',
+      description: isCashPreferred ? 'Default cash account' : 'Default bank account',
       createdBy: user._id,
     })
   }
 
   return account
+}
+
+const normalizeVoucherSettlementType = (value) => {
+  const v = String(value || '').trim().toLowerCase()
+  if (v === 'tt' || v === 'transfer') return 'bank'
+  if (v === 'cash') return 'cash'
+  if (v === 'cheque' || v === 'check') return 'bank'
+  return 'any'
+}
+
+const resolveVoucherSettlementAccount = async (user, tx) => {
+  if (!['receipt', 'payment'].includes(String(tx?.type || '').toLowerCase())) return null
+
+  const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+  if (!lines.length) return null
+
+  const preferredLine = lines.find((line) => String(line?.acCode || '').trim()) || lines[0]
+  const accountCode = String(preferredLine?.acCode || '').trim()
+  const settlementPreference = normalizeVoucherSettlementType(preferredLine?.type)
+
+  if (accountCode) {
+    const account = await ChartOfAccount.findOne({
+      isActive: true,
+      accountType: 'Asset',
+      accountCode,
+    })
+    if (account) return account._id
+  }
+
+  const fallbackAccount = await ensureCashBankAccount(user, tx.currency || 'USD', settlementPreference)
+  return fallbackAccount?._id || null
 }
 
 const resolveTransactionAccounts = async ({ user, tx, mappingOverride }) => {
@@ -750,6 +791,7 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride }) => {
 
   let debitAccountId = tx.debitAccountId || mapping?.debitAccountId || null
   let creditAccountId = tx.creditAccountId || mapping?.creditAccountId || null
+  const voucherSettlementAccountId = await resolveVoucherSettlementAccount(user, tx)
 
   if (transactionType === 'sale' || transactionType === 'receipt') {
     const customer = tx.customerId ? await Customer.findById(tx.customerId).populate('ledgerAccountId') : null
@@ -757,8 +799,8 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride }) => {
       if (transactionType === 'sale') debitAccountId = debitAccountId || customer.ledgerAccountId._id
       if (transactionType === 'receipt') creditAccountId = creditAccountId || customer.ledgerAccountId._id
     }
-    const bank = await ensureCashBankAccount(user, tx.currency || 'USD')
-    if (transactionType === 'receipt') debitAccountId = debitAccountId || bank._id
+    const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank')
+    if (transactionType === 'receipt') debitAccountId = voucherSettlementAccountId || debitAccountId || bank._id
   }
 
   if (transactionType === 'purchase' || transactionType === 'payment') {
@@ -775,8 +817,8 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride }) => {
       }
     }
 
-    const bank = await ensureCashBankAccount(user, tx.currency || 'USD')
-    if (transactionType === 'payment') creditAccountId = creditAccountId || bank._id
+    const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank')
+    if (transactionType === 'payment') creditAccountId = voucherSettlementAccountId || creditAccountId || bank._id
   }
 
   if (transactionType === 'purchase') {
@@ -1244,20 +1286,26 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         { _id: { $in: referenceIds } },
       ],
     })
-      .select('_id journalEntryId')
+      .select('_id journalEntryId voucherMeta.vocNo voucherMeta.refNo voucherMeta.lineItems.trnNumber')
       .lean()
 
     const transactionByLedgerId = new Map()
     const transactionById = new Map()
     linkedTransactions.forEach((tx) => {
-      if (tx.journalEntryId) transactionByLedgerId.set(String(tx.journalEntryId), String(tx._id))
-      transactionById.set(String(tx._id), String(tx._id))
+      const lineTxNo = Array.isArray(tx.voucherMeta?.lineItems)
+        ? String(tx.voucherMeta.lineItems.find((line) => String(line?.trnNumber || '').trim())?.trnNumber || '').trim()
+        : ''
+      const txNumber = String(tx.voucherMeta?.vocNo || tx.voucherMeta?.refNo || lineTxNo || '').trim()
+      const txRef = { id: String(tx._id), number: txNumber }
+      if (tx.journalEntryId) transactionByLedgerId.set(String(tx.journalEntryId), txRef)
+      transactionById.set(String(tx._id), txRef)
     })
 
     let runningBalance = netBalance
     const statementEntries = ledgerEntries.map((entry) => {
       const isDebitEntry = String(entry.debitAccountId?._id || entry.debitAccountId) === String(account._id)
       const signedAmount = isDebitEntry ? Number(entry.amount || 0) : -Number(entry.amount || 0)
+      const linkedTx = transactionByLedgerId.get(String(entry._id)) || transactionById.get(String(entry.referenceId || '')) || null
       const row = {
         _id: entry._id,
         date: entry.date,
@@ -1275,7 +1323,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         offsetAccountCode: isDebitEntry ? (entry.creditAccountId?.accountCode || '') : (entry.debitAccountId?.accountCode || ''),
         offsetAccountName: isDebitEntry ? (entry.creditAccountId?.accountName || '') : (entry.debitAccountId?.accountName || ''),
         createdBy: entry.createdBy?.name || '',
-        sourceTransactionId: transactionByLedgerId.get(String(entry._id)) || transactionById.get(String(entry.referenceId || '')) || '',
+        sourceTransactionId: linkedTx?.id || '',
+        sourceTransactionNumber: linkedTx?.number || '',
       }
       runningBalance -= signedAmount
       return row

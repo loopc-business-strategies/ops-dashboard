@@ -14,6 +14,7 @@ const LEDGER_REFERENCE_TYPES = ['journal', 'expense', 'invoice', 'payment', 'pur
 const LEDGER_DEPARTMENTS = ['finance', 'sales', 'production', 'hr', 'operations', 'management']
 const ENQUIRY_HISTORY_STORAGE_KEY = 'erp-account-enquiry-history'
 const ENQUIRY_DETAILS_PANEL_STORAGE_KEY = 'erp-account-enquiry-details-panel'
+const ENQUIRY_STATEMENT_AUDIT_TOGGLE_STORAGE_KEY = 'erp-account-statement-audit-toggle'
 const ACCOUNT_TYPE_ORDER = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
 const METAL_UNIT_FACTORS = {
   gram: 1,
@@ -245,6 +246,8 @@ function ERPTab() {
   const [enquiryLoading, setEnquiryLoading] = useState(false)
   const [enquiryStatus, setEnquiryStatus] = useState({ type: '', message: '' })
   const [statementFilters, setStatementFilters] = useState({ startDate: '', endDate: '', referenceType: '', department: '' })
+  const [showStatementAuditIds, setShowStatementAuditIds] = useState(false)
+  const [statementAuditPreferenceReady, setStatementAuditPreferenceReady] = useState(false)
   const [metalRates, setMetalRates] = useState({ goldPrice: 285, silverPrice: 3.5, priceCurrency: 'USD', updatedAt: null })
   const [metalRateForm, setMetalRateForm] = useState({ goldPrice: '285', silverPrice: '3.5', priceCurrency: 'USD' })
   const [enquiryHistory, setEnquiryHistory] = useState([])
@@ -263,6 +266,7 @@ function ERPTab() {
   const [detailsPanelDrag, setDetailsPanelDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
   const [detailsPanelResize, setDetailsPanelResize] = useState({ active: false, pointerX: 0, pointerY: 0, startW: 500, startH: 520 })
   const detailsPanelRef = useRef(null)
+  const statementAuditPreferenceKey = `${ENQUIRY_STATEMENT_AUDIT_TOGGLE_STORAGE_KEY}:${String(user?._id || user?.email || 'anonymous')}`
   const [excessCurrency, setExcessCurrency] = useState('USD')
   const [transactions, setTransactions] = useState([])
   const [vendors, setVendors] = useState([])
@@ -476,6 +480,18 @@ function ERPTab() {
     if (statementFilters.department && String(entry.department || '') !== statementFilters.department) return false
     return true
   })
+  const formatStatementDate = (value) => {
+    if (!value) return '-'
+    const dt = new Date(value)
+    if (Number.isNaN(dt.getTime())) return '-'
+    return dt.toLocaleDateString()
+  }
+  const recentPaymentReceiptEntry = [...rawStatementEntries]
+    .filter((entry) => {
+      const type = String(entry.referenceType || '').toLowerCase()
+      return type === 'payment' || type === 'receipt'
+    })
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))[0] || null
   const transactionPageCount = Math.max(1, Math.ceil(Number(transactionMeta.total || 0) / Number(transactionMeta.limit || 25)))
   const isTransactionEditMode = Boolean(editingTransactionId)
   const allVisibleTransactionsSelected = Boolean(transactions.length) && transactions.every((tx) => selectedTransactionIds.includes(tx._id))
@@ -687,6 +703,27 @@ function ERPTab() {
   useEffect(() => {
     localStorage.setItem(ENQUIRY_DETAILS_PANEL_STORAGE_KEY, JSON.stringify(detailsPanel))
   }, [detailsPanel])
+
+  useEffect(() => {
+    setStatementAuditPreferenceReady(false)
+    try {
+      const raw = localStorage.getItem(statementAuditPreferenceKey)
+      setShowStatementAuditIds(raw === '1')
+    } catch {
+      setShowStatementAuditIds(false)
+    } finally {
+      setStatementAuditPreferenceReady(true)
+    }
+  }, [statementAuditPreferenceKey])
+
+  useEffect(() => {
+    if (!statementAuditPreferenceReady) return
+    try {
+      localStorage.setItem(statementAuditPreferenceKey, showStatementAuditIds ? '1' : '0')
+    } catch {
+      // ignore local preference save errors
+    }
+  }, [statementAuditPreferenceReady, statementAuditPreferenceKey, showStatementAuditIds])
 
   const loadDashboard = async () => {
     if (!canViewAccounts) return
@@ -3671,12 +3708,37 @@ function ERPTab() {
                   ) : (
                     <>
                       <div style={{ border: '2px solid #3F4B2E', borderRadius: '0.6rem', background: '#F5F7F0', padding: '1rem', position: 'relative', marginBottom: '0.9rem' }}>
-                        <div style={{ borderBottom: '1px solid #D1D5DB', paddingBottom: '0.8rem', marginBottom: '0.8rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.6rem', borderBottom: '1px solid #D1D5DB', paddingBottom: '0.8rem', marginBottom: '0.8rem' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
                           <h3 style={{ margin: '0 0 0.4rem', color: '#111827', fontWeight: '800', fontSize: '1.1rem' }}>{accountEnquiryData.account.accountName || 'Account'}</h3>
                           <p style={{ margin: 0, color: '#6B7280', fontSize: '0.9rem', lineHeight: '1.4' }}>{accountEnquiryData.account.description || accountEnquiryData.account.accountName}</p>
                           {accountEnquiryData.account.description && (
                             <p style={{ margin: '0.4rem 0 0', color: '#6B7280', fontSize: '0.85rem' }}>Code: {accountEnquiryData.account.accountCode}</p>
                           )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowEnquiryModal(true)}
+                            title="Open Statement"
+                            aria-label="Open statement of account"
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '999px',
+                              border: '1px solid #B8BEA0',
+                              background: '#FFFFFF',
+                              color: '#3F4B2E',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.9rem',
+                              fontWeight: '700',
+                              flexShrink: 0,
+                            }}
+                          >
+                            ↗
+                          </button>
                         </div>
                       </div>
 
@@ -5834,6 +5896,121 @@ function ERPTab() {
                       </div>
                     </div>
 
+                  </div>
+
+                  {/* Full Statement Table */}
+                  <div style={{ marginTop: '1.25rem', border: '1px solid #CBD5E0', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF' }}>
+                    <div style={{ padding: '0.85rem 1rem', background: '#F5F7F0', borderBottom: '1px solid #D1D5DB', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                      <div>
+                        <p style={{ margin: 0, fontSize: '0.95rem', color: '#111827', fontWeight: '800' }}>Full Statement of Account</p>
+                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: '#6B7280' }}>{filteredStatementEntries.length} entries shown</p>
+                      </div>
+                      {recentPaymentReceiptEntry && (
+                        <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '0.45rem', padding: '0.45rem 0.6rem' }}>
+                          <p style={{ margin: 0, fontSize: '0.73rem', color: '#065F46', fontWeight: '700' }}>Recent Payment/Receipt</p>
+                          <p style={{ margin: '0.15rem 0 0', fontSize: '0.8rem', color: '#065F46', fontWeight: '700' }}>
+                            {formatStatementDate(recentPaymentReceiptEntry.date)} · {String(recentPaymentReceiptEntry.referenceType || '').toUpperCase()} · #{recentPaymentReceiptEntry.sourceTransactionNumber || recentPaymentReceiptEntry.sourceTransactionId || '-'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #E5E7EB', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.55rem' }}>
+                      <input
+                        type="date"
+                        value={statementFilters.startDate}
+                        onChange={(e) => setStatementFilters((prev) => ({ ...prev, startDate: e.target.value }))}
+                        style={modalInputStyle}
+                      />
+                      <input
+                        type="date"
+                        value={statementFilters.endDate}
+                        onChange={(e) => setStatementFilters((prev) => ({ ...prev, endDate: e.target.value }))}
+                        style={modalInputStyle}
+                      />
+                      <select
+                        value={statementFilters.referenceType}
+                        onChange={(e) => setStatementFilters((prev) => ({ ...prev, referenceType: e.target.value }))}
+                        style={modalInputStyle}
+                      >
+                        <option value="">All Types</option>
+                        {statementReferenceTypes.map((type) => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={statementFilters.department}
+                        onChange={(e) => setStatementFilters((prev) => ({ ...prev, department: e.target.value }))}
+                        style={modalInputStyle}
+                      >
+                        <option value="">All Departments</option>
+                        {statementDepartments.map((department) => (
+                          <option key={department} value={department}>{department}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '' })}
+                        style={{ padding: '0.65rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', height: 'fit-content' }}
+                      >
+                        Reset
+                      </button>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#334155', fontSize: '0.82rem', fontWeight: '600', background: '#F8FAFC', border: '1px solid #D1D5DB', borderRadius: '0.5rem', padding: '0.62rem 0.7rem', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={showStatementAuditIds}
+                          onChange={(e) => setShowStatementAuditIds(e.target.checked)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        Show Transaction ID
+                      </label>
+                    </div>
+
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                        <thead>
+                          <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
+                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Date</th>
+                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Receipt No</th>
+                            {showStatementAuditIds && <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Transaction ID</th>}
+                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Type</th>
+                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Description</th>
+                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Offset Account</th>
+                            <th style={{ padding: '0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Debit</th>
+                            <th style={{ padding: '0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Credit</th>
+                            <th style={{ padding: '0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Running Balance</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredStatementEntries.length === 0 ? (
+                            <tr>
+                              <td colSpan={showStatementAuditIds ? 9 : 8} style={{ padding: '1rem', textAlign: 'center', color: '#6B7280', fontStyle: 'italic' }}>
+                                No statement entries found for selected filters.
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredStatementEntries.map((entry, index) => {
+                              const receiptNo = entry.sourceTransactionNumber || entry.sourceTransactionId || entry.referenceId || entry._id || '-'
+                              return (
+                                <tr key={entry._id || `${entry.date}-${index}`} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                                  <td style={{ padding: '0.6rem', color: '#374151' }}>{formatStatementDate(entry.date)}</td>
+                                  <td style={{ padding: '0.6rem', color: '#111827', fontFamily: 'monospace', fontSize: '0.8rem' }}>{receiptNo}</td>
+                                  {showStatementAuditIds && <td style={{ padding: '0.6rem', color: '#475569', fontFamily: 'monospace', fontSize: '0.78rem' }}>{entry.sourceTransactionId || '-'}</td>}
+                                  <td style={{ padding: '0.6rem', color: '#374151' }}>{String(entry.referenceType || 'journal').toUpperCase()}</td>
+                                  <td style={{ padding: '0.6rem', color: '#374151' }}>{entry.description || '-'}</td>
+                                  <td style={{ padding: '0.6rem', color: '#374151' }}>
+                                    {entry.offsetAccountCode ? `${entry.offsetAccountCode}${entry.offsetAccountName ? ` - ${entry.offsetAccountName}` : ''}` : '-'}
+                                  </td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600' }}>{formatStatementValue(entry.debitAmount, 2)}</td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementValue(entry.creditAmount, 2)}</td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: getSignedColor(entry.runningBalance), fontWeight: '700' }}>{formatStatementValue(entry.runningBalance, 2)}</td>
+                                </tr>
+                              )
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </>
               )}
