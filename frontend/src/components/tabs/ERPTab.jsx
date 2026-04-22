@@ -15,12 +15,124 @@ const LEDGER_DEPARTMENTS = ['finance', 'sales', 'production', 'hr', 'operations'
 const ENQUIRY_HISTORY_STORAGE_KEY = 'erp-account-enquiry-history'
 const ENQUIRY_DETAILS_PANEL_STORAGE_KEY = 'erp-account-enquiry-details-panel'
 const ENQUIRY_STATEMENT_AUDIT_TOGGLE_STORAGE_KEY = 'erp-account-statement-audit-toggle'
+const INVENTORY_STOCK_CODE_SETTINGS_STORAGE_KEY = 'erp-inventory-stock-code-settings'
 const ACCOUNT_TYPE_ORDER = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
 const METAL_UNIT_FACTORS = {
   gram: 1,
   ounce: 31.1034768,
   kg: 1000,
 }
+
+const MAIN_STOCK_OPTIONS = ['gold', 'silver', 'platinum']
+const INVENTORY_ITEM_TYPE_OPTIONS = [
+  { value: 'raw_material', label: 'Raw Material' },
+  { value: 'finished_good', label: 'Finished Good' },
+  { value: 'wip', label: 'WIP' },
+]
+
+const createInventoryMappingForm = () => ({
+  mainStock: 'gold',
+  customMainStock: '',
+  itemType: 'raw_material',
+  metalType: 'gold',
+  purity: '999.9',
+  stockCode: '',
+  unit: 'grams',
+  openingQty: '',
+  unitCost: '',
+  sellingPrice: '',
+  currency: 'USD',
+})
+
+const DEFAULT_INVENTORY_STOCK_CODE_SETTINGS = {
+  format: 'metal-purity',
+  prefix: 'RM',
+}
+
+const resolveMainStockValueFromForm = (form) => {
+  if (form.mainStock === 'custom') {
+    return String(form.customMainStock || '').trim().toLowerCase()
+  }
+  return String(form.mainStock || '').trim().toLowerCase()
+}
+
+const getMainStockPrefix = (mainStockValue, metalTypeValue) => {
+  const normalizedMain = String(mainStockValue || '').trim().toLowerCase()
+  const normalizedMetal = String(metalTypeValue || '').trim().toLowerCase()
+  if (normalizedMain === 'gold' || normalizedMetal === 'gold') return 'GOLD'
+  if (normalizedMain === 'silver' || normalizedMetal === 'silver') return 'SILV'
+  if (normalizedMain === 'platinum' || normalizedMetal === 'platinum') return 'PLAT'
+
+  const fallback = (normalizedMain || normalizedMetal || 'STK').replace(/[^a-z0-9]/gi, '').toUpperCase()
+  return (fallback || 'STK').slice(0, 4)
+}
+
+const buildAutoStockCode = (form, settings = DEFAULT_INVENTORY_STOCK_CODE_SETTINGS) => {
+  const mainStockValue = resolveMainStockValueFromForm(form)
+  const prefix = getMainStockPrefix(mainStockValue, form.metalType)
+  const purityDigits = String(form.purity || '').replace(/[^0-9]/g, '')
+  const purityPart = purityDigits || '000'
+  const baseCode = `${prefix}-${purityPart}`
+
+  if (settings?.format !== 'prefix-metal-purity') {
+    return baseCode
+  }
+
+  const normalizedPrefix = String(settings?.prefix || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+
+  if (!normalizedPrefix) return baseCode
+  return `${normalizedPrefix}-${baseCode}`
+}
+
+const buildUniqueStockCode = (baseCode, products = [], editingId = '') => {
+  const normalizedBase = String(baseCode || '').trim().toUpperCase()
+  if (!normalizedBase) return ''
+
+  const existing = new Set(
+    products
+      .filter((item) => String(item._id || '') !== String(editingId || ''))
+      .map((item) => String(item.sku || '').trim().toUpperCase())
+      .filter(Boolean)
+  )
+
+  if (!existing.has(normalizedBase)) return normalizedBase
+  let index = 2
+  while (existing.has(`${normalizedBase}-${index}`)) {
+    index += 1
+  }
+  return `${normalizedBase}-${index}`
+}
+
+const encodeInventoryCategoryMeta = (meta) => {
+  const safeMeta = {
+    mainStock: String(meta.mainStock || '').trim().toLowerCase(),
+    itemType: String(meta.itemType || '').trim().toLowerCase(),
+    metalType: String(meta.metalType || '').trim().toLowerCase(),
+    purity: String(meta.purity || '').trim(),
+  }
+  return ['mainStock', 'itemType', 'metalType', 'purity'].map((key) => `${key}=${safeMeta[key]}`).join(';')
+}
+
+const decodeInventoryCategoryMeta = (category) => {
+  const raw = String(category || '')
+  const meta = {}
+  raw.split(';').forEach((pair) => {
+    const [key, ...rest] = pair.split('=')
+    if (!key || rest.length === 0) return
+    meta[key.trim()] = rest.join('=').trim()
+  })
+  return {
+    mainStock: String(meta.mainStock || '').toLowerCase(),
+    itemType: String(meta.itemType || '').toLowerCase(),
+    metalType: String(meta.metalType || '').toLowerCase(),
+    purity: String(meta.purity || ''),
+  }
+}
+
+const titleCaseWords = (value) => String(value || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()).trim()
 
 function getTransactionTypeLabels(t) {
   return {
@@ -271,7 +383,6 @@ function ERPTab() {
   const [transactions, setTransactions] = useState([])
   const [vendors, setVendors] = useState([])
   const [inventoryProducts, setInventoryProducts] = useState([])
-  const [stockLedger, setStockLedger] = useState([])
   const [reports, setReports] = useState({
     trialBalance: null,
     profitLoss: null,
@@ -355,10 +466,12 @@ function ERPTab() {
   const [vendorOverdueQueue, setVendorOverdueQueue] = useState({ summary: { total: 0, withRecipient: 0, critical: 0, totalAmountDue: 0 }, queue: [] })
   const [showVendorForm, setShowVendorForm] = useState(false)
   const [editingVendorId, setEditingVendorId] = useState('')
-  const [productForm, setProductForm] = useState({ sku: '', name: '', category: '', unit: 'pcs', unitCost: '', sellingPrice: '', quantity: '', currency: 'USD' })
+  const [inventoryMappingForm, setInventoryMappingForm] = useState(createInventoryMappingForm)
   const [editingProductId, setEditingProductId] = useState('')
-  const [stockInForm, setStockInForm] = useState({ itemId: '', vendorId: '', quantity: '', unitCost: '', currency: 'USD', description: '' })
-  const [stockOutForm, setStockOutForm] = useState({ itemId: '', quantity: '', currency: 'USD', description: '' })
+  const [showInventoryMappingModal, setShowInventoryMappingModal] = useState(false)
+  const [inventoryStockCodeManualOverride, setInventoryStockCodeManualOverride] = useState(false)
+  const [inventoryStockCodeSettings, setInventoryStockCodeSettings] = useState(DEFAULT_INVENTORY_STOCK_CODE_SETTINGS)
+  const inventoryStockCodeSettingsKey = `${INVENTORY_STOCK_CODE_SETTINGS_STORAGE_KEY}:${String(user?._id || user?.email || 'anonymous')}`
 
   const ITEMS_PER_PAGE = 25
   const showNotification = (msg) => {
@@ -401,6 +514,8 @@ function ERPTab() {
   const canAccessVouchers = isSuperAdmin || isFinance || isSalesRole || isManagementRole
   const canAccessDirectDeals = isSuperAdmin || isFinance || isSalesRole || isManagementRole
   const canAccessERP = canViewAccounts || canAccessTransactions || canAccessInventory || canViewCustomers
+  const inventoryMappingProducts = inventoryProducts.filter((item) => String(item?.category || '').includes('mainStock='))
+  const legacyInventoryProducts = inventoryProducts.filter((item) => !String(item?.category || '').includes('mainStock='))
   const availableTransactionTypes = isSuperAdmin || isFinance
     ? ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
     : [
@@ -725,6 +840,30 @@ function ERPTab() {
     }
   }, [statementAuditPreferenceReady, statementAuditPreferenceKey, showStatementAuditIds])
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(inventoryStockCodeSettingsKey)
+      if (!raw) {
+        setInventoryStockCodeSettings(DEFAULT_INVENTORY_STOCK_CODE_SETTINGS)
+        return
+      }
+      const parsed = JSON.parse(raw)
+      const format = parsed?.format === 'prefix-metal-purity' ? 'prefix-metal-purity' : 'metal-purity'
+      const prefix = String(parsed?.prefix || DEFAULT_INVENTORY_STOCK_CODE_SETTINGS.prefix)
+      setInventoryStockCodeSettings({ format, prefix })
+    } catch {
+      setInventoryStockCodeSettings(DEFAULT_INVENTORY_STOCK_CODE_SETTINGS)
+    }
+  }, [inventoryStockCodeSettingsKey])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(inventoryStockCodeSettingsKey, JSON.stringify(inventoryStockCodeSettings))
+    } catch {
+      // ignore local preference save errors
+    }
+  }, [inventoryStockCodeSettingsKey, inventoryStockCodeSettings])
+
   const loadDashboard = async () => {
     if (!canViewAccounts) return
     setLoading(true)
@@ -781,13 +920,7 @@ function ERPTab() {
     return [code, name, type].filter(Boolean).join(' - ')
   }
 
-  const filteredGroupedSummaryAccounts = summaryAccounts
-    .filter((account) => {
-      const lookup = String(accountEnquiryCode || '').trim().toLowerCase()
-      if (!lookup) return true
-      return [account.accountCode, account.accountName, account.accountType]
-        .some((value) => String(value || '').toLowerCase().includes(lookup))
-    })
+  const groupedSummaryAccounts = summaryAccounts
     .slice()
     .sort((a, b) => {
       const aType = String(a.accountType || '').trim()
@@ -807,6 +940,18 @@ function ERPTab() {
       else groups.push({ type, accounts: [account] })
       return groups
     }, [])
+
+  const filteredGroupedSummaryAccounts = groupedSummaryAccounts
+    .map((group) => {
+      const lookup = String(accountEnquiryCode || '').trim().toLowerCase()
+      if (!lookup) return group
+      const filteredAccounts = group.accounts.filter((account) => (
+        [account.accountCode, account.accountName, account.accountType]
+          .some((value) => String(value || '').toLowerCase().includes(lookup))
+      ))
+      return { ...group, accounts: filteredAccounts }
+    })
+    .filter((group) => group.accounts.length > 0)
 
   const loadLedger = async () => {
     if (!canViewLedger) return
@@ -1101,12 +1246,8 @@ function ERPTab() {
     if (!canAccessInventory) return
     setLoading(true)
     try {
-      const [productsData, stockData] = await Promise.all([
-        erpAccountingAPI.getInventoryProducts(token),
-        erpAccountingAPI.getStockLedger(token),
-      ])
+      const productsData = await erpAccountingAPI.getInventoryProducts(token)
       setInventoryProducts(productsData.products || [])
-      setStockLedger(stockData.movements || [])
       setError('')
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load inventory')
@@ -1596,55 +1737,112 @@ function ERPTab() {
     }
   }
 
+  const resetInventoryMappingForm = () => {
+    setEditingProductId('')
+    setInventoryMappingForm(createInventoryMappingForm())
+    setInventoryStockCodeManualOverride(false)
+    setShowInventoryMappingModal(false)
+  }
+
+  useEffect(() => {
+    if (isSuperAdmin && inventoryStockCodeManualOverride) return
+    const baseCode = buildAutoStockCode(inventoryMappingForm, inventoryStockCodeSettings)
+    const nextCode = buildUniqueStockCode(baseCode, inventoryMappingProducts, editingProductId)
+    setInventoryMappingForm((prev) => (prev.stockCode === nextCode ? prev : { ...prev, stockCode: nextCode }))
+  }, [inventoryMappingForm.mainStock, inventoryMappingForm.customMainStock, inventoryMappingForm.metalType, inventoryMappingForm.purity, inventoryMappingProducts, editingProductId, inventoryStockCodeSettings, isSuperAdmin, inventoryStockCodeManualOverride])
+
+  const buildInventoryPayloadFromForm = (form, includeOpeningQty = true) => {
+    const mainStockValue = resolveMainStockValueFromForm(form)
+    const normalizedMetalType = String(form.metalType || '').trim().toLowerCase()
+    const normalizedPurity = String(form.purity || '').trim()
+    const categoryMeta = encodeInventoryCategoryMeta({
+      mainStock: mainStockValue,
+      itemType: form.itemType,
+      metalType: normalizedMetalType,
+      purity: normalizedPurity,
+    })
+    const label = titleCaseWords(mainStockValue || normalizedMetalType || 'Main Stock')
+
+    const autoSku = buildUniqueStockCode(buildAutoStockCode(form, inventoryStockCodeSettings), inventoryMappingProducts, editingProductId)
+    const resolvedSku = isSuperAdmin
+      ? (String(form.stockCode || '').trim().toUpperCase() || autoSku)
+      : autoSku
+
+    const payload = {
+      sku: resolvedSku,
+      name: `${label} Main Stock`,
+      category: categoryMeta,
+      unit: String(form.unit || 'grams').trim() || 'grams',
+      unitCost: Number(form.unitCost || 0),
+      sellingPrice: Number(form.sellingPrice || 0),
+      currency: form.currency || 'USD',
+    }
+
+    if (includeOpeningQty) {
+      payload.quantity = Number(form.openingQty || 0)
+    }
+
+    return payload
+  }
+
   const handleCreateProduct = async (e) => {
     e.preventDefault()
-    if (!productForm.name) {
-      setError('Product name is required')
+    const mainStockValue = resolveMainStockValueFromForm(inventoryMappingForm)
+    if (!mainStockValue) {
+      setError('Main stock is required')
+      return
+    }
+    if (!inventoryMappingForm.stockCode.trim()) {
+      setError('Stock code is required')
+      return
+    }
+    const duplicateStockCode = inventoryMappingProducts.find((item) => (
+      String(item.sku || '').trim().toLowerCase() === String(inventoryMappingForm.stockCode || '').trim().toLowerCase()
+      && item._id !== editingProductId
+    ))
+    if (duplicateStockCode) {
+      setError('Stock code already exists. Use a unique stock code.')
       return
     }
     try {
       setSaving(true)
+      const payload = buildInventoryPayloadFromForm(inventoryMappingForm, !editingProductId)
       if (editingProductId) {
-        await erpAccountingAPI.updateInventoryProduct(token, editingProductId, {
-          sku: productForm.sku,
-          name: productForm.name,
-          category: productForm.category,
-          unit: productForm.unit,
-          unitCost: Number(productForm.unitCost || 0),
-          sellingPrice: Number(productForm.sellingPrice || 0),
-        })
-        setEditingProductId('')
-        showNotification('✅ Product updated')
+        await erpAccountingAPI.updateInventoryProduct(token, editingProductId, payload)
+        showNotification('✅ Stock mapping updated')
       } else {
-        await erpAccountingAPI.createInventoryProduct(token, {
-          ...productForm,
-          unitCost: Number(productForm.unitCost || 0),
-          sellingPrice: Number(productForm.sellingPrice || 0),
-          quantity: Number(productForm.quantity || 0),
-        })
-        showNotification('✅ Product created')
+        await erpAccountingAPI.createInventoryProduct(token, payload)
+        showNotification('✅ Stock mapping created')
       }
-      setProductForm({ sku: '', name: '', category: '', unit: 'pcs', unitCost: '', sellingPrice: '', quantity: '', currency: 'USD' })
+      resetInventoryMappingForm()
       await loadInventory()
     } catch (e) {
-      setError(e.response?.data?.message || 'Failed to save product')
+      setError(e.response?.data?.message || 'Failed to save stock mapping')
     } finally {
       setSaving(false)
     }
   }
 
   const handleEditProduct = (p) => {
+    const meta = decodeInventoryCategoryMeta(p.category)
+    const resolvedMainStock = meta.mainStock || meta.metalType || ''
+    const isKnownMainStock = MAIN_STOCK_OPTIONS.includes(resolvedMainStock)
     setEditingProductId(p._id)
-    setProductForm({
-      sku: p.sku || '',
-      name: p.name || '',
-      category: p.category || '',
-      unit: p.unit || 'pcs',
+    setInventoryMappingForm({
+      mainStock: isKnownMainStock ? resolvedMainStock : 'custom',
+      customMainStock: isKnownMainStock ? '' : resolvedMainStock,
+      itemType: meta.itemType || 'raw_material',
+      metalType: meta.metalType || resolvedMainStock || 'gold',
+      purity: meta.purity || '',
+      stockCode: p.sku || '',
+      unit: p.unit || 'grams',
+      openingQty: String(p.quantity ?? ''),
       unitCost: String(p.unitCost ?? ''),
       sellingPrice: String(p.sellingPrice ?? ''),
-      quantity: String(p.quantity ?? ''),
       currency: p.currency || 'USD',
     })
+    setInventoryStockCodeManualOverride(false)
+    setShowInventoryMappingModal(true)
   }
 
   const handleDeleteProduct = async (p) => {
@@ -1653,46 +1851,9 @@ function ERPTab() {
       setSaving(true)
       await erpAccountingAPI.deleteInventoryProduct(token, p._id)
       await loadInventory()
-      showNotification('✅ Product deleted')
+      showNotification('✅ Stock mapping deleted')
     } catch (e) {
-      setError(e.response?.data?.message || 'Failed to delete product')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleStockIn = async (e) => {
-    e.preventDefault()
-    try {
-      setSaving(true)
-      await erpAccountingAPI.stockInInventory(token, {
-        ...stockInForm,
-        quantity: Number(stockInForm.quantity || 0),
-        unitCost: Number(stockInForm.unitCost || 0),
-      })
-      setStockInForm({ itemId: '', vendorId: '', quantity: '', unitCost: '', currency: 'USD', description: '' })
-      await Promise.all([loadInventory(), loadDashboard()])
-      showNotification('✅ Stock IN posted')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to post stock IN')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleStockOut = async (e) => {
-    e.preventDefault()
-    try {
-      setSaving(true)
-      await erpAccountingAPI.stockOutInventory(token, {
-        ...stockOutForm,
-        quantity: Number(stockOutForm.quantity || 0),
-      })
-      setStockOutForm({ itemId: '', quantity: '', currency: 'USD', description: '' })
-      await Promise.all([loadInventory(), loadDashboard()])
-      showNotification('✅ Stock OUT posted')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to post stock OUT')
+      setError(e.response?.data?.message || 'Failed to delete stock mapping')
     } finally {
       setSaving(false)
     }
@@ -1768,7 +1929,7 @@ function ERPTab() {
 
   const handleAccountEnquiry = async (e) => {
     e.preventDefault()
-    await fetchAccountEnquiryByCode(accountEnquiryCode)
+    await fetchAccountEnquiryByCode(accountEnquiryCode, { openModal: true })
   }
 
   const handleUpdateMetalRates = async (e) => {
@@ -3626,7 +3787,7 @@ function ERPTab() {
             <div style={{ ...emptyCardStyle, borderStyle: 'solid', background: '#FEF2F2', color: '#991B1B' }}>⛔ Account summary access restricted. Super Admin, Finance, or Department Head with mapped-account visibility only.</div>
           ) : (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.4fr) minmax(280px, 0.9fr)', gap: '1rem', marginBottom: '1rem' }}>
+              <div style={{ marginBottom: '1rem' }}>
                 <form onSubmit={handleAccountEnquiry} style={{ background: '#FAFAF7', border: '1px solid #D6D3C4', borderRadius: '0.75rem', padding: '1rem', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
                     <p style={{ margin: 0, color: '#3F4B2E', fontWeight: '800', letterSpacing: '0.02em' }}>Account Lookup</p>
@@ -3711,124 +3872,6 @@ function ERPTab() {
                     </div>
                   </div>
                 </form>
-
-                <div ref={detailsPanelRef} style={{ position: detailsPanelIsFloating ? 'fixed' : 'relative', top: detailsPanelIsFloating ? `${detailsPanel.y}px` : 'auto', left: detailsPanelIsFloating ? `${detailsPanel.x}px` : 'auto', width: detailsPanelIsFloating ? `${detailsPanel.width}px` : '100%', minHeight: detailsPanelIsFloating ? `${detailsPanel.height}px` : 'auto', zIndex: detailsPanelIsFloating ? 940 : 'auto', background: '#FFFFFF', border: '1px solid #D1D5DB', borderRadius: '0.75rem', padding: '0.9rem', boxShadow: detailsPanelIsFloating ? '0 18px 42px rgba(15, 23, 42, 0.18)' : 'none' }}>
-                  <div onMouseDown={beginDetailsPanelDrag} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', cursor: detailsPanelDrag.active ? 'grabbing' : 'grab', userSelect: 'none', borderBottom: '1px solid #E5E7EB', paddingBottom: '0.5rem' }}>
-                    <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>Account Details</p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <span style={{ fontSize: '0.78rem', color: C.inkSoft }}>{accountEnquiryData?.account?.accountCode ? 'Loaded' : 'Awaiting selection'}</span>
-                      <button
-                        type="button"
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onClick={() => {
-                          const geometry = getCurrentDetailsPanelGeometry()
-                          setDetailsPanel((prev) => ({
-                            ...prev,
-                            pinned: !prev.pinned,
-                            floating: true,
-                            x: geometry.x,
-                            y: geometry.y,
-                            width: geometry.width,
-                            height: geometry.height,
-                          }))
-                        }}
-                        style={{ border: '1px solid #CBD5E1', background: detailsPanel.pinned ? '#DBEAFE' : '#FFFFFF', color: detailsPanel.pinned ? '#1D4ED8' : '#475569', borderRadius: '0.35rem', padding: '0.25rem 0.45rem', fontSize: '0.76rem', fontWeight: '700', cursor: 'pointer' }}
-                        title="Pin/Unpin panel"
-                      >
-                        {detailsPanel.pinned ? 'Pinned' : 'Pin'}
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onClick={handleCloseDetailsPanel}
-                        style={{ border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', borderRadius: '0.35rem', padding: '0.25rem 0.45rem', fontSize: '0.76rem', fontWeight: '700', cursor: 'pointer' }}
-                        title="Dock panel"
-                      >
-                        Dock
-                      </button>
-                    </div>
-                  </div>
-                  {!accountEnquiryData?.account ? (
-                    <div style={{ border: '1px dashed #D1D5DB', borderRadius: '0.6rem', background: '#F9FAFB', padding: '1.2rem', color: '#6B7280', fontSize: '0.9rem', lineHeight: 1.5 }}>
-                      Select an account from the lookup list or type a code and click Load Summary to show account details here.
-                    </div>
-                  ) : (
-                    <>
-                      <div style={{ border: '2px solid #3F4B2E', borderRadius: '0.6rem', background: '#F5F7F0', padding: '1rem', position: 'relative', marginBottom: '0.9rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.6rem', borderBottom: '1px solid #D1D5DB', paddingBottom: '0.8rem', marginBottom: '0.8rem' }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                          <h3 style={{ margin: '0 0 0.4rem', color: '#111827', fontWeight: '800', fontSize: '1.1rem' }}>{accountEnquiryData.account.accountName || 'Account'}</h3>
-                          <p style={{ margin: 0, color: '#6B7280', fontSize: '0.9rem', lineHeight: '1.4' }}>{accountEnquiryData.account.description || accountEnquiryData.account.accountName}</p>
-                          {accountEnquiryData.account.description && (
-                            <p style={{ margin: '0.4rem 0 0', color: '#6B7280', fontSize: '0.85rem' }}>Code: {accountEnquiryData.account.accountCode}</p>
-                          )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setShowEnquiryModal(true)}
-                            title="Open Statement"
-                            aria-label="Open statement of account"
-                            style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '999px',
-                              border: '1px solid #B8BEA0',
-                              background: '#FFFFFF',
-                              color: '#3F4B2E',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '0.9rem',
-                              fontWeight: '700',
-                              flexShrink: 0,
-                            }}
-                          >
-                            ↗
-                          </button>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem', background: '#F9FAFB', borderRadius: '0.6rem', border: '1px solid #E5E7EB' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
-                          <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Total Funds</span>
-                          <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalTotalFunds, 2)}</span>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
-                          <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Revaluation</span>
-                          <span style={{ color: getSignedColor(modalRevaluation), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalRevaluation, 2)}</span>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
-                          <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Net Equity</span>
-                          <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalNetEquity, 2)}</span>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
-                          <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin Amt @ 2.0%</span>
-                          <span style={{ color: getSignedColor(modalMarginAmt), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalMarginAmt, 2)}</span>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
-                          <label style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Excess</label>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <select value={excessCurrency} onChange={(e) => setExcessCurrency(e.target.value)} style={{ border: '1px solid #CBD5E0', borderRadius: '0.4rem', background: '#FFFFFF', fontSize: '0.85rem', padding: '0.3rem 0.5rem', fontWeight: '600' }}>
-                              <option value="USD">USD</option>
-                            </select>
-                            <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>{formatStatementValue(modalExcess, 2)}</span>
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.4rem' }}>
-                          <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin %</span>
-                          <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.1rem' }}>{formatStatementValue(modalMarginPct, 2)}%</span>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  <div onMouseDown={beginDetailsPanelResize} style={{ position: 'absolute', right: '6px', bottom: '6px', width: '14px', height: '14px', cursor: 'nwse-resize', borderRight: '2px solid #94A3B8', borderBottom: '2px solid #94A3B8', borderRadius: '0 0 2px 0', opacity: 0.8 }} title="Resize" />
-                </div>
               </div>
 
               {enquiryHistory.length > 0 && (
@@ -5035,108 +5078,154 @@ function ERPTab() {
       {activeTab === 'inventory' && (
         <div>
           <h3 style={{ marginBottom: '1rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Inventory</h3>
-          <form onSubmit={handleCreateProduct} style={{ background: editingProductId ? '#ECFDF5' : C.p1, border: `1px solid ${editingProductId ? '#6EE7B7' : C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
-            <p style={{ marginTop: 0, marginBottom: '0.5rem', fontWeight: '700' }}>{editingProductId ? 'Edit Product' : 'Products'}</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.5rem' }}>
-              <input placeholder="SKU" value={productForm.sku} onChange={(e) => setProductForm((prev) => ({ ...prev, sku: e.target.value }))} style={modalInputStyle} />
-              <input placeholder="Name" value={productForm.name} onChange={(e) => setProductForm((prev) => ({ ...prev, name: e.target.value }))} style={modalInputStyle} />
-              <input placeholder="Category" value={productForm.category} onChange={(e) => setProductForm((prev) => ({ ...prev, category: e.target.value }))} style={modalInputStyle} />
-              <input placeholder="Unit" value={productForm.unit} onChange={(e) => setProductForm((prev) => ({ ...prev, unit: e.target.value }))} style={modalInputStyle} />
-              <input type="number" step="0.01" placeholder="Cost" value={productForm.unitCost} onChange={(e) => setProductForm((prev) => ({ ...prev, unitCost: e.target.value }))} style={modalInputStyle} />
-              <input type="number" step="0.01" placeholder="Price" value={productForm.sellingPrice} onChange={(e) => setProductForm((prev) => ({ ...prev, sellingPrice: e.target.value }))} style={modalInputStyle} />
-              {!editingProductId && <input type="number" step="0.01" placeholder="Opening Qty" value={productForm.quantity} onChange={(e) => setProductForm((prev) => ({ ...prev, quantity: e.target.value }))} style={modalInputStyle} />}
+          <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div>
+                <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>Main Stock Mapping Card</p>
+                <p style={{ margin: '0.3rem 0 0', fontSize: '0.8rem', color: C.inkSoft }}>Open popup to create metal type and stock mapping fields.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingProductId('')
+                  setInventoryMappingForm(createInventoryMappingForm())
+                  setInventoryStockCodeManualOverride(false)
+                  setShowInventoryMappingModal(true)
+                }}
+                style={{ padding: '0.5rem 0.95rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer', fontWeight: '600' }}
+              >
+                + Open Stock Popup
+              </button>
             </div>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer' }}>{saving ? 'Saving...' : editingProductId ? 'Save Changes' : 'Create Product'}</button>
-              {editingProductId && <button type="button" onClick={() => { setEditingProductId(''); setProductForm({ sku: '', name: '', category: '', unit: 'pcs', unitCost: '', sellingPrice: '', quantity: '', currency: 'USD' }) }} style={{ padding: '0.5rem 1rem', background: '#F3F4F6', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.4rem', cursor: 'pointer' }}>Cancel</button>}
-            </div>
-          </form>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-            <form onSubmit={handleStockIn} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
-              <p style={{ marginTop: 0, marginBottom: '0.5rem', fontWeight: '700' }}>Stock IN (Purchase)</p>
-              <select value={stockInForm.itemId} onChange={(e) => setStockInForm((prev) => ({ ...prev, itemId: e.target.value }))} style={modalInputStyle}><option value="">Select Product</option>{inventoryProducts.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}</select>
-              <select value={stockInForm.vendorId} onChange={(e) => setStockInForm((prev) => ({ ...prev, vendorId: e.target.value }))} style={modalInputStyle}><option value="">Select Vendor</option>{vendors.map((v) => <option key={v._id} value={v._id}>{v.name}</option>)}</select>
-              <input type="number" step="0.01" placeholder="Quantity" value={stockInForm.quantity} onChange={(e) => setStockInForm((prev) => ({ ...prev, quantity: e.target.value }))} style={modalInputStyle} />
-              <input type="number" step="0.01" placeholder="Unit Cost" value={stockInForm.unitCost} onChange={(e) => setStockInForm((prev) => ({ ...prev, unitCost: e.target.value }))} style={modalInputStyle} />
-              <button type="submit" disabled={saving} style={{ padding: '0.45rem 0.8rem', background: '#0EA5E9', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Post Stock IN</button>
-            </form>
-
-            <form onSubmit={handleStockOut} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem' }}>
-              <p style={{ marginTop: 0, marginBottom: '0.5rem', fontWeight: '700' }}>Stock OUT (Sales)</p>
-              <select value={stockOutForm.itemId} onChange={(e) => setStockOutForm((prev) => ({ ...prev, itemId: e.target.value }))} style={modalInputStyle}><option value="">Select Product</option>{inventoryProducts.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}</select>
-              <input type="number" step="0.01" placeholder="Quantity" value={stockOutForm.quantity} onChange={(e) => setStockOutForm((prev) => ({ ...prev, quantity: e.target.value }))} style={modalInputStyle} />
-              <button type="submit" disabled={saving} style={{ padding: '0.45rem 0.8rem', background: '#F97316', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Post Stock OUT</button>
-            </form>
           </div>
 
-          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}`, marginBottom: '1rem' }}>
+          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>SKU</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Name</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Category</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Main Stock</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Item Type</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Metal Type</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Purity</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Stock Code</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Stock Account</th>
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>Unit</th>
                   <th style={{ padding: '0.65rem', textAlign: 'right' }}>Qty</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'right' }}>Cost</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'right' }}>Price</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'right' }}>Unit Cost</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'right' }}>Selling Price</th>
                   {canAccessInventory && <th style={{ padding: '0.65rem', textAlign: 'left' }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
-                {inventoryProducts.map((p) => (
-                  <tr key={p._id} style={{ borderBottom: `1px solid ${C.p2}`, background: editingProductId === p._id ? '#ECFDF5' : 'transparent' }}>
-                    <td style={{ padding: '0.65rem' }}>{p.sku || '-'}</td>
-                    <td style={{ padding: '0.65rem', fontWeight: '600' }}>{p.name}</td>
-                    <td style={{ padding: '0.65rem', color: C.inkSoft }}>{p.category || '-'}</td>
-                    <td style={{ padding: '0.65rem', color: C.inkSoft }}>{p.unit || 'pcs'}</td>
-                    <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.quantity || 0).toLocaleString()}</td>
-                    <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.unitCost || 0).toLocaleString()}</td>
-                    <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.sellingPrice || 0).toLocaleString()}</td>
-                    {canAccessInventory && (
-                      <td style={{ padding: '0.65rem' }}>
-                        <div style={{ display: 'flex', gap: '0.35rem' }}>
-                          <button onClick={() => handleEditProduct(p)} style={{ padding: '0.3rem 0.55rem', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: '0.3rem', color: '#065F46', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
-                          {(isSuperAdmin || isFinance) && <button onClick={() => handleDeleteProduct(p)} style={{ padding: '0.3rem 0.55rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.3rem', color: '#991B1B', cursor: 'pointer', fontSize: '0.75rem' }}>Delete</button>}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-                {!inventoryProducts.length && (
-                  <tr><td colSpan={8} style={{ padding: '1rem', textAlign: 'center', color: C.inkSoft }}>No products yet.</td></tr>
+                {inventoryMappingProducts.map((p) => {
+                  const meta = decodeInventoryCategoryMeta(p.category)
+                  return (
+                    <tr key={p._id} style={{ borderBottom: `1px solid ${C.p2}`, background: editingProductId === p._id ? '#ECFDF5' : 'transparent' }}>
+                      <td style={{ padding: '0.65rem', fontWeight: '600' }}>{titleCaseWords(meta.mainStock || '-')}</td>
+                      <td style={{ padding: '0.65rem', color: C.inkSoft }}>{titleCaseWords(meta.itemType || '-')}</td>
+                      <td style={{ padding: '0.65rem', color: C.inkSoft }}>{titleCaseWords(meta.metalType || '-')}</td>
+                      <td style={{ padding: '0.65rem' }}>{meta.purity || '-'}</td>
+                      <td style={{ padding: '0.65rem', fontFamily: 'monospace' }}>{p.sku || '-'}</td>
+                      <td style={{ padding: '0.65rem', color: C.inkSoft }}>{p.ledgerAccountId?.accountCode || '-'}</td>
+                      <td style={{ padding: '0.65rem', color: C.inkSoft }}>{p.unit || 'grams'}</td>
+                      <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.quantity || 0).toLocaleString()}</td>
+                      <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.unitCost || 0).toLocaleString()}</td>
+                      <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.sellingPrice || 0).toLocaleString()}</td>
+                      {canAccessInventory && (
+                        <td style={{ padding: '0.65rem' }}>
+                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            <button onClick={() => handleEditProduct(p)} style={{ padding: '0.3rem 0.55rem', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: '0.3rem', color: '#065F46', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
+                            {(isSuperAdmin || isFinance) && <button onClick={() => handleDeleteProduct(p)} style={{ padding: '0.3rem 0.55rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.3rem', color: '#991B1B', cursor: 'pointer', fontSize: '0.75rem' }}>Delete</button>}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
+                {!inventoryMappingProducts.length && (
+                  <tr><td colSpan={12} style={{ padding: '1rem', textAlign: 'center', color: C.inkSoft }}>No stock mappings yet.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
 
-          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                  <th style={{ padding: '0.6rem', textAlign: 'left' }}>Date</th>
-                  <th style={{ padding: '0.6rem', textAlign: 'left' }}>Item</th>
-                  <th style={{ padding: '0.6rem', textAlign: 'right' }}>Change</th>
-                  <th style={{ padding: '0.6rem', textAlign: 'right' }}>Before</th>
-                  <th style={{ padding: '0.6rem', textAlign: 'right' }}>After</th>
-                  <th style={{ padding: '0.6rem', textAlign: 'left' }}>Reason</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stockLedger.slice(0, 100).map((m) => (
-                  <tr key={m._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
-                    <td style={{ padding: '0.6rem' }}>{new Date(m.createdAt).toLocaleString()}</td>
-                    <td style={{ padding: '0.6rem' }}>{m.itemName}</td>
-                    <td style={{ padding: '0.6rem', textAlign: 'right', color: Number(m.change) >= 0 ? C.s1 : C.danger }}>{Number(m.change || 0).toLocaleString()}</td>
-                    <td style={{ padding: '0.6rem', textAlign: 'right' }}>{Number(m.quantityBefore || 0).toLocaleString()}</td>
-                    <td style={{ padding: '0.6rem', textAlign: 'right' }}>{Number(m.quantityAfter || 0).toLocaleString()}</td>
-                    <td style={{ padding: '0.6rem' }}>{m.reason}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {legacyInventoryProducts.length > 0 && (
+            <p style={{ marginTop: '0.6rem', color: C.inkSoft, fontSize: '0.8rem' }}>
+              Legacy inventory records hidden from mapping table: {legacyInventoryProducts.length}
+            </p>
+          )}
+
+          {showInventoryMappingModal && (
+            <div
+              style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+              onClick={(e) => { if (e.target === e.currentTarget) resetInventoryMappingForm() }}
+            >
+              <form onSubmit={handleCreateProduct} style={{ width: 'min(920px, 96vw)', maxHeight: '88vh', overflowY: 'auto', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.65rem', padding: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.7rem' }}>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>{editingProductId ? 'Edit Main Stock Mapping' : 'Create Main Stock Mapping'}</p>
+                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: C.inkSoft }}>Configure metal type, purity, stock code mapping and pricing.</p>
+                  </div>
+                  <button type="button" onClick={resetInventoryMappingForm} style={{ border: 'none', background: 'transparent', color: C.inkSoft, cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1 }}>✕</button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.5rem' }}>
+                  <select
+                    value={inventoryMappingForm.mainStock}
+                    onChange={(e) => {
+                      const nextMainStock = e.target.value
+                      setInventoryMappingForm((prev) => ({
+                        ...prev,
+                        mainStock: nextMainStock,
+                        metalType: nextMainStock === 'custom' ? prev.metalType : nextMainStock,
+                      }))
+                    }}
+                    style={modalInputStyle}
+                  >
+                    <option value="gold">Gold</option>
+                    <option value="silver">Silver</option>
+                    <option value="platinum">Platinum</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  {inventoryMappingForm.mainStock === 'custom' && (
+                    <input
+                      placeholder="Custom Main Stock"
+                      value={inventoryMappingForm.customMainStock}
+                      onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, customMainStock: e.target.value }))}
+                      style={modalInputStyle}
+                    />
+                  )}
+                  <select value={inventoryMappingForm.itemType} onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, itemType: e.target.value }))} style={modalInputStyle}>
+                    {INVENTORY_ITEM_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                  <input placeholder="Metal Type" value={inventoryMappingForm.metalType} onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, metalType: e.target.value }))} style={modalInputStyle} />
+                  <input placeholder="Purity (e.g. 999.9)" value={inventoryMappingForm.purity} onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, purity: e.target.value }))} style={modalInputStyle} />
+                  <input
+                    placeholder={isSuperAdmin ? 'Stock Code' : 'Auto Stock Code'}
+                    value={inventoryMappingForm.stockCode}
+                    onChange={(e) => {
+                      if (!isSuperAdmin) return
+                      setInventoryStockCodeManualOverride(true)
+                      setInventoryMappingForm((prev) => ({ ...prev, stockCode: e.target.value.toUpperCase() }))
+                    }}
+                    style={isSuperAdmin ? modalInputStyle : { ...modalInputStyle, background: '#F8FAFC', color: C.inkSoft }}
+                    readOnly={!isSuperAdmin}
+                  />
+                  <input placeholder="Unit" value={inventoryMappingForm.unit} onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, unit: e.target.value }))} style={modalInputStyle} />
+                  {!editingProductId && <input type="number" step="0.01" placeholder="Opening Qty" value={inventoryMappingForm.openingQty} onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, openingQty: e.target.value }))} style={modalInputStyle} />}
+                  <input type="number" step="0.01" placeholder="Unit Cost" value={inventoryMappingForm.unitCost} onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, unitCost: e.target.value }))} style={modalInputStyle} />
+                  <input type="number" step="0.01" placeholder="Selling Price" value={inventoryMappingForm.sellingPrice} onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, sellingPrice: e.target.value }))} style={modalInputStyle} />
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.8rem', justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={resetInventoryMappingForm} style={{ padding: '0.5rem 1rem', background: '#F3F4F6', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.4rem', cursor: 'pointer' }}>Cancel</button>
+                  <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer' }}>{saving ? 'Saving...' : editingProductId ? 'Save Mapping' : 'Create Mapping'}</button>
+                </div>
+              </form>
+            </div>
+          )}
         </div>
       )}
 
@@ -5161,6 +5250,35 @@ function ERPTab() {
                 + Add Currency
               </button>
             )}
+          </div>
+
+          <div style={{ marginBottom: '1.25rem', background: C.p1, padding: '1rem', borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
+            <h4 style={{ color: C.ink, marginTop: 0, marginBottom: '0.4rem', fontWeight: '700' }}>Inventory Stock Code Format</h4>
+            <p style={{ marginTop: 0, marginBottom: '0.75rem', color: C.inkSoft, fontSize: '0.82rem' }}>
+              Configure auto stock-code format used in ERP Inventory mapping.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.65rem' }}>
+              <select
+                value={inventoryStockCodeSettings.format}
+                onChange={(e) => setInventoryStockCodeSettings((prev) => ({ ...prev, format: e.target.value }))}
+                style={modalInputStyle}
+              >
+                <option value="metal-purity">GOLD-9999</option>
+                <option value="prefix-metal-purity">RM-GOLD-9999</option>
+              </select>
+              <input
+                placeholder="Prefix"
+                value={inventoryStockCodeSettings.prefix}
+                onChange={(e) => setInventoryStockCodeSettings((prev) => ({ ...prev, prefix: e.target.value.toUpperCase() }))}
+                disabled={inventoryStockCodeSettings.format !== 'prefix-metal-purity'}
+                style={inventoryStockCodeSettings.format !== 'prefix-metal-purity' ? { ...modalInputStyle, background: '#F8FAFC', color: C.inkSoft } : modalInputStyle}
+              />
+            </div>
+
+            <p style={{ margin: '0.6rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>
+              Preview: {buildAutoStockCode({ mainStock: 'gold', customMainStock: '', metalType: 'gold', purity: '999.9' }, inventoryStockCodeSettings)}
+            </p>
           </div>
 
           <div style={{ marginBottom: '2rem' }}>
@@ -5816,13 +5934,25 @@ function ERPTab() {
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1.2rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   <label style={{ fontSize: '0.95rem', color: '#374151', fontWeight: '600' }}>Account Number</label>
-                  <input
+                  <select
                     value={accountEnquiryCode}
-                    onChange={(e) => setAccountEnquiryCode(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') fetchAccountEnquiryByCode(accountEnquiryCode) }}
-                    placeholder="Enter A/C code"
-                    style={{ border: '1px solid #CBD5E0', padding: '0.6rem 0.8rem', fontSize: '0.95rem', width: '180px', borderRadius: '0.5rem', background: '#FFFFFF' }}
-                  />
+                    onChange={(e) => {
+                      setAccountEnquiryCode(e.target.value)
+                      setEnquiryStatus({ type: '', message: '' })
+                    }}
+                    style={{ border: '1px solid #CBD5E0', padding: '0.6rem 0.8rem', fontSize: '0.95rem', width: '340px', borderRadius: '0.5rem', background: '#FFFFFF' }}
+                  >
+                    <option value="">Select account</option>
+                    {groupedSummaryAccounts.map((group) => (
+                      <optgroup key={group.type} label={group.type}>
+                        {group.accounts.map((account) => (
+                          <option key={account._id} value={account.accountCode}>
+                            {account.accountCode} - {account.accountName}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
                   <button
                     onClick={() => fetchAccountEnquiryByCode(accountEnquiryCode)}
                     disabled={enquiryLoading}
