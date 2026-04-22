@@ -1072,7 +1072,7 @@ router.post('/customers', protect, async (req, res) => {
 
     const accountCode = await nextCustomerAccountCode()
     const debtorAccount = await ChartOfAccount.create({
-      accountName: `${name}`,
+      accountName: `${name} (Debtor)`,
       accountCode,
       accountType: 'Asset',
       parentAccountId: receivableParent?._id || null,
@@ -1144,7 +1144,7 @@ router.put('/customers/:id', protect, async (req, res) => {
 
     if (updates.name || updates.currency) {
       const ledgerUpdates = {}
-      if (updates.name) ledgerUpdates.accountName = `${updates.name}`
+      if (updates.name) ledgerUpdates.accountName = `${updates.name} (Debtor)`
       if (updates.currency) ledgerUpdates.currency = updates.currency
       if (Object.keys(ledgerUpdates).length && customer.ledgerAccountId) {
         await ChartOfAccount.findByIdAndUpdate(customer.ledgerAccountId, ledgerUpdates)
