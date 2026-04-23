@@ -95,11 +95,12 @@ const tabBtn = (active) => ({
 })
 
 const emptyLine = () => ({
-  branch: 'HO',
+  branch: '',
   acCode: '',
   stockCode: '',
-  stockGroup: 'G',
-  metalSymbol: 'XAU',
+  productType: '',
+  stockGroup: '',
+  metalSymbol: '',
   metalName: 'Gold',
   location: '',
   pcs: '',
@@ -108,7 +109,7 @@ const emptyLine = () => ({
   pureWeight: '',
   weightInOz: '',
   availStock: '',
-  rateType: 'GOZ',
+  rateType: 'OZ',
   metalRate: '',
   metalAmount: '',
   totalAmount: '',
@@ -141,7 +142,7 @@ const emptyLine = () => ({
 })
 
 const emptyHeader = () => ({
-  branch: 'HO',
+  branch: '',
   partyCode: '',
   partyName: '',
   currCode: 'USD',
@@ -158,6 +159,56 @@ const emptyHeader = () => ({
 
 const normalizeLookupValue = (value) => String(value || '').trim().toLowerCase()
 const normalizeLineType = (value) => (value === 'Transfer' ? 'TT' : (value || 'Cash'))
+const normalizeRateType = (value) => {
+  const normalized = String(value || '').trim().toUpperCase()
+  if (!normalized || normalized === 'GOZ') return 'OZ'
+  return normalized
+}
+
+const decodeInventoryCategoryMeta = (category) => {
+  const raw = String(category || '')
+  const meta = {}
+  raw.split(';').forEach((pair) => {
+    const [key, ...rest] = pair.split('=')
+    if (!key || rest.length === 0) return
+    meta[key.trim()] = rest.join('=').trim()
+  })
+  return {
+    mainStock: String(meta.mainStock || '').toLowerCase(),
+    itemType: String(meta.itemType || '').toLowerCase(),
+    metalType: String(meta.metalType || '').toLowerCase(),
+    purity: String(meta.purity || ''),
+  }
+}
+
+const normalizeMetalSymbol = (mainStock, metalType) => {
+  const val = String(mainStock || metalType || '').trim().toLowerCase()
+  if (val === 'gold') return 'XAU'
+  if (val === 'silver') return 'XAG'
+  if (val === 'platinum') return 'XPT'
+  return 'XAU'
+}
+
+const normalizeStockGroup = (mainStock, metalType) => {
+  const val = String(mainStock || metalType || '').trim().toLowerCase()
+  if (val === 'gold') return 'G'
+  if (val === 'silver') return 'S'
+  if (val === 'platinum') return 'P'
+  return 'M'
+}
+
+const toTitle = (value) => String(value || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()).trim()
+
+const decodeFullMeta = (category) => {
+  const raw = String(category || '')
+  const meta = {}
+  raw.split(';').forEach((pair) => {
+    const [key, ...rest] = pair.split('=')
+    if (!key || rest.length === 0) return
+    meta[key.trim()] = rest.join('=').trim()
+  })
+  return meta
+}
 
 const getAccountCodeValue = (account) => String(account?.code || account?.accountCode || '').trim()
 const getAccountNameValue = (account) => String(account?.name || account?.accountName || '').trim().toLowerCase()
@@ -469,16 +520,186 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   const [showLineForm, setShowLineForm] = useState(false)
   const [editingLineIdx, setEditingLineIdx] = useState(null)
   const [lineForm, setLineForm] = useState(emptyLine())
-  const setLF = (k, v) => setLineForm(prev => ({ ...prev, [k]: v }))
+  const [inventoryProducts, setInventoryProducts] = useState([])
+  const [loadingInventoryProducts, setLoadingInventoryProducts] = useState(false)
+  const setLF = (k, v) => setLineForm(prev => ({ ...prev, [k]: k === 'rateType' ? normalizeRateType(v) : v }))
+
+  const applyLineAutoCalc = useCallback((line) => {
+    const next = { ...line }
+    const grossWeight = parseFloat(next.grossWeight) || 0
+    const purityValue = parseFloat(next.purity)
+    const purityRatio = !Number.isFinite(purityValue) || purityValue <= 0
+      ? 0
+      : (purityValue > 1.2 ? purityValue / 1000 : purityValue)
+
+    const pureWeight = grossWeight > 0 && purityRatio > 0
+      ? Number((grossWeight * purityRatio).toFixed(3))
+      : 0
+
+    const weightInOz = pureWeight > 0
+      ? Number((pureWeight / 31.1034768).toFixed(3))
+      : 0
+
+    const rateType = normalizeRateType(next.rateType)
+    const metalRate = parseFloat(next.metalRate) || 0
+    const rateQty = rateType === 'GRAM'
+      ? pureWeight
+      : rateType === 'KG'
+        ? pureWeight / 1000
+        : weightInOz
+
+    const computedMetalAmount = rateQty > 0 && metalRate > 0
+      ? Number((rateQty * metalRate).toFixed(2))
+      : 0
+
+    const baseTotal = computedMetalAmount
+    const trnPer = parseFloat(next.trnPer) || 0
+    const trnAmount = Number(((baseTotal * trnPer) / 100).toFixed(2))
+    const amountWithTRN = Number((baseTotal + trnAmount).toFixed(2))
+
+    return {
+      ...next,
+      pureWeight: pureWeight > 0 ? pureWeight.toFixed(3) : '',
+      weightInOz: weightInOz > 0 ? weightInOz.toFixed(3) : '',
+      metalAmount: computedMetalAmount > 0 ? computedMetalAmount.toFixed(2) : (next.metalAmount || ''),
+      totalAmount: baseTotal > 0 ? baseTotal.toFixed(2) : '',
+      amountLC: baseTotal > 0 ? baseTotal.toFixed(2) : '',
+      trnAmountLC: trnPer > 0 ? trnAmount.toFixed(2) : '',
+      trnAmountFC: trnPer > 0 ? trnAmount.toFixed(2) : '',
+      amountWithTRN: baseTotal > 0 ? amountWithTRN.toFixed(2) : '',
+    }
+  }, [])
+
+  const applyProductTypeAutoFill = useCallback((line, productNameOverride) => {
+    const productName = String(productNameOverride ?? (line.productType || '')).trim()
+    if (!productName) return line
+
+    const product = inventoryProducts.find(
+      (item) => item.name === productName && String(item.category || '').includes('recordType=product')
+    )
+    if (!product) return line
+
+    const meta = decodeFullMeta(product.category)
+    const unitWeight = parseFloat(meta.weight || product.weight || '') || 0
+    const pcs = Math.max(0, parseFloat(line.pcs) || 0)
+    const grossWeight = unitWeight > 0
+      ? (pcs > 0 ? unitWeight * pcs : unitWeight)
+      : (parseFloat(line.grossWeight) || 0)
+    const rawPurity = parseFloat(meta.productPurity || meta.purity || '') || 0
+
+    return applyLineAutoCalc({
+      ...line,
+      productType: productName,
+      grossWeight: grossWeight > 0 ? String(Number(grossWeight.toFixed(3))) : line.grossWeight,
+      purity: rawPurity > 0 ? String(rawPurity) : line.purity,
+    })
+  }, [applyLineAutoCalc, inventoryProducts])
+
+  const handleStockSelection = useCallback((selectedStockCode) => {
+    const normalizedStockCode = String(selectedStockCode || '').trim()
+    const product = inventoryProducts.find((item) => String(item.sku || '').trim().toLowerCase() === normalizedStockCode.toLowerCase())
+
+    if (!product) {
+      setLineForm((prev) => ({ ...prev, stockCode: normalizedStockCode }))
+      return
+    }
+
+    const fullMeta = decodeFullMeta(product.category)
+    const meta = decodeInventoryCategoryMeta(product.category)
+    const mainStock = meta.mainStock || meta.metalType || ''
+    const symbol = normalizeMetalSymbol(mainStock, meta.metalType)
+    const stockGroup = normalizeStockGroup(mainStock, meta.metalType)
+    const defaultRate = voucherType === 'sale'
+      ? Number(product.sellingPrice || 0)
+      : Number(product.unitCost || 0)
+    const storedPriceUnit = String(fullMeta.priceUnit || '').trim().toUpperCase()
+    const resolvedRateType = normalizeRateType(storedPriceUnit || 'OZ')
+    const storedCurrency = String(fullMeta.priceCurrency || product.currency || 'USD').toUpperCase()
+
+    setLineForm((prev) => applyLineAutoCalc({
+      ...prev,
+      stockCode: String(product.sku || normalizedStockCode),
+      stockGroup,
+      metalSymbol: symbol,
+      metalName: toTitle(mainStock || meta.metalType || product.name || 'Metal'),
+      location: String(product.wipStage || prev.location || ''),
+      availStock: `${Number(product.quantity || 0).toLocaleString()} ${String(product.unit || '').trim()}`.trim(),
+      purity: String(meta.purity || prev.purity || ''),
+      metalRate: defaultRate > 0 ? defaultRate.toFixed(2) : prev.metalRate,
+      rateType: resolvedRateType,
+      currCode: storedCurrency,
+    }))
+  }, [applyLineAutoCalc, inventoryProducts, voucherType])
+
+  useEffect(() => {
+    if (!canView) return
+    let mounted = true
+
+    const loadInventoryProducts = async () => {
+      setLoadingInventoryProducts(true)
+      try {
+        const res = await axios.get(`${BASE}/inventory/products`, {
+          ...cfg(),
+          params: { page: 1, limit: 500 },
+        })
+        if (!mounted) return
+        setInventoryProducts(Array.isArray(res.data?.products) ? res.data.products : [])
+      } catch {
+        if (!mounted) return
+        setInventoryProducts([])
+      } finally {
+        if (mounted) setLoadingInventoryProducts(false)
+      }
+    }
+
+    loadInventoryProducts()
+    return () => {
+      mounted = false
+    }
+  }, [canView])
+
+  useEffect(() => {
+    if (!showLineForm || (voucherType !== 'purchase' && voucherType !== 'sale')) return
+    setLineForm((prev) => {
+      const calculated = applyLineAutoCalc(prev)
+      const keys = ['pureWeight', 'weightInOz', 'metalAmount', 'totalAmount', 'amountLC', 'trnAmountLC', 'trnAmountFC', 'amountWithTRN']
+      const hasChanges = keys.some((key) => String(prev[key] || '') !== String(calculated[key] || ''))
+      return hasChanges ? calculated : prev
+    })
+  }, [showLineForm, voucherType, lineForm.grossWeight, lineForm.purity, lineForm.metalRate, lineForm.rateType, lineForm.trnPer, applyLineAutoCalc])
 
   // ─── helpers ─────────────────────────────────────────────────────────────────
   const showMsg = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 4000) }
   const clearError = () => setError('')
 
+  const effectiveLineItems = (() => {
+    if (!showLineForm) return lineItems
+
+    const draftLine = {
+      ...lineForm,
+      type: normalizeLineType(lineForm.type),
+      amountLC: lineForm.amountLC || lineForm.totalAmount || lineForm.metalAmount || '',
+      amountWithTRN: lineForm.amountWithTRN || lineForm.amountLC || lineForm.amountFC || '',
+    }
+
+    if (editingLineIdx !== null) {
+      return lineItems.map((item, index) => (index === editingLineIdx ? draftLine : item))
+    }
+
+    const hasDraftContent = Boolean(
+      String(draftLine.stockCode || draftLine.acCode || draftLine.productType || '').trim()
+      || parseFloat(draftLine.amountWithTRN)
+      || parseFloat(draftLine.amountLC)
+      || parseFloat(draftLine.metalAmount)
+    )
+
+    return hasDraftContent ? [...lineItems, draftLine] : lineItems
+  })()
+
   const totals = {
-    total: lineItems.reduce((s, l) => s + (parseFloat(l.amountLC) || 0), 0),
-    trnAmount: lineItems.reduce((s, l) => s + (parseFloat(l.trnAmountLC) || 0), 0),
-    grandTotal: lineItems.reduce((s, l) => s + (parseFloat(l.amountWithTRN) || parseFloat(l.amountLC) || 0), 0),
+    total: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountLC) || 0), 0),
+    trnAmount: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.trnAmountLC) || 0), 0),
+    grandTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithTRN) || parseFloat(l.amountLC) || 0), 0),
   }
 
   const canCreate = voucherType === 'payment'
@@ -588,7 +809,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     const resolvedParty = resolveVoucherParty(m.partyCode || '')
     setEditingId(v._id)
     setHeader({
-      branch: m.branch || 'HO',
+      branch: m.branch || '',
       partyCode: m.partyCode || '',
       partyName: m.partyName || '',
       currCode: v.currency || 'USD',
@@ -710,7 +931,6 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       customerId: resolvedParty?.customerId || undefined,
       vendorId: resolvedParty?.vendorId || undefined,
       voucherMeta: {
-        branch: header.branch,
         partyCode: header.partyCode,
         partyName: header.partyName || resolvedParty?.partyName || '',
         salesman: header.salesman,
@@ -761,7 +981,6 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     const defaultAccountCode = pickDefaultAccountCodeByType(accounts, defaultType)
     setLineForm({
       ...emptyLine(),
-      branch: header.branch || 'HO',
       currCode: header.currCode || 'USD',
       type: defaultType,
       typeCode: defaultType.toUpperCase(),
@@ -777,6 +996,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       ...lineItems[idx],
       type: normalizedType,
       typeCode: normalizedType.toUpperCase(),
+      rateType: normalizeRateType(lineItems[idx]?.rateType),
     })
     setShowLineForm(true)
   }
@@ -901,8 +1121,26 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   const voucherCode = voucherConfig.code
   const voucherLabelT = voucherConfig.short
   const lineTableHeaders = isMetalVoucher
-    ? ['No.', 'Branch', 'Stock Code', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', 'Rate Type', 'Metal Rate', 'Metal Amount', 'Total', '']
-    : ['No.', 'Branch', 'A/C Code', 'Type', 'Cheque No', 'Cheque Dt', 'Bank', 'Curr', 'Amount FC', 'Amount LC', '']
+    ? ['No.', 'Stock Code', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', 'Rate Type', 'Metal Rate', 'Metal Amount', 'Total', '']
+    : ['No.', 'A/C Code', 'Type', 'Cheque No', 'Cheque Dt', 'Bank', 'Curr', 'Amount FC', 'Amount LC', '']
+  const inventoryStockOptions = inventoryProducts
+    .filter((item) => String(item.sku || '').trim())
+    // Keep mapped inventory records only, so legacy records do not show duplicate-like stock choices.
+    .filter((item) => String(item.category || '').includes('mainStock='))
+    .map((item) => {
+      const meta = decodeInventoryCategoryMeta(item.category)
+      const mainStock = toTitle(meta.mainStock || meta.metalType || 'Metal')
+      return {
+        code: String(item.sku || '').trim().toUpperCase(),
+        metal: String(meta.mainStock || meta.metalType || 'zzzz').toLowerCase(),
+        label: mainStock,
+      }
+    })
+    .sort((a, b) => {
+      const byMetal = a.metal.localeCompare(b.metal)
+      if (byMetal !== 0) return byMetal
+      return a.code.localeCompare(b.code)
+    })
 
   // ────────────────────────────────────────────────────────────────────────────
   // RENDER
@@ -1000,7 +1238,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                 <thead>
                   <tr style={{ background: S.headerBg }}>
-                    {['Voc No', 'Date', 'Branch', 'Party Code', 'Party Name', 'Currency', 'Grand Total', 'Narration', 'Status', 'Actions'].map(h => (
+                    {['Voc No', 'Date', 'Party Code', 'Party Name', 'Currency', 'Grand Total', 'Narration', 'Status', 'Actions'].map(h => (
                       <th key={h} style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: '700', color: S.ink, borderBottom: `2px solid ${S.border}`, whiteSpace: 'nowrap' }}>
                         {h}
                       </th>
@@ -1024,7 +1262,6 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                       <tr key={v._id} style={{ background: i % 2 === 0 ? S.white : S.bg, borderBottom: `1px solid ${S.border}` }}>
                         <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', color: S.green }}>{m.vocNo}</td>
                         <td style={{ padding: '0.55rem 0.75rem' }}>{v.date ? v.date.slice(0, 10) : '-'}</td>
-                        <td style={{ padding: '0.55rem 0.75rem' }}>{m.branch || '-'}</td>
                         <td style={{ padding: '0.55rem 0.75rem' }}>{m.partyCode || '-'}</td>
                         <td style={{ padding: '0.55rem 0.75rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.partyName || '-'}</td>
                         <td style={{ padding: '0.55rem 0.75rem' }}>{v.currency}</td>
@@ -1155,10 +1392,6 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                         ) : null
                       ))}
                     </select>
-                  </div>
-                  <div style={fieldGroup('Branch')}>
-                    <label style={labelStyle}>Branch</label>
-                    <input style={isReadOnly ? readInput : inputStyle} value={header.branch} onChange={e => setHdr('branch', e.target.value)} readOnly={isReadOnly} />
                   </div>
                   <div style={fieldGroup('Party Code')}>
                     <label style={labelStyle}>Party Code</label>
@@ -1386,7 +1619,6 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                     ) : lineItems.map((l, i) => (
                       <tr key={i} style={{ background: i % 2 === 0 ? S.white : S.bg, borderBottom: `1px solid ${S.border}` }}>
                         <td style={{ padding: '0.4rem 0.6rem' }}>{i + 1}</td>
-                        <td style={{ padding: '0.4rem 0.6rem' }}>{l.branch}</td>
                         {isMetalVoucher ? (
                           <>
                             <td style={{ padding: '0.4rem 0.6rem', fontWeight: '600' }}>{l.stockCode || '-'}</td>
@@ -1440,36 +1672,54 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                     <>
                       <div style={{ display: 'grid', gridTemplateColumns: '2.35fr 1.25fr auto', gap: '0.75rem', alignItems: 'start', marginBottom: '0.6rem' }}>
                         <div style={{ border: `1px solid ${S.border}`, background: S.white }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '110px 34px 56px minmax(120px, 1fr) 90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, background: S.headerBg }}>Stock Code *</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.25rem', textAlign: 'center' }} value={lineForm.stockGroup} onChange={e => setLF('stockGroup', e.target.value)} />
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.25rem', textAlign: 'center' }} value={lineForm.metalSymbol} onChange={e => setLF('metalSymbol', e.target.value)} />
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.stockCode} onChange={e => setLF('stockCode', e.target.value)} placeholder={lineForm.metalName || 'Gold'} />
+                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(180px, 1fr) 90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, background: S.headerBg }}>Stock *</div>
+                            <select
+                              style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }}
+                              value={lineForm.stockCode}
+                              onChange={(e) => handleStockSelection(e.target.value)}
+                            >
+                              <option value="">{loadingInventoryProducts ? 'Loading stock...' : 'Select stock'}</option>
+                              {inventoryStockOptions.map((option) => (
+                                <option key={option.code} value={option.code}>{option.label}</option>
+                              ))}
+                            </select>
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Location</div>
                             <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.location} onChange={e => setLF('location', e.target.value)} />
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>PCS</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="1" value={lineForm.pcs} onChange={e => setLF('pcs', e.target.value)} />
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Gross Weight</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.grossWeight} onChange={e => setLF('grossWeight', e.target.value)} />
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, background: S.headerBg }}>Product Type</div>
+                            <select
+                              style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }}
+                              value={lineForm.productType}
+                              onChange={e => {
+                                const selectedName = e.target.value
+                                setLineForm(prev => applyProductTypeAutoFill({ ...prev, productType: selectedName }, selectedName))
+                              }}
+                            >
+                              <option value="">Select product type</option>
+                              {inventoryProducts
+                                .filter(p => String(p.category || '').includes('recordType=product'))
+                                .map(p => <option key={p._id} value={p.name}>{p.name}</option>)
+                              }
+                            </select>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>PCS</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="1" value={lineForm.pcs} onChange={e => setLineForm(prev => applyProductTypeAutoFill({ ...prev, pcs: e.target.value }))} />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Gross Weight</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.grossWeight} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, grossWeight: e.target.value }))} />
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Purity</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.purity} onChange={e => setLF('purity', e.target.value)} />
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.purity} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, purity: e.target.value }))} />
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Pure Weight</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.pureWeight} onChange={e => setLF('pureWeight', e.target.value)} />
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.pureWeight} onChange={e => { const pw = parseFloat(e.target.value) || 0; setLineForm(prev => ({ ...prev, pureWeight: e.target.value, weightInOz: pw > 0 ? (pw / 31.1034768).toFixed(3) : '' })) }} />
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Weight In OZ.</div>
                             <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} value={lineForm.weightInOz || ((parseFloat(lineForm.pureWeight) || 0) > 0 ? ((parseFloat(lineForm.pureWeight) || 0) / 31.1034768).toFixed(3) : '')} onChange={e => setLF('weightInOz', e.target.value)} />
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Branch</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.branch} onChange={e => setLF('branch', e.target.value)} />
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg, fontWeight: '700' }}>Avail. Stock</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.availStock} onChange={e => setLF('availStock', e.target.value)} />
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg, fontWeight: '700' }}>TRN Per%</div>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>TRN Per%</div>
                             <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.trnPer} onChange={e => {
                               setLF('trnPer', e.target.value)
                               const pct = parseFloat(e.target.value) || 0
@@ -1479,6 +1729,12 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                               setLF('trnAmountFC', trnLC.toFixed(2))
                               setLF('amountWithTRN', (base + trnLC).toFixed(2))
                             }} />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg, fontWeight: '700' }}>Avail. Stock</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', background: '#F9FAFB' }} readOnly value={lineForm.availStock} />
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg, fontWeight: '700' }} />
+                            <div style={{ borderLeft: `1px solid ${S.border}`, background: '#F9FAFB' }} />
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr)' }}>
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Remarks</div>
@@ -1492,7 +1748,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                             <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                               <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate Type</div>
                               <select style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)}>
-                                <option value="GOZ">GOZ</option>
+                                <option value="OZ">OZ</option>
                                 <option value="GRAM">GRAM</option>
                                 <option value="KG">KG</option>
                               </select>
@@ -1510,17 +1766,11 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                             <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)' }}>
                               <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Amount</div>
                               <input
-                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }}
+                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', background: '#F9FAFB' }}
                                 type="number"
                                 step="0.01"
                                 value={lineForm.metalAmount}
-                                onChange={e => {
-                                  setLF('metalAmount', e.target.value)
-                                  if (!lineForm.totalAmount) {
-                                    setLF('amountLC', e.target.value)
-                                    setLF('amountWithTRN', e.target.value)
-                                  }
-                                }}
+                                readOnly
                               />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderTop: `1px solid ${S.border}` }}>
@@ -1571,26 +1821,16 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                               <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Metal Amt</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', color: '#991B1B', fontWeight: '700' }} type="number" step="0.01" value={lineForm.metalAmount} onChange={e => {
-                                setLF('metalAmount', e.target.value)
-                                if (!lineForm.totalAmount) {
-                                  setLF('amountLC', e.target.value)
-                                  setLF('amountWithTRN', e.target.value)
-                                }
-                              }} />
+                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', color: '#991B1B', fontWeight: '700', background: '#F9FAFB' }} type="number" step="0.01" value={lineForm.metalAmount} readOnly />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                               <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700' }}>Total</div>
                               <input
-                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', fontWeight: '700' }}
+                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', fontWeight: '700', background: '#F9FAFB' }}
                                 type="number"
                                 step="0.01"
                                 value={lineForm.totalAmount}
-                                onChange={e => {
-                                  setLF('totalAmount', e.target.value)
-                                  setLF('amountLC', e.target.value)
-                                  setLF('amountWithTRN', e.target.value)
-                                }}
+                                readOnly
                               />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)' }}>
@@ -1632,10 +1872,6 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                     <>
                       {/* Line form row 1 */}
                       <div style={fieldRow}>
-                        <div>
-                          <label style={labelStyle}>Branch</label>
-                          <input style={inputStyle} value={lineForm.branch} onChange={e => setLF('branch', e.target.value)} />
-                        </div>
                         <div>
                           <label style={labelStyle}>Type</label>
                           <select style={inputStyle} value={lineForm.type} onChange={e => handleLineTypeChange(e.target.value)}>

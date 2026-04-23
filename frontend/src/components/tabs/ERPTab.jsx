@@ -23,25 +23,26 @@ const METAL_UNIT_FACTORS = {
   kg: 1000,
 }
 
-const MAIN_STOCK_OPTIONS = ['gold', 'silver', 'platinum']
-const INVENTORY_ITEM_TYPE_OPTIONS = [
-  { value: 'raw_material', label: 'Raw Material' },
-  { value: 'finished_good', label: 'Finished Good' },
-  { value: 'wip', label: 'WIP' },
-]
 
 const createInventoryMappingForm = () => ({
   mainStock: 'gold',
   customMainStock: '',
-  itemType: 'raw_material',
   metalType: 'gold',
-  purity: '999.9',
   stockCode: '',
   unit: 'grams',
-  openingQty: '',
-  unitCost: '',
-  sellingPrice: '',
   currency: 'USD',
+  currentPrice: '',
+  priceUnit: 'OZ',
+  priceCurrency: 'USD',
+})
+
+const createInventoryProductForm = () => ({
+  stockTypeId: '',
+  categoryName: '',
+  name: '',
+  description: '',
+  weight: '',
+  purity: '',
 })
 
 const DEFAULT_INVENTORY_STOCK_CODE_SETTINGS = {
@@ -70,9 +71,7 @@ const getMainStockPrefix = (mainStockValue, metalTypeValue) => {
 const buildAutoStockCode = (form, settings = DEFAULT_INVENTORY_STOCK_CODE_SETTINGS) => {
   const mainStockValue = resolveMainStockValueFromForm(form)
   const prefix = getMainStockPrefix(mainStockValue, form.metalType)
-  const purityDigits = String(form.purity || '').replace(/[^0-9]/g, '')
-  const purityPart = purityDigits || '000'
-  const baseCode = `${prefix}-${purityPart}`
+  const baseCode = prefix
 
   if (settings?.format !== 'prefix-metal-purity') {
     return baseCode
@@ -107,13 +106,13 @@ const buildUniqueStockCode = (baseCode, products = [], editingId = '') => {
 }
 
 const encodeInventoryCategoryMeta = (meta) => {
-  const safeMeta = {
+  const parts = {
     mainStock: String(meta.mainStock || '').trim().toLowerCase(),
-    itemType: String(meta.itemType || '').trim().toLowerCase(),
     metalType: String(meta.metalType || '').trim().toLowerCase(),
-    purity: String(meta.purity || '').trim(),
   }
-  return ['mainStock', 'itemType', 'metalType', 'purity'].map((key) => `${key}=${safeMeta[key]}`).join(';')
+  if (meta.priceUnit) parts.priceUnit = String(meta.priceUnit).trim().toUpperCase()
+  if (meta.priceCurrency) parts.priceCurrency = String(meta.priceCurrency).trim().toUpperCase()
+  return Object.entries(parts).map(([k, v]) => `${k}=${v}`).join(';')
 }
 
 const decodeInventoryCategoryMeta = (category) => {
@@ -130,6 +129,17 @@ const decodeInventoryCategoryMeta = (category) => {
     metalType: String(meta.metalType || '').toLowerCase(),
     purity: String(meta.purity || ''),
   }
+}
+
+const decodeInventoryCategoryPairs = (category) => {
+  const raw = String(category || '')
+  const meta = {}
+  raw.split(';').forEach((pair) => {
+    const [key, ...rest] = pair.split('=')
+    if (!key || rest.length === 0) return
+    meta[key.trim()] = rest.join('=').trim()
+  })
+  return meta
 }
 
 const titleCaseWords = (value) => String(value || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()).trim()
@@ -467,9 +477,19 @@ function ERPTab() {
   const [showVendorForm, setShowVendorForm] = useState(false)
   const [editingVendorId, setEditingVendorId] = useState('')
   const [inventoryMappingForm, setInventoryMappingForm] = useState(createInventoryMappingForm)
+  const [stockTypeModalTab, setStockTypeModalTab] = useState('details')
   const [editingProductId, setEditingProductId] = useState('')
   const [showInventoryMappingModal, setShowInventoryMappingModal] = useState(false)
+  const [showInventoryProductModal, setShowInventoryProductModal] = useState(false)
+  const [inventoryProductForm, setInventoryProductForm] = useState(createInventoryProductForm)
+  const [editingInventoryProductId, setEditingInventoryProductId] = useState('')
   const [inventoryStockCodeManualOverride, setInventoryStockCodeManualOverride] = useState(false)
+  const [inventoryModalOffset, setInventoryModalOffset] = useState({ x: 0, y: 0 })
+  const [inventoryModalDragging, setInventoryModalDragging] = useState(false)
+  const inventoryModalDragRef = useRef({ moveHandler: null, upHandler: null })
+  const [inventoryProductModalOffset, setInventoryProductModalOffset] = useState({ x: 0, y: 0 })
+  const [inventoryProductModalDragging, setInventoryProductModalDragging] = useState(false)
+  const inventoryProductModalDragRef = useRef({ moveHandler: null, upHandler: null })
   const [inventoryStockCodeSettings, setInventoryStockCodeSettings] = useState(DEFAULT_INVENTORY_STOCK_CODE_SETTINGS)
   const inventoryStockCodeSettingsKey = `${INVENTORY_STOCK_CODE_SETTINGS_STORAGE_KEY}:${String(user?._id || user?.email || 'anonymous')}`
 
@@ -514,8 +534,37 @@ function ERPTab() {
   const canAccessVouchers = isSuperAdmin || isFinance || isSalesRole || isManagementRole
   const canAccessDirectDeals = isSuperAdmin || isFinance || isSalesRole || isManagementRole
   const canAccessERP = canViewAccounts || canAccessTransactions || canAccessInventory || canViewCustomers
-  const inventoryMappingProducts = inventoryProducts.filter((item) => String(item?.category || '').includes('mainStock='))
-  const legacyInventoryProducts = inventoryProducts.filter((item) => !String(item?.category || '').includes('mainStock='))
+  const inventoryMappingProducts = inventoryProducts.filter((item) => String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
+  const inventoryCatalogProducts = inventoryProducts.filter((item) => String(item?.category || '').includes('recordType=product'))
+  const legacyInventoryProducts = inventoryProducts.filter((item) => !String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
+  const inventoryReportProducts = [...inventoryCatalogProducts, ...legacyInventoryProducts]
+  const inventoryTotalQuantity = inventoryReportProducts.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+  const inventoryTotalValue = inventoryReportProducts.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.unitCost || 0)), 0)
+  const inventoryLowStockCount = inventoryReportProducts.filter((item) => Number(item.minThreshold || 0) > 0 && Number(item.quantity || 0) <= Number(item.minThreshold || 0)).length
+  const inventoryTopProducts = [...inventoryReportProducts]
+    .sort((a, b) => (Number(b.quantity || 0) * Number(b.unitCost || 0)) - (Number(a.quantity || 0) * Number(a.unitCost || 0)))
+    .slice(0, 5)
+  const inventoryStockTypeOptions = inventoryMappingProducts.map((item) => {
+    const meta = decodeInventoryCategoryMeta(item.category)
+    return {
+      id: item._id,
+      label: titleCaseWords(meta.mainStock || meta.metalType || item.name),
+      category: item.category,
+      mainStock: titleCaseWords(meta.mainStock || meta.metalType || item.name),
+      purity: meta.purity || '',
+    }
+  })
+  const selectedInventoryStockType = inventoryStockTypeOptions.find((item) => item.id === inventoryProductForm.stockTypeId) || null
+  const inventoryPurityFactorRaw = Number(inventoryProductForm.purity || 0)
+  const inventoryPurityFactor = inventoryPurityFactorRaw > 1 ? inventoryPurityFactorRaw / 1000 : inventoryPurityFactorRaw
+  const inventoryProductPurityWeight = (Number(inventoryProductForm.weight || 0) || 0) * (Number.isFinite(inventoryPurityFactor) ? inventoryPurityFactor : 0)
+  const inventoryProductsByMetal = inventoryCatalogProducts.reduce((groups, item) => {
+    const meta = decodeInventoryCategoryPairs(item.category)
+    const metalKey = titleCaseWords(meta.mainStock || meta.metalType || 'Unmapped')
+    if (!groups[metalKey]) groups[metalKey] = []
+    groups[metalKey].push({ item, meta })
+    return groups
+  }, {})
   const availableTransactionTypes = isSuperAdmin || isFinance
     ? ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
     : [
@@ -1741,25 +1790,113 @@ function ERPTab() {
     setEditingProductId('')
     setInventoryMappingForm(createInventoryMappingForm())
     setInventoryStockCodeManualOverride(false)
+    setInventoryModalOffset({ x: 0, y: 0 })
+    setInventoryModalDragging(false)
     setShowInventoryMappingModal(false)
   }
+
+  const resetInventoryProductForm = () => {
+    setEditingInventoryProductId('')
+    setInventoryProductForm(createInventoryProductForm())
+    setInventoryProductModalOffset({ x: 0, y: 0 })
+    setInventoryProductModalDragging(false)
+    setShowInventoryProductModal(false)
+  }
+
+  const stopInventoryModalDrag = () => {
+    const { moveHandler, upHandler } = inventoryModalDragRef.current
+    if (moveHandler) {
+      window.removeEventListener('mousemove', moveHandler)
+    }
+    if (upHandler) {
+      window.removeEventListener('mouseup', upHandler)
+    }
+    inventoryModalDragRef.current = { moveHandler: null, upHandler: null }
+    setInventoryModalDragging(false)
+  }
+
+  const handleInventoryModalDragStart = (event) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    const startX = event.clientX
+    const startY = event.clientY
+    const originX = inventoryModalOffset.x
+    const originY = inventoryModalOffset.y
+
+    const moveHandler = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX
+      const deltaY = moveEvent.clientY - startY
+      setInventoryModalOffset({ x: originX + deltaX, y: originY + deltaY })
+    }
+
+    const upHandler = () => {
+      stopInventoryModalDrag()
+    }
+
+    stopInventoryModalDrag()
+    setInventoryModalDragging(true)
+    inventoryModalDragRef.current = { moveHandler, upHandler }
+    window.addEventListener('mousemove', moveHandler)
+    window.addEventListener('mouseup', upHandler)
+  }
+
+  const stopInventoryProductModalDrag = () => {
+    const { moveHandler, upHandler } = inventoryProductModalDragRef.current
+    if (moveHandler) {
+      window.removeEventListener('mousemove', moveHandler)
+    }
+    if (upHandler) {
+      window.removeEventListener('mouseup', upHandler)
+    }
+    inventoryProductModalDragRef.current = { moveHandler: null, upHandler: null }
+    setInventoryProductModalDragging(false)
+  }
+
+  const handleInventoryProductModalDragStart = (event) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    const startX = event.clientX
+    const startY = event.clientY
+    const originX = inventoryProductModalOffset.x
+    const originY = inventoryProductModalOffset.y
+
+    const moveHandler = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX
+      const deltaY = moveEvent.clientY - startY
+      setInventoryProductModalOffset({ x: originX + deltaX, y: originY + deltaY })
+    }
+
+    const upHandler = () => {
+      stopInventoryProductModalDrag()
+    }
+
+    stopInventoryProductModalDrag()
+    setInventoryProductModalDragging(true)
+    inventoryProductModalDragRef.current = { moveHandler, upHandler }
+    window.addEventListener('mousemove', moveHandler)
+    window.addEventListener('mouseup', upHandler)
+  }
+
+  useEffect(() => () => {
+    stopInventoryModalDrag()
+    stopInventoryProductModalDrag()
+  }, [])
 
   useEffect(() => {
     if (isSuperAdmin && inventoryStockCodeManualOverride) return
     const baseCode = buildAutoStockCode(inventoryMappingForm, inventoryStockCodeSettings)
     const nextCode = buildUniqueStockCode(baseCode, inventoryMappingProducts, editingProductId)
     setInventoryMappingForm((prev) => (prev.stockCode === nextCode ? prev : { ...prev, stockCode: nextCode }))
-  }, [inventoryMappingForm.mainStock, inventoryMappingForm.customMainStock, inventoryMappingForm.metalType, inventoryMappingForm.purity, inventoryMappingProducts, editingProductId, inventoryStockCodeSettings, isSuperAdmin, inventoryStockCodeManualOverride])
+  }, [inventoryMappingForm.mainStock, inventoryMappingForm.customMainStock, inventoryMappingForm.metalType, inventoryMappingProducts, editingProductId, inventoryStockCodeSettings, isSuperAdmin, inventoryStockCodeManualOverride])
 
   const buildInventoryPayloadFromForm = (form, includeOpeningQty = true) => {
     const mainStockValue = resolveMainStockValueFromForm(form)
     const normalizedMetalType = String(form.metalType || '').trim().toLowerCase()
-    const normalizedPurity = String(form.purity || '').trim()
     const categoryMeta = encodeInventoryCategoryMeta({
       mainStock: mainStockValue,
-      itemType: form.itemType,
       metalType: normalizedMetalType,
-      purity: normalizedPurity,
+      priceUnit: form.priceUnit || 'OZ',
+      priceCurrency: form.priceCurrency || 'USD',
     })
     const label = titleCaseWords(mainStockValue || normalizedMetalType || 'Main Stock')
 
@@ -1768,14 +1905,16 @@ function ERPTab() {
       ? (String(form.stockCode || '').trim().toUpperCase() || autoSku)
       : autoSku
 
+    const priceValue = parseFloat(form.currentPrice) || 0
     const payload = {
       sku: resolvedSku,
       name: `${label} Main Stock`,
       category: categoryMeta,
-      unit: String(form.unit || 'grams').trim() || 'grams',
-      unitCost: Number(form.unitCost || 0),
-      sellingPrice: Number(form.sellingPrice || 0),
-      currency: form.currency || 'USD',
+      unit: 'grams',
+      unitCost: priceValue,
+      sellingPrice: priceValue,
+      currency: form.priceCurrency || 'USD',
+      description: priceValue > 0 ? `${priceValue} ${form.priceCurrency || 'USD'}/${form.priceUnit || 'OZ'}` : undefined,
     }
 
     if (includeOpeningQty) {
@@ -1826,22 +1965,21 @@ function ERPTab() {
   const handleEditProduct = (p) => {
     const meta = decodeInventoryCategoryMeta(p.category)
     const resolvedMainStock = meta.mainStock || meta.metalType || ''
-    const isKnownMainStock = MAIN_STOCK_OPTIONS.includes(resolvedMainStock)
+    const priceValue = Number(p.unitCost || p.sellingPrice || 0)
     setEditingProductId(p._id)
     setInventoryMappingForm({
-      mainStock: isKnownMainStock ? resolvedMainStock : 'custom',
-      customMainStock: isKnownMainStock ? '' : resolvedMainStock,
-      itemType: meta.itemType || 'raw_material',
+      mainStock: resolvedMainStock || 'gold',
+      customMainStock: '',
       metalType: meta.metalType || resolvedMainStock || 'gold',
-      purity: meta.purity || '',
       stockCode: p.sku || '',
-      unit: p.unit || 'grams',
-      openingQty: String(p.quantity ?? ''),
-      unitCost: String(p.unitCost ?? ''),
-      sellingPrice: String(p.sellingPrice ?? ''),
+      unit: 'grams',
       currency: p.currency || 'USD',
+      currentPrice: priceValue > 0 ? String(priceValue) : '',
+      priceUnit: meta.priceUnit || 'OZ',
+      priceCurrency: meta.priceCurrency || p.currency || 'USD',
     })
     setInventoryStockCodeManualOverride(false)
+    setInventoryModalOffset({ x: 0, y: 0 })
     setShowInventoryMappingModal(true)
   }
 
@@ -1857,6 +1995,76 @@ function ERPTab() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleCreateInventoryCatalogProduct = async (e) => {
+    e.preventDefault()
+    if (!inventoryProductForm.name.trim()) {
+      setError('Product name is required')
+      return
+    }
+
+    if (!inventoryProductForm.stockTypeId) {
+      setError('Product category is required')
+      return
+    }
+
+    const selectedStockType = inventoryMappingProducts.find((item) => item._id === inventoryProductForm.stockTypeId)
+    if (!selectedStockType) {
+      setError('Product category is required')
+      return
+    }
+
+    const baseCategory = String(selectedStockType.category || '').replace(/;?recordType=product/gi, '')
+    const sanitizeMetaText = (value) => String(value || '').replace(/[;\n\r]/g, ' ').trim()
+    const categoryName = sanitizeMetaText(inventoryProductForm.categoryName || selectedInventoryStockType?.mainStock || '')
+    const productDescription = sanitizeMetaText(inventoryProductForm.description)
+    const productWeight = Number(inventoryProductForm.weight || 0)
+    const productPurity = String(inventoryProductForm.purity || '').trim()
+    const productPurityWeight = Number(inventoryProductPurityWeight || 0)
+
+    try {
+      setSaving(true)
+      const payload = {
+        name: inventoryProductForm.name.trim(),
+        category: `${baseCategory};recordType=product;productCategory=${categoryName};productDescription=${productDescription};weight=${productWeight};productPurity=${productPurity};purityWeight=${productPurityWeight}`,
+        unit: 'grams',
+        quantity: productWeight,
+        unitCost: 0,
+        sellingPrice: 0,
+        currency: 'USD',
+      }
+
+      if (editingInventoryProductId) {
+        await erpAccountingAPI.updateInventoryProduct(token, editingInventoryProductId, payload)
+        showNotification('✅ Product updated')
+      } else {
+        await erpAccountingAPI.createInventoryProduct(token, payload)
+        showNotification('✅ Product created')
+      }
+      resetInventoryProductForm()
+      await loadInventory()
+    } catch (e) {
+      setError(e.response?.data?.message || `Failed to ${editingInventoryProductId ? 'update' : 'create'} product`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleEditInventoryCatalogProduct = (productItem, productMeta) => {
+    const matchedStockType = inventoryMappingProducts.find((stockTypeItem) => String(productItem.category || '').startsWith(`${String(stockTypeItem.category || '')};recordType=product`))
+
+    setEditingInventoryProductId(productItem._id)
+    setInventoryProductForm({
+      stockTypeId: matchedStockType?._id || '',
+      categoryName: productMeta?.productCategory || titleCaseWords(productMeta?.mainStock || productMeta?.metalType || matchedStockType?.name || ''),
+      name: productItem.name || '',
+      description: productMeta?.productDescription || '',
+      weight: String(productMeta?.weight ?? productItem.quantity ?? ''),
+      purity: productMeta?.productPurity || productMeta?.purity || '',
+    })
+    setInventoryProductModalOffset({ x: 0, y: 0 })
+    setShowInventoryProductModal(true)
   }
 
   const loadEnquiryHistory = () => {
@@ -5077,12 +5285,22 @@ function ERPTab() {
       {/* INVENTORY TAB */}
       {activeTab === 'inventory' && (
         <div>
-          <h3 style={{ marginBottom: '1rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Inventory</h3>
-          <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <div>
-                <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>Main Stock Mapping Card</p>
-                <p style={{ margin: '0.3rem 0 0', fontSize: '0.8rem', color: C.inkSoft }}>Open popup to create metal type and stock mapping fields.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+            <div>
+              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Inventory Workspace</h3>
+              <p style={{ margin: '0.35rem 0 0', color: C.inkSoft, fontSize: '0.84rem' }}>Rebuilt inventory area with separate cards for stock types, products, and reporting.</p>
+            </div>
+            <button type="button" onClick={loadInventory} style={{ padding: '0.55rem 0.95rem', background: '#E2E8F0', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}>Refresh Inventory</button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', alignItems: 'start' }}>
+            <div style={{ background: '#FCFFFC', border: '1px solid #CDE7D4', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 8px 18px rgba(5, 150, 105, 0.06)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
+                <div>
+                  <p style={{ margin: 0, fontWeight: '800', color: '#14532D', fontSize: '1rem' }}>Stock Type Creation</p>
+                  <p style={{ margin: '0.35rem 0 0', color: '#3F5F48', fontSize: '0.8rem', lineHeight: 1.5 }}>Create the master stock types that define metal, material type, purity, and stock-code mapping.</p>
+                </div>
+                <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#DCFCE7', color: '#166534', fontWeight: '800', fontSize: '0.74rem' }}>{inventoryMappingProducts.length}</span>
               </div>
               <button
                 type="button"
@@ -5090,69 +5308,157 @@ function ERPTab() {
                   setEditingProductId('')
                   setInventoryMappingForm(createInventoryMappingForm())
                   setInventoryStockCodeManualOverride(false)
+                  setInventoryModalOffset({ x: 0, y: 0 })
                   setShowInventoryMappingModal(true)
                 }}
-                style={{ padding: '0.5rem 0.95rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer', fontWeight: '600' }}
+                style={{ marginTop: '0.85rem', width: '100%', padding: '0.7rem 0.95rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '700' }}
               >
-                + Open Stock Popup
+                + Create Stock Type
               </button>
+              <div style={{ marginTop: '0.85rem', display: 'grid', gap: '0.55rem' }}>
+                {inventoryMappingProducts.slice(0, 4).map((item) => {
+                  const meta = decodeInventoryCategoryMeta(item.category)
+                  return (
+                    <div key={item._id} style={{ border: '1px solid #DCFCE7', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center' }}>
+                        <span style={{ fontWeight: '700', color: C.ink }}>{titleCaseWords(meta.mainStock || meta.metalType || item.name)}</span>
+                        {Number(item.unitCost || 0) > 0 && <span style={{ fontSize: '0.72rem', fontWeight: '700', color: '#166534', background: '#DCFCE7', padding: '0.15rem 0.4rem', borderRadius: '0.25rem' }}>{Number(item.unitCost).toLocaleString()} {item.currency || 'USD'}/{meta.priceUnit || 'OZ'}</span>}
+                      </div>
+                      <div style={{ marginTop: '0.2rem', color: C.inkSoft, fontSize: '0.75rem' }}>Main Stock Mapping</div>
+                      <div style={{ marginTop: '0.45rem', display: 'flex', gap: '0.35rem' }}>
+                        <button onClick={() => handleEditProduct(item)} style={{ padding: '0.28rem 0.55rem', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: '0.3rem', color: '#065F46', cursor: 'pointer', fontSize: '0.72rem' }}>Edit</button>
+                        {(isSuperAdmin || isFinance) && <button onClick={() => handleDeleteProduct(item)} style={{ padding: '0.28rem 0.55rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.3rem', color: '#991B1B', cursor: 'pointer', fontSize: '0.72rem' }}>Delete</button>}
+                      </div>
+                    </div>
+                  )
+                })}
+                {!inventoryMappingProducts.length && <div style={{ border: '1px dashed #BBF7D0', borderRadius: '0.5rem', padding: '0.75rem', color: '#166534', fontSize: '0.8rem' }}>No stock types yet. Create your first stock type to define mapping rules.</div>}
+              </div>
+            </div>
+
+            <div style={{ background: '#FFFDF8', border: '1px solid #F2DFC1', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 8px 18px rgba(180, 83, 9, 0.06)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
+                <div>
+                  <p style={{ margin: 0, fontWeight: '800', color: '#92400E', fontSize: '1rem' }}>Product Creation</p>
+                  <p style={{ margin: '0.35rem 0 0', color: '#7C5A12', fontSize: '0.8rem', lineHeight: 1.5 }}>Create products with Product Category, Name, Description, Weight, Purity, and Purity Weight.</p>
+                </div>
+                <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#FEF3C7', color: '#92400E', fontWeight: '800', fontSize: '0.74rem' }}>{inventoryCatalogProducts.length}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingInventoryProductId('')
+                  setInventoryProductModalOffset({ x: 0, y: 0 })
+                  setShowInventoryProductModal(true)
+                }}
+                style={{ marginTop: '0.85rem', width: '100%', padding: '0.7rem 0.95rem', background: '#B45309', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '700' }}
+              >
+                + Create Product
+              </button>
+              <div style={{ marginTop: '0.85rem', display: 'grid', gap: '0.55rem' }}>
+                {Object.entries(inventoryProductsByMetal).slice(0, 4).map(([metal, entries]) => (
+                  <div key={metal} style={{ border: '1px solid #FDE68A', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}>
+                    <div style={{ fontWeight: '800', color: '#92400E', fontSize: '0.78rem', marginBottom: '0.35rem' }}>{metal}</div>
+                    <div style={{ display: 'grid', gap: '0.4rem' }}>
+                      {entries.slice(0, 3).map(({ item, meta }) => (
+                        <div key={item._id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', borderTop: '1px solid #FEF3C7', paddingTop: '0.35rem' }}>
+                          <div>
+                            <div style={{ fontWeight: '700', color: C.ink, fontSize: '0.76rem' }}>{item.name}</div>
+                            <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>Category {meta.productCategory || metal} | Wt {Number(meta.weight || item.quantity || 0).toLocaleString()} g | Purity {meta.productPurity || meta.purity || '-'} | Pure Wt {Number(meta.purityWeight || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</div>
+                          </div>
+                          <div style={{ display: 'grid', justifyItems: 'end', gap: '0.35rem' }}>
+                            <div style={{ color: '#92400E', fontWeight: '700', fontSize: '0.74rem', maxWidth: '220px', textAlign: 'right' }}>{meta.productDescription || '-'}</div>
+                            <button type="button" onClick={() => handleEditInventoryCatalogProduct(item, meta)} style={{ padding: '0.24rem 0.55rem', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: '0.3rem', color: '#065F46', cursor: 'pointer', fontSize: '0.72rem', fontWeight: '700' }}>Edit</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {!inventoryCatalogProducts.length && <div style={{ border: '1px dashed #FCD34D', borderRadius: '0.5rem', padding: '0.75rem', color: '#92400E', fontSize: '0.8rem' }}>No inventory products created yet. Use a stock type to start adding products.</div>}
+              </div>
+            </div>
+
+            <div style={{ background: '#FBFCFF', border: '1px solid #D9E6FB', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 8px 18px rgba(29, 78, 216, 0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
+                <div>
+                  <p style={{ margin: 0, fontWeight: '800', color: '#1D4ED8', fontSize: '1rem' }}>Inventory Report</p>
+                  <p style={{ margin: '0.35rem 0 0', color: '#4B5E8B', fontSize: '0.8rem', lineHeight: 1.5 }}>Live snapshot of stock types, products, total quantity on hand, stock value, and low-stock exposure.</p>
+                </div>
+                <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#DBEAFE', color: '#1D4ED8', fontWeight: '800', fontSize: '0.74rem' }}>{inventoryReportProducts.length}</span>
+              </div>
+              <div style={{ marginTop: '0.85rem', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.55rem' }}>
+                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Stock Types</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryMappingProducts.length}</p></div>
+                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Products</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryCatalogProducts.length}</p></div>
+                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Qty On Hand</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalQuantity.toLocaleString()}</p></div>
+                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Inventory Value</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p></div>
+              </div>
+              <div style={{ marginTop: '0.7rem', border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.65rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.45rem' }}>
+                  <span style={{ fontWeight: '700', color: C.ink, fontSize: '0.8rem' }}>Top Inventory Items</span>
+                  <span style={{ color: inventoryLowStockCount > 0 ? '#B45309' : '#1D4ED8', fontWeight: '700', fontSize: '0.75rem' }}>Low Stock: {inventoryLowStockCount}</span>
+                </div>
+                <div style={{ display: 'grid', gap: '0.45rem' }}>
+                  {inventoryTopProducts.map((item) => {
+                    const meta = decodeInventoryCategoryPairs(item.category)
+                    return (
+                      <div key={item._id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', paddingBottom: '0.4rem', borderBottom: '1px solid #EFF6FF' }}>
+                        <div>
+                          <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem' }}>{item.name}</div>
+                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>Category {meta.productCategory || titleCaseWords(meta.mainStock || meta.metalType || '-')} | Wt {Number(meta.weight || item.quantity || 0).toLocaleString()} g | Purity {meta.productPurity || meta.purity || '-'} | Pure Wt {Number(meta.purityWeight || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</div>
+                        </div>
+                        <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem' }}>{(Number(item.quantity || 0) * Number(item.unitCost || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                      </div>
+                    )
+                  })}
+                  {!inventoryTopProducts.length && <div style={{ color: C.inkSoft, fontSize: '0.8rem' }}>No inventory movements or product records yet.</div>}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Main Stock</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Item Type</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Metal Type</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Purity</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Stock Code</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Stock Account</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Unit</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'right' }}>Qty</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'right' }}>Unit Cost</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'right' }}>Selling Price</th>
-                  {canAccessInventory && <th style={{ padding: '0.65rem', textAlign: 'left' }}>Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {inventoryMappingProducts.map((p) => {
-                  const meta = decodeInventoryCategoryMeta(p.category)
-                  return (
-                    <tr key={p._id} style={{ borderBottom: `1px solid ${C.p2}`, background: editingProductId === p._id ? '#ECFDF5' : 'transparent' }}>
-                      <td style={{ padding: '0.65rem', fontWeight: '600' }}>{titleCaseWords(meta.mainStock || '-')}</td>
-                      <td style={{ padding: '0.65rem', color: C.inkSoft }}>{titleCaseWords(meta.itemType || '-')}</td>
-                      <td style={{ padding: '0.65rem', color: C.inkSoft }}>{titleCaseWords(meta.metalType || '-')}</td>
-                      <td style={{ padding: '0.65rem' }}>{meta.purity || '-'}</td>
-                      <td style={{ padding: '0.65rem', fontFamily: 'monospace' }}>{p.sku || '-'}</td>
-                      <td style={{ padding: '0.65rem', color: C.inkSoft }}>{p.ledgerAccountId?.accountCode || '-'}</td>
-                      <td style={{ padding: '0.65rem', color: C.inkSoft }}>{p.unit || 'grams'}</td>
-                      <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.quantity || 0).toLocaleString()}</td>
-                      <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.unitCost || 0).toLocaleString()}</td>
-                      <td style={{ padding: '0.65rem', textAlign: 'right' }}>{Number(p.sellingPrice || 0).toLocaleString()}</td>
-                      {canAccessInventory && (
-                        <td style={{ padding: '0.65rem' }}>
-                          <div style={{ display: 'flex', gap: '0.35rem' }}>
-                            <button onClick={() => handleEditProduct(p)} style={{ padding: '0.3rem 0.55rem', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: '0.3rem', color: '#065F46', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
-                            {(isSuperAdmin || isFinance) && <button onClick={() => handleDeleteProduct(p)} style={{ padding: '0.3rem 0.55rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.3rem', color: '#991B1B', cursor: 'pointer', fontSize: '0.75rem' }}>Delete</button>}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  )
-                })}
-                {!inventoryMappingProducts.length && (
-                  <tr><td colSpan={12} style={{ padding: '1rem', textAlign: 'center', color: C.inkSoft }}>No stock mappings yet.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
           {legacyInventoryProducts.length > 0 && (
-            <p style={{ marginTop: '0.6rem', color: C.inkSoft, fontSize: '0.8rem' }}>
-              Legacy inventory records hidden from mapping table: {legacyInventoryProducts.length}
+            <p style={{ marginTop: '0.8rem', color: '#92400E', fontSize: '0.8rem' }}>
+              Legacy inventory records still exist outside the new stock-type/product structure: {legacyInventoryProducts.length}
             </p>
+          )}
+
+          {showInventoryProductModal && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', zIndex: 1210, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={(e) => { if (e.target === e.currentTarget) resetInventoryProductForm() }}>
+              <form onSubmit={handleCreateInventoryCatalogProduct} style={{ width: 'min(1100px, 96vw)', background: '#FFFFFF', border: '1px solid #CBD5E0', borderRadius: '0.5rem', padding: 0, boxShadow: '0 20px 42px rgba(0,0,0,0.35)', overflow: 'hidden', transform: `translate(${inventoryProductModalOffset.x}px, ${inventoryProductModalOffset.y}px)`, userSelect: inventoryProductModalDragging ? 'none' : 'auto' }}>
+                <div style={{ height: 0, overflow: 'hidden' }} />
+                <div
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', backgroundColor: '#3F4B2E', color: '#FFFFFF', padding: '1rem', cursor: inventoryProductModalDragging ? 'grabbing' : 'grab' }}
+                  onMouseDown={handleInventoryProductModalDragStart}
+                >
+                  <div>
+                    <p style={{ margin: 0, color: '#FFFFFF', fontWeight: '800', fontSize: '1.08rem' }}>{editingInventoryProductId ? 'Edit Product' : 'Product Creation'}</p>
+                    <p style={{ margin: '0.25rem 0 0', color: 'rgba(255,255,255,0.88)', fontSize: '0.84rem' }}>Enter Product Category, Name, Description, Weight, Purity, and auto-calculated Purity Weight.</p>
+                  </div>
+                  <button type="button" onClick={resetInventoryProductForm} style={{ border: 'none', background: 'transparent', color: '#FFFFFF', cursor: 'pointer', fontSize: '1.45rem', lineHeight: 1 }}>✕</button>
+                </div>
+                <div style={{ padding: '1.2rem 1.5rem', background: '#F3F4F6' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.65rem' }}>
+                    <select value={inventoryProductForm.stockTypeId} onChange={(e) => {
+                      const option = inventoryStockTypeOptions.find((item) => item.id === e.target.value)
+                      setInventoryProductForm((prev) => ({ ...prev, stockTypeId: e.target.value, categoryName: option?.mainStock || '', purity: prev.purity || option?.purity || '' }))
+                    }} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }}>
+                      <option value="">Product Category</option>
+                      {inventoryStockTypeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                    </select>
+                    <input placeholder="Product Name" value={inventoryProductForm.name} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, name: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
+                    <input placeholder="Description" value={inventoryProductForm.description} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, description: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
+                    <input type="number" step="0.0001" placeholder="Weight" value={inventoryProductForm.weight} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, weight: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
+                    <input placeholder="Purity" value={inventoryProductForm.purity} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, purity: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
+                    <input value={inventoryProductPurityWeight ? inventoryProductPurityWeight.toLocaleString(undefined, { maximumFractionDigits: 4 }) : ''} readOnly placeholder="Purity Weight" style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#EEF2F7', color: C.inkSoft, borderRadius: '0.45rem' }} />
+                  </div>
+                </div>
+                <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                  <button type="button" onClick={resetInventoryProductForm} style={{ padding: '0.6rem 1.2rem', background: '#E5E7EB', color: '#111827', border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
+                  <button type="button" disabled={saving} onClick={(e) => handleCreateInventoryCatalogProduct({ preventDefault: () => e.preventDefault() })} style={{ padding: '0.6rem 1.2rem', backgroundColor: '#1a7a3a', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '700', opacity: saving ? 0.75 : 1 }}>{saving ? 'Saving...' : editingInventoryProductId ? 'Update Product' : 'Create Product'}</button>
+                </div>
+              </form>
+            </div>
           )}
 
           {showInventoryMappingModal && (
@@ -5160,68 +5466,118 @@ function ERPTab() {
               style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
               onClick={(e) => { if (e.target === e.currentTarget) resetInventoryMappingForm() }}
             >
-              <form onSubmit={handleCreateProduct} style={{ width: 'min(920px, 96vw)', maxHeight: '88vh', overflowY: 'auto', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.65rem', padding: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.7rem' }}>
-                  <div>
-                    <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>{editingProductId ? 'Edit Main Stock Mapping' : 'Create Main Stock Mapping'}</p>
-                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: C.inkSoft }}>Configure metal type, purity, stock code mapping and pricing.</p>
+              <form
+                onSubmit={handleCreateProduct}
+                style={{
+                  width: 'min(980px, 98vw)',
+                  maxHeight: '88vh',
+                  overflowY: 'auto',
+                  background: '#E3DEDE',
+                  border: '1px solid #987973',
+                  borderRadius: '0.62rem',
+                  padding: '0.38rem',
+                  boxShadow: '0 14px 26px rgba(0, 0, 0, 0.22)',
+                  transform: `translate(${inventoryModalOffset.x}px, ${inventoryModalOffset.y}px)`,
+                  userSelect: inventoryModalDragging ? 'none' : 'auto',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    marginBottom: '0.35rem',
+                    padding: '0.3rem 0.55rem',
+                    borderRadius: '0.34rem 0.34rem 0 0',
+                    border: '1px solid #A5857F',
+                    background: '#B69A95',
+                    cursor: inventoryModalDragging ? 'grabbing' : 'grab',
+                  }}
+                  onMouseDown={handleInventoryModalDragStart}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                    <p style={{ margin: 0, fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.01em', fontSize: '0.97rem' }}>{editingProductId ? 'Stock Type Creation' : 'Stock Type Creation'}</p>
                   </div>
-                  <button type="button" onClick={resetInventoryMappingForm} style={{ border: 'none', background: 'transparent', color: C.inkSoft, cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1 }}>✕</button>
+                  <div style={{ display: 'flex', gap: '0.38rem' }}>
+                    <button type="button" onClick={resetInventoryMappingForm} style={{ width: '1.08rem', height: '1.08rem', borderRadius: '999px', border: '1px solid rgba(255,255,255,0.82)', background: 'rgba(255,255,255,0.14)', color: '#fff', cursor: 'pointer', fontSize: '0.65rem', lineHeight: 1 }}>x</button>
+                  </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.5rem' }}>
-                  <select
-                    value={inventoryMappingForm.mainStock}
-                    onChange={(e) => {
-                      const nextMainStock = e.target.value
-                      setInventoryMappingForm((prev) => ({
-                        ...prev,
-                        mainStock: nextMainStock,
-                        metalType: nextMainStock === 'custom' ? prev.metalType : nextMainStock,
-                      }))
-                    }}
-                    style={modalInputStyle}
-                  >
-                    <option value="gold">Gold</option>
-                    <option value="silver">Silver</option>
-                    <option value="platinum">Platinum</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  {inventoryMappingForm.mainStock === 'custom' && (
-                    <input
-                      placeholder="Custom Main Stock"
-                      value={inventoryMappingForm.customMainStock}
-                      onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, customMainStock: e.target.value }))}
-                      style={modalInputStyle}
-                    />
-                  )}
-                  <select value={inventoryMappingForm.itemType} onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, itemType: e.target.value }))} style={modalInputStyle}>
-                    {INVENTORY_ITEM_TYPE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                  <input placeholder="Metal Type" value={inventoryMappingForm.metalType} onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, metalType: e.target.value }))} style={modalInputStyle} />
-                  <input placeholder="Purity (e.g. 999.9)" value={inventoryMappingForm.purity} onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, purity: e.target.value }))} style={modalInputStyle} />
-                  <input
-                    placeholder={isSuperAdmin ? 'Stock Code' : 'Auto Stock Code'}
-                    value={inventoryMappingForm.stockCode}
-                    onChange={(e) => {
-                      if (!isSuperAdmin) return
-                      setInventoryStockCodeManualOverride(true)
-                      setInventoryMappingForm((prev) => ({ ...prev, stockCode: e.target.value.toUpperCase() }))
-                    }}
-                    style={isSuperAdmin ? modalInputStyle : { ...modalInputStyle, background: '#F8FAFC', color: C.inkSoft }}
-                    readOnly={!isSuperAdmin}
-                  />
-                  <input placeholder="Unit" value={inventoryMappingForm.unit} onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, unit: e.target.value }))} style={modalInputStyle} />
-                  {!editingProductId && <input type="number" step="0.01" placeholder="Opening Qty" value={inventoryMappingForm.openingQty} onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, openingQty: e.target.value }))} style={modalInputStyle} />}
-                  <input type="number" step="0.01" placeholder="Unit Cost" value={inventoryMappingForm.unitCost} onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, unitCost: e.target.value }))} style={modalInputStyle} />
-                  <input type="number" step="0.01" placeholder="Selling Price" value={inventoryMappingForm.sellingPrice} onChange={(e) => setInventoryMappingForm((prev) => ({ ...prev, sellingPrice: e.target.value }))} style={modalInputStyle} />
+                <div style={{ border: '1px solid #A5857F', borderRadius: '0 0 0.36rem 0.36rem', background: '#F3F0F0', padding: '0.45rem' }}>
+                  <div style={{ border: '1px solid #B39792', borderRadius: '0.2rem', background: '#F0ECEC', padding: '0.34rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.22rem', marginBottom: '0.3rem' }}>
+                      {[['details','Details'],['pricing','Pricing'],['stockenquiry','Stock Enquiry']].map(([key, label]) => (
+                        <span key={key} onClick={() => setStockTypeModalTab(key)} style={{ fontSize: '0.68rem', fontWeight: '700', cursor: 'pointer', color: stockTypeModalTab === key ? '#724B46' : '#9B817C', padding: '0.14rem 0.34rem', border: `1px solid ${stockTypeModalTab === key ? '#B99E98' : '#CDB9B5'}`, borderBottom: stockTypeModalTab === key ? 'none' : '1px solid #B99E98', borderRadius: '0.22rem 0.22rem 0 0', background: stockTypeModalTab === key ? '#F8F5F4' : '#EEE8E7', userSelect: 'none' }}>{label}</span>
+                      ))}
+                    </div>
+
+                    <div style={{ border: '1px solid #B99E98', background: '#FCFBFB', padding: '0.48rem' }}>
+                      {stockTypeModalTab === 'pricing' && (
+                        <div style={{ border: '1px solid #C7AEAA', background: '#F5F1F1', padding: '0.42rem', maxWidth: '360px' }}>
+                            <p style={{ margin: '0 0 0.35rem', fontSize: '0.72rem', color: '#6F4B45', fontWeight: '700' }}>Current Price</p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '0.28rem', alignItems: 'center', marginBottom: '0.28rem' }}>
+                              <label style={{ fontSize: '0.74rem', color: '#6F4B45', fontWeight: '700' }}>Price :</label>
+                              <input
+                                type="number" step="0.01"
+                                placeholder="Enter price"
+                                value={inventoryMappingForm.currentPrice}
+                                onChange={e => setInventoryMappingForm(prev => ({ ...prev, currentPrice: e.target.value }))}
+                                style={{ ...modalInputStyle, borderColor: '#C0A5A0', background: '#FFFFFF', fontSize: '0.78rem', borderRadius: '0.12rem', padding: '0.1rem 0.3rem', minHeight: '1.62rem' }}
+                              />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '0.28rem', alignItems: 'center', marginBottom: '0.28rem' }}>
+                              <label style={{ fontSize: '0.74rem', color: '#6F4B45', fontWeight: '700' }}>Unit :</label>
+                              <select value={inventoryMappingForm.priceUnit} onChange={e => setInventoryMappingForm(prev => ({ ...prev, priceUnit: e.target.value }))} style={{ ...modalInputStyle, borderColor: '#C0A5A0', background: '#FFFFFF', fontSize: '0.78rem', borderRadius: '0.12rem', padding: '0.1rem 0.3rem', minHeight: '1.62rem' }}>
+                                <option value="OZ">Per OZ (Troy)</option>
+                                <option value="GRAM">Per Gram</option>
+                                <option value="KG">Per KG</option>
+                              </select>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '0.28rem', alignItems: 'center' }}>
+                              <label style={{ fontSize: '0.74rem', color: '#6F4B45', fontWeight: '700' }}>Currency :</label>
+                              <select value={inventoryMappingForm.priceCurrency} onChange={e => setInventoryMappingForm(prev => ({ ...prev, priceCurrency: e.target.value }))} style={{ ...modalInputStyle, borderColor: '#C0A5A0', background: '#FFFFFF', fontSize: '0.78rem', borderRadius: '0.12rem', padding: '0.1rem 0.3rem', minHeight: '1.62rem' }}>
+                                <option value="USD">USD</option>
+                                <option value="AED">AED</option>
+                                <option value="EUR">EUR</option>
+                                <option value="GBP">GBP</option>
+                              </select>
+                            </div>
+                        </div>
+                      )}
+                      {stockTypeModalTab !== 'pricing' && <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(250px, 0.9fr)', gap: '0.45rem' }}>
+                      <div style={{ border: '1px solid #C7AEAA', background: '#F5F1F1', padding: '0.42rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '86px 1fr', gap: '0.28rem', alignItems: 'center' }}>
+                          <label style={{ fontSize: '0.74rem', color: '#6F4B45', fontWeight: '700' }}>Mtl Type :</label>
+                          <input
+                            placeholder="e.g. Gold, Silver, Platinum"
+                            value={inventoryMappingForm.mainStock}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setInventoryMappingForm((prev) => ({ ...prev, mainStock: val, metalType: val.trim().toLowerCase() }))
+                            }}
+                            style={{ ...modalInputStyle, borderColor: '#C0A5A0', background: '#FFFFFF', fontSize: '0.78rem', borderRadius: '0.12rem', padding: '0.1rem 0.3rem', minHeight: '1.62rem' }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ border: '1px solid #C7AEAA', background: '#F8F4F4', padding: '0.42rem' }}>
+                        <p style={{ margin: 0, fontSize: '0.72rem', color: '#6F4B45', fontWeight: '700' }}>Stock Information</p>
+                        <div style={{ marginTop: '0.35rem', display: 'grid', gridTemplateColumns: '96px 1fr', gap: '0.24rem', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.7rem', color: '#7A5A53', fontWeight: '700' }}>Description :</span>
+                          <span style={{ fontSize: '0.7rem', color: '#2F2624', border: '1px solid #C9B2AE', background: '#FFFFFF', padding: '0.2rem 0.34rem' }}>{titleCaseWords(resolveMainStockValueFromForm(inventoryMappingForm) || '-')}</span>
+                          <span style={{ fontSize: '0.7rem', color: '#7A5A53', fontWeight: '700' }}>Details :</span>
+                          <span style={{ fontSize: '0.7rem', color: '#2F2624', border: '1px solid #C9B2AE', background: '#FFFFFF', padding: '0.2rem 0.34rem' }}>{`mainStock=${resolveMainStockValueFromForm(inventoryMappingForm) || '-'};metalType=${inventoryMappingForm.metalType || '-'}`}</span>
+                        </div>
+                      </div>
+                    </div>}
+                    </div>
+                  </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.8rem', justifyContent: 'flex-end' }}>
-                  <button type="button" onClick={resetInventoryMappingForm} style={{ padding: '0.5rem 1rem', background: '#F3F4F6', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.4rem', cursor: 'pointer' }}>Cancel</button>
-                  <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer' }}>{saving ? 'Saving...' : editingProductId ? 'Save Mapping' : 'Create Mapping'}</button>
+                <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.46rem', justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={resetInventoryMappingForm} style={{ padding: '0.38rem 0.8rem', background: '#ECE7E6', color: '#473A37', border: '1px solid #B99E98', borderRadius: '0.2rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.74rem' }}>Cancel</button>
+                  <button type="submit" disabled={saving} style={{ padding: '0.38rem 0.8rem', background: '#8A5C54', color: '#fff', border: '1px solid #744742', borderRadius: '0.2rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.74rem' }}>{saving ? 'Saving...' : editingProductId ? 'Save Stock Type' : 'Create Stock Type'}</button>
                 </div>
               </form>
             </div>

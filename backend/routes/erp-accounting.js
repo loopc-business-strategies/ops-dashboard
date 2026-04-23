@@ -850,6 +850,38 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride }) => {
   if (mappingOverride?.debitAccountId) debitAccountId = mappingOverride.debitAccountId
   if (mappingOverride?.creditAccountId) creditAccountId = mappingOverride.creditAccountId
 
+  // Auto-create fallback accounts so metal sale/purchase vouchers can always post
+  if (!debitAccountId || !creditAccountId) {
+    const ensureAccount = async ({ name, code, type }) => {
+      let acc = await ChartOfAccount.findOne({ accountCode: code, isActive: true })
+      if (!acc) {
+        acc = await ChartOfAccount.create({
+          accountName: name,
+          accountCode: code,
+          accountType: type,
+          currency: tx.currency || 'USD',
+          description: `Auto-created default account for ${name}`,
+          createdBy: user._id,
+        })
+      }
+      return acc._id
+    }
+
+    if (transactionType === 'sale') {
+      if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Accounts Receivable', code: '1200', type: 'Asset' })
+      if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Metal Sales Revenue', code: '4100', type: 'Income' })
+    } else if (transactionType === 'purchase') {
+      if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Metal Purchases', code: '5100', type: 'Expense' })
+      if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Accounts Payable', code: '2100', type: 'Liability' })
+    } else if (transactionType === 'receipt') {
+      if (!debitAccountId) debitAccountId = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank').then(a => a._id)
+      if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Accounts Receivable', code: '1200', type: 'Asset' })
+    } else if (transactionType === 'payment') {
+      if (!creditAccountId) creditAccountId = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank').then(a => a._id)
+      if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Accounts Payable', code: '2100', type: 'Liability' })
+    }
+  }
+
   if (!debitAccountId || !creditAccountId) {
     throw new Error('Unable to resolve debit/credit accounts. Configure mapping or provide override.')
   }
@@ -2575,7 +2607,7 @@ router.post('/inventory/products', protect, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
 
-    const { sku, name, category, unit, unitCost, sellingPrice, quantity, currency } = req.body
+    const { sku, name, category, unit, unitCost, sellingPrice, quantity, currency, minThreshold, supplierName, weight, wipStage } = req.body
     if (!name) return res.status(400).json({ success: false, message: 'Product name is required' })
 
     const accountCode = await nextInventoryAccountCode()
@@ -2593,9 +2625,13 @@ router.post('/inventory/products', protect, async (req, res) => {
       name,
       category,
       unit: unit || 'pcs',
+      minThreshold: Number(minThreshold || 0),
       unitCost: Number(unitCost || 0),
       sellingPrice: Number(sellingPrice || 0),
       quantity: Number(quantity || 0),
+      supplierName: String(supplierName || '').trim(),
+      weight: Number(weight || 0),
+      wipStage: String(wipStage || '').trim(),
       ledgerAccountId: stockAccount._id,
       createdBy: req.user._id,
       updatedBy: req.user._id,
@@ -2729,13 +2765,17 @@ router.put('/inventory/products/:id', protect, async (req, res) => {
     const product = await InventoryItem.findById(req.params.id)
     if (!product || product.isDeleted) return res.status(404).json({ success: false, message: 'Product not found' })
 
-    const { sku, name, category, unit, unitCost, sellingPrice } = req.body
+    const { sku, name, category, unit, unitCost, sellingPrice, minThreshold, supplierName, weight, wipStage } = req.body
     if (name !== undefined) product.name = name
     if (sku !== undefined) product.sku = sku
     if (category !== undefined) product.category = category
     if (unit !== undefined) product.unit = unit
+    if (minThreshold !== undefined) product.minThreshold = Number(minThreshold || 0)
     if (unitCost !== undefined) product.unitCost = Number(unitCost || 0)
     if (sellingPrice !== undefined) product.sellingPrice = Number(sellingPrice || 0)
+    if (supplierName !== undefined) product.supplierName = String(supplierName || '').trim()
+    if (weight !== undefined) product.weight = Number(weight || 0)
+    if (wipStage !== undefined) product.wipStage = String(wipStage || '').trim()
     product.updatedBy = req.user._id
     await product.save()
 
