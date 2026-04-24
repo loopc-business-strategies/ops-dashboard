@@ -1,0 +1,10 @@
+{
+  "files.exclude": {
+    "**/node_modules": true,
+    "frontend/dist": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "frontend/dist": true
+  }
+}

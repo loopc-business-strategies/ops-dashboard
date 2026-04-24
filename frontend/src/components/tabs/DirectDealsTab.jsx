@@ -131,6 +131,8 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
 
   const [editingId, setEditingId] = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [viewMode, setViewMode] = useState('VIEW') // 'VIEW' | 'EDIT'
+  const [currentDealIdx, setCurrentDealIdx] = useState(-1)
   const [importPreviewRows, setImportPreviewRows] = useState([])
   const [importPreviewFileName, setImportPreviewFileName] = useState('')
   const [form, setForm] = useState({
@@ -250,6 +252,8 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
 
     resetForm()
     setForm((prev) => ({ ...prev, docNo: nextDocNo }))
+    setViewMode('EDIT')
+    setCurrentDealIdx(-1)
     setShowModal(true)
   }
 
@@ -584,8 +588,11 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     XLSX.writeFile(wb, 'direct-deals-import-template.xlsx')
   }
 
-  const editDeal = (deal) => {
+  const editDeal = (deal, idxOverride) => {
+    const idx = idxOverride !== undefined ? idxOverride : deals.findIndex((d) => d._id === deal._id)
+    setCurrentDealIdx(idx)
     setEditingId(deal._id)
+    setViewMode('VIEW')
     setForm({
       docNo: deal.docNo || '',
       entryType: deal.entryType || 'fixing',
@@ -611,6 +618,13 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     })
     setError('')
     setShowModal(true)
+  }
+
+  // Navigate to a deal by index in the deals array
+  const navToDeal = (idx) => {
+    if (idx < 0 || idx >= deals.length) return
+    const deal = deals[idx]
+    editDeal(deal, idx)
   }
 
   const validate = () => {
@@ -757,50 +771,106 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
             </div>
 
             {/* ── Toolbar ── */}
-            <div style={{ background: 'linear-gradient(180deg,#d8d8d8,#c0c0c0)', borderBottom: '2px solid #888', padding: '3px 6px', display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-              <button type="button" title="First" style={tbBtnSt} onClick={() => showSuccess('First record')}>«</button>
-              <button type="button" title="Previous" style={tbBtnSt} onClick={() => showSuccess('Previous record')}>‹</button>
-              <button type="button" title="Next" style={tbBtnSt} onClick={() => showSuccess('Next record')}>›</button>
-              <button type="button" title="Last" style={tbBtnSt} onClick={() => showSuccess('Last record')}>»</button>
-              <div style={{ width: 1, height: 20, background: '#999', margin: '0 3px' }} />
-              <button type="button" title="Refresh" style={tbBtnSt} onClick={async () => { await loadDeals(); showSuccess('Refreshed') }}>↻</button>
-              <button
-                type="button"
-                title="Delete"
-                style={{ ...tbBtnSt, color: '#c00' }}
-                onClick={() => {
-                  if (!editingId) {
-                    setError('Open an existing entry to delete')
-                    return
-                  }
-                  removeDeal(editingId)
-                  setShowModal(false)
-                }}
-              >
-                🗑
+            <div style={{ background: 'linear-gradient(180deg,#d8d8d8,#c0c0c0)', borderBottom: '2px solid #888', padding: '3px 6px', display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, flexWrap: 'wrap' }}>
+
+              {/* Group 1 — Record Actions */}
+              <button type="button" title="New — Open a blank form for a new entry" style={tbBtnSt} onClick={() => { openCreateModal() }}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10 }}>🗋</span>
+                  <span style={{ fontSize: 7, marginTop: 1 }}>New</span>
+                </span>
               </button>
-              <div style={{ width: 1, height: 20, background: '#999', margin: '0 3px' }} />
-              <button
-                type="button"
-                title="Print"
-                style={tbBtnSt}
-                onClick={() => {
-                  if (editingId && currentEditingDeal) {
-                    exportDealToPdf(currentEditingDeal)
-                    return
-                  }
-                  showSuccess('Printing...')
-                }}
-              >
-                🖨
+              <button type="button" title="Edit — Unlock current record for modification" style={{ ...tbBtnSt, color: viewMode === 'EDIT' ? '#005099' : '#333' }} onClick={() => { if (editingId || viewMode === 'EDIT') setViewMode('EDIT') }}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10 }}>✏️</span>
+                  <span style={{ fontSize: 7, marginTop: 1 }}>Edit</span>
+                </span>
               </button>
-              <button type="button" title="Search" style={tbBtnSt} onClick={() => showSuccess('Search mode')}>🔍</button>
-              <div style={{ width: 1, height: 20, background: '#999', margin: '0 3px' }} />
-              <button type="button" title="Save" style={{ ...tbBtnSt, color: '#060' }} onClick={() => saveFormData()} disabled={saving || !hasManage || isEditingLocked}>💾</button>
-              <button type="button" title="Post" style={{ ...tbBtnSt, color: '#060' }} onClick={() => saveFormData('confirmed')} disabled={saving || !hasManage || isEditingLocked}>✓</button>
-              <div style={{ width: 1, height: 20, background: '#999', margin: '0 3px' }} />
-              <button type="button" title="Tools" style={tbBtnSt} onClick={() => showSuccess('Tools')}>⚙</button>
-              <button type="button" title="Exit" style={{ ...tbBtnSt, color: '#c00' }} onClick={() => setShowModal(false)}>■</button>
+              <button type="button" title="Delete — Remove the current voucher (asks confirmation)" style={{ ...tbBtnSt, color: '#c00' }} onClick={() => { if (!editingId) { setError('Open an existing entry to delete'); return } removeDeal(editingId); setShowModal(false) }}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10 }}>🗑</span>
+                  <span style={{ fontSize: 7, marginTop: 1 }}>Del</span>
+                </span>
+              </button>
+              <button type="button" title="Save — Save your data permanently" style={{ ...tbBtnSt, color: '#060' }} onClick={() => saveFormData()} disabled={saving || !hasManage || isEditingLocked || viewMode !== 'EDIT'}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10 }}>💾</span>
+                  <span style={{ fontSize: 7, marginTop: 1 }}>Save</span>
+                </span>
+              </button>
+              <button type="button" title="Cancel — Discard unsaved changes" style={tbBtnSt} onClick={() => { if (!editingId) { resetForm(); setShowModal(false) } else { editDeal(deals.find((d) => d._id === editingId)) } }}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10 }}>↩</span>
+                  <span style={{ fontSize: 7, marginTop: 1 }}>Cancel</span>
+                </span>
+              </button>
+
+              <div style={{ width: 1, height: 28, background: '#999', margin: '0 3px' }} />
+
+              {/* Group 2 — Navigation */}
+              <button type="button" title="|◀ First — Jump to the first voucher" style={tbBtnSt} onClick={() => navToDeal(0)} disabled={deals.length === 0}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10 }}>⏮</span>
+                  <span style={{ fontSize: 7, marginTop: 1 }}>First</span>
+                </span>
+              </button>
+              <button type="button" title="◀ Previous — Go to the previous record" style={tbBtnSt} onClick={() => navToDeal(Math.max(0, currentDealIdx - 1))} disabled={deals.length === 0 || currentDealIdx <= 0}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10 }}>◀</span>
+                  <span style={{ fontSize: 7, marginTop: 1 }}>Prev</span>
+                </span>
+              </button>
+              <button type="button" title="▶ Next — Move to the next record" style={tbBtnSt} onClick={() => navToDeal(Math.min(deals.length - 1, currentDealIdx + 1))} disabled={deals.length === 0 || currentDealIdx >= deals.length - 1}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10 }}>▶</span>
+                  <span style={{ fontSize: 7, marginTop: 1 }}>Next</span>
+                </span>
+              </button>
+              <button type="button" title="▶| Last — Jump to the latest voucher" style={tbBtnSt} onClick={() => navToDeal(deals.length - 1)} disabled={deals.length === 0}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10 }}>⏭</span>
+                  <span style={{ fontSize: 7, marginTop: 1 }}>Last</span>
+                </span>
+              </button>
+
+              <div style={{ width: 1, height: 28, background: '#999', margin: '0 3px' }} />
+
+              {/* Group 3 — Other Buttons */}
+              <button type="button" title="Print/Preview — Print or preview the invoice" style={tbBtnSt} onClick={() => { if (editingId && currentEditingDeal) exportDealToPdf(currentEditingDeal); else showSuccess('Printing...') }}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10 }}>🖨</span>
+                  <span style={{ fontSize: 7, marginTop: 1 }}>Print</span>
+                </span>
+              </button>
+              <button type="button" title="Search/Find — Search by voucher number, party, or date" style={tbBtnSt} onClick={() => showSuccess('Search mode')}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10 }}>🔍</span>
+                  <span style={{ fontSize: 7, marginTop: 1 }}>Search</span>
+                </span>
+              </button>
+              <button type="button" title="Barcode — Scan or view item barcode linked to stock" style={tbBtnSt} onClick={() => showSuccess('Barcode scan')}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10, fontFamily: 'monospace', fontWeight: 700, letterSpacing: -1 }}>▌▐</span>
+                  <span style={{ fontSize: 7, marginTop: 1 }}>Barcode</span>
+                </span>
+              </button>
+              <button type="button" title="Post — Confirm and post the voucher" style={{ ...tbBtnSt, color: '#060' }} onClick={() => saveFormData('confirmed')} disabled={saving || !hasManage || isEditingLocked || viewMode !== 'EDIT'}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10 }}>✅</span>
+                  <span style={{ fontSize: 7, marginTop: 1 }}>Post</span>
+                </span>
+              </button>
+
+              <div style={{ width: 1, height: 28, background: '#999', margin: '0 3px' }} />
+
+              {/* Group 4 — Exit */}
+              <button type="button" title="Exit — Close the form and return to the main menu" style={{ ...tbBtnSt, color: '#c00' }} onClick={() => { resetForm(); setShowModal(false) }}>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
+                  <span style={{ fontSize: 10 }}>🚪</span>
+                  <span style={{ fontSize: 7, marginTop: 1 }}>Exit</span>
+                </span>
+              </button>
+
               <div style={{ flex: 1 }} />
               <div style={{ background: '#fff', border: '1px solid #ccc', padding: '3px 14px', fontSize: 18, fontWeight: 700, color: '#1a1a1a', borderRadius: 2, minWidth: 70, textAlign: 'center', letterSpacing: 1, fontFamily: 'monospace' }}>
                 {ordBadge}
@@ -813,6 +883,13 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
               {/* Inline errors */}
               {error && (
                 <div style={{ background: '#FEE2E2', color: COLORS.red, border: '1px solid #FCA5A5', borderRadius: '0.4rem', padding: '0.5rem 0.65rem', marginBottom: '0.65rem', fontSize: '0.82rem' }}>{error}</div>
+              )}
+              {/* Mode indicator banner */}
+              {viewMode === 'VIEW' && editingId && (
+                <div style={{ background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '0.4rem', padding: '4px 10px', marginBottom: '0.65rem', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>👁 VIEW MODE</span>
+                  <span style={{ color: '#555', fontWeight: 400 }}>— Click <strong>Edit</strong> in the toolbar to unlock for editing</span>
+                </div>
               )}
               {editingId && isEditingLocked && (
                 <div style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FCD34D', borderRadius: '0.4rem', padding: '0.5rem 0.65rem', marginBottom: '0.65rem', fontSize: '0.82rem', fontWeight: 700 }}>
@@ -828,7 +905,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
                     value={form.docNo}
                     onChange={(e) => setForm((prev) => ({ ...prev, docNo: e.target.value }))}
                     style={{ ...erpInpSt, width: 155 }}
-                    disabled={!hasManage || saving}
+                    disabled={viewMode !== 'EDIT' || !hasManage || saving}
                     readOnly
                   />
                 </div>
@@ -839,7 +916,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
                     value={form.docDate}
                     onChange={(e) => setForm((prev) => ({ ...prev, docDate: e.target.value }))}
                     style={{ ...erpInpSt, width: 120 }}
-                    disabled={!hasManage || saving}
+                    disabled={viewMode !== 'EDIT' || !hasManage || saving}
                   />
                   <span style={{ width: 22, height: 22, border: '1px solid #999', borderRadius: 2, background: 'linear-gradient(180deg,#e8e8e8,#c8c8c8)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>📅</span>
                 </div>
@@ -850,7 +927,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
                     value={form.valueDate}
                     onChange={(e) => setForm((prev) => ({ ...prev, valueDate: e.target.value }))}
                     style={{ ...erpInpSt, width: 120 }}
-                    disabled={!hasManage || saving}
+                    disabled={viewMode !== 'EDIT' || !hasManage || saving}
                   />
                   <span style={{ width: 22, height: 22, border: '1px solid #999', borderRadius: 2, background: 'linear-gradient(180deg,#e8e8e8,#c8c8c8)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>📅</span>
                 </div>
@@ -895,14 +972,14 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
                                 value={line.customerCode}
                                 onChange={(e) => updateLineCustomerCode(idx, e.target.value)}
                                 style={{ ...erpInpSt, width: '100%', border: '1px solid #bbb', padding: '4px 4px' }}
-                                disabled={!hasManage || saving}
+                                disabled={viewMode !== 'EDIT' || !hasManage || saving}
                               />
                               <button
                                 type="button"
                                 onClick={() => pickCustomer(idx)}
                                 style={{ width: 20, height: 22, background: 'linear-gradient(180deg,#e8e8e8,#c8c8c8)', border: '1px solid #999', borderRadius: 1, cursor: 'pointer', fontSize: 11, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                                 title="Search"
-                                disabled={!hasManage || saving}
+                                disabled={viewMode !== 'EDIT' || !hasManage || saving}
                               >
                                 🔍
                               </button>
@@ -910,25 +987,25 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
                           </td>
                           {/* Direction */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
-                            <select value={line.direction} onChange={(e) => updateLine(idx, 'direction', e.target.value)} style={erpSelSt} disabled={!hasManage || saving}>
+                            <select value={line.direction} onChange={(e) => updateLine(idx, 'direction', e.target.value)} style={erpSelSt} disabled={viewMode !== 'EDIT' || !hasManage || saving}>
                               <option value="buy">Buy</option>
                               <option value="sell">Sell</option>
                             </select>
                           </td>
                           {/* Metal */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
-                            <select value={line.metal} onChange={(e) => updateLine(idx, 'metal', e.target.value)} style={erpSelSt} disabled={!hasManage || saving}>
+                            <select value={line.metal} onChange={(e) => updateLine(idx, 'metal', e.target.value)} style={erpSelSt} disabled={viewMode !== 'EDIT' || !hasManage || saving}>
                               <option value="XAU">XAU</option>
                               <option value="XAG">XAG</option>
                             </select>
                           </td>
                           {/* Qty */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
-                            <input value={line.qty} onChange={(e) => updateLine(idx, 'qty', e.target.value)} onBlur={() => formatLineNumber(idx, 'qty', 3)} style={{ ...erpInpSt, textAlign: 'right', width: '100%', border: '1px solid #bbb', padding: '4px 5px' }} disabled={!hasManage || saving} placeholder="0.000" />
+                            <input value={line.qty} onChange={(e) => updateLine(idx, 'qty', e.target.value)} onBlur={() => formatLineNumber(idx, 'qty', 3)} style={{ ...erpInpSt, textAlign: 'right', width: '100%', border: '1px solid #bbb', padding: '4px 5px' }} disabled={viewMode !== 'EDIT' || !hasManage || saving} placeholder="0.000" />
                           </td>
                           {/* Stock Code */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
-                            <select value={line.stockCode} onChange={(e) => updateLine(idx, 'stockCode', e.target.value)} style={erpSelSt} disabled={!hasManage || saving}>
+                            <select value={line.stockCode} onChange={(e) => updateLine(idx, 'stockCode', e.target.value)} style={erpSelSt} disabled={viewMode !== 'EDIT' || !hasManage || saving}>
                               <option value="OZ">OZ</option>
                               <option value="GRAM">Gram</option>
                               <option value="KG">KG</option>
@@ -936,7 +1013,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
                           </td>
                           {/* Price */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
-                            <input value={line.price} onChange={(e) => updateLine(idx, 'price', e.target.value)} onBlur={() => formatLineNumber(idx, 'price', 4)} style={{ ...erpInpSt, textAlign: 'right', width: '100%', border: '1px solid #bbb', padding: '4px 5px' }} disabled={!hasManage || saving} placeholder="0.0000" />
+                            <input value={line.price} onChange={(e) => updateLine(idx, 'price', e.target.value)} onBlur={() => formatLineNumber(idx, 'price', 4)} style={{ ...erpInpSt, textAlign: 'right', width: '100%', border: '1px solid #bbb', padding: '4px 5px' }} disabled={viewMode !== 'EDIT' || !hasManage || saving} placeholder="0.0000" />
                           </td>
                           {/* EQ.OZ */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
@@ -948,7 +1025,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
                           </td>
                           {/* Delete */}
                           <td style={{ padding: '3px 3px', textAlign: 'center' }}>
-                            <button type="button" onClick={() => removeLine(idx)} disabled={!hasManage || saving || form.lineItems.length === 1} style={{ width: 24, height: 20, background: 'linear-gradient(180deg,#e0e0e0,#b8b8b8)', border: '1px solid #888', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#444', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                            <button type="button" onClick={() => removeLine(idx)} disabled={viewMode !== 'EDIT' || !hasManage || saving || form.lineItems.length === 1} style={{ width: 24, height: 20, background: 'linear-gradient(180deg,#e0e0e0,#b8b8b8)', border: '1px solid #888', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#444', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                           </td>
                         </tr>
                       ))}
@@ -970,12 +1047,13 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
             {/* ── Bottom bar ── */}
             <div style={{ background: 'linear-gradient(180deg,#d8d8d8,#c0c0c0)', borderTop: '2px solid #888', padding: '5px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button type="button" onClick={addLine} style={btmBtnSt} disabled={!hasManage || saving}>+ Add Line</button>
-                <button type="button" onClick={() => saveFormData()} disabled={saving || !hasManage || isEditingLocked} style={btmBtnSt}>💾 Save Draft</button>
-                <button type="button" onClick={() => saveFormData('confirmed')} disabled={saving || !hasManage || isEditingLocked} style={{ ...btmBtnSt, background: 'linear-gradient(180deg,#7aba70,#4a8a40)', color: '#fff', borderColor: '#3a6a30' }}>✓ Post</button>
+                <button type="button" onClick={addLine} style={btmBtnSt} disabled={viewMode !== 'EDIT' || !hasManage || saving}>+ Add Line</button>
+                <button type="button" onClick={() => saveFormData()} disabled={saving || viewMode !== 'EDIT' || !hasManage || isEditingLocked} style={btmBtnSt}>💾 Save Draft</button>
+                <button type="button" onClick={() => saveFormData('confirmed')} disabled={saving || viewMode !== 'EDIT' || !hasManage || isEditingLocked} style={{ ...btmBtnSt, background: 'linear-gradient(180deg,#7aba70,#4a8a40)', color: '#fff', borderColor: '#3a6a30' }}>✓ Post</button>
                 <button type="button" onClick={() => { resetForm(); setShowModal(false) }} style={btmBtnSt}>Cancel</button>
               </div>
-              <div style={{ display: 'flex', gap: 20, fontSize: 12 }}>
+              <div style={{ display: 'flex', gap: 20, fontSize: 12, alignItems: 'center' }}>
+                <span style={{ background: viewMode === 'EDIT' ? '#D1FAE5' : '#DBEAFE', color: viewMode === 'EDIT' ? '#065F46' : '#1D4ED8', border: `1px solid ${viewMode === 'EDIT' ? '#6EE7B7' : '#BFDBFE'}`, borderRadius: 3, padding: '2px 10px', fontWeight: 700, fontSize: 11, letterSpacing: 1 }}>Mode: {viewMode}</span>
                 <span><span style={{ color: '#555' }}>Total Qty: </span><span style={{ fontWeight: 600, color: '#222' }}>{fmtQty(formTotals.totalQty)}</span></span>
                 <span><span style={{ color: '#555' }}>Total Amount: {form.currency} </span><span style={{ fontWeight: 600, color: '#222' }}>{fmtMoney(formTotals.totalAmount)}</span></span>
               </div>
