@@ -9,6 +9,8 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "seed:erp": "node scripts/seed-erp-accounting.js",
+    "reset:erp:start": "node scripts/reset-erp-start.js",
+    "reset:erp:master": "node scripts/reset-erp-master-fresh.js",
     "migrate:mapping-departments": "node scripts/backfill-mapping-departments.js",
     "smoke:erp": "node scripts/smoke-erp-api.js",
     "test": "jest --runInBand",

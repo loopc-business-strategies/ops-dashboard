@@ -84,15 +84,214 @@ const btn = (variant = 'primary') => ({
 })
 
 const tabBtn = (active) => ({
-  padding: '0.4rem 1rem',
-  fontSize: '0.82rem',
-  fontWeight: active ? '700' : '600',
-  color: active ? S.white : S.ink,
-  background: active ? S.green : 'transparent',
-  border: active ? 'none' : `1px solid ${S.border}`,
-  borderRadius: '0.3rem',
+  padding: '0.42rem 1rem',
+  fontSize: '0.78rem',
+  fontWeight: '700',
+  color: active ? '#065F46' : '#374151',
+  background: active
+    ? 'linear-gradient(180deg, #F6FFFB 0%, #D7F5E6 100%)'
+    : 'linear-gradient(180deg, #FFFFFF 0%, #ECECEC 100%)',
+  border: `1px solid ${active ? '#7FC7A5' : '#BFC5CB'}`,
+  borderTop: '1px solid #F8FAFC',
+  borderLeft: '1px solid #EEF2F7',
+  boxShadow: active
+    ? 'inset 0 1px 0 rgba(255,255,255,0.95), 0 1px 2px rgba(15,23,42,0.08)'
+    : 'inset 0 1px 0 rgba(255,255,255,0.9)',
+  borderRadius: '0.24rem 0.24rem 0 0',
   cursor: 'pointer',
+  minWidth: '88px',
 })
+
+const classicHeaderShell = {
+  padding: '0.1rem 0',
+}
+
+const classicHeaderGrid = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '0.65rem',
+  alignItems: 'start',
+}
+
+const classicPanel = {
+  border: '1px solid #C9CED6',
+  borderRadius: '0.25rem',
+  background: '#FFFFFF',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.88)',
+  overflow: 'hidden',
+  alignSelf: 'start',
+  height: 'fit-content',
+}
+
+const classicPanelTitle = {
+  background: 'linear-gradient(180deg, #F3F4F6 0%, #D8DCE2 100%)',
+  borderBottom: '1px solid #C9CED6',
+  color: '#4B5563',
+  fontSize: '0.72rem',
+  fontWeight: '700',
+  letterSpacing: '0.04em',
+  padding: '0.42rem 0.65rem',
+  textTransform: 'uppercase',
+}
+
+const classicPartyGrid = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(220px, 1.25fr) minmax(140px, 0.75fr)',
+  gap: '0.38rem 0.5rem',
+  padding: '0.38rem 0.55rem 0.4rem',
+  alignItems: 'end',
+}
+
+const classicPartyCard = {
+  margin: '0 0.55rem 0.55rem',
+  border: '1px solid #C9CED6',
+  borderRadius: '0.2rem',
+  background: '#FBFCFE',
+  overflow: 'hidden',
+}
+
+const classicPartyCardHeader = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) auto',
+  borderBottom: '1px solid #D7DCE3',
+  background: 'linear-gradient(180deg, #F8FBFF 0%, #E6ECF5 100%)',
+}
+
+const classicPartyCardTitle = {
+  padding: '0.46rem 0.68rem',
+  fontSize: '0.82rem',
+  fontWeight: '700',
+  color: '#F9FAFB',
+  borderRight: '1px solid #D7DCE3',
+  background: 'linear-gradient(180deg, #B8C4D6 0%, #94A3B8 100%)',
+  textShadow: '0 1px 0 rgba(15,23,42,0.18)',
+}
+
+const classicPartyCardCodeWrap = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(96px, auto) 28px',
+  background: '#FFFFFF',
+}
+
+const classicPartyCardCode = {
+  padding: '0.42rem 0.55rem',
+  fontSize: '0.78rem',
+  fontWeight: '700',
+  color: '#374151',
+  background: '#FFFFFF',
+  borderRight: '1px solid #D7DCE3',
+  minWidth: '96px',
+  textAlign: 'left',
+}
+
+const classicPartyCardCodeInput = {
+  width: '100%',
+  border: 0,
+  outline: 'none',
+  background: '#FFFFFF',
+  padding: '0.42rem 0.55rem',
+  fontSize: '0.78rem',
+  fontWeight: '700',
+  color: '#374151',
+  boxSizing: 'border-box',
+}
+
+const classicPartyCardSearch = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: '0.9rem',
+  color: '#6B7280',
+  background: 'linear-gradient(180deg, #FFFFFF 0%, #E5E7EB 100%)',
+  border: 0,
+  width: '100%',
+  height: '100%',
+  cursor: 'pointer',
+}
+
+const classicPartyCardName = {
+  padding: '0.55rem 0.68rem',
+  fontSize: '1.12rem',
+  fontWeight: '800',
+  color: '#243B53',
+  borderBottom: '1px solid #E5E7EB',
+  minHeight: '2.55rem',
+  display: 'flex',
+  alignItems: 'center',
+  letterSpacing: '0.01em',
+  background: '#FFFFFF',
+}
+
+const classicPartyCardBody = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: '0.55rem 0.7rem',
+  padding: '0.55rem 0.6rem 0.65rem',
+}
+
+const classicPartyCardField = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.18rem',
+  minWidth: 0,
+}
+
+const classicPartyCardFieldLabel = {
+  fontSize: '0.66rem',
+  fontWeight: '700',
+  color: '#6B7280',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+}
+
+const classicPartyCardFieldValue = {
+  fontSize: '0.8rem',
+  color: '#111827',
+  minHeight: '1rem',
+  wordBreak: 'break-word',
+}
+
+const classicRightGrid = {
+  display: 'grid',
+  gridTemplateColumns: '96px minmax(0, 1fr)',
+  gap: '0.32rem 0.5rem',
+  padding: '0.38rem 0.55rem 0.4rem',
+  alignItems: 'center',
+}
+
+const classicLabel = {
+  fontSize: '0.7rem',
+  fontWeight: '700',
+  color: '#4B5563',
+  letterSpacing: '0.03em',
+  textTransform: 'uppercase',
+}
+
+const classicInput = {
+  ...inputStyle,
+  minHeight: '1.9rem',
+  borderRadius: '0.12rem',
+  borderColor: '#C8CED6',
+  background: '#FFFFFF',
+  boxShadow: 'inset 0 1px 1px rgba(15, 23, 42, 0.04)',
+  padding: '0.28rem 0.45rem',
+  fontSize: '0.82rem',
+}
+
+const classicReadInput = {
+  ...classicInput,
+  background: '#F8FAFB',
+  color: '#4B5563',
+}
+
+const classicTextAreaRow = {
+  borderTop: '1px solid #D4D8DE',
+  display: 'grid',
+  gridTemplateColumns: '96px 150px',
+  gap: '0.4rem 0.55rem',
+  padding: '0.5rem 0.65rem 0.65rem',
+  alignItems: 'center',
+}
 
 const emptyLine = () => ({
   branch: '',
@@ -116,28 +315,29 @@ const emptyLine = () => ({
   purityDiff: '',
   premiumValue: '',
   silverPurity: '0',
+  vatType: 'VAT',
   remarks: '',
   type: 'Cash',
   typeCode: '',
   currCode: 'USD',
   currRate: '',
   exp: '',
-  trnNumber: '',
-  trnInv: '',
-  trnInvDate: '',
+  vatNumber: '',
+  vatInv: '',
+  vatInvDate: '',
   hsnAc: '',
-  trnRef: '',
+  vatRef: '',
   chqNo: '',
   chqDate: today(),
   chqBank: '',
   amountFC: '',
   amountLC: '',
   headerAmt: '',
-  trnPer: '',
-  trnAmountFC: '',
-  trnAmountLC: '',
-  amountWithTRN: '',
-  headerAmountWithTRN: '',
+  vatPer: '',
+  vatAmountFC: '',
+  vatAmountLC: '',
+  amountWithVAT: '',
+  headerAmountWithVAT: '',
   narration: '',
 })
 
@@ -150,8 +350,6 @@ const emptyHeader = () => ({
   vocDate: today(),
   vocNo: '',
   salesman: '',
-  refNo: '',
-  refDate: today(),
   narration: '',
   postedDate: today(),
   fixingType: 'fixing',
@@ -164,6 +362,13 @@ const normalizeRateType = (value) => {
   if (!normalized || normalized === 'GOZ') return 'OZ'
   return normalized
 }
+const normalizeVoucherFixingType = (value) => {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (['fixing', 'fixed'].includes(normalized)) return 'fixing'
+  if (['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(normalized)) return 'non-fixing'
+  return 'fixing'
+}
+const formatPartyAddress = (...parts) => parts.map((part) => String(part || '').trim()).filter(Boolean).join(', ')
 
 const decodeInventoryCategoryMeta = (category) => {
   const raw = String(category || '')
@@ -277,8 +482,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   const formReadOnly = isReadOnly || mode === 'view'
   const [editingId, setEditingId] = useState(null)
   const [selectedStatus, setSelectedStatus] = useState('') // workflow filter
-  const [innerTab, setInnerTab] = useState('lineItems')   // 'lineItems' | 'attachments'
-  const [headerTab, setHeaderTab] = useState('header')    // 'header' | 'accounts'
+  const [menuTab, setMenuTab] = useState('header')        // 'header' | 'accounts' | 'lineItems' | 'attachments'
   const [workflowNote, setWorkflowNote] = useState('')
   const [selectedPartyId, setSelectedPartyId] = useState('')
   const [recentPartyVouchers, setRecentPartyVouchers] = useState([])
@@ -286,10 +490,11 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   const [modalOffset, setModalOffset] = useState({ x: 0, y: 0 })
   const [modalDrag, setModalDrag] = useState(null)
   const dragMetaRef = useRef({ moved: false })
+  const lastViewedIdRef = useRef(null)  // tracks the voucher open before New was clicked
 
   // ─── header form ────────────────────────────────────────────────────────────
   const [header, setHeader] = useState(emptyHeader())
-  const setHdr = (k, v) => setHeader(prev => ({ ...prev, [k]: v }))
+  const setHdr = (key, value) => setHeader((prev) => ({ ...prev, [key]: value }))
 
   const voucherConfigs = {
     payment: { key: 'payment', label: 'Payment Voucher', short: t('paymentVoucher'), code: 'PAY', icon: '💳', partySelectLabel: 'Vendor / Customer', partyPlaceholder: 'Auto from vendor' },
@@ -317,6 +522,9 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
           partyCode: vendor.vendorCode || vendor.ledgerAccountId?.accountCode || String(vendor._id),
           partyId: `vendor:${String(vendor._id)}`,
           partyType: 'vendor',
+          email: vendor.email || '',
+          phone: vendor.phone || '',
+          address: formatPartyAddress(vendor.address, vendor.city, vendor.country, vendor.postalCode),
         }
       }
 
@@ -333,6 +541,9 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
             partyCode: customer.ledgerAccountId?.accountCode || String(customer._id),
             partyId: `customer:${String(customer._id)}`,
             partyType: 'customer',
+            email: customer.email || '',
+            phone: customer.phone || '',
+            address: customer.address || '',
           }
         : null
     }
@@ -350,11 +561,14 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
           partyCode: customer.ledgerAccountId?.accountCode || String(customer._id),
           partyId: `customer:${String(customer._id)}`,
           partyType: 'customer',
+          email: customer.email || '',
+          phone: customer.phone || '',
+          address: customer.address || '',
         }
       : null
   }, [customers, vendors, voucherType])
 
-  const partyGroups = voucherType === 'payment'
+  const partyGroups = ['payment', 'purchase', 'sale'].includes(voucherType)
     ? [
         {
           label: 'Vendors - Linked',
@@ -401,53 +615,6 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
             })),
         },
       ]
-    : voucherType === 'purchase' || voucherType === 'sale'
-      ? [
-          {
-            label: 'Vendors - Linked',
-            options: vendors
-              .filter((item) => Boolean(item.ledgerAccountId?.accountCode))
-              .map((item) => ({
-                id: `vendor:${String(item._id)}`,
-                label: `${item.name || 'Vendor'}${item.vendorCode ? ` (${item.vendorCode})` : ''}`,
-                partyCode: item.vendorCode || item.ledgerAccountId?.accountCode || String(item._id),
-                partyName: item.name || '',
-              })),
-          },
-          {
-            label: 'Vendors - Other',
-            options: vendors
-              .filter((item) => !item.ledgerAccountId?.accountCode)
-              .map((item) => ({
-                id: `vendor:${String(item._id)}`,
-                label: `${item.name || 'Vendor'}${item.vendorCode ? ` (${item.vendorCode})` : ''}`,
-                partyCode: item.vendorCode || String(item._id),
-                partyName: item.name || '',
-              })),
-          },
-          {
-            label: 'Customers - Linked',
-            options: customers
-              .filter((item) => Boolean(item.ledgerAccountId?.accountCode))
-              .map((item) => ({
-                id: `customer:${String(item._id)}`,
-                label: `${item.name || 'Customer'}${item.ledgerAccountId?.accountCode ? ` (${item.ledgerAccountId.accountCode})` : ''}`,
-                partyCode: item.ledgerAccountId?.accountCode || String(item._id),
-                partyName: item.name || '',
-              })),
-          },
-          {
-            label: 'Customers - Other',
-            options: customers
-              .filter((item) => !item.ledgerAccountId?.accountCode)
-              .map((item) => ({
-                id: `customer:${String(item._id)}`,
-                label: `${item.name || 'Customer'}`,
-                partyCode: String(item._id),
-                partyName: item.name || '',
-              })),
-          },
-        ]
     : [
         {
           label: 'Linked Customers',
@@ -557,9 +724,9 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       : 0
 
     const baseTotal = computedMetalAmount
-    const trnPer = parseFloat(next.trnPer) || 0
-    const trnAmount = Number(((baseTotal * trnPer) / 100).toFixed(2))
-    const amountWithTRN = Number((baseTotal + trnAmount).toFixed(2))
+    const vatPer = parseFloat(next.vatPer) || 0
+    const vatAmount = Number(((baseTotal * vatPer) / 100).toFixed(2))
+    const amountWithVAT = Number((baseTotal + vatAmount).toFixed(2))
 
     return {
       ...next,
@@ -568,9 +735,9 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       metalAmount: computedMetalAmount > 0 ? computedMetalAmount.toFixed(2) : (next.metalAmount || ''),
       totalAmount: baseTotal > 0 ? baseTotal.toFixed(2) : '',
       amountLC: baseTotal > 0 ? baseTotal.toFixed(2) : '',
-      trnAmountLC: trnPer > 0 ? trnAmount.toFixed(2) : '',
-      trnAmountFC: trnPer > 0 ? trnAmount.toFixed(2) : '',
-      amountWithTRN: baseTotal > 0 ? amountWithTRN.toFixed(2) : '',
+      vatAmountLC: vatPer > 0 ? vatAmount.toFixed(2) : '',
+      vatAmountFC: vatPer > 0 ? vatAmount.toFixed(2) : '',
+      amountWithVAT: baseTotal > 0 ? amountWithVAT.toFixed(2) : '',
     }
   }, [])
 
@@ -647,30 +814,27 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
           params: { page: 1, limit: 500 },
         })
         if (!mounted) return
-        setInventoryProducts(Array.isArray(res.data?.products) ? res.data.products : [])
+        setInventoryProducts(res.data.products || [])
       } catch {
-        if (!mounted) return
-        setInventoryProducts([])
+        if (mounted) setInventoryProducts([])
       } finally {
         if (mounted) setLoadingInventoryProducts(false)
       }
     }
 
     loadInventoryProducts()
-    return () => {
-      mounted = false
-    }
+    return () => { mounted = false }
   }, [canView])
 
   useEffect(() => {
     if (!showLineForm || (voucherType !== 'purchase' && voucherType !== 'sale')) return
     setLineForm((prev) => {
       const calculated = applyLineAutoCalc(prev)
-      const keys = ['pureWeight', 'weightInOz', 'metalAmount', 'totalAmount', 'amountLC', 'trnAmountLC', 'trnAmountFC', 'amountWithTRN']
+      const keys = ['pureWeight', 'weightInOz', 'metalAmount', 'totalAmount', 'amountLC', 'vatAmountLC', 'vatAmountFC', 'amountWithVAT']
       const hasChanges = keys.some((key) => String(prev[key] || '') !== String(calculated[key] || ''))
       return hasChanges ? calculated : prev
     })
-  }, [showLineForm, voucherType, lineForm.grossWeight, lineForm.purity, lineForm.metalRate, lineForm.rateType, lineForm.trnPer, applyLineAutoCalc])
+  }, [showLineForm, voucherType, lineForm.grossWeight, lineForm.purity, lineForm.metalRate, lineForm.rateType, lineForm.vatPer, applyLineAutoCalc])
 
   // ─── helpers ─────────────────────────────────────────────────────────────────
   const showMsg = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 4000) }
@@ -683,7 +847,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       ...lineForm,
       type: normalizeLineType(lineForm.type),
       amountLC: lineForm.amountLC || lineForm.totalAmount || lineForm.metalAmount || '',
-      amountWithTRN: lineForm.amountWithTRN || lineForm.amountLC || lineForm.amountFC || '',
+      amountWithVAT: lineForm.amountWithVAT || lineForm.amountLC || lineForm.amountFC || '',
     }
 
     if (editingLineIdx !== null) {
@@ -692,7 +856,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
 
     const hasDraftContent = Boolean(
       String(draftLine.stockCode || draftLine.acCode || draftLine.productType || '').trim()
-      || parseFloat(draftLine.amountWithTRN)
+      || parseFloat(draftLine.amountWithVAT)
       || parseFloat(draftLine.amountLC)
       || parseFloat(draftLine.metalAmount)
     )
@@ -702,8 +866,8 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
 
   const totals = {
     total: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountLC) || 0), 0),
-    trnAmount: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.trnAmountLC) || 0), 0),
-    grandTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithTRN) || parseFloat(l.amountLC) || 0), 0),
+    vatAmount: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.vatAmountLC) || 0), 0),
+    grandTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0), 0),
   }
 
   const canCreate = voucherType === 'payment'
@@ -724,6 +888,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
         params: { type: voucherType, limit: 200 },
       })
       const txs = (res.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo)
+        .sort((a, b) => (parseInt(a.voucherMeta?.vocNo) || 0) - (parseInt(b.voucherMeta?.vocNo) || 0))
       setVouchers(txs)
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load vouchers')
@@ -770,19 +935,49 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
 
   // ─── open create ────────────────────────────────────────────────────────────
   const openCreate = () => {
+    // If already filling a new form, ask before discarding
+    if (mode === 'create' && !editingId) {
+      const hasData = header.partyCode.trim() || lineItems.length > 0 || header.narration.trim()
+      if (hasData && !window.confirm('Discard current unsaved form and open a new one?')) return
+      // Don’t overwrite lastViewedIdRef — it already points to the voucher before the first New
+    } else {
+      // Only update the back-reference when coming from a real saved voucher
+      if (editingId) lastViewedIdRef.current = editingId
+    }
     setEditingId(null)
     setHeader({ ...emptyHeader(), vocNo: nextVocNo() })
     setSelectedPartyId('')
     setRecentPartyVouchers([])
     setLineItems([])
     setShowLineForm(false)
-    setInnerTab('lineItems')
-    setHeaderTab('header')
+    setMenuTab('header')
     setWorkflowNote('')
     setModalOffset({ x: 0, y: 0 })
     setModalDrag(null)
     setError('')
     setMode('create')
+  }
+
+  // ─── open last voucher for a type, or blank form if none exist ───────────────
+  const openLastOrCreate = async (type) => {
+    try {
+      const res = await axios.get(`${BASE}/transactions`, {
+        ...cfg(),
+        params: { type, limit: 200 },
+      })
+      const txs = (res.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo)
+        .sort((a, b) => (parseInt(a.voucherMeta?.vocNo) || 0) - (parseInt(b.voucherMeta?.vocNo) || 0))
+      setVouchers(txs)
+      if (txs.length > 0) {
+        // open the last (highest vocNo) voucher
+        openVoucher(txs[txs.length - 1])
+      } else {
+        openCreate()
+      }
+    } catch {
+      // fallback: just open blank form
+      openCreate()
+    }
   }
 
   const handleModalHeaderMouseDown = (e) => {
@@ -798,34 +993,185 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     })
   }
 
-  const handleCreateModalBackdropClick = () => {
-    if (mode !== 'create') return
+  const handleVoucherModalBackdropClick = () => {
+    if (mode !== 'create' && mode !== 'view') return
     if (dragMetaRef.current.moved) {
       dragMetaRef.current.moved = false
+      return
+    }
+    if (mode === 'create' && !window.confirm('Close voucher form and discard unsaved changes?')) {
       return
     }
     setMode('list')
   }
 
   // ─── ERP toolbar navigation & delete ─────────────────────────────────────────
-  const navFirst = () => { if (vouchers.length) openVoucher(vouchers[0]) }
+  const navFirst = () => {
+    if (!vouchers.length) {
+      setError('No vouchers available for this voucher type')
+      return
+    }
+    openVoucher(vouchers[0])
+  }
   const navPrev = () => {
+    if (!vouchers.length) {
+      setError('No vouchers available for this voucher type')
+      return
+    }
     const idx = vouchers.findIndex(v => v._id === editingId)
-    if (idx > 0) openVoucher(vouchers[idx - 1])
+    if (idx === -1) {
+      openVoucher(vouchers[vouchers.length - 1])
+      return
+    }
+    if (idx > 0) {
+      openVoucher(vouchers[idx - 1])
+      return
+    }
+    showMsg('Already at first voucher')
   }
   const navNext = () => {
+    if (!vouchers.length) {
+      setError('No vouchers available for this voucher type')
+      return
+    }
     const idx = vouchers.findIndex(v => v._id === editingId)
-    if (idx >= 0 && idx < vouchers.length - 1) openVoucher(vouchers[idx + 1])
+    if (idx === -1) {
+      openVoucher(vouchers[0])
+      return
+    }
+    if (idx >= 0 && idx < vouchers.length - 1) {
+      openVoucher(vouchers[idx + 1])
+      return
+    }
+    showMsg('Already at last voucher')
   }
-  const navLast = () => { if (vouchers.length) openVoucher(vouchers[vouchers.length - 1]) }
+  const navLast = () => {
+    if (!vouchers.length) {
+      setError('No vouchers available for this voucher type')
+      return
+    }
+    openVoucher(vouchers[vouchers.length - 1])
+  }
+
+  const handleEditUnlock = () => {
+    if (isReadOnly) {
+      setError('You have read-only access')
+      return
+    }
+    if (!editingId) {
+      if (mode !== 'create') {
+        setError('Open a voucher first, then click Edit')
+      } else {
+        showMsg('Already in EDIT mode')
+      }
+      return
+    }
+    setMode('create')
+    clearError()
+    showMsg('Mode: EDIT')
+  }
+
+  const handleCancelChanges = () => {
+    if (mode === 'create') {
+      if (window.confirm('Discard unsaved changes?')) {
+        // If editing an existing voucher, revert to it
+        if (editingId) {
+          const existing = vouchers.find((v) => v._id === editingId)
+          if (existing) {
+            openVoucher(existing)
+            showMsg('Changes discarded')
+            return
+          }
+        }
+        // New blank form — go back to last viewed voucher if available
+        const prev = lastViewedIdRef.current
+          ? vouchers.find(v => v._id === lastViewedIdRef.current)
+          : null
+        if (prev) {
+          openVoucher(prev)
+          showMsg('Cancelled — returned to last entry')
+        } else if (vouchers.length > 0) {
+          openVoucher(vouchers[vouchers.length - 1])
+          showMsg('Cancelled — returned to last entry')
+        } else {
+          setMode('list')
+        }
+      }
+      return
+    }
+    setMode('list')
+  }
+
+  const handleSearchFind = () => {
+    const term = window.prompt('Search vouchers by voucher number, party code/name, or date (YYYY-MM-DD):', '')
+    if (term === null) return
+    const q = String(term || '').trim().toLowerCase()
+    if (!q) {
+      showMsg('Search cleared')
+      return
+    }
+
+    const match = vouchers.find((v) => {
+      const m = v.voucherMeta || {}
+      const vocNo = String(m.vocNo || '').toLowerCase()
+      const partyCode = String(m.partyCode || '').toLowerCase()
+      const partyName = String(m.partyName || '').toLowerCase()
+      const dt = String(v.date || '').slice(0, 10).toLowerCase()
+      return vocNo.includes(q) || partyCode.includes(q) || partyName.includes(q) || dt.includes(q)
+    })
+
+    if (match) {
+      openVoucher(match)
+      showMsg(`Found voucher #${match.voucherMeta?.vocNo || '-'}`)
+      return
+    }
+
+    setError('No voucher matched your search')
+  }
+
+  const handleBarcodeAction = () => {
+    const activeLine = lineItems.find((line) => String(line.stockCode || '').trim())
+    const stockCode = activeLine?.stockCode || 'N/A'
+    const voucherNo = header.vocNo || 'NEW'
+    alert(`Voucher: ${voucherNo}\nStock Barcode Ref: ${stockCode}`)
+  }
+
+  const handleExitVoucherForm = () => {
+    if (mode === 'create' && !window.confirm('Close voucher form and discard unsaved changes?')) {
+      return
+    }
+    setMode('list')
+  }
+
   const handleDeleteVoucher = async () => {
-    if (!editingId) return
+    if (!editingId) {
+      setError('No saved voucher selected to delete')
+      return
+    }
     if (!window.confirm(`Delete voucher #${header.vocNo}? This cannot be undone.`)) return
     try {
-      await axios.delete(`${BASE}/transactions/${editingId}`, cfg())
+      const deletedId = editingId
+      const deletedIdx = vouchers.findIndex(v => v._id === deletedId)
+      await axios.delete(`${BASE}/transactions/${deletedId}`, cfg())
       showMsg('Voucher deleted')
       await loadVouchers()
-      setMode('list')
+      // After reload, vouchers state is stale here — re-fetch locally to navigate
+      const res = await axios.get(`${BASE}/transactions`, {
+        ...cfg(),
+        params: { type: voucherType, limit: 200 },
+      })
+      const remaining = (res.data.transactions || [])
+        .filter(t => t.voucherMeta && t.voucherMeta.vocNo)
+        .sort((a, b) => (parseInt(a.voucherMeta?.vocNo) || 0) - (parseInt(b.voucherMeta?.vocNo) || 0))
+      setVouchers(remaining)
+      if (remaining.length === 0) {
+        // No vouchers left — open a blank new form
+        openCreate()
+      } else {
+        // Try to open the next record (same index), else the one before it
+        const nextIdx = Math.min(deletedIdx, remaining.length - 1)
+        openVoucher(remaining[Math.max(nextIdx, 0)])
+      }
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to delete voucher')
     }
@@ -845,17 +1191,14 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       vocDate: v.date ? v.date.slice(0, 10) : today(),
       vocNo: m.vocNo || '',
       salesman: m.salesman || '',
-      refNo: m.refNo || '',
-      refDate: m.refDate ? m.refDate.slice(0, 10) : today(),
       narration: v.description || '',
       postedDate: m.postedDate ? m.postedDate.slice(0, 10) : today(),
-      fixingType: m.fixingType || 'fixing',
+      fixingType: normalizeVoucherFixingType(m.fixingType),
     })
     setSelectedPartyId(resolvedParty?.partyId || '')
     setLineItems((m.lineItems || []).map((line) => ({ ...line, type: normalizeLineType(line.type) })))
     setShowLineForm(false)
-    setInnerTab('lineItems')
-    setHeaderTab('header')
+    setMenuTab('header')
     setWorkflowNote('')
     setError('')
     setMode('view')
@@ -863,16 +1206,6 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
 
   const handleWorkflowAction = async (action) => {
     if (!editingId) return
-    const routeMap = {
-      submit: 'submit',
-      approve: 'approve',
-      return: 'return',
-      reject: 'reject',
-      post: 'post',
-    }
-    const route = routeMap[action]
-    if (!route) return
-
     if ((action === 'return' || action === 'reject') && !workflowNote.trim()) {
       setError(action === 'return' ? 'Return reason is required' : 'Rejection reason is required')
       return
@@ -881,7 +1214,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     setSaving(true)
     clearError()
     try {
-      await axios.post(`${BASE}/transactions/${editingId}/${route}`, { comment: workflowNote }, cfg())
+      await axios.post(`${BASE}/transactions/${editingId}/${action}`, { comment: workflowNote }, cfg())
       await loadVouchers()
       setWorkflowNote('')
       const actionLabel = action === 'submit'
@@ -894,6 +1227,43 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
               ? 'rejected'
               : 'posted'
       showMsg(`Voucher ${actionLabel} successfully`)
+    } catch (e) {
+      setError(e.response?.data?.message || `Failed to ${action} voucher`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleListWorkflowAction = async (voucher, action) => {
+    if (!voucher?._id) return
+    let comment = ''
+
+    if (action === 'return' || action === 'reject') {
+      const promptLabel = action === 'return' ? 'Return reason' : 'Rejection reason'
+      const value = window.prompt(`${promptLabel} (required):`, '')
+      if (value === null) return
+      if (!String(value).trim()) {
+        setError(`${promptLabel} is required`)
+        return
+      }
+      comment = String(value).trim()
+    }
+
+    setSaving(true)
+    clearError()
+    try {
+      await axios.post(`${BASE}/transactions/${voucher._id}/${action}`, { comment }, cfg())
+      await loadVouchers()
+      const actionLabel = action === 'submit'
+        ? 'submitted'
+        : action === 'approve'
+          ? 'approved'
+          : action === 'return'
+            ? 'returned for edit'
+            : action === 'reject'
+              ? 'rejected'
+              : 'posted'
+      showMsg(`Voucher #${voucher.voucherMeta?.vocNo || '-'} ${actionLabel}`)
     } catch (e) {
       setError(e.response?.data?.message || `Failed to ${action} voucher`)
     } finally {
@@ -921,7 +1291,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
         ...lineForm,
         type: normalizeLineType(lineForm.type),
         amountLC: lineForm.amountLC || lineForm.totalAmount || lineForm.metalAmount || '',
-        amountWithTRN: lineForm.amountWithTRN || lineForm.amountLC || lineForm.amountFC,
+        amountWithVAT: lineForm.amountWithVAT || lineForm.amountLC || lineForm.amountFC,
       }
       if (editingLineIdx !== null) {
         effectiveLineItems = effectiveLineItems.map((l, i) => (i === editingLineIdx ? draftLine : l))
@@ -968,25 +1338,26 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
         partyName: header.partyName || resolvedParty?.partyName || '',
         salesman: header.salesman,
         vocNo: header.vocNo,
-        refNo: header.refNo,
-        refDate: header.refDate || null,
         postedDate: header.postedDate || null,
-        ...(( voucherType === 'purchase' || voucherType === 'sale') ? { fixingType: header.fixingType || 'fixing' } : {}),
+        ...(( voucherType === 'purchase' || voucherType === 'sale') ? { fixingType: normalizeVoucherFixingType(header.fixingType) } : {}),
         lineItems: effectiveLineItems.map(l => ({
           ...l,
           amountFC: parseFloat(l.amountFC) || 0,
           amountLC: parseFloat(l.amountLC) || 0,
           headerAmt: parseFloat(l.headerAmt) || 0,
           currRate: parseFloat(l.currRate) || 1,
-          trnPer: parseFloat(l.trnPer) || 0,
-          trnAmountFC: parseFloat(l.trnAmountFC) || 0,
-          trnAmountLC: parseFloat(l.trnAmountLC) || 0,
-          amountWithTRN: parseFloat(l.amountWithTRN) || parseFloat(l.amountLC) || 0,
-          headerAmountWithTRN: parseFloat(l.headerAmountWithTRN) || 0,
+          vatPer: parseFloat(l.vatPer) || 0,
+          vatAmountFC: parseFloat(l.vatAmountFC) || 0,
+          vatAmountLC: parseFloat(l.vatAmountLC) || 0,
+          amountWithVAT: parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0,
+          headerAmountWithVAT: parseFloat(l.headerAmountWithVAT) || 0,
         })),
       },
+      ...((voucherType === 'purchase' || voucherType === 'sale')
+        ? { metalFixStatus: normalizeVoucherFixingType(header.fixingType) === 'non-fixing' ? 'unfixed' : 'fixed' }
+        : {}),
     }
-    const payloadLineTotal = effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithTRN) || parseFloat(l.amountLC) || 0), 0)
+    const payloadLineTotal = effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0), 0)
     payload.amount = payloadLineTotal || 0.01
     const isPostedEditing = Boolean(editingId) && currentVoucherStatus === 'posted'
     setSaving(true)
@@ -999,7 +1370,21 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
         showMsg(isPostedEditing ? 'Posted voucher is locked. Saved as a new draft voucher.' : 'Voucher saved successfully')
       }
       await loadVouchers()
-      setMode('list')
+      // After save, reload list then open the saved voucher in view mode
+      const res2 = await axios.get(`${BASE}/transactions`, {
+        ...cfg(),
+        params: { type: voucherType, limit: 200 },
+      })
+      const refreshed = (res2.data.transactions || [])
+        .filter(t => t.voucherMeta && t.voucherMeta.vocNo)
+        .sort((a, b) => (parseInt(a.voucherMeta?.vocNo) || 0) - (parseInt(b.voucherMeta?.vocNo) || 0))
+      setVouchers(refreshed)
+      // Find the just-saved voucher (highest vocNo for this type) and open it
+      if (refreshed.length > 0) {
+        openVoucher(refreshed[refreshed.length - 1])
+      } else {
+        setMode('list')
+      }
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to save voucher')
     } finally {
@@ -1030,11 +1415,40 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       type: normalizedType,
       typeCode: normalizedType.toUpperCase(),
       rateType: normalizeRateType(lineItems[idx]?.rateType),
+      vatType: lineItems[idx]?.vatType || 'VAT',
     })
     setShowLineForm(true)
   }
 
   const deleteLine = (idx) => setLineItems(prev => prev.filter((_, i) => i !== idx))
+
+  const ensureEditableForLineActions = () => {
+    if (isReadOnly) {
+      setError('You have read-only access')
+      return false
+    }
+    if (mode === 'view') {
+      setMode('create')
+      clearError()
+      showMsg('Mode: EDIT')
+    }
+    return true
+  }
+
+  const handleAddLineClick = () => {
+    if (!ensureEditableForLineActions()) return
+    openAddLine()
+  }
+
+  const handleEditLineClick = (idx) => {
+    if (!ensureEditableForLineActions()) return
+    openEditLine(idx)
+  }
+
+  const handleDeleteLineClick = (idx) => {
+    if (!ensureEditableForLineActions()) return
+    deleteLine(idx)
+  }
 
   const cancelLine = () => { setShowLineForm(false); setEditingLineIdx(null); clearError() }
 
@@ -1046,7 +1460,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       ...lineForm,
       type: normalizeLineType(lineForm.type),
       amountLC: lineForm.amountLC || lineForm.totalAmount || lineForm.metalAmount || '',
-      amountWithTRN: lineForm.amountWithTRN || lineForm.amountLC || lineForm.amountFC,
+      amountWithVAT: lineForm.amountWithVAT || lineForm.amountLC || lineForm.amountFC,
     }
     if (editingLineIdx !== null) {
       setLineItems(prev => prev.map((l, i) => i === editingLineIdx ? line : l))
@@ -1076,18 +1490,96 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     }
   }
 
-  // Auto-calc amountLC from FC and rate
+  // Keep payment/receipt VAT fields fully synced whichever amount/tax field user edits.
+  const recalcReceiptPaymentLine = (baseLine, source) => {
+    const next = { ...baseLine }
+    const rate = parseFloat(next.currRate) || parseFloat(header.currRate) || 1
+    let amountFC = parseFloat(next.amountFC) || 0
+    let amountLC = parseFloat(next.amountLC) || 0
+    let vatPer = parseFloat(next.vatPer) || 0
+    let vatAmountFC = parseFloat(next.vatAmountFC) || 0
+    let vatAmountLC = parseFloat(next.vatAmountLC) || 0
+    let amountWithVAT = parseFloat(next.amountWithVAT) || 0
+
+    if (source === 'amountFC' || source === 'rate') {
+      amountLC = amountFC * rate
+    }
+
+    if (source === 'amountLC') {
+      amountFC = rate > 0 ? amountLC / rate : 0
+    }
+
+    if (source === 'vatPer') {
+      vatAmountFC = (amountFC * vatPer) / 100
+      vatAmountLC = (amountLC * vatPer) / 100
+      amountWithVAT = amountLC + vatAmountLC
+    } else if (source === 'vatAmountFC') {
+      vatAmountLC = vatAmountFC * rate
+      vatPer = amountFC > 0 ? (vatAmountFC / amountFC) * 100 : (amountLC > 0 ? (vatAmountLC / amountLC) * 100 : 0)
+      amountWithVAT = amountLC + vatAmountLC
+    } else if (source === 'vatAmountLC') {
+      vatAmountFC = rate > 0 ? vatAmountLC / rate : 0
+      vatPer = amountLC > 0 ? (vatAmountLC / amountLC) * 100 : (amountFC > 0 ? (vatAmountFC / amountFC) * 100 : 0)
+      amountWithVAT = amountLC + vatAmountLC
+    } else if (source === 'amountWithVAT') {
+      vatAmountLC = Math.max(amountWithVAT - amountLC, 0)
+      vatAmountFC = rate > 0 ? vatAmountLC / rate : 0
+      vatPer = amountLC > 0 ? (vatAmountLC / amountLC) * 100 : 0
+    } else {
+      if (vatPer > 0) {
+        vatAmountFC = (amountFC * vatPer) / 100
+        vatAmountLC = (amountLC * vatPer) / 100
+      } else {
+        vatAmountFC = 0
+        vatAmountLC = 0
+      }
+      amountWithVAT = amountLC + vatAmountLC
+    }
+
+    const hasAmountFC = String(next.amountFC || '').trim() !== ''
+    const hasAmountLC = String(next.amountLC || '').trim() !== ''
+    const hasVatPer = String(next.vatPer || '').trim() !== '' || source === 'vatPer'
+    const hasVatAmountFC = String(next.vatAmountFC || '').trim() !== '' || source === 'vatAmountFC'
+    const hasVatAmountLC = String(next.vatAmountLC || '').trim() !== '' || source === 'vatAmountLC'
+    const hasAmountWithVAT = String(next.amountWithVAT || '').trim() !== '' || source === 'amountWithVAT'
+
+    return {
+      ...next,
+      amountFC: hasAmountFC || amountFC > 0 ? amountFC.toFixed(2) : '',
+      amountLC: hasAmountLC || amountLC > 0 ? amountLC.toFixed(2) : '',
+      vatPer: hasVatPer || vatPer > 0 ? vatPer.toFixed(2) : '',
+      vatAmountFC: hasVatAmountFC || vatAmountFC > 0 ? vatAmountFC.toFixed(2) : '',
+      vatAmountLC: hasVatAmountLC || vatAmountLC > 0 ? vatAmountLC.toFixed(2) : '',
+      amountWithVAT: hasAmountWithVAT || amountWithVAT > 0 ? amountWithVAT.toFixed(2) : (amountLC > 0 ? amountLC.toFixed(2) : ''),
+    }
+  }
+
   const handleAmountFC = (val) => {
-    setLF('amountFC', val)
-    const rate = parseFloat(lineForm.currRate) || parseFloat(header.currRate) || 1
-    const lc = (parseFloat(val) || 0) * rate
-    setLF('amountLC', lc ? lc.toFixed(2) : '')
-    setLF('amountWithTRN', lc ? lc.toFixed(2) : '')
+    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, amountFC: val }, 'amountFC'))
   }
 
   const handleAmountLC = (val) => {
-    setLF('amountLC', val)
-    setLF('amountWithTRN', val)
+    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, amountLC: val }, 'amountLC'))
+  }
+
+  const handleCurrRateChange = (val) => {
+    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, currRate: val }, 'rate'))
+  }
+
+  const handleVatPerChange = (val) => {
+    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, vatPer: val }, 'vatPer'))
+  }
+
+  const handleVatAmountFCChange = (val) => {
+    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, vatAmountFC: val }, 'vatAmountFC'))
+  }
+
+  const handleVatAmountLCChange = (val) => {
+    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, vatAmountLC: val }, 'vatAmountLC'))
+  }
+
+  const handleAmountWithVATChange = (val) => {
+    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, amountWithVAT: val }, 'amountWithVAT'))
   }
 
   const handleLineAmountEnter = (e) => {
@@ -1104,6 +1596,22 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     setHdr('partyName', resolvedParty?.partyName || '')
   }
 
+  const searchPartyByCode = () => {
+    const lookupCode = String(header.partyCode || '').trim()
+    if (!lookupCode) {
+      setSelectedPartyId('')
+      setHdr('partyName', '')
+      return
+    }
+    lookupParty(lookupCode)
+  }
+
+  const handlePartyCodeEnter = (e) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    searchPartyByCode()
+  }
+
   const handlePartySelect = (partyId) => {
     setSelectedPartyId(partyId)
     const selected = partyOptions.find((item) => item.id === partyId)
@@ -1117,14 +1625,14 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   }
 
   useEffect(() => {
-    if (headerTab !== 'accounts') return
+    if (menuTab !== 'accounts') return
     const resolvedParty = resolveVoucherParty(header.partyCode)
     if (!resolvedParty) {
       setRecentPartyVouchers([])
       return
     }
     loadRecentPartyVouchers(resolvedParty)
-  }, [headerTab, header.partyCode, resolveVoucherParty, loadRecentPartyVouchers])
+  }, [menuTab, header.partyCode, resolveVoucherParty, loadRecentPartyVouchers])
 
   // ─── filtered list ───────────────────────────────────────────────────────────
   const filteredVouchers = selectedStatus
@@ -1133,7 +1641,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   const currentVoucher = editingId ? vouchers.find(v => v._id === editingId) : null
   const currentVoucherStatus = currentVoucher?.status || 'draft'
   const isPostedEditing = Boolean(editingId) && currentVoucherStatus === 'posted'
-  const canSubmitWorkflow = Boolean(editingId) && !formReadOnly && ['draft', 'returned', 'rejected'].includes(currentVoucherStatus)
+  const canSubmitWorkflow = Boolean(editingId) && !isReadOnly && ['draft', 'returned', 'rejected'].includes(currentVoucherStatus)
   const canApproveWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && currentVoucherStatus === 'submitted'
   const canReturnWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(currentVoucherStatus)
   const canRejectWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && ['submitted', 'approved', 'returned'].includes(currentVoucherStatus)
@@ -1155,7 +1663,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   const voucherLabelT = voucherConfig.short
   const lineTableHeaders = isMetalVoucher
     ? ['No.', 'Stock Code', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', 'Rate Type', 'Metal Rate', 'Metal Amount', 'Total', '']
-    : ['No.', 'A/C Code', 'Type', 'Cheque No', 'Cheque Dt', 'Bank', 'Curr', 'Amount FC', 'Amount LC', '']
+    : ['No.', 'A/C Code', 'Type', 'Curr', 'Amount FC', 'Amount LC', '']
   const inventoryStockOptions = inventoryProducts
     .filter((item) => String(item.sku || '').trim())
     // Keep mapped inventory records only, so legacy records do not show duplicate-like stock choices.
@@ -1197,36 +1705,31 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
         <button
           style={tabBtn(voucherType === 'payment')}
-          onClick={() => { setVoucherType('payment'); setMode('list') }}
+          onClick={() => { setVoucherType('payment'); openLastOrCreate('payment') }}
         >
           💳 {t('paymentVoucher')}
         </button>
         <button
           style={tabBtn(voucherType === 'receipt')}
-          onClick={() => { setVoucherType('receipt'); setMode('list') }}
+          onClick={() => { setVoucherType('receipt'); openLastOrCreate('receipt') }}
         >
           🧾 {t('receiptVoucher')}
         </button>
         <button
           style={tabBtn(voucherType === 'purchase')}
-          onClick={() => { setVoucherType('purchase'); setMode('list') }}
+          onClick={() => { setVoucherType('purchase'); openLastOrCreate('purchase') }}
         >
           🟫 Metal Purchase
         </button>
         <button
           style={tabBtn(voucherType === 'sale')}
-          onClick={() => { setVoucherType('sale'); setMode('list') }}
+          onClick={() => { setVoucherType('sale'); openLastOrCreate('sale') }}
         >
           🟨 Metal Sale
         </button>
         {mode !== 'list' && (
           <button style={btn('secondary')} onClick={() => setMode('list')}>
             ← Back to List
-          </button>
-        )}
-        {mode === 'list' && canCreate && (
-          <button style={{ ...btn('primary'), marginLeft: 'auto' }} onClick={openCreate}>
-            + {t('create')} {voucherLabelT}
           </button>
         )}
       </div>
@@ -1260,11 +1763,6 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
             <div style={{ textAlign: 'center', padding: '3rem', color: S.muted, border: `2px dashed ${S.border}`, borderRadius: '0.5rem' }}>
               <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</div>
               <p>No {voucherLabel.toLowerCase()}s found.</p>
-              {canCreate && (
-                <button style={{ ...btn('primary'), marginTop: '0.5rem' }} onClick={openCreate}>
-                  + Create First {voucherLabel}
-                </button>
-              )}
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -1281,7 +1779,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                 <tbody>
                   {filteredVouchers.map((v, i) => {
                     const m = v.voucherMeta || {}
-                    const grand = (m.lineItems || []).reduce((s, l) => s + (l.amountWithTRN || l.amountLC || 0), 0)
+                    const grand = (m.lineItems || []).reduce((s, l) => s + (l.amountWithVAT || l.amountLC || 0), 0)
                     const statusColors = {
                       draft: { bg: '#FEF3C7', color: '#92400E' },
                       submitted: { bg: '#DBEAFE', color: '#1D4ED8' },
@@ -1306,9 +1804,61 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                           </span>
                         </td>
                         <td style={{ padding: '0.55rem 0.75rem' }}>
-                          <button style={{ ...btn('secondary'), padding: '0.25rem 0.6rem', fontSize: '0.78rem' }} onClick={() => openVoucher(v)}>
-                            {isReadOnly ? 'View' : 'Open'}
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            <button style={{ ...btn('secondary'), padding: '0.25rem 0.6rem', fontSize: '0.78rem' }} onClick={() => openVoucher(v)}>
+                              {isReadOnly ? 'View' : 'Open'}
+                            </button>
+                            {!isReadOnly && ['draft', 'returned', 'rejected'].includes(v.status) && (
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => handleListWorkflowAction(v, 'submit')}
+                                style={{ ...btn('gray'), padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#F59E0B', color: '#111827' }}
+                              >
+                                {t('submit')}
+                              </button>
+                            )}
+                            {(isSuperAdmin || isFinance) && v.status === 'submitted' && (
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => handleListWorkflowAction(v, 'approve')}
+                                style={{ ...btn('gray'), padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#0EA5E9', color: '#FFFFFF' }}
+                              >
+                                {t('approve')}
+                              </button>
+                            )}
+                            {(isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(v.status) && (
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => handleListWorkflowAction(v, 'return')}
+                                style={{ ...btn('gray'), padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#F472B6', color: '#831843' }}
+                              >
+                                {t('returnForEdit')}
+                              </button>
+                            )}
+                            {(isSuperAdmin || isFinance) && ['submitted', 'approved', 'returned'].includes(v.status) && (
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => handleListWorkflowAction(v, 'reject')}
+                                style={{ ...btn('gray'), padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#FEE2E2', color: '#B91C1C' }}
+                              >
+                                {t('reject')}
+                              </button>
+                            )}
+                            {(isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(v.status) && (
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => handleListWorkflowAction(v, 'post')}
+                                style={{ ...btn('primary'), padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
+                              >
+                                {t('post')}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )
@@ -1324,7 +1874,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       {/* ═══════════════════════════════════════════════════════ CREATE / VIEW MODE */}
       {(mode === 'create' || mode === 'view') && (
         <div
-          style={mode === 'create'
+          style={(mode === 'create' || mode === 'view')
             ? {
                 position: 'fixed',
                 inset: 0,
@@ -1336,35 +1886,36 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                 padding: '1rem',
               }
             : undefined}
-          onClick={mode === 'create' ? handleCreateModalBackdropClick : undefined}
+          onClick={(mode === 'create' || mode === 'view') ? handleVoucherModalBackdropClick : undefined}
         >
           <div
-            style={mode === 'create'
+            style={(mode === 'create' || mode === 'view')
               ? {
                   width: 'min(1180px, 96vw)',
                   maxHeight: '92vh',
                   overflowY: 'auto',
                   background: S.white,
                   borderRadius: '0.7rem',
-                  border: '2px solid #6a8cbf',
-                  boxShadow: '4px 4px 24px rgba(15, 23, 42, 0.45)',
+                  border: '2px solid #4F73AB',
+                  boxShadow: '0 16px 32px rgba(15, 23, 42, 0.48), inset 0 1px 0 rgba(255,255,255,0.2)',
                   padding: '0',
                   transform: `translate(${modalOffset.x}px, ${modalOffset.y}px)`,
                 }
               : undefined}
-            onClick={mode === 'create' ? (e) => e.stopPropagation() : undefined}
+            onClick={(mode === 'create' || mode === 'view') ? (e) => e.stopPropagation() : undefined}
           >
           {/* ── Top title bar ── */}
           {/* ── ERP-style Title Bar (draggable) ── */}
           <div
             style={{
-              background: 'linear-gradient(180deg,#6a8cbf 0%,#3a5f9a 40%,#2a4f8a 100%)',
+              background: 'linear-gradient(180deg,#8AA8D6 0%,#4E73AF 18%,#2E5593 55%,#21477F 100%)',
               color: '#fff',
-              padding: '5px 8px',
+              padding: '4px 8px 5px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              borderBottom: '1px solid #2a4f8a',
+              borderBottom: '1px solid #173765',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.45)',
               borderRadius: '0.5rem 0.5rem 0 0',
               marginBottom: 0,
               flexShrink: 0,
@@ -1374,45 +1925,49 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
             onMouseDown={mode === 'create' ? handleModalHeaderMouseDown : undefined}
           >
             <div style={{ width: 60 }} />
-            <span style={{ fontSize: 13, fontWeight: 700, flex: 1, textAlign: 'center', letterSpacing: '.3px' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, flex: 1, textAlign: 'center', letterSpacing: '.2px', textShadow: '0 1px 0 rgba(0,0,0,0.28)' }}>
               {voucherLabelT}{header.vocNo ? ` — #${header.vocNo}` : ''}
             </span>
             <div style={{ display: 'flex', gap: 2 }}>
               {['─', '□'].map((ch) => (
-                <button key={ch} type="button" style={{ width: 18, height: 16, background: 'linear-gradient(180deg,#d0d0d0,#a0a0a0)', border: '1px solid #888', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#222', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{ch}</button>
+                <button key={ch} type="button" style={{ width: 18, height: 15, background: 'linear-gradient(180deg,#D8DCE3,#A9B2C1)', border: '1px solid #6F7B8B', borderTop: '1px solid #EFF3F8', borderLeft: '1px solid #E5EAF1', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#1F2937', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)' }}>{ch}</button>
               ))}
-              <button type="button" title="Close" onClick={() => setMode('list')} style={{ width: 18, height: 16, background: 'linear-gradient(180deg,#d0d0d0,#a0a0a0)', border: '1px solid #888', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#222', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              <button type="button" title="Close" onClick={() => setMode('list')} style={{ width: 18, height: 15, background: 'linear-gradient(180deg,#E3D8D8,#C4A0A0)', border: '1px solid #8A6F6F', borderTop: '1px solid #F4E9E9', borderLeft: '1px solid #EFDDDD', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#3F1D1D', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)' }}>✕</button>
             </div>
           </div>
 
           {/* ── ERP Classic Toolbar ── */}
           {(() => {
             const tbS = {
-              width: 28, height: 26,
-              background: 'linear-gradient(180deg,#f5f5f5 0%,#e0e0e0 45%,#c8c8c8 100%)',
-              border: '1px solid #aaa',
-              borderTop: '1px solid #e8e8e8',
-              borderLeft: '1px solid #e0e0e0',
+              minWidth: 68,
+              height: 24,
+              background: 'linear-gradient(180deg,#FBFBFB 0%,#E5E5E5 48%,#CACACA 100%)',
+              border: '1px solid #A9A9A9',
+              borderTop: '1px solid #F8F8F8',
+              borderLeft: '1px solid #ECECEC',
               borderRadius: 2,
               cursor: 'pointer',
-              fontSize: 13,
+              fontSize: 10.5,
+              fontWeight: 700,
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '1px 1px 1px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.8)',
+              boxShadow: '0 1px 0 rgba(255,255,255,0.9) inset, 1px 1px 1px rgba(0,0,0,0.22)',
               color: '#222',
-              padding: 0,
+              padding: '0 7px',
               flexShrink: 0,
+              whiteSpace: 'nowrap',
             }
-            const TbBtn = ({ title: tip, icon, onClick, style: extra = {} }) => (
-              <button type="button" title={tip} onClick={onClick} style={{ ...tbS, ...extra }}>{icon}</button>
+            const TbBtn = ({ title: tip, label, onClick, style: extra = {}, disabled = false }) => (
+              <button type="button" title={tip} onClick={disabled ? undefined : onClick} disabled={disabled} style={{ ...tbS, ...extra, ...(disabled ? { opacity: 0.35, cursor: 'default', pointerEvents: 'none' } : {}) }}>{label}</button>
             )
             const Sep = () => <div style={{ width: 1, height: 20, background: '#b0b0b0', margin: '0 3px', flexShrink: 0 }} />
             const curIdx = vouchers.findIndex(v => v._id === editingId)
             return (
               <div style={{
-                background: 'linear-gradient(180deg,#ebebeb,#d2d2d2)',
-                borderBottom: '2px solid #999',
+                background: 'linear-gradient(180deg,#F0F0F0,#D7D7D7)',
+                borderBottom: '2px solid #9C9C9C',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.85)',
                 padding: '3px 6px',
                 display: 'flex',
                 alignItems: 'center',
@@ -1421,53 +1976,23 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                 overflowX: 'auto',
                 marginBottom: '0.6rem',
               }}>
-                <TbBtn tip="New — opens a blank form to enter a new voucher" icon="📄" onClick={openCreate} />
-                <TbBtn tip="Edit — unlocks the current record for modification" icon="✎" onClick={() => {
-                  if (!editingId) {
-                    setError('Open a voucher first, then click Edit')
-                    return
-                  }
-                  if (isReadOnly) {
-                    setError('You have read-only access')
-                    return
-                  }
-                  setMode('create')
-                  clearError()
-                  showMsg('Mode: EDIT')
-                }} style={{ color: '#0a0' }} />
-                <TbBtn tip="Delete — delete current record" icon="🗑️" onClick={handleDeleteVoucher} style={{ color: '#c00' }} />
-                <TbBtn tip="Save — save current record" icon="💾" onClick={saveVoucher} style={{ color: '#060' }} />
-                <TbBtn tip="Cancel — discard any unsaved changes" icon="✖" onClick={() => { setMode('list') }} />
+                <TbBtn tip="New — opens a blank form to enter a new voucher" label="New" onClick={openCreate} />
+                <TbBtn tip="Edit — unlocks the current record for modification" label="Edit" onClick={handleEditUnlock} />
+                <TbBtn tip="Delete — removes the current voucher" label="Delete" onClick={handleDeleteVoucher} style={{ color: '#b00020' }} />
+                <TbBtn tip="Save — saves your data permanently" label="Save" onClick={saveVoucher} style={{ color: '#065f46' }} />
+                <TbBtn tip="Cancel — discards unsaved changes" label="Cancel" onClick={handleCancelChanges} />
                 <Sep />
-                <TbBtn tip="|◀ First — jumps to the first voucher" icon="|◀" onClick={navFirst} style={{ fontSize: 10, fontWeight: 700 }} />
-                <TbBtn tip="◀ Previous — goes to the previous record" icon="◀" onClick={navPrev} style={{ fontSize: 12, fontWeight: 700 }} />
-                <TbBtn tip="▶ Next — moves to the next record" icon="▶" onClick={navNext} style={{ fontSize: 12, fontWeight: 700 }} />
-                <TbBtn tip="▶| Last — jumps to the latest voucher" icon="▶|" onClick={navLast} style={{ fontSize: 10, fontWeight: 700 }} />
+                <TbBtn tip="|◀ First — jumps to the very first voucher on record" label="|◀ First" onClick={navFirst} disabled={curIdx <= 0} />
+                <TbBtn tip="◀ Previous — goes one record back" label="◀ Previous" onClick={navPrev} disabled={curIdx <= 0} />
+                <TbBtn tip="▶ Next — goes one record forward" label="▶ Next" onClick={navNext} disabled={curIdx < 0 || curIdx >= vouchers.length - 1} />
+                <TbBtn tip="▶| Last — jumps to the most recent voucher" label="▶| Last" onClick={navLast} disabled={curIdx < 0 || curIdx >= vouchers.length - 1} />
                 <Sep />
-                <TbBtn tip="Print/Preview — prints or previews the invoice" icon="⎙" onClick={() => window.print()} style={{ fontSize: 12 }} />
-                <TbBtn tip="Search/Find — search by voucher number, party, or date" icon="⌕" onClick={() => { setMode('list'); showMsg('Search mode') }} style={{ fontSize: 12 }} />
-                <TbBtn tip="Barcode — scan or view barcode linked to stock" icon="▌▌" onClick={() => alert(`Barcode: VOC-${header.vocNo || 'NEW'}`)} style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0 }} />
+                <TbBtn tip="Print/Preview — prints or previews the current invoice" label="Print/Preview" onClick={() => window.print()} />
+                <TbBtn tip="Search/Find — search by voucher number, party, or date" label="Search/Find" onClick={handleSearchFind} />
+                <TbBtn tip="Barcode — scan or view an item barcode linked to stock" label="Barcode" onClick={handleBarcodeAction} />
                 <Sep />
-                <TbBtn tip="Exit — closes the form and returns to the main menu" icon="■" onClick={() => setMode('list')} style={{ color: '#c00', fontSize: 10 }} />
+                <TbBtn tip="Exit — closes the voucher form and returns to the main menu" label="Exit" onClick={handleExitVoucherForm} style={{ color: '#b00020' }} />
                 <div style={{ flex: 1 }} />
-                <div style={{
-                  background: '#fff',
-                  border: '1px solid #bbb',
-                  padding: '2px 10px',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: '#1a1a1a',
-                  borderRadius: 2,
-                  fontFamily: 'monospace',
-                  whiteSpace: 'nowrap',
-                  boxShadow: 'inset 1px 1px 2px rgba(0,0,0,0.15)',
-                  minWidth: 80,
-                  textAlign: 'center',
-                }}>
-                  {editingId
-                    ? `${mode === 'view' ? 'VIEW' : 'EDIT'}  ${curIdx + 1}/${vouchers.length}`
-                    : `NEW  ${vouchers.length + 1}`}
-                </div>
               </div>
             )
           })()}
@@ -1475,130 +2000,195 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
           {/* ── Body padding wrapper ── */}
           <div style={{ padding: '0.75rem 0.9rem' }}>
 
-          {/* ── Header / Account Details tabs ── */}
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0' }}>
-            <button style={tabBtn(headerTab === 'header')} onClick={() => setHeaderTab('header')}>
+          {/* ── Voucher section menu ── */}
+          <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0', flexWrap: 'wrap', alignItems: 'flex-end', padding: '0 0.15rem', borderBottom: '1px solid #BFC5CB' }}>
+            <button style={tabBtn(menuTab === 'header')} onClick={() => setMenuTab('header')}>
               Header Details
             </button>
-            <button style={tabBtn(headerTab === 'accounts')} onClick={() => setHeaderTab('accounts')}>
-              Account Details
+            <button style={tabBtn(menuTab === 'attachments')} onClick={() => setMenuTab('attachments')}>
+              {t('attachments')}
             </button>
           </div>
 
           {/* ── Header Details ── */}
-          {headerTab === 'header' && (
+          {menuTab === 'header' && (
             <div style={sectionBox}>
               <div style={sectionBody}>
-                {/* Row 1 */}
-                <div style={fieldRow}>
-                  <div style={fieldGroup('Party Account')}>
-                    <label style={labelStyle}>Party Account</label>
-                    <select
-                      style={formReadOnly ? readInput : inputStyle}
-                      value={selectedPartyId}
-                      onChange={e => handlePartySelect(e.target.value)}
-                      disabled={formReadOnly}
-                    >
-                      <option value="">Select {voucherConfig.partySelectLabel}</option>
-                      {partyGroups.map((group) => (
-                        group.options.length > 0 ? (
-                          <optgroup key={group.label} label={group.label}>
-                            {group.options.map((item) => (
-                              <option key={item.id} value={item.id}>{item.label}</option>
+                <div style={classicHeaderShell}>
+                  <div style={classicHeaderGrid}>
+                    <div style={{ ...classicPanel, flex: '0 1 640px', minWidth: '320px' }}>
+                      <div style={classicPanelTitle}>Party Details</div>
+                      <div style={classicPartyGrid}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                          <label style={classicLabel}>Party Account</label>
+                          <select
+                            style={formReadOnly ? classicReadInput : classicInput}
+                            value={selectedPartyId}
+                            onChange={e => handlePartySelect(e.target.value)}
+                            disabled={formReadOnly}
+                          >
+                            <option value="">Select {voucherConfig.partySelectLabel}</option>
+                            {partyGroups.map((group) => (
+                              group.options.length > 0 ? (
+                                <optgroup key={group.label} label={group.label}>
+                                  {group.options.map((item) => (
+                                    <option key={item.id} value={item.id}>{item.label}</option>
+                                  ))}
+                                </optgroup>
+                              ) : null
                             ))}
-                          </optgroup>
-                        ) : null
-                      ))}
-                    </select>
-                  </div>
-                  <div style={fieldGroup('Party Code')}>
-                    <label style={labelStyle}>Party Code</label>
-                    <input
-                      style={readInput}
-                      value={header.partyCode}
-                      onChange={e => { setHdr('partyCode', e.target.value); lookupParty(e.target.value) }}
-                      placeholder={voucherConfig.partyPlaceholder}
-                      readOnly
-                    />
-                  </div>
-                  <div style={{ ...fieldGroup('Party Name'), gridColumn: 'span 1' }}>
-                    <label style={labelStyle}>Party Name</label>
-                    <input style={{ ...readInput, fontWeight: '700', color: S.green }} value={header.partyName} onChange={e => setHdr('partyName', e.target.value)} readOnly placeholder="Party / Company Name" />
-                  </div>
-                </div>
+                          </select>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                          <label style={classicLabel}>Party Code</label>
+                          <input
+                            style={formReadOnly ? classicReadInput : classicInput}
+                            value={header.partyCode}
+                            onChange={e => setHdr('partyCode', e.target.value)}
+                            onKeyDown={handlePartyCodeEnter}
+                            placeholder={voucherConfig.partyPlaceholder}
+                            readOnly={formReadOnly}
+                          />
+                        </div>
+                      </div>
+                      {(() => {
+                        const resolvedParty = resolveVoucherParty(header.partyCode)
+                        const partyCardTitle = resolvedParty?.partyType === 'vendor'
+                          ? 'Vendor Details'
+                          : resolvedParty?.partyType === 'customer'
+                            ? 'Customer Details'
+                            : 'Party Details'
+                        const partyDisplayName = resolvedParty?.partyName || header.partyName || 'No party selected'
+                        const partyEmail = resolvedParty?.email || '—'
+                        const partyPhone = resolvedParty?.phone || '—'
+                        const partyAddress = resolvedParty?.address || '—'
 
-                {/* Row 2 */}
-                <div style={fieldRow}>
-                  <div style={fieldGroup('Voc Type')}>
-                    <label style={labelStyle}>Voc Type</label>
-                    <input style={readInput} value={voucherCode} readOnly />
-                  </div>
-                  <div style={fieldGroup('Curr. Code')}>
-                    <label style={labelStyle}>Curr. Code</label>
-                    <select style={formReadOnly ? readInput : inputStyle} value={header.currCode} onChange={e => setHdr('currCode', e.target.value)} disabled={formReadOnly}>
-                      <option value="USD">USD</option>
-                    </select>
-                  </div>
-                  <div style={fieldGroup('Curr. Rate')}>
-                    <label style={labelStyle}>Curr. Rate</label>
-                    <input style={formReadOnly ? readInput : inputStyle} value={header.currRate} onChange={e => setHdr('currRate', e.target.value)} type="number" step="0.000001" readOnly={formReadOnly} />
-                  </div>
-                  {(voucherType === 'purchase' || voucherType === 'sale') && (
-                    <div style={fieldGroup('Fixing Type')}>
-                      <label style={labelStyle}>Fixing Type</label>
-                      <select
-                        style={formReadOnly ? readInput : inputStyle}
-                        value={header.fixingType}
-                        onChange={e => setHdr('fixingType', e.target.value)}
-                        disabled={formReadOnly}
-                      >
-                        <option value="fixing">Fixing</option>
-                        <option value="non-fixing">Non-Fixing</option>
-                      </select>
+                        return (
+                          <div style={classicPartyCard}>
+                            <div style={classicPartyCardHeader}>
+                              <div style={classicPartyCardTitle}>{partyCardTitle}</div>
+                              <div style={classicPartyCardCodeWrap}>
+                                <div style={classicPartyCardCode}>
+                                  <input
+                                    style={classicPartyCardCodeInput}
+                                    value={header.partyCode}
+                                    onChange={e => setHdr('partyCode', e.target.value)}
+                                    onKeyDown={handlePartyCodeEnter}
+                                    placeholder="Code"
+                                    readOnly={formReadOnly}
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  style={classicPartyCardSearch}
+                                  onClick={searchPartyByCode}
+                                  disabled={formReadOnly}
+                                  title="Search party by code"
+                                >
+                                  ⌕
+                                </button>
+                              </div>
+                            </div>
+                            <div style={classicPartyCardName}>{partyDisplayName}</div>
+                            <div style={classicPartyCardBody}>
+                              <div style={classicPartyCardField}>
+                                <span style={classicPartyCardFieldLabel}>Email</span>
+                                <span style={classicPartyCardFieldValue}>{partyEmail}</span>
+                              </div>
+                              <div style={classicPartyCardField}>
+                                <span style={classicPartyCardFieldLabel}>Phone</span>
+                                <span style={classicPartyCardFieldValue}>{partyPhone}</span>
+                              </div>
+                              <div style={{ ...classicPartyCardField, gridColumn: '1 / -1' }}>
+                                <span style={classicPartyCardFieldLabel}>Address</span>
+                                <span style={classicPartyCardFieldValue}>{partyAddress}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
-                  )}
-                </div>
 
-                {/* Row 3 */}
-                <div style={fieldRow}>
-                  <div style={fieldGroup('Voc Date')}>
-                    <label style={labelStyle}>Voc Date</label>
-                    <input style={formReadOnly ? readInput : inputStyle} type="date" value={header.vocDate} onChange={e => setHdr('vocDate', e.target.value)} readOnly={formReadOnly} />
-                  </div>
-                  <div style={fieldGroup('Voc No')}>
-                    <label style={labelStyle}>Voc No</label>
-                    <input style={formReadOnly ? readInput : inputStyle} value={header.vocNo} onChange={e => setHdr('vocNo', e.target.value)} readOnly={formReadOnly} />
-                  </div>
-                  <div style={fieldGroup('Salesman')}>
-                    <label style={labelStyle}>Salesman</label>
-                    <input style={formReadOnly ? readInput : inputStyle} value={header.salesman} onChange={e => setHdr('salesman', e.target.value)} readOnly={formReadOnly} />
-                  </div>
-                </div>
+                    <div style={{ ...classicPanel, flex: '0 1 430px', minWidth: '300px' }}>
+                      <div style={classicRightGrid}>
+                        <label style={classicLabel}>Voc No :</label>
+                        <input
+                          style={formReadOnly ? classicReadInput : classicInput}
+                          value={header.vocNo}
+                          onChange={e => setHdr('vocNo', e.target.value)}
+                          readOnly={formReadOnly}
+                        />
 
-                {/* Row 4 — Reference */}
-                <div style={{ border: `1px solid ${S.border}`, borderRadius: '0.3rem', padding: '0.5rem 0.75rem', marginBottom: '0.5rem' }}>
-                  <div style={{ fontSize: '0.72rem', fontWeight: '700', color: S.muted, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Reference</div>
-                  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: '160px' }}>
-                      <label style={labelStyle}>Number</label>
-                      <input style={formReadOnly ? readInput : inputStyle} value={header.refNo} onChange={e => setHdr('refNo', e.target.value)} readOnly={formReadOnly} />
+                        {(voucherType === 'purchase' || voucherType === 'sale') ? (
+                          <>
+                            <label style={classicLabel}>Fixing Type :</label>
+                            <select
+                              style={formReadOnly ? classicReadInput : classicInput}
+                              value={header.fixingType}
+                              onChange={e => setHdr('fixingType', e.target.value)}
+                              disabled={formReadOnly}
+                            >
+                              <option value="fixing">Fixed</option>
+                              <option value="non-fixing">UnFixed</option>
+                            </select>
+                          </>
+                        ) : (
+                          <>
+                            <label style={classicLabel}>Voc Type :</label>
+                            <input style={classicReadInput} value={voucherCode} readOnly />
+                          </>
+                        )}
+
+                        <label style={classicLabel}>Voc Date :</label>
+                        <input
+                          style={formReadOnly ? classicReadInput : classicInput}
+                          type="date"
+                          value={header.vocDate}
+                          onChange={e => setHdr('vocDate', e.target.value)}
+                          readOnly={formReadOnly}
+                        />
+
+                        <label style={classicLabel}>Curr. Code :</label>
+                        <select
+                          style={formReadOnly ? classicReadInput : classicInput}
+                          value={header.currCode}
+                          onChange={e => setHdr('currCode', e.target.value)}
+                          disabled={formReadOnly}
+                        >
+                          <option value="USD">USD</option>
+                        </select>
+
+                        <label style={classicLabel}>Curr. Rate :</label>
+                        <input
+                          style={formReadOnly ? classicReadInput : classicInput}
+                          value={header.currRate}
+                          onChange={e => setHdr('currRate', e.target.value)}
+                          type="number"
+                          step="0.000001"
+                          readOnly={formReadOnly}
+                        />
+
+                        <label style={classicLabel}>Narration :</label>
+                        <input
+                          style={formReadOnly ? classicReadInput : classicInput}
+                          value={header.narration}
+                          onChange={e => setHdr('narration', e.target.value)}
+                          readOnly={formReadOnly}
+                          placeholder="Description / Narration"
+                        />
+                      </div>
+
+                      <div style={classicTextAreaRow}>
+                        <label style={classicLabel}>Posted Date :</label>
+                        <input
+                          style={formReadOnly ? classicReadInput : classicInput}
+                          type="date"
+                          value={header.postedDate}
+                          onChange={e => setHdr('postedDate', e.target.value)}
+                          readOnly={formReadOnly}
+                        />
+                      </div>
                     </div>
-                    <div style={{ flex: 1, minWidth: '160px' }}>
-                      <label style={labelStyle}>Date</label>
-                      <input style={formReadOnly ? readInput : inputStyle} type="date" value={header.refDate} onChange={e => setHdr('refDate', e.target.value)} readOnly={formReadOnly} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Row 5 — Narration + Posted Date */}
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 3, minWidth: '200px' }}>
-                    <label style={labelStyle}>Narration</label>
-                    <input style={formReadOnly ? readInput : inputStyle} value={header.narration} onChange={e => setHdr('narration', e.target.value)} readOnly={formReadOnly} placeholder="Description / Narration" />
-                  </div>
-                  <div style={{ flex: 1, minWidth: '140px' }}>
-                    <label style={labelStyle}>Posted Date</label>
-                    <input style={formReadOnly ? readInput : inputStyle} type="date" value={header.postedDate} onChange={e => setHdr('postedDate', e.target.value)} readOnly={formReadOnly} />
                   </div>
                 </div>
               </div>
@@ -1606,7 +2196,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
           )}
 
           {/* ── Account Details tab ── */}
-          {headerTab === 'accounts' && (
+          {false && (
             <div style={sectionBox}>
               <div style={sectionBody}>
                 <div style={{ marginBottom: '0.85rem', border: `1px solid ${S.border}`, borderRadius: '0.45rem', padding: '0.6rem 0.7rem', background: '#FAFAFA' }}>
@@ -1695,81 +2285,63 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
             </div>
           )}
 
-          {/* ── Inner tabs: Line Items | Attachments ── */}
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', marginBottom: '0' }}>
-            <button style={tabBtn(innerTab === 'lineItems')} onClick={() => setInnerTab('lineItems')}>
-              1. {t('lineItems')}
-            </button>
-            <button style={tabBtn(innerTab === 'attachments')} onClick={() => setInnerTab('attachments')}>
-              2. {t('attachments')}
-            </button>
-          </div>
-
           {/* ── Line Items panel ── */}
-          {innerTab === 'lineItems' && (
+          {(menuTab === 'header' || menuTab === 'lineItems') && (
             <div style={sectionBox}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', ...sectionHeader }}>
-                <span>Line Items</span>
-                {!formReadOnly && !showLineForm && (
-                  <button style={{ ...btn('primary'), padding: '0.25rem 0.7rem', fontSize: '0.78rem' }} onClick={openAddLine}>
-                    + Add Line
-                  </button>
-                )}
+              <div style={{ ...classicPanelTitle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>LINE ITEMS</span>
               </div>
 
               {/* Line items table */}
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+              <div style={{ overflowX: 'auto', borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #C9CED6', background: '#FFFFFF' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                   <thead>
-                    <tr style={{ background: S.headerBg }}>
+                    <tr style={{ background: 'linear-gradient(180deg, #F8F9FB 0%, #E7EAF0 100%)' }}>
                       {lineTableHeaders.map(h => (
-                        <th key={h} style={{ padding: '0.45rem 0.6rem', textAlign: ['Amount FC', 'Amount LC', 'Metal Rate', 'Metal Amount', 'Total', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.'].includes(h) ? 'right' : 'left', fontWeight: '700', color: S.ink, borderBottom: `1px solid ${S.border}`, whiteSpace: 'nowrap' }}>{h}</th>
+                        <th key={h} style={{ padding: '0.34rem 0.48rem', textAlign: ['Amount FC', 'Amount LC', 'Metal Rate', 'Metal Amount', 'Total', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.'].includes(h) ? 'right' : 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #C9CED6', borderRight: '1px solid #E5E7EB', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {lineItems.length === 0 ? (
                       <tr>
-                        <td colSpan={lineTableHeaders.length} style={{ padding: '1.5rem', textAlign: 'center', color: S.muted }}>
-                          {formReadOnly ? 'No line items.' : 'Click "+ Add Line" to add entries.'}
+                        <td colSpan={lineTableHeaders.length} style={{ padding: '1rem', textAlign: 'center', color: S.muted, borderBottom: '1px solid #D7DBE0' }}>
+                          {formReadOnly ? 'No line items.' : 'Click "Add" below to add entries.'}
                         </td>
                       </tr>
                     ) : lineItems.map((l, i) => (
-                      <tr key={i} style={{ background: i % 2 === 0 ? S.white : S.bg, borderBottom: `1px solid ${S.border}` }}>
-                        <td style={{ padding: '0.4rem 0.6rem' }}>{i + 1}</td>
+                      <tr key={i} style={{ background: i % 2 === 0 ? '#FFFFFF' : '#FBFBFC', borderBottom: '1px solid #D7DBE0' }}>
+                        <td style={{ padding: '0.28rem 0.48rem', borderRight: '1px solid #EEF1F4' }}>{i + 1}</td>
                         {isMetalVoucher ? (
                           <>
-                            <td style={{ padding: '0.4rem 0.6rem', fontWeight: '600' }}>{l.stockCode || '-'}</td>
-                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{l.pcs || '-'}</td>
-                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{l.grossWeight || '-'}</td>
-                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{l.purity || '-'}</td>
-                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{l.pureWeight || '-'}</td>
-                            <td style={{ padding: '0.4rem 0.6rem' }}>{l.rateType || '-'}</td>
-                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{fmt(l.metalRate)}</td>
-                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{fmt(l.metalAmount)}</td>
-                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right', fontWeight: '700' }}>{fmt(l.totalAmount || l.amountLC)}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', fontWeight: '600', borderRight: '1px solid #EEF1F4' }}>{l.stockCode || '-'}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{l.pcs || '-'}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{l.grossWeight || '-'}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{l.purity || '-'}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{l.pureWeight || '-'}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', borderRight: '1px solid #EEF1F4' }}>{l.rateType || '-'}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{fmt(l.metalRate)}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{fmt(l.metalAmount)}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', fontWeight: '700', borderRight: '1px solid #EEF1F4' }}>{fmt(l.totalAmount || l.amountLC)}</td>
                           </>
                         ) : (
                           <>
-                            <td style={{ padding: '0.4rem 0.6rem', fontWeight: '600' }}>{l.acCode}</td>
-                            <td style={{ padding: '0.4rem 0.6rem' }}>
-                              <span style={{ padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '700', background: normalizeLineType(l.type) === 'Cash' ? '#D1FAE5' : normalizeLineType(l.type) === 'Cheque' || normalizeLineType(l.type) === 'TT' ? '#DBEAFE' : '#FEF3C7', color: normalizeLineType(l.type) === 'Cash' ? '#065F46' : normalizeLineType(l.type) === 'Cheque' || normalizeLineType(l.type) === 'TT' ? '#1D4ED8' : '#92400E' }}>
+                            <td style={{ padding: '0.28rem 0.48rem', fontWeight: '600', borderRight: '1px solid #EEF1F4' }}>{l.acCode}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', borderRight: '1px solid #EEF1F4' }}>
+                              <span style={{ padding: '0.08rem 0.28rem', borderRadius: '0.2rem', fontSize: '0.68rem', fontWeight: '700', background: normalizeLineType(l.type) === 'Cash' ? '#D1FAE5' : normalizeLineType(l.type) === 'Cheque' || normalizeLineType(l.type) === 'TT' ? '#DBEAFE' : '#FEF3C7', color: normalizeLineType(l.type) === 'Cash' ? '#065F46' : normalizeLineType(l.type) === 'Cheque' || normalizeLineType(l.type) === 'TT' ? '#1D4ED8' : '#92400E' }}>
                                 {normalizeLineType(l.type) === 'TT' ? 'TT' : normalizeLineType(l.type)}
                               </span>
                             </td>
-                            <td style={{ padding: '0.4rem 0.6rem' }}>{l.chqNo || '-'}</td>
-                            <td style={{ padding: '0.4rem 0.6rem' }}>{l.chqDate ? l.chqDate.slice(0, 10) : '-'}</td>
-                            <td style={{ padding: '0.4rem 0.6rem' }}>{l.chqBank || '-'}</td>
-                            <td style={{ padding: '0.4rem 0.6rem' }}>{l.currCode}</td>
-                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right' }}>{fmt(l.amountFC)}</td>
-                            <td style={{ padding: '0.4rem 0.6rem', textAlign: 'right', fontWeight: '700' }}>{fmt(l.amountLC)}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', borderRight: '1px solid #EEF1F4' }}>{l.currCode}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{fmt(l.amountFC)}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', fontWeight: '700', borderRight: '1px solid #EEF1F4' }}>{fmt(l.amountLC)}</td>
                           </>
                         )}
-                        <td style={{ padding: '0.4rem 0.6rem' }}>
-                          {!formReadOnly && (
+                        <td style={{ padding: '0.24rem 0.42rem' }}>
+                          {!isReadOnly && (
                             <div style={{ display: 'flex', gap: '0.3rem' }}>
-                              <button style={{ ...btn('secondary'), padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} onClick={() => openEditLine(i)}>Edit</button>
-                              <button style={{ ...btn('danger'), padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} onClick={() => deleteLine(i)}>Del</button>
+                              <button style={{ ...btn('secondary'), padding: '0.14rem 0.42rem', fontSize: '0.68rem', borderRadius: '0.18rem' }} onClick={() => handleEditLineClick(i)}>Edit</button>
+                              <button style={{ ...btn('danger'), padding: '0.14rem 0.42rem', fontSize: '0.68rem', borderRadius: '0.18rem' }} onClick={() => handleDeleteLineClick(i)}>Del</button>
                             </div>
                           )}
                         </td>
@@ -1781,10 +2353,11 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
 
               {/* ── Line Detail Add/Edit Form ── */}
               {showLineForm && (
-                <div style={{ borderTop: `2px solid ${S.green}`, padding: '0.75rem', background: S.blueSoft }}>
-                  <div style={{ fontWeight: '700', fontSize: '0.85rem', color: S.ink, marginBottom: '0.75rem' }}>
-                    {editingLineIdx !== null ? '✏️ Edit Line Item' : '➕ Add Line Item'}
+                <div style={{ borderTop: '2px solid #A0A8B0', background: '#FAFBFC', padding: 0 }}>
+                  <div style={{ ...classicPanelTitle }}>
+                    {editingLineIdx !== null ? 'Edit Line Item' : 'Add Line Item'}
                   </div>
+                  <div style={{ padding: '0.5rem 0.55rem' }}>
 
                   {isMetalVoucher ? (
                     <>
@@ -1837,27 +2410,21 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                           <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Weight In OZ.</div>
                             <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} value={lineForm.weightInOz || ((parseFloat(lineForm.pureWeight) || 0) > 0 ? ((parseFloat(lineForm.pureWeight) || 0) / 31.1034768).toFixed(3) : '')} onChange={e => setLF('weightInOz', e.target.value)} />
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>TRN Per%</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.trnPer} onChange={e => {
-                              setLF('trnPer', e.target.value)
-                              const pct = parseFloat(e.target.value) || 0
-                              const base = parseFloat(lineForm.totalAmount || lineForm.metalAmount || lineForm.amountLC) || 0
-                              const trnLC = (base * pct) / 100
-                              setLF('trnAmountLC', trnLC.toFixed(2))
-                              setLF('trnAmountFC', trnLC.toFixed(2))
-                              setLF('amountWithTRN', (base + trnLC).toFixed(2))
-                            }} />
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg, fontWeight: '700' }}>Avail. Stock</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', background: '#F9FAFB' }} readOnly value={lineForm.availStock} />
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg, fontWeight: '700' }} />
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }} />
                             <div style={{ borderLeft: `1px solid ${S.border}`, background: '#F9FAFB' }} />
                           </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr)' }}>
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Remarks</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.remarks} onChange={e => setLF('remarks', e.target.value)} placeholder="Fix buy / sell note" />
+                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Tax Type</div>
+                            <select style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.vatType || 'VAT'} onChange={e => setLF('vatType', e.target.value)}>
+                              <option value="VAT">VAT</option>
+                              <option value="GST">GST</option>
+                              <option value="Sales Tax">Sales Tax</option>
+                              <option value="None">None</option>
+                            </select>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }} />
+                            <div style={{ borderLeft: `1px solid ${S.border}`, background: '#F9FAFB' }} />
                           </div>
+
                         </div>
 
                         <div style={{ display: 'grid', gap: '0.5rem' }}>
@@ -1952,11 +2519,11 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                               />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)' }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700' }}>Total Amt+TRN</div>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700' }}>Total Amt+Tax</div>
                               <input
                                 style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', fontWeight: '700' }}
                                 readOnly
-                                value={lineForm.amountWithTRN || ''}
+                                value={lineForm.amountWithVAT || ''}
                               />
                             </div>
                           </div>
@@ -1987,230 +2554,114 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                       </div>
                     </>
                   ) : (
-                    <>
-                      {/* Line form row 1 */}
-                      <div style={fieldRow}>
-                        <div>
-                          <label style={labelStyle}>Type</label>
-                          <select style={inputStyle} value={lineForm.type} onChange={e => handleLineTypeChange(e.target.value)}>
-                            <option value="Cash">Cash</option>
-                            <option value="Cheque">Cheque</option>
-                            <option value="TT">TT</option>
-                            <option value="Card">Card</option>
-                          </select>
+                    <div style={{ border: '1px solid #C9CED6', borderRadius: '0.15rem', overflow: 'hidden', background: '#FFFFFF', fontSize: '0.78rem' }}>
+                      {/* Row 1: Type | A/C Code | Curr | Rate */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 96px 1.6fr 58px 1fr 60px 1fr', borderBottom: '1px solid #E5E7EB' }}>
+                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Type</div>
+                        <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.type} onChange={e => handleLineTypeChange(e.target.value)}>
+                          <option value="Cash">Cash</option>
+                          <option value="TT">TT</option>
+                          <option value="Card">Card</option>
+                        </select>
+                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>A/C Code *</div>
+                        <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.acCode || ''} onChange={e => setLF('acCode', e.target.value)}>
+                          <option value="">— Select —</option>
+                          {accounts.map(a => ({ id: a?._id, code: getAccountCodeValue(a), name: a?.accountName || a?.name || '' })).filter(a => a.code).sort((a, b) => a.code.localeCompare(b.code)).map(a => (
+                            <option key={a.id || a.code} value={a.code}>{a.code}{a.name ? ` - ${a.name}` : ''}</option>
+                          ))}
+                        </select>
+                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Curr</div>
+                        <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.currCode} onChange={e => setLF('currCode', e.target.value)}>
+                          <option value="USD">USD</option>
+                        </select>
+                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Rate</div>
+                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%' }} type="number" step="0.000001" value={lineForm.currRate} onChange={e => handleCurrRateChange(e.target.value)} placeholder={header.currRate} />
                         </div>
-                        <div>
-                          <label style={labelStyle}>Type Code</label>
-                          <input style={inputStyle} value={lineForm.typeCode} onChange={e => setLF('typeCode', e.target.value)} />
-                        </div>
+                      {/* Amount row */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 72px 1fr', borderBottom: '1px solid #E5E7EB' }}>
+                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Amt FC</div>
+                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }} type="number" step="0.01" value={lineForm.amountFC} onChange={e => handleAmountFC(e.target.value)} onKeyDown={handleLineAmountEnter} />
+                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Amt LC *</div>
+                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} type="number" step="0.01" value={lineForm.amountLC} onChange={e => handleAmountLC(e.target.value)} onKeyDown={handleLineAmountEnter} />
                       </div>
-
-                      {/* Line form row 2 */}
-                      <div style={fieldRow}>
-                        <div>
-                          <label style={labelStyle}>A/C Code *</label>
-                          <select
-                            style={inputStyle}
-                            value={lineForm.acCode || ''}
-                            onChange={e => setLF('acCode', e.target.value)}
-                          >
-                            <option value="">Select A/C code</option>
-                            {accounts
-                              .map((account) => ({
-                                id: account?._id,
-                                code: getAccountCodeValue(account),
-                                name: account?.accountName || account?.name || '',
-                              }))
-                              .filter((account) => account.code)
-                              .sort((a, b) => a.code.localeCompare(b.code))
-                              .map((account) => (
-                                <option key={account.id || account.code} value={account.code}>
-                                  {account.code}{account.name ? ` - ${account.name}` : ''}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label style={labelStyle}>Curr Code</label>
-                          <select style={inputStyle} value={lineForm.currCode} onChange={e => setLF('currCode', e.target.value)}>
-                            <option value="USD">USD</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label style={labelStyle}>Curr Rate</label>
-                          <input style={inputStyle} type="number" step="0.000001" value={lineForm.currRate} onChange={e => setLF('currRate', e.target.value)} placeholder={header.currRate} />
-                        </div>
+                      {/* Tax row */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 80px 1fr 80px 1fr', borderBottom: '1px solid #E5E7EB' }}>
+                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Tax Type</div>
+                        <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.vatType || 'VAT'} onChange={e => setLF('vatType', e.target.value)}>
+                          <option value="VAT">VAT</option>
+                          <option value="GST">GST</option>
+                          <option value="Sales Tax">Sales Tax</option>
+                          <option value="None">None</option>
+                        </select>
+                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Tax Amt FC</div>
+                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }} type="number" step="0.01" value={lineForm.vatAmountFC} onChange={e => handleVatAmountFCChange(e.target.value)} />
+                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Tax Amt LC</div>
+                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} type="number" step="0.01" value={lineForm.vatAmountLC} onChange={e => handleVatAmountLCChange(e.target.value)} />
                       </div>
-
-                      {/* Line form row 3 */}
-                      <div style={fieldRow}>
-                        <div>
-                          <label style={labelStyle}>Exp</label>
-                          <input style={inputStyle} value={lineForm.exp} onChange={e => setLF('exp', e.target.value)} />
-                        </div>
-                        <div>
-                          <label style={labelStyle}>TRN Number</label>
-                          <input style={inputStyle} value={lineForm.trnNumber} onChange={e => setLF('trnNumber', e.target.value)} />
-                        </div>
-                        <div>
-                          <label style={labelStyle}>TRN Inv.</label>
-                          <input style={inputStyle} value={lineForm.trnInv} onChange={e => setLF('trnInv', e.target.value)} />
-                        </div>
-                        <div>
-                          <label style={labelStyle}>TRN Inv. Date</label>
-                          <input style={inputStyle} type="date" value={lineForm.trnInvDate} onChange={e => setLF('trnInvDate', e.target.value)} />
-                        </div>
+                      {/* Amt+Tax row */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '86px 1fr', borderBottom: '1px solid #E5E7EB' }}>
+                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Amt+Tax</div>
+                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} type="number" step="0.01" value={lineForm.amountWithVAT} onChange={e => handleAmountWithVATChange(e.target.value)} />
                       </div>
-
-                      {/* Line form row 4 */}
-                      <div style={fieldRow}>
-                        <div>
-                          <label style={labelStyle}>HSN. A/c</label>
-                          <input style={inputStyle} value={lineForm.hsnAc} onChange={e => setLF('hsnAc', e.target.value)} />
-                        </div>
-                        <div>
-                          <label style={labelStyle}>TRN Ref</label>
-                          <input style={inputStyle} value={lineForm.trnRef} onChange={e => setLF('trnRef', e.target.value)} />
-                        </div>
+                      {/* Narration row */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '76px 1fr', borderBottom: '1px solid #E5E7EB' }}>
+                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Narration</div>
+                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', width: '100%', boxSizing: 'border-box' }} value={lineForm.narration} onChange={e => setLF('narration', e.target.value)} />
                       </div>
-
-                      {/* Cheque fields — show only if type is Cheque */}
-                      {lineForm.type === 'Cheque' && (
-                        <div style={fieldRow}>
-                          <div>
-                            <label style={labelStyle}>Chq No</label>
-                            <input style={inputStyle} value={lineForm.chqNo} onChange={e => setLF('chqNo', e.target.value)} />
-                          </div>
-                          <div>
-                            <label style={labelStyle}>Chq Date</label>
-                            <input style={inputStyle} type="date" value={lineForm.chqDate} onChange={e => setLF('chqDate', e.target.value)} />
-                          </div>
-                          <div>
-                            <label style={labelStyle}>Chq Bank</label>
-                            <input style={inputStyle} value={lineForm.chqBank} onChange={e => setLF('chqBank', e.target.value)} />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Amount fields */}
-                      <div style={{ ...fieldRow, gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
-                        <div>
-                          <label style={labelStyle}>Amount FC</label>
-                          <input
-                            style={inputStyle}
-                            type="number"
-                            step="0.01"
-                            value={lineForm.amountFC}
-                            onChange={e => handleAmountFC(e.target.value)}
-                            onKeyDown={handleLineAmountEnter}
-                          />
-                        </div>
-                        <div>
-                          <label style={labelStyle}>Amount LC *</label>
-                          <input
-                            style={inputStyle}
-                            type="number"
-                            step="0.01"
-                            value={lineForm.amountLC}
-                            onChange={e => handleAmountLC(e.target.value)}
-                            onKeyDown={handleLineAmountEnter}
-                          />
-                        </div>
-                        <div>
-                          <label style={labelStyle}>Header Amt</label>
-                          <input style={inputStyle} type="number" step="0.01" value={lineForm.headerAmt} onChange={e => setLF('headerAmt', e.target.value)} />
-                        </div>
+                      {/* Action buttons */}
+                      <div style={{ display: 'flex', gap: '0.4rem', padding: '0.32rem 0.55rem', background: 'linear-gradient(180deg, #F3F4F6 0%, #E8EAED 100%)', borderTop: '1px solid #D4D8DE' }}>
+                        <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #FFFFFF 0%, #DCDCDC 100%)', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92)' }} onClick={() => { saveLine(); if (!lineForm.acCode.trim()) return; setTimeout(() => openAddLine(), 50) }}>Continue</button>
+                        <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #16A34A 0%, #059669 100%)', border: '1px solid #047857', borderRadius: '0.15rem', cursor: 'pointer', color: '#FFF', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)' }} onClick={saveLine}>Save</button>
+                        <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #FFFFFF 0%, #DCDCDC 100%)', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92)' }} onClick={cancelLine}>Cancel</button>
                       </div>
-
-                      {/* TRN amount fields */}
-                      <div style={{ ...fieldRow, gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
-                        <div>
-                          <label style={labelStyle}>TRN Per%</label>
-                          <input style={inputStyle} type="number" step="0.01" value={lineForm.trnPer} onChange={e => {
-                            setLF('trnPer', e.target.value)
-                            const pct = parseFloat(e.target.value) || 0
-                            const amtLC = parseFloat(lineForm.amountLC) || 0
-                            const amtFC = parseFloat(lineForm.amountFC) || 0
-                            const trnLC = (amtLC * pct) / 100
-                            const trnFC = (amtFC * pct) / 100
-                            setLF('trnAmountLC', trnLC.toFixed(2))
-                            setLF('trnAmountFC', trnFC.toFixed(2))
-                            setLF('amountWithTRN', (amtLC + trnLC).toFixed(2))
-                          }} />
-                        </div>
-                        <div>
-                          <label style={labelStyle}>TRN Amount FC</label>
-                          <input style={inputStyle} type="number" step="0.01" value={lineForm.trnAmountFC} onChange={e => setLF('trnAmountFC', e.target.value)} />
-                        </div>
-                        <div>
-                          <label style={labelStyle}>TRN Amount LC</label>
-                          <input style={inputStyle} type="number" step="0.01" value={lineForm.trnAmountLC} onChange={e => setLF('trnAmountLC', e.target.value)} />
-                        </div>
-                      </div>
-
-                      <div style={{ ...fieldRow, gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
-                        <div>
-                          <label style={labelStyle}>Amount With TRN</label>
-                          <input style={inputStyle} type="number" step="0.01" value={lineForm.amountWithTRN} onChange={e => setLF('amountWithTRN', e.target.value)} />
-                        </div>
-                        <div>
-                          <label style={labelStyle}>Header Amt With TRN</label>
-                          <input style={inputStyle} type="number" step="0.01" value={lineForm.headerAmountWithTRN} onChange={e => setLF('headerAmountWithTRN', e.target.value)} />
-                        </div>
-                      </div>
-
-                      {/* Narration */}
-                      <div style={{ marginBottom: '0.5rem' }}>
-                        <label style={labelStyle}>Narration</label>
-                        <input style={inputStyle} value={lineForm.narration} onChange={e => setLF('narration', e.target.value)} />
-                      </div>
-
-                      {/* Continue / Save / Cancel */}
-                      <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>
-                        <button style={btn('gray')} onClick={() => {
-                          saveLine()
-                          if (!lineForm.acCode.trim()) return
-                          // Continue = save and open blank form again
-                          setTimeout(() => openAddLine(), 50)
-                        }}>
-                          Continue
-                        </button>
-                        <button style={btn('primary')} onClick={saveLine}>Save Line</button>
-                        <button style={btn('secondary')} onClick={cancelLine}>Cancel</button>
-                      </div>
-                    </>
+                    </div>
                   )}
+                  </div>
                 </div>
               )}
 
-              {/* ── Totals ── */}
-              <div style={{ borderTop: `2px solid ${S.border}`, padding: '0.75rem', background: S.bg }}>
-                <table style={{ marginLeft: 'auto', width: '320px', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                  <tbody>
-                    <tr>
-                      <td style={{ padding: '0.3rem 0.75rem', color: S.muted, textAlign: 'right' }}>Total</td>
-                      <td style={{ padding: '0.3rem 0.75rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.total)}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: '0.3rem 0.75rem', color: S.muted, textAlign: 'right' }}>Party Curr → {header.currCode}</td>
-                      <td style={{ padding: '0.3rem 0.75rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.total)}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ padding: '0.3rem 0.75rem', color: S.muted, textAlign: 'right' }}>Total TRN Amount</td>
-                      <td style={{ padding: '0.3rem 0.75rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.trnAmount)}</td>
-                    </tr>
-                    <tr style={{ borderTop: `2px solid ${S.border}` }}>
-                      <td style={{ padding: '0.4rem 0.75rem', color: S.ink, textAlign: 'right', fontWeight: '700' }}>Grand Total</td>
-                      <td style={{ padding: '0.4rem 0.75rem', textAlign: 'right', fontWeight: '800', fontSize: '1rem', color: S.green }}>{fmt(totals.grandTotal)}</td>
-                    </tr>
-                  </tbody>
-                </table>
+              {/* ── Bottom strip: Actions + Remarks + Amount Summary ── */}
+              <div style={{ borderTop: '2px solid #B8BEC8', background: 'linear-gradient(180deg, #F4F5F7 0%, #E8EAED 100%)', padding: '0.38rem 0.55rem' }}>
+                <div style={{ display: 'flex', gap: '0.55rem', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  {/* Left: Add/Edit/Delete + Remarks */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.38rem', flex: 1 }}>
+                    {!isReadOnly && (
+                      <div style={{ display: 'flex', gap: '0.3rem' }}>
+                        <button
+                          style={{ padding: '0.2rem 0.72rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #FFFFFF 0%, #DCDCDC 100%)', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92), 0 1px 1px rgba(0,0,0,0.06)' }}
+                          onClick={handleAddLineClick}
+                        >Add</button>
+                      </div>
+                    )}
+
+                  </div>
+                  {/* Right: Amount Summary */}
+                  <div style={{ border: '1px solid #B8BEC8', borderRadius: '0.15rem', background: '#FFFFFF', minWidth: '245px', overflow: 'hidden', flexShrink: 0 }}>
+                    <div style={{ background: 'linear-gradient(180deg, #E8EAED 0%, #D4D8DF 100%)', borderBottom: '1px solid #B8BEC8', padding: '0.2rem 0.65rem', fontSize: '0.7rem', fontWeight: '700', color: '#374151', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Amount Summary</div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.77rem' }}>
+                      <tbody>
+                        <tr style={{ borderBottom: '1px solid #E8EAED' }}>
+                          <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Gross Amount :</td>
+                          <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.total)}</td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #E8EAED' }}>
+                          <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>VAT Amount :</td>
+                          <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.vatAmount)}</td>
+                        </tr>
+                        <tr style={{ background: '#F1F3F6' }}>
+                          <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>Net Amt ({header.currCode || 'USD'}) :</td>
+                          <td style={{ padding: '0.24rem 0.65rem', textAlign: 'right', fontWeight: '800', color: S.green, fontSize: '0.87rem' }}>{fmt(totals.grandTotal)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
           {/* ── Attachments panel ── */}
-          {innerTab === 'attachments' && (
+          {menuTab === 'attachments' && (
             <div style={sectionBox}>
               <div style={sectionHeader}>Attachments</div>
               <div style={{ ...sectionBody, color: S.muted, fontSize: '0.875rem', textAlign: 'center', padding: '2rem' }}>
@@ -2223,9 +2674,9 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
 
           {/* ── Voucher Workflow ── */}
           {editingId && (
-            <div style={sectionBox}>
-              <div style={sectionHeader}>{t('approvalWorkflow')}</div>
-              <div style={sectionBody}>
+            <div style={{ ...classicPanel, marginBottom: '0.75rem' }}>
+              <div style={{ ...classicPanelTitle }}>{t('approvalWorkflow')}</div>
+              <div style={{ padding: '0.5rem 0.65rem' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(320px, 1.6fr)', gap: '0.75rem', alignItems: 'start' }}>
                   <div>
                     <label style={labelStyle}>Workflow Note</label>

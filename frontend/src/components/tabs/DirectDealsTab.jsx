@@ -109,6 +109,26 @@ const IMPORT_TEMPLATE_HEADERS = [
   'Notes',
 ]
 
+const IMPORT_ALLOWED_EXTENSIONS = ['.xlsx', '.csv']
+const IMPORT_MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024
+const IMPORT_MAX_ROWS = 2000
+const IMPORT_MAX_COLUMNS = 30
+
+const getFileExtension = (fileName = '') => {
+  const idx = String(fileName).lastIndexOf('.')
+  return idx >= 0 ? String(fileName).slice(idx).toLowerCase() : ''
+}
+
+const getWorksheetColumnCount = (worksheet) => {
+  if (!worksheet || !worksheet['!ref']) return 0
+  try {
+    const range = XLSX.utils.decode_range(worksheet['!ref'])
+    return (range.e.c - range.s.c) + 1
+  } catch {
+    return 0
+  }
+}
+
 export default function DirectDealsTab({ token, customers = [], currencies = [], canManage = false, isSuperAdmin = false }) {
   const { t } = useLanguage()
   const [loading, setLoading] = useState(false)
@@ -481,16 +501,40 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
       return
     }
 
+    const extension = getFileExtension(file.name)
+    if (!IMPORT_ALLOWED_EXTENSIONS.includes(extension)) {
+      setError('Invalid file type. Please upload only .xlsx or .csv files.')
+      return
+    }
+
+    if (file.size > IMPORT_MAX_FILE_SIZE_BYTES) {
+      setError(`File is too large. Maximum allowed size is ${Math.round(IMPORT_MAX_FILE_SIZE_BYTES / (1024 * 1024))} MB.`)
+      return
+    }
+
     try {
       setSaving(true)
       setError('')
       const data = await file.arrayBuffer()
       const wb = XLSX.read(data, { type: 'array' })
       const ws = wb.Sheets[wb.SheetNames[0]]
+      const columnCount = getWorksheetColumnCount(ws)
+      if (columnCount > IMPORT_MAX_COLUMNS) {
+        setError(`Import has too many columns (${columnCount}). Maximum supported columns: ${IMPORT_MAX_COLUMNS}.`)
+        setSaving(false)
+        return
+      }
+
       const rows = XLSX.utils.sheet_to_json(ws, { defval: '' })
 
       if (!rows.length) {
         setError('Import file is empty')
+        setSaving(false)
+        return
+      }
+
+      if (rows.length > IMPORT_MAX_ROWS) {
+        setError(`Import has too many rows (${rows.length}). Maximum supported rows: ${IMPORT_MAX_ROWS}.`)
         setSaving(false)
         return
       }
@@ -1089,7 +1133,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
             Bulk Import Excel/CSV
             <input
               type='file'
-              accept='.xlsx,.xls,.csv'
+              accept='.xlsx,.csv'
               onChange={(e) => handleBulkImport(e.target.files?.[0])}
               style={{ display: 'none' }}
               disabled={!hasManage || saving || isEditingLocked}

@@ -42,7 +42,10 @@ const createInventoryProductForm = () => ({
   name: '',
   description: '',
   weight: '',
+  grossWeight: '',
   purity: '',
+  taxType: 'VAT',
+  vatPercent: '',
 })
 
 const DEFAULT_INVENTORY_STOCK_CODE_SETTINGS = {
@@ -142,6 +145,13 @@ const decodeInventoryCategoryPairs = (category) => {
   return meta
 }
 
+const formatVatPercent = (value) => {
+  if (value === undefined || value === null || String(value).trim() === '') return '-'
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return '-'
+  return `${Number(numeric.toFixed(2)).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`
+}
+
 const titleCaseWords = (value) => String(value || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()).trim()
 
 function getTransactionTypeLabels(t) {
@@ -189,6 +199,7 @@ const resolveTransactionAttachmentUrl = (attachment) => {
 
 const createTransactionForm = () => ({
   type: 'expense',
+  metalFixStatus: 'fixed',
   amount: '',
   date: new Date().toISOString().slice(0, 10),
   currency: 'USD',
@@ -367,7 +378,7 @@ function ERPTab() {
   const [accountEnquiryData, setAccountEnquiryData] = useState(null)
   const [enquiryLoading, setEnquiryLoading] = useState(false)
   const [enquiryStatus, setEnquiryStatus] = useState({ type: '', message: '' })
-  const [statementFilters, setStatementFilters] = useState({ startDate: '', endDate: '', referenceType: '', department: '' })
+  const [statementFilters, setStatementFilters] = useState({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '' })
   const [showStatementAuditIds, setShowStatementAuditIds] = useState(false)
   const [statementAuditPreferenceReady, setStatementAuditPreferenceReady] = useState(false)
   const [metalRates, setMetalRates] = useState({ goldPrice: 285, silverPrice: 3.5, priceCurrency: 'USD', updatedAt: null })
@@ -375,6 +386,7 @@ function ERPTab() {
   const [enquiryHistory, setEnquiryHistory] = useState([])
   const [metalUnit, setMetalUnit] = useState('gram')
   const [showEnquiryModal, setShowEnquiryModal] = useState(false)
+  const [accountSummaryView, setAccountSummaryView] = useState('position')
   const [enquiryModalOffset, setEnquiryModalOffset] = useState({ x: 0, y: 0 })
   const [enquiryModalDrag, setEnquiryModalDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
   const [detailsPanel, setDetailsPanel] = useState({
@@ -393,6 +405,9 @@ function ERPTab() {
   const [transactions, setTransactions] = useState([])
   const [vendors, setVendors] = useState([])
   const [inventoryProducts, setInventoryProducts] = useState([])
+  const [stockMovements, setStockMovements] = useState([])
+  const [stockMovementsLoading, setStockMovementsLoading] = useState(false)
+  const [stockMovementsFilter, setStockMovementsFilter] = useState('')
   const [reports, setReports] = useState({
     trialBalance: null,
     profitLoss: null,
@@ -483,6 +498,8 @@ function ERPTab() {
   const [showInventoryProductModal, setShowInventoryProductModal] = useState(false)
   const [inventoryProductForm, setInventoryProductForm] = useState(createInventoryProductForm)
   const [editingInventoryProductId, setEditingInventoryProductId] = useState('')
+  const [inventoryVatFilter, setInventoryVatFilter] = useState('all')
+  const [inventoryVatSortDir, setInventoryVatSortDir] = useState('none')
   const [inventoryStockCodeManualOverride, setInventoryStockCodeManualOverride] = useState(false)
   const [inventoryModalOffset, setInventoryModalOffset] = useState({ x: 0, y: 0 })
   const [inventoryModalDragging, setInventoryModalDragging] = useState(false)
@@ -538,12 +555,58 @@ function ERPTab() {
   const inventoryCatalogProducts = inventoryProducts.filter((item) => String(item?.category || '').includes('recordType=product'))
   const legacyInventoryProducts = inventoryProducts.filter((item) => !String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
   const inventoryReportProducts = [...inventoryCatalogProducts, ...legacyInventoryProducts]
-  const inventoryTotalQuantity = inventoryReportProducts.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
-  const inventoryTotalValue = inventoryReportProducts.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.unitCost || 0)), 0)
-  const inventoryLowStockCount = inventoryReportProducts.filter((item) => Number(item.minThreshold || 0) > 0 && Number(item.quantity || 0) <= Number(item.minThreshold || 0)).length
-  const inventoryTopProducts = [...inventoryReportProducts]
-    .sort((a, b) => (Number(b.quantity || 0) * Number(b.unitCost || 0)) - (Number(a.quantity || 0) * Number(a.unitCost || 0)))
+  const inventoryReportRows = inventoryReportProducts.map((item) => {
+    const categoryMeta = decodeInventoryCategoryMeta(item.category)
+    const productMeta = decodeInventoryCategoryPairs(item.category)
+    const quantity = Number(item.quantity || 0)
+    const unitCost = Number(item.unitCost || 0)
+    const stockValue = quantity * unitCost
+    const minThreshold = Number(item.minThreshold || 0)
+    const metal = titleCaseWords(productMeta.mainStock || productMeta.metalType || categoryMeta.mainStock || categoryMeta.metalType || 'Unmapped')
+    const categoryName = productMeta.productCategory || titleCaseWords(productMeta.mainStock || productMeta.metalType || categoryMeta.mainStock || categoryMeta.metalType || item.name)
+    const weight = Number(productMeta.grossWeight || productMeta.weight || item.weight || 0)
+    const purity = productMeta.productPurity || productMeta.purity || categoryMeta.purity || ''
+    const purityWeight = Number(productMeta.purityWeight || 0)
+    return {
+      item,
+      categoryMeta,
+      productMeta,
+      quantity,
+      unitCost,
+      stockValue,
+      minThreshold,
+      metal,
+      categoryName,
+      weight,
+      purity,
+      purityWeight,
+      stockUnit: item.unit || 'units',
+      isLowStock: minThreshold > 0 && quantity <= minThreshold,
+    }
+  })
+  const inventoryTotalQuantity = inventoryReportRows.reduce((sum, row) => sum + row.quantity, 0)
+  const inventoryTotalValue = inventoryReportRows.reduce((sum, row) => sum + row.stockValue, 0)
+  const inventoryLowStockCount = inventoryReportRows.filter((row) => row.isLowStock).length
+  const inventoryTopProducts = [...inventoryReportRows]
+    .sort((a, b) => b.stockValue - a.stockValue)
     .slice(0, 5)
+  const inventoryMetalBreakdown = Object.values(inventoryReportRows.reduce((groups, row) => {
+    const key = row.metal || 'Unmapped'
+    if (!groups[key]) {
+      groups[key] = {
+        metal: key,
+        productCount: 0,
+        totalQty: 0,
+        totalValue: 0,
+        lowStockCount: 0,
+      }
+    }
+    groups[key].productCount += 1
+    groups[key].totalQty += row.quantity
+    groups[key].totalValue += row.stockValue
+    groups[key].lowStockCount += row.isLowStock ? 1 : 0
+    return groups
+  }, {})).sort((a, b) => b.totalValue - a.totalValue)
   const inventoryStockTypeOptions = inventoryMappingProducts.map((item) => {
     const meta = decodeInventoryCategoryMeta(item.category)
     return {
@@ -558,13 +621,30 @@ function ERPTab() {
   const inventoryPurityFactorRaw = Number(inventoryProductForm.purity || 0)
   const inventoryPurityFactor = inventoryPurityFactorRaw > 1 ? inventoryPurityFactorRaw / 1000 : inventoryPurityFactorRaw
   const inventoryProductPurityWeight = (Number(inventoryProductForm.weight || 0) || 0) * (Number.isFinite(inventoryPurityFactor) ? inventoryPurityFactor : 0)
-  const inventoryProductsByMetal = inventoryCatalogProducts.reduce((groups, item) => {
-    const meta = decodeInventoryCategoryPairs(item.category)
-    const metalKey = titleCaseWords(meta.mainStock || meta.metalType || 'Unmapped')
+  const inventoryProductsByMetal = inventoryReportRows.reduce((groups, row) => {
+    const metalKey = row.metal || 'Unmapped'
     if (!groups[metalKey]) groups[metalKey] = []
-    groups[metalKey].push({ item, meta })
+    groups[metalKey].push({ item: row.item, meta: row.productMeta, row })
     return groups
   }, {})
+  const inventoryTableRows = inventoryReportRows.map((row) => {
+    const { item, categoryMeta, productMeta } = row
+    const rawVatPercent = Number(productMeta.vatPercent)
+    const vatPercent = Number.isFinite(rawVatPercent) ? Number(rawVatPercent.toFixed(2)) : null
+    return { item, categoryMeta, productMeta, vatPercent, reportRow: row }
+  })
+  const filteredInventoryTableRows = inventoryTableRows.filter((row) => {
+    if (inventoryVatFilter === 'with-vat') return (row.vatPercent ?? 0) > 0
+    if (inventoryVatFilter === 'zero-or-blank') return row.vatPercent === null || row.vatPercent === 0
+    return true
+  })
+  const sortedInventoryTableRows = [...filteredInventoryTableRows].sort((a, b) => {
+    if (inventoryVatSortDir === 'none') return 0
+    const aVat = a.vatPercent ?? -1
+    const bVat = b.vatPercent ?? -1
+    if (inventoryVatSortDir === 'asc') return aVat - bVat
+    return bVat - aVat
+  })
   const availableTransactionTypes = isSuperAdmin || isFinance
     ? ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
     : [
@@ -599,6 +679,10 @@ function ERPTab() {
       maximumFractionDigits: digits,
     })
   }
+  const formatStatementNullableValue = (value, digits = 2) => {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
+    return formatStatementValue(value, digits)
+  }
 
   const getSignedColor = (value) => {
     const num = Number(value || 0)
@@ -629,6 +713,14 @@ function ERPTab() {
   ]
   const statementReferenceTypes = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
   const statementDepartments = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean))).sort()
+  const resolveFixStatus = (entry) => {
+    const explicit = String(entry?.metalFixStatus || '').trim().toLowerCase()
+    if (explicit === 'fixed' || explicit === 'unfixed') return explicit
+    const text = `${String(entry?.description || '')} ${String(entry?.referenceType || '')}`.toLowerCase()
+    if (/non[\s-_]?fix|unfix|unfixed/.test(text)) return 'unfixed'
+    if (/fixing|fixed|price[\s-_]?fix/.test(text)) return 'fixed'
+    return 'unknown'
+  }
   const filteredStatementEntries = rawStatementEntries.filter((entry) => {
     const entryDate = entry.date ? new Date(entry.date) : null
     if (statementFilters.startDate) {
@@ -642,8 +734,67 @@ function ERPTab() {
     }
     if (statementFilters.referenceType && String(entry.referenceType || '') !== statementFilters.referenceType) return false
     if (statementFilters.department && String(entry.department || '') !== statementFilters.department) return false
+    if (statementFilters.fixStatus) {
+      const fixStatus = resolveFixStatus(entry)
+      if (statementFilters.fixStatus === 'fixed' && fixStatus !== 'fixed') return false
+      if (statementFilters.fixStatus === 'unfixed' && fixStatus !== 'unfixed') return false
+      if (statementFilters.fixStatus === 'unknown' && fixStatus !== 'unknown') return false
+    }
     return true
   })
+  const resolveDealSide = (entry) => {
+    const explicit = String(entry?.metalDealType || entry?.sourceTransactionType || '').toLowerCase().trim()
+    if (explicit === 'sale' || explicit === 'purchase') return explicit
+    const referenceType = String(entry?.referenceType || '').toLowerCase().trim()
+    if (referenceType === 'sale' || referenceType === 'purchase') return referenceType
+    return ''
+  }
+  const resolveMetalCode = (entry) => {
+    const explicit = String(entry?.metalCode || '').trim().toUpperCase()
+    if (explicit) return explicit
+    const text = `${String(entry?.description || '')} ${String(entry?.offsetAccountName || '')} ${String(entry?.offsetAccountCode || '')}`.toLowerCase()
+    if (/\bxau\b|\bgold\b/.test(text)) return 'XAU'
+    if (/\bxag\b|\bsilver\b/.test(text)) return 'XAG'
+    return '-'
+  }
+  const metalFixingEntries = filteredStatementEntries
+    .map((entry) => {
+      const dealSide = resolveDealSide(entry)
+      if (!dealSide) return null
+      const isExplicitMetalTrade = Boolean(entry?.isMetalTrade)
+      const hasLegacyMetalHint = String(entry?.metalCode || '').trim() !== '' || /\bxau\b|\bxag\b|gold|silver/i.test(String(entry?.description || ''))
+      if (!isExplicitMetalTrade && !hasLegacyMetalHint) return null
+      const amount = Math.abs(Number(entry?.signedAmount ?? entry?.debitAmount ?? entry?.creditAmount ?? 0))
+      return {
+        ...entry,
+        dealSide,
+        fixStatus: resolveFixStatus(entry),
+        metalCode: resolveMetalCode(entry),
+        amount,
+      }
+    })
+    .filter(Boolean)
+  const fixedMetalEntries = metalFixingEntries.filter((entry) => entry.fixStatus === 'fixed')
+  const unfixedMetalEntries = metalFixingEntries.filter((entry) => entry.fixStatus === 'unfixed')
+  const unknownFixMetalEntries = metalFixingEntries.filter((entry) => entry.fixStatus === 'unknown')
+  const summarizeMetalDealRows = (rows) => rows.reduce((acc, row) => {
+    if (row.dealSide === 'sale') {
+      acc.saleCount += 1
+      acc.saleAmount += row.amount
+    }
+    if (row.dealSide === 'purchase') {
+      acc.purchaseCount += 1
+      acc.purchaseAmount += row.amount
+    }
+    return acc
+  }, {
+    saleCount: 0,
+    purchaseCount: 0,
+    saleAmount: 0,
+    purchaseAmount: 0,
+  })
+  const fixedMetalSummary = summarizeMetalDealRows(fixedMetalEntries)
+  const unfixedMetalSummary = summarizeMetalDealRows(unfixedMetalEntries)
   const formatStatementDate = (value) => {
     if (!value) return '-'
     const dt = new Date(value)
@@ -1205,6 +1356,7 @@ function ERPTab() {
     setSelectedTransactionId(tx._id)
     setTransactionForm({
       type: tx.type || 'expense',
+      metalFixStatus: String(tx.voucherMeta?.fixingType || '').toLowerCase().includes('non') ? 'unfixed' : 'fixed',
       amount: String(tx.amount ?? ''),
       date: tx.date ? new Date(tx.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
       currency: tx.currency || 'USD',
@@ -1302,6 +1454,19 @@ function ERPTab() {
       setError(e.response?.data?.message || 'Failed to load inventory')
     }
     setLoading(false)
+  }
+
+  const loadStockLedger = async () => {
+    if (!canAccessInventory) return
+    setStockMovementsLoading(true)
+    try {
+      const data = await erpAccountingAPI.getStockLedger(token)
+      setStockMovements(data.movements || [])
+    } catch {
+      setStockMovements([])
+    } finally {
+      setStockMovementsLoading(false)
+    }
   }
 
   const loadReports = async () => {
@@ -1425,6 +1590,7 @@ function ERPTab() {
         ...transactionForm,
         amount: Number(transactionForm.amount),
         exchangeRate: Number(transactionForm.exchangeRate || 1),
+        ...(['sale', 'purchase'].includes(String(transactionForm.type || '').toLowerCase()) ? { metalFixStatus: transactionForm.metalFixStatus || 'fixed' } : {}),
       }
 
       const response = isTransactionEditMode
@@ -2004,30 +2170,49 @@ function ERPTab() {
       return
     }
 
-    if (!inventoryProductForm.stockTypeId) {
+    // For new products, stock type is required. For editing, allow if category is already set
+    if (!inventoryProductForm.stockTypeId && !editingInventoryProductId) {
       setError('Product category is required')
       return
     }
 
     const selectedStockType = inventoryMappingProducts.find((item) => item._id === inventoryProductForm.stockTypeId)
-    if (!selectedStockType) {
+    // For new products, selectedStockType is required. For editing, use existing or matched
+    if (!selectedStockType && !editingInventoryProductId) {
       setError('Product category is required')
       return
     }
 
-    const baseCategory = String(selectedStockType.category || '').replace(/;?recordType=product/gi, '')
+    // For editing, extract baseCategory from existing product if selectedStockType not found
+    let baseCategory = ''
+    if (selectedStockType) {
+      baseCategory = String(selectedStockType.category || '').replace(/;?recordType=product/gi, '')
+    } else if (editingInventoryProductId) {
+      // Extract from existing product's category string
+      const existingProduct = inventoryCatalogProducts.find((p) => p._id === editingInventoryProductId)
+      if (existingProduct) {
+        baseCategory = String(existingProduct.category || '').replace(/;recordType=product.*$/gi, '')
+      }
+    }
+
     const sanitizeMetaText = (value) => String(value || '').replace(/[;\n\r]/g, ' ').trim()
     const categoryName = sanitizeMetaText(inventoryProductForm.categoryName || selectedInventoryStockType?.mainStock || '')
     const productDescription = sanitizeMetaText(inventoryProductForm.description)
     const productWeight = Number(inventoryProductForm.weight || 0)
+    const productGrossWeight = Number(inventoryProductForm.grossWeight || inventoryProductForm.weight || 0)
     const productPurity = String(inventoryProductForm.purity || '').trim()
+    const productTaxType = sanitizeMetaText(inventoryProductForm.taxType || 'VAT')
+    const vatPercentRaw = Number(inventoryProductForm.vatPercent || 0)
+    const productVatPercent = Number.isFinite(vatPercentRaw) && vatPercentRaw >= 0
+      ? Number(vatPercentRaw.toFixed(2))
+      : 0
     const productPurityWeight = Number(inventoryProductPurityWeight || 0)
 
     try {
       setSaving(true)
       const payload = {
         name: inventoryProductForm.name.trim(),
-        category: `${baseCategory};recordType=product;productCategory=${categoryName};productDescription=${productDescription};weight=${productWeight};productPurity=${productPurity};purityWeight=${productPurityWeight}`,
+        category: `${baseCategory};recordType=product;productCategory=${categoryName};productDescription=${productDescription};weight=${productWeight};grossWeight=${productGrossWeight};productPurity=${productPurity};taxType=${productTaxType};vatPercent=${productVatPercent};purityWeight=${productPurityWeight}`,
         unit: 'grams',
         quantity: productWeight,
         unitCost: 0,
@@ -2052,7 +2237,19 @@ function ERPTab() {
   }
 
   const handleEditInventoryCatalogProduct = (productItem, productMeta) => {
-    const matchedStockType = inventoryMappingProducts.find((stockTypeItem) => String(productItem.category || '').startsWith(`${String(stockTypeItem.category || '')};recordType=product`))
+    // Try to match stock type - first by category string, then by product metadata
+    let matchedStockType = inventoryMappingProducts.find((stockTypeItem) => String(productItem.category || '').startsWith(`${String(stockTypeItem.category || '')};recordType=product`))
+    
+    // Fallback: try matching by main stock name from product metadata
+    if (!matchedStockType && productMeta?.mainStock) {
+      const mainStockLower = String(productMeta.mainStock).toLowerCase().trim()
+      matchedStockType = inventoryMappingProducts.find((stockTypeItem) => {
+        const stockName = String(stockTypeItem.name || '').toLowerCase().trim()
+        const stockMeta = decodeInventoryCategoryMeta(stockTypeItem.category)
+        const stockMainLower = String(stockMeta.mainStock || stockMeta.metalType || '').toLowerCase().trim()
+        return stockName === mainStockLower || stockMainLower === mainStockLower
+      })
+    }
 
     setEditingInventoryProductId(productItem._id)
     setInventoryProductForm({
@@ -2061,10 +2258,30 @@ function ERPTab() {
       name: productItem.name || '',
       description: productMeta?.productDescription || '',
       weight: String(productMeta?.weight ?? productItem.quantity ?? ''),
+      grossWeight: String(productMeta?.grossWeight ?? productMeta?.weight ?? productItem.quantity ?? ''),
       purity: productMeta?.productPurity || productMeta?.purity || '',
+      taxType: productMeta?.taxType || 'VAT',
+      vatPercent: String(productMeta?.vatPercent ?? ''),
     })
     setInventoryProductModalOffset({ x: 0, y: 0 })
     setShowInventoryProductModal(true)
+  }
+
+  const handleDeleteInventoryCatalogProduct = async (productItem) => {
+    if (!window.confirm(`Delete product "${productItem?.name || 'Unnamed'}"? This cannot be undone.`)) return
+    try {
+      setSaving(true)
+      await erpAccountingAPI.deleteInventoryProduct(token, productItem._id)
+      if (editingInventoryProductId && String(editingInventoryProductId) === String(productItem._id)) {
+        resetInventoryProductForm()
+      }
+      await loadInventory()
+      showNotification('✅ Product deleted')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to delete product')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const loadEnquiryHistory = () => {
@@ -2113,7 +2330,8 @@ function ERPTab() {
       const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode)
       setAccountEnquiryCode(cleanCode)
       setAccountEnquiryData(data)
-      setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '' })
+      setAccountSummaryView('position')
+      setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '' })
       pushEnquiryHistory(data.account)
       setError('')
       setEnquiryStatus({ type: 'success', message: `Account ${data.account.accountCode} summary loaded successfully` })
@@ -2268,6 +2486,7 @@ function ERPTab() {
     }
     else if (activeTab === 'inventory') {
       loadInventory()
+      loadStockLedger()
       loadVendors()
     }
     else if (activeTab === 'settings') {
@@ -2311,6 +2530,24 @@ function ERPTab() {
   }
 
   const formatMoney = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
+  const normalizeBalanceDirection = (direction) => {
+    const raw = String(direction || '').trim().toLowerCase()
+    if (raw === 'debit' || raw === 'dr') return 'Dr'
+    if (raw === 'credit' || raw === 'cr') return 'Cr'
+    return ''
+  }
+  const formatDirectionalBalance = (value, options = {}) => {
+    const amount = Number(value || 0)
+    const preferredDirection = normalizeBalanceDirection(options.preferredDirection)
+    const direction = preferredDirection || (amount < 0 ? 'Cr' : 'Dr')
+    const absAmount = Math.abs(amount)
+    const formatted = absAmount.toLocaleString(undefined, {
+      minimumFractionDigits: options.minDigits ?? 2,
+      maximumFractionDigits: options.maxDigits ?? 2,
+    })
+    if (absAmount === 0) return formatted
+    return `${formatted} ${direction}`
+  }
   const getDepartmentBadgeStyle = (department) => {
     const deptValue = String(department || '').trim().toLowerCase()
     if (deptValue === 'finance') return { background: '#DBEAFE', color: '#1D4ED8' }
@@ -4205,6 +4442,12 @@ function ERPTab() {
               <select value={transactionForm.type} onChange={(e) => setTransactionForm((prev) => ({ ...prev, type: e.target.value }))} style={modalInputStyle}>
                 {availableTransactionTypes.map((type) => <option key={type} value={type}>{TRANSACTION_TYPE_LABELS[type]}</option>)}
               </select>
+              {['sale', 'purchase'].includes(String(transactionForm.type || '').toLowerCase()) && (
+                <select value={transactionForm.metalFixStatus} onChange={(e) => setTransactionForm((prev) => ({ ...prev, metalFixStatus: e.target.value }))} style={modalInputStyle}>
+                  <option value="fixed">Fixing (Fixed)</option>
+                  <option value="unfixed">Non-Fixing (Unfixed)</option>
+                </select>
+              )}
               <input type="number" step="0.01" placeholder="Amount" value={transactionForm.amount} onChange={(e) => setTransactionForm((prev) => ({ ...prev, amount: e.target.value }))} style={modalInputStyle} />
               <input type="date" value={transactionForm.date} onChange={(e) => setTransactionForm((prev) => ({ ...prev, date: e.target.value }))} style={modalInputStyle} />
               <select value={transactionForm.currency} onChange={(e) => setTransactionForm((prev) => ({ ...prev, currency: e.target.value }))} style={modalInputStyle}>
@@ -4556,7 +4799,9 @@ function ERPTab() {
                           <td style={{ padding: '0.6rem' }}>{row.accountType}</td>
                           <td style={{ padding: '0.6rem', textAlign: 'right' }}>{Number(row.debit || 0).toLocaleString()}</td>
                           <td style={{ padding: '0.6rem', textAlign: 'right' }}>{Number(row.credit || 0).toLocaleString()}</td>
-                          <td style={{ padding: '0.6rem', textAlign: 'right', color: Number(row.net || 0) >= 0 ? C.s1 : C.danger, fontWeight: '700' }}>{Number(row.net || 0).toLocaleString()}</td>
+                          <td style={{ padding: '0.6rem', textAlign: 'right', color: Number(row.net || 0) >= 0 ? C.s1 : C.danger, fontWeight: '700' }}>
+                            {formatDirectionalBalance(row.net)}
+                          </td>
                           <td style={{ padding: '0.6rem' }}>
                             <button onClick={() => handleTrialAccountDrilldown(row.accountCode)} style={{ padding: '0.3rem 0.5rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', color: '#0C4A6E', background: '#E0F2FE', cursor: 'pointer' }}>
                               Ledger
@@ -4633,7 +4878,7 @@ function ERPTab() {
                       <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Name</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Balance</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Action</th></tr></thead>
                       <tbody>
                         {rows.map((row) => (
-                          <tr key={`${title}-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.accountCode}</td><td style={{ padding: '0.5rem' }}>{row.accountName}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.balance || 0).toLocaleString()}</td><td style={{ padding: '0.5rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
+                          <tr key={`${title}-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.accountCode}</td><td style={{ padding: '0.5rem' }}>{row.accountName}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatDirectionalBalance(row.balance, { preferredDirection: title === 'Assets' ? 'debit' : 'credit' })}</td><td style={{ padding: '0.5rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
                         ))}
                       </tbody>
                     </table>
@@ -5340,7 +5585,7 @@ function ERPTab() {
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
                 <div>
                   <p style={{ margin: 0, fontWeight: '800', color: '#92400E', fontSize: '1rem' }}>Product Creation</p>
-                  <p style={{ margin: '0.35rem 0 0', color: '#7C5A12', fontSize: '0.8rem', lineHeight: 1.5 }}>Create products with Product Category, Name, Description, Weight, Purity, and Purity Weight.</p>
+                  <p style={{ margin: '0.35rem 0 0', color: '#7C5A12', fontSize: '0.8rem', lineHeight: 1.5 }}>Create products with Product Category, Name, Description, Weight, Gross Weight, Purity, Tax Type, VAT %, and Purity Weight.</p>
                 </div>
                 <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#FEF3C7', color: '#92400E', fontWeight: '800', fontSize: '0.74rem' }}>{inventoryCatalogProducts.length}</span>
               </div>
@@ -5364,11 +5609,14 @@ function ERPTab() {
                         <div key={item._id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', borderTop: '1px solid #FEF3C7', paddingTop: '0.35rem' }}>
                           <div>
                             <div style={{ fontWeight: '700', color: C.ink, fontSize: '0.76rem' }}>{item.name}</div>
-                            <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>Category {meta.productCategory || metal} | Wt {Number(meta.weight || item.quantity || 0).toLocaleString()} g | Purity {meta.productPurity || meta.purity || '-'} | Pure Wt {Number(meta.purityWeight || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</div>
+                            <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>Category {meta.productCategory || metal} | Wt {Number(meta.weight || item.quantity || 0).toLocaleString()} g | Purity {meta.productPurity || meta.purity || '-'} | Tax {meta.taxType || '-'} | VAT {formatVatPercent(meta.vatPercent)} | Pure Wt {Number(meta.purityWeight || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</div>
                           </div>
                           <div style={{ display: 'grid', justifyItems: 'end', gap: '0.35rem' }}>
                             <div style={{ color: '#92400E', fontWeight: '700', fontSize: '0.74rem', maxWidth: '220px', textAlign: 'right' }}>{meta.productDescription || '-'}</div>
-                            <button type="button" onClick={() => handleEditInventoryCatalogProduct(item, meta)} style={{ padding: '0.24rem 0.55rem', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: '0.3rem', color: '#065F46', cursor: 'pointer', fontSize: '0.72rem', fontWeight: '700' }}>Edit</button>
+                            <div style={{ display: 'flex', gap: '0.35rem' }}>
+                              <button type="button" onClick={() => handleEditInventoryCatalogProduct(item, meta)} style={{ padding: '0.24rem 0.55rem', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: '0.3rem', color: '#065F46', cursor: 'pointer', fontSize: '0.72rem', fontWeight: '700' }}>Edit</button>
+                              {(isSuperAdmin || isFinance) && <button type="button" onClick={() => handleDeleteInventoryCatalogProduct(item)} style={{ padding: '0.24rem 0.55rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.3rem', color: '#991B1B', cursor: 'pointer', fontSize: '0.72rem', fontWeight: '700' }}>Delete</button>}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -5383,31 +5631,53 @@ function ERPTab() {
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
                 <div>
                   <p style={{ margin: 0, fontWeight: '800', color: '#1D4ED8', fontSize: '1rem' }}>Inventory Report</p>
-                  <p style={{ margin: '0.35rem 0 0', color: '#4B5E8B', fontSize: '0.8rem', lineHeight: 1.5 }}>Live snapshot of stock types, products, total quantity on hand, stock value, and low-stock exposure.</p>
+                  <p style={{ margin: '0.35rem 0 0', color: '#4B5E8B', fontSize: '0.8rem', lineHeight: 1.5 }}>Live snapshot of stock left by product and metal, including quantity on hand, inventory value, and low-stock exposure.</p>
                 </div>
                 <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#DBEAFE', color: '#1D4ED8', fontWeight: '800', fontSize: '0.74rem' }}>{inventoryReportProducts.length}</span>
               </div>
               <div style={{ marginTop: '0.85rem', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.55rem' }}>
                 <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Stock Types</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryMappingProducts.length}</p></div>
                 <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Products</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryCatalogProducts.length}</p></div>
-                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Qty On Hand</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalQuantity.toLocaleString()}</p></div>
+                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Stock Left</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalQuantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p></div>
                 <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Inventory Value</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p></div>
               </div>
               <div style={{ marginTop: '0.7rem', border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.65rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.45rem' }}>
-                  <span style={{ fontWeight: '700', color: C.ink, fontSize: '0.8rem' }}>Top Inventory Items</span>
+                  <span style={{ fontWeight: '700', color: C.ink, fontSize: '0.8rem' }}>Stock Left By Metal</span>
                   <span style={{ color: inventoryLowStockCount > 0 ? '#B45309' : '#1D4ED8', fontWeight: '700', fontSize: '0.75rem' }}>Low Stock: {inventoryLowStockCount}</span>
                 </div>
                 <div style={{ display: 'grid', gap: '0.45rem' }}>
-                  {inventoryTopProducts.map((item) => {
-                    const meta = decodeInventoryCategoryPairs(item.category)
+                  {inventoryMetalBreakdown.map((row) => (
+                    <div key={row.metal} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', paddingBottom: '0.45rem', borderBottom: '1px solid #EFF6FF' }}>
+                      <div>
+                        <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem' }}>{row.metal}</div>
+                        <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{row.productCount} product{row.productCount === 1 ? '' : 's'} | Stock Left {row.totalQty.toLocaleString(undefined, { maximumFractionDigits: 2 })} | Low Stock {row.lowStockCount}</div>
+                      </div>
+                      <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem', textAlign: 'right' }}>{row.totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                    </div>
+                  ))}
+                  {!inventoryMetalBreakdown.length && <div style={{ color: C.inkSoft, fontSize: '0.8rem' }}>No metal/product breakdown available yet.</div>}
+                </div>
+              </div>
+              <div style={{ marginTop: '0.7rem', border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.65rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.45rem' }}>
+                  <span style={{ fontWeight: '700', color: C.ink, fontSize: '0.8rem' }}>Top Inventory Items</span>
+                  <span style={{ color: '#1D4ED8', fontWeight: '700', fontSize: '0.75rem' }}>Showing highest value items</span>
+                </div>
+                <div style={{ display: 'grid', gap: '0.45rem' }}>
+                  {inventoryTopProducts.map((row) => {
+                    const { item, productMeta } = row
                     return (
                       <div key={item._id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', paddingBottom: '0.4rem', borderBottom: '1px solid #EFF6FF' }}>
                         <div>
                           <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem' }}>{item.name}</div>
-                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>Category {meta.productCategory || titleCaseWords(meta.mainStock || meta.metalType || '-')} | Wt {Number(meta.weight || item.quantity || 0).toLocaleString()} g | Purity {meta.productPurity || meta.purity || '-'} | Pure Wt {Number(meta.purityWeight || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</div>
+                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{row.metal} | Category {row.categoryName} | Stock Left {row.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })} {row.stockUnit} | Stock Value {row.stockValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>Gross Wt {row.weight.toLocaleString(undefined, { maximumFractionDigits: 4 })} g | Purity {row.purity || '-'} | Tax {productMeta.taxType || '-'} | VAT {formatVatPercent(productMeta.vatPercent)} | Pure Wt {row.purityWeight.toLocaleString(undefined, { maximumFractionDigits: 4 })}</div>
                         </div>
-                        <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem' }}>{(Number(item.quantity || 0) * Number(item.unitCost || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                        <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem', textAlign: 'right' }}>
+                          <div>{row.stockValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                          <div style={{ color: row.quantity <= 0 ? '#B91C1C' : row.isLowStock ? '#B45309' : C.inkSoft, fontSize: '0.7rem' }}>{row.quantity <= 0 ? 'Zero Stock' : row.isLowStock ? 'Low Stock' : 'In Stock'}</div>
+                        </div>
                       </div>
                     )
                   })}
@@ -5423,6 +5693,173 @@ function ERPTab() {
             </p>
           )}
 
+          {/* All Inventory Items Table */}
+          {inventoryReportProducts.length > 0 && (
+            <div style={{ marginTop: '1.25rem', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <div>
+                  <p style={{ margin: 0, fontWeight: '800', color: C.ink, fontSize: '1rem' }}>All Inventory Items</p>
+                  <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Live stock on hand — quantities updated automatically when sale/purchase vouchers are posted.</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <select
+                    value={inventoryVatFilter}
+                    onChange={(e) => setInventoryVatFilter(e.target.value)}
+                    style={{ padding: '0.35rem 0.55rem', border: '1px solid #CBD5E1', borderRadius: '0.4rem', fontSize: '0.78rem', color: C.ink, background: '#FFFFFF' }}
+                  >
+                    <option value="all">VAT: All</option>
+                    <option value="with-vat">VAT: &gt; 0%</option>
+                    <option value="zero-or-blank">VAT: 0% / Blank</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setInventoryVatSortDir((prev) => (prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'none'))}
+                    style={{ padding: '0.35rem 0.55rem', border: '1px solid #CBD5E1', borderRadius: '0.4rem', fontSize: '0.78rem', color: C.ink, background: '#FFFFFF', cursor: 'pointer', fontWeight: '600' }}
+                  >
+                    VAT Sort: {inventoryVatSortDir === 'none' ? 'None' : inventoryVatSortDir === 'asc' ? 'Low-High' : 'High-Low'}
+                  </button>
+                  <span style={{ padding: '0.3rem 0.6rem', background: '#DBEAFE', color: '#1D4ED8', borderRadius: '999px', fontWeight: '700', fontSize: '0.74rem' }}>{sortedInventoryTableRows.length} items</span>
+                </div>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0' }}>
+                      {['SKU', 'Name', 'Category', 'Tax Type', 'VAT %', 'Qty On Hand', 'Unit', 'Unit Cost', 'Selling Price', 'Total Value', 'Min Stock', 'Status'].map(col => {
+                        const isVatCol = col === 'VAT %'
+                        const vatSortIndicator = inventoryVatSortDir === 'none' ? '' : inventoryVatSortDir === 'asc' ? ' ▲' : ' ▼'
+                        return (
+                          <th
+                            key={col}
+                            onClick={isVatCol ? () => setInventoryVatSortDir((prev) => (prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'none')) : undefined}
+                            title={isVatCol ? 'Click to sort VAT %' : undefined}
+                            style={{
+                              padding: '0.55rem 0.7rem',
+                              textAlign: col === 'VAT %' || col === 'Qty On Hand' || col === 'Unit Cost' || col === 'Selling Price' || col === 'Total Value' ? 'right' : 'left',
+                              color: '#374151',
+                              fontWeight: '700',
+                              whiteSpace: 'nowrap',
+                              cursor: isVatCol ? 'pointer' : 'default',
+                              userSelect: isVatCol ? 'none' : 'auto',
+                            }}
+                          >
+                            {isVatCol ? `${col}${vatSortIndicator}` : col}
+                          </th>
+                        )
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedInventoryTableRows.map(({ item, categoryMeta, productMeta }) => {
+                      const lowStock = Number(item.minThreshold || 0) > 0 && Number(item.quantity || 0) <= Number(item.minThreshold || 0)
+                      const totalValue = Number(item.quantity || 0) * Number(item.unitCost || 0)
+                      return (
+                        <tr key={item._id} style={{ borderBottom: '1px solid #F1F5F9', background: lowStock ? '#FFF7ED' : undefined }}>
+                          <td style={{ padding: '0.5rem 0.7rem', color: '#6B7280', fontFamily: 'monospace' }}>{item.sku || '—'}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', fontWeight: '600', color: C.ink }}>{item.name}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{item.category ? (categoryMeta.mainStock || item.category).slice(0, 30) : '—'}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{productMeta.taxType || '—'}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft, fontSize: '0.78rem' }}>{formatVatPercent(productMeta.vatPercent)}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: lowStock ? '#B45309' : '#065F46' }}>{Number(item.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft }}>{item.unit || 'pcs'}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(item.unitCost || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(item.sellingPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: '#1D4ED8' }}>{totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>{Number(item.minThreshold || 0) || '—'}</td>
+                          <td style={{ padding: '0.5rem 0.7rem' }}>
+                            {lowStock
+                              ? <span style={{ background: '#FEF3C7', color: '#B45309', borderRadius: '999px', padding: '0.2rem 0.55rem', fontSize: '0.72rem', fontWeight: '700' }}>Low Stock</span>
+                              : <span style={{ background: '#DCFCE7', color: '#166534', borderRadius: '999px', padding: '0.2rem 0.55rem', fontSize: '0.72rem', fontWeight: '700' }}>OK</span>
+                            }
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Stock Movements from Vouchers */}
+          <div style={{ marginTop: '1.25rem', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div>
+                <p style={{ margin: 0, fontWeight: '800', color: C.ink, fontSize: '1rem' }}>Stock Movement History</p>
+                <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Every inventory change from posted sale/purchase vouchers — full audit trail.</p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  placeholder="Search item or reason..."
+                  value={stockMovementsFilter}
+                  onChange={e => setStockMovementsFilter(e.target.value)}
+                  style={{ padding: '0.4rem 0.7rem', border: '1px solid #D1D5DB', borderRadius: '0.4rem', fontSize: '0.82rem', minWidth: '180px' }}
+                />
+                <button type="button" onClick={loadStockLedger} style={{ padding: '0.4rem 0.8rem', background: '#E2E8F0', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.4rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem' }}>
+                  {stockMovementsLoading ? 'Loading…' : 'Refresh'}
+                </button>
+                <span style={{ padding: '0.3rem 0.6rem', background: '#F1F5F9', color: '#475569', borderRadius: '999px', fontWeight: '700', fontSize: '0.74rem' }}>{stockMovements.length} entries</span>
+              </div>
+            </div>
+            {stockMovementsLoading
+              ? <div style={{ textAlign: 'center', padding: '1.5rem', color: C.inkSoft }}>Loading stock movements…</div>
+              : stockMovements.length === 0
+                ? (
+                  <div style={{ border: '1px dashed #CBD5E0', borderRadius: '0.5rem', padding: '1.5rem', textAlign: 'center' }}>
+                    <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.85rem' }}>No stock movements yet.</p>
+                    <p style={{ margin: '0.4rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Post a sale or purchase voucher with a product linked to an inventory item to see movements here.</p>
+                  </div>
+                )
+                : (() => {
+                  const filtered = stockMovementsFilter.trim()
+                    ? stockMovements.filter(m =>
+                        String(m.itemName || '').toLowerCase().includes(stockMovementsFilter.toLowerCase()) ||
+                        String(m.reason || '').toLowerCase().includes(stockMovementsFilter.toLowerCase()) ||
+                        String(m.actorName || '').toLowerCase().includes(stockMovementsFilter.toLowerCase())
+                      )
+                    : stockMovements
+                  return (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                        <thead>
+                          <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0' }}>
+                            {['Date', 'Item', 'Change', 'Before', 'After', 'Reason (Voucher)', 'By'].map(col => (
+                              <th key={col} style={{ padding: '0.55rem 0.7rem', textAlign: col === 'Change' || col === 'Before' || col === 'After' ? 'right' : 'left', color: '#374151', fontWeight: '700', whiteSpace: 'nowrap' }}>{col}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.slice(0, 200).map((m, i) => {
+                            const isIn = Number(m.change || 0) > 0
+                            return (
+                              <tr key={m._id || i} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                                <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, whiteSpace: 'nowrap' }}>
+                                  {m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '—'}
+                                </td>
+                                <td style={{ padding: '0.5rem 0.7rem', fontWeight: '600', color: C.ink }}>{m.itemName}</td>
+                                <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: isIn ? '#166534' : '#B91C1C' }}>
+                                  {isIn ? '+' : ''}{Number(m.change || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                                </td>
+                                <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>{Number(m.quantityBefore || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
+                                <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '600', color: C.ink }}>{Number(m.quantityAfter || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
+                                <td style={{ padding: '0.5rem 0.7rem' }}>
+                                  <span style={{ background: isIn ? '#DCFCE7' : '#FEE2E2', color: isIn ? '#166534' : '#991B1B', borderRadius: '0.3rem', padding: '0.18rem 0.45rem', fontSize: '0.78rem', fontWeight: '600' }}>
+                                    {m.reason || '—'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{m.actorName || '—'}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                      {filtered.length > 200 && <p style={{ textAlign: 'center', color: C.inkSoft, fontSize: '0.8rem', marginTop: '0.5rem' }}>Showing 200 of {filtered.length} entries</p>}
+                    </div>
+                  )
+                })()
+            }
+          </div>
+
           {showInventoryProductModal && (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', zIndex: 1210, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={(e) => { if (e.target === e.currentTarget) resetInventoryProductForm() }}>
               <form onSubmit={handleCreateInventoryCatalogProduct} style={{ width: 'min(1100px, 96vw)', background: '#FFFFFF', border: '1px solid #CBD5E0', borderRadius: '0.5rem', padding: 0, boxShadow: '0 20px 42px rgba(0,0,0,0.35)', overflow: 'hidden', transform: `translate(${inventoryProductModalOffset.x}px, ${inventoryProductModalOffset.y}px)`, userSelect: inventoryProductModalDragging ? 'none' : 'auto' }}>
@@ -5433,7 +5870,7 @@ function ERPTab() {
                 >
                   <div>
                     <p style={{ margin: 0, color: '#FFFFFF', fontWeight: '800', fontSize: '1.08rem' }}>{editingInventoryProductId ? 'Edit Product' : 'Product Creation'}</p>
-                    <p style={{ margin: '0.25rem 0 0', color: 'rgba(255,255,255,0.88)', fontSize: '0.84rem' }}>Enter Product Category, Name, Description, Weight, Purity, and auto-calculated Purity Weight.</p>
+                    <p style={{ margin: '0.25rem 0 0', color: 'rgba(255,255,255,0.88)', fontSize: '0.84rem' }}>Enter Product Category, Name, Description, Weight, Gross Weight, Purity, Tax Type, VAT %, and auto-calculated Purity Weight.</p>
                   </div>
                   <button type="button" onClick={resetInventoryProductForm} style={{ border: 'none', background: 'transparent', color: '#FFFFFF', cursor: 'pointer', fontSize: '1.45rem', lineHeight: 1 }}>✕</button>
                 </div>
@@ -5449,7 +5886,23 @@ function ERPTab() {
                     <input placeholder="Product Name" value={inventoryProductForm.name} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, name: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
                     <input placeholder="Description" value={inventoryProductForm.description} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, description: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
                     <input type="number" step="0.0001" placeholder="Weight" value={inventoryProductForm.weight} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, weight: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
+                    <input type="number" step="0.0001" placeholder="Gross Weight" value={inventoryProductForm.grossWeight} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, grossWeight: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
                     <input placeholder="Purity" value={inventoryProductForm.purity} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, purity: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
+                    <select value={inventoryProductForm.taxType} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, taxType: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }}>
+                      <option value="VAT">VAT</option>
+                      <option value="GST">GST</option>
+                      <option value="Sales Tax">Sales Tax</option>
+                      <option value="None">None</option>
+                    </select>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="VAT %"
+                      value={inventoryProductForm.vatPercent}
+                      onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, vatPercent: e.target.value }))}
+                      style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }}
+                    />
                     <input value={inventoryProductPurityWeight ? inventoryProductPurityWeight.toLocaleString(undefined, { maximumFractionDigits: 4 }) : ''} readOnly placeholder="Purity Weight" style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#EEF2F7', color: C.inkSoft, borderRadius: '0.45rem' }} />
                   </div>
                 </div>
@@ -6350,37 +6803,121 @@ function ERPTab() {
                       <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', overflow: 'hidden', background: '#FFFFFF' }}>
                         {/* Tab Header */}
                         <div style={{ background: '#3F4B2E', padding: '0', display: 'flex', borderBottom: '1px solid #2D3620' }}>
-                          <button style={{ flex: 1, padding: '0.7rem 1rem', color: '#FFFFFF', background: '#3F4B2E', border: 'none', fontWeight: '700', fontSize: '0.95rem', cursor: 'pointer', borderRight: '1px solid #2D3620' }}>Position</button>
-                          <button style={{ flex: 1, padding: '0.7rem 1rem', color: '#999999', background: '#EEEEEE', border: 'none', fontWeight: '600', fontSize: '0.95rem', cursor: 'pointer', opacity: 0.6 }}>UnAllocated</button>
+                          <button
+                            type="button"
+                            onClick={() => setAccountSummaryView('position')}
+                            style={{
+                              flex: 1,
+                              padding: '0.7rem 1rem',
+                              color: accountSummaryView === 'position' ? '#FFFFFF' : '#6B7280',
+                              background: accountSummaryView === 'position' ? '#3F4B2E' : '#EEEEEE',
+                              border: 'none',
+                              fontWeight: accountSummaryView === 'position' ? '700' : '600',
+                              fontSize: '0.95rem',
+                              cursor: 'pointer',
+                              borderRight: '1px solid #2D3620',
+                            }}
+                          >
+                            Position
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAccountSummaryView('unfixed')}
+                            style={{
+                              flex: 1,
+                              padding: '0.7rem 1rem',
+                              color: accountSummaryView === 'unfixed' ? '#FFFFFF' : '#6B7280',
+                              background: accountSummaryView === 'unfixed' ? '#3F4B2E' : '#EEEEEE',
+                              border: 'none',
+                              fontWeight: accountSummaryView === 'unfixed' ? '700' : '600',
+                              fontSize: '0.95rem',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Unfixed
+                          </button>
                         </div>
                         
-                        {/* Position Table */}
+                        {/* Position / Unfixed Table */}
                         <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                            <thead>
-                              <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
-                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Type</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Limits</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Balance</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Price</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Current Value</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Break Even</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {modalPositionRows.map((row, index) => (
-                                <tr key={row.key} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                                  <td style={{ padding: '0.7rem', fontWeight: '700', color: '#111827' }}>{row.type}</td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.limits, 0)}</td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.balance), fontWeight: '600' }}>{formatStatementValue(row.balance, 6)}</td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.price, 4)}</td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.currentValue), fontWeight: '700' }}>{formatStatementValue(row.currentValue, 2)}</td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.breakEven, 4)}</td>
+                          {accountSummaryView === 'position' ? (
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                              <thead>
+                                <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
+                                  <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Type</th>
+                                  <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Limits</th>
+                                  <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Balance</th>
+                                  <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Price</th>
+                                  <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Current Value</th>
+                                  <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Break Even</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody>
+                                {modalPositionRows.map((row, index) => (
+                                  <tr key={row.key} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                                    <td style={{ padding: '0.7rem', fontWeight: '700', color: '#111827' }}>{row.type}</td>
+                                    <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.limits, 0)}</td>
+                                    <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.balance), fontWeight: '600' }}>{formatStatementValue(row.balance, 6)}</td>
+                                    <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.price, 4)}</td>
+                                    <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.currentValue), fontWeight: '700' }}>{formatStatementValue(row.currentValue, 2)}</td>
+                                    <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.breakEven, 4)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          ) : (
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                              <thead>
+                                <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
+                                  <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Date</th>
+                                  <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Deal</th>
+                                  <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Metal</th>
+                                  <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {unfixedMetalEntries.length ? unfixedMetalEntries.slice(0, 8).map((row, index) => (
+                                  <tr key={row._id || `${row.date}-${index}`} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                                    <td style={{ padding: '0.7rem', color: '#111827' }}>{formatStatementDate(row.date)}</td>
+                                    <td style={{ padding: '0.7rem', color: '#111827', fontWeight: '600', textTransform: 'capitalize' }}>{row.dealSide}</td>
+                                    <td style={{ padding: '0.7rem', color: '#111827' }}>{row.metalCode}</td>
+                                    <td style={{ padding: '0.7rem', textAlign: 'right', color: '#111827', fontWeight: '700' }}>{formatStatementValue(row.amount, 2)}</td>
+                                  </tr>
+                                )) : (
+                                  <tr>
+                                    <td colSpan={4} style={{ padding: '0.8rem', textAlign: 'center', color: '#6B7280', fontSize: '0.86rem' }}>
+                                      No unfixed metal sale/purchase rows found in the selected filters.
+                                    </td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          )}
                         </div>
+                      </div>
+
+                      <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', background: '#F8FAFC', padding: '0.85rem 0.95rem' }}>
+                        <p style={{ margin: 0, color: '#111827', fontWeight: '800', fontSize: '0.92rem' }}>Fixing / Unfixing Metal Sales & Purchases</p>
+                        <p style={{ margin: '0.3rem 0 0', color: '#475569', fontSize: '0.8rem', lineHeight: 1.45 }}>
+                          Fixed means price locked and finalized. Unfixed means price is pending and should remain in the Unfixed tab until fixed.
+                        </p>
+                        <div style={{ marginTop: '0.65rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem' }}>
+                          <div style={{ border: '1px solid #BBF7D0', background: '#ECFDF5', borderRadius: '0.45rem', padding: '0.55rem' }}>
+                            <p style={{ margin: 0, color: '#166534', fontWeight: '800', fontSize: '0.8rem' }}>Fixed</p>
+                            <p style={{ margin: '0.2rem 0 0', color: '#166534', fontSize: '0.76rem' }}>Sales: {fixedMetalSummary.saleCount} ({formatStatementValue(fixedMetalSummary.saleAmount, 2)})</p>
+                            <p style={{ margin: '0.15rem 0 0', color: '#166534', fontSize: '0.76rem' }}>Purchases: {fixedMetalSummary.purchaseCount} ({formatStatementValue(fixedMetalSummary.purchaseAmount, 2)})</p>
+                          </div>
+                          <div style={{ border: '1px solid #FDE68A', background: '#FFFBEB', borderRadius: '0.45rem', padding: '0.55rem' }}>
+                            <p style={{ margin: 0, color: '#92400E', fontWeight: '800', fontSize: '0.8rem' }}>Unfixed</p>
+                            <p style={{ margin: '0.2rem 0 0', color: '#92400E', fontSize: '0.76rem' }}>Sales: {unfixedMetalSummary.saleCount} ({formatStatementValue(unfixedMetalSummary.saleAmount, 2)})</p>
+                            <p style={{ margin: '0.15rem 0 0', color: '#92400E', fontSize: '0.76rem' }}>Purchases: {unfixedMetalSummary.purchaseCount} ({formatStatementValue(unfixedMetalSummary.purchaseAmount, 2)})</p>
+                          </div>
+                        </div>
+                        {unknownFixMetalEntries.length > 0 && (
+                          <p style={{ margin: '0.55rem 0 0', color: '#6B7280', fontSize: '0.75rem' }}>
+                            {unknownFixMetalEntries.length} metal sale/purchase entries are missing explicit fixing keywords.
+                          </p>
+                        )}
                       </div>
 
                     </div>
@@ -6390,7 +6927,9 @@ function ERPTab() {
                       {/* Total Funds */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Total Funds</span>
-                        <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalTotalFunds, 2)}</span>
+                        <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>
+                          {formatDirectionalBalance(modalTotalFunds, { preferredDirection: accountEnquiryData?.balances?.netDirection })}
+                        </span>
                       </div>
 
                       {/* Revaluation */}
@@ -6481,9 +7020,19 @@ function ERPTab() {
                           <option key={department} value={department}>{department}</option>
                         ))}
                       </select>
+                      <select
+                        value={statementFilters.fixStatus}
+                        onChange={(e) => setStatementFilters((prev) => ({ ...prev, fixStatus: e.target.value }))}
+                        style={modalInputStyle}
+                      >
+                        <option value="">All Fixing Status</option>
+                        <option value="fixed">Fixed Only</option>
+                        <option value="unfixed">Unfixed Only</option>
+                        <option value="unknown">Unknown Only</option>
+                      </select>
                       <button
                         type="button"
-                        onClick={() => setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '' })}
+                        onClick={() => setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '' })}
                         style={{ padding: '0.65rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', height: 'fit-content' }}
                       >
                         Reset
@@ -6502,41 +7051,75 @@ function ERPTab() {
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
                         <thead>
-                          <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
+                          <tr style={{ background: '#E8EBE0', borderBottom: '1px solid #CBD5E0' }}>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Date</th>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Receipt No</th>
                             {showStatementAuditIds && <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Transaction ID</th>}
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Type</th>
+                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Deal</th>
+                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Fixing</th>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Description</th>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Offset Account</th>
-                            <th style={{ padding: '0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Debit</th>
-                            <th style={{ padding: '0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Credit</th>
-                            <th style={{ padding: '0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Running Balance</th>
+                            <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Amount In USD</th>
+                            <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Pure WT In Grams</th>
+                          </tr>
+                          <tr style={{ background: '#EEF1E8', borderBottom: '2px solid #CBD5E0' }}>
+                            <th colSpan={showStatementAuditIds ? 8 : 7} style={{ padding: 0, border: 0 }} />
+                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700', borderLeft: '1px solid #CBD5E0' }}>Debit</th>
+                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Credit</th>
+                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Balance</th>
+                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700', borderLeft: '1px solid #CBD5E0' }}>Debit</th>
+                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Credit</th>
+                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Balance</th>
                           </tr>
                         </thead>
                         <tbody>
                           {filteredStatementEntries.length === 0 ? (
                             <tr>
-                              <td colSpan={showStatementAuditIds ? 9 : 8} style={{ padding: '1rem', textAlign: 'center', color: '#6B7280', fontStyle: 'italic' }}>
+                              <td colSpan={showStatementAuditIds ? 15 : 14} style={{ padding: '1rem', textAlign: 'center', color: '#6B7280', fontStyle: 'italic' }}>
                                 No statement entries found for selected filters.
                               </td>
                             </tr>
                           ) : (
                             filteredStatementEntries.map((entry, index) => {
                               const receiptNo = entry.sourceTransactionNumber || entry.sourceTransactionId || entry.referenceId || entry._id || '-'
+                              const rowExchangeRate = Number(entry.exchangeRate || 1)
+                              const debitUsd = Number(entry.debitAmount || 0) * rowExchangeRate
+                              const creditUsd = Number(entry.creditAmount || 0) * rowExchangeRate
+                              const balanceUsd = Number(entry.runningBalance || 0) * rowExchangeRate
+                              const rowMetalCode = resolveMetalCode(entry)
+                              const rowMetalPrice = rowMetalCode === 'XAG' ? silverPriceUSD : rowMetalCode === 'XAU' ? goldPriceUSD : 0
+                              const debitPureWeight = rowMetalPrice > 0 ? debitUsd / rowMetalPrice : null
+                              const creditPureWeight = rowMetalPrice > 0 ? creditUsd / rowMetalPrice : null
+                              const balancePureWeight = rowMetalPrice > 0 ? balanceUsd / rowMetalPrice : null
                               return (
                                 <tr key={entry._id || `${entry.date}-${index}`} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                                   <td style={{ padding: '0.6rem', color: '#374151' }}>{formatStatementDate(entry.date)}</td>
                                   <td style={{ padding: '0.6rem', color: '#111827', fontFamily: 'monospace', fontSize: '0.8rem' }}>{receiptNo}</td>
                                   {showStatementAuditIds && <td style={{ padding: '0.6rem', color: '#475569', fontFamily: 'monospace', fontSize: '0.78rem' }}>{entry.sourceTransactionId || '-'}</td>}
                                   <td style={{ padding: '0.6rem', color: '#374151' }}>{String(entry.referenceType || 'journal').toUpperCase()}</td>
+                                  <td style={{ padding: '0.6rem', color: '#374151', textTransform: 'capitalize' }}>{entry.metalDealType || '-'}</td>
+                                  <td style={{ padding: '0.6rem' }}>
+                                    {entry.metalFixStatus ? (
+                                      <span style={{ background: entry.metalFixStatus === 'fixed' ? '#DCFCE7' : '#FEF3C7', color: entry.metalFixStatus === 'fixed' ? '#166534' : '#92400E', borderRadius: '999px', padding: '0.12rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', textTransform: 'capitalize' }}>
+                                        {entry.metalFixStatus}
+                                      </span>
+                                    ) : '-'}
+                                  </td>
                                   <td style={{ padding: '0.6rem', color: '#374151' }}>{entry.description || '-'}</td>
                                   <td style={{ padding: '0.6rem', color: '#374151' }}>
                                     {entry.offsetAccountCode ? `${entry.offsetAccountCode}${entry.offsetAccountName ? ` - ${entry.offsetAccountName}` : ''}` : '-'}
                                   </td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600' }}>{formatStatementValue(entry.debitAmount, 2)}</td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementValue(entry.creditAmount, 2)}</td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: getSignedColor(entry.runningBalance), fontWeight: '700' }}>{formatStatementValue(entry.runningBalance, 2)}</td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{formatStatementValue(debitUsd, 2)}</td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementValue(creditUsd, 2)}</td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: getSignedColor(balanceUsd), fontWeight: '700' }}>
+                                    {formatDirectionalBalance(balanceUsd)}
+                                  </td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{formatStatementNullableValue(debitPureWeight, 2)}</td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementNullableValue(creditPureWeight, 2)}</td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: getSignedColor(balancePureWeight), fontWeight: '700' }}>
+                                    {balancePureWeight === null ? '-' : formatDirectionalBalance(balancePureWeight)}
+                                  </td>
                                 </tr>
                               )
                             })

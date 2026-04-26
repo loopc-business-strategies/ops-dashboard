@@ -77,6 +77,12 @@ const toMoney = (value) => Number(Number(value || 0).toFixed(2))
 const toQty = (value) => Number(Number(value || 0).toFixed(6))
 
 const sanitizeOptionalRef = (value) => (value ? value : null)
+const normalizeMetalFixStatus = (value) => {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (['fixed', 'fixing'].includes(normalized)) return 'fixed'
+  if (['unfixed', 'unfix', 'non-fixing', 'non_fixing', 'nonfixing'].includes(normalized)) return 'unfixed'
+  return ''
+}
 
 const ensureUsdCurrencyConfig = async () => {
   const usd = await Currency.findOneAndUpdate(
@@ -182,6 +188,211 @@ const validateTransactionPayload = (payload) => {
   }
 
   return ''
+}
+
+const ensureAccountByCode = async ({ user, code, name, accountType, currency = BASE_CURRENCY_CODE }) => {
+  let account = await ChartOfAccount.findOne({ accountCode: code })
+  if (!account) {
+    try {
+      account = await ChartOfAccount.create({
+        accountName: name,
+        accountCode: code,
+        accountType,
+        currency,
+        description: `Auto-created default account for ${name}`,
+        createdBy: user._id,
+      })
+    } catch (err) {
+      if (err?.code !== 11000) throw err
+      // Another request created the account in parallel; reuse it.
+      account = await ChartOfAccount.findOne({ accountCode: code })
+    }
+  }
+
+  if (account && !account.isActive) {
+    account.isActive = true
+    await account.save()
+  }
+
+  return account
+}
+
+const resolveVoucherInventoryLineQuantity = (line = {}) => {
+  const grossWeight = Number(line.grossWeight || 0)
+  if (grossWeight > 0) return toQty(grossWeight)
+
+  const pureWeight = Number(line.pureWeight || 0)
+  if (pureWeight > 0) return toQty(pureWeight)
+
+  const pcs = Number(line.pcs || 0)
+  if (pcs > 0) return toQty(pcs)
+
+  return 0
+}
+
+const resolveVoucherInventoryLineAmount = (line = {}) => {
+  const candidates = [line.amountLC, line.totalAmount, line.metalAmount, line.amountFC, line.amountWithVAT]
+  for (const candidate of candidates) {
+    const amount = Number(candidate || 0)
+    if (Number.isFinite(amount) && amount > 0) return toMoney(amount)
+  }
+  return 0
+}
+
+const resolveVoucherInventoryItems = async (tx) => {
+  const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+  const resolved = []
+
+  for (const line of lines) {
+    const stockCode = String(line?.stockCode || '').trim()
+    const productType = String(line?.productType || '').trim()
+    if (!stockCode && !productType) continue
+
+    const item = await InventoryItem.findOne({
+      isDeleted: { $ne: true },
+      $or: [
+        ...(stockCode ? [{ sku: stockCode }] : []),
+        ...(productType ? [{ name: productType }] : []),
+      ],
+    })
+    if (!item) continue
+
+    const quantity = resolveVoucherInventoryLineQuantity(line)
+    if (quantity <= 0) continue
+
+    resolved.push({
+      line,
+      item,
+      quantity,
+      lineAmount: resolveVoucherInventoryLineAmount(line),
+    })
+  }
+
+  return resolved
+}
+
+const prepareVoucherInventoryImpact = async ({ user, tx }) => {
+  const transactionType = String(tx?.type || '').toLowerCase()
+  if (!['sale', 'purchase'].includes(transactionType)) {
+    return { inventoryPlans: [], purchaseDebitAccountId: null, cogsAccountId: null }
+  }
+
+  const resolvedLines = await resolveVoucherInventoryItems(tx)
+  if (!resolvedLines.length) {
+    return { inventoryPlans: [], purchaseDebitAccountId: null, cogsAccountId: null }
+  }
+
+  const defaultInventoryAccount = await ensureAccountByCode({
+    user,
+    code: '1300',
+    name: 'Metal Inventory',
+    accountType: 'Asset',
+    currency: tx.currency || BASE_CURRENCY_CODE,
+  })
+  const cogsAccount = transactionType === 'sale'
+    ? await ensureAccountByCode({
+      user,
+      code: '5101',
+      name: 'Cost Of Goods Sold',
+      accountType: 'Expense',
+      currency: tx.currency || BASE_CURRENCY_CODE,
+    })
+    : null
+
+  const inventoryPlans = resolvedLines.map(({ line, item, quantity, lineAmount }) => {
+    const inventoryAccountId = item.ledgerAccountId || defaultInventoryAccount._id
+    if (transactionType === 'sale' && Number(item.quantity || 0) < quantity) {
+      throw new Error(`Insufficient stock for ${item.name}`)
+    }
+
+    return {
+      line,
+      item,
+      quantity,
+      lineAmount,
+      inventoryAccountId,
+      costAmount: transactionType === 'sale' ? toMoney(quantity * Number(item.unitCost || 0)) : 0,
+    }
+  })
+
+  return {
+    inventoryPlans,
+    purchaseDebitAccountId: inventoryPlans[0]?.inventoryAccountId || null,
+    cogsAccountId: cogsAccount?._id || null,
+  }
+}
+
+const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
+  const transactionType = String(tx?.type || '').toLowerCase()
+  const plans = Array.isArray(preparedImpact?.inventoryPlans) ? preparedImpact.inventoryPlans : []
+  if (!plans.length || !['sale', 'purchase'].includes(transactionType)) return
+
+  for (const plan of plans) {
+    const item = await InventoryItem.findById(plan.item._id)
+    if (!item || item.isDeleted) continue
+
+    const beforeQty = Number(item.quantity || 0)
+    const movementQty = Number(plan.quantity || 0)
+    const inventoryAccountId = item.ledgerAccountId || plan.inventoryAccountId
+
+    if (transactionType === 'purchase') {
+      const nextQty = toQty(beforeQty + movementQty)
+      const currentValue = beforeQty * Number(item.unitCost || 0)
+      const incomingValue = Number(plan.lineAmount || 0)
+      item.quantity = nextQty
+      item.lastRestockedAt = tx.date || new Date()
+      item.updatedBy = user._id
+      if (incomingValue > 0 && nextQty > 0) {
+        item.unitCost = toMoney((currentValue + incomingValue) / nextQty)
+      }
+      await item.save()
+
+      await StockMovement.create({
+        itemId: item._id,
+        itemName: item.name,
+        change: movementQty,
+        quantityBefore: beforeQty,
+        quantityAfter: nextQty,
+        reason: `Voucher purchase${tx.voucherMeta?.vocNo ? ` #${tx.voucherMeta.vocNo}` : ''}`,
+        actorId: user._id,
+        actorName: user.name,
+      })
+      continue
+    }
+
+    const nextQty = toQty(beforeQty - movementQty)
+    item.quantity = nextQty
+    item.updatedBy = user._id
+    await item.save()
+
+    await StockMovement.create({
+      itemId: item._id,
+      itemName: item.name,
+      change: -movementQty,
+      quantityBefore: beforeQty,
+      quantityAfter: nextQty,
+      reason: `Voucher sale${tx.voucherMeta?.vocNo ? ` #${tx.voucherMeta.vocNo}` : ''}`,
+      actorId: user._id,
+      actorName: user.name,
+    })
+
+    if (Number(plan.costAmount || 0) > 0 && preparedImpact?.cogsAccountId && inventoryAccountId) {
+      await Ledger.create({
+        date: tx.date || new Date(),
+        debitAccountId: preparedImpact.cogsAccountId,
+        creditAccountId: inventoryAccountId,
+        amount: toMoney(plan.costAmount),
+        description: `${tx.description || 'Sale transaction'} - COGS for ${item.name}`,
+        referenceType: 'cogs',
+        referenceId: tx._id,
+        createdBy: user._id,
+        updatedBy: user._id,
+        department: user.department,
+        currency: tx.currency || BASE_CURRENCY_CODE,
+        exchangeRate: Number(tx.exchangeRate || 1),
+      })
+    }
+  }
 }
 
 const normalizeTransactionNote = (value) => String(value || '').trim()
@@ -340,7 +551,8 @@ const applyTransactionWorkflowAction = async (tx, user, action, options = {}) =>
       }
     }
 
-    const resolved = await resolveTransactionAccounts({ user, tx, mappingOverride: options.mappingOverride || {} })
+    const preparedVoucherImpact = await prepareVoucherInventoryImpact({ user, tx })
+    const resolved = await resolveTransactionAccounts({ user, tx, mappingOverride: options.mappingOverride || {}, preparedVoucherImpact })
     tx.debitAccountId = resolved.debitAccountId
     tx.creditAccountId = resolved.creditAccountId
 
@@ -349,6 +561,8 @@ const applyTransactionWorkflowAction = async (tx, user, action, options = {}) =>
       transaction: tx,
       referenceType: tx.type,
     })
+
+    await applyVoucherInventoryImpact({ user, tx, preparedImpact: preparedVoucherImpact })
 
     tx.journalEntryId = ledgerEntry._id
     tx.status = 'posted'
@@ -728,7 +942,6 @@ const ensureCashBankAccount = async (user, currency = 'USD', preference = 'any')
   const isCashPreferred = normalizedPreference === 'cash'
 
   const query = {
-    isActive: true,
     accountType: 'Asset',
     $or: isBankPreferred
       ? [{ accountCode: '1010' }, { accountName: /bank/i }]
@@ -739,15 +952,32 @@ const ensureCashBankAccount = async (user, currency = 'USD', preference = 'any')
 
   let account = await ChartOfAccount.findOne(query).sort({ accountCode: 1 })
 
+  const preferredCode = isCashPreferred ? '1000' : '1010'
+
   if (!account) {
-    account = await ChartOfAccount.create({
-      accountName: isCashPreferred ? 'Petty Cash' : 'Main Bank Account',
-      accountCode: isCashPreferred ? '1000' : '1010',
-      accountType: 'Asset',
-      currency,
-      description: isCashPreferred ? 'Default cash account' : 'Default bank account',
-      createdBy: user._id,
-    })
+    // Reuse existing account code if present (even if inactive) to avoid duplicate key errors.
+    account = await ChartOfAccount.findOne({ accountCode: preferredCode })
+
+    if (!account) {
+      try {
+        account = await ChartOfAccount.create({
+          accountName: isCashPreferred ? 'Petty Cash' : 'Main Bank Account',
+          accountCode: preferredCode,
+          accountType: 'Asset',
+          currency,
+          description: isCashPreferred ? 'Default cash account' : 'Default bank account',
+          createdBy: user._id,
+        })
+      } catch (err) {
+        if (err?.code !== 11000) throw err
+        account = await ChartOfAccount.findOne({ accountCode: preferredCode })
+      }
+    }
+  }
+
+  if (account && !account.isActive) {
+    account.isActive = true
+    await account.save()
   }
 
   return account
@@ -784,7 +1014,7 @@ const resolveVoucherSettlementAccount = async (user, tx) => {
   return fallbackAccount?._id || null
 }
 
-const resolveTransactionAccounts = async ({ user, tx, mappingOverride }) => {
+const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedVoucherImpact }) => {
   const transactionType = tx.type
   let mapping = null
   if (tx.mappingId) {
@@ -845,6 +1075,9 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride }) => {
       const item = await InventoryItem.findById(tx.inventoryItemId)
       if (item?.ledgerAccountId) debitAccountId = debitAccountId || item.ledgerAccountId
     }
+    if (preparedVoucherImpact?.purchaseDebitAccountId) {
+      debitAccountId = debitAccountId || preparedVoucherImpact.purchaseDebitAccountId
+    }
   }
 
   if (mappingOverride?.debitAccountId) debitAccountId = mappingOverride.debitAccountId
@@ -853,17 +1086,13 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride }) => {
   // Auto-create fallback accounts so metal sale/purchase vouchers can always post
   if (!debitAccountId || !creditAccountId) {
     const ensureAccount = async ({ name, code, type }) => {
-      let acc = await ChartOfAccount.findOne({ accountCode: code, isActive: true })
-      if (!acc) {
-        acc = await ChartOfAccount.create({
-          accountName: name,
-          accountCode: code,
-          accountType: type,
-          currency: tx.currency || 'USD',
-          description: `Auto-created default account for ${name}`,
-          createdBy: user._id,
-        })
-      }
+      const acc = await ensureAccountByCode({
+        user,
+        code,
+        name,
+        accountType: type,
+        currency: tx.currency || 'USD',
+      })
       return acc._id
     }
 
@@ -871,7 +1100,12 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride }) => {
       if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Accounts Receivable', code: '1200', type: 'Asset' })
       if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Metal Sales Revenue', code: '4100', type: 'Income' })
     } else if (transactionType === 'purchase') {
-      if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Metal Purchases', code: '5100', type: 'Expense' })
+      const hasVoucherInventory = Boolean(preparedVoucherImpact?.purchaseDebitAccountId || tx.inventoryItemId || (Array.isArray(tx.voucherMeta?.lineItems) && tx.voucherMeta.lineItems.length))
+      if (!debitAccountId) {
+        debitAccountId = hasVoucherInventory
+          ? await ensureAccount({ name: 'Metal Inventory', code: '1300', type: 'Asset' })
+          : await ensureAccount({ name: 'Metal Purchases', code: '5100', type: 'Expense' })
+      }
       if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Accounts Payable', code: '2100', type: 'Liability' })
     } else if (transactionType === 'receipt') {
       if (!debitAccountId) debitAccountId = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank').then(a => a._id)
@@ -1330,6 +1564,24 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
 
     const ledgerIds = ledgerEntries.map((entry) => entry._id)
     const referenceIds = ledgerEntries.map((entry) => entry.referenceId).filter(Boolean)
+    const normalizeFixingStatus = (value) => {
+      const normalized = String(value || '').trim().toLowerCase()
+      if (['fixing', 'fixed'].includes(normalized)) return 'fixed'
+      if (['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(normalized)) return 'unfixed'
+      return ''
+    }
+    const resolveMetalCodeFromLines = (lines = []) => {
+      const arr = Array.isArray(lines) ? lines : []
+      for (const line of arr) {
+        const stockText = String(line?.stockCode || '').trim().toUpperCase()
+        if (stockText === 'XAU' || stockText.includes('GOLD')) return 'XAU'
+        if (stockText === 'XAG' || stockText.includes('SILV')) return 'XAG'
+        const productText = `${String(line?.productType || '')} ${String(line?.narration || '')}`.toLowerCase()
+        if (productText.includes('gold') || productText.includes('xau')) return 'XAU'
+        if (productText.includes('silver') || productText.includes('xag')) return 'XAG'
+      }
+      return ''
+    }
     const linkedTransactions = await Transaction.find({
       isDeleted: { $ne: true },
       $or: [
@@ -1337,17 +1589,27 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         { _id: { $in: referenceIds } },
       ],
     })
-      .select('_id journalEntryId voucherMeta.vocNo voucherMeta.refNo voucherMeta.lineItems.trnNumber')
+      .select('_id journalEntryId type voucherMeta.vocNo voucherMeta.refNo voucherMeta.fixingType voucherMeta.lineItems.vatNumber voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration')
       .lean()
 
     const transactionByLedgerId = new Map()
     const transactionById = new Map()
     linkedTransactions.forEach((tx) => {
       const lineTxNo = Array.isArray(tx.voucherMeta?.lineItems)
-        ? String(tx.voucherMeta.lineItems.find((line) => String(line?.trnNumber || '').trim())?.trnNumber || '').trim()
+        ? String(tx.voucherMeta.lineItems.find((line) => String(line?.vatNumber || '').trim())?.vatNumber || '').trim()
         : ''
       const txNumber = String(tx.voucherMeta?.vocNo || tx.voucherMeta?.refNo || lineTxNo || '').trim()
-      const txRef = { id: String(tx._id), number: txNumber }
+      const txType = String(tx.type || '').trim().toLowerCase()
+      const metalCode = resolveMetalCodeFromLines(tx.voucherMeta?.lineItems)
+      const hasVoucherLines = Array.isArray(tx.voucherMeta?.lineItems) && tx.voucherMeta.lineItems.length > 0
+      const txRef = {
+        id: String(tx._id),
+        number: txNumber,
+        transactionType: txType,
+        metalFixStatus: normalizeFixingStatus(tx.voucherMeta?.fixingType),
+        metalCode,
+        isMetalTrade: ['sale', 'purchase'].includes(txType) && Boolean(metalCode || hasVoucherLines),
+      }
       if (tx.journalEntryId) transactionByLedgerId.set(String(tx.journalEntryId), txRef)
       transactionById.set(String(tx._id), txRef)
     })
@@ -1376,6 +1638,11 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         createdBy: entry.createdBy?.name || '',
         sourceTransactionId: linkedTx?.id || '',
         sourceTransactionNumber: linkedTx?.number || '',
+        sourceTransactionType: linkedTx?.transactionType || '',
+        metalDealType: ['sale', 'purchase'].includes(String(linkedTx?.transactionType || '')) ? String(linkedTx.transactionType) : '',
+        metalFixStatus: linkedTx?.metalFixStatus || '',
+        metalCode: linkedTx?.metalCode || '',
+        isMetalTrade: Boolean(linkedTx?.isMetalTrade),
       }
       runningBalance -= signedAmount
       return row
@@ -3148,7 +3415,7 @@ router.get('/transactions', protect, async (req, res) => {
 
 router.post('/transactions', protect, async (req, res) => {
   try {
-    const { type, amount, date, description, currency, exchangeRate, customerId, vendorId, inventoryItemId, mappingId, debitAccountId, creditAccountId, voucherMeta } = req.body
+    const { type, amount, date, description, currency, exchangeRate, customerId, vendorId, inventoryItemId, mappingId, debitAccountId, creditAccountId, voucherMeta, metalFixStatus } = req.body
     if (!type || !amount) return res.status(400).json({ success: false, message: 'Type and amount are required' })
     if (!canCreateTransactionFor(req.user, type)) {
       return res.status(403).json({ success: false, message: 'You are not allowed to create this transaction type' })
@@ -3164,6 +3431,14 @@ router.post('/transactions', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: validationMessage })
     }
 
+    const normalizedMetalFixStatus = normalizeMetalFixStatus(metalFixStatus)
+    const voucherMetaPayload = (['sale', 'purchase'].includes(String(type || '').toLowerCase()) && normalizedMetalFixStatus)
+      ? {
+          ...(voucherMeta || {}),
+          fixingType: normalizedMetalFixStatus === 'unfixed' ? 'non-fixing' : 'fixing',
+        }
+      : (voucherMeta || undefined)
+
     const tx = await Transaction.create({
       type,
       amount: Number(amount),
@@ -3177,7 +3452,7 @@ router.post('/transactions', protect, async (req, res) => {
       mappingId: sanitizeOptionalRef(mappingId),
       debitAccountId: sanitizeOptionalRef(debitAccountId),
       creditAccountId: sanitizeOptionalRef(creditAccountId),
-      voucherMeta: voucherMeta || undefined,
+      voucherMeta: voucherMetaPayload,
       status: 'draft',
       createdBy: req.user._id,
       updatedBy: req.user._id,
@@ -3227,6 +3502,13 @@ router.put('/transactions/:id', protect, async (req, res) => {
     if (req.body.debitAccountId !== undefined) tx.debitAccountId = sanitizeOptionalRef(req.body.debitAccountId)
     if (req.body.creditAccountId !== undefined) tx.creditAccountId = sanitizeOptionalRef(req.body.creditAccountId)
     if (req.body.voucherMeta !== undefined) tx.voucherMeta = req.body.voucherMeta
+    if (req.body.metalFixStatus !== undefined) {
+      const normalizedMetalFixStatus = normalizeMetalFixStatus(req.body.metalFixStatus)
+      if (!tx.voucherMeta || typeof tx.voucherMeta !== 'object') tx.voucherMeta = {}
+      if (normalizedMetalFixStatus) {
+        tx.voucherMeta.fixingType = normalizedMetalFixStatus === 'unfixed' ? 'non-fixing' : 'fixing'
+      }
+    }
     tx.updatedBy = req.user._id
     appendTransactionAudit(tx, req.user, 'update', { fromStatus: tx.status, toStatus: tx.status, comment: req.body.description || '' })
     await tx.save()
