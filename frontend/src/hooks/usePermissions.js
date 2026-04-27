@@ -36,11 +36,15 @@ export function usePermissions() {
     },
 
     // Can view a specific module
+    // If admin has explicitly set allowedModules, those override role-based logic
     canViewModule: (module) => {
-      if (role === 'super_admin' || role === 'management' || role === 'external') return true
+      if (role === 'super_admin') return true
+      if ((user?.allowedModules || []).length > 0) return (user.allowedModules).includes(module)
+      // fallback role-based defaults (no allowedModules set yet)
+      if (role === 'management') return true
       if (role === 'department_head' || role === 'department_user') {
         const dept = user?.department
-        if (!dept) return false           // no dept assigned → no modules
+        if (!dept) return false
         return dept === module
       }
       return false
@@ -49,7 +53,7 @@ export function usePermissions() {
     // Can see risk panel and 7-day plan
     canViewStrategic: ['super_admin', 'management', 'department_head'].includes(role),
 
-    // ERP access — super_admin only
-    canViewERP: role === 'super_admin',
+    // ERP access — super_admin always; others only if explicitly granted in allowedModules
+    canViewERP: role === 'super_admin' || ((user?.allowedModules || []).includes('erp')),
   }
 }

@@ -638,9 +638,173 @@ function SettingsTab() {
   )
 }
 
+const PERM_MODULES = [
+  { id: 'hr',         label: 'HR' },
+  { id: 'government', label: 'Compliance' },
+  { id: 'production', label: 'Production' },
+  { id: 'finance',    label: 'Finance' },
+  { id: 'sales',      label: 'Sales' },
+  { id: 'operations', label: 'Operations' },
+  { id: 'training',   label: 'Training' },
+  { id: 'erp',        label: 'ERP' },
+]
+
+function PermissionsTab({ users, token, onRefresh }) {
+  const nonAdminUsers = users.filter(u => u.role !== 'super_admin')
+  const [selectedId, setSelectedId] = useState(nonAdminUsers[0]?._id || '')
+  const [localMods, setLocalMods]   = useState([])
+  const [saving, setSaving]         = useState(false)
+  const [toast, setToast]           = useState('')
+
+  const selectedUser = nonAdminUsers.find(u => u._id === selectedId)
+
+  useEffect(() => {
+    setLocalMods(selectedUser?.allowedModules || [])
+  }, [selectedId])
+
+  const toggleMod = (mod) =>
+    setLocalMods(prev => prev.includes(mod) ? prev.filter(m => m !== mod) : [...prev, mod])
+
+  const save = async () => {
+    if (!selectedUser) return
+    setSaving(true)
+    try {
+      await authAPI.updateUserRole(token, selectedUser._id, {
+        role: selectedUser.role,
+        department: selectedUser.department || '',
+        allowedModules: localMods,
+      })
+      await onRefresh()
+      setToast('Permissions saved')
+      setTimeout(() => setToast(''), 2500)
+    } catch {
+      setToast('Failed to save')
+      setTimeout(() => setToast(''), 2500)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const deptMods  = PERM_MODULES.filter(m => m.id !== 'erp')
+  const visibleDepts = deptMods.filter(m => localMods.includes(m.id))
+  const visibleERP   = localMods.includes('erp')
+
+  return (
+    <div className="flex gap-5 items-start flex-wrap">
+
+      {/* ── Sidebar preview ── */}
+      <div className="rounded-2xl border border-gray-800 bg-gray-900/60 overflow-hidden flex-shrink-0" style={{ width: 200 }}>
+        <div className="px-3 py-2.5 border-b border-gray-800 bg-gray-900">
+          <p className="text-xs font-semibold text-white">Sidebar Preview</p>
+          <p className="text-[10px] text-gray-500 mt-0.5">
+            {selectedUser ? `Viewing as: ${selectedUser.fullName || selectedUser.name}` : 'Select a user'}
+          </p>
+        </div>
+        <div className="py-2 px-1.5">
+          <div className="px-2 py-1.5 rounded-lg bg-emerald-700/10 text-emerald-600 text-xs font-medium">Overview</div>
+          <div className="px-2 py-1.5 text-gray-400 text-xs">Chat</div>
+
+          <p className="text-[9px] font-semibold tracking-widest text-emerald-700 px-2 pt-2.5 pb-1">ADMIN</p>
+          <div className="px-2 py-1.5 text-gray-400 text-xs">Admin</div>
+
+          {visibleDepts.length > 0 && (
+            <>
+              <p className="text-[9px] font-semibold tracking-widest text-emerald-700 px-2 pt-2.5 pb-1">DEPARTMENTS</p>
+              {visibleDepts.map(m => (
+                <div key={m.id} className="px-2 py-1.5 text-gray-400 text-xs">{m.label}</div>
+              ))}
+            </>
+          )}
+
+          {visibleERP && (
+            <>
+              <p className="text-[9px] font-semibold tracking-widest text-emerald-700 px-2 pt-2.5 pb-1">ERP</p>
+              <div className="px-2 py-1.5 text-gray-400 text-xs">ERP</div>
+            </>
+          )}
+
+          {!visibleDepts.length && !visibleERP && (
+            <p className="text-[10px] text-gray-600 px-2 py-2 italic">No extra tabs granted</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Permission manager ── */}
+      <div className="rounded-2xl border border-gray-800 bg-gray-900/60 overflow-hidden flex-shrink-0" style={{ minWidth: 280 }}>
+        <div className="px-4 py-3 border-b border-gray-800 bg-gray-900">
+          <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase">Permission Manager</p>
+        </div>
+
+        {/* User selector */}
+        <div className="px-4 py-3 border-b border-gray-800 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-semibold flex-shrink-0">
+            {selectedUser ? (selectedUser.fullName || selectedUser.name)?.[0]?.toUpperCase() : '?'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white truncate">{selectedUser?.fullName || selectedUser?.name || '—'}</p>
+            <p className="text-xs text-gray-500">{selectedUser?.role?.replace('_', ' ') || ''}</p>
+          </div>
+          <select
+            value={selectedId}
+            onChange={e => setSelectedId(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-white"
+          >
+            {nonAdminUsers.map(u => (
+              <option key={u._id} value={u._id}>{u.fullName || u.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Module toggles */}
+        <div className="px-4 py-2">
+          <p className="text-[10px] font-semibold tracking-widest text-emerald-700 uppercase py-2">Departments</p>
+          {deptMods.map(m => (
+            <div key={m.id} className="flex items-center justify-between py-1.5">
+              <span className="text-sm text-gray-200">{m.label}</span>
+              <button
+                type="button"
+                onClick={() => toggleMod(m.id)}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${localMods.includes(m.id) ? 'bg-emerald-700' : 'bg-gray-700'}`}
+              >
+                <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${localMods.includes(m.id) ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+          ))}
+
+          <p className="text-[10px] font-semibold tracking-widest text-emerald-700 uppercase pt-3 pb-2">ERP</p>
+          <div className="flex items-center justify-between py-1.5">
+            <span className="text-sm text-gray-200">ERP</span>
+            <button
+              type="button"
+              onClick={() => toggleMod('erp')}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${localMods.includes('erp') ? 'bg-emerald-700' : 'bg-gray-700'}`}
+            >
+              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${localMods.includes('erp') ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Apply button */}
+        <div className="px-4 pb-4 pt-2">
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving || !selectedUser}
+            className="w-full py-2 rounded-lg bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-50 transition-colors"
+          >
+            {saving ? 'Saving…' : 'Apply Permissions'}
+          </button>
+          {toast && <p className={`text-xs text-center mt-2 ${toast.includes('Failed') ? 'text-red-400' : 'text-emerald-400'}`}>{toast}</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function getAdminSubTabs(t) {
   return [
     { id: 'users', label: t('users') },
+    { id: 'permissions', label: 'Permissions' },
     { id: 'settings', label: t('settings') },
   ]
 }
@@ -683,8 +847,9 @@ function AdminTab() {
         </div>
       ) : (
         <>
-          {subTab === 'users' && <UsersTab users={users} token={token} onRefresh={loadUsers} />}
-          {subTab === 'settings' && <SettingsTab />}
+          {subTab === 'users'       && <UsersTab users={users} token={token} onRefresh={loadUsers} />}
+          {subTab === 'permissions' && <PermissionsTab users={users} token={token} onRefresh={loadUsers} />}
+          {subTab === 'settings'    && <SettingsTab />}
         </>
       )}
     </div>
