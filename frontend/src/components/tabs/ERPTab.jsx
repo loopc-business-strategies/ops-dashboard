@@ -337,10 +337,10 @@ function ERPTab({ focusTab }) {
   const [customerMarginSort, setCustomerMarginSort] = useState('margin-desc')
   const [customerMarginContextMenu, setCustomerMarginContextMenu] = useState({ open: false, x: 0, y: 0, row: null })
   const [fixingRegFilter, setFixingRegFilter] = useState({
-    metalType: 'XAU',
+    metalType: '',
     quantityUnit: 'GOZ',
     rateUnit: 'GOZ',
-    orderBy: 'docDate',
+    orderBy: 'voucherNo',
     fromDate: new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10),
     toDate: new Date().toISOString().slice(0, 10),
     groupBy: 'none',
@@ -643,6 +643,47 @@ function ERPTab({ focusTab }) {
       purity: meta.purity || '',
     }
   })
+  const fixingRegisterStockTypeOptions = useMemo(() => {
+    const normalizeToMetalCode = (rawValue) => {
+      const normalized = String(rawValue || '').trim().toLowerCase()
+      if (!normalized) return ''
+      if (normalized === 'xau' || normalized === 'gold') return 'XAU'
+      if (normalized === 'xag' || normalized === 'silver') return 'XAG'
+      if (normalized === 'xpt' || normalized === 'platinum') return 'XPT'
+      if (normalized === 'xpd' || normalized === 'palladium') return 'XPD'
+      return String(rawValue || '').trim().toUpperCase()
+    }
+
+    const productOptions = inventoryCatalogProducts.map((item) => {
+      const meta = decodeInventoryCategoryPairs(item.category)
+      const source = meta.metalType || meta.mainStock || item.name
+      const metalCode = normalizeToMetalCode(source)
+      const labelName = titleCaseWords(meta.productCategory || item.name || item.sku || 'Product')
+      const puritySuffix = meta.productPurity ? ` (${meta.productPurity})` : ''
+      return {
+        id: item._id,
+        value: `${metalCode}::${item._id}`,
+        metalCode,
+        label: `${labelName}${puritySuffix}`,
+      }
+    }).filter((option) => Boolean(option.metalCode))
+
+    if (productOptions.length) return productOptions
+
+    return inventoryMappingProducts.map((item) => {
+      const meta = decodeInventoryCategoryMeta(item.category)
+      const source = meta.metalType || meta.mainStock || item.name
+      const metalCode = normalizeToMetalCode(source)
+      const stockLabel = titleCaseWords(meta.mainStock || meta.metalType || item.name || 'Stock Type')
+      const puritySuffix = meta.purity ? ` (${meta.purity})` : ''
+      return {
+        id: item._id,
+        value: `${metalCode}::${item._id}`,
+        metalCode,
+        label: `${stockLabel}${puritySuffix}`,
+      }
+    }).filter((option) => Boolean(option.metalCode))
+  }, [inventoryCatalogProducts, inventoryMappingProducts])
   const selectedInventoryStockType = inventoryStockTypeOptions.find((item) => item.id === inventoryProductForm.stockTypeId) || null
   const inventoryPurityFactorRaw = Number(inventoryProductForm.purity || 0)
   const inventoryPurityFactor = inventoryPurityFactorRaw > 1 ? inventoryPurityFactorRaw / 1000 : inventoryPurityFactorRaw
@@ -2584,6 +2625,14 @@ function ERPTab({ focusTab }) {
     if (!customers.length) loadCustomers({ limit: 200 })
   }, [activeTab, token, customers.length])
 
+  useEffect(() => {
+    if (!fixingRegisterStockTypeOptions.length) return
+    const hasSelected = fixingRegisterStockTypeOptions.some((option) => option.value === fixingRegFilter.metalType)
+    if (!hasSelected) {
+      setFixingRegFilter((prev) => ({ ...prev, metalType: fixingRegisterStockTypeOptions[0].value }))
+    }
+  }, [fixingRegisterStockTypeOptions, fixingRegFilter.metalType])
+
   const convertMetalBalanceByUnit = (valueInGram) => {
     const factor = METAL_UNIT_FACTORS[metalUnit] || 1
     return Number(valueInGram || 0) / factor
@@ -2707,16 +2756,107 @@ function ERPTab({ focusTab }) {
     setFixingRegShown(false)
     try {
       const today = new Date(); today.setHours(23, 59, 59, 999)
-      const params = {
-        entryType: 'fixing',
-        from: fixingRegFilter.fromDate,
-        to: fixingRegFilter.toDate,
-        limit: 1000,
+      const selectedMetalCode = String(fixingRegFilter.metalType || '').split('::')[0].toUpperCase()
+      const fetchAllPages = async (fetchFn, key, limit = 200) => {
+        const allRows = []
+        let page = 1
+        let total = 0
+        do {
+          const data = await fetchFn({ page, limit })
+          const chunk = Array.isArray(data?.[key]) ? data[key] : []
+          allRows.push(...chunk)
+          total = Number(data?.total || chunk.length)
+          if (!chunk.length) break
+          page += 1
+        } while (allRows.length < total)
+        return allRows
       }
-      if (fixingRegFilter.status === 'final') params.status = 'confirmed'
-      const res = await erpAccountingAPI.getDirectDeals(token, params)
-      const deals = Array.isArray(res?.directDeals) ? res.directDeals : Array.isArray(res) ? res : []
+
+      const baseTxParams = {
+        startDate: fixingRegFilter.fromDate,
+        endDate: fixingRegFilter.toDate,
+      }
+      if (fixingRegFilter.status === 'final') baseTxParams.status = 'posted'
+
+      const [saleTxs, purchaseTxs, deals] = await Promise.all([
+        fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...baseTxParams, ...p, type: 'sale' }), 'transactions', 200),
+        fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...baseTxParams, ...p, type: 'purchase' }), 'transactions', 200),
+        fetchAllPages((p) => erpAccountingAPI.getDirectDeals(token, {
+          ...p,
+          entryType: 'fixing',
+          startDate: fixingRegFilter.fromDate,
+          endDate: fixingRegFilter.toDate,
+          ...(fixingRegFilter.status === 'final' ? { status: 'confirmed' } : {}),
+        }), 'directDeals', 100),
+      ])
+
       const rows = []
+
+      const resolveVoucherLineMetalCode = (line = {}) => {
+        const raw = String(line.stockCode || line.productType || line.narration || '').trim().toUpperCase()
+        if (!raw) return ''
+        if (raw.includes('XAU') || raw.includes('GOLD')) return 'XAU'
+        if (raw.includes('XAG') || raw.includes('SILVER')) return 'XAG'
+        if (raw.includes('XPT') || raw.includes('PLATINUM')) return 'XPT'
+        if (raw.includes('XPD') || raw.includes('PALLADIUM')) return 'XPD'
+        return ''
+      }
+
+      const txRows = [...saleTxs, ...purchaseTxs]
+      for (const tx of txRows) {
+        const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+        const voucherNo = String(tx?.voucherMeta?.vocNo || tx?.voucherMeta?.refNo || tx?._id || '').trim()
+        const branch = tx?.voucherMeta?.branch || 'HO'
+        const partyName = tx?.customerId?.name || tx?.vendorId?.name || tx?.voucherMeta?.partyName || '—'
+        const docDate = tx?.voucherMeta?.docDate || tx?.date || null
+        const valueDate = tx?.voucherMeta?.valueDate || tx?.date || null
+
+        if (!lines.length) {
+          if (selectedMetalCode) continue
+          rows.push({
+            rowId: `${tx._id}-0`,
+            sourceType: 'Voucher',
+            voucherNo,
+            docDate,
+            valueDate,
+            branch,
+            customerName: partyName,
+            direction: tx.type === 'purchase' ? 'buy' : 'sell',
+            metal: '',
+            qty: 0,
+            price: Number(tx?.voucherMeta?.metalRate || 0),
+            amount: Number(tx?.amount || 0),
+            dealStatus: tx?.status || 'draft',
+            remarks: tx?.description || '',
+            groupKey: fixingRegFilter.groupBy === 'customer' ? partyName : fixingRegFilter.groupBy === 'branch' ? branch : fixingRegFilter.groupBy === 'valuedate' ? new Date(valueDate || docDate || Date.now()).toISOString().slice(0, 10) : 'All',
+          })
+          continue
+        }
+
+        lines.forEach((line, idx) => {
+          const lineMetal = resolveVoucherLineMetalCode(line)
+          if (selectedMetalCode && lineMetal && lineMetal !== selectedMetalCode) return
+          if (selectedMetalCode && !lineMetal) return
+          rows.push({
+            rowId: `${tx._id}-${idx}`,
+            sourceType: 'Voucher',
+            voucherNo,
+            docDate,
+            valueDate,
+            branch,
+            customerName: partyName,
+            direction: tx.type === 'purchase' ? 'buy' : 'sell',
+            metal: lineMetal || selectedMetalCode || '',
+            qty: Number(line.pureWeight || line.grossWeight || 0),
+            price: Number(line.metalRate || tx?.voucherMeta?.metalRate || 0),
+            amount: Number(line.totalAmount || line.amountLC || tx?.amount || 0),
+            dealStatus: tx?.status || 'draft',
+            remarks: line.narration || tx?.description || '',
+            groupKey: fixingRegFilter.groupBy === 'customer' ? partyName : fixingRegFilter.groupBy === 'branch' ? branch : fixingRegFilter.groupBy === 'valuedate' ? new Date(valueDate || docDate || Date.now()).toISOString().slice(0, 10) : 'All',
+          })
+        })
+      }
+
       for (const deal of deals) {
         if (deal.isDeleted) continue
         if (fixingRegFilter.status === 'final' && deal.status !== 'confirmed') continue
@@ -2725,7 +2865,7 @@ function ERPTab({ focusTab }) {
         if (fixingRegFilter.excludeOpeningBalance && /opening/i.test(deal.remarks || '')) continue
         if (fixingRegFilter.excludeFutures && dealValueDate > today) continue
         for (const line of deal.lineItems || []) {
-          if ((line.metal || 'XAU').toUpperCase() !== fixingRegFilter.metalType) continue
+          if (selectedMetalCode && (line.metal || 'XAU').toUpperCase() !== selectedMetalCode) continue
           const partyName = line.customerName || '—'
           if (fixingRegFilter.partyFilter === 'selected' && fixingRegFilter.partySearch.trim()) {
             if (!partyName.toLowerCase().includes(fixingRegFilter.partySearch.trim().toLowerCase())) continue
@@ -2735,12 +2875,10 @@ function ERPTab({ focusTab }) {
             : fixingRegFilter.groupBy === 'branch' ? (deal.branch || 'HO')
             : fixingRegFilter.groupBy === 'valuedate' ? new Date(deal.valueDate).toISOString().slice(0, 10)
             : 'All'
-          const sortDate = fixingRegFilter.orderBy === 'valueDate' ? dealValueDate
-            : fixingRegFilter.orderBy === 'entryDate' ? new Date(deal.createdAt || deal.docDate)
-            : dealDocDate
           rows.push({
-            dealId: deal._id,
-            docNo: deal.docNo,
+            rowId: `${deal._id}-${line._id || Math.random().toString(36).slice(2, 8)}`,
+            sourceType: 'Direct Deal',
+            voucherNo: deal.docNo,
             docDate: dealDocDate,
             valueDate: dealValueDate,
             branch: deal.branch || 'HO',
@@ -2756,11 +2894,18 @@ function ERPTab({ focusTab }) {
             customerName: partyName,
             customerCode: line.customerCode || '',
             groupKey,
-            sortDate,
           })
         }
       }
-      rows.sort((a, b) => a.sortDate - b.sortDate)
+
+      rows.sort((a, b) => {
+        const aVoucher = String(a.voucherNo || '')
+        const bVoucher = String(b.voucherNo || '')
+        const voucherCompare = aVoucher.localeCompare(bVoucher, undefined, { numeric: true, sensitivity: 'base' })
+        if (voucherCompare !== 0) return voucherCompare
+        return new Date(a.docDate || 0) - new Date(b.docDate || 0)
+      })
+
       setFixingRegResults(rows)
       setFixingRegShown(true)
     } catch (err) {
@@ -4178,27 +4323,29 @@ function ERPTab({ focusTab }) {
       {activeTab === 'fixing-register' && (
         <div>
           {/* Filter card */}
-          <div style={{ borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid #2C3E50', boxShadow: '0 4px 18px rgba(0,0,0,0.18)', maxWidth: '860px', marginBottom: '1.8rem' }}>
-            {/* Dark header */}
-            <div style={{ background: '#1A2942', padding: '0.85rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <span style={{ fontSize: '1rem', fontWeight: '700', color: '#E2E8F0', letterSpacing: '0.03em' }}>📊 Fixing position register</span>
+          <div style={{ borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid #CBD5E1', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', maxWidth: '860px', marginBottom: '1.8rem' }}>
+            {/* Header */}
+            <div style={{ background: '#1E3A5F', padding: '0.85rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span style={{ fontSize: '1rem', fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.03em' }}>📊 Fixing position register</span>
             </div>
             {/* Form body */}
-            <div style={{ background: '#1E2D42', padding: '1.25rem 1.2rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <div style={{ background: '#F8FAFC', padding: '1.25rem 1.2rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               {/* Row 1: Metal | Quantity | Rate */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
                 {[
-                  { label: 'Metal', field: 'metalType', opts: [['XAU', 'XAU — Gold'], ['XAG', 'XAG — Silver'], ['XPT', 'XPT — Platinum'], ['XPD', 'XPD — Palladium']] },
+                  { label: 'Metal', field: 'metalType', opts: fixingRegisterStockTypeOptions.map((option) => [option.value, option.label]) },
                   { label: 'Quantity', field: 'quantityUnit', opts: [['GOZ', 'GOZ — Troy Oz'], ['GRAM', 'Gram'], ['KG', 'KG'], ['TOLA', 'Tola']] },
                   { label: 'Rate', field: 'rateUnit', opts: [['GOZ', 'GOZ — per Troy Oz'], ['GRAM', 'per Gram'], ['KG', 'per KG'], ['TOLA', 'per Tola']] },
                 ].map(({ label, field, opts }) => (
                   <div key={field}>
-                    <label style={{ display: 'block', color: '#94A3B8', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+                    <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
                     <select
                       value={fixingRegFilter[field]}
                       onChange={(e) => setFixingRegFilter(f => ({ ...f, [field]: e.target.value }))}
-                      style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #3A4E6A', background: '#253349', color: '#E2E8F0', fontSize: '0.84rem' }}
+                      style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.84rem' }}
+                      disabled={field === 'metalType' && !opts.length}
                     >
+                      {field === 'metalType' && !opts.length && <option value="">No created products found</option>}
                       {opts.map(([v, lbl]) => <option key={v} value={v}>{lbl}</option>)}
                     </select>
                   </div>
@@ -4207,40 +4354,38 @@ function ERPTab({ focusTab }) {
               {/* Row 2: Order By | From | To */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
                 <div>
-                  <label style={{ display: 'block', color: '#94A3B8', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Order By</label>
+                  <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Order By</label>
                   <select
                     value={fixingRegFilter.orderBy}
                     onChange={(e) => setFixingRegFilter(f => ({ ...f, orderBy: e.target.value }))}
-                    style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #3A4E6A', background: '#253349', color: '#E2E8F0', fontSize: '0.84rem' }}
+                    style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.84rem' }}
                   >
-                    <option value="docDate">Document Date</option>
-                    <option value="valueDate">Value Date</option>
-                    <option value="entryDate">Entry Date</option>
+                    <option value="voucherNo">Voucher Number</option>
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', color: '#94A3B8', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>From Date</label>
+                  <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>From Date</label>
                   <input type="date" value={fixingRegFilter.fromDate}
                     onChange={(e) => setFixingRegFilter(f => ({ ...f, fromDate: e.target.value }))}
-                    style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #3A4E6A', background: '#253349', color: '#E2E8F0', fontSize: '0.84rem', boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.84rem', boxSizing: 'border-box' }}
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', color: '#94A3B8', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>To Date</label>
+                  <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>To Date</label>
                   <input type="date" value={fixingRegFilter.toDate}
                     onChange={(e) => setFixingRegFilter(f => ({ ...f, toDate: e.target.value }))}
-                    style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #3A4E6A', background: '#253349', color: '#E2E8F0', fontSize: '0.84rem', boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.84rem', boxSizing: 'border-box' }}
                   />
                 </div>
               </div>
               {/* Row 3: Group By */}
               <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '0.75rem', alignItems: 'flex-end' }}>
                 <div>
-                  <label style={{ display: 'block', color: '#94A3B8', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Group By</label>
+                  <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Group By</label>
                   <select
                     value={fixingRegFilter.groupBy}
                     onChange={(e) => setFixingRegFilter(f => ({ ...f, groupBy: e.target.value }))}
-                    style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #3A4E6A', background: '#253349', color: '#E2E8F0', fontSize: '0.84rem' }}
+                    style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.84rem' }}
                   >
                     <option value="none">— None —</option>
                     <option value="customer">Customer</option>
@@ -4250,10 +4395,10 @@ function ERPTab({ focusTab }) {
                 </div>
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', paddingBottom: '0.12rem' }}>
                   {[['all', 'All'], ['selected', 'Selected']].map(([v, lbl]) => (
-                    <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#CBD5E1', fontSize: '0.83rem', cursor: 'pointer' }}>
+                    <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#374151', fontSize: '0.83rem', cursor: 'pointer' }}>
                       <input type="radio" name="fixingPartyFilter" value={v} checked={fixingRegFilter.partyFilter === v}
                         onChange={() => setFixingRegFilter(f => ({ ...f, partyFilter: v }))}
-                        style={{ accentColor: '#60A5FA' }}
+                        style={{ accentColor: '#2563EB' }}
                       />
                       {lbl}
                     </label>
@@ -4264,7 +4409,7 @@ function ERPTab({ focusTab }) {
                       placeholder="Search party…"
                       value={fixingRegFilter.partySearch}
                       onChange={(e) => setFixingRegFilter(f => ({ ...f, partySearch: e.target.value }))}
-                      style={{ flex: 1, padding: '0.38rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #3A4E6A', background: '#253349', color: '#E2E8F0', fontSize: '0.83rem' }}
+                      style={{ flex: 1, padding: '0.38rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.83rem' }}
                     />
                   )}
                 </div>
@@ -4275,20 +4420,20 @@ function ERPTab({ focusTab }) {
                   ['excludeOpeningBalance', 'Exclude Opening Balance'],
                   ['excludeFutures', 'Exclude Futures'],
                 ].map(([field, lbl]) => (
-                  <label key={field} style={{ display: 'flex', alignItems: 'center', gap: '0.38rem', color: '#CBD5E1', fontSize: '0.84rem', cursor: 'pointer' }}>
+                  <label key={field} style={{ display: 'flex', alignItems: 'center', gap: '0.38rem', color: '#374151', fontSize: '0.84rem', cursor: 'pointer' }}>
                     <input type="checkbox" checked={fixingRegFilter[field]}
                       onChange={(e) => setFixingRegFilter(f => ({ ...f, [field]: e.target.checked }))}
-                      style={{ width: '1rem', height: '1rem', accentColor: '#60A5FA' }}
+                      style={{ width: '1rem', height: '1rem', accentColor: '#2563EB' }}
                     />
                     {lbl}
                   </label>
                 ))}
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <label style={{ color: '#94A3B8', fontSize: '0.72rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</label>
+                  <label style={{ color: '#64748B', fontSize: '0.72rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</label>
                   <select
                     value={fixingRegFilter.status}
                     onChange={(e) => setFixingRegFilter(f => ({ ...f, status: e.target.value }))}
-                    style={{ padding: '0.38rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #3A4E6A', background: '#253349', color: '#E2E8F0', fontSize: '0.83rem' }}
+                    style={{ padding: '0.38rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.83rem' }}
                   >
                     <option value="preview">Preview (All)</option>
                     <option value="final">Final (Confirmed only)</option>
@@ -4299,14 +4444,14 @@ function ERPTab({ focusTab }) {
               <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '0.2rem' }}>
                 <button
                   onClick={() => { setFixingRegShown(false); setFixingRegResults([]); setFixingRegError('') }}
-                  style={{ padding: '0.48rem 1.4rem', background: 'transparent', color: '#94A3B8', border: '1px solid #3A4E6A', borderRadius: '0.4rem', cursor: 'pointer', fontSize: '0.87rem', fontWeight: '600' }}
+                  style={{ padding: '0.48rem 1.4rem', background: 'transparent', color: '#6B7280', border: '1px solid #CBD5E1', borderRadius: '0.4rem', cursor: 'pointer', fontSize: '0.87rem', fontWeight: '600' }}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleFixingRegProceed}
                   disabled={fixingRegLoading}
-                  style={{ padding: '0.48rem 1.6rem', background: fixingRegLoading ? '#3A4E6A' : '#2563EB', color: '#FFFFFF', border: 'none', borderRadius: '0.4rem', cursor: fixingRegLoading ? 'default' : 'pointer', fontSize: '0.87rem', fontWeight: '700', letterSpacing: '0.02em' }}
+                  style={{ padding: '0.48rem 1.6rem', background: fixingRegLoading ? '#93C5FD' : '#2563EB', color: '#FFFFFF', border: 'none', borderRadius: '0.4rem', cursor: fixingRegLoading ? 'default' : 'pointer', fontSize: '0.87rem', fontWeight: '700', letterSpacing: '0.02em' }}
                 >
                   {fixingRegLoading ? 'Loading…' : 'Proceed'}
                 </button>
@@ -4325,146 +4470,78 @@ function ERPTab({ focusTab }) {
           {fixingRegShown && !fixingRegLoading && (() => {
             const qUnit = fixingRegFilter.quantityUnit
             const rUnit = fixingRegFilter.rateUnit
-            const totalBuyOz = fixingRegResults.filter(r => r.direction === 'buy').reduce((s, r) => s + r.qty, 0)
-            const totalSellOz = fixingRegResults.filter(r => r.direction === 'sell').reduce((s, r) => s + r.qty, 0)
+            const totalBuyOz = fixingRegResults.filter((r) => r.direction === 'buy').reduce((s, r) => s + Number(r.qty || 0), 0)
+            const totalSellOz = fixingRegResults.filter((r) => r.direction === 'sell').reduce((s, r) => s + Number(r.qty || 0), 0)
             const netOz = totalBuyOz - totalSellOz
-            const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
-
-            const grouped = {}
-            for (const row of fixingRegResults) {
-              const k = row.groupKey
-              if (!grouped[k]) grouped[k] = []
-              grouped[k].push(row)
-            }
-            const groupKeys = Object.keys(grouped)
+            const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '-'
 
             return (
-              <div>
-                {/* Summary bar */}
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.2rem', flexWrap: 'wrap' }}>
-                  {[
-                    { label: 'Total Buy', value: fixingRegFmtQty(totalBuyOz, qUnit) + ' ' + qUnit, color: '#166534', bg: '#DCFCE7' },
-                    { label: 'Total Sell', value: fixingRegFmtQty(totalSellOz, qUnit) + ' ' + qUnit, color: '#991B1B', bg: '#FEE2E2' },
-                    { label: 'Net Position', value: (netOz >= 0 ? '+' : '') + fixingRegFmtQty(Math.abs(netOz), qUnit) + ' ' + qUnit, color: netOz >= 0 ? '#1D4ED8' : '#B45309', bg: '#EFF6FF' },
-                    { label: 'Records', value: fixingRegResults.length, color: '#374151', bg: '#F3F4F6' },
-                  ].map(({ label, value, color, bg }) => (
-                    <div key={label} style={{ background: bg, padding: '0.55rem 1rem', borderRadius: '0.45rem', minWidth: '140px' }}>
-                      <div style={{ fontSize: '0.7rem', color: '#6B7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.2rem' }}>{label}</div>
-                      <div style={{ fontSize: '1rem', fontWeight: '700', color }}>{value}</div>
+              <div style={modalBackdropStyle} onClick={() => setFixingRegShown(false)}>
+                <div style={{ ...modalCardStyle, width: 'min(1280px, 100%)', maxHeight: '88vh', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.8rem', gap: '0.8rem' }}>
+                    <div>
+                      <h4 style={{ margin: 0, color: C.ink, fontSize: '1.02rem' }}>Fixing Register Transactions Window</h4>
+                      <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Metal sale, purchase, and direct deal entries between selected dates ordered by voucher number.</p>
                     </div>
-                  ))}
-                </div>
-
-                {/* Data table per group */}
-                {groupKeys.map((gk) => (
-                  <div key={gk} style={{ marginBottom: '1.6rem' }}>
-                    {fixingRegFilter.groupBy !== 'none' && (
-                      <div style={{ background: '#1E3A5F', color: '#93C5FD', padding: '0.42rem 0.75rem', borderRadius: '0.35rem 0.35rem 0 0', fontSize: '0.82rem', fontWeight: '700', letterSpacing: '0.04em' }}>
-                        {fixingRegFilter.groupBy === 'customer' ? `Customer: ${gk}`
-                          : fixingRegFilter.groupBy === 'branch' ? `Branch: ${gk}`
-                          : fixingRegFilter.groupBy === 'valuedate' ? `Value Date: ${gk}`
-                          : gk}
-                      </div>
-                    )}
-                    <div style={{ overflowX: 'auto', border: '1px solid #CBD5E1', borderRadius: fixingRegFilter.groupBy !== 'none' ? '0 0 0.4rem 0.4rem' : '0.4rem' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', fontFamily: 'Consolas, "Courier New", monospace' }}>
-                        <thead>
-                          <tr style={{ background: '#F1F5F9' }}>
-                            {['#', 'Doc No', 'Doc Date', 'Value Date', 'Branch', 'Customer', 'Dir', `Qty (${qUnit})`, `Rate (${rUnit})`, 'Amount (USD)', 'Status'].map((h) => (
-                              <th key={h} style={{ padding: '0.4rem 0.55rem', textAlign: h === '#' ? 'center' : ['Qty ('+qUnit+')', 'Rate ('+rUnit+')', 'Amount (USD)'].includes(h) ? 'right' : 'left', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', fontWeight: '700', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {grouped[gk].map((row, idx) => (
-                            <tr key={`${row.dealId}-${idx}`} style={{ background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC', borderBottom: '1px solid #E8EEF7' }}>
-                              <td style={{ padding: '0.35rem 0.55rem', textAlign: 'center', color: '#9CA3AF' }}>{idx + 1}</td>
-                              <td style={{ padding: '0.35rem 0.55rem', fontWeight: '600', color: '#1E3A8A' }}>{row.docNo}</td>
-                              <td style={{ padding: '0.35rem 0.55rem', color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.docDate)}</td>
-                              <td style={{ padding: '0.35rem 0.55rem', color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.valueDate)}</td>
-                              <td style={{ padding: '0.35rem 0.55rem', color: '#374151' }}>{row.branch}</td>
-                              <td style={{ padding: '0.35rem 0.55rem', color: '#1F2937' }}>{row.customerName}</td>
-                              <td style={{ padding: '0.35rem 0.55rem' }}>
-                                <span style={{ display: 'inline-block', padding: '0.15rem 0.45rem', borderRadius: '0.25rem', fontWeight: '700', fontSize: '0.74rem', background: row.direction === 'buy' ? '#DCFCE7' : '#FEE2E2', color: row.direction === 'buy' ? '#166534' : '#991B1B' }}>
-                                  {(row.direction || '').toUpperCase()}
-                                </span>
-                              </td>
-                              <td style={{ padding: '0.35rem 0.55rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fixingRegFmtQty(row.qty, qUnit)}</td>
-                              <td style={{ padding: '0.35rem 0.55rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fixingRegFmtRate(row.price, rUnit)}</td>
-                              <td style={{ padding: '0.35rem 0.55rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fixingRegFmtAmt(row.amount)}</td>
-                              <td style={{ padding: '0.35rem 0.55rem' }}>
-                                <span style={{ display: 'inline-block', padding: '0.12rem 0.4rem', borderRadius: '0.22rem', fontSize: '0.73rem', fontWeight: '700', background: row.dealStatus === 'confirmed' ? '#DBEAFE' : '#FEF9C3', color: row.dealStatus === 'confirmed' ? '#1D4ED8' : '#92400E' }}>
-                                  {row.dealStatus === 'confirmed' ? 'CONFIRMED' : 'DRAFT'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                          {/* Group subtotal */}
-                          {fixingRegFilter.groupBy !== 'none' && (() => {
-                            const grpBuy = grouped[gk].filter(r => r.direction === 'buy').reduce((s, r) => s + r.qty, 0)
-                            const grpSell = grouped[gk].filter(r => r.direction === 'sell').reduce((s, r) => s + r.qty, 0)
-                            const grpNet = grpBuy - grpSell
-                            return (
-                              <tr style={{ background: '#F0F4FA', borderTop: '2px solid #CBD5E1' }}>
-                                <td colSpan={7} style={{ padding: '0.35rem 0.55rem', fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem' }}>Subtotal</td>
-                                <td style={{ padding: '0.35rem 0.55rem', textAlign: 'right', fontWeight: '700', fontVariantNumeric: 'tabular-nums', color: '#1F2937' }}>
-                                  B: {fixingRegFmtQty(grpBuy, qUnit)} / S: {fixingRegFmtQty(grpSell, qUnit)} / Net: {(grpNet >= 0 ? '+' : '') + fixingRegFmtQty(Math.abs(grpNet), qUnit)}
-                                </td>
-                                <td colSpan={3} />
-                              </tr>
-                            )
-                          })()}
-                        </tbody>
-                      </table>
-                    </div>
+                    <button onClick={() => setFixingRegShown(false)} style={{ padding: '0.42rem 0.75rem', border: '1px solid #D1D5DB', background: '#FFFFFF', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.8rem' }}>Close</button>
                   </div>
-                ))}
 
-                {fixingRegResults.length === 0 && (
-                  <p style={{ color: C.inkSoft, textAlign: 'center', marginTop: '1.5rem' }}>No fixing deals found for the selected filters.</p>
-                )}
+                  <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '0.8rem', flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'Total Buy', value: `${fixingRegFmtQty(totalBuyOz, qUnit)} ${qUnit}`, bg: '#DCFCE7', color: '#166534' },
+                      { label: 'Total Sell', value: `${fixingRegFmtQty(totalSellOz, qUnit)} ${qUnit}`, bg: '#FEE2E2', color: '#991B1B' },
+                      { label: 'Net Position', value: `${netOz >= 0 ? '+' : '-'}${fixingRegFmtQty(Math.abs(netOz), qUnit)} ${qUnit}`, bg: '#EFF6FF', color: netOz >= 0 ? '#1D4ED8' : '#B45309' },
+                      { label: 'Records', value: String(fixingRegResults.length), bg: '#F3F4F6', color: '#374151' },
+                    ].map((card) => (
+                      <div key={card.label} style={{ background: card.bg, padding: '0.42rem 0.72rem', borderRadius: '0.38rem', minWidth: '145px' }}>
+                        <div style={{ fontSize: '0.68rem', color: '#6B7280', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{card.label}</div>
+                        <div style={{ fontSize: '0.95rem', fontWeight: '700', color: card.color }}>{card.value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ overflow: 'auto', border: '1px solid #CBD5E1', borderRadius: '0.4rem', flex: 1 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.79rem', minWidth: '1180px' }}>
+                      <thead>
+                        <tr style={{ background: '#F1F5F9' }}>
+                          {['#', 'Source', 'Voucher No', 'Doc Date', 'Value Date', 'Branch', 'Party', 'Dir', 'Metal', `Qty (${qUnit})`, `Rate (${rUnit})`, 'Amount', 'Status', 'Remarks'].map((h) => (
+                            <th key={h} style={{ padding: '0.38rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: ['#', `Qty (${qUnit})`, `Rate (${rUnit})`, 'Amount'].includes(h) ? 'right' : 'left', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fixingRegResults.map((row, idx) => (
+                          <tr key={row.rowId || `${row.voucherNo}-${idx}`} style={{ background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC', borderBottom: '1px solid #E5E7EB' }}>
+                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#64748B' }}>{idx + 1}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', color: '#1E3A8A', fontWeight: '700' }}>{row.sourceType || '-'}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', color: '#111827', fontWeight: '700' }}>{row.voucherNo || '-'}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.docDate)}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.valueDate)}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', color: '#374151' }}>{row.branch || '-'}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', color: '#111827' }}>{row.customerName || '-'}</td>
+                            <td style={{ padding: '0.34rem 0.5rem' }}>
+                              <span style={{ display: 'inline-block', padding: '0.1rem 0.4rem', borderRadius: '0.22rem', fontWeight: '700', fontSize: '0.72rem', background: row.direction === 'buy' ? '#DCFCE7' : '#FEE2E2', color: row.direction === 'buy' ? '#166534' : '#991B1B' }}>{String(row.direction || '').toUpperCase()}</span>
+                            </td>
+                            <td style={{ padding: '0.34rem 0.5rem', color: '#111827', fontWeight: '600' }}>{row.metal || '-'}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fixingRegFmtQty(Number(row.qty || 0), qUnit)}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fixingRegFmtRate(Number(row.price || 0), rUnit)}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fixingRegFmtAmt(Number(row.amount || 0))}</td>
+                            <td style={{ padding: '0.34rem 0.5rem' }}>{String(row.dealStatus || '').toUpperCase() || '-'}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', color: '#4B5563', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.remarks || '-'}</td>
+                          </tr>
+                        ))}
+                        {fixingRegResults.length === 0 && (
+                          <tr>
+                            <td colSpan={14} style={{ padding: '0.8rem', textAlign: 'center', color: C.inkSoft }}>No transactions found for selected date range and filters.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )
           })()}
-
-          {/* Field legend */}
-          <div style={{ marginTop: '1.5rem', maxWidth: '860px' }}>
-            <div style={{ fontWeight: '700', fontSize: '0.8rem', color: C.inkSoft, marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Field Legend</div>
-            <div style={{ overflowX: 'auto', border: '1px solid #CBD5E1', borderRadius: '0.4rem' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                <thead>
-                  <tr style={{ background: '#1E3A5F' }}>
-                    <th style={{ padding: '0.4rem 0.75rem', textAlign: 'left', color: '#93C5FD', fontWeight: '700', width: '160px' }}>FIELD</th>
-                    <th style={{ padding: '0.4rem 0.75rem', textAlign: 'left', color: '#93C5FD', fontWeight: '700' }}>PURPOSE</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    ['Metal', 'Precious metal type to report on (XAU = Gold, XAG = Silver, etc.)'],
-                    ['Quantity', 'Unit for displaying metal weight in the report (GOZ, Gram, KG, Tola)'],
-                    ['Rate', 'Unit for displaying the price per weight unit'],
-                    ['Order By', 'Date field used to sort and filter deals chronologically'],
-                    ['From / To Date', 'Date range filter applied to the selected Order By date field'],
-                    ['Group By', 'Aggregate rows by Customer, Branch, or Value Date for sub-totals'],
-                    ['All / Selected', 'Include all parties, or filter to a specific party name'],
-                    ['Excl. Opening Balance', 'Skip entries whose remarks indicate an opening balance carry-forward'],
-                    ['Excl. Futures', 'Skip deals whose Value Date is later than today (forward/futures)'],
-                    ['Status (Preview)', 'Include all deals regardless of confirmation status'],
-                    ['Status (Final)', 'Include only confirmed deals; draft deals are excluded'],
-                    ['Doc No', 'Unique deal reference number assigned at the time of entry'],
-                    ['Value Date', 'Settlement date for the deal (may differ from the document date)'],
-                    ['Dir (Direction)', 'BUY = metal purchased from counterparty; SELL = metal sold to counterparty'],
-                    ['Net Position', 'Total Buy minus Total Sell in the selected quantity unit'],
-                  ].map(([f, p], i) => (
-                    <tr key={f} style={{ background: i % 2 === 0 ? '#FFFFFF' : '#F8FAFC', borderBottom: '1px solid #E8EEF7' }}>
-                      <td style={{ padding: '0.38rem 0.75rem', fontWeight: '700', color: '#1E3A8A' }}>{f}</td>
-                      <td style={{ padding: '0.38rem 0.75rem', color: '#374151' }}>{p}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
       )}
 
