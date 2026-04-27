@@ -128,7 +128,7 @@ function getNavItems(perms, t, chatUnread = 0) {
     { id: 'sales',       label: t('sales'),       group: 'departments', show: perms.canViewModule('sales') },
     { id: 'operations',  label: t('operations'),  group: 'departments', show: perms.canViewModule('operations') },
     { id: 'training',    label: t('training'),    group: 'departments', show: perms.canViewModule('training') },
-    { id: 'erp',         label: t('erp'),         group: 'departments', show: !perms.isExternal },
+    { id: 'erp',         label: t('erp'),         group: 'erp',         show: perms.canViewERP },
   ].filter(n => n.show)
 }
 
@@ -200,6 +200,7 @@ function Dashboard() {
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
   const [adminOpen,    setAdminOpen]    = useState(true)
   const [deptOpen,     setDeptOpen]     = useState(true)
+  const [erpOpen,      setErpOpen]      = useState(true)
   const [chatUnread,   setChatUnread]   = useState(3) // matches seed data initial unread
   const [langMenuOpen, setLangMenuOpen] = useState(false)
   const langMenuRef = useRef(null)
@@ -266,6 +267,7 @@ function Dashboard() {
   const mainItems  = navItems.filter(n => n.group === 'main')
   const adminItems = navItems.filter(n => n.group === 'admin')
   const deptItems  = navItems.filter(n => n.group === 'departments')
+  const erpItems   = navItems.filter(n => n.group === 'erp')
 
   const handleLogout = () => { logout(); navigate('/login') }
 
@@ -353,6 +355,23 @@ function Dashboard() {
               ))}
             </>
           )}
+
+          {/* ERP */}
+          {erpItems.length > 0 && (
+            <>
+              <button className="sidebar-section-title w-full justify-center gap-2"
+                onClick={() => setErpOpen(v => !v)}>
+                <span>{t('erp')}</span>
+                <span className="section-chevron">{erpOpen ? '▴' : '▾'}</span>
+              </button>
+              {erpOpen && erpItems.map(item => (
+                <NavItem key={item.id} {...item}
+                  active={activeTab === item.id}
+                  onClick={() => setActiveTab(item.id)} />
+              ))}
+            </>
+          )}
+
         </nav>
 
         {/* Sidebar bottom — user info + logout */}
