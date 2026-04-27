@@ -293,6 +293,53 @@ const classicTextAreaRow = {
   alignItems: 'center',
 }
 
+const metalWin = {
+  shell: {
+    border: '2px solid #7B8798',
+    borderRadius: '0.45rem',
+    background: '#E6E8EC',
+    boxShadow: '0 14px 26px rgba(15, 23, 42, 0.45)',
+  },
+  body: {
+    padding: '0.5rem 0.6rem',
+    background: '#ECEFF3',
+  },
+  tabLabel: {
+    color: '#334155',
+    background: 'linear-gradient(180deg, #F2F4F7 0%, #D9DEE5 100%)',
+    border: '1px solid #B7C0CC',
+    textShadow: 'none',
+  },
+  headerRow: {
+    background: 'linear-gradient(180deg, #F8F9FB 0%, #E7EAF0 100%)',
+    color: '#374151',
+    borderBottom: '1px solid #C9CED6',
+  },
+  tableCell: {
+    borderRight: '1px solid #E5E7EB',
+    borderBottom: '1px solid #D7DBE0',
+    background: '#FFFFFF',
+  },
+  summaryHeader: {
+    background: 'linear-gradient(180deg, #E8EAED 0%, #D4D8DF 100%)',
+    color: '#374151',
+  },
+}
+
+const metalTopInlineRow = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+  gap: '0.55rem',
+  alignItems: 'end',
+  marginBottom: '0.55rem',
+}
+
+const metalTopField = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.3rem',
+}
+
 const emptyLine = () => ({
   branch: '',
   acCode: '',
@@ -1989,12 +2036,12 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           <div
             style={(mode === 'create' || mode === 'view')
               ? {
-                  width: 'min(1180px, 96vw)',
+                  width: isMetalVoucher ? 'min(1160px, 96vw)' : 'min(1180px, 96vw)',
                   maxHeight: '92vh',
                   overflowY: 'auto',
-                  background: S.white,
+                  background: isMetalVoucher ? '#E3E6EB' : S.white,
                   borderRadius: '0.7rem',
-                  border: '2px solid #4F73AB',
+                  border: isMetalVoucher ? metalWin.shell.border : '2px solid #4F73AB',
                   boxShadow: '0 16px 32px rgba(15, 23, 42, 0.48), inset 0 1px 0 rgba(255,255,255,0.2)',
                   padding: '0',
                   transform: `translate(${modalOffset.x}px, ${modalOffset.y}px)`,
@@ -2006,13 +2053,15 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           {/* ── ERP-style Title Bar (draggable) ── */}
           <div
             style={{
-              background: 'linear-gradient(180deg,#8AA8D6 0%,#4E73AF 18%,#2E5593 55%,#21477F 100%)',
+              background: isMetalVoucher
+                ? 'linear-gradient(180deg,#8AA8D6 0%,#4E73AF 18%,#2E5593 55%,#21477F 100%)'
+                : 'linear-gradient(180deg,#8AA8D6 0%,#4E73AF 18%,#2E5593 55%,#21477F 100%)',
               color: '#fff',
               padding: '4px 8px 5px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              borderBottom: '1px solid #173765',
+              borderBottom: isMetalVoucher ? '1px solid #173765' : '1px solid #173765',
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.45)',
               borderRadius: '0.5rem 0.5rem 0 0',
               marginBottom: 0,
@@ -2036,35 +2085,39 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
           {/* ── ERP Classic Toolbar ── */}
           {(() => {
+            const compactMetalTb = isMetalVoucher
             const tbS = {
-              minWidth: 68,
-              height: 24,
+              minWidth: compactMetalTb ? 24 : 68,
+              width: compactMetalTb ? 24 : undefined,
+              height: compactMetalTb ? 22 : 24,
               background: 'linear-gradient(180deg,#FBFBFB 0%,#E5E5E5 48%,#CACACA 100%)',
               border: '1px solid #A9A9A9',
               borderTop: '1px solid #F8F8F8',
               borderLeft: '1px solid #ECECEC',
               borderRadius: 2,
               cursor: 'pointer',
-              fontSize: 10.5,
+              fontSize: compactMetalTb ? 10 : 10.5,
               fontWeight: 700,
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               boxShadow: '0 1px 0 rgba(255,255,255,0.9) inset, 1px 1px 1px rgba(0,0,0,0.22)',
               color: '#222',
-              padding: '0 7px',
+              padding: compactMetalTb ? 0 : '0 7px',
               flexShrink: 0,
-              whiteSpace: 'nowrap',
+              whiteSpace: compactMetalTb ? 'normal' : 'nowrap',
             }
-            const TbBtn = ({ title: tip, label, onClick, style: extra = {}, disabled = false }) => (
-              <button type="button" title={tip} onClick={disabled ? undefined : onClick} disabled={disabled} style={{ ...tbS, ...extra, ...(disabled ? { opacity: 0.35, cursor: 'default', pointerEvents: 'none' } : {}) }}>{label}</button>
+            const TbBtn = ({ title: tip, label, icon, onClick, style: extra = {}, disabled = false }) => (
+              <button type="button" title={tip} onClick={disabled ? undefined : onClick} disabled={disabled} style={{ ...tbS, ...extra, ...(disabled ? { opacity: 0.35, cursor: 'default', pointerEvents: 'none' } : {}) }}>{compactMetalTb ? icon : label}</button>
             )
             const Sep = () => <div style={{ width: 1, height: 20, background: '#b0b0b0', margin: '0 3px', flexShrink: 0 }} />
             const curIdx = vouchers.findIndex(v => v._id === editingId)
             return (
               <div style={{
-                background: 'linear-gradient(180deg,#F0F0F0,#D7D7D7)',
-                borderBottom: '2px solid #9C9C9C',
+                background: isMetalVoucher
+                  ? 'linear-gradient(180deg,#F0F0F0,#D7D7D7)'
+                  : 'linear-gradient(180deg,#F0F0F0,#D7D7D7)',
+                borderBottom: isMetalVoucher ? '2px solid #9C9C9C' : '2px solid #9C9C9C',
                 boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.85)',
                 padding: '3px 6px',
                 display: 'flex',
@@ -2080,32 +2133,32 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                 <TbBtn tip="Save — saves your data permanently" label="Save" onClick={saveVoucher} style={{ color: '#065f46' }} disabled={formReadOnly} />
                 <TbBtn tip="Cancel — discards unsaved changes" label="Cancel" onClick={handleCancelChanges} />
                 <Sep />
-                <TbBtn tip="|◀ First — jumps to the very first voucher on record" label="|◀ First" onClick={navFirst} disabled={curIdx <= 0} />
-                <TbBtn tip="◀ Previous — goes one record back" label="◀ Previous" onClick={navPrev} disabled={curIdx <= 0} />
-                <TbBtn tip="▶ Next — goes one record forward" label="▶ Next" onClick={navNext} disabled={curIdx < 0 || curIdx >= vouchers.length - 1} />
-                <TbBtn tip="▶| Last — jumps to the most recent voucher" label="▶| Last" onClick={navLast} disabled={curIdx < 0 || curIdx >= vouchers.length - 1} />
+                <TbBtn tip="|◀ First — jumps to the very first voucher on record" label="|◀ First" icon="⏮" onClick={navFirst} disabled={curIdx <= 0} />
+                <TbBtn tip="◀ Previous — goes one record back" label="◀ Previous" icon="◀" onClick={navPrev} disabled={curIdx <= 0} />
+                <TbBtn tip="▶ Next — goes one record forward" label="▶ Next" icon="▶" onClick={navNext} disabled={curIdx < 0 || curIdx >= vouchers.length - 1} />
+                <TbBtn tip="▶| Last — jumps to the most recent voucher" label="▶| Last" icon="⏭" onClick={navLast} disabled={curIdx < 0 || curIdx >= vouchers.length - 1} />
                 <Sep />
                 <TbBtn tip="Print/Preview — prints or previews the current invoice" label="Print/Preview" onClick={() => window.print()} />
                 <TbBtn tip="Search/Find — search by voucher number, party, or date" label="Search/Find" onClick={handleSearchFind} />
                 <TbBtn tip="Barcode — scan or view an item barcode linked to stock" label="Barcode" onClick={handleBarcodeAction} />
                 <TbBtn tip="Refresh Parties — reload customer and vendor list" label="↺ Parties" onClick={refreshParties} />
                 <Sep />
-                <TbBtn tip="Exit — closes the voucher form and returns to the main menu" label="Exit" onClick={handleExitVoucherForm} style={{ color: '#b00020' }} />
+                <TbBtn tip="Exit — closes the voucher form and returns to the main menu" label="Exit" icon="■" onClick={handleExitVoucherForm} style={{ color: '#b00020' }} />
                 <div style={{ flex: 1 }} />
               </div>
             )
           })()}
 
           {/* ── Body padding wrapper ── */}
-          <div style={{ padding: '0.75rem 0.9rem' }}>
+          <div style={isMetalVoucher ? metalWin.body : { padding: '0.75rem 0.9rem' }}>
 
           {/* ── Voucher section menu ── */}
           <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0', flexWrap: 'wrap', alignItems: 'flex-end', padding: '0 0.15rem', borderBottom: '1px solid #BFC5CB' }}>
             <button style={tabBtn(menuTab === 'header')} onClick={() => setMenuTab('header')}>
-              Header Details
+              {isMetalVoucher ? 'Stock Details' : 'Header Details'}
             </button>
             <button style={tabBtn(menuTab === 'attachments')} onClick={() => setMenuTab('attachments')}>
-              {t('attachments')}
+              {isMetalVoucher ? 'Other Charges' : t('attachments')}
             </button>
           </div>
 
@@ -2113,31 +2166,57 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           {menuTab === 'header' && (
             <div style={sectionBox}>
               <div style={sectionBody}>
+                {isMetalVoucher && (
+                  <div style={metalTopInlineRow}>
+                    <div style={metalTopField}>
+                      <label style={classicLabel}>Party Account</label>
+                      <select
+                        style={formReadOnly ? classicReadInput : classicInput}
+                        value={selectedPartyId}
+                        onChange={e => handlePartySelect(e.target.value)}
+                        disabled={formReadOnly}
+                      >
+                        <option value="">Select {voucherConfig.partySelectLabel}</option>
+                        {partyGroups.map((group) => (
+                          group.options.length > 0 ? (
+                            <optgroup key={group.label} label={group.label}>
+                              {group.options.map((item) => (
+                                <option key={item.id} value={item.id}>{item.label}</option>
+                              ))}
+                            </optgroup>
+                          ) : null
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
                 <div style={classicHeaderShell}>
                   <div style={classicHeaderGrid}>
                     <div style={{ ...classicPanel, flex: '0 1 640px', minWidth: '320px' }}>
                       <div style={classicPanelTitle}>Party Details</div>
                       <div style={classicPartyGrid}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                          <label style={classicLabel}>Party Account</label>
-                          <select
-                            style={formReadOnly ? classicReadInput : classicInput}
-                            value={selectedPartyId}
-                            onChange={e => handlePartySelect(e.target.value)}
-                            disabled={formReadOnly}
-                          >
-                            <option value="">Select {voucherConfig.partySelectLabel}</option>
-                            {partyGroups.map((group) => (
-                              group.options.length > 0 ? (
-                                <optgroup key={group.label} label={group.label}>
-                                  {group.options.map((item) => (
-                                    <option key={item.id} value={item.id}>{item.label}</option>
-                                  ))}
-                                </optgroup>
-                              ) : null
-                            ))}
-                          </select>
-                        </div>
+                        {!isMetalVoucher && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                            <label style={classicLabel}>Party Account</label>
+                            <select
+                              style={formReadOnly ? classicReadInput : classicInput}
+                              value={selectedPartyId}
+                              onChange={e => handlePartySelect(e.target.value)}
+                              disabled={formReadOnly}
+                            >
+                              <option value="">Select {voucherConfig.partySelectLabel}</option>
+                              {partyGroups.map((group) => (
+                                group.options.length > 0 ? (
+                                  <optgroup key={group.label} label={group.label}>
+                                    {group.options.map((item) => (
+                                      <option key={item.id} value={item.id}>{item.label}</option>
+                                    ))}
+                                  </optgroup>
+                                ) : null
+                              ))}
+                            </select>
+                          </div>
+                        )}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                           <label style={classicLabel}>Party Code</label>
                           <input
@@ -2376,17 +2455,17 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           {/* ── Line Items panel ── */}
           {(menuTab === 'header' || menuTab === 'lineItems') && (
             <div style={sectionBox}>
-              <div style={{ ...classicPanelTitle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>LINE ITEMS</span>
+              <div style={{ ...(isMetalVoucher ? { ...classicPanelTitle, ...metalWin.tabLabel } : classicPanelTitle), display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>{isMetalVoucher ? 'Stock Details' : 'LINE ITEMS'}</span>
               </div>
 
               {/* Line items table */}
               <div style={{ overflowX: 'auto', borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #C9CED6', background: '#FFFFFF' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                   <thead>
-                    <tr style={{ background: 'linear-gradient(180deg, #F8F9FB 0%, #E7EAF0 100%)' }}>
+                    <tr style={isMetalVoucher ? metalWin.headerRow : { background: 'linear-gradient(180deg, #F8F9FB 0%, #E7EAF0 100%)' }}>
                       {lineTableHeaders.map(h => (
-                        <th key={h} style={{ padding: '0.34rem 0.48rem', textAlign: ['Amount FC', 'Amount LC', 'Metal Rate', 'Metal Amount', 'Total', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.'].includes(h) ? 'right' : 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #C9CED6', borderRight: '1px solid #E5E7EB', whiteSpace: 'nowrap' }}>{h}</th>
+                        <th key={h} style={{ padding: '0.34rem 0.48rem', textAlign: ['Amount FC', 'Amount LC', 'Metal Rate', 'Metal Amount', 'Total', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.'].includes(h) ? 'right' : 'left', fontWeight: '700', color: isMetalVoucher ? '#374151' : '#374151', borderBottom: isMetalVoucher ? '1px solid #C9CED6' : '1px solid #C9CED6', borderRight: isMetalVoucher ? '1px solid #E5E7EB' : '1px solid #E5E7EB', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -2398,19 +2477,19 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                         </td>
                       </tr>
                     ) : lineItems.map((l, i) => (
-                      <tr key={i} style={{ background: i % 2 === 0 ? '#FFFFFF' : '#FBFBFC', borderBottom: '1px solid #D7DBE0' }}>
-                        <td style={{ padding: '0.28rem 0.48rem', borderRight: '1px solid #EEF1F4' }}>{i + 1}</td>
+                      <tr key={i} style={{ background: i % 2 === 0 ? '#FFFFFF' : '#FBFBFC', borderBottom: isMetalVoucher ? metalWin.tableCell.borderBottom : '1px solid #D7DBE0' }}>
+                        <td style={{ padding: '0.28rem 0.48rem', borderRight: isMetalVoucher ? metalWin.tableCell.borderRight : '1px solid #EEF1F4', background: isMetalVoucher ? metalWin.tableCell.background : undefined }}>{i + 1}</td>
                         {isMetalVoucher ? (
                           <>
-                            <td style={{ padding: '0.28rem 0.48rem', fontWeight: '600', borderRight: '1px solid #EEF1F4' }}>{l.stockCode || '-'}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{l.pcs || '-'}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{l.grossWeight || '-'}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{l.purity || '-'}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{l.pureWeight || '-'}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', borderRight: '1px solid #EEF1F4' }}>{l.rateType || '-'}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{fmt(parseFloat(l.metalRate) || ((parseFloat(l.weightInOz) || 0) > 0 ? ((parseFloat(l.metalAmount) || 0) / (parseFloat(l.weightInOz) || 0)) : 0))}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{fmt(l.metalAmount)}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', fontWeight: '700', borderRight: '1px solid #EEF1F4' }}>{fmt(l.totalAmount || l.amountLC)}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', fontWeight: '600', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.stockCode || '-'}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.pcs || '-'}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.grossWeight || '-'}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.purity || '-'}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.pureWeight || '-'}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.rateType || '-'}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(parseFloat(l.metalRate) || ((parseFloat(l.weightInOz) || 0) > 0 ? ((parseFloat(l.metalAmount) || 0) / (parseFloat(l.weightInOz) || 0)) : 0))}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(l.metalAmount)}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', fontWeight: '700', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(l.totalAmount || l.amountLC)}</td>
                           </>
                         ) : (
                           <>
@@ -2714,8 +2793,8 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
                   </div>
                   {/* Right: Amount Summary */}
-                  <div style={{ border: '1px solid #B8BEC8', borderRadius: '0.15rem', background: '#FFFFFF', minWidth: '245px', overflow: 'hidden', flexShrink: 0 }}>
-                    <div style={{ background: 'linear-gradient(180deg, #E8EAED 0%, #D4D8DF 100%)', borderBottom: '1px solid #B8BEC8', padding: '0.2rem 0.65rem', fontSize: '0.7rem', fontWeight: '700', color: '#374151', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Amount Summary</div>
+                  <div style={{ border: '1px solid #8EA0C5', borderRadius: '0.15rem', background: '#FFFFFF', minWidth: '245px', overflow: 'hidden', flexShrink: 0 }}>
+                    <div style={{ ...(isMetalVoucher ? metalWin.summaryHeader : { background: 'linear-gradient(180deg, #E8EAED 0%, #D4D8DF 100%)', color: '#374151' }), borderBottom: isMetalVoucher ? `1px solid ${S.greenDark}` : '1px solid #8EA0C5', padding: '0.2rem 0.65rem', fontSize: '0.7rem', fontWeight: '700', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Amount Summary</div>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.77rem' }}>
                       <tbody>
                         {isMetalVoucher && (

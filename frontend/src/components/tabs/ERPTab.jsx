@@ -3984,7 +3984,7 @@ function ERPTab({ focusTab }) {
         ]
         const uniqueTabs = Array.from(new Set(visibleTabs))
         return (
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem', paddingBottom: '1rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem', paddingBottom: '1rem', flexWrap: 'wrap' , display:"none" }}>
         {uniqueTabs.map((tab) => (
           <button
             key={tab}

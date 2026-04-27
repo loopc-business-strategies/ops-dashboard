@@ -71,6 +71,13 @@ const userSchema = new mongoose.Schema(
       default: [],
     },
 
+    // Granular per-module permissions set by admin
+    // Example: { hr: { on: true, view: true, edit: false }, erp: { on: true, subs: { dashboard: { view: true, edit: true } } } }
+    modulePermissions: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+
     // For department_user only — which task IDs they can edit
     assignedTasks: {
       type: [String],

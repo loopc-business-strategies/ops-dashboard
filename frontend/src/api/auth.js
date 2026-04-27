@@ -42,5 +42,9 @@ const toggleUser = async (_token, id) =>
 const deleteUser = async (_token, id) =>
   (await axios.delete(`${BASE}/users/${id}`)).data
 
-const authAPI = { login, setup, getMe, logout, getUsers, createUser, updateUserRole, toggleUser, deleteUser }
+// Update granular module permissions for a user (super_admin only)
+const updatePermissions = async (_token, id, modulePermissions) =>
+  (await axios.put(`${BASE}/users/${id}/permissions`, { modulePermissions })).data
+
+const authAPI = { login, setup, getMe, logout, getUsers, createUser, updateUserRole, toggleUser, deleteUser, updatePermissions }
 export default authAPI

@@ -106,6 +106,7 @@ const sendToken = (user, status, res) => {
       timezone:       user.timezone,
       employeeCode:   user.employeeCode,
       notes:          user.notes,
+      modulePermissions: user.modulePermissions,
     },
   })
 }
@@ -201,6 +202,7 @@ router.get('/me', protect, (req, res) => {
       timezone:       req.user.timezone,
       employeeCode:   req.user.employeeCode,
       notes:          req.user.notes,
+      modulePermissions: req.user.modulePermissions,
       lastLogin:      req.user.lastLogin,
       createdAt:      req.user.createdAt,
     },
@@ -328,6 +330,30 @@ router.delete('/users/:id', protect, restrictTo('super_admin'), validateParams(u
     await User.findByIdAndDelete(req.params.id)
     res.json({ success: true, message: 'User deleted.' })
   } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+// ==========================================
+// PUT /api/auth/users/:id/permissions — update granular module permissions
+// SUPER ADMIN only
+// ==========================================
+const updatePermissionsSchema = Joi.object({
+  modulePermissions: Joi.any().required(),
+})
+
+router.put('/users/:id/permissions', protect, restrictTo('super_admin'), validateParams(userIdParamSchema), validateBody(updatePermissionsSchema), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id)
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
+
+    user.modulePermissions = req.body.modulePermissions
+    user.markModified('modulePermissions')
+    await user.save({ validateBeforeSave: false })
+
+    res.json({ success: true, message: 'Permissions updated.', modulePermissions: user.modulePermissions })
+  } catch (err) {
+    console.error('Update permissions error:', err)
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })
