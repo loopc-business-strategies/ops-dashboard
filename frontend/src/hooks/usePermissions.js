@@ -37,13 +37,12 @@ export function usePermissions() {
 
     // Can view a specific module
     canViewModule: (module) => {
-      if (role === 'super_admin' || role === 'management') return true
+      if (role === 'super_admin' || role === 'management' || role === 'external') return true
       if (role === 'department_head' || role === 'department_user') {
         const dept = user?.department
         if (!dept) return false           // no dept assigned → no modules
         return dept === module
       }
-      if (role === 'external') return (user?.allowedModules || []).includes(module)
       return false
     },
 
