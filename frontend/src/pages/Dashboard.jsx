@@ -118,7 +118,7 @@ function getNavItems(perms, t, chatUnread = 0) {
     { id: 'chat',        label: t('chat'),        group: 'main',       show: true, badge: chatUnread || null },
 
     // ── Admin (super_admin only) ──
-    { id: 'admin',       label: t('admin'),       group: 'admin',      show: perms.isSuperAdmin },
+    { id: 'admin',       label: t('admin'),       group: 'admin',      show: true },
 
     // ── Departments ──
     { id: 'hr',          label: t('hr'),          group: 'departments', show: perms.canViewModule('hr') },
