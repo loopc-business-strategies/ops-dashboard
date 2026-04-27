@@ -50,7 +50,7 @@ export function usePermissions() {
     // Can see risk panel and 7-day plan
     canViewStrategic: ['super_admin', 'management', 'department_head'].includes(role),
 
-    // ERP access — admin roles only
-    canViewERP: ['super_admin', 'management'].includes(role),
+    // ERP access — super_admin only
+    canViewERP: role === 'super_admin',
   }
 }
