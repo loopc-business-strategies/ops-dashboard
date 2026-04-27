@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
@@ -332,6 +332,9 @@ function ERPTab({ focusTab }) {
   const [accounts, setAccounts] = useState([])
   const [summaryAccounts, setSummaryAccounts] = useState([])
   const [customers, setCustomers] = useState([])
+  const [customerMarginSearch, setCustomerMarginSearch] = useState('')
+  const [customerMarginCompactView, setCustomerMarginCompactView] = useState(true)
+  const [customerMarginContextMenu, setCustomerMarginContextMenu] = useState({ open: false, x: 0, y: 0, row: null })
   const [ledger, setLedger] = useState([])
   const [mappings, setMappings] = useState([])
   const [currencies, setCurrencies] = useState([])
@@ -2463,6 +2466,29 @@ function ERPTab({ focusTab }) {
   }, [activeTab])
 
   useEffect(() => {
+    if (!customerMarginContextMenu.open) return undefined
+
+    const closeMenu = () => {
+      setCustomerMarginContextMenu((prev) => (prev.open ? { open: false, x: 0, y: 0, row: null } : prev))
+    }
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') closeMenu()
+    }
+
+    window.addEventListener('click', closeMenu)
+    window.addEventListener('resize', closeMenu)
+    window.addEventListener('scroll', closeMenu, true)
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      window.removeEventListener('click', closeMenu)
+      window.removeEventListener('resize', closeMenu)
+      window.removeEventListener('scroll', closeMenu, true)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [customerMarginContextMenu.open])
+
+  useEffect(() => {
     if (!canAccessERP || !token) {
       setError('You do not have access to the ERP Accounting module.')
       return
@@ -2470,7 +2496,7 @@ function ERPTab({ focusTab }) {
 
     if (activeTab === 'dashboard') loadDashboard()
     else if (activeTab === 'accounts') loadAccounts()
-    else if (activeTab === 'customers') loadCustomers()
+    else if (activeTab === 'customers' || activeTab === 'customer-margin') loadCustomers()
     else if (activeTab === 'ledger') loadLedger()
     else if (activeTab === 'mappings') loadMappings(mappingFilters)
     else if (activeTab === 'transactions') loadTransactions()
@@ -2557,6 +2583,74 @@ function ERPTab({ focusTab }) {
     })
     if (absAmount === 0) return formatted
     return `${formatted} ${direction}`
+  }
+  const customerMarginRows = useMemo(() => {
+    const query = String(customerMarginSearch || '').trim().toLowerCase()
+    return (customers || [])
+      .map((customer) => {
+        const outstanding = Number(customer?.outstandingBalance || 0)
+        const opening = Number(customer?.openingBalance || 0)
+        const creditLimit = Number(customer?.creditLimit || 0)
+        const balanceType = outstanding > 0 ? 'Cr' : outstanding < 0 ? 'Dr' : '-'
+        const status = outstanding > 0 ? 'POSITIVE' : outstanding < 0 ? 'NEGATIVE' : 'NEUTRAL'
+        const base = creditLimit > 0 ? creditLimit : (Math.abs(opening) > 0 ? Math.abs(opening) : 0)
+        const marginPercent = base > 0 ? (Math.abs(outstanding) / base) * 100 : null
+        return {
+          id: customer?._id,
+          customerName: String(customer?.name || '-'),
+          balanceAbs: Math.abs(outstanding),
+          rawOutstanding: outstanding,
+          balanceType,
+          status,
+          marginPercent,
+          accountCode: String(customer?.ledgerAccountId?.accountCode || ''),
+          description: String(customer?.ledgerAccountId?.accountName || `${String(customer?.name || '').trim()} customer`),
+        }
+      })
+      .filter((row) => (!query ? true : row.customerName.toLowerCase().includes(query)))
+      .sort((a, b) => b.balanceAbs - a.balanceAbs)
+  }, [customers, customerMarginSearch])
+
+  const formatCustomerMarginBalance = (row) => {
+    const amount = Number(row?.balanceAbs || 0).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+    if (row?.balanceType === '-' || Number(row?.balanceAbs || 0) === 0) return amount
+    return `${amount}${row.balanceType}`
+  }
+
+  const formatCustomerMarginPercent = (value) => {
+    if (!Number.isFinite(Number(value))) return '-'
+    return `${Number(value).toFixed(2)} %`
+  }
+
+  const formatCustomerMarginExcessShort = (row) => {
+    const amount = Number(row?.balanceAbs || 0).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+    if (Number(row?.rawOutstanding || 0) > 0) return `Excess ${amount}`
+    if (Number(row?.rawOutstanding || 0) < 0) return `Short ${amount}`
+    return '-'
+  }
+
+  const handleCustomerMarginRowContextMenu = (event, row) => {
+    event.preventDefault()
+    const menuWidth = 292
+    const menuHeight = 172
+    const viewportPad = 8
+    let x = event.clientX + 6
+    let y = event.clientY + 6
+
+    if (x + menuWidth > window.innerWidth - viewportPad) {
+      x = Math.max(viewportPad, window.innerWidth - menuWidth - viewportPad)
+    }
+    if (y + menuHeight > window.innerHeight - viewportPad) {
+      y = Math.max(viewportPad, window.innerHeight - menuHeight - viewportPad)
+    }
+
+    setCustomerMarginContextMenu({ open: true, x, y, row })
   }
   const getDepartmentBadgeStyle = (department) => {
     const deptValue = String(department || '').trim().toLowerCase()
@@ -3616,6 +3710,7 @@ function ERPTab({ focusTab }) {
           ...(canViewAccounts ? ['accounts', 'mappings', 'settings'] : []),
           ...(canViewBalanceEnquiry ? ['enquiry'] : []),
           ...(canViewCustomers ? ['customers'] : []),
+          ...(canViewCustomers ? ['customer-margin'] : []),
           ...(canViewLedger ? ['ledger'] : []),
           ...(canAccessTransactions ? ['transactions'] : []),
           ...(canAccessReports ? ['reports'] : []),
@@ -3653,6 +3748,8 @@ function ERPTab({ focusTab }) {
                     ? t('reports')
                     : tab === 'vendors'
                       ? t('vendors')
+                      : tab === 'customer-margin'
+                        ? 'Customer Margin'
                       : tab === 'inventory'
                         ? t('inventory')
                         : tab === 'vouchers'
@@ -3837,6 +3934,114 @@ function ERPTab({ focusTab }) {
           </div>
 
           {customers.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No customers added yet.</p>}
+        </div>
+      )}
+
+      {/* CUSTOMER MARGIN TAB */}
+      {activeTab === 'customer-margin' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.9rem' }}>
+            <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Customer Margin</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.38rem', color: C.inkSoft, fontSize: '0.82rem', fontWeight: '600' }}>
+                <input
+                  type="checkbox"
+                  checked={customerMarginCompactView}
+                  onChange={(e) => setCustomerMarginCompactView(e.target.checked)}
+                />
+                Fixed List Area
+              </label>
+              <input
+                placeholder="Search customer"
+                value={customerMarginSearch}
+                onChange={(e) => setCustomerMarginSearch(e.target.value)}
+                style={{ width: 'min(320px, 100%)', padding: '0.5rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '0.45rem', background: '#FFFFFF', color: C.ink }}
+              />
+            </div>
+          </div>
+
+          <div style={{ border: '1px solid #BFD0E5', borderRadius: '0.45rem', overflow: 'hidden', background: '#FFFFFF' }}>
+            <div style={{ background: 'linear-gradient(180deg, #E9F3FF 0%, #D7E9FF 100%)', borderBottom: '1px solid #BFD0E5', padding: '0.55rem 0.8rem', fontSize: '1rem', fontWeight: '700', color: '#1E3A8A' }}>
+              Customer Margin
+            </div>
+            <div style={{ overflowX: 'auto', overflowY: customerMarginCompactView ? 'auto' : 'visible', maxHeight: customerMarginCompactView ? '380px' : 'none' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '0.88rem' }}>
+                <colgroup>
+                  <col style={{ width: '46%' }} />
+                  <col style={{ width: '24%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '16%' }} />
+                </colgroup>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #D9E2EC' }}>
+                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'left', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Customer Name</th>
+                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Balance (Dr / Cr)</th>
+                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Status</th>
+                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Margin %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customerMarginRows.map((row, index) => {
+                    const isNegative = row.status === 'NEGATIVE'
+                    const valueColor = isNegative ? '#DC2626' : '#1D4ED8'
+                    return (
+                      <tr
+                        key={row.id || index}
+                        onClick={(event) => handleCustomerMarginRowContextMenu(event, row)}
+                        onContextMenu={(event) => handleCustomerMarginRowContextMenu(event, row)}
+                        title="Click or right click to open details submenu"
+                        style={{ borderBottom: '1px solid #EEF2F7', background: index % 2 === 0 ? '#FFFFFF' : '#FCFDFF', height: '30px', cursor: 'context-menu' }}
+                      >
+                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', color: valueColor, fontWeight: '600', fontSize: '0.85rem', lineHeight: 1.08, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.customerName}</td>
+                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginBalance(row)}</td>
+                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.8rem', letterSpacing: '0.035em', lineHeight: 1.08 }}>{row.status}</td>
+                        <td style={{ padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPercent(row.marginPercent)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {customerMarginContextMenu.open && customerMarginContextMenu.row && (
+            <div
+              onClick={(event) => event.stopPropagation()}
+              onContextMenu={(event) => event.preventDefault()}
+              style={{
+                position: 'fixed',
+                top: `${customerMarginContextMenu.y}px`,
+                left: `${customerMarginContextMenu.x}px`,
+                width: '292px',
+                background: '#FDFEFE',
+                border: '1px solid #9DB5D5',
+                boxShadow: '0 10px 24px rgba(15, 23, 42, 0.2)',
+                zIndex: 2000,
+                borderRadius: '0.2rem',
+                overflow: 'hidden',
+              }}
+            >
+              <div style={{ padding: '0.35rem 0.5rem', borderBottom: '1px solid #D7E3F3', background: '#E7EFFA', color: '#15407E', fontSize: '0.76rem', fontWeight: '700', letterSpacing: '0.03em' }}>
+                CUSTOMER MARGIN SUB MENU
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '132px 1fr', fontSize: '0.78rem' }}>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Account Code</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827' }}>{customerMarginContextMenu.row.accountCode || '-'}</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Description</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{customerMarginContextMenu.row.description || '-'}</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Excess/Short</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginExcessShort(customerMarginContextMenu.row)}</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Margin</div>
+                <div style={{ padding: '0.34rem 0.52rem', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPercent(customerMarginContextMenu.row.marginPercent)}</div>
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginTop: '0.75rem', color: C.inkSoft, fontSize: '0.82rem' }}>
+            Cr = customer owes company (positive). Dr = company owes customer (negative).
+          </div>
+
+          {customerMarginRows.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No customers available for margin view.</p>}
         </div>
       )}
 
