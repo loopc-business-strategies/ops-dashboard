@@ -11,6 +11,7 @@
     "seed:erp": "node scripts/seed-erp-accounting.js",
     "reset:erp:start": "node scripts/reset-erp-start.js",
     "reset:erp:master": "node scripts/reset-erp-master-fresh.js",
+    "prune:customer-accounts": "node scripts/prune-customer-accounts.js",
     "migrate:mapping-departments": "node scripts/backfill-mapping-departments.js",
     "smoke:erp": "node scripts/smoke-erp-api.js",
     "test": "jest --runInBand",
