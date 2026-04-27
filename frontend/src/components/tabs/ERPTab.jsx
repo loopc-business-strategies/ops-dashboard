@@ -319,12 +319,16 @@ const createLogoRenderAsset = async (logoUrl, width, height, fit = 'contain') =>
   })
 }
 
-function ERPTab() {
+function ERPTab({ focusTab }) {
   const { user, token } = useAuth()
   const { t } = useLanguage()
   const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
   const TRANSACTION_ACTION_LABELS = getTransactionActionLabels(t)
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [activeTab, setActiveTab] = useState(focusTab || 'dashboard')
+
+  useEffect(() => {
+    if (focusTab) setActiveTab(focusTab)
+  }, [focusTab])
   const [accounts, setAccounts] = useState([])
   const [summaryAccounts, setSummaryAccounts] = useState([])
   const [customers, setCustomers] = useState([])

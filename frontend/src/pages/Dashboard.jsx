@@ -118,7 +118,7 @@ function getNavItems(perms, t, chatUnread = 0) {
     { id: 'chat',        label: t('chat'),        group: 'main',       show: true, badge: chatUnread || null },
 
     // ── Admin (super_admin only) ──
-    { id: 'admin',       label: t('admin'),       group: 'admin',      show: perms.isSuperAdmin },
+    { id: 'admin',       label: t('admin'),       group: 'admin',      show: true },
 
     // ── Departments ──
     { id: 'hr',          label: t('hr'),          group: 'departments', show: perms.canViewModule('hr') },
@@ -128,12 +128,24 @@ function getNavItems(perms, t, chatUnread = 0) {
     { id: 'sales',       label: t('sales'),       group: 'departments', show: perms.canViewModule('sales') },
     { id: 'operations',  label: t('operations'),  group: 'departments', show: perms.canViewModule('operations') },
     { id: 'training',    label: t('training'),    group: 'departments', show: perms.canViewModule('training') },
-    { id: 'erp',         label: t('erp'),         group: 'departments', show: !perms.isExternal },
+    { id: 'erp-dashboard',    label: 'Dashboard',      group: 'erp', erpSub: 'dashboard',    show: perms.canViewERP },
+    { id: 'erp-accounts',     label: 'Accounts',       group: 'erp', erpSub: 'accounts',     show: perms.canViewERP },
+    { id: 'erp-mappings',     label: 'Mappings',       group: 'erp', erpSub: 'mappings',     show: perms.canViewERP },
+    { id: 'erp-settings',     label: 'Settings',       group: 'erp', erpSub: 'settings',     show: perms.canViewERP },
+    { id: 'erp-enquiry',      label: 'Account Summary',group: 'erp', erpSub: 'enquiry',      show: perms.canViewERP },
+    { id: 'erp-customers',    label: 'Customers',      group: 'erp', erpSub: 'customers',    show: perms.canViewERP },
+    { id: 'erp-ledger',       label: 'Ledger',         group: 'erp', erpSub: 'ledger',       show: perms.canViewERP },
+    { id: 'erp-transactions', label: 'Transactions',   group: 'erp', erpSub: 'transactions', show: perms.canViewERP },
+    { id: 'erp-reports',      label: 'Reports',        group: 'erp', erpSub: 'reports',      show: perms.canViewERP },
+    { id: 'erp-vendors',      label: 'Vendors',        group: 'erp', erpSub: 'vendors',      show: perms.canViewERP },
+    { id: 'erp-inventory',    label: 'Inventory',      group: 'erp', erpSub: 'inventory',    show: perms.canViewERP },
+    { id: 'erp-vouchers',     label: 'Vouchers',       group: 'erp', erpSub: 'vouchers',     show: perms.canViewERP },
+    { id: 'erp-direct-deals', label: 'Direct Deals',   group: 'erp', erpSub: 'direct-deals', show: perms.canViewERP },
   ].filter(n => n.show)
 }
 
 // ── Render the content for each tab ────────────
-function renderTab(tabId, setActiveTab, setChatUnread) {
+function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab) {
   switch (tabId) {
     case 'overview':
       return <OverviewTab onNavigate={setActiveTab} />
@@ -166,7 +178,7 @@ function renderTab(tabId, setActiveTab, setChatUnread) {
       return <TrainingTab />
 
     case 'erp':
-      return <ERPTab />
+      return <ERPTab focusTab={erpSubTab} />
 
     default:
       return (
@@ -177,11 +189,11 @@ function renderTab(tabId, setActiveTab, setChatUnread) {
   }
 }
 
-function renderTabContent(tabId, setActiveTab, setChatUnread) {
+function renderTabContent(tabId, setActiveTab, setChatUnread, erpSubTab) {
   return (
     <TabErrorBoundary resetKey={tabId}>
       <Suspense fallback={<TabLoadingFallback />}>
-        {renderTab(tabId, setActiveTab, setChatUnread)}
+        {renderTab(tabId, setActiveTab, setChatUnread, erpSubTab)}
       </Suspense>
     </TabErrorBoundary>
   )
@@ -200,6 +212,8 @@ function Dashboard() {
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
   const [adminOpen,    setAdminOpen]    = useState(true)
   const [deptOpen,     setDeptOpen]     = useState(true)
+  const [erpOpen,      setErpOpen]      = useState(true)
+  const [erpSubTab,    setErpSubTab]    = useState('dashboard')
   const [chatUnread,   setChatUnread]   = useState(3) // matches seed data initial unread
   const [langMenuOpen, setLangMenuOpen] = useState(false)
   const langMenuRef = useRef(null)
@@ -266,6 +280,7 @@ function Dashboard() {
   const mainItems  = navItems.filter(n => n.group === 'main')
   const adminItems = navItems.filter(n => n.group === 'admin')
   const deptItems  = navItems.filter(n => n.group === 'departments')
+  const erpItems   = navItems.filter(n => n.group === 'erp')
 
   const handleLogout = () => { logout(); navigate('/login') }
 
@@ -353,6 +368,23 @@ function Dashboard() {
               ))}
             </>
           )}
+
+          {/* ERP */}
+          {erpItems.length > 0 && (
+            <>
+              <button className="sidebar-section-title w-full justify-center gap-2"
+                onClick={() => setErpOpen(v => !v)}>
+                <span>{t('erp')}</span>
+                <span className="section-chevron">{erpOpen ? '▴' : '▾'}</span>
+              </button>
+              {erpOpen && erpItems.map(item => (
+                <NavItem key={item.id} {...item}
+                  active={activeTab === 'erp' && erpSubTab === item.erpSub}
+                  onClick={() => { setActiveTab('erp'); setErpSubTab(item.erpSub) }} />
+              ))}
+            </>
+          )}
+
         </nav>
 
         {/* Sidebar bottom — user info + logout */}
@@ -504,7 +536,7 @@ function Dashboard() {
         {/* Page content */}
         <main className={`flex-1 ${activeTab === 'chat' ? 'overflow-hidden' : 'p-6 overflow-y-auto'}`}
           style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-          {renderTabContent(activeTab, setActiveTab, setChatUnread)}
+          {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab)}
         </main>
 
       </div>
