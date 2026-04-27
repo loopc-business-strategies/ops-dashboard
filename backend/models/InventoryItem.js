@@ -25,7 +25,6 @@ const inventoryItemSchema = new mongoose.Schema(
     quantity: {
       type: Number,
       default: 0,
-      min: 0,
     },
     unit: {
       type: String,

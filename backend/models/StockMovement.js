@@ -19,12 +19,10 @@ const stockMovementSchema = new mongoose.Schema(
     quantityBefore: {
       type: Number,
       required: true,
-      min: 0,
     },
     quantityAfter: {
       type: Number,
       required: true,
-      min: 0,
     },
     reason: {
       type: String,

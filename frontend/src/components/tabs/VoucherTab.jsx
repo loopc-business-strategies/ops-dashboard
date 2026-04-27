@@ -314,6 +314,8 @@ const emptyLine = () => ({
   totalAmount: '',
   purityDiff: '',
   premiumValue: '',
+  premiumAmount: '',
+  makingCharges: '',
   silverPurity: '0',
   vatType: 'VAT',
   remarks: '',
@@ -350,8 +352,8 @@ const emptyHeader = () => ({
   vocDate: today(),
   vocNo: '',
   salesman: '',
-  narration: '',
-  postedDate: today(),
+  docDate: today(),
+  valueDate: today(),
   fixingType: 'fixing',
 })
 
@@ -453,7 +455,7 @@ const pickDefaultAccountCodeByType = (accounts, lineType) => {
   return ''
 }
 
-export default function VoucherTab({ token, user, accounts = [], customers = [], vendors = [], currencies = [] }) {
+export default function VoucherTab({ token, user, accounts = [], customers: propCustomers = [], vendors: propVendors = [], currencies = [] }) {
   const { t } = useLanguage()
   const role = user?.role || ''
   const dept = (user?.department || '').toLowerCase()
@@ -473,6 +475,29 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
 
   // ─── top-level state ────────────────────────────────────────────────────────
   const [voucherType, setVoucherType] = useState('payment')
+
+  // ─── own customers/vendors state (always fresh, not stale props) ─────────────
+  const [localCustomers, setLocalCustomers] = useState(propCustomers)
+  const [localVendors, setLocalVendors] = useState(propVendors)
+  const customers = localCustomers.length > 0 ? localCustomers : propCustomers
+  const vendors = localVendors.length > 0 ? localVendors : propVendors
+
+  const refreshParties = useCallback(async () => {
+    try {
+      const [custRes, vendRes] = await Promise.all([
+        axios.get(`${BASE}/customers`, { ...cfg(), params: { limit: 500 } }),
+        axios.get(`${BASE}/vendors`, { ...cfg(), params: { limit: 500 } }),
+      ])
+      setLocalCustomers(custRes.data.customers || [])
+      setLocalVendors(vendRes.data.vendors || [])
+    } catch {
+      // silently ignore — props fallback still available
+    }
+  }, [])
+
+  useEffect(() => {
+    if (canView) refreshParties()
+  }, [canView, refreshParties])
   const [vouchers, setVouchers] = useState([])
   const [loadingList, setLoadingList] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -571,7 +596,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   const partyGroups = ['payment', 'purchase', 'sale'].includes(voucherType)
     ? [
         {
-          label: 'Vendors - Linked',
+          label: 'Vendors',
           options: vendors
             .filter((item) => Boolean(item.ledgerAccountId?.accountCode))
             .map((item) => ({
@@ -582,59 +607,26 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
             })),
         },
         {
-          label: 'Vendors - Other',
-          options: vendors
-            .filter((item) => !item.ledgerAccountId?.accountCode)
-            .map((item) => ({
-              id: `vendor:${String(item._id)}`,
-              label: `${item.name || 'Vendor'}${item.vendorCode ? ` (${item.vendorCode})` : ''}`,
-              partyCode: item.vendorCode || String(item._id),
-              partyName: item.name || '',
-            })),
-        },
-        {
-          label: 'Customers - Linked',
+          label: 'Customers',
           options: customers
             .filter((item) => Boolean(item.ledgerAccountId?.accountCode))
             .map((item) => ({
               id: `customer:${String(item._id)}`,
               label: `${item.name || 'Customer'}${item.ledgerAccountId?.accountCode ? ` (${item.ledgerAccountId.accountCode})` : ''}`,
               partyCode: item.ledgerAccountId?.accountCode || String(item._id),
-              partyName: item.name || '',
-            })),
-        },
-        {
-          label: 'Customers - Other',
-          options: customers
-            .filter((item) => !item.ledgerAccountId?.accountCode)
-            .map((item) => ({
-              id: `customer:${String(item._id)}`,
-              label: `${item.name || 'Customer'}`,
-              partyCode: String(item._id),
               partyName: item.name || '',
             })),
         },
       ]
     : [
         {
-          label: 'Linked Customers',
+          label: 'Customers',
           options: customers
             .filter((item) => Boolean(item.ledgerAccountId?.accountCode))
             .map((item) => ({
               id: `customer:${String(item._id)}`,
               label: `${item.name || 'Customer'}${item.ledgerAccountId?.accountCode ? ` (${item.ledgerAccountId.accountCode})` : ''}`,
               partyCode: item.ledgerAccountId?.accountCode || String(item._id),
-              partyName: item.name || '',
-            })),
-        },
-        {
-          label: 'Other Customers',
-          options: customers
-            .filter((item) => !item.ledgerAccountId?.accountCode)
-            .map((item) => ({
-              id: `customer:${String(item._id)}`,
-              label: `${item.name || 'Customer'}`,
-              partyCode: String(item._id),
               partyName: item.name || '',
             })),
         },
@@ -722,17 +714,31 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     const computedMetalAmount = rateQty > 0 && metalRate > 0
       ? Number((rateQty * metalRate).toFixed(2))
       : 0
+    const existingMetalAmount = parseFloat(next.metalAmount) || 0
+    const effectiveMetalAmount = computedMetalAmount > 0 ? computedMetalAmount : existingMetalAmount
 
-    const baseTotal = computedMetalAmount
+    const premiumRate = parseFloat(next.premiumValue) || 0
+    const computedPremiumAmount = rateQty > 0 && premiumRate !== 0
+      ? Number((rateQty * premiumRate).toFixed(2))
+      : 0
+    const makingChargesAmt = parseFloat(next.makingCharges) || 0
+
+    const baseTotal = Number((effectiveMetalAmount + computedPremiumAmount + makingChargesAmt).toFixed(2))
     const vatPer = parseFloat(next.vatPer) || 0
     const vatAmount = Number(((baseTotal * vatPer) / 100).toFixed(2))
     const amountWithVAT = Number((baseTotal + vatAmount).toFixed(2))
+    const derivedMetalRate = rateQty > 0 && effectiveMetalAmount > 0
+      ? Number((effectiveMetalAmount / rateQty).toFixed(2))
+      : 0
+    const effectiveMetalRate = metalRate > 0 ? metalRate : derivedMetalRate
 
     return {
       ...next,
       pureWeight: pureWeight > 0 ? pureWeight.toFixed(3) : '',
       weightInOz: weightInOz > 0 ? weightInOz.toFixed(3) : '',
-      metalAmount: computedMetalAmount > 0 ? computedMetalAmount.toFixed(2) : (next.metalAmount || ''),
+      metalRate: effectiveMetalRate > 0 ? effectiveMetalRate.toFixed(2) : (next.metalRate || ''),
+      metalAmount: effectiveMetalAmount > 0 ? effectiveMetalAmount.toFixed(2) : '',
+      premiumAmount: computedPremiumAmount !== 0 ? computedPremiumAmount.toFixed(2) : '',
       totalAmount: baseTotal > 0 ? baseTotal.toFixed(2) : '',
       amountLC: baseTotal > 0 ? baseTotal.toFixed(2) : '',
       vatAmountLC: vatPer > 0 ? vatAmount.toFixed(2) : '',
@@ -751,18 +757,23 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     if (!product) return line
 
     const meta = decodeFullMeta(product.category)
+    const simMeta = decodeInventoryCategoryMeta(product.category)
     const unitWeight = parseFloat(meta.weight || product.weight || '') || 0
     const pcs = Math.max(0, parseFloat(line.pcs) || 0)
     const grossWeight = unitWeight > 0
       ? (pcs > 0 ? unitWeight * pcs : unitWeight)
       : (parseFloat(line.grossWeight) || 0)
-    const rawPurity = parseFloat(meta.productPurity || meta.purity || '') || 0
+    const rawPurity = parseFloat(meta.productPurity || simMeta.purity || '') || 0
+    const productVatPer = parseFloat(meta.vatPercent || '') || 0
+    const productTaxType = String(meta.taxType || 'VAT').trim()
 
     return applyLineAutoCalc({
       ...line,
       productType: productName,
       grossWeight: grossWeight > 0 ? String(Number(grossWeight.toFixed(3))) : line.grossWeight,
       purity: rawPurity > 0 ? String(rawPurity) : line.purity,
+      vatType: productTaxType || line.vatType || 'VAT',
+      vatPer: productVatPer > 0 ? String(productVatPer) : line.vatPer,
     })
   }, [applyLineAutoCalc, inventoryProducts])
 
@@ -786,6 +797,8 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     const storedPriceUnit = String(fullMeta.priceUnit || '').trim().toUpperCase()
     const resolvedRateType = normalizeRateType(storedPriceUnit || 'OZ')
     const storedCurrency = String(fullMeta.priceCurrency || product.currency || 'USD').toUpperCase()
+    const productVatPer = parseFloat(fullMeta.vatPercent || '') || 0
+    const productTaxType = String(fullMeta.taxType || 'VAT').trim()
 
     setLineForm((prev) => applyLineAutoCalc({
       ...prev,
@@ -799,6 +812,8 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       metalRate: defaultRate > 0 ? defaultRate.toFixed(2) : prev.metalRate,
       rateType: resolvedRateType,
       currCode: storedCurrency,
+      vatType: productTaxType || prev.vatType || 'VAT',
+      vatPer: productVatPer > 0 ? String(productVatPer) : prev.vatPer,
     }))
   }, [applyLineAutoCalc, inventoryProducts, voucherType])
 
@@ -834,7 +849,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       const hasChanges = keys.some((key) => String(prev[key] || '') !== String(calculated[key] || ''))
       return hasChanges ? calculated : prev
     })
-  }, [showLineForm, voucherType, lineForm.grossWeight, lineForm.purity, lineForm.metalRate, lineForm.rateType, lineForm.vatPer, applyLineAutoCalc])
+  }, [showLineForm, voucherType, lineForm.grossWeight, lineForm.purity, lineForm.metalRate, lineForm.rateType, lineForm.vatPer, lineForm.premiumValue, lineForm.makingCharges, applyLineAutoCalc])
 
   // ─── helpers ─────────────────────────────────────────────────────────────────
   const showMsg = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 4000) }
@@ -865,6 +880,9 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   })()
 
   const totals = {
+    metalTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.metalAmount) || 0), 0),
+    premiumTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.premiumAmount) || 0), 0),
+    makingTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.makingCharges) || 0), 0),
     total: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountLC) || 0), 0),
     vatAmount: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.vatAmountLC) || 0), 0),
     grandTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0), 0),
@@ -928,13 +946,14 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   }, [modalDrag])
 
   // ─── next voucher number ─────────────────────────────────────────────────────
-  const nextVocNo = () => {
-    const nos = vouchers.map(v => parseInt(v.voucherMeta?.vocNo) || 0).filter(n => n > 0)
+  const nextVocNo = (list) => {
+    const src = Array.isArray(list) ? list : vouchers
+    const nos = src.map(v => parseInt(v.voucherMeta?.vocNo) || 0).filter(n => n > 0)
     return nos.length ? String(Math.max(...nos) + 1) : '1'
   }
 
   // ─── open create ────────────────────────────────────────────────────────────
-  const openCreate = () => {
+  const openCreate = (freshList) => {
     // If already filling a new form, ask before discarding
     if (mode === 'create' && !editingId) {
       const hasData = header.partyCode.trim() || lineItems.length > 0 || header.narration.trim()
@@ -945,7 +964,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       if (editingId) lastViewedIdRef.current = editingId
     }
     setEditingId(null)
-    setHeader({ ...emptyHeader(), vocNo: nextVocNo() })
+    setHeader({ ...emptyHeader(), vocNo: nextVocNo(freshList) })
     setSelectedPartyId('')
     setRecentPartyVouchers([])
     setLineItems([])
@@ -972,7 +991,8 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
         // open the last (highest vocNo) voucher
         openVoucher(txs[txs.length - 1])
       } else {
-        openCreate()
+        // Pass txs directly so nextVocNo uses the fresh list, not stale state
+        openCreate(txs)
       }
     } catch {
       // fallback: just open blank form
@@ -1066,6 +1086,9 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       }
       return
     }
+    if (currentVoucherStatus === 'posted') {
+      if (!window.confirm('Editing a posted voucher will reverse its ledger entries and reset it to Draft status. Proceed?')) return
+    }
     setMode('create')
     clearError()
     showMsg('Mode: EDIT')
@@ -1144,10 +1167,40 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
   }
 
   const handleDeleteVoucher = async () => {
+    if (isReadOnly) {
+      setError('You have read-only access')
+      return
+    }
+
+    if (!editingId && mode === 'create') {
+      const hasData = header.partyCode.trim() || lineItems.length > 0 || header.narration.trim()
+      if (!hasData) {
+        showMsg('Nothing to delete')
+        return
+      }
+      if (!window.confirm('Clear this unsaved voucher entry?')) return
+      setHeader({ ...emptyHeader(), vocNo: nextVocNo() })
+      setSelectedPartyId('')
+      setRecentPartyVouchers([])
+      setLineItems([])
+      setShowLineForm(false)
+      setEditingLineIdx(null)
+      setWorkflowNote('')
+      clearError()
+      showMsg('Unsaved voucher cleared')
+      return
+    }
+
     if (!editingId) {
       setError('No saved voucher selected to delete')
       return
     }
+
+    if (currentVoucherStatus === 'posted') {
+      setError('Posted vouchers cannot be deleted because they already affect ledger and stock')
+      return
+    }
+
     if (!window.confirm(`Delete voucher #${header.vocNo}? This cannot be undone.`)) return
     try {
       const deletedId = editingId
@@ -1191,8 +1244,8 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
       vocDate: v.date ? v.date.slice(0, 10) : today(),
       vocNo: m.vocNo || '',
       salesman: m.salesman || '',
-      narration: v.description || '',
-      postedDate: m.postedDate ? m.postedDate.slice(0, 10) : today(),
+      docDate: m.docDate ? m.docDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
+      valueDate: m.valueDate ? m.valueDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
       fixingType: normalizeVoucherFixingType(m.fixingType),
     })
     setSelectedPartyId(resolvedParty?.partyId || '')
@@ -1271,6 +1324,22 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     }
   }
 
+  const handleVoidVoucher = async (voucher) => {
+    if (!voucher?._id) return
+    if (!window.confirm(`Void Receipt/Payment #${voucher.voucherMeta?.vocNo || '-'}? This will permanently remove all ledger entries. This cannot be undone.`)) return
+    setSaving(true)
+    clearError()
+    try {
+      await axios.post(`${BASE}/transactions/${voucher._id}/void`, {}, cfg())
+      await loadVouchers()
+      showMsg(`Voucher #${voucher.voucherMeta?.vocNo || '-'} voided and removed`)
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to void voucher')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   // ─── save voucher ────────────────────────────────────────────────────────────
   const saveVoucher = async () => {
     clearError()
@@ -1327,8 +1396,8 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     const payload = {
       type: voucherType,
       amount: totals.grandTotal || 0.01,
-      date: header.vocDate,
-      description: header.narration,
+      date: header.valueDate || header.vocDate,
+      description: `${voucherType} voucher ${header.vocNo || ''}`.trim(),
       currency: header.currCode,
       exchangeRate: parseFloat(header.currRate) || 1,
       customerId: resolvedParty?.customerId || undefined,
@@ -1338,7 +1407,8 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
         partyName: header.partyName || resolvedParty?.partyName || '',
         salesman: header.salesman,
         vocNo: header.vocNo,
-        postedDate: header.postedDate || null,
+        docDate: header.docDate || null,
+        valueDate: header.valueDate || null,
         ...(( voucherType === 'purchase' || voucherType === 'sale') ? { fixingType: normalizeVoucherFixingType(header.fixingType) } : {}),
         lineItems: effectiveLineItems.map(l => ({
           ...l,
@@ -1359,18 +1429,19 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     }
     const payloadLineTotal = effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0), 0)
     payload.amount = payloadLineTotal || 0.01
-    const isPostedEditing = Boolean(editingId) && currentVoucherStatus === 'posted'
     setSaving(true)
     try {
-      if (editingId && !isPostedEditing) {
+      let savedId = editingId
+      if (editingId) {
         await axios.put(`${BASE}/transactions/${editingId}`, payload, cfg())
         showMsg('Voucher updated successfully')
       } else {
-        await axios.post(`${BASE}/transactions`, payload, cfg())
-        showMsg(isPostedEditing ? 'Posted voucher is locked. Saved as a new draft voucher.' : 'Voucher saved successfully')
+        const res = await axios.post(`${BASE}/transactions`, payload, cfg())
+        savedId = res.data?.transaction?._id || null
+        showMsg('Voucher saved successfully')
       }
       await loadVouchers()
-      // After save, reload list then open the saved voucher in view mode
+      // After save, reload list then open the exact voucher that was saved
       const res2 = await axios.get(`${BASE}/transactions`, {
         ...cfg(),
         params: { type: voucherType, limit: 200 },
@@ -1379,8 +1450,13 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
         .filter(t => t.voucherMeta && t.voucherMeta.vocNo)
         .sort((a, b) => (parseInt(a.voucherMeta?.vocNo) || 0) - (parseInt(b.voucherMeta?.vocNo) || 0))
       setVouchers(refreshed)
-      // Find the just-saved voucher (highest vocNo for this type) and open it
-      if (refreshed.length > 0) {
+      // Open the voucher that was just saved/updated
+      const toOpen = savedId
+        ? refreshed.find(t => t._id === savedId)
+        : refreshed[refreshed.length - 1]
+      if (toOpen) {
+        openVoucher(toOpen)
+      } else if (refreshed.length > 0) {
         openVoucher(refreshed[refreshed.length - 1])
       } else {
         setMode('list')
@@ -1392,18 +1468,49 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     }
   }
 
+  const getLineNetAmount = (line) => {
+    const withTax = parseFloat(line?.amountWithVAT)
+    if (Number.isFinite(withTax) && withTax > 0) return withTax
+    const lc = parseFloat(line?.amountLC)
+    if (Number.isFinite(lc) && lc > 0) return lc
+    const fc = parseFloat(line?.amountFC)
+    if (Number.isFinite(fc) && fc > 0) return fc
+    return 0
+  }
+
+  const buildReceiptPaymentDefaultLine = (baseLine) => {
+    const rate = parseFloat(header.currRate) || 1
+    const currentTarget = parseFloat(currentVoucher?.amount) || 0
+    const usedAmount = lineItems.reduce((sum, line) => sum + getLineNetAmount(line), 0)
+    const remaining = currentTarget > 0 ? Math.max(currentTarget - usedAmount, 0) : 0
+
+    return {
+      ...baseLine,
+      currCode: header.currCode || 'USD',
+      currRate: String(rate.toFixed(6)),
+      vatType: baseLine.vatType || 'VAT',
+      narration: header.narration || '',
+      amountFC: remaining > 0 ? remaining.toFixed(2) : '',
+      amountLC: remaining > 0 ? remaining.toFixed(2) : '',
+      amountWithVAT: remaining > 0 ? remaining.toFixed(2) : '',
+    }
+  }
+
   // ─── line form actions ───────────────────────────────────────────────────────
   const openAddLine = () => {
     setEditingLineIdx(null)
     const defaultType = 'Cash'
     const defaultAccountCode = pickDefaultAccountCodeByType(accounts, defaultType)
-    setLineForm({
+    const baseLine = {
       ...emptyLine(),
       currCode: header.currCode || 'USD',
+      currRate: header.currRate || '1.000000',
       type: defaultType,
       typeCode: defaultType.toUpperCase(),
       acCode: defaultAccountCode || '',
-    })
+    }
+
+    setLineForm(isMetalVoucher ? baseLine : buildReceiptPaymentDefaultLine(baseLine))
     setShowLineForm(true)
   }
 
@@ -1456,11 +1563,12 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     if (!isMetalVoucher && !lineForm.acCode.trim()) { setError('A/C Code is required'); return }
     if (isMetalVoucher && !lineForm.stockCode.trim()) { setError('Stock Code is required for metal vouchers'); return }
     if (!lineForm.amountLC && !lineForm.amountFC && !lineForm.totalAmount && !lineForm.metalAmount) { setError('Amount is required'); return }
+    const computedLineForm = isMetalVoucher ? applyLineAutoCalc(lineForm) : lineForm
     const line = {
-      ...lineForm,
-      type: normalizeLineType(lineForm.type),
-      amountLC: lineForm.amountLC || lineForm.totalAmount || lineForm.metalAmount || '',
-      amountWithVAT: lineForm.amountWithVAT || lineForm.amountLC || lineForm.amountFC,
+      ...computedLineForm,
+      type: normalizeLineType(computedLineForm.type),
+      amountLC: computedLineForm.amountLC || computedLineForm.totalAmount || computedLineForm.metalAmount || '',
+      amountWithVAT: computedLineForm.amountWithVAT || computedLineForm.amountLC || computedLineForm.amountFC,
     }
     if (editingLineIdx !== null) {
       setLineItems(prev => prev.map((l, i) => i === editingLineIdx ? line : l))
@@ -1490,67 +1598,30 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     }
   }
 
-  // Keep payment/receipt VAT fields fully synced whichever amount/tax field user edits.
+  // Payment/Receipt: simple FC ↔ LC conversion via exchange rate — no VAT/tax.
   const recalcReceiptPaymentLine = (baseLine, source) => {
     const next = { ...baseLine }
     const rate = parseFloat(next.currRate) || parseFloat(header.currRate) || 1
     let amountFC = parseFloat(next.amountFC) || 0
     let amountLC = parseFloat(next.amountLC) || 0
-    let vatPer = parseFloat(next.vatPer) || 0
-    let vatAmountFC = parseFloat(next.vatAmountFC) || 0
-    let vatAmountLC = parseFloat(next.vatAmountLC) || 0
-    let amountWithVAT = parseFloat(next.amountWithVAT) || 0
 
     if (source === 'amountFC' || source === 'rate') {
       amountLC = amountFC * rate
-    }
-
-    if (source === 'amountLC') {
+    } else if (source === 'amountLC') {
       amountFC = rate > 0 ? amountLC / rate : 0
-    }
-
-    if (source === 'vatPer') {
-      vatAmountFC = (amountFC * vatPer) / 100
-      vatAmountLC = (amountLC * vatPer) / 100
-      amountWithVAT = amountLC + vatAmountLC
-    } else if (source === 'vatAmountFC') {
-      vatAmountLC = vatAmountFC * rate
-      vatPer = amountFC > 0 ? (vatAmountFC / amountFC) * 100 : (amountLC > 0 ? (vatAmountLC / amountLC) * 100 : 0)
-      amountWithVAT = amountLC + vatAmountLC
-    } else if (source === 'vatAmountLC') {
-      vatAmountFC = rate > 0 ? vatAmountLC / rate : 0
-      vatPer = amountLC > 0 ? (vatAmountLC / amountLC) * 100 : (amountFC > 0 ? (vatAmountFC / amountFC) * 100 : 0)
-      amountWithVAT = amountLC + vatAmountLC
-    } else if (source === 'amountWithVAT') {
-      vatAmountLC = Math.max(amountWithVAT - amountLC, 0)
-      vatAmountFC = rate > 0 ? vatAmountLC / rate : 0
-      vatPer = amountLC > 0 ? (vatAmountLC / amountLC) * 100 : 0
-    } else {
-      if (vatPer > 0) {
-        vatAmountFC = (amountFC * vatPer) / 100
-        vatAmountLC = (amountLC * vatPer) / 100
-      } else {
-        vatAmountFC = 0
-        vatAmountLC = 0
-      }
-      amountWithVAT = amountLC + vatAmountLC
     }
 
     const hasAmountFC = String(next.amountFC || '').trim() !== ''
     const hasAmountLC = String(next.amountLC || '').trim() !== ''
-    const hasVatPer = String(next.vatPer || '').trim() !== '' || source === 'vatPer'
-    const hasVatAmountFC = String(next.vatAmountFC || '').trim() !== '' || source === 'vatAmountFC'
-    const hasVatAmountLC = String(next.vatAmountLC || '').trim() !== '' || source === 'vatAmountLC'
-    const hasAmountWithVAT = String(next.amountWithVAT || '').trim() !== '' || source === 'amountWithVAT'
 
     return {
       ...next,
       amountFC: hasAmountFC || amountFC > 0 ? amountFC.toFixed(2) : '',
       amountLC: hasAmountLC || amountLC > 0 ? amountLC.toFixed(2) : '',
-      vatPer: hasVatPer || vatPer > 0 ? vatPer.toFixed(2) : '',
-      vatAmountFC: hasVatAmountFC || vatAmountFC > 0 ? vatAmountFC.toFixed(2) : '',
-      vatAmountLC: hasVatAmountLC || vatAmountLC > 0 ? vatAmountLC.toFixed(2) : '',
-      amountWithVAT: hasAmountWithVAT || amountWithVAT > 0 ? amountWithVAT.toFixed(2) : (amountLC > 0 ? amountLC.toFixed(2) : ''),
+      vatPer: '',
+      vatAmountFC: '',
+      vatAmountLC: '',
+      amountWithVAT: amountLC > 0 ? amountLC.toFixed(2) : '',
     }
   }
 
@@ -1640,7 +1711,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
     : vouchers
   const currentVoucher = editingId ? vouchers.find(v => v._id === editingId) : null
   const currentVoucherStatus = currentVoucher?.status || 'draft'
-  const isPostedEditing = Boolean(editingId) && currentVoucherStatus === 'posted'
+  const canDeleteCurrentVoucher = Boolean(editingId) && !isReadOnly && currentVoucherStatus !== 'posted'
   const canSubmitWorkflow = Boolean(editingId) && !isReadOnly && ['draft', 'returned', 'rejected'].includes(currentVoucherStatus)
   const canApproveWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && currentVoucherStatus === 'submitted'
   const canReturnWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(currentVoucherStatus)
@@ -1755,6 +1826,9 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
               <option value="rejected">{t('statusRejected')}</option>
             </select>
             <button style={btn('gray')} onClick={loadVouchers}>↺ Refresh</button>
+            {canCreate && (
+              <button style={{ ...btn('primary'), marginLeft: 'auto' }} onClick={() => openCreate()}>+ New</button>
+            )}
           </div>
 
           {loadingList ? (
@@ -1763,13 +1837,18 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
             <div style={{ textAlign: 'center', padding: '3rem', color: S.muted, border: `2px dashed ${S.border}`, borderRadius: '0.5rem' }}>
               <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</div>
               <p>No {voucherLabel.toLowerCase()}s found.</p>
+              {canCreate && (
+                <button style={{ ...btn('primary'), marginTop: '1rem' }} onClick={() => openCreate()}>
+                  + New {voucherLabel}
+                </button>
+              )}
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                 <thead>
                   <tr style={{ background: S.headerBg }}>
-                    {['Voc No', 'Date', 'Party Code', 'Party Name', 'Currency', 'Grand Total', 'Narration', 'Status', 'Actions'].map(h => (
+                    {['Voc No', 'Doc Date', 'Value Date', 'Party Code', 'Party Name', ...((voucherType === 'purchase' || voucherType === 'sale') ? ['Fixing'] : []), 'Currency', 'Grand Total', 'Status', 'Actions'].map(h => (
                       <th key={h} style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: '700', color: S.ink, borderBottom: `2px solid ${S.border}`, whiteSpace: 'nowrap' }}>
                         {h}
                       </th>
@@ -1789,15 +1868,24 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                       rejected: { bg: '#FEE2E2', color: '#B91C1C' },
                     }
                     const sc = statusColors[v.status] || { bg: '#F3F4F6', color: '#374151' }
+                    const fixingDisplay = m.fixingType === 'non-fixing' ? 'Unfixed' : 'Fixed'
                     return (
                       <tr key={v._id} style={{ background: i % 2 === 0 ? S.white : S.bg, borderBottom: `1px solid ${S.border}` }}>
                         <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', color: S.green }}>{m.vocNo}</td>
-                        <td style={{ padding: '0.55rem 0.75rem' }}>{v.date ? v.date.slice(0, 10) : '-'}</td>
+                        <td style={{ padding: '0.55rem 0.75rem' }}>{m.docDate ? String(m.docDate).slice(0, 10) : (v.date ? v.date.slice(0, 10) : '-')}</td>
+                        <td style={{ padding: '0.55rem 0.75rem' }}>{m.valueDate ? String(m.valueDate).slice(0, 10) : (v.date ? v.date.slice(0, 10) : '-')}</td>
                         <td style={{ padding: '0.55rem 0.75rem' }}>{m.partyCode || '-'}</td>
                         <td style={{ padding: '0.55rem 0.75rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.partyName || '-'}</td>
+                        {(voucherType === 'purchase' || voucherType === 'sale') && (
+                          <td style={{ padding: '0.55rem 0.75rem' }}>
+                            <span style={{ padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: fixingDisplay === 'Unfixed' ? '#FEE2E2' : '#DCFCE7', color: fixingDisplay === 'Unfixed' ? '#B91C1C' : '#166534' }}>
+                              {fixingDisplay}
+                            </span>
+                          </td>
+                        )}
+                        
                         <td style={{ padding: '0.55rem 0.75rem' }}>{v.currency}</td>
                         <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', textAlign: 'right' }}>{fmt(grand)}</td>
-                        <td style={{ padding: '0.55rem 0.75rem', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.description || '-'}</td>
                         <td style={{ padding: '0.55rem 0.75rem' }}>
                           <span style={{ padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: sc.bg, color: sc.color }}>
                             {v.status}
@@ -1856,6 +1944,16 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                                 style={{ ...btn('primary'), padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
                               >
                                 {t('post')}
+                              </button>
+                            )}
+                            {(isSuperAdmin || isFinance) && v.status === 'posted' && (
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => handleVoidVoucher(v)}
+                                style={{ ...btn('danger'), padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
+                              >
+                                Void
                               </button>
                             )}
                           </div>
@@ -1932,7 +2030,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
               {['─', '□'].map((ch) => (
                 <button key={ch} type="button" style={{ width: 18, height: 15, background: 'linear-gradient(180deg,#D8DCE3,#A9B2C1)', border: '1px solid #6F7B8B', borderTop: '1px solid #EFF3F8', borderLeft: '1px solid #E5EAF1', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#1F2937', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)' }}>{ch}</button>
               ))}
-              <button type="button" title="Close" onClick={() => setMode('list')} style={{ width: 18, height: 15, background: 'linear-gradient(180deg,#E3D8D8,#C4A0A0)', border: '1px solid #8A6F6F', borderTop: '1px solid #F4E9E9', borderLeft: '1px solid #EFDDDD', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#3F1D1D', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)' }}>✕</button>
+              <button type="button" title="Close" onClick={handleExitVoucherForm} style={{ width: 18, height: 15, background: 'linear-gradient(180deg,#E3D8D8,#C4A0A0)', border: '1px solid #8A6F6F', borderTop: '1px solid #F4E9E9', borderLeft: '1px solid #EFDDDD', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#3F1D1D', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)' }}>✕</button>
             </div>
           </div>
 
@@ -1976,10 +2074,10 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                 overflowX: 'auto',
                 marginBottom: '0.6rem',
               }}>
-                <TbBtn tip="New — opens a blank form to enter a new voucher" label="New" onClick={openCreate} />
-                <TbBtn tip="Edit — unlocks the current record for modification" label="Edit" onClick={handleEditUnlock} />
-                <TbBtn tip="Delete — removes the current voucher" label="Delete" onClick={handleDeleteVoucher} style={{ color: '#b00020' }} />
-                <TbBtn tip="Save — saves your data permanently" label="Save" onClick={saveVoucher} style={{ color: '#065f46' }} />
+                <TbBtn tip="New — opens a blank form to enter a new voucher" label="New" onClick={() => openCreate()} disabled={!canCreate} />
+                <TbBtn tip="Edit — unlocks the current record for modification" label="Edit" onClick={handleEditUnlock} disabled={isReadOnly || (!editingId && mode !== 'create')} />
+                <TbBtn tip="Delete — removes the current voucher" label="Delete" onClick={handleDeleteVoucher} style={{ color: '#b00020' }} disabled={isReadOnly || (Boolean(editingId) && !canDeleteCurrentVoucher)} />
+                <TbBtn tip="Save — saves your data permanently" label="Save" onClick={saveVoucher} style={{ color: '#065f46' }} disabled={formReadOnly} />
                 <TbBtn tip="Cancel — discards unsaved changes" label="Cancel" onClick={handleCancelChanges} />
                 <Sep />
                 <TbBtn tip="|◀ First — jumps to the very first voucher on record" label="|◀ First" onClick={navFirst} disabled={curIdx <= 0} />
@@ -1990,6 +2088,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                 <TbBtn tip="Print/Preview — prints or previews the current invoice" label="Print/Preview" onClick={() => window.print()} />
                 <TbBtn tip="Search/Find — search by voucher number, party, or date" label="Search/Find" onClick={handleSearchFind} />
                 <TbBtn tip="Barcode — scan or view an item barcode linked to stock" label="Barcode" onClick={handleBarcodeAction} />
+                <TbBtn tip="Refresh Parties — reload customer and vendor list" label="↺ Parties" onClick={refreshParties} />
                 <Sep />
                 <TbBtn tip="Exit — closes the voucher form and returns to the main menu" label="Exit" onClick={handleExitVoucherForm} style={{ color: '#b00020' }} />
                 <div style={{ flex: 1 }} />
@@ -2139,12 +2238,21 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                           </>
                         )}
 
-                        <label style={classicLabel}>Voc Date :</label>
+                        <label style={classicLabel}>Doc Date :</label>
                         <input
                           style={formReadOnly ? classicReadInput : classicInput}
                           type="date"
-                          value={header.vocDate}
-                          onChange={e => setHdr('vocDate', e.target.value)}
+                          value={header.docDate}
+                          onChange={e => setHdr('docDate', e.target.value)}
+                          readOnly={formReadOnly}
+                        />
+
+                        <label style={classicLabel}>Value Date :</label>
+                        <input
+                          style={formReadOnly ? classicReadInput : classicInput}
+                          type="date"
+                          value={header.valueDate}
+                          onChange={e => setHdr('valueDate', e.target.value)}
                           readOnly={formReadOnly}
                         />
 
@@ -2165,26 +2273,6 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                           onChange={e => setHdr('currRate', e.target.value)}
                           type="number"
                           step="0.000001"
-                          readOnly={formReadOnly}
-                        />
-
-                        <label style={classicLabel}>Narration :</label>
-                        <input
-                          style={formReadOnly ? classicReadInput : classicInput}
-                          value={header.narration}
-                          onChange={e => setHdr('narration', e.target.value)}
-                          readOnly={formReadOnly}
-                          placeholder="Description / Narration"
-                        />
-                      </div>
-
-                      <div style={classicTextAreaRow}>
-                        <label style={classicLabel}>Posted Date :</label>
-                        <input
-                          style={formReadOnly ? classicReadInput : classicInput}
-                          type="date"
-                          value={header.postedDate}
-                          onChange={e => setHdr('postedDate', e.target.value)}
                           readOnly={formReadOnly}
                         />
                       </div>
@@ -2261,7 +2349,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                               <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.purity || '-'}</td>
                               <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.pureWeight || '-'}</td>
                               <td style={{ padding: '0.5rem 0.75rem' }}>{l.rateType || '-'}</td>
-                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(l.metalRate)}</td>
+                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(parseFloat(l.metalRate) || ((parseFloat(l.weightInOz) || 0) > 0 ? ((parseFloat(l.metalAmount) || 0) / (parseFloat(l.weightInOz) || 0)) : 0))}</td>
                               <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(l.metalAmount)}</td>
                               <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: '700' }}>{fmt(l.totalAmount || l.amountLC)}</td>
                               <td style={{ padding: '0.5rem 0.75rem' }}>{l.narration || l.remarks || '-'}</td>
@@ -2320,7 +2408,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                             <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{l.purity || '-'}</td>
                             <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{l.pureWeight || '-'}</td>
                             <td style={{ padding: '0.28rem 0.48rem', borderRight: '1px solid #EEF1F4' }}>{l.rateType || '-'}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{fmt(l.metalRate)}</td>
+                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{fmt(parseFloat(l.metalRate) || ((parseFloat(l.weightInOz) || 0) > 0 ? ((parseFloat(l.metalAmount) || 0) / (parseFloat(l.weightInOz) || 0)) : 0))}</td>
                             <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{fmt(l.metalAmount)}</td>
                             <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', fontWeight: '700', borderRight: '1px solid #EEF1F4' }}>{fmt(l.totalAmount || l.amountLC)}</td>
                           </>
@@ -2509,6 +2597,14 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                               <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', color: '#991B1B', fontWeight: '700', background: '#F9FAFB' }} type="number" step="0.01" value={lineForm.metalAmount} readOnly />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Premium Amt</div>
+                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', background: '#F9FAFB' }} type="number" step="0.01" value={lineForm.premiumAmount || ''} readOnly />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Making Chg.</div>
+                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.makingCharges} onChange={e => setLF('makingCharges', e.target.value)} />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                               <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700' }}>Total</div>
                               <input
                                 style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', fontWeight: '700', background: '#F9FAFB' }}
@@ -2584,25 +2680,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Amt LC *</div>
                         <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} type="number" step="0.01" value={lineForm.amountLC} onChange={e => handleAmountLC(e.target.value)} onKeyDown={handleLineAmountEnter} />
                       </div>
-                      {/* Tax row */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 80px 1fr 80px 1fr', borderBottom: '1px solid #E5E7EB' }}>
-                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Tax Type</div>
-                        <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.vatType || 'VAT'} onChange={e => setLF('vatType', e.target.value)}>
-                          <option value="VAT">VAT</option>
-                          <option value="GST">GST</option>
-                          <option value="Sales Tax">Sales Tax</option>
-                          <option value="None">None</option>
-                        </select>
-                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Tax Amt FC</div>
-                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }} type="number" step="0.01" value={lineForm.vatAmountFC} onChange={e => handleVatAmountFCChange(e.target.value)} />
-                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Tax Amt LC</div>
-                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} type="number" step="0.01" value={lineForm.vatAmountLC} onChange={e => handleVatAmountLCChange(e.target.value)} />
-                      </div>
-                      {/* Amt+Tax row */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '86px 1fr', borderBottom: '1px solid #E5E7EB' }}>
-                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Amt+Tax</div>
-                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} type="number" step="0.01" value={lineForm.amountWithVAT} onChange={e => handleAmountWithVATChange(e.target.value)} />
-                      </div>
+
                       {/* Narration row */}
                       <div style={{ display: 'grid', gridTemplateColumns: '76px 1fr', borderBottom: '1px solid #E5E7EB' }}>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Narration</div>
@@ -2640,14 +2718,36 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                     <div style={{ background: 'linear-gradient(180deg, #E8EAED 0%, #D4D8DF 100%)', borderBottom: '1px solid #B8BEC8', padding: '0.2rem 0.65rem', fontSize: '0.7rem', fontWeight: '700', color: '#374151', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Amount Summary</div>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.77rem' }}>
                       <tbody>
-                        <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                          <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Gross Amount :</td>
-                          <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.total)}</td>
-                        </tr>
-                        <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                          <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>VAT Amount :</td>
-                          <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.vatAmount)}</td>
-                        </tr>
+                        {isMetalVoucher && (
+                          <tr style={{ borderBottom: '1px solid #E8EAED' }}>
+                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Metal Amount :</td>
+                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.metalTotal)}</td>
+                          </tr>
+                        )}
+                        {isMetalVoucher && totals.premiumTotal !== 0 && (
+                          <tr style={{ borderBottom: '1px solid #E8EAED' }}>
+                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Premium Amount :</td>
+                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.premiumTotal)}</td>
+                          </tr>
+                        )}
+                        {isMetalVoucher && totals.makingTotal !== 0 && (
+                          <tr style={{ borderBottom: '1px solid #E8EAED' }}>
+                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Making Charges :</td>
+                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.makingTotal)}</td>
+                          </tr>
+                        )}
+                        {isMetalVoucher && (
+                          <tr style={{ borderBottom: '1px solid #E8EAED' }}>
+                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Gross Amount :</td>
+                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.total)}</td>
+                          </tr>
+                        )}
+                        {isMetalVoucher && (
+                          <tr style={{ borderBottom: '1px solid #E8EAED' }}>
+                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>VAT Amount :</td>
+                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.vatAmount)}</td>
+                          </tr>
+                        )}
                         <tr style={{ background: '#F1F3F6' }}>
                           <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>Net Amt ({header.currCode || 'USD'}) :</td>
                           <td style={{ padding: '0.24rem 0.65rem', textAlign: 'right', fontWeight: '800', color: S.green, fontSize: '0.87rem' }}>{fmt(totals.grandTotal)}</td>
@@ -2735,7 +2835,7 @@ export default function VoucherTab({ token, user, accounts = [], customers = [],
                 onClick={saveVoucher}
                 disabled={saving}
               >
-                {saving ? 'Saving...' : (editingId ? (isPostedEditing ? '💾 Save As New Draft' : '💾 Update Voucher') : '💾 Save Voucher')}
+                {saving ? 'Saving...' : (editingId ? '💾 Update Voucher' : '💾 Save Voucher')}
               </button>
               <button style={btn('secondary')} onClick={() => setMode('list')}>
                 {t('cancel')}

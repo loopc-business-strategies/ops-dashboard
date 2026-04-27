@@ -2524,6 +2524,12 @@ function ERPTab() {
     if (!accounts.length) loadAccounts()
   }, [activeTab, token, customers.length, vendors.length, currencies.length, accounts.length])
 
+  useEffect(() => {
+    if (activeTab !== 'direct-deals' || !token) return
+    if (!customers.length) loadCustomers({ limit: 200 })
+    if (!currencies.length) loadCurrencies()
+  }, [activeTab, token, customers.length, currencies.length])
+
   const convertMetalBalanceByUnit = (valueInGram) => {
     const factor = METAL_UNIT_FACTORS[metalUnit] || 1
     return Number(valueInGram || 0) / factor
@@ -7081,17 +7087,21 @@ function ERPTab() {
                               </td>
                             </tr>
                           ) : (
-                            filteredStatementEntries.map((entry, index) => {
+                            (() => {
+                              let runningPureWeight = Number(accountEnquiryData?.metals?.goldBalance || 0)
+                              return filteredStatementEntries.map((entry, index) => {
                               const receiptNo = entry.sourceTransactionNumber || entry.sourceTransactionId || entry.referenceId || entry._id || '-'
                               const rowExchangeRate = Number(entry.exchangeRate || 1)
                               const debitUsd = Number(entry.debitAmount || 0) * rowExchangeRate
                               const creditUsd = Number(entry.creditAmount || 0) * rowExchangeRate
                               const balanceUsd = Number(entry.runningBalance || 0) * rowExchangeRate
-                              const rowMetalCode = resolveMetalCode(entry)
-                              const rowMetalPrice = rowMetalCode === 'XAG' ? silverPriceUSD : rowMetalCode === 'XAU' ? goldPriceUSD : 0
-                              const debitPureWeight = rowMetalPrice > 0 ? debitUsd / rowMetalPrice : null
-                              const creditPureWeight = rowMetalPrice > 0 ? creditUsd / rowMetalPrice : null
-                              const balancePureWeight = rowMetalPrice > 0 ? balanceUsd / rowMetalPrice : null
+                              const sourceType = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
+                              const isMetalRow = entry.isMetalTrade || sourceType === 'sale' || sourceType === 'purchase'
+                              const signedPureWeight = Number(entry.metalSignedWeight || 0)
+                              const debitPureWeight = isMetalRow && signedPureWeight > 0 ? signedPureWeight : (isMetalRow ? 0 : null)
+                              const creditPureWeight = isMetalRow && signedPureWeight < 0 ? Math.abs(signedPureWeight) : (isMetalRow ? 0 : null)
+                              const balancePureWeight = isMetalRow ? runningPureWeight : null
+                              if (isMetalRow) runningPureWeight -= signedPureWeight
                               return (
                                 <tr key={entry._id || `${entry.date}-${index}`} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                                   <td style={{ padding: '0.6rem', color: '#374151' }}>{formatStatementDate(entry.date)}</td>
@@ -7100,7 +7110,7 @@ function ERPTab() {
                                   <td style={{ padding: '0.6rem', color: '#374151' }}>{String(entry.referenceType || 'journal').toUpperCase()}</td>
                                   <td style={{ padding: '0.6rem', color: '#374151', textTransform: 'capitalize' }}>{entry.metalDealType || '-'}</td>
                                   <td style={{ padding: '0.6rem' }}>
-                                    {entry.metalFixStatus ? (
+                                    {(sourceType === 'sale' || sourceType === 'purchase') && (entry.metalFixStatus === 'fixed' || entry.metalFixStatus === 'unfixed') ? (
                                       <span style={{ background: entry.metalFixStatus === 'fixed' ? '#DCFCE7' : '#FEF3C7', color: entry.metalFixStatus === 'fixed' ? '#166534' : '#92400E', borderRadius: '999px', padding: '0.12rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', textTransform: 'capitalize' }}>
                                         {entry.metalFixStatus}
                                       </span>
@@ -7122,7 +7132,8 @@ function ERPTab() {
                                   </td>
                                 </tr>
                               )
-                            })
+                              })
+                            })()
                           )}
                         </tbody>
                       </table>

@@ -84,6 +84,18 @@ const normalizeMetalFixStatus = (value) => {
   return ''
 }
 
+const DIRECT_DEAL_STOCK_TO_OZ = {
+  OZ: 1,
+  GRAM: 0.0321507,
+  KG: 32.1507,
+}
+
+const normalizeDirectDealStockCode = (value) => String(value || 'OZ').trim().toUpperCase()
+const directDealEqOzFromQtyAndStock = (qty, stockCode) => {
+  const ratio = DIRECT_DEAL_STOCK_TO_OZ[normalizeDirectDealStockCode(stockCode)] || 1
+  return Number(qty || 0) * ratio
+}
+
 const ensureUsdCurrencyConfig = async () => {
   const usd = await Currency.findOneAndUpdate(
     { code: BASE_CURRENCY_CODE },
@@ -217,6 +229,189 @@ const ensureAccountByCode = async ({ user, code, name, accountType, currency = B
   return account
 }
 
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const nextGeneratedAccountCode = async (prefix) => {
+  const normalizedPrefix = String(prefix || '').trim()
+  if (!normalizedPrefix) throw new Error('Account code prefix is required')
+
+  const pattern = new RegExp(`^${escapeRegex(normalizedPrefix)}\\d{4}$`)
+  const latest = await ChartOfAccount.findOne({ accountCode: pattern })
+    .sort({ accountCode: -1 })
+    .select('accountCode')
+    .lean()
+
+  let seq = latest ? Number(String(latest.accountCode).slice(normalizedPrefix.length) || 0) + 1 : 1
+  let code = ''
+  // Keep retry deterministic in very rare parallel races.
+  while (!code || await ChartOfAccount.exists({ accountCode: code })) {
+    code = `${normalizedPrefix}${String(seq).padStart(4, '0')}`
+    seq += 1
+  }
+  return code
+}
+
+const ensureChildAccountByName = async ({ user, parentAccount, accountType, accountName, codePrefix, currency = BASE_CURRENCY_CODE }) => {
+  const existing = await ChartOfAccount.findOne({
+    parentAccountId: parentAccount?._id || null,
+    accountType,
+    accountName: new RegExp(`^${escapeRegex(accountName)}$`, 'i'),
+  })
+
+  if (existing) {
+    if (!existing.isActive) {
+      existing.isActive = true
+      await existing.save()
+    }
+    return existing
+  }
+
+  const accountCode = await nextGeneratedAccountCode(codePrefix)
+  return ChartOfAccount.create({
+    accountName,
+    accountCode,
+    accountType,
+    parentAccountId: parentAccount?._id || null,
+    currency,
+    description: `Auto-created fixing sub account: ${accountName}`,
+    createdBy: user._id,
+  })
+}
+
+const metalDisplayName = (metal) => {
+  const code = String(metal || 'XAU').trim().toUpperCase()
+  if (code === 'XAG') return 'Silver'
+  if (code === 'XPT') return 'Platinum'
+  if (code === 'XPD') return 'Palladium'
+  if (code === 'XAU') return 'Gold'
+  return code || 'Metal'
+}
+
+const resolveDirectDealCustomer = async (line, lineNumber) => {
+  const customerId = sanitizeOptionalRef(line.customerId)
+  if (!customerId) {
+    throw new Error(`Line ${lineNumber}: customer selection is required`)
+  }
+
+  const customer = await Customer.findOne({ _id: customerId, isActive: true })
+    .populate('ledgerAccountId', 'accountCode accountName accountType isActive')
+
+  if (!customer) throw new Error(`Line ${lineNumber}: customer not found or inactive`)
+  if (!customer.ledgerAccountId) throw new Error(`Line ${lineNumber}: customer ledger account is not configured`)
+
+  return customer
+}
+
+const normalizeDirectDealLine = async (line, idx) => {
+  const lineNumber = idx + 1
+  const customer = await resolveDirectDealCustomer(line, lineNumber)
+
+  const qty = Number(line.qty || 0)
+  const price = Number(line.price || 0)
+  const stockCode = normalizeDirectDealStockCode(line.stockCode)
+  const eqOz = Number(line.eqOz || directDealEqOzFromQtyAndStock(qty, stockCode) || 0)
+  const amount = Number(line.amount || (eqOz * price) || 0)
+  const direction = String(line.direction || '').toLowerCase()
+  if (!['buy', 'sell'].includes(direction)) {
+    throw new Error(`Line ${lineNumber}: direction must be buy or sell`)
+  }
+  if (!Number.isFinite(qty) || qty <= 0) throw new Error(`Line ${lineNumber}: quantity must be greater than zero`)
+  if (!Number.isFinite(price) || price <= 0) throw new Error(`Line ${lineNumber}: price must be greater than zero`)
+
+  return {
+    customerId: customer._id,
+    customerCode: String(line.customerCode || customer.ledgerAccountId?.accountCode || '').trim(),
+    customerName: String(line.customerName || customer.name || '').trim(),
+    direction,
+    metal: String(line.metal || 'XAU').toUpperCase(),
+    qty: toQty(qty),
+    stockCode,
+    price: toMoney(price),
+    eqOz: toQty(eqOz),
+    amount: toMoney(amount),
+    notes: String(line.notes || '').trim(),
+  }
+}
+
+const syncDirectDealLedger = async ({ deal, user }) => {
+  await Ledger.updateMany(
+    { referenceType: 'direct_deal', referenceId: deal._id, isDeleted: { $ne: true } },
+    { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
+  )
+
+  if (String(deal.status || '') !== 'confirmed') return
+
+  const salesRevenueParent = await ensureAccountByCode({
+    user,
+    code: '4000',
+    name: 'Sales Revenue',
+    accountType: 'Income',
+    currency: deal.currency || BASE_CURRENCY_CODE,
+  })
+  const costOfSalesParent = await ensureAccountByCode({
+    user,
+    code: '5101',
+    name: 'Cost Of Goods Sold',
+    accountType: 'Expense',
+    currency: deal.currency || BASE_CURRENCY_CODE,
+  })
+
+  const subAccountCache = new Map()
+  const normalizedDate = deal.valueDate || deal.docDate || new Date()
+  const lines = Array.isArray(deal.lineItems) ? deal.lineItems : []
+
+  for (let idx = 0; idx < lines.length; idx += 1) {
+    const line = lines[idx]
+    const customer = await resolveDirectDealCustomer(line, idx + 1)
+    const direction = String(line.direction || '').toLowerCase()
+    const metal = String(line.metal || 'XAU').toUpperCase()
+    // Direction is customer direction:
+    // buy  => company sells to customer (Sales Fixing)
+    // sell => company buys from customer (Purchase Fixing)
+    const accountType = direction === 'buy' ? 'Income' : 'Expense'
+    const parentAccount = direction === 'buy' ? salesRevenueParent : costOfSalesParent
+    const directionLabel = direction === 'buy' ? 'Sales' : 'Purchase'
+    const accountName = `${metalDisplayName(metal)} ${directionLabel} Fixing`
+    const cacheKey = `${direction}:${metal}`
+
+    let fixingAccount = subAccountCache.get(cacheKey)
+    if (!fixingAccount) {
+      fixingAccount = await ensureChildAccountByName({
+        user,
+        parentAccount,
+        accountType,
+        accountName,
+        codePrefix: direction === 'buy' ? '91' : '92',
+        currency: deal.currency || BASE_CURRENCY_CODE,
+      })
+      subAccountCache.set(cacheKey, fixingAccount)
+    }
+
+    const amount = toMoney(Number(line.amount || (Number(line.qty || 0) * Number(line.price || 0)) || 0))
+    if (amount <= 0) continue
+
+    const isCustomerBuy = direction === 'buy'
+    const debitAccountId = isCustomerBuy ? customer.ledgerAccountId._id : fixingAccount._id
+    const creditAccountId = isCustomerBuy ? fixingAccount._id : customer.ledgerAccountId._id
+
+    await Ledger.create({
+      date: normalizedDate,
+      debitAccountId,
+      creditAccountId,
+      amount,
+      description: `${deal.docNo} ${direction.toUpperCase()} ${metal} fixing - ${customer.name}`,
+      referenceType: 'direct_deal',
+      referenceId: deal._id,
+      createdBy: user._id,
+      updatedBy: user._id,
+      department: user.department || deal.branch || '',
+      currency: deal.currency || BASE_CURRENCY_CODE,
+      exchangeRate: 1,
+      notes: `Direct deal line ${idx + 1}`,
+    })
+  }
+}
+
 const resolveVoucherInventoryLineQuantity = (line = {}) => {
   const grossWeight = Number(line.grossWeight || 0)
   if (grossWeight > 0) return toQty(grossWeight)
@@ -301,9 +496,6 @@ const prepareVoucherInventoryImpact = async ({ user, tx }) => {
 
   const inventoryPlans = resolvedLines.map(({ line, item, quantity, lineAmount }) => {
     const inventoryAccountId = item.ledgerAccountId || defaultInventoryAccount._id
-    if (transactionType === 'sale' && Number(item.quantity || 0) < quantity) {
-      throw new Error(`Insufficient stock for ${item.name}`)
-    }
 
     return {
       line,
@@ -327,13 +519,17 @@ const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
   const plans = Array.isArray(preparedImpact?.inventoryPlans) ? preparedImpact.inventoryPlans : []
   if (!plans.length || !['sale', 'purchase'].includes(transactionType)) return
 
+  const fixingType = String(tx?.voucherMeta?.fixingType || tx?.metalFixStatus || 'fixed').toLowerCase()
+  const isUnfixed = ['unfixed', 'non-fixing', 'nonfixing', 'non_fixing'].includes(fixingType)
+  const fixLabel = isUnfixed ? 'UNFIXED' : 'FIXED'
+
+  // Process stock movements for BOTH fixed and unfixed sale/purchase vouchers.
   for (const plan of plans) {
     const item = await InventoryItem.findById(plan.item._id)
     if (!item || item.isDeleted) continue
 
     const beforeQty = Number(item.quantity || 0)
     const movementQty = Number(plan.quantity || 0)
-    const inventoryAccountId = item.ledgerAccountId || plan.inventoryAccountId
 
     if (transactionType === 'purchase') {
       const nextQty = toQty(beforeQty + movementQty)
@@ -353,7 +549,7 @@ const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
         change: movementQty,
         quantityBefore: beforeQty,
         quantityAfter: nextQty,
-        reason: `Voucher purchase${tx.voucherMeta?.vocNo ? ` #${tx.voucherMeta.vocNo}` : ''}`,
+        reason: `Voucher purchase (${fixLabel})${tx.voucherMeta?.vocNo ? ` #${tx.voucherMeta.vocNo}` : ''}`,
         actorId: user._id,
         actorName: user.name,
       })
@@ -371,27 +567,10 @@ const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
       change: -movementQty,
       quantityBefore: beforeQty,
       quantityAfter: nextQty,
-      reason: `Voucher sale${tx.voucherMeta?.vocNo ? ` #${tx.voucherMeta.vocNo}` : ''}`,
+      reason: `Voucher sale (${fixLabel})${tx.voucherMeta?.vocNo ? ` #${tx.voucherMeta.vocNo}` : ''}`,
       actorId: user._id,
       actorName: user.name,
     })
-
-    if (Number(plan.costAmount || 0) > 0 && preparedImpact?.cogsAccountId && inventoryAccountId) {
-      await Ledger.create({
-        date: tx.date || new Date(),
-        debitAccountId: preparedImpact.cogsAccountId,
-        creditAccountId: inventoryAccountId,
-        amount: toMoney(plan.costAmount),
-        description: `${tx.description || 'Sale transaction'} - COGS for ${item.name}`,
-        referenceType: 'cogs',
-        referenceId: tx._id,
-        createdBy: user._id,
-        updatedBy: user._id,
-        department: user.department,
-        currency: tx.currency || BASE_CURRENCY_CODE,
-        exchangeRate: Number(tx.exchangeRate || 1),
-      })
-    }
   }
 }
 
@@ -552,19 +731,115 @@ const applyTransactionWorkflowAction = async (tx, user, action, options = {}) =>
     }
 
     const preparedVoucherImpact = await prepareVoucherInventoryImpact({ user, tx })
+    
+    // Determine if this is an UNFIXED transaction (stock-only, no value posting)
+    const transactionType = String(tx?.type || '').toLowerCase()
+    const fixingType = String(tx?.voucherMeta?.fixingType || tx?.metalFixStatus || 'fixed').toLowerCase()
+    const isUnfixed = ['sale', 'purchase'].includes(transactionType) && 
+                      ['unfixed', 'non-fixing', 'nonfixing', 'non_fixing'].includes(fixingType)
+
+    // ALWAYS resolve accounts - both UNFIXED and FIXED need them for reference
     const resolved = await resolveTransactionAccounts({ user, tx, mappingOverride: options.mappingOverride || {}, preparedVoucherImpact })
     tx.debitAccountId = resolved.debitAccountId
     tx.creditAccountId = resolved.creditAccountId
 
-    const ledgerEntry = await createLedgerFromTransaction({
-      user,
-      transaction: tx,
+    // For FIXED transactions: create regular value ledger entry.
+    // For UNFIXED transactions: create a zero-value ledger entry so it appears in statement with Fix/Unfix label.
+    let ledgerEntry = null
+    // Keep posting idempotent: collapse duplicate main ledger rows from failed retry attempts.
+    const existingMainEntries = await Ledger.find({
       referenceType: tx.type,
+      referenceId: tx._id,
+      isDeleted: { $ne: true },
     })
+      .sort({ createdAt: 1, _id: 1 })
 
-    await applyVoucherInventoryImpact({ user, tx, preparedImpact: preparedVoucherImpact })
+    if (existingMainEntries.length > 1) {
+      const keepEntry = existingMainEntries[existingMainEntries.length - 1]
+      const staleIds = existingMainEntries
+        .slice(0, -1)
+        .map((entry) => entry._id)
+
+      if (staleIds.length) {
+        await Ledger.updateMany(
+          { _id: { $in: staleIds } },
+          { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
+        )
+      }
+
+      tx.journalEntryId = keepEntry._id
+    }
+
+    if (tx.journalEntryId) {
+      ledgerEntry = await Ledger.findOne({ _id: tx.journalEntryId, isDeleted: { $ne: true } })
+    }
+    if (!ledgerEntry) {
+      ledgerEntry = await Ledger.findOne({
+        referenceType: tx.type,
+        referenceId: tx._id,
+        isDeleted: { $ne: true },
+      }).sort({ createdAt: -1, _id: -1 })
+    }
+    if (!ledgerEntry) {
+      if (!isUnfixed) {
+        ledgerEntry = await createLedgerFromTransaction({
+          user,
+          transaction: tx,
+          referenceType: tx.type,
+        })
+      } else {
+        // For UNFIXED: only the premium amount impacts the ledger (not the base metal value)
+        const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+        const unfixedPremiumAmount = lines.reduce((sum, line) => {
+          const premiumVal = Number(line.premiumValue || 0)
+          if (!premiumVal) return sum
+          const purity = Number(line.purity || 0)
+          const purityRatio = purity > 1.2 ? purity / 1000 : purity
+          const grossWeight = Number(line.grossWeight || 0)
+          const storedPureWeight = Number(line.pureWeight || 0)
+          const pureWeight = storedPureWeight > 0 ? storedPureWeight : (grossWeight * purityRatio)
+          const rateType = String(line.rateType || 'OZ').trim().toUpperCase()
+          const weightInOz = pureWeight / 31.1034768
+          const rateQty = rateType === 'GRAM' ? pureWeight : rateType === 'KG' ? pureWeight / 1000 : weightInOz
+          return sum + (premiumVal * rateQty)
+        }, 0)
+
+        const roundedPremiumImpact = Number(unfixedPremiumAmount.toFixed(2))
+        const isDiscountImpact = roundedPremiumImpact < 0
+        const postingAmount = Math.abs(roundedPremiumImpact)
+        const debitAccountId = isDiscountImpact ? resolved.creditAccountId : resolved.debitAccountId
+        const creditAccountId = isDiscountImpact ? resolved.debitAccountId : resolved.creditAccountId
+
+        ledgerEntry = await Ledger.create({
+          date: tx.voucherMeta?.valueDate || tx.date || new Date(),
+          debitAccountId,
+          creditAccountId,
+          amount: postingAmount,
+          description: tx.description || `Unfixed ${tx.type} voucher`,
+          referenceType: tx.type,
+          referenceId: tx._id,
+          createdBy: user._id,
+          department: user.department || tx.department || '',
+          currency: tx.currency || 'USD',
+          exchangeRate: tx.exchangeRate || 1,
+          notes: isDiscountImpact
+            ? 'Unfixed voucher - discount-only ledger entry (customer credit impact).'
+            : 'Unfixed voucher - premium-only ledger entry (customer debit impact).',
+        })
+      }
+    }
+
+    // Remove stale COGS rows from failed posting attempts before re-applying inventory impact.
+    await Ledger.updateMany(
+      { referenceType: 'cogs', referenceId: tx._id, isDeleted: { $ne: true } },
+      { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
+    )
 
     tx.journalEntryId = ledgerEntry._id
+
+    // Apply inventory impact: UNFIXED posts stock only, FIXED skips stock
+    await applyVoucherInventoryImpact({ user, tx, preparedImpact: preparedVoucherImpact })
+
     tx.status = 'posted'
     tx.postedBy = user._id
     tx.updatedBy = user._id
@@ -677,7 +952,7 @@ const nextCustomerAccountCode = async () => {
 }
 
 const nextVendorAccountCode = async () => {
-  const base = 2000
+  const base = 2300
   let code = base
   while (await ChartOfAccount.exists({ accountCode: String(code) })) {
     code += 1
@@ -1097,22 +1372,22 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
     }
 
     if (transactionType === 'sale') {
-      if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Accounts Receivable', code: '1200', type: 'Asset' })
-      if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Metal Sales Revenue', code: '4100', type: 'Income' })
+      if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Accounts Receivable', code: '1100', type: 'Asset' })
+      if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Sales Revenue', code: '4000', type: 'Income' })
     } else if (transactionType === 'purchase') {
       const hasVoucherInventory = Boolean(preparedVoucherImpact?.purchaseDebitAccountId || tx.inventoryItemId || (Array.isArray(tx.voucherMeta?.lineItems) && tx.voucherMeta.lineItems.length))
       if (!debitAccountId) {
         debitAccountId = hasVoucherInventory
-          ? await ensureAccount({ name: 'Metal Inventory', code: '1300', type: 'Asset' })
+          ? await ensureAccount({ name: 'Metal Inventory', code: '1210', type: 'Asset' })
           : await ensureAccount({ name: 'Metal Purchases', code: '5100', type: 'Expense' })
       }
-      if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Accounts Payable', code: '2100', type: 'Liability' })
+      if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Accounts Payable', code: '2000', type: 'Liability' })
     } else if (transactionType === 'receipt') {
       if (!debitAccountId) debitAccountId = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank').then(a => a._id)
-      if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Accounts Receivable', code: '1200', type: 'Asset' })
+      if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Accounts Receivable', code: '1100', type: 'Asset' })
     } else if (transactionType === 'payment') {
       if (!creditAccountId) creditAccountId = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank').then(a => a._id)
-      if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Accounts Payable', code: '2100', type: 'Liability' })
+      if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Accounts Payable', code: '2000', type: 'Liability' })
     }
   }
 
@@ -1134,7 +1409,7 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
   const amountInBase = Number(transaction.amount || 0) * exchangeRate
 
   const entry = await Ledger.create({
-    date: transaction.date || new Date(),
+    date: transaction.voucherMeta?.valueDate || transaction.date || new Date(),
     debitAccountId: transaction.debitAccountId,
     creditAccountId: transaction.creditAccountId,
     amount: toMoney(amountInBase),
@@ -1513,13 +1788,33 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Account not found' })
     }
 
+    const relatedAccountIds = [account._id]
+    if (account.accountCode === '1100') {
+      const customerLedgerIds = await Customer.find({ isActive: true, ledgerAccountId: { $ne: null } }).distinct('ledgerAccountId')
+      customerLedgerIds.forEach((id) => {
+        if (id && String(id) !== String(account._id)) relatedAccountIds.push(id)
+      })
+    }
+    if (account.accountCode === '2100') {
+      const vendorLedgerIds = await Vendor.find({ isActive: true, deletedAt: null, ledgerAccountId: { $ne: null } }).distinct('ledgerAccountId')
+      vendorLedgerIds.forEach((id) => {
+        if (id && String(id) !== String(account._id)) relatedAccountIds.push(id)
+      })
+    }
+
+    const scopedRelatedAccountIds = Array.isArray(scopedIds)
+      ? relatedAccountIds.filter((id) => scopedIds.some((scopedId) => String(scopedId) === String(id)))
+      : relatedAccountIds
+
+    const targetAccountIds = scopedRelatedAccountIds.length ? scopedRelatedAccountIds : [account._id]
+
     const [debitAgg, creditAgg] = await Promise.all([
       Ledger.aggregate([
-        { $match: { debitAccountId: account._id, isDeleted: { $ne: true } } },
+        { $match: { debitAccountId: { $in: targetAccountIds }, isDeleted: { $ne: true } } },
         { $group: { _id: null, total: { $sum: '$amount' } } },
       ]),
       Ledger.aggregate([
-        { $match: { creditAccountId: account._id, isDeleted: { $ne: true } } },
+        { $match: { creditAccountId: { $in: targetAccountIds }, isDeleted: { $ne: true } } },
         { $group: { _id: null, total: { $sum: '$amount' } } },
       ]),
     ])
@@ -1528,6 +1823,10 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     const creditTotal = Number(creditAgg[0]?.total || 0)
     const netBalance = debitTotal - creditTotal
     const netDirection = netBalance > 0 ? 'Debit' : netBalance < 0 ? 'Credit' : 'Flat'
+    const isUnfixedFixingType = (value) => {
+      const normalized = String(value || '').trim().toLowerCase()
+      return ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(normalized)
+    }
 
     const latestRate = await getLatestMetalRate()
     const rates = latestRate
@@ -1549,12 +1848,42 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     const exchangeRateToBase = Number(accountCurrency?.exchangeRate || 1)
     const convertedToRateCurrency = Number(netBalance) * exchangeRateToBase
 
-    const goldBalance = rates.goldPrice > 0 ? convertedToRateCurrency / rates.goldPrice : 0
-    const silverBalance = rates.silverPrice > 0 ? convertedToRateCurrency / rates.silverPrice : 0
+    // Metal position: sum pureWeight from actual UNFIXED metal sale/purchase transactions for this account's customer.
+    // Fixed deals must affect value only, while unfixed deals affect metal balance.
+    // Do NOT derive metal position from cash balance — that produces fabricated metal positions.
+    let goldBalance = 0
+    let silverBalance = 0
+    const linkedCustomer = await Customer.findOne({ ledgerAccountId: account._id, isActive: true }).lean()
+    if (linkedCustomer) {
+      const metalTxs = await Transaction.find({
+        customerId: linkedCustomer._id,
+        type: { $in: ['sale', 'purchase'] },
+        status: 'posted',
+        isDeleted: { $ne: true },
+      }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+
+      for (const tx of metalTxs) {
+        const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
+        if (!isUnfixedFixingType(fixingType)) continue
+        const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+        for (const line of lines) {
+          const pw = Number(line.pureWeight || 0)
+          if (pw === 0) continue
+          const sc = String(line.stockCode || '').toUpperCase()
+          const isSilver = sc.includes('XAG') || sc.includes('SILV')
+          const sign = tx.type === 'purchase' ? 1 : -1
+          if (isSilver) {
+            silverBalance += sign * pw
+          } else {
+            goldBalance += sign * pw
+          }
+        }
+      }
+    }
 
     const ledgerEntries = await Ledger.find({
       isDeleted: { $ne: true },
-      $or: [{ debitAccountId: account._id }, { creditAccountId: account._id }],
+      $or: [{ debitAccountId: { $in: targetAccountIds } }, { creditAccountId: { $in: targetAccountIds } }],
     })
       .populate('debitAccountId', 'accountCode accountName')
       .populate('creditAccountId', 'accountCode accountName')
@@ -1582,6 +1911,63 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       }
       return ''
     }
+    const resolveLineMetalCode = (line = {}) => {
+      const stockText = String(line?.stockCode || '').trim().toUpperCase()
+      if (stockText === 'XAU' || stockText.includes('GOLD')) return 'XAU'
+      if (stockText === 'XAG' || stockText.includes('SILV')) return 'XAG'
+      const productText = `${String(line?.productType || '')} ${String(line?.narration || '')}`.toLowerCase()
+      if (productText.includes('gold') || productText.includes('xau')) return 'XAU'
+      if (productText.includes('silver') || productText.includes('xag')) return 'XAG'
+      return ''
+    }
+    const resolveSignedPureWeight = (txType, lines = [], txMetalCode = '') => {
+      const arr = Array.isArray(lines) ? lines : []
+      const gross = arr.reduce((sum, line) => {
+        const explicitPureWeight = Number(line?.pureWeight || 0)
+        const grossWeight = Number(line?.grossWeight || 0)
+        const purityValue = Number(line?.purity || 0)
+        const purityRatio = purityValue > 1.2 ? (purityValue / 1000) : purityValue
+        const derivedPureWeight = grossWeight > 0 && purityRatio > 0 ? (grossWeight * purityRatio) : 0
+        const pw = explicitPureWeight > 0 ? explicitPureWeight : derivedPureWeight
+        if (!Number.isFinite(pw) || pw <= 0) return sum
+        const lineMetalCode = resolveLineMetalCode(line)
+        if (txMetalCode && lineMetalCode && lineMetalCode !== txMetalCode) return sum
+        return sum + pw
+      }, 0)
+      if (txType === 'purchase') return Number(gross || 0)
+      if (txType === 'sale') return Number(-(gross || 0))
+      return 0
+    }
+    const resolveDirectDealLineWeightGram = (line = {}) => {
+      const qty = Number(line?.qty || 0)
+      if (!Number.isFinite(qty) || qty <= 0) return 0
+      const stockCode = String(line?.stockCode || 'OZ').trim().toUpperCase()
+      if (stockCode === 'KG') return qty * 1000
+      if (stockCode === 'GRAM') return qty
+      return qty * 31.1034768
+    }
+    const resolveDirectDealLineSignedWeight = (line = {}) => {
+      const grams = resolveDirectDealLineWeightGram(line)
+      if (grams <= 0) return 0
+      const direction = String(line?.direction || '').trim().toLowerCase()
+      // Customer direction semantics:
+      // buy  => company sold metal to customer => metal credit (negative sign)
+      // sell => company bought metal from customer => metal debit (positive sign)
+      return direction === 'buy' ? -grams : grams
+    }
+    const resolveDirectDealLineType = (line = {}) => {
+      const direction = String(line?.direction || '').trim().toLowerCase()
+      return direction === 'buy' ? 'sale' : 'purchase'
+    }
+    const resolveDirectDealLineMetalCode = (line = {}) => {
+      return String(line?.metal || '').trim().toUpperCase() || ''
+    }
+    const resolveDirectDealLineIndexFromNotes = (notes = '') => {
+      const match = String(notes || '').match(/line\s+(\d+)/i)
+      if (!match) return -1
+      const idx = Number(match[1]) - 1
+      return Number.isInteger(idx) && idx >= 0 ? idx : -1
+    }
     const linkedTransactions = await Transaction.find({
       isDeleted: { $ne: true },
       $or: [
@@ -1589,36 +1975,78 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         { _id: { $in: referenceIds } },
       ],
     })
-      .select('_id journalEntryId type voucherMeta.vocNo voucherMeta.refNo voucherMeta.fixingType voucherMeta.lineItems.vatNumber voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration')
+      .select('_id journalEntryId type voucherMeta.vocNo voucherMeta.refNo voucherMeta.fixingType voucherMeta.lineItems.vatNumber voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration voucherMeta.lineItems.pureWeight voucherMeta.lineItems.grossWeight voucherMeta.lineItems.purity')
       .lean()
 
     const transactionByLedgerId = new Map()
     const transactionById = new Map()
+    const directDealById = new Map()
     linkedTransactions.forEach((tx) => {
       const lineTxNo = Array.isArray(tx.voucherMeta?.lineItems)
         ? String(tx.voucherMeta.lineItems.find((line) => String(line?.vatNumber || '').trim())?.vatNumber || '').trim()
         : ''
       const txNumber = String(tx.voucherMeta?.vocNo || tx.voucherMeta?.refNo || lineTxNo || '').trim()
       const txType = String(tx.type || '').trim().toLowerCase()
+      const fixingStatus = normalizeFixingStatus(tx.voucherMeta?.fixingType)
       const metalCode = resolveMetalCodeFromLines(tx.voucherMeta?.lineItems)
       const hasVoucherLines = Array.isArray(tx.voucherMeta?.lineItems) && tx.voucherMeta.lineItems.length > 0
+      const isMetalTrade = ['sale', 'purchase'].includes(txType) && Boolean(metalCode || hasVoucherLines)
+      const metalSignedWeight = (isMetalTrade && fixingStatus === 'unfixed')
+        ? resolveSignedPureWeight(txType, tx.voucherMeta?.lineItems, metalCode)
+        : 0
       const txRef = {
         id: String(tx._id),
         number: txNumber,
         transactionType: txType,
-        metalFixStatus: normalizeFixingStatus(tx.voucherMeta?.fixingType),
+        metalFixStatus: isMetalTrade ? fixingStatus : '',
         metalCode,
-        isMetalTrade: ['sale', 'purchase'].includes(txType) && Boolean(metalCode || hasVoucherLines),
+        isMetalTrade,
+        metalSignedWeight,
       }
       if (tx.journalEntryId) transactionByLedgerId.set(String(tx.journalEntryId), txRef)
       transactionById.set(String(tx._id), txRef)
     })
 
+    const directDealIds = ledgerEntries
+      .filter((entry) => String(entry.referenceType || '').toLowerCase() === 'direct_deal' && entry.referenceId)
+      .map((entry) => String(entry.referenceId))
+
+    if (directDealIds.length > 0) {
+      const directDeals = await DirectDeal.find({ _id: { $in: directDealIds }, isDeleted: { $ne: true } })
+        .select('_id docNo lineItems.customerId lineItems.customerCode lineItems.customerName lineItems.direction lineItems.metal lineItems.qty lineItems.stockCode')
+        .lean()
+
+      directDeals.forEach((deal) => {
+        directDealById.set(String(deal._id), deal)
+      })
+    }
+
     let runningBalance = netBalance
     const statementEntries = ledgerEntries.map((entry) => {
-      const isDebitEntry = String(entry.debitAccountId?._id || entry.debitAccountId) === String(account._id)
+      const debitId = String(entry.debitAccountId?._id || entry.debitAccountId || '')
+      const isDebitEntry = targetAccountIds.some((id) => String(id) === debitId)
       const signedAmount = isDebitEntry ? Number(entry.amount || 0) : -Number(entry.amount || 0)
-      const linkedTx = transactionByLedgerId.get(String(entry._id)) || transactionById.get(String(entry.referenceId || '')) || null
+      let linkedTx = transactionByLedgerId.get(String(entry._id)) || transactionById.get(String(entry.referenceId || '')) || null
+      if (!linkedTx && String(entry.referenceType || '').toLowerCase() === 'direct_deal') {
+        const deal = directDealById.get(String(entry.referenceId || ''))
+        if (deal) {
+          const lines = Array.isArray(deal.lineItems) ? deal.lineItems : []
+          const lineIndex = resolveDirectDealLineIndexFromNotes(entry.notes)
+          const line = lineIndex >= 0 && lineIndex < lines.length ? lines[lineIndex] : lines[0]
+          if (line) {
+            const txType = resolveDirectDealLineType(line)
+            linkedTx = {
+              id: String(deal._id),
+              number: String(deal.docNo || '').trim(),
+              transactionType: txType,
+              metalFixStatus: '',
+              metalCode: resolveDirectDealLineMetalCode(line),
+              isMetalTrade: true,
+              metalSignedWeight: resolveDirectDealLineSignedWeight(line),
+            }
+          }
+        }
+      }
       const row = {
         _id: entry._id,
         date: entry.date,
@@ -1643,6 +2071,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         metalFixStatus: linkedTx?.metalFixStatus || '',
         metalCode: linkedTx?.metalCode || '',
         isMetalTrade: Boolean(linkedTx?.isMetalTrade),
+        metalSignedWeight: Number(linkedTx?.metalSignedWeight || 0),
       }
       runningBalance -= signedAmount
       return row
@@ -2982,7 +3411,6 @@ router.post('/inventory/stock-out', protect, async (req, res) => {
 
     const item = await InventoryItem.findById(itemId)
     if (!item || item.isDeleted) return res.status(404).json({ success: false, message: 'Product not found' })
-    if (Number(item.quantity || 0) < qty) return res.status(400).json({ success: false, message: 'Insufficient stock quantity' })
 
     const before = Number(item.quantity || 0)
     item.quantity = before - qty
@@ -3170,30 +3598,7 @@ router.post('/direct-deals', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: 'At least one line item is required' })
     }
 
-    const normalizedLines = lineItems.map((line) => {
-      const qty = Number(line.qty || 0)
-      const price = Number(line.price || 0)
-      const amount = Number(line.amount || (qty * price) || 0)
-      if (!['buy', 'sell'].includes(String(line.direction || '').toLowerCase())) {
-        throw new Error('Line direction must be buy or sell')
-      }
-      if (!Number.isFinite(qty) || qty <= 0) throw new Error('Line quantity must be greater than zero')
-      if (!Number.isFinite(price) || price <= 0) throw new Error('Line price must be greater than zero')
-
-      return {
-        customerId: sanitizeOptionalRef(line.customerId),
-        customerCode: String(line.customerCode || '').trim(),
-        customerName: String(line.customerName || '').trim(),
-        direction: String(line.direction).toLowerCase(),
-        metal: String(line.metal || 'XAU').toUpperCase(),
-        qty: toQty(qty),
-        stockCode: String(line.stockCode || 'OZ').toUpperCase(),
-        price: toMoney(price),
-        eqOz: toQty(Number(line.eqOz || qty || 0)),
-        amount: toMoney(amount),
-        notes: String(line.notes || '').trim(),
-      }
-    })
+    const normalizedLines = await Promise.all(lineItems.map((line, idx) => normalizeDirectDealLine(line, idx)))
 
     const totalQty = toQty(normalizedLines.reduce((sum, line) => sum + Number(line.qty || 0), 0))
     const totalAmount = toMoney(normalizedLines.reduce((sum, line) => sum + Number(line.amount || 0), 0))
@@ -3213,6 +3618,8 @@ router.post('/direct-deals', protect, async (req, res) => {
       createdBy: req.user._id,
       updatedBy: req.user._id,
     })
+
+    await syncDirectDealLedger({ deal, user: req.user })
 
     res.status(201).json({ success: true, deal })
   } catch (e) {
@@ -3265,30 +3672,7 @@ router.put('/direct-deals/:id', protect, async (req, res) => {
       if (!Array.isArray(lineItems) || !lineItems.length) {
         return res.status(400).json({ success: false, message: 'At least one line item is required' })
       }
-      const normalizedLines = lineItems.map((line) => {
-        const qty = Number(line.qty || 0)
-        const price = Number(line.price || 0)
-        const amount = Number(line.amount || (qty * price) || 0)
-        if (!['buy', 'sell'].includes(String(line.direction || '').toLowerCase())) {
-          throw new Error('Line direction must be buy or sell')
-        }
-        if (!Number.isFinite(qty) || qty <= 0) throw new Error('Line quantity must be greater than zero')
-        if (!Number.isFinite(price) || price <= 0) throw new Error('Line price must be greater than zero')
-
-        return {
-          customerId: sanitizeOptionalRef(line.customerId),
-          customerCode: String(line.customerCode || '').trim(),
-          customerName: String(line.customerName || '').trim(),
-          direction: String(line.direction).toLowerCase(),
-          metal: String(line.metal || 'XAU').toUpperCase(),
-          qty: toQty(qty),
-          stockCode: String(line.stockCode || 'OZ').toUpperCase(),
-          price: toMoney(price),
-          eqOz: toQty(Number(line.eqOz || qty || 0)),
-          amount: toMoney(amount),
-          notes: String(line.notes || '').trim(),
-        }
-      })
+      const normalizedLines = await Promise.all(lineItems.map((line, idx) => normalizeDirectDealLine(line, idx)))
       deal.lineItems = normalizedLines
       deal.totalQty = toQty(normalizedLines.reduce((sum, line) => sum + Number(line.qty || 0), 0))
       deal.totalAmount = toMoney(normalizedLines.reduce((sum, line) => sum + Number(line.amount || 0), 0))
@@ -3296,6 +3680,7 @@ router.put('/direct-deals/:id', protect, async (req, res) => {
 
     deal.updatedBy = req.user._id
     await deal.save()
+    await syncDirectDealLedger({ deal, user: req.user })
 
     res.json({ success: true, deal })
   } catch (e) {
@@ -3316,6 +3701,11 @@ router.delete('/direct-deals/:id', protect, async (req, res) => {
     deal.deletedAt = new Date()
     deal.updatedBy = req.user._id
     await deal.save()
+
+    await Ledger.updateMany(
+      { referenceType: 'direct_deal', referenceId: deal._id, isDeleted: { $ne: true } },
+      { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: req.user._id } }
+    )
 
     res.json({ success: true, message: 'Direct deal deleted', deal })
   } catch (e) {
@@ -3471,7 +3861,25 @@ router.put('/transactions/:id', protect, async (req, res) => {
   try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
-    if (tx.status === 'posted') return res.status(400).json({ success: false, message: 'Posted transaction cannot be modified' })
+
+    const wasPosted = tx.status === 'posted'
+
+    // If editing a posted transaction, reverse its ledger entries and reset to draft
+    if (wasPosted) {
+      const now = new Date()
+      await Ledger.updateMany(
+        { referenceId: tx._id, isDeleted: { $ne: true } },
+        { $set: { isDeleted: true, deletedAt: now, updatedBy: req.user._id } }
+      )
+      if (tx.journalEntryId) {
+        await Ledger.updateMany(
+          { _id: tx.journalEntryId, isDeleted: { $ne: true } },
+          { $set: { isDeleted: true, deletedAt: now, updatedBy: req.user._id } }
+        )
+      }
+      tx.status = 'draft'
+      tx.journalEntryId = null
+    }
 
     const nextType = req.body.type || tx.type
     if (!canCreateTransactionFor(req.user, nextType) && !isFinance(req.user) && !isSuperAdmin(req.user)) {
@@ -3518,10 +3926,46 @@ router.put('/transactions/:id', protect, async (req, res) => {
   }
 })
 
+router.post('/transactions/:id/void', protect, async (req, res) => {
+  try {
+    const tx = await Transaction.findById(req.params.id)
+    if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+
+    const now = new Date()
+
+    // Soft-delete all ledger entries linked to this transaction
+    await Ledger.updateMany(
+      { referenceId: tx._id, isDeleted: { $ne: true } },
+      { $set: { isDeleted: true, deletedAt: now, updatedBy: req.user._id } }
+    )
+
+    // Also soft-delete the journalEntryId ledger entry if present
+    if (tx.journalEntryId) {
+      await Ledger.updateMany(
+        { _id: tx.journalEntryId, isDeleted: { $ne: true } },
+        { $set: { isDeleted: true, deletedAt: now, updatedBy: req.user._id } }
+      )
+    }
+
+    tx.isDeleted = true
+    tx.deletedAt = now
+    tx.updatedBy = req.user._id
+    appendTransactionAudit(tx, req.user, 'void', { fromStatus: tx.status, toStatus: 'voided', comment: req.body?.reason || 'Voided by user' })
+    await tx.save()
+
+    res.json({ success: true, message: 'Transaction voided and ledger entries removed' })
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message || 'Server error' })
+  }
+})
+
 router.delete('/transactions/:id', protect, async (req, res) => {
   try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+    if (tx.status === 'posted') {
+      return res.status(400).json({ success: false, message: 'Posted transaction cannot be deleted' })
+    }
     tx.isDeleted = true
     tx.deletedAt = new Date()
     tx.updatedBy = req.user._id

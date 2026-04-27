@@ -80,6 +80,22 @@ const toNumber = (value) => {
   return Number.isFinite(num) ? num : 0
 }
 
+const customerAccountCode = (customer) => String(customer?.ledgerAccountId?.accountCode || customer?.code || '').trim()
+const customerDisplayLabel = (customer) => {
+  const code = customerAccountCode(customer)
+  return code ? `${code} - ${customer?.name || ''}` : String(customer?.name || '')
+}
+
+const normalizeStockCode = (value) => String(value || 'OZ').trim().toUpperCase()
+const calcEqOzFromQtyAndStock = (qty, stockCode) => {
+  const ratio = stockToOzMap[normalizeStockCode(stockCode)] || 1
+  return Number(qty || 0) * ratio
+}
+const calcAmountFromWeightAndPrice = (qty, stockCode, price) => {
+  const eqOz = calcEqOzFromQtyAndStock(qty, stockCode)
+  return eqOz * Number(price || 0)
+}
+
 const stockToOzMap = { OZ: 1, GRAM: 0.0321507, KG: 32.1507 }
 
 const makeLine = () => ({
@@ -204,7 +220,12 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
 
   const formTotals = useMemo(() => {
     const totalQty = form.lineItems.reduce((sum, line) => sum + toNumber(line.qty), 0)
-    const totalAmount = form.lineItems.reduce((sum, line) => sum + toNumber(line.amount || (toNumber(line.qty) * toNumber(line.price))), 0)
+    const totalAmount = form.lineItems.reduce((sum, line) => {
+      const qty = toNumber(line.qty)
+      const price = toNumber(line.price)
+      const stockCode = normalizeStockCode(line.stockCode)
+      return sum + toNumber(line.amount || calcAmountFromWeightAndPrice(qty, stockCode, price))
+    }, 0)
     return { totalQty, totalAmount }
   }, [form.lineItems])
 
@@ -234,22 +255,29 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
   const normalizePreviewRow = (row, idx) => {
     const customerCode = String(row.customerCode || '').trim()
     const customerName = String(row.customerName || '').trim()
-    const matchedCustomer = customers.find((c) => String(c.code || '').toLowerCase() === customerCode.toLowerCase())
+    const matchedCustomer = customers.find((c) => {
+      const byCode = customerCode && customerAccountCode(c).toLowerCase() === customerCode.toLowerCase()
+      const byName = customerName && String(c.name || '').trim().toLowerCase() === customerName.toLowerCase()
+      const byId = row.customerId && String(c._id) === String(row.customerId)
+      return byCode || byName || byId
+    })
     const qty = Number(row.qty || 0)
+    const stockCode = normalizeStockCode(row.stockCode)
     const price = Number(row.price || 0)
-    const amount = Number(row.amount || (qty * price) || 0)
+    const eqOz = Number(row.eqOz || calcEqOzFromQtyAndStock(qty, stockCode) || 0)
+    const amount = Number(row.amount || (eqOz * price) || 0)
 
     const normalized = {
       rowNo: row.rowNo || idx + 2,
       customerId: matchedCustomer?._id || row.customerId || '',
-      customerCode: customerCode || matchedCustomer?.code || '',
+      customerCode: customerCode || customerAccountCode(matchedCustomer) || '',
       customerName: customerName || matchedCustomer?.name || '',
       direction: String(row.direction || '').toLowerCase(),
       metal: String(row.metal || 'XAU').toUpperCase(),
       qty: String(row.qty || ''),
-      stockCode: String(row.stockCode || 'OZ').toUpperCase(),
+      stockCode,
       price: String(row.price || ''),
-      eqOz: String(row.eqOz || row.qty || ''),
+      eqOz: String(Number.isFinite(eqOz) ? Number(eqOz.toFixed(3)) : ''),
       amount: String(Number.isFinite(amount) ? Number(amount.toFixed(2)) : ''),
       notes: String(row.notes || '').trim(),
     }
@@ -283,19 +311,18 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
         if (i !== idx) return line
         const updated = { ...line, [key]: value }
         if (key === 'customerId') {
-          const customer = customers.find((c) => c._id === value)
+          const customer = customers.find((c) => String(c._id) === String(value))
           if (customer) {
-            updated.customerCode = customer.code || ''
+            updated.customerCode = customerAccountCode(customer)
             updated.customerName = customer.name || ''
           }
         }
         if (key === 'qty' || key === 'price' || key === 'stockCode') {
           const qty = toNumber(updated.qty)
           const price = toNumber(updated.price)
-          const stock = String(updated.stockCode || 'OZ').toUpperCase()
-          const ratio = stockToOzMap[stock] || 1
-          const eqOz = qty * ratio
-          const amount = qty * price
+          const stock = normalizeStockCode(updated.stockCode)
+          const eqOz = calcEqOzFromQtyAndStock(qty, stock)
+          const amount = calcAmountFromWeightAndPrice(qty, stock, price)
           updated.eqOz = eqOz ? eqOz.toFixed(3) : ''
           updated.amount = amount ? amount.toFixed(2) : ''
         }
@@ -308,25 +335,18 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
   const updateLineCustomerCode = (idx, value) => {
     setForm((prev) => {
       const code = String(value || '').trim()
-      const matched = customers.find((c) => String(c.code || '').toLowerCase() === code.toLowerCase())
+      const matched = customers.find((c) => customerAccountCode(c).toLowerCase() === code.toLowerCase())
       const next = prev.lineItems.map((line, i) => {
         if (i !== idx) return line
         return {
           ...line,
           customerCode: code,
-          customerId: matched?._id || line.customerId,
-          customerName: matched?.name || line.customerName,
+          customerId: matched?._id || '',
+          customerName: matched?.name || '',
         }
       })
       return { ...prev, lineItems: next }
     })
-  }
-
-  const pickCustomer = (idx) => {
-    if (typeof window === 'undefined') return
-    const val = window.prompt('Enter Customer ID (e.g. 000001, GC0007):')
-    if (!val) return
-    updateLineCustomerCode(idx, val)
   }
 
   const formatLineNumber = (idx, key, digits) => {
@@ -676,6 +696,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     if (!form.lineItems.length) return 'At least one line item is required'
 
     for (const [idx, line] of form.lineItems.entries()) {
+      if (!line.customerId) return `Line ${idx + 1}: customer is required`
       if (!line.direction || !['buy', 'sell'].includes(line.direction)) return `Line ${idx + 1}: direction must be Buy or Sell`
       if (!line.metal) return `Line ${idx + 1}: metal is required`
       if (toNumber(line.qty) <= 0) return `Line ${idx + 1}: quantity must be greater than zero`
@@ -705,9 +726,10 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
         lineItems: form.lineItems.map((line) => ({
           ...line,
           qty: toNumber(line.qty),
+          stockCode: normalizeStockCode(line.stockCode),
           price: toNumber(line.price),
-          eqOz: toNumber(line.eqOz || line.qty),
-          amount: toNumber(line.amount || (toNumber(line.qty) * toNumber(line.price))),
+          eqOz: toNumber(line.eqOz || calcEqOzFromQtyAndStock(toNumber(line.qty), normalizeStockCode(line.stockCode))),
+          amount: toNumber(line.amount || calcAmountFromWeightAndPrice(toNumber(line.qty), normalizeStockCode(line.stockCode), toNumber(line.price))),
         })),
       }
 
@@ -1011,23 +1033,17 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
                         <tr key={`line-${idx}`} style={{ borderBottom: '1px solid #ccc', background: '#fff' }}>
                           {/* Customer */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                              <input
-                                value={line.customerCode}
-                                onChange={(e) => updateLineCustomerCode(idx, e.target.value)}
-                                style={{ ...erpInpSt, width: '100%', border: '1px solid #bbb', padding: '4px 4px' }}
-                                disabled={viewMode !== 'EDIT' || !hasManage || saving}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => pickCustomer(idx)}
-                                style={{ width: 20, height: 22, background: 'linear-gradient(180deg,#e8e8e8,#c8c8c8)', border: '1px solid #999', borderRadius: 1, cursor: 'pointer', fontSize: 11, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                                title="Search"
-                                disabled={viewMode !== 'EDIT' || !hasManage || saving}
-                              >
-                                🔍
-                              </button>
-                            </div>
+                            <select
+                              value={line.customerId}
+                              onChange={(e) => updateLine(idx, 'customerId', e.target.value)}
+                              style={{ ...erpSelSt, width: '100%', border: '1px solid #bbb', padding: '3px 4px' }}
+                              disabled={viewMode !== 'EDIT' || !hasManage || saving}
+                            >
+                              <option value="">Select customer</option>
+                              {customers.map((customer) => (
+                                <option key={customer._id} value={customer._id}>{customerDisplayLabel(customer)}</option>
+                              ))}
+                            </select>
                           </td>
                           {/* Direction */}
                           <td style={{ padding: '3px 3px', borderRight: '1px solid #ddd' }}>

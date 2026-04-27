@@ -1,0 +1,27 @@
+﻿
+=== Verify Voucher 5 Fix ===
+
+Voucher 5 Status Check:
+
+Amount: $52217.52
+Status: posted
+Fixing Type: non-fixing
+
+Accounts:
+  Debit: 1100 - Accounts Receivable
+  Credit: 4000 - Sales Revenue
+
+Account Summary Query Test:
+Γ£à Voucher 5 WILL APPEAR in account summary for debit account
+   (Account: 1100 - Accounts Receivable)
+
+Ledger Entries: 0
+Expected for UNFIXED: 0
+Status: Γ£à CORRECT
+
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+Summary: Voucher 5 is now correctly configured
+Accounts are set: Γ£à
+Will appear in Account Summary: Γ£à
+Stock Movement recorded: Γ£à
+No ledger entry (UNFIXED correct): Γ£à
