@@ -226,6 +226,160 @@ const C = {
   danger: '#DC2626',
 }
 
+const ERP_DASH_ALL_WIDGETS = [
+  { id: 'margins',  label: 'Customer & Supplier Margins', icon: '📊', desc: 'Margin comparison by customer/supplier', cols: 2 },
+  { id: 'metals',   label: 'Current Metal Prices',         icon: '🥇', desc: 'Live gold, silver, platinum, palladium', cols: 1 },
+  { id: 'bank',     label: 'Bank & Cash Balances',         icon: '🏦', desc: 'Account balances overview',             cols: 1 },
+  { id: 'cashflow', label: 'Cash Flow',                    icon: '💸', desc: 'Monthly inflows and outflows',          cols: 1 },
+  { id: 'expenses', label: 'Expenses',                     icon: '📋', desc: 'Expense breakdown by category',         cols: 1 },
+  { id: 'volume',   label: 'Total Volume Traded',          icon: '📦', desc: 'Trade volume by metal type',            cols: 1 },
+  { id: 'apar',     label: 'AP & AR',                      icon: '⚖️',  desc: 'Payables & receivables overview',       cols: 2 },
+  { id: 'fixing',   label: 'Fixing Position Summary',      icon: '📌', desc: 'Open fixing positions by metal',        cols: 2 },
+  { id: 'assets',   label: 'Key Assets & Liabilities',     icon: '🏛️', desc: 'Balance sheet snapshot from accounts',  cols: 2 },
+  { id: 'notif',    label: 'Notifications & Alerts',       icon: '🔔', desc: 'System alerts and reminders',           cols: 1 },
+]
+const ERP_DASH_DEFAULT = ['metals', 'bank', 'apar', 'fixing', 'assets', 'notif']
+
+function renderERP_DashWidget(id, dashboard) {
+  const bdr = '1px solid #F0FDF4'
+  const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: bdr, fontSize: '0.82rem' }
+  const muted = '#6B7280'
+  const ink = '#111827'
+
+  switch (id) {
+    case 'margins': return (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        {[['Customer', [['Gold','18.4%',72],['Silver','12.1%',48],['Platinum','9.7%',39]], '#059669', '#F0FDF4'],
+          ['Supplier', [['Gold','14.2%',57],['Silver','8.5%',34],['Platinum','6.1%',24]], '#D97706', '#FEF9C3']].map(([title, rows, clr, bg]) => (
+          <div key={title}>
+            <p style={{ fontSize: '0.72rem', color: muted, marginBottom: '0.5rem' }}>{title} Margin</p>
+            {rows.map(([m, v, p]) => (
+              <div key={m} style={{ marginBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '3px' }}><span>{m}</span><span style={{ color: clr, fontWeight: '500' }}>{v}</span></div>
+                <div style={{ height: '5px', background: bg, borderRadius: '3px' }}><div style={{ height: '100%', width: `${p}%`, background: clr, borderRadius: '3px' }} /></div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    )
+    case 'metals': return (
+      <div>
+        {[{ n:'Gold',color:'#F59E0B',price:'$2,341.50',chg:'+0.42%',up:true },{ n:'Silver',color:'#9CA3AF',price:'$27.85',chg:'+0.18%',up:true },{ n:'Platinum',color:'#6366F1',price:'$956.20',chg:'-0.31%',up:false },{ n:'Palladium',color:'#EC4899',price:'$1,002.00',chg:'-0.55%',up:false }].map(m => (
+          <div key={m.n} style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0.45rem 0',borderBottom:'1px solid #F9FAFB' }}>
+            <div style={{ display:'flex',alignItems:'center',gap:'0.5rem',fontSize:'0.82rem',fontWeight:'500' }}><span style={{ width:'9px',height:'9px',borderRadius:'50%',background:m.color,display:'inline-block',flexShrink:0 }}/>{m.n}</div>
+            <div style={{ display:'flex',alignItems:'center',gap:'0.5rem' }}>
+              <span style={{ fontSize:'0.875rem',fontWeight:'600',color:ink }}>{m.price}</span>
+              <span style={{ fontSize:'0.7rem',padding:'1px 6px',borderRadius:'10px',background:m.up?'#DCFCE7':'#FEE2E2',color:m.up?'#16A34A':'#DC2626' }}>{m.chg}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+    case 'bank': return (
+      <div>
+        {[['Main Bank Account','$4,82,311.00'],['Petty Cash','$1,250.00'],['Reserve Account','$98,000.00']].map(([l,v]) => (
+          <div key={l} style={rowStyle}><span style={{ color: muted }}>{l}</span><span style={{ fontWeight:'500',color:ink }}>{v}</span></div>
+        ))}
+        <div style={{ display:'flex',justifyContent:'space-between',paddingTop:'0.4rem',fontSize:'0.82rem' }}><span style={{ fontWeight:'600',color:ink }}>Total</span><span style={{ fontWeight:'600',color:'#059669' }}>$5,81,561.00</span></div>
+      </div>
+    )
+    case 'cashflow': return (
+      <div>
+        {[['Opening Balance','$3,20,000',{}],['Cash Inflows','+ $8,29,642',{color:'#16A34A'}],['Cash Outflows','- $0',{color:'#DC2626'}]].map(([l,v,s]) => (
+          <div key={l} style={rowStyle}><span style={{ color: muted }}>{l}</span><span style={{ fontWeight:'500',color:ink,...s }}>{v}</span></div>
+        ))}
+        <div style={{ display:'flex',justifyContent:'space-between',paddingTop:'0.4rem',fontSize:'0.82rem' }}><span style={{ fontWeight:'600',color:ink }}>Closing Balance</span><span style={{ fontWeight:'600',color:'#059669' }}>$11,49,642</span></div>
+        <div style={{ display:'flex',alignItems:'flex-end',gap:'2px',height:'44px',marginTop:'0.75rem' }}>
+          {[30,50,40,70,55,80,65,90,75,88,72,95].map((h,i)=><div key={i} style={{ flex:1,borderRadius:'2px 2px 0 0',background:i===11?'#059669':'#A8D8C0',height:`${h}%` }}/>)}
+        </div>
+      </div>
+    )
+    case 'expenses': return (
+      <div style={{ display:'flex',alignItems:'center',gap:'1rem' }}>
+        <svg width="80" height="80" viewBox="0 0 80 80" style={{ flexShrink:0 }}>
+          <circle cx="40" cy="40" r="28" fill="none" stroke="#E8F5EF" strokeWidth="14"/>
+          <circle cx="40" cy="40" r="28" fill="none" stroke="#1a6647" strokeWidth="14" strokeDasharray="88 88" strokeDashoffset="22" transform="rotate(-90 40 40)"/>
+          <circle cx="40" cy="40" r="28" fill="none" stroke="#4DB890" strokeWidth="14" strokeDasharray="44 132" strokeDashoffset="-66" transform="rotate(-90 40 40)"/>
+          <circle cx="40" cy="40" r="28" fill="none" stroke="#A8D8C0" strokeWidth="14" strokeDasharray="44 132" strokeDashoffset="-110" transform="rotate(-90 40 40)"/>
+          <text x="40" y="44" textAnchor="middle" fontSize="11" fontWeight="600" fill="#111">$0</text>
+        </svg>
+        <div style={{ display:'flex',flexDirection:'column',gap:'0.4rem' }}>
+          {[['#1a6647','Operations 50%'],['#4DB890','Salaries 25%'],['#A8D8C0','Overheads 25%']].map(([c,l])=>(
+            <div key={l} style={{ display:'flex',alignItems:'center',gap:'0.4rem',fontSize:'0.75rem',color:muted }}>
+              <span style={{ width:'9px',height:'9px',borderRadius:'50%',background:c,flexShrink:0,display:'inline-block' }}/>{l}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+    case 'volume': return (
+      <div>
+        {[['Gold','1,000.000 oz','#FEF9C3','#854D0E','High'],['Silver','450.000 oz','#E8F5EF','#166534','Mid'],['Platinum','80.000 oz','#F3F4F6',muted,'Low']].map(([m,v,bc,tc,tag])=>(
+          <div key={m} style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0.4rem 0',borderBottom:'1px solid #F9FAFB',fontSize:'0.82rem' }}>
+            <span style={{ fontWeight:'500',color:ink }}>{m}</span><span style={{ color:'#374151' }}>{v}</span>
+            <span style={{ padding:'1px 7px',borderRadius:'10px',fontSize:'0.7rem',fontWeight:'500',background:bc,color:tc }}>{tag}</span>
+          </div>
+        ))}
+        <div style={{ display:'flex',justifyContent:'space-between',paddingTop:'0.5rem',fontSize:'0.82rem',fontWeight:'600',borderTop:'1px solid #E8F5EF',marginTop:'0.25rem' }}>
+          <span>Total</span><span style={{ color:'#059669' }}>1,530.000 oz</span>
+        </div>
+      </div>
+    )
+    case 'apar': return (
+      <div style={{ display:'flex',gap:'0.75rem' }}>
+        {[{label:'Accounts Receivable',val:'$4,82,311',sub:'12 open invoices',bg:'#DCFCE7',vc:'#16A34A'},{label:'Accounts Payable',val:'$1,20,500',sub:'5 pending bills',bg:'#FEE2E2',vc:'#DC2626'},{label:'Net Position',val:'$3,61,811',sub:'▲ Favorable',bg:'#E8F5EF',vc:'#059669'}].map(c=>(
+          <div key={c.label} style={{ flex:1,background:c.bg,borderRadius:'0.5rem',padding:'0.75rem',textAlign:'center' }}>
+            <p style={{ fontSize:'0.7rem',color:muted,marginBottom:'0.25rem' }}>{c.label}</p>
+            <p style={{ fontSize:'1.1rem',fontWeight:'600',color:c.vc,margin:0 }}>{c.val}</p>
+            <p style={{ fontSize:'0.7rem',color:c.vc,marginTop:'0.25rem' }}>{c.sub}</p>
+          </div>
+        ))}
+      </div>
+    )
+    case 'fixing': return (
+      <div>
+        <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'0.5rem',marginBottom:'0.75rem' }}>
+          {[['Gold Open','800 oz'],['Silver Open','200 oz'],['Platinum','50 oz'],['Palladium','0 oz']].map(([l,v])=>(
+            <div key={l} style={{ background:'#F9FAFB',borderRadius:'0.5rem',padding:'0.6rem',textAlign:'center' }}>
+              <p style={{ fontSize:'0.68rem',color:muted,marginBottom:'0.25rem' }}>{l}</p>
+              <p style={{ fontSize:'0.9rem',fontWeight:'600',color:ink,margin:0 }}>{v}</p>
+            </div>
+          ))}
+        </div>
+        <p style={{ fontSize:'0.7rem',color:muted,marginBottom:'0.4rem' }}>Fixing value exposure</p>
+        <div style={{ height:'7px',background:'#E8F5EF',borderRadius:'3px',overflow:'hidden' }}><div style={{ width:'65%',height:'100%',background:'#059669',borderRadius:'3px' }}/></div>
+        <div style={{ display:'flex',justifyContent:'space-between',fontSize:'0.68rem',color:'#9CA3AF',marginTop:'3px' }}><span>$0</span><span>$1,87,240 / $2,88,000 limit</span></div>
+      </div>
+    )
+    case 'assets': return (
+      <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem' }}>
+        {[['Key Assets', dashboard?.assets], ['Key Liabilities', dashboard?.liabilities]].map(([title, items]) => (
+          <div key={title}>
+            <p style={{ fontSize:'0.78rem',fontWeight:'600',color:ink,marginBottom:'0.5rem' }}>{title}</p>
+            {(items||[]).length ? items.map((a,i) => (
+              <div key={i} style={{ padding:'0.35rem 0',borderBottom:'1px solid #F9FAFB',fontSize:'0.78rem',color:'#374151' }}>{a.accountCode} — {a.accountName}</div>
+            )) : <p style={{ fontSize:'0.78rem',color:'#9CA3AF' }}>No accounts yet.</p>}
+          </div>
+        ))}
+      </div>
+    )
+    case 'notif': return (
+      <div>
+        {[{ dot:'#DC2626', text:`${Number(dashboard?.vendorComplianceRisk?.nonCompliant||0)} vendor(s) at risk · Avg score ${Number(dashboard?.vendorComplianceRisk?.averageScore||0)}%`, time:'Today' },
+          { dot:'#D97706', text:`Doc expiry: ${Number(dashboard?.vendorDocumentExpiry?.warning30||0)} in 30d · ${Number(dashboard?.vendorDocumentExpiry?.warning60||0)} in 60d · ${Number(dashboard?.vendorDocumentExpiry?.warning90||0)} in 90d`, time:'Today' },
+          { dot:'#059669', text:'Month-end report generated successfully', time:'Yesterday' }].map((n,i)=>(
+          <div key={i} style={{ display:'flex',gap:'0.625rem',padding:'0.5rem 0',borderBottom:i<2?bdr:'none' }}>
+            <span style={{ width:'8px',height:'8px',borderRadius:'50%',background:n.dot,flexShrink:0,marginTop:'3px',display:'inline-block' }}/>
+            <div><p style={{ fontSize:'0.78rem',color:ink,lineHeight:1.4,margin:0 }}>{n.text}</p><p style={{ fontSize:'0.7rem',color:'#9CA3AF',marginTop:'2px' }}>{n.time}</p></div>
+          </div>
+        ))}
+      </div>
+    )
+    default: return <p style={{ fontSize:'0.82rem',color:'#9CA3AF',textAlign:'center',padding:'1.5rem 0' }}>Widget content</p>
+  }
+}
+
 const DEFAULT_BRANDING = {
   key: 'default',
   entityName: 'Main Entity',
@@ -329,6 +483,19 @@ function ERPTab({ focusTab }) {
   useEffect(() => {
     if (focusTab) setActiveTab(focusTab)
   }, [focusTab])
+
+  const dashStorageKey = `erp_dash_${user?.name || 'default'}`
+  const [dashWidgets, setDashWidgets] = useState(() => {
+    try { const s = localStorage.getItem(`erp_dash_${user?.name || 'default'}`); return s ? JSON.parse(s) : [...ERP_DASH_DEFAULT] } catch { return [...ERP_DASH_DEFAULT] }
+  })
+  const [dashEditMode, setDashEditMode] = useState(false)
+  const [dashCustomizeOpen, setDashCustomizeOpen] = useState(false)
+  const [dashPickSelected, setDashPickSelected] = useState([])
+  const dashDragSrc = useRef(null)
+  useEffect(() => {
+    try { localStorage.setItem(dashStorageKey, JSON.stringify(dashWidgets)) } catch {}
+  }, [dashWidgets, dashStorageKey])
+
   const [accounts, setAccounts] = useState([])
   const [summaryAccounts, setSummaryAccounts] = useState([])
   const [customers, setCustomers] = useState([])
@@ -4031,67 +4198,173 @@ function ERPTab({ focusTab }) {
       {/* DASHBOARD TAB */}
       {activeTab === 'dashboard' && (
         <div>
-          <h3 style={{ marginBottom: '1rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Dashboard</h3>
-          {loading ? (
-            <p style={{ color: C.inkSoft }}>Loading...</p>
-          ) : dashboard ? (
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-                <div style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', borderLeft: `4px solid ${C.s1}` }}>
-                  <p style={{ color: C.t3, fontSize: '0.875rem', marginBottom: '0.5rem' }}>Month Income</p>
-                  <p style={{ color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>USD {dashboard.summary?.monthIncome?.toLocaleString()}</p>
-                </div>
-                <div style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', borderLeft: `4px solid ${C.danger}` }}>
-                  <p style={{ color: C.t3, fontSize: '0.875rem', marginBottom: '0.5rem' }}>Month Expense</p>
-                  <p style={{ color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>USD {dashboard.summary?.monthExpense?.toLocaleString()}</p>
-                </div>
-                <div style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', borderLeft: `4px solid ${C.s1}` }}>
-                  <p style={{ color: C.t3, fontSize: '0.875rem', marginBottom: '0.5rem' }}>Month Profit</p>
-                  <p style={{ color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>USD {dashboard.summary?.monthProfit?.toLocaleString()}</p>
-                </div>
-                <div style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', borderLeft: '4px solid #0EA5E9' }}>
-                  <p style={{ color: C.t3, fontSize: '0.875rem', marginBottom: '0.3rem' }}>Document Expiry Warnings</p>
-                  <p style={{ color: C.t1, fontSize: '0.95rem', fontWeight: '700', margin: 0 }}>
-                    30d: {Number(dashboard.vendorDocumentExpiry?.warning30 || 0).toLocaleString()} | 60d: {Number(dashboard.vendorDocumentExpiry?.warning60 || 0).toLocaleString()} | 90d: {Number(dashboard.vendorDocumentExpiry?.warning90 || 0).toLocaleString()}
-                  </p>
-                  <p style={{ color: '#991B1B', fontSize: '0.78rem', margin: '0.3rem 0 0' }}>Expired: {Number(dashboard.vendorDocumentExpiry?.expired || 0).toLocaleString()}</p>
-                </div>
-                <div style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', borderLeft: '4px solid #D97706' }}>
-                  <p style={{ color: C.t3, fontSize: '0.875rem', marginBottom: '0.3rem' }}>Vendor Compliance Risk</p>
-                  <p style={{ color: C.t1, fontSize: '1.05rem', fontWeight: '700', margin: 0 }}>{Number(dashboard.vendorComplianceRisk?.nonCompliant || 0).toLocaleString()} vendors at risk</p>
-                  <p style={{ color: C.inkSoft, fontSize: '0.78rem', margin: '0.3rem 0 0' }}>Avg score: {Number(dashboard.vendorComplianceRisk?.averageScore || 0).toLocaleString()}%</p>
-                </div>
-              </div>
+              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>My Dashboard</h3>
+              <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: C.inkSoft }}>
+                {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                {' · '}{dashWidgets.length} widget{dashWidgets.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={() => setDashEditMode(v => !v)}
+                style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', fontWeight: '600', border: `1px solid ${dashEditMode ? C.s1 : '#D1D5DB'}`, borderRadius: '0.375rem', background: dashEditMode ? '#DCFCE7' : C.p1, color: dashEditMode ? C.s2 : C.inkSoft, cursor: 'pointer' }}
+              >
+                ⠿ {dashEditMode ? 'Done' : 'Arrange'}
+              </button>
+              <button
+                onClick={() => { setDashPickSelected([...dashWidgets]); setDashCustomizeOpen(true) }}
+                style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', fontWeight: '600', border: 'none', borderRadius: '0.375rem', background: C.s1, color: '#fff', cursor: 'pointer' }}
+              >
+                + Customize
+              </button>
+            </div>
+          </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div style={{ background: C.p1, padding: '1.5rem', borderRadius: '0.5rem' }}>
-                  <h4 style={{ color: C.t1, marginBottom: '1rem', fontWeight: '600' }}>Key Assets</h4>
-                  {dashboard.assets?.length ? (
-                    dashboard.assets.map((a, i) => (
-                      <div key={i} style={{ padding: '0.5rem', borderBottom: `1px solid ${C.p2}`, color: C.t2, fontSize: '0.875rem' }}>
-                        {a.accountCode} - {a.accountName}
+          {/* Edit mode banner */}
+          {dashEditMode && (
+            <div style={{ background: 'linear-gradient(90deg,#DCFCE7,#F0FDF4)', border: `1px solid #A7F3D0`, borderRadius: '0.5rem', padding: '0.6rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: C.s2 }}>
+              <span style={{ fontSize: '1rem' }}>↕</span>
+              <span>Drag widgets to rearrange. Click <strong>✕</strong> to remove a widget. Click <strong>Done</strong> when finished.</span>
+            </div>
+          )}
+
+          {/* KPI row — always shown */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '1.25rem' }}>
+            {[
+              { label: 'Month Income',  value: dashboard?.summary?.monthIncome,  accent: C.s1,      prefix: 'USD ' },
+              { label: 'Month Expense', value: dashboard?.summary?.monthExpense,  accent: C.danger,  prefix: 'USD ' },
+              { label: 'Month Profit',  value: dashboard?.summary?.monthProfit,   accent: '#0EA5E9', prefix: 'USD ' },
+              { label: 'Vendors at Risk', value: dashboard?.vendorComplianceRisk?.nonCompliant, accent: '#D97706', suffix: ' vendors', prefix: '' },
+            ].map(kpi => (
+              <div key={kpi.label} style={{ background: C.p1, padding: '0.875rem 1rem', borderRadius: '0.5rem', borderLeft: `4px solid ${kpi.accent}` }}>
+                <p style={{ color: C.inkSoft, fontSize: '0.75rem', marginBottom: '0.35rem' }}>{kpi.label}</p>
+                <p style={{ color: C.ink, fontSize: '1.2rem', fontWeight: '700', margin: 0 }}>
+                  {loading ? '…' : kpi.value != null ? `${kpi.prefix || ''}${Number(kpi.value).toLocaleString()}${kpi.suffix || ''}` : '—'}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Widget grid */}
+          {dashWidgets.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '3rem 1rem', background: C.p2, borderRadius: '0.75rem' }}>
+              <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</p>
+              <p style={{ color: C.inkSoft, fontSize: '0.9rem', marginBottom: '1rem' }}>No widgets on your dashboard yet.</p>
+              <button
+                onClick={() => { setDashPickSelected([...dashWidgets]); setDashCustomizeOpen(true) }}
+                style={{ padding: '0.5rem 1.25rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}
+              >
+                + Add Widgets
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.875rem' }}>
+              {dashWidgets.map((wid, idx) => {
+                const meta = ERP_DASH_ALL_WIDGETS.find(w => w.id === wid)
+                if (!meta) return null
+                const span = meta.cols >= 3 ? 3 : meta.cols >= 2 ? 2 : 1
+                return (
+                  <div
+                    key={wid}
+                    draggable={dashEditMode}
+                    onDragStart={() => { dashDragSrc.current = idx }}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={() => {
+                      const src = dashDragSrc.current
+                      if (src == null || src === idx) return
+                      const next = [...dashWidgets]
+                      next.splice(src, 1)
+                      next.splice(idx, 0, wid)
+                      setDashWidgets(next)
+                      dashDragSrc.current = null
+                    }}
+                    style={{
+                      gridColumn: `span ${span}`,
+                      background: C.p1,
+                      borderRadius: '0.625rem',
+                      padding: '1rem',
+                      border: dashEditMode ? `2px dashed #A7F3D0` : `1px solid #F0FDF4`,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                      cursor: dashEditMode ? 'grab' : 'default',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '1rem' }}>{meta.icon}</span>
+                        <span style={{ fontSize: '0.82rem', fontWeight: '600', color: C.ink }}>{meta.label}</span>
                       </div>
-                    ))
-                  ) : (
-                    <div style={emptyCardStyle}>No asset accounts yet.</div>
-                  )}
+                      {dashEditMode && (
+                        <button
+                          onClick={() => setDashWidgets(prev => prev.filter(w => w !== wid))}
+                          style={{ background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: '0.85rem', padding: '0 0.2rem', lineHeight: 1 }}
+                        >✕</button>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.82rem', color: C.inkSoft }}>
+                      {renderERP_DashWidget(wid, dashboard)}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Customize modal */}
+          {dashCustomizeOpen && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: '#fff', borderRadius: '0.75rem', width: '560px', maxWidth: '95vw', maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <h4 style={{ margin: 0, color: C.ink, fontSize: '1rem', fontWeight: '700' }}>Customize Dashboard</h4>
+                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: C.inkSoft }}>{dashPickSelected.length} widget{dashPickSelected.length !== 1 ? 's' : ''} selected</p>
+                  </div>
+                  <button onClick={() => setDashCustomizeOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.1rem', color: C.inkSoft, cursor: 'pointer' }}>✕</button>
                 </div>
-                <div style={{ background: C.p1, padding: '1.5rem', borderRadius: '0.5rem' }}>
-                  <h4 style={{ color: C.t1, marginBottom: '1rem', fontWeight: '600' }}>Key Liabilities</h4>
-                  {dashboard.liabilities?.length ? (
-                    dashboard.liabilities.map((l, i) => (
-                      <div key={i} style={{ padding: '0.5rem', borderBottom: `1px solid ${C.p2}`, color: C.t2, fontSize: '0.875rem' }}>
-                        {l.accountCode} - {l.accountName}
-                      </div>
-                    ))
-                  ) : (
-                    <div style={emptyCardStyle}>No liability accounts yet.</div>
-                  )}
+                <div style={{ padding: '1rem 1.5rem', overflowY: 'auto', flex: 1 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                    {ERP_DASH_ALL_WIDGETS.map(w => {
+                      const on = dashPickSelected.includes(w.id)
+                      return (
+                        <div
+                          key={w.id}
+                          onClick={() => setDashPickSelected(prev => on ? prev.filter(x => x !== w.id) : [...prev, w.id])}
+                          style={{ padding: '0.75rem', borderRadius: '0.5rem', border: `2px solid ${on ? C.s1 : '#E5E7EB'}`, background: on ? '#F0FDF4' : '#FAFAFA', cursor: 'pointer', display: 'flex', gap: '0.625rem', alignItems: 'flex-start' }}
+                        >
+                          <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{w.icon}</span>
+                          <div>
+                            <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: '600', color: C.ink }}>{w.label}</p>
+                            <p style={{ margin: '0.15rem 0 0', fontSize: '0.72rem', color: C.inkSoft }}>{w.desc}</p>
+                          </div>
+                          {on && <span style={{ marginLeft: 'auto', color: C.s1, fontSize: '0.9rem', flexShrink: 0 }}>✓</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #F3F4F6', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                  <button onClick={() => setDashCustomizeOpen(false)} style={{ padding: '0.5rem 1rem', background: C.p2, color: C.inkSoft, border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>Cancel</button>
+                  <button
+                    onClick={() => {
+                      const ordered = [...dashPickSelected].sort((a, b) => {
+                        const ai = dashWidgets.indexOf(a), bi = dashWidgets.indexOf(b)
+                        if (ai !== -1 && bi !== -1) return ai - bi
+                        if (ai !== -1) return -1
+                        if (bi !== -1) return 1
+                        return ERP_DASH_ALL_WIDGETS.findIndex(w => w.id === a) - ERP_DASH_ALL_WIDGETS.findIndex(w => w.id === b)
+                      })
+                      setDashWidgets(ordered)
+                      setDashCustomizeOpen(false)
+                    }}
+                    style={{ padding: '0.5rem 1.25rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
+                  >
+                    Apply
+                  </button>
                 </div>
               </div>
             </div>
-          ) : (
-            <p style={{ color: C.inkSoft }}>No dashboard data available yet.</p>
           )}
         </div>
       )}
