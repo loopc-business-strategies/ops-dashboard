@@ -2959,7 +2959,6 @@ function ERPTab({ focusTab }) {
         fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...baseTxParams, ...p, type: 'purchase' }), 'transactions', 200),
         fetchAllPages((p) => erpAccountingAPI.getDirectDeals(token, {
           ...p,
-          entryType: 'fixing',
           startDate: fixingRegFilter.fromDate,
           endDate: fixingRegFilter.toDate,
           ...(fixingRegFilter.status === 'final' ? { status: 'confirmed' } : {}),
@@ -2973,7 +2972,6 @@ function ERPTab({ focusTab }) {
         openingTxParams
           ? fetchAllPages((p) => erpAccountingAPI.getDirectDeals(token, {
             ...p,
-            entryType: 'fixing',
             endDate: openingEndDate.toISOString().slice(0, 10),
             ...(fixingRegFilter.status === 'final' ? { status: 'confirmed' } : {}),
           }), 'directDeals', 100)
@@ -2986,6 +2984,8 @@ function ERPTab({ focusTab }) {
         const txRows = [...txSales, ...txPurchases]
         for (const tx of txRows) {
           const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+          const txFixingTypeRaw = String(tx?.voucherMeta?.fixingType || tx?.metalFixStatus || '').trim().toLowerCase()
+          const txFixingMode = ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(txFixingTypeRaw) ? 'Unfixing' : 'Fixing'
           const voucherNo = String(tx?.voucherMeta?.vocNo || tx?.voucherMeta?.refNo || tx?._id || '').trim()
           const branch = tx?.voucherMeta?.branch || 'HO'
           const partyName = tx?.customerId?.name || tx?.vendorId?.name || tx?.voucherMeta?.partyName || '—'
@@ -3015,6 +3015,7 @@ function ERPTab({ focusTab }) {
               amount: Number(tx?.amount || 0),
               dealStatus: tx?.status || 'draft',
               remarks: tx?.description || '',
+              fixingMode: txFixingMode,
               groupKey: fixingRegFilter.groupBy === 'customer' ? partyName : fixingRegFilter.groupBy === 'branch' ? branch : fixingRegFilter.groupBy === 'valuedate' ? new Date(valueDate || docDate || Date.now()).toISOString().slice(0, 10) : 'All',
             })
             continue
@@ -3041,6 +3042,7 @@ function ERPTab({ focusTab }) {
               amount: Number(line.totalAmount || line.amountLC || tx?.amount || 0),
               dealStatus: tx?.status || 'draft',
               remarks: narration,
+              fixingMode: txFixingMode,
               groupKey: fixingRegFilter.groupBy === 'customer' ? partyName : fixingRegFilter.groupBy === 'branch' ? branch : fixingRegFilter.groupBy === 'valuedate' ? new Date(valueDate || docDate || Date.now()).toISOString().slice(0, 10) : 'All',
             })
           })
@@ -3049,6 +3051,8 @@ function ERPTab({ focusTab }) {
         for (const deal of directDeals) {
           if (deal.isDeleted) continue
           if (fixingRegFilter.status === 'final' && deal.status !== 'confirmed') continue
+          const dealEntryType = String(deal.entryType || 'fixing').trim().toLowerCase()
+          const dealFixingMode = ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfixing'].includes(dealEntryType) ? 'Unfixing' : 'Fixing'
           const dealDocDate = new Date(deal.docDate)
           const dealValueDate = new Date(deal.valueDate)
           if (fixingRegFilter.excludeOpeningBalance && /opening/i.test(deal.remarks || '')) continue
@@ -3082,6 +3086,7 @@ function ERPTab({ focusTab }) {
               amount: Number(line.amount || 0),
               customerName: partyName,
               customerCode: line.customerCode || '',
+              fixingMode: dealFixingMode,
               groupKey,
             })
           }
@@ -4952,7 +4957,25 @@ function ERPTab({ focusTab }) {
                             <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.docDate)}</td>
                             <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.valueDate)}</td>
                             <td style={{ ...legacyCell, color: '#111827', fontWeight: '700' }}>{row.voucherNo || '-'}</td>
-                            <td style={{ ...legacyCell, color: '#4B5563', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.remarks || `${row.sourceType || ''} ${row.customerName || ''}`.trim() || '-'}</td>
+                            <td style={{ ...legacyCell, color: '#4B5563', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '0.02rem 0.34rem',
+                                  marginRight: '0.32rem',
+                                  borderRadius: '0.2rem',
+                                  fontSize: '0.64rem',
+                                  fontWeight: '700',
+                                  background: row.fixingMode === 'Unfixing' ? '#FEF3C7' : '#DCFCE7',
+                                  color: row.fixingMode === 'Unfixing' ? '#92400E' : '#166534',
+                                  border: row.fixingMode === 'Unfixing' ? '1px solid #FCD34D' : '1px solid #86EFAC',
+                                  verticalAlign: 'middle',
+                                }}
+                              >
+                                {row.fixingMode || 'Fixing'}
+                              </span>
+                              {row.remarks || `${row.sourceType || ''} ${row.customerName || ''}`.trim() || '-'}
+                            </td>
                             <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{qtyInOz > 0 ? fixingRegFmtQty(qtyInOz, qUnit) : '-'}</td>
                             <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{qtyOutOz > 0 ? fixingRegFmtQty(qtyOutOz, qUnit) : '-'}</td>
                             <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{fmtSignedQty(runningQtyOz)}</td>
