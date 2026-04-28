@@ -2913,9 +2913,19 @@ function ERPTab({ focusTab }) {
     setCustomerMarginContextMenu({ open: true, x, y, row })
   }
 
-  const FIXING_REG_OZ_PER_UNIT = { GOZ: 1, GRAM: 1 / 31.1034768, KG: 1000 / 31.1034768, TOLA: 11.6638 / 31.1034768 }
-  const fixingRegConvertQty = (oz, unit) => oz * (FIXING_REG_OZ_PER_UNIT[unit] || 1)
-  const fixingRegConvertRate = (pricePerOz, unit) => pricePerOz / (FIXING_REG_OZ_PER_UNIT[unit] || 1)
+  const FIXING_REG_UNIT_PER_OZ = { GOZ: 1, GRAM: 31.1034768, KG: 0.0311034768, TOLA: 2.66667 }
+  const fixingRegNormalizeUnit = (unit) => {
+    const normalized = String(unit || 'GOZ').trim().toUpperCase()
+    if (normalized === 'OZ' || normalized === 'OUNCE' || normalized === 'OUNCES') return 'GOZ'
+    return normalized
+  }
+  const fixingRegConvertQty = (oz, unit) => oz * (FIXING_REG_UNIT_PER_OZ[fixingRegNormalizeUnit(unit)] || 1)
+  const fixingRegConvertRate = (pricePerOz, unit) => pricePerOz / (FIXING_REG_UNIT_PER_OZ[fixingRegNormalizeUnit(unit)] || 1)
+  const fixingRegConvertToOz = (qty, unit) => {
+    const normalizedUnit = fixingRegNormalizeUnit(unit)
+    const factor = FIXING_REG_UNIT_PER_OZ[normalizedUnit] || 1
+    return Number(qty || 0) / factor
+  }
   const fixingRegFmtQty = (oz, unit) => fixingRegConvertQty(oz, unit).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 4 })
   const fixingRegFmtRate = (p, unit) => fixingRegConvertRate(p, unit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })
   const fixingRegFmtAmt = (v) => Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -3026,6 +3036,8 @@ function ERPTab({ focusTab }) {
             if (selectedMetalCode && lineMetal && lineMetal !== selectedMetalCode) return
             if (selectedMetalCode && !lineMetal) return
             const narration = String(line.narration || tx?.description || '')
+            const pureWeightGram = Number(line.pureWeight || line.grossWeight || 0)
+            const qtyOz = pureWeightGram > 0 ? (pureWeightGram / 31.1034768) : 0
             if (fixingRegFilter.excludeOpeningBalance && /opening/i.test(narration)) return
             rows.push({
               rowId: `${tx._id}-${idx}`,
@@ -3037,7 +3049,7 @@ function ERPTab({ focusTab }) {
               customerName: partyName,
               direction: tx.type === 'purchase' ? 'buy' : 'sell',
               metal: lineMetal || selectedMetalCode || '',
-              qty: Number(line.pureWeight || line.grossWeight || 0),
+              qty: qtyOz,
               price: Number(line.metalRate || tx?.voucherMeta?.metalRate || 0),
               amount: Number(line.totalAmount || line.amountLC || tx?.amount || 0),
               dealStatus: tx?.status || 'draft',
@@ -3060,6 +3072,7 @@ function ERPTab({ focusTab }) {
           for (const line of deal.lineItems || []) {
             const lineMetal = resolveDirectDealMetalCode(line.metal || 'XAU')
             if (selectedMetalCode && lineMetal !== selectedMetalCode) continue
+            const qtyOz = fixingRegConvertToOz(Number(line.qty || 0), line.stockCode || 'OZ')
             const partyName = line.customerName || '—'
             if (fixingRegFilter.partyFilter === 'selected' && fixingRegFilter.partySearch.trim()) {
               if (!partyName.toLowerCase().includes(fixingRegFilter.partySearch.trim().toLowerCase())) continue
@@ -3080,7 +3093,7 @@ function ERPTab({ focusTab }) {
               remarks: deal.remarks || '',
               direction: line.direction,
               metal: lineMetal || 'XAU',
-              qty: Number(line.qty || 0),
+              qty: qtyOz,
               eqOz: Number(line.eqOz || 0),
               stockCode: (line.stockCode || 'OZ').toUpperCase(),
               price: Number(line.price || 0),
