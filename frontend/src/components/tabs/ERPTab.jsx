@@ -4912,15 +4912,23 @@ function ERPTab({ focusTab }) {
               color: '#1F2937',
               lineHeight: 1.1,
             }
+            const numericCell = {
+              ...legacyCell,
+              textAlign: 'right',
+              fontWeight: '600',
+              color: '#0F172A',
+              fontVariantNumeric: 'tabular-nums',
+              fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif',
+            }
             let runningQtyOz = openingQtyOz
             let runningAmount = openingValue
 
             return (
-              <div style={modalBackdropStyle} onClick={() => setFixingRegShown(false)}>
-                <div style={{ ...modalCardStyle, width: 'min(1280px, 100%)', maxHeight: '88vh', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
+              <div style={{ ...modalBackdropStyle, padding: 0 }} onClick={() => setFixingRegShown(false)}>
+                <div style={{ ...modalCardStyle, width: '100vw', maxWidth: '100vw', height: '100vh', maxHeight: '100vh', borderRadius: 0, padding: '1rem', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.8rem', gap: '0.8rem' }}>
                     <div>
-                      <h4 style={{ margin: 0, color: C.ink, fontSize: '1.02rem' }}>Fixing Register Transactions Window</h4>
+                      <h4 style={{ margin: 0, color: C.ink, fontSize: '1.05rem' }}>Fixing Register Transactions Window</h4>
                       <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Metal sale, purchase, and direct deal entries between selected dates ordered by voucher number.</p>
                     </div>
                     <button onClick={() => setFixingRegShown(false)} style={{ padding: '0.42rem 0.75rem', border: '1px solid #D1D5DB', background: '#FFFFFF', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.8rem' }}>Close</button>
@@ -4941,7 +4949,7 @@ function ERPTab({ focusTab }) {
                   </div>
 
                   <div style={{ overflow: 'auto', border: '1px solid #8F98A6', borderRadius: '0.24rem', flex: 1, background: '#FCFCFC' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', minWidth: '1320px', fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', minWidth: '1320px', fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif', fontVariantNumeric: 'tabular-nums' }}>
                       <colgroup>
                         <col style={{ width: '40px' }} />
                         <col style={{ width: '110px' }} />
@@ -4983,13 +4991,13 @@ function ERPTab({ focusTab }) {
                           <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>-</td>
                           <td style={{ ...legacyCell, color: '#111827', fontWeight: '700' }}>Opening C/F</td>
                           <td style={{ ...legacyCell, color: '#4B5563' }}>Opening Carry Forward</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', color: '#6B7280' }}>-</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', color: '#6B7280' }}>-</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{fmtSignedQty(openingQtyOz)}</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', color: '#6B7280' }}>-</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', color: '#6B7280' }}>-</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{fmtSignedAmt(openingValue)}</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{runningQtyOz !== 0 ? fmtSignedRate(runningAmount / runningQtyOz) : '-'}</td>
+                          <td style={{ ...numericCell, color: '#6B7280' }}>-</td>
+                          <td style={{ ...numericCell, color: '#6B7280' }}>-</td>
+                          <td style={numericCell}>{fmtSignedQty(openingQtyOz)}</td>
+                          <td style={{ ...numericCell, color: '#6B7280' }}>-</td>
+                          <td style={{ ...numericCell, color: '#6B7280' }}>-</td>
+                          <td style={numericCell}>{fmtSignedAmt(openingValue)}</td>
+                          <td style={numericCell}>{runningQtyOz !== 0 ? fmtSignedRate(runningAmount / runningQtyOz) : '-'}</td>
                         </tr>
                         {fixingRegResults.map((row, idx) => (
                           (() => {
@@ -5029,13 +5037,13 @@ function ERPTab({ focusTab }) {
                               </span>
                               {row.remarks || `${row.sourceType || ''} ${row.customerName || ''}`.trim() || '-'}
                             </td>
-                            <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{qtyInOz > 0 ? fixingRegFmtQty(qtyInOz, qUnit) : '-'}</td>
-                            <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{qtyOutOz > 0 ? fixingRegFmtQty(qtyOutOz, qUnit) : '-'}</td>
-                            <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{fmtSignedQty(runningQtyOz)}</td>
-                            <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{fixingRegFmtRate(Number(row.price || 0), rUnit)}</td>
-                            <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{fmtSignedAmt(signedValue)}</td>
-                            <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{fmtSignedAmt(runningAmount)}</td>
-                            <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{avgRate === null ? '-' : fmtSignedRate(avgRate)}</td>
+                            <td style={numericCell}>{qtyInOz > 0 ? fixingRegFmtQty(qtyInOz, qUnit) : '-'}</td>
+                            <td style={numericCell}>{qtyOutOz > 0 ? fixingRegFmtQty(qtyOutOz, qUnit) : '-'}</td>
+                            <td style={numericCell}>{fmtSignedQty(runningQtyOz)}</td>
+                            <td style={numericCell}>{fixingRegFmtRate(Number(row.price || 0), rUnit)}</td>
+                            <td style={numericCell}>{fmtSignedAmt(signedValue)}</td>
+                            <td style={numericCell}>{fmtSignedAmt(runningAmount)}</td>
+                            <td style={numericCell}>{avgRate === null ? '-' : fmtSignedRate(avgRate)}</td>
                           </tr>
                             )
                           })()
@@ -5046,13 +5054,13 @@ function ERPTab({ focusTab }) {
                           <td style={{ ...legacyCell, color: '#78350F', whiteSpace: 'nowrap', fontWeight: '700' }}>-</td>
                           <td style={{ ...legacyCell, color: '#78350F', fontWeight: '700' }}>Closing C/F</td>
                           <td style={{ ...legacyCell, color: '#78350F', fontWeight: '700' }}>Closing Carry Forward</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalBuyOz, qUnit)}</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalSellOz, qUnit)}</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '700', color: '#78350F' }}>{fmtSignedQty(closingQtyOz)}</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', color: '#78350F', fontWeight: '700' }}>-</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(txnNetValue)}</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(closingValue)}</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '700', color: '#78350F' }}>{closingQtyOz !== 0 ? fmtSignedRate(closingValue / closingQtyOz) : '-'}</td>
+                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalBuyOz, qUnit)}</td>
+                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalSellOz, qUnit)}</td>
+                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fmtSignedQty(closingQtyOz)}</td>
+                          <td style={{ ...numericCell, color: '#78350F', fontWeight: '700' }}>-</td>
+                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(txnNetValue)}</td>
+                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(closingValue)}</td>
+                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{closingQtyOz !== 0 ? fmtSignedRate(closingValue / closingQtyOz) : '-'}</td>
                         </tr>
                         {fixingRegResults.length === 0 && (
                           <tr>
