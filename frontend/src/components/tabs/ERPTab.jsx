@@ -2962,7 +2962,7 @@ function ERPTab({ focusTab }) {
           startDate: fixingRegFilter.fromDate,
           endDate: fixingRegFilter.toDate,
           ...(fixingRegFilter.status === 'final' ? { status: 'confirmed' } : {}),
-        }), 'directDeals', 100),
+        }), 'deals', 100),
         openingTxParams
           ? fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...openingTxParams, ...p, type: 'sale' }), 'transactions', 200)
           : Promise.resolve([]),
@@ -2974,7 +2974,7 @@ function ERPTab({ focusTab }) {
             ...p,
             endDate: openingEndDate.toISOString().slice(0, 10),
             ...(fixingRegFilter.status === 'final' ? { status: 'confirmed' } : {}),
-          }), 'directDeals', 100)
+          }), 'deals', 100)
           : Promise.resolve([]),
       ])
 
