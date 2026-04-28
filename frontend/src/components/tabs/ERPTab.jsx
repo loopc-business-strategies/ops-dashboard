@@ -4814,6 +4814,45 @@ function ERPTab({ focusTab }) {
               if (amount < 0) return `(${abs})`
               return abs
             }
+            const fmtSignedQty = (v) => {
+              const value = Number(v || 0)
+              const abs = fixingRegFmtQty(Math.abs(value), qUnit)
+              if (value < 0) return `(${abs})`
+              return abs
+            }
+            const fmtSignedRate = (v) => {
+              const value = Number(v || 0)
+              const abs = fixingRegFmtRate(Math.abs(value), rUnit)
+              if (value < 0) return `(${abs})`
+              return abs
+            }
+            const legacyHead1 = {
+              padding: '0.3rem 0.4rem',
+              border: '1px solid #A6A6A6',
+              color: '#2F3A44',
+              fontWeight: '700',
+              fontSize: '0.69rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.03em',
+              whiteSpace: 'nowrap',
+              background: '#EBC788',
+            }
+            const legacyHead2 = {
+              padding: '0.28rem 0.4rem',
+              border: '1px solid #A6A6A6',
+              color: '#2F3A44',
+              fontWeight: '700',
+              fontSize: '0.67rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.03em',
+              background: '#F6E2BA',
+            }
+            const legacyCell = {
+              padding: '0.28rem 0.42rem',
+              border: '1px solid #C1C7CF',
+              color: '#1F2937',
+              lineHeight: 1.1,
+            }
             let runningQtyOz = openingQtyOz
             let runningAmount = openingValue
 
@@ -4842,42 +4881,42 @@ function ERPTab({ focusTab }) {
                     ))}
                   </div>
 
-                  <div style={{ overflow: 'auto', border: '1px solid #CBD5E1', borderRadius: '0.4rem', flex: 1 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.79rem', minWidth: '1320px' }}>
+                  <div style={{ overflow: 'auto', border: '1px solid #9AA4B2', borderRadius: '0.24rem', flex: 1, background: '#FCFCFC' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', minWidth: '1320px', fontFamily: 'Georgia, "Times New Roman", serif' }}>
                       <thead>
-                        <tr style={{ background: '#F1F5F9' }}>
-                          <th rowSpan={2} style={{ padding: '0.38rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>#</th>
-                          <th rowSpan={2} style={{ padding: '0.38rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'left', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Doc Date</th>
-                          <th rowSpan={2} style={{ padding: '0.38rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'left', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Val Date</th>
-                          <th rowSpan={2} style={{ padding: '0.38rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'left', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Doc No</th>
-                          <th rowSpan={2} style={{ padding: '0.38rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'left', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Description</th>
-                          <th colSpan={3} style={{ padding: '0.38rem 0.5rem', borderBottom: '1px solid #CBD5E1', color: '#1E3A8A', textAlign: 'center', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{`${metalCodeLabel} (${qUnit})`}</th>
-                          <th colSpan={3} style={{ padding: '0.38rem 0.5rem', borderBottom: '1px solid #CBD5E1', color: '#1E3A8A', textAlign: 'center', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Amount (USD)</th>
-                          <th rowSpan={2} style={{ padding: '0.38rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Average</th>
+                        <tr style={{ background: '#EBC788' }}>
+                          <th rowSpan={2} style={{ ...legacyHead1, textAlign: 'right' }}>#</th>
+                          <th rowSpan={2} style={{ ...legacyHead1, textAlign: 'left' }}>Doc Date</th>
+                          <th rowSpan={2} style={{ ...legacyHead1, textAlign: 'left' }}>Val Date</th>
+                          <th rowSpan={2} style={{ ...legacyHead1, textAlign: 'left' }}>Doc No</th>
+                          <th rowSpan={2} style={{ ...legacyHead1, textAlign: 'left' }}>Description</th>
+                          <th colSpan={3} style={{ ...legacyHead1, textAlign: 'center' }}>{`${metalCodeLabel} (${qUnit})`}</th>
+                          <th colSpan={3} style={{ ...legacyHead1, textAlign: 'center' }}>Amount (USD)</th>
+                          <th rowSpan={2} style={{ ...legacyHead1, textAlign: 'right' }}>Average</th>
                         </tr>
-                        <tr style={{ background: '#F8FAFC' }}>
-                          <th style={{ padding: '0.34rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>In</th>
-                          <th style={{ padding: '0.34rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Out</th>
-                          <th style={{ padding: '0.34rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Balance</th>
-                          <th style={{ padding: '0.34rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{`Rate (${rUnit})`}</th>
-                          <th style={{ padding: '0.34rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Value</th>
-                          <th style={{ padding: '0.34rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Balance</th>
+                        <tr style={{ background: '#F6E2BA' }}>
+                          <th style={{ ...legacyHead2, textAlign: 'right' }}>In</th>
+                          <th style={{ ...legacyHead2, textAlign: 'right' }}>Out</th>
+                          <th style={{ ...legacyHead2, textAlign: 'right' }}>Balance</th>
+                          <th style={{ ...legacyHead2, textAlign: 'right' }}>{`Rate (${rUnit})`}</th>
+                          <th style={{ ...legacyHead2, textAlign: 'right' }}>Value</th>
+                          <th style={{ ...legacyHead2, textAlign: 'right' }}>Balance</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr style={{ background: '#FFF7ED', borderBottom: '1px solid #E5E7EB' }}>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#64748B' }}>-</td>
-                          <td style={{ padding: '0.34rem 0.5rem', color: '#374151', whiteSpace: 'nowrap' }}>-</td>
-                          <td style={{ padding: '0.34rem 0.5rem', color: '#374151', whiteSpace: 'nowrap' }}>-</td>
-                          <td style={{ padding: '0.34rem 0.5rem', color: '#111827', fontWeight: '700' }}>Opening C/F</td>
-                          <td style={{ padding: '0.34rem 0.5rem', color: '#4B5563' }}>Opening Carry Forward</td>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#6B7280' }}>-</td>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#6B7280' }}>-</td>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{fixingRegFmtQty(openingQtyOz, qUnit)}</td>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#6B7280' }}>-</td>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#6B7280' }}>-</td>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{fmtSignedAmt(openingValue)}</td>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{runningQtyOz !== 0 ? fixingRegFmtRate(runningAmount / runningQtyOz, rUnit) : '-'}</td>
+                        <tr style={{ background: '#FBF4E5' }}>
+                          <td style={{ ...legacyCell, textAlign: 'right', color: '#64748B' }}>-</td>
+                          <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>-</td>
+                          <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>-</td>
+                          <td style={{ ...legacyCell, color: '#111827', fontWeight: '700' }}>Opening C/F</td>
+                          <td style={{ ...legacyCell, color: '#4B5563' }}>Opening Carry Forward</td>
+                          <td style={{ ...legacyCell, textAlign: 'right', color: '#6B7280' }}>-</td>
+                          <td style={{ ...legacyCell, textAlign: 'right', color: '#6B7280' }}>-</td>
+                          <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{fmtSignedQty(openingQtyOz)}</td>
+                          <td style={{ ...legacyCell, textAlign: 'right', color: '#6B7280' }}>-</td>
+                          <td style={{ ...legacyCell, textAlign: 'right', color: '#6B7280' }}>-</td>
+                          <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{fmtSignedAmt(openingValue)}</td>
+                          <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{runningQtyOz !== 0 ? fmtSignedRate(runningAmount / runningQtyOz) : '-'}</td>
                         </tr>
                         {fixingRegResults.map((row, idx) => (
                           (() => {
@@ -4892,36 +4931,36 @@ function ERPTab({ focusTab }) {
                             runningAmount += signedValue
                             const avgRate = runningQtyOz !== 0 ? (runningAmount / runningQtyOz) : null
                             return (
-                          <tr key={row.rowId || `${row.voucherNo}-${idx}`} style={{ background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC', borderBottom: '1px solid #E5E7EB' }}>
-                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#64748B' }}>{idx + 1}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.docDate)}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.valueDate)}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', color: '#111827', fontWeight: '700' }}>{row.voucherNo || '-'}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', color: '#4B5563', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.remarks || `${row.sourceType || ''} ${row.customerName || ''}`.trim() || '-'}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{qtyInOz > 0 ? fixingRegFmtQty(qtyInOz, qUnit) : '-'}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{qtyOutOz > 0 ? fixingRegFmtQty(qtyOutOz, qUnit) : '-'}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{fixingRegFmtQty(runningQtyOz, qUnit)}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fixingRegFmtRate(Number(row.price || 0), rUnit)}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtSignedAmt(signedValue)}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{fmtSignedAmt(runningAmount)}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{avgRate === null ? '-' : fixingRegFmtRate(avgRate, rUnit)}</td>
+                          <tr key={row.rowId || `${row.voucherNo}-${idx}`} style={{ background: idx % 2 === 0 ? '#FFFFFF' : '#FCFAF4' }}>
+                            <td style={{ ...legacyCell, textAlign: 'right', color: '#64748B' }}>{idx + 1}</td>
+                            <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.docDate)}</td>
+                            <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.valueDate)}</td>
+                            <td style={{ ...legacyCell, color: '#111827', fontWeight: '700' }}>{row.voucherNo || '-'}</td>
+                            <td style={{ ...legacyCell, color: '#4B5563', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.remarks || `${row.sourceType || ''} ${row.customerName || ''}`.trim() || '-'}</td>
+                            <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{qtyInOz > 0 ? fixingRegFmtQty(qtyInOz, qUnit) : '-'}</td>
+                            <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{qtyOutOz > 0 ? fixingRegFmtQty(qtyOutOz, qUnit) : '-'}</td>
+                            <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{fmtSignedQty(runningQtyOz)}</td>
+                            <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fixingRegFmtRate(Number(row.price || 0), rUnit)}</td>
+                            <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtSignedAmt(signedValue)}</td>
+                            <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{fmtSignedAmt(runningAmount)}</td>
+                            <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{avgRate === null ? '-' : fmtSignedRate(avgRate)}</td>
                           </tr>
                             )
                           })()
                         ))}
-                        <tr style={{ background: '#FEF3C7', borderTop: '2px solid #D97706', borderBottom: '1px solid #E5E7EB' }}>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#78350F' }}>-</td>
-                          <td style={{ padding: '0.34rem 0.5rem', color: '#78350F', whiteSpace: 'nowrap' }}>-</td>
-                          <td style={{ padding: '0.34rem 0.5rem', color: '#78350F', whiteSpace: 'nowrap' }}>-</td>
-                          <td style={{ padding: '0.34rem 0.5rem', color: '#78350F', fontWeight: '700' }}>Closing C/F</td>
-                          <td style={{ padding: '0.34rem 0.5rem', color: '#78350F' }}>Closing Carry Forward</td>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalBuyOz, qUnit)}</td>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalSellOz, qUnit)}</td>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(closingQtyOz, qUnit)}</td>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#78350F' }}>-</td>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(txnNetValue)}</td>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(closingValue)}</td>
-                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{closingQtyOz !== 0 ? fixingRegFmtRate(closingValue / closingQtyOz, rUnit) : '-'}</td>
+                        <tr style={{ background: '#F4D9A3' }}>
+                          <td style={{ ...legacyCell, textAlign: 'right', color: '#78350F', fontWeight: '700' }}>-</td>
+                          <td style={{ ...legacyCell, color: '#78350F', whiteSpace: 'nowrap', fontWeight: '700' }}>-</td>
+                          <td style={{ ...legacyCell, color: '#78350F', whiteSpace: 'nowrap', fontWeight: '700' }}>-</td>
+                          <td style={{ ...legacyCell, color: '#78350F', fontWeight: '700' }}>Closing C/F</td>
+                          <td style={{ ...legacyCell, color: '#78350F', fontWeight: '700' }}>Closing Carry Forward</td>
+                          <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalBuyOz, qUnit)}</td>
+                          <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalSellOz, qUnit)}</td>
+                          <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fmtSignedQty(closingQtyOz)}</td>
+                          <td style={{ ...legacyCell, textAlign: 'right', color: '#78350F', fontWeight: '700' }}>-</td>
+                          <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(txnNetValue)}</td>
+                          <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(closingValue)}</td>
+                          <td style={{ ...legacyCell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{closingQtyOz !== 0 ? fmtSignedRate(closingValue / closingQtyOz) : '-'}</td>
                         </tr>
                         {fixingRegResults.length === 0 && (
                           <tr>
