@@ -4786,15 +4786,20 @@ function ERPTab({ focusTab }) {
                     {lbl}
                   </label>
                 ))}
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.38rem', color: '#374151', fontSize: '0.84rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(fixingRegFilter.includeUnfixInPosition)}
-                    onChange={(e) => setFixingRegFilter(f => ({ ...f, includeUnfixInPosition: e.target.checked }))}
-                    style={{ width: '1rem', height: '1rem', accentColor: '#2563EB' }}
-                  />
-                  Include Unfix In Position
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.38rem', color: '#374151', fontSize: '0.84rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(fixingRegFilter.includeUnfixInPosition)}
+                      onChange={(e) => setFixingRegFilter(f => ({ ...f, includeUnfixInPosition: e.target.checked }))}
+                      style={{ width: '1rem', height: '1rem', accentColor: '#2563EB' }}
+                    />
+                    Include Unfix In Position
+                  </label>
+                  <span style={{ color: '#64748B', fontSize: '0.75rem', lineHeight: 1.35 }}>
+                    Visible rows stay same; when off, position qty excludes unfix rows.
+                  </span>
+                </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <label style={{ color: '#64748B', fontSize: '0.72rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</label>
                   <select
