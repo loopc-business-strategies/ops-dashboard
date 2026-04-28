@@ -2991,6 +2991,25 @@ function ERPTab({ focusTab }) {
       const buildRows = ({ txSales = [], txPurchases = [], directDeals = [] }) => {
         const rows = []
 
+        const toValidNumber = (value) => {
+          if (value === null || value === undefined || value === '') return null
+          const parsed = Number(value)
+          return Number.isFinite(parsed) ? parsed : null
+        }
+
+        const resolveUnfixAmount = (line = {}) => {
+          const premium = toValidNumber(line.premiumAmount)
+            ?? toValidNumber(line.premiumAmt)
+            ?? toValidNumber(line.premium)
+            ?? toValidNumber(line.premiumValueAmount)
+          if (premium !== null) return premium
+
+          const total = toValidNumber(line.totalAmount) ?? toValidNumber(line.amountLC)
+          const metal = toValidNumber(line.metalAmount)
+          if (total !== null && metal !== null) return total - metal
+          return 0
+        }
+
         const txRows = [...txSales, ...txPurchases]
         for (const tx of txRows) {
           const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
@@ -3051,7 +3070,9 @@ function ERPTab({ focusTab }) {
               metal: lineMetal || selectedMetalCode || '',
               qty: qtyOz,
               price: Number(line.metalRate || tx?.voucherMeta?.metalRate || 0),
-              amount: Number(line.totalAmount || line.amountLC || tx?.amount || 0),
+              amount: txFixingMode === 'Unfixing'
+                ? resolveUnfixAmount(line)
+                : Number(line.totalAmount || line.amountLC || tx?.amount || 0),
               dealStatus: tx?.status || 'draft',
               remarks: narration,
               fixingMode: txFixingMode,
@@ -3149,10 +3170,15 @@ function ERPTab({ focusTab }) {
         const sign = String(row.direction || '').toLowerCase() === 'buy' ? 1 : -1
         return sum + (sign * qty)
       }, 0)
+      const getRowSignedAmount = (row) => {
+        const amount = Number(row?.amount || 0)
+        const mode = String(row?.fixingMode || '').trim().toLowerCase()
+        if (mode === 'unfixing') return amount
+        const sign = String(row?.direction || '').toLowerCase() === 'buy' ? 1 : -1
+        return sign * amount
+      }
       const openingValue = openingRows.reduce((sum, row) => {
-        const amount = Number(row.amount || 0)
-        const sign = String(row.direction || '').toLowerCase() === 'buy' ? 1 : -1
-        return sum + (sign * amount)
+        return sum + getRowSignedAmount(row)
       }, 0)
 
       setFixingRegOpening({ qtyOz: openingQtyOz, value: openingValue })
@@ -4845,9 +4871,14 @@ function ERPTab({ focusTab }) {
             const openingQtyOz = fixingRegFilter.excludeOpeningBalance ? 0 : Number(fixingRegOpening.qtyOz || 0)
             const openingValue = fixingRegFilter.excludeOpeningBalance ? 0 : Number(fixingRegOpening.value || 0)
             const closingQtyOz = openingQtyOz + netOz
+            const getRowSignedValue = (row) => {
+              const amount = Number(row?.amount || 0)
+              const mode = String(row?.fixingMode || '').trim().toLowerCase()
+              if (mode === 'unfixing') return amount
+              return String(row?.direction || '').toLowerCase() === 'buy' ? amount : -amount
+            }
             const txnNetValue = fixingRegResults.reduce((sum, row) => {
-              const sign = String(row.direction || '').toLowerCase() === 'buy' ? 1 : -1
-              return sum + (sign * Number(row.amount || 0))
+              return sum + getRowSignedValue(row)
             }, 0)
             const closingValue = openingValue + txnNetValue
             const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '-'
@@ -4994,7 +5025,7 @@ function ERPTab({ focusTab }) {
                             const qtyInOz = isBuy ? qtyOz : 0
                             const qtyOutOz = isBuy ? 0 : qtyOz
                             const signedQtyOz = isQtyImpactEnabled ? (isBuy ? qtyOz : -qtyOz) : 0
-                            const signedValue = isBuy ? amount : -amount
+                            const signedValue = getRowSignedValue(row)
                             runningQtyOz += signedQtyOz
                             runningAmount += signedValue
                             const avgRate = runningQtyOz !== 0 ? (runningAmount / runningQtyOz) : null
