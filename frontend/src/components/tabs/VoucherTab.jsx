@@ -2085,7 +2085,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
           {/* ── ERP Classic Toolbar ── */}
           {(() => {
-            const compactMetalTb = isMetalVoucher
+            const compactMetalTb = false
             const tbS = {
               minWidth: compactMetalTb ? 24 : 68,
               width: compactMetalTb ? 24 : undefined,
