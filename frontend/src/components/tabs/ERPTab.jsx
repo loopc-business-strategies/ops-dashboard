@@ -4827,29 +4827,31 @@ function ERPTab({ focusTab }) {
               return abs
             }
             const legacyHead1 = {
-              padding: '0.3rem 0.4rem',
-              border: '1px solid #A6A6A6',
+              padding: '0.24rem 0.38rem',
+              border: '1px solid #8F949B',
               color: '#2F3A44',
               fontWeight: '700',
               fontSize: '0.69rem',
               textTransform: 'uppercase',
               letterSpacing: '0.03em',
               whiteSpace: 'nowrap',
-              background: '#EBC788',
+              background: '#E5C183',
+              lineHeight: 1.05,
             }
             const legacyHead2 = {
-              padding: '0.28rem 0.4rem',
-              border: '1px solid #A6A6A6',
+              padding: '0.2rem 0.38rem',
+              border: '1px solid #9BA1A9',
               color: '#2F3A44',
               fontWeight: '700',
               fontSize: '0.67rem',
               textTransform: 'uppercase',
               letterSpacing: '0.03em',
-              background: '#F6E2BA',
+              background: '#F2DEB5',
+              lineHeight: 1.05,
             }
             const legacyCell = {
-              padding: '0.28rem 0.42rem',
-              border: '1px solid #C1C7CF',
+              padding: '0.24rem 0.4rem',
+              border: '1px solid #C6CBD2',
               color: '#1F2937',
               lineHeight: 1.1,
             }
@@ -4881,7 +4883,7 @@ function ERPTab({ focusTab }) {
                     ))}
                   </div>
 
-                  <div style={{ overflow: 'auto', border: '1px solid #9AA4B2', borderRadius: '0.24rem', flex: 1, background: '#FCFCFC' }}>
+                  <div style={{ overflow: 'auto', border: '1px solid #8F98A6', borderRadius: '0.24rem', flex: 1, background: '#FCFCFC' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', minWidth: '1320px', fontFamily: 'Georgia, "Times New Roman", serif' }}>
                       <colgroup>
                         <col style={{ width: '40px' }} />
