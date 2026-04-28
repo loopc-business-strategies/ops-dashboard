@@ -515,7 +515,6 @@ function ERPTab({ focusTab }) {
     partySearch: '',
     excludeOpeningBalance: false,
     excludeFutures: false,
-    includeUnfixInPosition: true,
     status: 'preview',
   })
   const [fixingRegResults, setFixingRegResults] = useState([])
@@ -3142,11 +3141,10 @@ function ERPTab({ focusTab }) {
         ? []
         : buildRows({ txSales: openingSaleTxs, txPurchases: openingPurchaseTxs, directDeals: openingDeals })
       const rows = buildRows({ txSales: saleTxs, txPurchases: purchaseTxs, directDeals: deals })
-      const openingUnfixAffectsPosition = Boolean(fixingRegFilter.includeUnfixInPosition)
 
       const openingQtyOz = openingRows.reduce((sum, row) => {
         const mode = String(row?.fixingMode || '').trim().toLowerCase()
-        if (!openingUnfixAffectsPosition && mode === 'unfixing') return sum
+        if (mode === 'unfixing') return sum
         const qty = Number(row.qty || 0)
         const sign = String(row.direction || '').toLowerCase() === 'buy' ? 1 : -1
         return sum + (sign * qty)
@@ -4786,19 +4784,8 @@ function ERPTab({ focusTab }) {
                     {lbl}
                   </label>
                 ))}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.38rem', color: '#374151', fontSize: '0.84rem', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(fixingRegFilter.includeUnfixInPosition)}
-                      onChange={(e) => setFixingRegFilter(f => ({ ...f, includeUnfixInPosition: e.target.checked }))}
-                      style={{ width: '1rem', height: '1rem', accentColor: '#2563EB' }}
-                    />
-                    Include Unfix In Position
-                  </label>
-                  <span style={{ color: '#64748B', fontSize: '0.75rem', lineHeight: 1.35 }}>
-                    Visible rows stay same; when off, position qty excludes unfix rows.
-                  </span>
+                <div style={{ color: '#64748B', fontSize: '0.76rem', lineHeight: 1.35 }}>
+                  Unfixing rows affect USD amount balance only; XAU position balance is unchanged.
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <label style={{ color: '#64748B', fontSize: '0.72rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</label>
@@ -4843,10 +4830,9 @@ function ERPTab({ focusTab }) {
             const qUnit = fixingRegFilter.quantityUnit
             const rUnit = fixingRegFilter.rateUnit
             const metalCodeLabel = String(fixingRegFilter.metalType || '').split('::')[0].toUpperCase() || 'XAU'
-            const unfixAffectsPosition = Boolean(fixingRegFilter.includeUnfixInPosition)
             const isQtyImpactRow = (row) => {
               const mode = String(row?.fixingMode || '').trim().toLowerCase()
-              if (!unfixAffectsPosition && mode === 'unfixing') return false
+              if (mode === 'unfixing') return false
               return true
             }
             const totalBuyOz = fixingRegResults
