@@ -133,14 +133,16 @@ function getNavItems(perms, t, chatUnread = 0) {
     { id: 'erp-mappings',     label: 'Mappings',       group: 'erp', erpSub: 'mappings',     show: perms.canViewERP },
     { id: 'erp-settings',     label: 'Settings',       group: 'erp', erpSub: 'settings',     show: perms.canViewERP },
     { id: 'erp-enquiry',      label: 'Account Summary',group: 'erp', erpSub: 'enquiry',      show: perms.canViewERP },
-    { id: 'erp-customers',    label: 'Customers',      group: 'erp', erpSub: 'customers',    show: perms.canViewERP },
-    { id: 'erp-ledger',       label: 'Ledger',         group: 'erp', erpSub: 'ledger',       show: perms.canViewERP },
+    { id: 'erp-customers',        label: 'Customers',       group: 'erp', erpSub: 'customers',       show: perms.canViewERP },
+    { id: 'erp-customer-margin',  label: 'Customer Margin', group: 'erp', erpSub: 'customer-margin', show: perms.canViewERP },
+    { id: 'erp-ledger',           label: 'Ledger',          group: 'erp', erpSub: 'ledger',          show: perms.canViewERP },
     { id: 'erp-transactions', label: 'Transactions',   group: 'erp', erpSub: 'transactions', show: perms.canViewERP },
     { id: 'erp-reports',      label: 'Reports',        group: 'erp', erpSub: 'reports',      show: perms.canViewERP },
     { id: 'erp-vendors',      label: 'Vendors',        group: 'erp', erpSub: 'vendors',      show: perms.canViewERP },
     { id: 'erp-inventory',    label: 'Inventory',      group: 'erp', erpSub: 'inventory',    show: perms.canViewERP },
     { id: 'erp-vouchers',     label: 'Vouchers',       group: 'erp', erpSub: 'vouchers',     show: perms.canViewERP },
-    { id: 'erp-direct-deals', label: 'Direct Deals',   group: 'erp', erpSub: 'direct-deals', show: perms.canViewERP },
+    { id: 'erp-direct-deals',    label: 'Direct Deals',    group: 'erp', erpSub: 'direct-deals',    show: perms.canViewERP },
+    { id: 'erp-fixing-register', label: 'Fixing Register', group: 'erp', erpSub: 'fixing-register', show: perms.canViewERP },
   ].filter(n => n.show)
 }
 
