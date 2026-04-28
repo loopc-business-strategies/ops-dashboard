@@ -515,6 +515,7 @@ function ERPTab({ focusTab }) {
     partySearch: '',
     excludeOpeningBalance: false,
     excludeFutures: false,
+    includeUnfixInPosition: true,
     status: 'preview',
   })
   const [fixingRegResults, setFixingRegResults] = useState([])
@@ -3141,8 +3142,11 @@ function ERPTab({ focusTab }) {
         ? []
         : buildRows({ txSales: openingSaleTxs, txPurchases: openingPurchaseTxs, directDeals: openingDeals })
       const rows = buildRows({ txSales: saleTxs, txPurchases: purchaseTxs, directDeals: deals })
+      const openingUnfixAffectsPosition = Boolean(fixingRegFilter.includeUnfixInPosition)
 
       const openingQtyOz = openingRows.reduce((sum, row) => {
+        const mode = String(row?.fixingMode || '').trim().toLowerCase()
+        if (!openingUnfixAffectsPosition && mode === 'unfixing') return sum
         const qty = Number(row.qty || 0)
         const sign = String(row.direction || '').toLowerCase() === 'buy' ? 1 : -1
         return sum + (sign * qty)
@@ -4782,6 +4786,15 @@ function ERPTab({ focusTab }) {
                     {lbl}
                   </label>
                 ))}
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.38rem', color: '#374151', fontSize: '0.84rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(fixingRegFilter.includeUnfixInPosition)}
+                    onChange={(e) => setFixingRegFilter(f => ({ ...f, includeUnfixInPosition: e.target.checked }))}
+                    style={{ width: '1rem', height: '1rem', accentColor: '#2563EB' }}
+                  />
+                  Include Unfix In Position
+                </label>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <label style={{ color: '#64748B', fontSize: '0.72rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</label>
                   <select
@@ -4825,8 +4838,18 @@ function ERPTab({ focusTab }) {
             const qUnit = fixingRegFilter.quantityUnit
             const rUnit = fixingRegFilter.rateUnit
             const metalCodeLabel = String(fixingRegFilter.metalType || '').split('::')[0].toUpperCase() || 'XAU'
-            const totalBuyOz = fixingRegResults.filter((r) => r.direction === 'buy').reduce((s, r) => s + Number(r.qty || 0), 0)
-            const totalSellOz = fixingRegResults.filter((r) => r.direction === 'sell').reduce((s, r) => s + Number(r.qty || 0), 0)
+            const unfixAffectsPosition = Boolean(fixingRegFilter.includeUnfixInPosition)
+            const isQtyImpactRow = (row) => {
+              const mode = String(row?.fixingMode || '').trim().toLowerCase()
+              if (!unfixAffectsPosition && mode === 'unfixing') return false
+              return true
+            }
+            const totalBuyOz = fixingRegResults
+              .filter((r) => r.direction === 'buy' && isQtyImpactRow(r))
+              .reduce((s, r) => s + Number(r.qty || 0), 0)
+            const totalSellOz = fixingRegResults
+              .filter((r) => r.direction === 'sell' && isQtyImpactRow(r))
+              .reduce((s, r) => s + Number(r.qty || 0), 0)
             const netOz = totalBuyOz - totalSellOz
             const openingQtyOz = fixingRegFilter.excludeOpeningBalance ? 0 : Number(fixingRegOpening.qtyOz || 0)
             const openingValue = fixingRegFilter.excludeOpeningBalance ? 0 : Number(fixingRegOpening.value || 0)
@@ -4968,9 +4991,10 @@ function ERPTab({ focusTab }) {
                             const qtyOz = Number(row.qty || 0)
                             const amount = Number(row.amount || 0)
                             const isBuy = String(row.direction || '').toLowerCase() === 'buy'
+                            const isQtyImpactEnabled = isQtyImpactRow(row)
                             const qtyInOz = isBuy ? qtyOz : 0
                             const qtyOutOz = isBuy ? 0 : qtyOz
-                            const signedQtyOz = isBuy ? qtyOz : -qtyOz
+                            const signedQtyOz = isQtyImpactEnabled ? (isBuy ? qtyOz : -qtyOz) : 0
                             const signedValue = isBuy ? amount : -amount
                             runningQtyOz += signedQtyOz
                             runningAmount += signedValue
