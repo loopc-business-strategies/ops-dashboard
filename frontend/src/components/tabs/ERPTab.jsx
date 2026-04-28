@@ -821,12 +821,12 @@ function ERPTab({ focusTab }) {
       return String(rawValue || '').trim().toUpperCase()
     }
 
-    const productOptions = inventoryCatalogProducts.map((item) => {
-      const meta = decodeInventoryCategoryPairs(item.category)
+    const stockTypeOptions = inventoryMappingProducts.map((item) => {
+      const meta = decodeInventoryCategoryMeta(item.category)
       const source = meta.metalType || meta.mainStock || item.name
       const metalCode = normalizeToMetalCode(source)
-      const labelName = titleCaseWords(meta.productCategory || item.name || item.sku || 'Product')
-      const puritySuffix = meta.productPurity ? ` (${meta.productPurity})` : ''
+      const labelName = titleCaseWords(meta.mainStock || meta.metalType || item.name || item.sku || 'Stock Type')
+      const puritySuffix = meta.purity ? ` (${meta.purity})` : ''
       return {
         id: item._id,
         value: `${metalCode}::${item._id}`,
@@ -835,19 +835,20 @@ function ERPTab({ focusTab }) {
       }
     }).filter((option) => Boolean(option.metalCode))
 
-    if (productOptions.length) return productOptions
+    if (stockTypeOptions.length) return stockTypeOptions
 
-    return inventoryMappingProducts.map((item) => {
-      const meta = decodeInventoryCategoryMeta(item.category)
+    // Legacy fallback for older datasets where stock types were not encoded in mapping records.
+    return inventoryCatalogProducts.map((item) => {
+      const meta = decodeInventoryCategoryPairs(item.category)
       const source = meta.metalType || meta.mainStock || item.name
       const metalCode = normalizeToMetalCode(source)
-      const stockLabel = titleCaseWords(meta.mainStock || meta.metalType || item.name || 'Stock Type')
-      const puritySuffix = meta.purity ? ` (${meta.purity})` : ''
+      const productLabel = titleCaseWords(meta.productCategory || item.name || item.sku || 'Product')
+      const puritySuffix = meta.productPurity ? ` (${meta.productPurity})` : ''
       return {
         id: item._id,
         value: `${metalCode}::${item._id}`,
         metalCode,
-        label: `${stockLabel}${puritySuffix}`,
+        label: `${productLabel}${puritySuffix}`,
       }
     }).filter((option) => Boolean(option.metalCode))
   }, [inventoryCatalogProducts, inventoryMappingProducts])
@@ -2790,7 +2791,8 @@ function ERPTab({ focusTab }) {
   useEffect(() => {
     if (activeTab !== 'fixing-register' || !token) return
     if (!customers.length) loadCustomers({ limit: 200 })
-  }, [activeTab, token, customers.length])
+    if (!inventoryProducts.length) loadInventory()
+  }, [activeTab, token, customers.length, inventoryProducts.length])
 
   useEffect(() => {
     if (!fixingRegisterStockTypeOptions.length) return
