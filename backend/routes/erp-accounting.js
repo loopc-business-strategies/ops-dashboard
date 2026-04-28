@@ -571,6 +571,27 @@ const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
       actorId: user._id,
       actorName: user.name,
     })
+
+    // Create COGS ledger entry: debit COGS expense, credit inventory asset
+    const cogsAmount = Number(plan.costAmount || 0)
+    const cogsAccountId = preparedImpact?.cogsAccountId || null
+    const inventoryAccountId = plan.inventoryAccountId || item.ledgerAccountId || null
+    if (cogsAmount > 0 && cogsAccountId && inventoryAccountId) {
+      await Ledger.create({
+        date: tx.voucherMeta?.valueDate || tx.date || new Date(),
+        debitAccountId: cogsAccountId,
+        creditAccountId: inventoryAccountId,
+        amount: cogsAmount,
+        description: `COGS for ${item.name}${tx.voucherMeta?.vocNo ? ` #${tx.voucherMeta.vocNo}` : ''}`,
+        referenceType: 'cogs',
+        referenceId: tx._id,
+        createdBy: user._id,
+        updatedBy: user._id,
+        department: user.department || tx.department || '',
+        currency: tx.currency || 'USD',
+        exchangeRate: Number(tx.exchangeRate || 1),
+      })
+    }
   }
 }
 
