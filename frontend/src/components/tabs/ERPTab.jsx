@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import erpAccountingAPI from '../../api/erp-accounting'
+import messagesAPI from '../../api/messages'
 import { formatTransactionAuditEntry, formatTransactionCommentKind, getTransactionBulkSelectionLabel } from './transactionWorkflow'
 import ChartOfAccountsTree from './ChartOfAccountsTree'
 import VoucherTab from './VoucherTab'
@@ -227,156 +228,528 @@ const C = {
 }
 
 const ERP_DASH_ALL_WIDGETS = [
-  { id: 'margins',  label: 'Customer & Supplier Margins', icon: '📊', desc: 'Margin comparison by customer/supplier', cols: 2 },
-  { id: 'metals',   label: 'Current Metal Prices',         icon: '🥇', desc: 'Live gold, silver, platinum, palladium', cols: 1 },
-  { id: 'bank',     label: 'Bank & Cash Balances',         icon: '🏦', desc: 'Account balances overview',             cols: 1 },
-  { id: 'cashflow', label: 'Cash Flow',                    icon: '💸', desc: 'Monthly inflows and outflows',          cols: 1 },
-  { id: 'expenses', label: 'Expenses',                     icon: '📋', desc: 'Expense breakdown by category',         cols: 1 },
-  { id: 'volume',   label: 'Total Volume Traded',          icon: '📦', desc: 'Trade volume by metal type',            cols: 1 },
-  { id: 'apar',     label: 'AP & AR',                      icon: '⚖️',  desc: 'Payables & receivables overview',       cols: 2 },
-  { id: 'fixing',   label: 'Fixing Position Summary',      icon: '📌', desc: 'Open fixing positions by metal',        cols: 2 },
-  { id: 'assets',   label: 'Key Assets & Liabilities',     icon: '🏛️', desc: 'Balance sheet snapshot from accounts',  cols: 2 },
-  { id: 'notif',    label: 'Notifications & Alerts',       icon: '🔔', desc: 'System alerts and reminders',           cols: 1 },
+  { id: 'margins',  label: 'Customer & Supplier Margins',  icon: '📊', desc: 'Expense & cash flow by customer/supplier', cols: 2 },
+  { id: 'metals',   label: 'Current Metal Prices',          icon: '🥇', desc: 'Live gold, silver, platinum, palladium',    cols: 1 },
+  { id: 'bank',     label: 'Bank & Cash Balances',          icon: '🏦', desc: 'All account balances overview',             cols: 1 },
+  { id: 'cashflow', label: 'Cash Flow',                     icon: '💸', desc: 'Monthly inflow / outflow bar chart',        cols: 2 },
+  { id: 'expenses', label: 'Expenses',                      icon: '📋', desc: 'Expense breakdown by category',             cols: 1 },
+  { id: 'volume',   label: 'Total Volume Traded',           icon: '📦', desc: 'Trade volume by metal type',                cols: 1 },
+  { id: 'apar',     label: 'Accounts Payable & Receivable', icon: '⚖️', desc: 'Live AP / AR with outstanding breakdown',   cols: 3 },
+  { id: 'fixing',   label: 'Fixing Position Summary',       icon: '📌', desc: 'Open fixing positions by metal',            cols: 2, viewTab: 'fixing' },
+  { id: 'chat',     label: 'Chat',                          icon: '💬', desc: 'Recent team messages',                      cols: 1 },
+  { id: 'notif',    label: 'Notifications & Alerts',        icon: '🔔', desc: 'System alerts and reminders',               cols: 1 },
 ]
-const ERP_DASH_DEFAULT = ['metals', 'bank', 'apar', 'fixing', 'assets', 'notif']
+const ERP_DASH_DEFAULT = ['margins', 'metals', 'bank', 'cashflow', 'expenses', 'volume', 'apar', 'fixing', 'chat', 'notif']
+const ERP_DASH_VALID_IDS = new Set(ERP_DASH_ALL_WIDGETS.map(w => w.id))
+const sanitizeDashWidgets = (value) => {
+  const src = Array.isArray(value) ? value : ERP_DASH_DEFAULT
+  const seen = new Set()
+  const out = []
+  src.forEach((id) => { if (ERP_DASH_VALID_IDS.has(id) && !seen.has(id)) { seen.add(id); out.push(id) } })
+  return out.length ? out : [...ERP_DASH_DEFAULT]
+}
 
-function renderERP_DashWidget(id, dashboard) {
+// ── Tiny SVG bar chart ─────────────────────────────────────────
+function MiniBarChart({ data = [], valueKey = 'value', labelKey = 'label', color = '#059669', height = 56 }) {
+  const [hovered, setHovered] = useState(null)
+  const max = Math.max(...data.map(d => Number(d[valueKey] || 0)), 1)
+  return (
+    <div style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: `${height}px` }}>
+        {data.map((d, i) => {
+          const pct = Math.max((Number(d[valueKey] || 0) / max) * 100, 2)
+          return (
+            <div
+              key={i}
+              style={{ flex: 1, borderRadius: '2px 2px 0 0', background: hovered === i ? '#0EA5E9' : color, height: `${pct}%`, cursor: 'pointer', transition: 'background 0.15s' }}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+              title={`${d[labelKey]}: ${Number(d[valueKey] || 0).toLocaleString()}`}
+            />
+          )
+        })}
+      </div>
+      {hovered !== null && data[hovered] && (
+        <div style={{ position: 'absolute', top: -28, left: '50%', transform: 'translateX(-50%)', background: '#111827', color: '#fff', fontSize: '0.68rem', padding: '2px 7px', borderRadius: '4px', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+          {data[hovered][labelKey]}: {Number(data[hovered][valueKey] || 0).toLocaleString()}
+        </div>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '3px' }}>
+        {data.map((d, i) => <span key={i} style={{ flex: 1, textAlign: 'center', fontSize: '0.62rem', color: '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d[labelKey]}</span>)}
+      </div>
+    </div>
+  )
+}
+
+// ── Tiny SVG donut chart ───────────────────────────────────────
+function DonutChart({ segments = [], total = 0, label = '' }) {
+  const [hovered, setHovered] = useState(null)
+  const r = 28; const cx = 36; const cy = 36; const stroke = 14
+  let cumAngle = -90
+  const arcs = segments.map((seg, i) => {
+    const pct = total > 0 ? Number(seg.value) / total : 0
+    const angle = pct * 360
+    const startAngle = cumAngle
+    cumAngle += angle
+    const toRad = (deg) => (deg * Math.PI) / 180
+    const x1 = cx + r * Math.cos(toRad(startAngle))
+    const y1 = cy + r * Math.sin(toRad(startAngle))
+    const x2 = cx + r * Math.cos(toRad(startAngle + angle))
+    const y2 = cy + r * Math.sin(toRad(startAngle + angle))
+    const large = angle > 180 ? 1 : 0
+    return { ...seg, i, x1, y1, x2, y2, large, angle, pct }
+  })
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      <svg width="72" height="72" viewBox="0 0 72 72" style={{ flexShrink: 0 }}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#E8F5EF" strokeWidth={stroke} />
+        {arcs.map((arc) => arc.angle < 0.5 ? null : (
+          <path
+            key={arc.i}
+            d={`M ${arc.x1} ${arc.y1} A ${r} ${r} 0 ${arc.large} 1 ${arc.x2} ${arc.y2}`}
+            fill="none"
+            stroke={arc.color}
+            strokeWidth={hovered === arc.i ? stroke + 2 : stroke}
+            onMouseEnter={() => setHovered(arc.i)}
+            onMouseLeave={() => setHovered(null)}
+            style={{ cursor: 'pointer', transition: 'stroke-width 0.15s' }}
+          />
+        ))}
+        <text x={cx} y={cy + 4} textAnchor="middle" fontSize="10" fontWeight="600" fill="#111">{label}</text>
+      </svg>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+        {arcs.map((arc) => (
+          <div
+            key={arc.i}
+            onMouseEnter={() => setHovered(arc.i)}
+            onMouseLeave={() => setHovered(null)}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.72rem', color: hovered === arc.i ? '#111' : '#6B7280', cursor: 'default', fontWeight: hovered === arc.i ? '600' : '400' }}
+          >
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: arc.color, flexShrink: 0, display: 'inline-block' }} />
+            {arc.label} {(arc.pct * 100).toFixed(0)}%
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function fmtMoney(val, currency = '') {
+  const n = Number(val || 0)
+  const formatted = n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return currency ? `${currency} ${formatted}` : formatted
+}
+
+// ── Margins Widget — Customer / Supplier tabs ─────────────────
+function MarginsWidget({ dashboard }) {
+  const [tab, setTab] = useState('customers')
+  const muted = '#6B7280'; const ink = '#111827'
+  const customers = dashboard?.customerMargins || []
+  const suppExp = Number(dashboard?.supplierMargins?.expenses || 0)
+  const suppCash = Number(dashboard?.supplierMargins?.cashOutflow || 0)
+  const tabSt = (active) => ({
+    padding: '0.45rem 0.9rem', fontSize: '0.75rem', fontWeight: active ? '600' : '500',
+    color: active ? '#059669' : muted, cursor: 'pointer',
+    borderBottom: `2px solid ${active ? '#059669' : 'transparent'}`,
+    background: active ? '#fff' : 'transparent', userSelect: 'none',
+  })
+  return (
+    <div>
+      <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4', margin: '-0.75rem -1rem 0.625rem' }}>
+        <div style={tabSt(tab === 'customers')} onClick={() => setTab('customers')}>Customer Margins</div>
+        <div style={tabSt(tab === 'suppliers')} onClick={() => setTab('suppliers')}>Supplier Side</div>
+      </div>
+      {tab === 'customers' ? (
+        customers.length === 0
+          ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No customer data for period.</p>
+          : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+              <thead><tr style={{ borderBottom: '1px solid #F0FDF4' }}>
+                {['Customer', 'Expenses', 'Net CF'].map(h => (
+                  <th key={h} style={{ padding: '0.3rem 0.4rem', textAlign: h === 'Customer' ? 'left' : 'right', fontSize: '0.65rem', fontWeight: '700', color: muted }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {customers.slice(0, 7).map((c, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #F9FAFB' }}>
+                    <td style={{ padding: '0.35rem 0.4rem', fontWeight: '500', color: ink }}>{c.customerName}</td>
+                    <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', color: '#DC2626' }}>{fmtMoney(c.expenses)}</td>
+                    <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: Number(c.netCashFlow || 0) >= 0 ? '#059669' : '#DC2626' }}>{fmtMoney(c.netCashFlow)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+      ) : (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem' }}>
+            <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#FEF9C3' }}>
+              <p style={{ fontSize: '0.68rem', color: muted, marginBottom: '0.25rem', fontWeight: '600' }}>Total Expenses</p>
+              <p style={{ fontSize: '1.05rem', fontWeight: '700', color: '#92400E', margin: 0 }}>{fmtMoney(suppExp)}</p>
+            </div>
+            <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#FEE2E2' }}>
+              <p style={{ fontSize: '0.68rem', color: muted, marginBottom: '0.25rem', fontWeight: '600' }}>Cash Outflow</p>
+              <p style={{ fontSize: '1.05rem', fontWeight: '700', color: '#DC2626', margin: 0 }}>{fmtMoney(suppCash)}</p>
+            </div>
+          </div>
+          <p style={{ fontSize: '0.72rem', color: muted, marginTop: '0.75rem', textAlign: 'center' }}>Based on account mappings for the period</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── AP/AR Widget — AR / AP tabs, full 3-col width ─────────────
+function APARWidget({ dashboard }) {
+  const [tab, setTab] = useState('ar')
+  const muted = '#6B7280'; const ink = '#111827'
+  const ap = dashboard?.apAr
+  const arRows = ap?.customerOutstanding || []
+  const apRows = ap?.supplierOutstanding || []
+  const tabSt = (active) => ({
+    padding: '0.45rem 0.9rem', fontSize: '0.75rem', fontWeight: active ? '600' : '500',
+    color: active ? '#059669' : muted, cursor: 'pointer',
+    borderBottom: `2px solid ${active ? '#059669' : 'transparent'}`,
+    background: active ? '#fff' : 'transparent', userSelect: 'none',
+  })
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '0.625rem' }}>
+        {[
+          { label: 'RECEIVABLE (AR)', val: ap?.totalAR, sub: `${ap?.arCount || 0} open`,    vc: '#16A34A', bg: '#DCFCE7' },
+          { label: 'PAYABLE (AP)',    val: ap?.totalAP, sub: `${ap?.apCount || 0} pending`, vc: '#DC2626', bg: '#FEE2E2' },
+          { label: 'NET POSITION',   val: ap?.netPosition, sub: Number(ap?.netPosition || 0) >= 0 ? '▲ Favorable' : '▼ Deficit', vc: '#059669', bg: '#E8F5EF' },
+        ].map(c => (
+          <div key={c.label} style={{ padding: '0.625rem', borderRadius: '0.5rem', background: c.bg, textAlign: 'center' }}>
+            <p style={{ fontSize: '0.62rem', color: muted, fontWeight: '700', letterSpacing: '0.04em', marginBottom: '0.2rem' }}>{c.label}</p>
+            <p style={{ fontSize: '1.05rem', fontWeight: '700', color: c.vc, margin: 0 }}>{fmtMoney(c.val)}</p>
+            <p style={{ fontSize: '0.68rem', color: c.vc, marginTop: '0.15rem' }}>{c.sub}</p>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4', margin: '0 -1rem 0.5rem' }}>
+        <div style={tabSt(tab === 'ar')} onClick={() => setTab('ar')}>Receivable (AR)</div>
+        <div style={tabSt(tab === 'ap')} onClick={() => setTab('ap')}>Payable (AP)</div>
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+        <thead><tr style={{ borderBottom: '1px solid #F0FDF4' }}>
+          {(tab === 'ar' ? ['Customer', 'Outstanding', 'Count'] : ['Supplier', 'Outstanding', 'Count']).map(h => (
+            <th key={h} style={{ padding: '0.3rem 0.4rem', textAlign: h === 'Customer' || h === 'Supplier' ? 'left' : 'right', fontSize: '0.65rem', fontWeight: '700', color: muted }}>{h}</th>
+          ))}
+        </tr></thead>
+        <tbody>
+          {(tab === 'ar' ? arRows : apRows).length === 0
+            ? <tr><td colSpan={3} style={{ padding: '0.75rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem' }}>No data for period.</td></tr>
+            : (tab === 'ar' ? arRows : apRows).slice(0, 6).map((r, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #F9FAFB' }}>
+                <td style={{ padding: '0.35rem 0.4rem', fontWeight: '500', color: ink }}>{r.customerName || r.supplierName}</td>
+                <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '600', color: tab === 'ar' ? '#16A34A' : '#DC2626' }}>{fmtMoney(r.outstanding)}</td>
+                <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', color: muted }}>{r.count || '—'}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+        {(tab === 'ar' ? arRows : apRows).length > 0 && (
+          <tfoot><tr style={{ borderTop: '2px solid #E8F5EF', background: '#F9FAFB' }}>
+            <td style={{ padding: '0.35rem 0.4rem', fontWeight: '700' }}>Total {tab === 'ar' ? 'AR' : 'AP'}</td>
+            <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '700', color: tab === 'ar' ? '#16A34A' : '#DC2626' }}>{fmtMoney(tab === 'ar' ? ap?.totalAR : ap?.totalAP)}</td>
+            <td />
+          </tr></tfoot>
+        )}
+      </table>
+    </div>
+  )
+}
+
+function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = null, onNavigateMain = null) {
   const bdr = '1px solid #F0FDF4'
   const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: bdr, fontSize: '0.82rem' }
   const muted = '#6B7280'
   const ink = '#111827'
 
+  const METAL_COLORS = { Gold: '#F59E0B', Silver: '#9CA3AF', Platinum: '#6366F1', Palladium: '#EC4899' }
+  const VOL_COLORS = ['#F59E0B', '#9CA3AF', '#6366F1', '#EC4899', '#059669']
+
+  // Inline sparkline helper
+  const sparkLine = (data, clr) => {
+    const mn = Math.min(...data), mx = Math.max(...data), rg = mx - mn || 1
+    const pts = data.map((v, i) => `${(i / (data.length - 1)) * 52},${24 - ((v - mn) / rg) * 20 + 2}`).join(' ')
+    return <svg width="52" height="26" style={{ flexShrink: 0 }}><polyline points={pts} fill="none" stroke={clr} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+  }
+
   switch (id) {
-    case 'margins': return (
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-        {[['Customer', [['Gold','18.4%',72],['Silver','12.1%',48],['Platinum','9.7%',39]], '#059669', '#F0FDF4'],
-          ['Supplier', [['Gold','14.2%',57],['Silver','8.5%',34],['Platinum','6.1%',24]], '#D97706', '#FEF9C3']].map(([title, rows, clr, bg]) => (
-          <div key={title}>
-            <p style={{ fontSize: '0.72rem', color: muted, marginBottom: '0.5rem' }}>{title} Margin</p>
-            {rows.map(([m, v, p]) => (
-              <div key={m} style={{ marginBottom: '0.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '3px' }}><span>{m}</span><span style={{ color: clr, fontWeight: '500' }}>{v}</span></div>
-                <div style={{ height: '5px', background: bg, borderRadius: '3px' }}><div style={{ height: '100%', width: `${p}%`, background: clr, borderRadius: '3px' }} /></div>
+    case 'margins': return <MarginsWidget dashboard={dashboard} />
+
+    case 'metals': {
+      const rates = dashboard?.metalRates
+      const g = Number(rates?.gold || 0); const s = Number(rates?.silver || 0)
+      const cur = rates?.currency || 'USD'
+      const METALS_DEF = [
+        { n: 'Gold',      color: '#F59E0B', price: g, spark: [2290,2310,2280,2315,2300,2330,g||2341] },
+        { n: 'Silver',    color: '#9CA3AF', price: s, spark: [27.1,27.3,27.0,27.5,27.6,27.8,s||27.85] },
+        { n: 'Platinum',  color: '#6366F1', price: 0, spark: [970,965,960,958,962,959,956] },
+        { n: 'Palladium', color: '#EC4899', price: 0, spark: [1030,1020,1015,1010,1012,1008,1002] },
+      ]
+      return (
+        <div>
+          {METALS_DEF.map(m => (
+            <div key={m.n} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0', borderBottom: '1px solid #F9FAFB' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', fontWeight: '500' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: m.color, display: 'inline-block', flexShrink: 0 }} />
+                {m.n}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                {sparkLine(m.spark, m.price > 0 ? '#16A34A' : '#9CA3AF')}
+                <div style={{ textAlign: 'right', minWidth: '90px' }}>
+                  <div style={{ fontSize: '0.875rem', fontWeight: '600', color: m.price > 0 ? ink : '#9CA3AF' }}>
+                    {m.price > 0 ? `${cur} ${m.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {rates?.updatedAt && (
+            <p style={{ fontSize: '0.67rem', color: '#9CA3AF', marginTop: '0.4rem', textAlign: 'right' }}>
+              Updated {new Date(rates.updatedAt).toLocaleString()}
+            </p>
+          )}
+        </div>
+      )
+    }
+
+    case 'bank': {
+      const bankRows = dashboard?.bankBalances || []
+      const cashRows = dashboard?.cashBalances || []
+      const allRows = [...bankRows, ...cashRows]
+      const total = allRows.reduce((s, a) => s + Number(a.balance || 0), 0)
+      return (
+        <div>
+          {allRows.length === 0
+            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No accounts found.</p>
+            : allRows.map((a, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid #F9FAFB' }}>
+                <div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: '500', color: ink }}>{a.accountName}</div>
+                  <div style={{ fontSize: '0.7rem', color: muted }}>{a.accountCode}</div>
+                </div>
+                <span style={{ fontWeight: '600', color: ink, fontSize: '0.82rem' }}>{fmtMoney(a.balance)}</span>
+              </div>
+            ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.4rem', marginTop: '0.1rem', borderTop: '2px solid #E8F5EF', fontSize: '0.82rem' }}>
+            <span style={{ fontWeight: '700', color: ink }}>Total</span>
+            <span style={{ fontWeight: '700', color: '#059669' }}>{fmtMoney(total)}</span>
+          </div>
+        </div>
+      )
+    }
+
+    case 'cashflow': {
+      const cf = dashboard?.cashFlow
+      const monthly = cf?.monthly || []
+      const mx = Math.max(...monthly.map(m => Math.max(Number(m.inflow || 0), Number(m.outflow || 0))), 1)
+      const summaryItems = [
+        { label: 'Inflow',  val: cf?.inflow,  bg: '#DCFCE7', vc: '#059669' },
+        { label: 'Outflow', val: cf?.outflow, bg: '#FEE2E2', vc: '#DC2626' },
+        { label: 'Net',     val: cf?.net,     bg: '#E8F5EF', vc: Number(cf?.net || 0) >= 0 ? '#059669' : '#DC2626' },
+      ]
+      return (
+        <div>
+          {monthly.length > 0 && (
+            <>
+              <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.4rem' }}>
+                {[['#22C97E', 'Inflow'], ['#FCA5A5', 'Outflow'], ['#059669', 'Net']].map(([c, l]) => (
+                  <div key={l} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: muted }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '2px', background: c, display: 'inline-block' }} />{l}
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '5px', height: '72px', marginBottom: '0.6rem' }}>
+                {monthly.map((m, i) => {
+                  const inH = Math.max((Number(m.inflow || 0) / mx) * 60, 2)
+                  const outH = Math.max((Number(m.outflow || 0) / mx) * 60, 2)
+                  const netH = Math.max((Math.abs(Number(m.net || 0)) / mx) * 60, 2)
+                  return (
+                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '1px', alignItems: 'flex-end', height: '62px' }}>
+                        <div style={{ flex: 1, borderRadius: '2px 2px 0 0', background: '#22C97E', height: `${inH}px` }} />
+                        <div style={{ flex: 1, borderRadius: '2px 2px 0 0', background: '#FCA5A5', height: `${outH}px` }} />
+                        <div style={{ flex: 1, borderRadius: '2px 2px 0 0', background: '#059669', height: `${netH}px` }} />
+                      </div>
+                      <div style={{ fontSize: '0.6rem', color: muted, marginTop: '3px' }}>{m.month}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.5rem' }}>
+            {summaryItems.map(item => (
+              <div key={item.label} style={{ background: item.bg, borderRadius: '0.375rem', padding: '0.5rem', textAlign: 'center' }}>
+                <p style={{ fontSize: '0.67rem', color: muted, margin: '0 0 2px' }}>{item.label}</p>
+                <p style={{ fontSize: '0.82rem', fontWeight: '700', color: item.vc, margin: 0 }}>{fmtMoney(item.val)}</p>
               </div>
             ))}
           </div>
-        ))}
-      </div>
-    )
-    case 'metals': return (
-      <div>
-        {[{ n:'Gold',color:'#F59E0B',price:'$2,341.50',chg:'+0.42%',up:true },{ n:'Silver',color:'#9CA3AF',price:'$27.85',chg:'+0.18%',up:true },{ n:'Platinum',color:'#6366F1',price:'$956.20',chg:'-0.31%',up:false },{ n:'Palladium',color:'#EC4899',price:'$1,002.00',chg:'-0.55%',up:false }].map(m => (
-          <div key={m.n} style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0.45rem 0',borderBottom:'1px solid #F9FAFB' }}>
-            <div style={{ display:'flex',alignItems:'center',gap:'0.5rem',fontSize:'0.82rem',fontWeight:'500' }}><span style={{ width:'9px',height:'9px',borderRadius:'50%',background:m.color,display:'inline-block',flexShrink:0 }}/>{m.n}</div>
-            <div style={{ display:'flex',alignItems:'center',gap:'0.5rem' }}>
-              <span style={{ fontSize:'0.875rem',fontWeight:'600',color:ink }}>{m.price}</span>
-              <span style={{ fontSize:'0.7rem',padding:'1px 6px',borderRadius:'10px',background:m.up?'#DCFCE7':'#FEE2E2',color:m.up?'#16A34A':'#DC2626' }}>{m.chg}</span>
+        </div>
+      )
+    }
+
+    case 'expenses': {
+      const exp = dashboard?.expenses
+      const breakdown = exp?.breakdown || []
+      const total = Number(exp?.total || 0)
+      const COLORS = ['#1a6647', '#4DB890', '#A8D8C0', '#0EA5E9', '#6366F1', '#D97706']
+      const segments = breakdown.slice(0, 6).map((item, i) => ({ label: item.name, value: item.amount, color: COLORS[i % COLORS.length] }))
+      return (
+        <div>
+          {total === 0
+            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF', textAlign: 'center', padding: '0.5rem 0' }}>No expenses in period.</p>
+            : <DonutChart segments={segments} total={total} label={`$${(total / 1000).toFixed(0)}k`} />
+          }
+        </div>
+      )
+    }
+
+    case 'volume': {
+      const vols = dashboard?.volumeTraded || []
+      const totalQty = vols.reduce((s, v) => s + Number(v.qty || 0), 0)
+      const mx = Math.max(...vols.map(v => Number(v.qty || 0)), 1)
+      return (
+        <div>
+          {vols.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '68px', marginBottom: '0.625rem' }}>
+              {vols.map((v, i) => (
+                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                  <span style={{ fontSize: '0.6rem', fontWeight: '600', color: '#059669' }}>{Number(v.qty || 0).toFixed(0)}</span>
+                  <div style={{ width: '100%', background: VOL_COLORS[i % VOL_COLORS.length], borderRadius: '4px 4px 0 0', height: `${Math.max((Number(v.qty || 0) / mx) * 48, 3)}px` }} />
+                  <span style={{ fontSize: '0.58rem', color: muted }}>{(v.metal || '').slice(0, 4)}</span>
+                </div>
+              ))}
             </div>
-          </div>
-        ))}
-      </div>
-    )
-    case 'bank': return (
-      <div>
-        {[['Main Bank Account','$4,82,311.00'],['Petty Cash','$1,250.00'],['Reserve Account','$98,000.00']].map(([l,v]) => (
-          <div key={l} style={rowStyle}><span style={{ color: muted }}>{l}</span><span style={{ fontWeight:'500',color:ink }}>{v}</span></div>
-        ))}
-        <div style={{ display:'flex',justifyContent:'space-between',paddingTop:'0.4rem',fontSize:'0.82rem' }}><span style={{ fontWeight:'600',color:ink }}>Total</span><span style={{ fontWeight:'600',color:'#059669' }}>$5,81,561.00</span></div>
-      </div>
-    )
-    case 'cashflow': return (
-      <div>
-        {[['Opening Balance','$3,20,000',{}],['Cash Inflows','+ $8,29,642',{color:'#16A34A'}],['Cash Outflows','- $0',{color:'#DC2626'}]].map(([l,v,s]) => (
-          <div key={l} style={rowStyle}><span style={{ color: muted }}>{l}</span><span style={{ fontWeight:'500',color:ink,...s }}>{v}</span></div>
-        ))}
-        <div style={{ display:'flex',justifyContent:'space-between',paddingTop:'0.4rem',fontSize:'0.82rem' }}><span style={{ fontWeight:'600',color:ink }}>Closing Balance</span><span style={{ fontWeight:'600',color:'#059669' }}>$11,49,642</span></div>
-        <div style={{ display:'flex',alignItems:'flex-end',gap:'2px',height:'44px',marginTop:'0.75rem' }}>
-          {[30,50,40,70,55,80,65,90,75,88,72,95].map((h,i)=><div key={i} style={{ flex:1,borderRadius:'2px 2px 0 0',background:i===11?'#059669':'#A8D8C0',height:`${h}%` }}/>)}
-        </div>
-      </div>
-    )
-    case 'expenses': return (
-      <div style={{ display:'flex',alignItems:'center',gap:'1rem' }}>
-        <svg width="80" height="80" viewBox="0 0 80 80" style={{ flexShrink:0 }}>
-          <circle cx="40" cy="40" r="28" fill="none" stroke="#E8F5EF" strokeWidth="14"/>
-          <circle cx="40" cy="40" r="28" fill="none" stroke="#1a6647" strokeWidth="14" strokeDasharray="88 88" strokeDashoffset="22" transform="rotate(-90 40 40)"/>
-          <circle cx="40" cy="40" r="28" fill="none" stroke="#4DB890" strokeWidth="14" strokeDasharray="44 132" strokeDashoffset="-66" transform="rotate(-90 40 40)"/>
-          <circle cx="40" cy="40" r="28" fill="none" stroke="#A8D8C0" strokeWidth="14" strokeDasharray="44 132" strokeDashoffset="-110" transform="rotate(-90 40 40)"/>
-          <text x="40" y="44" textAnchor="middle" fontSize="11" fontWeight="600" fill="#111">$0</text>
-        </svg>
-        <div style={{ display:'flex',flexDirection:'column',gap:'0.4rem' }}>
-          {[['#1a6647','Operations 50%'],['#4DB890','Salaries 25%'],['#A8D8C0','Overheads 25%']].map(([c,l])=>(
-            <div key={l} style={{ display:'flex',alignItems:'center',gap:'0.4rem',fontSize:'0.75rem',color:muted }}>
-              <span style={{ width:'9px',height:'9px',borderRadius:'50%',background:c,flexShrink:0,display:'inline-block' }}/>{l}
+          )}
+          {vols.length === 0
+            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No volume data in period.</p>
+            : vols.map((v, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid #F9FAFB', fontSize: '0.8rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: VOL_COLORS[i % VOL_COLORS.length], display: 'inline-block' }} />
+                  <span style={{ fontWeight: '500', color: ink }}>{v.metal}</span>
+                </div>
+                <span style={{ color: '#374151' }}>{Number(v.qty || 0).toLocaleString()} oz</span>
+                <span style={{ padding: '1px 7px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: '500', background: '#E8F5EF', color: '#065f46' }}>{fmtMoney(v.value)}</span>
+              </div>
+            ))
+          }
+          {vols.length > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.4rem', fontSize: '0.82rem', fontWeight: '600', borderTop: '1px solid #E8F5EF', marginTop: '0.2rem' }}>
+              <span>Total</span><span style={{ color: '#059669' }}>{totalQty.toLocaleString()} oz</span>
             </div>
-          ))}
+          )}
         </div>
-      </div>
-    )
-    case 'volume': return (
-      <div>
-        {[['Gold','1,000.000 oz','#FEF9C3','#854D0E','High'],['Silver','450.000 oz','#E8F5EF','#166534','Mid'],['Platinum','80.000 oz','#F3F4F6',muted,'Low']].map(([m,v,bc,tc,tag])=>(
-          <div key={m} style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0.4rem 0',borderBottom:'1px solid #F9FAFB',fontSize:'0.82rem' }}>
-            <span style={{ fontWeight:'500',color:ink }}>{m}</span><span style={{ color:'#374151' }}>{v}</span>
-            <span style={{ padding:'1px 7px',borderRadius:'10px',fontSize:'0.7rem',fontWeight:'500',background:bc,color:tc }}>{tag}</span>
+      )
+    }
+
+    case 'apar': return <APARWidget dashboard={dashboard} />
+
+    case 'fixing': {
+      const positions = dashboard?.fixingPositions || []
+      const METALS_DEF = ['Gold', 'Silver', 'Platinum', 'Palladium']
+      const totalAmt = positions.reduce((s, p) => s + Number(p.amount || 0), 0)
+      const byMetal = METALS_DEF.map(m => {
+        const p = positions.find(p => p.metal === m)
+        return { metal: m, oz: Number(p?.qty || 0), usd: Number(p?.amount || 0), color: METAL_COLORS[m] || '#9CA3AF' }
+      })
+      return (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            {byMetal.map(f => (
+              <div key={f.metal} style={{ background: '#F9FAFB', borderRadius: '0.5rem', padding: '0.6rem', textAlign: 'center', border: '1px solid #F0FDF4' }}>
+                <p style={{ fontSize: '0.62rem', color: muted, marginBottom: '0.2rem' }}>{f.metal}</p>
+                <p style={{ fontSize: '0.88rem', fontWeight: '700', color: ink, margin: 0 }}>{f.oz.toLocaleString()} oz</p>
+                <p style={{ fontSize: '0.65rem', color: '#059669', fontWeight: '500', marginTop: '1px' }}>{fmtMoney(f.usd)}</p>
+                <div style={{ height: '4px', background: '#E8F5EF', borderRadius: '2px', marginTop: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: totalAmt > 0 ? `${(f.usd / totalAmt) * 100}%` : '0%', height: '100%', background: f.color, borderRadius: '2px' }} />
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-        <div style={{ display:'flex',justifyContent:'space-between',paddingTop:'0.5rem',fontSize:'0.82rem',fontWeight:'600',borderTop:'1px solid #E8F5EF',marginTop:'0.25rem' }}>
-          <span>Total</span><span style={{ color:'#059669' }}>1,530.000 oz</span>
+          {positions.length > 0 ? (
+            <>
+              <p style={{ fontSize: '0.7rem', color: muted, marginBottom: '0.3rem' }}>Total fixing value exposure</p>
+              <div style={{ height: '7px', background: '#E8F5EF', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: '100%', background: '#059669', borderRadius: '3px' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#9CA3AF', marginTop: '3px' }}>
+                <span>$0</span><span>{fmtMoney(totalAmt)}</span>
+              </div>
+            </>
+          ) : (
+            <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No fixing positions in period.</p>
+          )}
         </div>
-      </div>
-    )
-    case 'apar': return (
-      <div style={{ display:'flex',gap:'0.75rem' }}>
-        {[{label:'Accounts Receivable',val:'$4,82,311',sub:'12 open invoices',bg:'#DCFCE7',vc:'#16A34A'},{label:'Accounts Payable',val:'$1,20,500',sub:'5 pending bills',bg:'#FEE2E2',vc:'#DC2626'},{label:'Net Position',val:'$3,61,811',sub:'▲ Favorable',bg:'#E8F5EF',vc:'#059669'}].map(c=>(
-          <div key={c.label} style={{ flex:1,background:c.bg,borderRadius:'0.5rem',padding:'0.75rem',textAlign:'center' }}>
-            <p style={{ fontSize:'0.7rem',color:muted,marginBottom:'0.25rem' }}>{c.label}</p>
-            <p style={{ fontSize:'1.1rem',fontWeight:'600',color:c.vc,margin:0 }}>{c.val}</p>
-            <p style={{ fontSize:'0.7rem',color:c.vc,marginTop:'0.25rem' }}>{c.sub}</p>
+      )
+    }
+
+    case 'chat': {
+      const FALLBACK_MSGS = [
+        { mine: false, av: 'R', bg: '#EDE9FE', tc: '#7C3AED', text: 'Gold fixing confirmed at $2,341.50/oz', time: '10:30 AM' },
+        { mine: true,  av: 'N', bg: '#E8F5EF', tc: '#1A6647', text: 'Proceed with ABC Trading allocation', time: '10:32 AM' },
+        { mine: false, av: 'R', bg: '#EDE9FE', tc: '#7C3AED', text: 'Done. Invoice #1042 sent to PlatGroup', time: '11:15 AM' },
+      ]
+      const hasMsgs = chatMessages.length > 0
+      return (
+        <div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: hasMsgs ? '0.4rem' : '0.5rem', marginBottom: '0.6rem', maxHeight: '130px', overflowY: 'auto' }}>
+            {hasMsgs
+              ? chatMessages.slice(-4).map((m, i) => (
+                <div key={i} style={{ display: 'flex', gap: '0.4rem', alignItems: 'flex-start' }}>
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#E8F5EF', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: '700', flexShrink: 0 }}>
+                    {String(m.senderName || '?')[0].toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.25rem' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: '600', color: ink }}>{m.senderName}</span>
+                      <span style={{ fontSize: '0.62rem', color: '#9CA3AF', flexShrink: 0 }}>{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <p style={{ fontSize: '0.72rem', color: muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.text}</p>
+                  </div>
+                </div>
+              ))
+              : FALLBACK_MSGS.map((m, i) => (
+                <div key={i} style={{ display: 'flex', gap: '0.5rem', flexDirection: m.mine ? 'row-reverse' : 'row', alignItems: 'flex-end' }}>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: m.bg, color: m.tc, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: '700', flexShrink: 0 }}>{m.av}</div>
+                  <div style={{ maxWidth: '78%', padding: '5px 8px', borderRadius: '9px', fontSize: '0.75rem', lineHeight: 1.4, background: m.mine ? '#059669' : '#fff', color: m.mine ? '#fff' : ink, boxShadow: '0 1px 3px rgba(0,0,0,.07)' }}>{m.text}</div>
+                </div>
+              ))
+            }
           </div>
-        ))}
-      </div>
-    )
-    case 'fixing': return (
-      <div>
-        <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'0.5rem',marginBottom:'0.75rem' }}>
-          {[['Gold Open','800 oz'],['Silver Open','200 oz'],['Platinum','50 oz'],['Palladium','0 oz']].map(([l,v])=>(
-            <div key={l} style={{ background:'#F9FAFB',borderRadius:'0.5rem',padding:'0.6rem',textAlign:'center' }}>
-              <p style={{ fontSize:'0.68rem',color:muted,marginBottom:'0.25rem' }}>{l}</p>
-              <p style={{ fontSize:'0.9rem',fontWeight:'600',color:ink,margin:0 }}>{v}</p>
+          {onNavigateMain && (
+            <div style={{ textAlign: 'center', padding: '0.35rem', background: '#F0FDF4', borderRadius: '6px', fontSize: '0.72rem', color: '#059669', fontWeight: '500', cursor: 'pointer' }} onClick={() => onNavigateMain('chat')}>
+              💬 Open full chat →
             </div>
-          ))}
+          )}
         </div>
-        <p style={{ fontSize:'0.7rem',color:muted,marginBottom:'0.4rem' }}>Fixing value exposure</p>
-        <div style={{ height:'7px',background:'#E8F5EF',borderRadius:'3px',overflow:'hidden' }}><div style={{ width:'65%',height:'100%',background:'#059669',borderRadius:'3px' }}/></div>
-        <div style={{ display:'flex',justifyContent:'space-between',fontSize:'0.68rem',color:'#9CA3AF',marginTop:'3px' }}><span>$0</span><span>$1,87,240 / $2,88,000 limit</span></div>
-      </div>
-    )
-    case 'assets': return (
-      <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem' }}>
-        {[['Key Assets', dashboard?.assets], ['Key Liabilities', dashboard?.liabilities]].map(([title, items]) => (
-          <div key={title}>
-            <p style={{ fontSize:'0.78rem',fontWeight:'600',color:ink,marginBottom:'0.5rem' }}>{title}</p>
-            {(items||[]).length ? items.map((a,i) => (
-              <div key={i} style={{ padding:'0.35rem 0',borderBottom:'1px solid #F9FAFB',fontSize:'0.78rem',color:'#374151' }}>{a.accountCode} — {a.accountName}</div>
-            )) : <p style={{ fontSize:'0.78rem',color:'#9CA3AF' }}>No accounts yet.</p>}
-          </div>
-        ))}
-      </div>
-    )
+      )
+    }
+
     case 'notif': return (
       <div>
-        {[{ dot:'#DC2626', text:`${Number(dashboard?.vendorComplianceRisk?.nonCompliant||0)} vendor(s) at risk · Avg score ${Number(dashboard?.vendorComplianceRisk?.averageScore||0)}%`, time:'Today' },
-          { dot:'#D97706', text:`Doc expiry: ${Number(dashboard?.vendorDocumentExpiry?.warning30||0)} in 30d · ${Number(dashboard?.vendorDocumentExpiry?.warning60||0)} in 60d · ${Number(dashboard?.vendorDocumentExpiry?.warning90||0)} in 90d`, time:'Today' },
-          { dot:'#059669', text:'Month-end report generated successfully', time:'Yesterday' }].map((n,i)=>(
-          <div key={i} style={{ display:'flex',gap:'0.625rem',padding:'0.5rem 0',borderBottom:i<2?bdr:'none' }}>
-            <span style={{ width:'8px',height:'8px',borderRadius:'50%',background:n.dot,flexShrink:0,marginTop:'3px',display:'inline-block' }}/>
-            <div><p style={{ fontSize:'0.78rem',color:ink,lineHeight:1.4,margin:0 }}>{n.text}</p><p style={{ fontSize:'0.7rem',color:'#9CA3AF',marginTop:'2px' }}>{n.time}</p></div>
+        {[
+          { icon: '⚠️', iconBg: '#FEE2E2', text: `${Number(dashboard?.vendorComplianceRisk?.nonCompliant || 0)} vendor(s) at risk · Avg score ${Number(dashboard?.vendorComplianceRisk?.averageScore || 0)}%`, time: 'Today' },
+          { icon: '📄', iconBg: '#FEF9C3', text: `Doc expiry: ${Number(dashboard?.vendorDocumentExpiry?.warning30 || 0)} in 30d · ${Number(dashboard?.vendorDocumentExpiry?.warning60 || 0)} in 60d`, time: 'Today' },
+          ...(dashboard?.lowStockAlerts?.length ? [{ icon: '📦', iconBg: '#DBEAFE', text: `${dashboard.lowStockAlerts.length} item(s) below minimum stock`, time: 'Now' }] : []),
+          { icon: '✅', iconBg: '#DCFCE7', text: 'Dashboard refreshed successfully', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
+        ].map((n, i, arr) => (
+          <div key={i} style={{ display: 'flex', gap: '0.625rem', padding: '0.45rem 0', borderBottom: i < arr.length - 1 ? bdr : 'none', alignItems: 'flex-start' }}>
+            <div style={{ width: 28, height: 28, borderRadius: '7px', background: n.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', flexShrink: 0 }}>{n.icon}</div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: '0.75rem', color: ink, lineHeight: 1.4, margin: 0 }}>{n.text}</p>
+              <p style={{ fontSize: '0.68rem', color: '#9CA3AF', marginTop: '2px' }}>{n.time}</p>
+            </div>
           </div>
         ))}
       </div>
     )
-    default: return <p style={{ fontSize:'0.82rem',color:'#9CA3AF',textAlign:'center',padding:'1.5rem 0' }}>Widget content</p>
+
+    default: return <p style={{ fontSize: '0.82rem', color: '#9CA3AF', textAlign: 'center', padding: '1.5rem 0' }}>Widget content</p>
   }
 }
 
@@ -473,7 +846,7 @@ const createLogoRenderAsset = async (logoUrl, width, height, fit = 'contain') =>
   })
 }
 
-function ERPTab({ focusTab }) {
+function ERPTab({ focusTab, onNavigateMain }) {
   const { user, token } = useAuth()
   const { t } = useLanguage()
   const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
@@ -486,14 +859,27 @@ function ERPTab({ focusTab }) {
 
   const dashStorageKey = `erp_dash_${user?.name || 'default'}`
   const [dashWidgets, setDashWidgets] = useState(() => {
-    try { const s = localStorage.getItem(`erp_dash_${user?.name || 'default'}`); return s ? JSON.parse(s) : [...ERP_DASH_DEFAULT] } catch { return [...ERP_DASH_DEFAULT] }
+    try {
+      const s = localStorage.getItem(`erp_dash_${user?.name || 'default'}`)
+      return sanitizeDashWidgets(s ? JSON.parse(s) : ERP_DASH_DEFAULT)
+    } catch {
+      return [...ERP_DASH_DEFAULT]
+    }
   })
   const [dashEditMode, setDashEditMode] = useState(false)
   const [dashCustomizeOpen, setDashCustomizeOpen] = useState(false)
   const [dashPickSelected, setDashPickSelected] = useState([])
   const dashDragSrc = useRef(null)
+
+  // Dashboard date-range filter
+  const [dashDateFrom, setDashDateFrom] = useState(() => {
+    const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  })
+  const [dashDateTo, setDashDateTo] = useState(() => new Date().toISOString().slice(0, 10))
+  const [dashAutoRefresh, setDashAutoRefresh] = useState(false)
+  const [dashChatMessages, setDashChatMessages] = useState([])
   useEffect(() => {
-    try { localStorage.setItem(dashStorageKey, JSON.stringify(dashWidgets)) } catch {}
+    try { localStorage.setItem(dashStorageKey, JSON.stringify(sanitizeDashWidgets(dashWidgets))) } catch {}
   }, [dashWidgets, dashStorageKey])
 
   const [accounts, setAccounts] = useState([])
@@ -1304,8 +1690,12 @@ function ERPTab({ focusTab }) {
     if (!canViewAccounts) return
     setLoading(true)
     try {
-      const data = await erpAccountingAPI.getDashboardReport(token)
+      const [data, chatData] = await Promise.all([
+        erpAccountingAPI.getDashboardReport(token, { startDate: dashDateFrom, endDate: dashDateTo }),
+        messagesAPI.getLatestMessages(token, 'group', 10).catch(() => ({ messages: [] })),
+      ])
       setDashboard(data)
+      setDashChatMessages(chatData?.messages || chatData || [])
       setError('')
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load dashboard')
@@ -2774,6 +3164,22 @@ function ERPTab({ focusTab }) {
     reportFilters.minAmount,
     selectedReportAccountId,
   ])
+
+  // Re-load dashboard when date range changes
+  useEffect(() => {
+    if (activeTab === 'dashboard' && canViewAccounts && token) loadDashboard()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dashDateFrom, dashDateTo])
+
+  // Auto-refresh every 30 seconds when enabled and on dashboard tab
+  useEffect(() => {
+    if (!dashAutoRefresh || activeTab !== 'dashboard') return
+    const interval = setInterval(() => {
+      if (canViewAccounts && token) loadDashboard()
+    }, 30000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dashAutoRefresh, activeTab])
 
   useEffect(() => {
     if (activeTab !== 'vouchers' || !token) return
@@ -4267,15 +4673,47 @@ function ERPTab({ focusTab }) {
       {activeTab === 'dashboard' && (
         <div>
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div>
-              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>My Dashboard</h3>
+              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>📊 My Dashboard</h3>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: C.inkSoft }}>
                 {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 {' · '}{dashWidgets.length} widget{dashWidgets.length !== 1 ? 's' : ''}
               </p>
             </div>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* Date range filter */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: C.p2, border: '1px solid #E5E7EB', borderRadius: '0.375rem', padding: '0.3rem 0.6rem' }}>
+                <span style={{ fontSize: '0.75rem', color: C.inkSoft }}>From</span>
+                <input
+                  type="date" value={dashDateFrom}
+                  onChange={e => setDashDateFrom(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', fontSize: '0.78rem', color: C.ink, outline: 'none', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '0.75rem', color: C.inkSoft }}>To</span>
+                <input
+                  type="date" value={dashDateTo}
+                  onChange={e => setDashDateTo(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', fontSize: '0.78rem', color: C.ink, outline: 'none', cursor: 'pointer' }}
+                />
+              </div>
+              {/* Refresh button */}
+              <button
+                onClick={() => loadDashboard()}
+                disabled={loading}
+                title="Refresh now"
+                style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem', border: '1px solid #D1D5DB', borderRadius: '0.375rem', background: C.p1, color: C.inkSoft, cursor: 'pointer' }}
+              >
+                {loading ? '⏳' : '🔄'}
+              </button>
+              {/* Auto-refresh toggle */}
+              <button
+                onClick={() => setDashAutoRefresh(v => !v)}
+                title={dashAutoRefresh ? 'Auto-refresh ON (30s) — click to disable' : 'Enable auto-refresh every 30s'}
+                style={{ padding: '0.4rem 0.75rem', fontSize: '0.78rem', fontWeight: '600', border: `1px solid ${dashAutoRefresh ? C.s1 : '#D1D5DB'}`, borderRadius: '0.375rem', background: dashAutoRefresh ? '#DCFCE7' : C.p1, color: dashAutoRefresh ? C.s2 : C.inkSoft, cursor: 'pointer' }}
+              >
+                ⚡ {dashAutoRefresh ? 'Auto ON' : 'Auto OFF'}
+              </button>
               <button
                 onClick={() => setDashEditMode(v => !v)}
                 style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', fontWeight: '600', border: `1px solid ${dashEditMode ? C.s1 : '#D1D5DB'}`, borderRadius: '0.375rem', background: dashEditMode ? '#DCFCE7' : C.p1, color: dashEditMode ? C.s2 : C.inkSoft, cursor: 'pointer' }}
@@ -4298,23 +4736,6 @@ function ERPTab({ focusTab }) {
               <span>Drag widgets to rearrange. Click <strong>✕</strong> to remove a widget. Click <strong>Done</strong> when finished.</span>
             </div>
           )}
-
-          {/* KPI row — always shown */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '1.25rem' }}>
-            {[
-              { label: 'Month Income',  value: dashboard?.summary?.monthIncome,  accent: C.s1,      prefix: 'USD ' },
-              { label: 'Month Expense', value: dashboard?.summary?.monthExpense,  accent: C.danger,  prefix: 'USD ' },
-              { label: 'Month Profit',  value: dashboard?.summary?.monthProfit,   accent: '#0EA5E9', prefix: 'USD ' },
-              { label: 'Vendors at Risk', value: dashboard?.vendorComplianceRisk?.nonCompliant, accent: '#D97706', suffix: ' vendors', prefix: '' },
-            ].map(kpi => (
-              <div key={kpi.label} style={{ background: C.p1, padding: '0.875rem 1rem', borderRadius: '0.5rem', borderLeft: `4px solid ${kpi.accent}` }}>
-                <p style={{ color: C.inkSoft, fontSize: '0.75rem', marginBottom: '0.35rem' }}>{kpi.label}</p>
-                <p style={{ color: C.ink, fontSize: '1.2rem', fontWeight: '700', margin: 0 }}>
-                  {loading ? '…' : kpi.value != null ? `${kpi.prefix || ''}${Number(kpi.value).toLocaleString()}${kpi.suffix || ''}` : '—'}
-                </p>
-              </div>
-            ))}
-          </div>
 
           {/* Widget grid */}
           {dashWidgets.length === 0 ? (
@@ -4364,15 +4785,23 @@ function ERPTab({ focusTab }) {
                         <span style={{ fontSize: '1rem' }}>{meta.icon}</span>
                         <span style={{ fontSize: '0.82rem', fontWeight: '600', color: C.ink }}>{meta.label}</span>
                       </div>
-                      {dashEditMode && (
-                        <button
-                          onClick={() => setDashWidgets(prev => prev.filter(w => w !== wid))}
-                          style={{ background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: '0.85rem', padding: '0 0.2rem', lineHeight: 1 }}
-                        >✕</button>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        {meta.viewTab && !dashEditMode && (
+                          <button
+                            onClick={() => setActiveTab(meta.viewTab)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '2px 8px', borderRadius: '5px', border: '1px solid #A7F3D0', background: '#F0FDF4', fontSize: '0.7rem', fontWeight: '500', color: C.s2, cursor: 'pointer' }}
+                          >→ View</button>
+                        )}
+                        {dashEditMode && (
+                          <button
+                            onClick={() => setDashWidgets(prev => prev.filter(w => w !== wid))}
+                            style={{ background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: '0.85rem', padding: '0 0.2rem', lineHeight: 1 }}
+                          >✕</button>
+                        )}
+                      </div>
                     </div>
                     <div style={{ fontSize: '0.82rem', color: C.inkSoft }}>
-                      {renderERP_DashWidget(wid, dashboard)}
+                      {renderERP_DashWidget(wid, dashboard, dashChatMessages, (tab) => setActiveTab(tab), onNavigateMain)}
                     </div>
                   </div>
                 )
@@ -4547,7 +4976,14 @@ function ERPTab({ focusTab }) {
       {activeTab === 'customer-margin' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.9rem' }}>
-            <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Customer Margin</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                title="Back to Dashboard"
+                style={{ background: 'none', border: '1px solid #CBD5E1', borderRadius: '0.4rem', padding: '0.3rem 0.5rem', cursor: 'pointer', fontSize: '1rem', color: C.inkSoft, display: 'flex', alignItems: 'center', lineHeight: 1 }}
+              >←</button>
+              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Customer Margin</h3>
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <select
                 value={customerMarginSort}
