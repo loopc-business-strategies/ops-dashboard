@@ -518,6 +518,7 @@ function ERPTab({ focusTab }) {
     status: 'preview',
   })
   const [fixingRegResults, setFixingRegResults] = useState([])
+  const [fixingRegOpening, setFixingRegOpening] = useState({ qtyOz: 0, value: 0 })
   const [fixingRegLoading, setFixingRegLoading] = useState(false)
   const [fixingRegShown, setFixingRegShown] = useState(false)
   const [fixingRegError, setFixingRegError] = useState('')
@@ -2925,6 +2926,8 @@ function ERPTab({ focusTab }) {
     setFixingRegShown(false)
     try {
       const today = new Date(); today.setHours(23, 59, 59, 999)
+      const fromDate = fixingRegFilter.fromDate ? new Date(`${fixingRegFilter.fromDate}T00:00:00`) : null
+      const openingEndDate = fromDate ? new Date(fromDate.getTime() - 86400000) : null
       const selectedMetalCode = String(fixingRegFilter.metalType || '').split('::')[0].toUpperCase()
       const fetchAllPages = async (fetchFn, key, limit = 200) => {
         const allRows = []
@@ -2945,9 +2948,13 @@ function ERPTab({ focusTab }) {
         startDate: fixingRegFilter.fromDate,
         endDate: fixingRegFilter.toDate,
       }
+      const openingTxParams = openingEndDate ? {
+        endDate: openingEndDate.toISOString().slice(0, 10),
+      } : null
       if (fixingRegFilter.status === 'final') baseTxParams.status = 'posted'
+      if (openingTxParams && fixingRegFilter.status === 'final') openingTxParams.status = 'posted'
 
-      const [saleTxs, purchaseTxs, deals] = await Promise.all([
+      const [saleTxs, purchaseTxs, deals, openingSaleTxs, openingPurchaseTxs, openingDeals] = await Promise.all([
         fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...baseTxParams, ...p, type: 'sale' }), 'transactions', 200),
         fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...baseTxParams, ...p, type: 'purchase' }), 'transactions', 200),
         fetchAllPages((p) => erpAccountingAPI.getDirectDeals(token, {
@@ -2957,9 +2964,139 @@ function ERPTab({ focusTab }) {
           endDate: fixingRegFilter.toDate,
           ...(fixingRegFilter.status === 'final' ? { status: 'confirmed' } : {}),
         }), 'directDeals', 100),
+        openingTxParams
+          ? fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...openingTxParams, ...p, type: 'sale' }), 'transactions', 200)
+          : Promise.resolve([]),
+        openingTxParams
+          ? fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...openingTxParams, ...p, type: 'purchase' }), 'transactions', 200)
+          : Promise.resolve([]),
+        openingTxParams
+          ? fetchAllPages((p) => erpAccountingAPI.getDirectDeals(token, {
+            ...p,
+            entryType: 'fixing',
+            endDate: openingEndDate.toISOString().slice(0, 10),
+            ...(fixingRegFilter.status === 'final' ? { status: 'confirmed' } : {}),
+          }), 'directDeals', 100)
+          : Promise.resolve([]),
       ])
 
-      const rows = []
+      const buildRows = ({ txSales = [], txPurchases = [], directDeals = [] }) => {
+        const rows = []
+
+        const txRows = [...txSales, ...txPurchases]
+        for (const tx of txRows) {
+          const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+          const voucherNo = String(tx?.voucherMeta?.vocNo || tx?.voucherMeta?.refNo || tx?._id || '').trim()
+          const branch = tx?.voucherMeta?.branch || 'HO'
+          const partyName = tx?.customerId?.name || tx?.vendorId?.name || tx?.voucherMeta?.partyName || '—'
+          const docDate = tx?.voucherMeta?.docDate || tx?.date || null
+          const valueDate = tx?.voucherMeta?.valueDate || tx?.date || null
+
+          if (fixingRegFilter.excludeFutures && valueDate && new Date(valueDate) > today) continue
+          if (fixingRegFilter.partyFilter === 'selected' && fixingRegFilter.partySearch.trim()) {
+            if (!partyName.toLowerCase().includes(fixingRegFilter.partySearch.trim().toLowerCase())) continue
+          }
+
+          if (!lines.length) {
+            if (selectedMetalCode) continue
+            if (fixingRegFilter.excludeOpeningBalance && /opening/i.test(String(tx?.description || ''))) continue
+            rows.push({
+              rowId: `${tx._id}-0`,
+              sourceType: 'Voucher',
+              voucherNo,
+              docDate,
+              valueDate,
+              branch,
+              customerName: partyName,
+              direction: tx.type === 'purchase' ? 'buy' : 'sell',
+              metal: '',
+              qty: 0,
+              price: Number(tx?.voucherMeta?.metalRate || 0),
+              amount: Number(tx?.amount || 0),
+              dealStatus: tx?.status || 'draft',
+              remarks: tx?.description || '',
+              groupKey: fixingRegFilter.groupBy === 'customer' ? partyName : fixingRegFilter.groupBy === 'branch' ? branch : fixingRegFilter.groupBy === 'valuedate' ? new Date(valueDate || docDate || Date.now()).toISOString().slice(0, 10) : 'All',
+            })
+            continue
+          }
+
+          lines.forEach((line, idx) => {
+            const lineMetal = resolveVoucherLineMetalCode(line)
+            if (selectedMetalCode && lineMetal && lineMetal !== selectedMetalCode) return
+            if (selectedMetalCode && !lineMetal) return
+            const narration = String(line.narration || tx?.description || '')
+            if (fixingRegFilter.excludeOpeningBalance && /opening/i.test(narration)) return
+            rows.push({
+              rowId: `${tx._id}-${idx}`,
+              sourceType: 'Voucher',
+              voucherNo,
+              docDate,
+              valueDate,
+              branch,
+              customerName: partyName,
+              direction: tx.type === 'purchase' ? 'buy' : 'sell',
+              metal: lineMetal || selectedMetalCode || '',
+              qty: Number(line.pureWeight || line.grossWeight || 0),
+              price: Number(line.metalRate || tx?.voucherMeta?.metalRate || 0),
+              amount: Number(line.totalAmount || line.amountLC || tx?.amount || 0),
+              dealStatus: tx?.status || 'draft',
+              remarks: narration,
+              groupKey: fixingRegFilter.groupBy === 'customer' ? partyName : fixingRegFilter.groupBy === 'branch' ? branch : fixingRegFilter.groupBy === 'valuedate' ? new Date(valueDate || docDate || Date.now()).toISOString().slice(0, 10) : 'All',
+            })
+          })
+        }
+
+        for (const deal of directDeals) {
+          if (deal.isDeleted) continue
+          if (fixingRegFilter.status === 'final' && deal.status !== 'confirmed') continue
+          const dealDocDate = new Date(deal.docDate)
+          const dealValueDate = new Date(deal.valueDate)
+          if (fixingRegFilter.excludeOpeningBalance && /opening/i.test(deal.remarks || '')) continue
+          if (fixingRegFilter.excludeFutures && dealValueDate > today) continue
+          for (const line of deal.lineItems || []) {
+            if (selectedMetalCode && (line.metal || 'XAU').toUpperCase() !== selectedMetalCode) continue
+            const partyName = line.customerName || '—'
+            if (fixingRegFilter.partyFilter === 'selected' && fixingRegFilter.partySearch.trim()) {
+              if (!partyName.toLowerCase().includes(fixingRegFilter.partySearch.trim().toLowerCase())) continue
+            }
+            const groupKey =
+              fixingRegFilter.groupBy === 'customer' ? (partyName)
+              : fixingRegFilter.groupBy === 'branch' ? (deal.branch || 'HO')
+              : fixingRegFilter.groupBy === 'valuedate' ? new Date(deal.valueDate).toISOString().slice(0, 10)
+              : 'All'
+            rows.push({
+              rowId: `${deal._id}-${line._id || Math.random().toString(36).slice(2, 8)}`,
+              sourceType: 'Direct Deal',
+              voucherNo: deal.docNo,
+              docDate: dealDocDate,
+              valueDate: dealValueDate,
+              branch: deal.branch || 'HO',
+              dealStatus: deal.status,
+              remarks: deal.remarks || '',
+              direction: line.direction,
+              metal: line.metal || 'XAU',
+              qty: Number(line.qty || 0),
+              eqOz: Number(line.eqOz || 0),
+              stockCode: (line.stockCode || 'OZ').toUpperCase(),
+              price: Number(line.price || 0),
+              amount: Number(line.amount || 0),
+              customerName: partyName,
+              customerCode: line.customerCode || '',
+              groupKey,
+            })
+          }
+        }
+
+        rows.sort((a, b) => {
+          const aVoucher = String(a.voucherNo || '')
+          const bVoucher = String(b.voucherNo || '')
+          const voucherCompare = aVoucher.localeCompare(bVoucher, undefined, { numeric: true, sensitivity: 'base' })
+          if (voucherCompare !== 0) return voucherCompare
+          return new Date(a.docDate || 0) - new Date(b.docDate || 0)
+        })
+
+        return rows
+      }
 
       const resolveVoucherLineMetalCode = (line = {}) => {
         const raw = String(line.stockCode || line.productType || line.narration || '').trim().toUpperCase()
@@ -2971,110 +3108,23 @@ function ERPTab({ focusTab }) {
         return ''
       }
 
-      const txRows = [...saleTxs, ...purchaseTxs]
-      for (const tx of txRows) {
-        const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-        const voucherNo = String(tx?.voucherMeta?.vocNo || tx?.voucherMeta?.refNo || tx?._id || '').trim()
-        const branch = tx?.voucherMeta?.branch || 'HO'
-        const partyName = tx?.customerId?.name || tx?.vendorId?.name || tx?.voucherMeta?.partyName || '—'
-        const docDate = tx?.voucherMeta?.docDate || tx?.date || null
-        const valueDate = tx?.voucherMeta?.valueDate || tx?.date || null
+      const openingRows = fixingRegFilter.excludeOpeningBalance
+        ? []
+        : buildRows({ txSales: openingSaleTxs, txPurchases: openingPurchaseTxs, directDeals: openingDeals })
+      const rows = buildRows({ txSales: saleTxs, txPurchases: purchaseTxs, directDeals: deals })
 
-        if (!lines.length) {
-          if (selectedMetalCode) continue
-          rows.push({
-            rowId: `${tx._id}-0`,
-            sourceType: 'Voucher',
-            voucherNo,
-            docDate,
-            valueDate,
-            branch,
-            customerName: partyName,
-            direction: tx.type === 'purchase' ? 'buy' : 'sell',
-            metal: '',
-            qty: 0,
-            price: Number(tx?.voucherMeta?.metalRate || 0),
-            amount: Number(tx?.amount || 0),
-            dealStatus: tx?.status || 'draft',
-            remarks: tx?.description || '',
-            groupKey: fixingRegFilter.groupBy === 'customer' ? partyName : fixingRegFilter.groupBy === 'branch' ? branch : fixingRegFilter.groupBy === 'valuedate' ? new Date(valueDate || docDate || Date.now()).toISOString().slice(0, 10) : 'All',
-          })
-          continue
-        }
+      const openingQtyOz = openingRows.reduce((sum, row) => {
+        const qty = Number(row.qty || 0)
+        const sign = String(row.direction || '').toLowerCase() === 'buy' ? 1 : -1
+        return sum + (sign * qty)
+      }, 0)
+      const openingValue = openingRows.reduce((sum, row) => {
+        const amount = Number(row.amount || 0)
+        const sign = String(row.direction || '').toLowerCase() === 'buy' ? 1 : -1
+        return sum + (sign * amount)
+      }, 0)
 
-        lines.forEach((line, idx) => {
-          const lineMetal = resolveVoucherLineMetalCode(line)
-          if (selectedMetalCode && lineMetal && lineMetal !== selectedMetalCode) return
-          if (selectedMetalCode && !lineMetal) return
-          rows.push({
-            rowId: `${tx._id}-${idx}`,
-            sourceType: 'Voucher',
-            voucherNo,
-            docDate,
-            valueDate,
-            branch,
-            customerName: partyName,
-            direction: tx.type === 'purchase' ? 'buy' : 'sell',
-            metal: lineMetal || selectedMetalCode || '',
-            qty: Number(line.pureWeight || line.grossWeight || 0),
-            price: Number(line.metalRate || tx?.voucherMeta?.metalRate || 0),
-            amount: Number(line.totalAmount || line.amountLC || tx?.amount || 0),
-            dealStatus: tx?.status || 'draft',
-            remarks: line.narration || tx?.description || '',
-            groupKey: fixingRegFilter.groupBy === 'customer' ? partyName : fixingRegFilter.groupBy === 'branch' ? branch : fixingRegFilter.groupBy === 'valuedate' ? new Date(valueDate || docDate || Date.now()).toISOString().slice(0, 10) : 'All',
-          })
-        })
-      }
-
-      for (const deal of deals) {
-        if (deal.isDeleted) continue
-        if (fixingRegFilter.status === 'final' && deal.status !== 'confirmed') continue
-        const dealDocDate = new Date(deal.docDate)
-        const dealValueDate = new Date(deal.valueDate)
-        if (fixingRegFilter.excludeOpeningBalance && /opening/i.test(deal.remarks || '')) continue
-        if (fixingRegFilter.excludeFutures && dealValueDate > today) continue
-        for (const line of deal.lineItems || []) {
-          if (selectedMetalCode && (line.metal || 'XAU').toUpperCase() !== selectedMetalCode) continue
-          const partyName = line.customerName || '—'
-          if (fixingRegFilter.partyFilter === 'selected' && fixingRegFilter.partySearch.trim()) {
-            if (!partyName.toLowerCase().includes(fixingRegFilter.partySearch.trim().toLowerCase())) continue
-          }
-          const groupKey =
-            fixingRegFilter.groupBy === 'customer' ? (partyName)
-            : fixingRegFilter.groupBy === 'branch' ? (deal.branch || 'HO')
-            : fixingRegFilter.groupBy === 'valuedate' ? new Date(deal.valueDate).toISOString().slice(0, 10)
-            : 'All'
-          rows.push({
-            rowId: `${deal._id}-${line._id || Math.random().toString(36).slice(2, 8)}`,
-            sourceType: 'Direct Deal',
-            voucherNo: deal.docNo,
-            docDate: dealDocDate,
-            valueDate: dealValueDate,
-            branch: deal.branch || 'HO',
-            dealStatus: deal.status,
-            remarks: deal.remarks || '',
-            direction: line.direction,
-            metal: line.metal || 'XAU',
-            qty: Number(line.qty || 0),
-            eqOz: Number(line.eqOz || 0),
-            stockCode: (line.stockCode || 'OZ').toUpperCase(),
-            price: Number(line.price || 0),
-            amount: Number(line.amount || 0),
-            customerName: partyName,
-            customerCode: line.customerCode || '',
-            groupKey,
-          })
-        }
-      }
-
-      rows.sort((a, b) => {
-        const aVoucher = String(a.voucherNo || '')
-        const bVoucher = String(b.voucherNo || '')
-        const voucherCompare = aVoucher.localeCompare(bVoucher, undefined, { numeric: true, sensitivity: 'base' })
-        if (voucherCompare !== 0) return voucherCompare
-        return new Date(a.docDate || 0) - new Date(b.docDate || 0)
-      })
-
+      setFixingRegOpening({ qtyOz: openingQtyOz, value: openingValue })
       setFixingRegResults(rows)
       setFixingRegShown(true)
     } catch (err) {
@@ -4745,10 +4795,27 @@ function ERPTab({ focusTab }) {
           {fixingRegShown && !fixingRegLoading && (() => {
             const qUnit = fixingRegFilter.quantityUnit
             const rUnit = fixingRegFilter.rateUnit
+            const metalCodeLabel = String(fixingRegFilter.metalType || '').split('::')[0].toUpperCase() || 'XAU'
             const totalBuyOz = fixingRegResults.filter((r) => r.direction === 'buy').reduce((s, r) => s + Number(r.qty || 0), 0)
             const totalSellOz = fixingRegResults.filter((r) => r.direction === 'sell').reduce((s, r) => s + Number(r.qty || 0), 0)
             const netOz = totalBuyOz - totalSellOz
+            const openingQtyOz = fixingRegFilter.excludeOpeningBalance ? 0 : Number(fixingRegOpening.qtyOz || 0)
+            const openingValue = fixingRegFilter.excludeOpeningBalance ? 0 : Number(fixingRegOpening.value || 0)
+            const closingQtyOz = openingQtyOz + netOz
+            const txnNetValue = fixingRegResults.reduce((sum, row) => {
+              const sign = String(row.direction || '').toLowerCase() === 'buy' ? 1 : -1
+              return sum + (sign * Number(row.amount || 0))
+            }, 0)
+            const closingValue = openingValue + txnNetValue
             const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '-'
+            const fmtSignedAmt = (v) => {
+              const amount = Number(v || 0)
+              const abs = fixingRegFmtAmt(Math.abs(amount))
+              if (amount < 0) return `(${abs})`
+              return abs
+            }
+            let runningQtyOz = openingQtyOz
+            let runningAmount = openingValue
 
             return (
               <div style={modalBackdropStyle} onClick={() => setFixingRegShown(false)}>
@@ -4776,38 +4843,89 @@ function ERPTab({ focusTab }) {
                   </div>
 
                   <div style={{ overflow: 'auto', border: '1px solid #CBD5E1', borderRadius: '0.4rem', flex: 1 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.79rem', minWidth: '1180px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.79rem', minWidth: '1320px' }}>
                       <thead>
                         <tr style={{ background: '#F1F5F9' }}>
-                          {['#', 'Source', 'Voucher No', 'Doc Date', 'Value Date', 'Branch', 'Party', 'Dir', 'Metal', `Qty (${qUnit})`, `Rate (${rUnit})`, 'Amount', 'Status', 'Remarks'].map((h) => (
-                            <th key={h} style={{ padding: '0.38rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: ['#', `Qty (${qUnit})`, `Rate (${rUnit})`, 'Amount'].includes(h) ? 'right' : 'left', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
-                          ))}
+                          <th rowSpan={2} style={{ padding: '0.38rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>#</th>
+                          <th rowSpan={2} style={{ padding: '0.38rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'left', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Doc Date</th>
+                          <th rowSpan={2} style={{ padding: '0.38rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'left', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Val Date</th>
+                          <th rowSpan={2} style={{ padding: '0.38rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'left', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Doc No</th>
+                          <th rowSpan={2} style={{ padding: '0.38rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'left', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Description</th>
+                          <th colSpan={3} style={{ padding: '0.38rem 0.5rem', borderBottom: '1px solid #CBD5E1', color: '#1E3A8A', textAlign: 'center', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{`${metalCodeLabel} (${qUnit})`}</th>
+                          <th colSpan={3} style={{ padding: '0.38rem 0.5rem', borderBottom: '1px solid #CBD5E1', color: '#1E3A8A', textAlign: 'center', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Amount (USD)</th>
+                          <th rowSpan={2} style={{ padding: '0.38rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>Average</th>
+                        </tr>
+                        <tr style={{ background: '#F8FAFC' }}>
+                          <th style={{ padding: '0.34rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>In</th>
+                          <th style={{ padding: '0.34rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Out</th>
+                          <th style={{ padding: '0.34rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Balance</th>
+                          <th style={{ padding: '0.34rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{`Rate (${rUnit})`}</th>
+                          <th style={{ padding: '0.34rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Value</th>
+                          <th style={{ padding: '0.34rem 0.5rem', borderBottom: '2px solid #CBD5E1', color: '#1E3A8A', textAlign: 'right', fontWeight: '700', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Balance</th>
                         </tr>
                       </thead>
                       <tbody>
+                        <tr style={{ background: '#FFF7ED', borderBottom: '1px solid #E5E7EB' }}>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#64748B' }}>-</td>
+                          <td style={{ padding: '0.34rem 0.5rem', color: '#374151', whiteSpace: 'nowrap' }}>-</td>
+                          <td style={{ padding: '0.34rem 0.5rem', color: '#374151', whiteSpace: 'nowrap' }}>-</td>
+                          <td style={{ padding: '0.34rem 0.5rem', color: '#111827', fontWeight: '700' }}>Opening C/F</td>
+                          <td style={{ padding: '0.34rem 0.5rem', color: '#4B5563' }}>Opening Carry Forward</td>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#6B7280' }}>-</td>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#6B7280' }}>-</td>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{fixingRegFmtQty(openingQtyOz, qUnit)}</td>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#6B7280' }}>-</td>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#6B7280' }}>-</td>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{fmtSignedAmt(openingValue)}</td>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{runningQtyOz !== 0 ? fixingRegFmtRate(runningAmount / runningQtyOz, rUnit) : '-'}</td>
+                        </tr>
                         {fixingRegResults.map((row, idx) => (
+                          (() => {
+                            const qtyOz = Number(row.qty || 0)
+                            const amount = Number(row.amount || 0)
+                            const isBuy = String(row.direction || '').toLowerCase() === 'buy'
+                            const qtyInOz = isBuy ? qtyOz : 0
+                            const qtyOutOz = isBuy ? 0 : qtyOz
+                            const signedQtyOz = isBuy ? qtyOz : -qtyOz
+                            const signedValue = isBuy ? amount : -amount
+                            runningQtyOz += signedQtyOz
+                            runningAmount += signedValue
+                            const avgRate = runningQtyOz !== 0 ? (runningAmount / runningQtyOz) : null
+                            return (
                           <tr key={row.rowId || `${row.voucherNo}-${idx}`} style={{ background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC', borderBottom: '1px solid #E5E7EB' }}>
                             <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#64748B' }}>{idx + 1}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', color: '#1E3A8A', fontWeight: '700' }}>{row.sourceType || '-'}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', color: '#111827', fontWeight: '700' }}>{row.voucherNo || '-'}</td>
                             <td style={{ padding: '0.34rem 0.5rem', color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.docDate)}</td>
                             <td style={{ padding: '0.34rem 0.5rem', color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.valueDate)}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', color: '#374151' }}>{row.branch || '-'}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', color: '#111827' }}>{row.customerName || '-'}</td>
-                            <td style={{ padding: '0.34rem 0.5rem' }}>
-                              <span style={{ display: 'inline-block', padding: '0.1rem 0.4rem', borderRadius: '0.22rem', fontWeight: '700', fontSize: '0.72rem', background: row.direction === 'buy' ? '#DCFCE7' : '#FEE2E2', color: row.direction === 'buy' ? '#166534' : '#991B1B' }}>{String(row.direction || '').toUpperCase()}</span>
-                            </td>
-                            <td style={{ padding: '0.34rem 0.5rem', color: '#111827', fontWeight: '600' }}>{row.metal || '-'}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fixingRegFmtQty(Number(row.qty || 0), qUnit)}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', color: '#111827', fontWeight: '700' }}>{row.voucherNo || '-'}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', color: '#4B5563', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.remarks || `${row.sourceType || ''} ${row.customerName || ''}`.trim() || '-'}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{qtyInOz > 0 ? fixingRegFmtQty(qtyInOz, qUnit) : '-'}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{qtyOutOz > 0 ? fixingRegFmtQty(qtyOutOz, qUnit) : '-'}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{fixingRegFmtQty(runningQtyOz, qUnit)}</td>
                             <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fixingRegFmtRate(Number(row.price || 0), rUnit)}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fixingRegFmtAmt(Number(row.amount || 0))}</td>
-                            <td style={{ padding: '0.34rem 0.5rem' }}>{String(row.dealStatus || '').toUpperCase() || '-'}</td>
-                            <td style={{ padding: '0.34rem 0.5rem', color: '#4B5563', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.remarks || '-'}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtSignedAmt(signedValue)}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{fmtSignedAmt(runningAmount)}</td>
+                            <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700' }}>{avgRate === null ? '-' : fixingRegFmtRate(avgRate, rUnit)}</td>
                           </tr>
+                            )
+                          })()
                         ))}
+                        <tr style={{ background: '#FEF3C7', borderTop: '2px solid #D97706', borderBottom: '1px solid #E5E7EB' }}>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#78350F' }}>-</td>
+                          <td style={{ padding: '0.34rem 0.5rem', color: '#78350F', whiteSpace: 'nowrap' }}>-</td>
+                          <td style={{ padding: '0.34rem 0.5rem', color: '#78350F', whiteSpace: 'nowrap' }}>-</td>
+                          <td style={{ padding: '0.34rem 0.5rem', color: '#78350F', fontWeight: '700' }}>Closing C/F</td>
+                          <td style={{ padding: '0.34rem 0.5rem', color: '#78350F' }}>Closing Carry Forward</td>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalBuyOz, qUnit)}</td>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalSellOz, qUnit)}</td>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(closingQtyOz, qUnit)}</td>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', color: '#78350F' }}>-</td>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(txnNetValue)}</td>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(closingValue)}</td>
+                          <td style={{ padding: '0.34rem 0.5rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '700', color: '#78350F' }}>{closingQtyOz !== 0 ? fixingRegFmtRate(closingValue / closingQtyOz, rUnit) : '-'}</td>
+                        </tr>
                         {fixingRegResults.length === 0 && (
                           <tr>
-                            <td colSpan={14} style={{ padding: '0.8rem', textAlign: 'center', color: C.inkSoft }}>No transactions found for selected date range and filters.</td>
+                            <td colSpan={12} style={{ padding: '0.8rem', textAlign: 'center', color: C.inkSoft }}>No transactions found for selected date range and filters.</td>
                           </tr>
                         )}
                       </tbody>
