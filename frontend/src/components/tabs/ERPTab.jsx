@@ -3058,7 +3058,8 @@ function ERPTab({ focusTab }) {
           if (fixingRegFilter.excludeOpeningBalance && /opening/i.test(deal.remarks || '')) continue
           if (fixingRegFilter.excludeFutures && dealValueDate > today) continue
           for (const line of deal.lineItems || []) {
-            if (selectedMetalCode && (line.metal || 'XAU').toUpperCase() !== selectedMetalCode) continue
+            const lineMetal = resolveDirectDealMetalCode(line.metal || 'XAU')
+            if (selectedMetalCode && lineMetal !== selectedMetalCode) continue
             const partyName = line.customerName || '—'
             if (fixingRegFilter.partyFilter === 'selected' && fixingRegFilter.partySearch.trim()) {
               if (!partyName.toLowerCase().includes(fixingRegFilter.partySearch.trim().toLowerCase())) continue
@@ -3078,7 +3079,7 @@ function ERPTab({ focusTab }) {
               dealStatus: deal.status,
               remarks: deal.remarks || '',
               direction: line.direction,
-              metal: line.metal || 'XAU',
+              metal: lineMetal || 'XAU',
               qty: Number(line.qty || 0),
               eqOz: Number(line.eqOz || 0),
               stockCode: (line.stockCode || 'OZ').toUpperCase(),
@@ -3111,6 +3112,16 @@ function ERPTab({ focusTab }) {
         if (raw.includes('XPT') || raw.includes('PLATINUM')) return 'XPT'
         if (raw.includes('XPD') || raw.includes('PALLADIUM')) return 'XPD'
         return ''
+      }
+
+      const resolveDirectDealMetalCode = (value) => {
+        const raw = String(value || '').trim().toUpperCase()
+        if (!raw) return ''
+        if (raw === 'XAU' || raw.includes('GOLD')) return 'XAU'
+        if (raw === 'XAG' || raw.includes('SILV')) return 'XAG'
+        if (raw === 'XPT' || raw.includes('PLAT')) return 'XPT'
+        if (raw === 'XPD' || raw.includes('PALL')) return 'XPD'
+        return raw
       }
 
       const openingRows = fixingRegFilter.excludeOpeningBalance
