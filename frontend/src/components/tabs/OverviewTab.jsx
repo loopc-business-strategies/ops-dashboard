@@ -367,8 +367,9 @@ function OverviewTab({ onNavigate }) {
   const loadAssigneesAndEmployees = async () => {
     setLoadingEmployees(true)
     try {
+      const isSuperAdmin = user?.role === 'super_admin'
       const [usersRes, employeesRes] = await Promise.allSettled([
-        authAPI.getUsers(token),
+        isSuperAdmin ? authAPI.getUsers(token) : Promise.resolve({ users: [] }),
         hrAPI.getEmployees(token),
       ])
 

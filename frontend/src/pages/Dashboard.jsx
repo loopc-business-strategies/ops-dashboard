@@ -290,7 +290,7 @@ function Dashboard() {
   const currentTab = navItems.find(n => n.id === activeTab)
 
   return (
-    <div className="h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }} onMouseMove={handleShellMouseMove}>
+    <div className="h-screen overflow-hidden" style={{ background: 'var(--bg-base)', display: 'flex', flexDirection: 'row', minHeight: '100vh' }} onMouseMove={handleShellMouseMove}>
 
       {/* Desktop edge sensor: reveal sidebar when mouse nears left/right edge */}
       {!sidebarOpen && (
@@ -426,7 +426,7 @@ function Dashboard() {
       {/* ══════════════════════════════════════
           MAIN CONTENT AREA
           ══════════════════════════════════════ */}
-      <div className={`h-full flex flex-col min-w-0 transition-all duration-300
+      <div className={`flex-1 w-full h-full flex flex-col min-w-0 transition-all duration-300
         ${sidebarOpen ? (isRTL ? 'lg:mr-[240px]' : 'lg:ml-[240px]') : (isRTL ? 'lg:mr-0' : 'lg:ml-0')}`}>
 
         {/* Top header bar */}

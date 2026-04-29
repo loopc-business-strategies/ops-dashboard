@@ -18,6 +18,12 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
 }
 
+@media (max-width: 640px) {
+  html, body, #root {
+    font-size: 11px !important;
+  }
+}
+
 @layer base {
   body {
     @apply bg-gray-50 text-gray-900 antialiased;

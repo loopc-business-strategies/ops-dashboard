@@ -196,6 +196,86 @@
 
   .toast { position: fixed; bottom: 20px; right: 20px; background: #111827; color: white; padding: 10px 18px; border-radius: 8px; font-size: 13px; z-index: 200; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; }
   .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ── MOBILE ≤ 768px ── */
+  @media (max-width: 768px) {
+
+    /* Body: allow scrolling, don't lock height */
+    body { overflow: auto; height: auto; min-height: 100vh; }
+
+    /* ── TOP NAV ── */
+    .topnav { padding: 0 12px; gap: 0; flex-wrap: nowrap; }
+    .topnav .logo { margin-right: 8px; }
+    .topnav .logo-sub { display: none; }
+    .topnav-tab { padding: 0 10px; }
+    .topnav-right { gap: 6px; }
+    .user-chip span:not(.role-tag) { display: none; }
+
+    /* ── MAIN LAYOUT: stack sidebar above content ── */
+    .app-body { flex-direction: column; overflow: visible; }
+    #view-admin  { flex-direction: column !important; overflow: visible !important; }
+    #view-user   { flex-direction: column !important; overflow: visible !important; }
+
+    /* ── SIDEBAR: horizontal strip instead of column ── */
+    .sidebar { width: 100%; height: auto; flex-direction: row; border-right: none; border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: hidden; flex-shrink: 0; }
+    .sidebar-nav { display: flex; flex-direction: row; padding: 0; white-space: nowrap; }
+    .sec-head { display: none; }
+    .sec-body { display: flex !important; flex-direction: row; max-height: none !important; overflow: visible; }
+    .sec-body.closed { max-height: none; }
+    .nav-item { margin: 0; border-radius: 0; padding: 10px 14px; white-space: nowrap; }
+
+    /* ── CONTENT AREA ── */
+    .content-area { overflow: visible; }
+
+    /* ── ADMIN PAGE ── */
+    .admin-page { padding: 14px; }
+    .page-header { margin-bottom: 14px; }
+
+    /* ── TOOLBAR ── */
+    .toolbar { flex-wrap: wrap; gap: 8px; }
+    .search-box { max-width: 100%; flex: 1 1 100%; }
+
+    /* ── TABLE: hide less important columns ── */
+    th:nth-child(2), td:nth-child(2),   /* EMAIL */
+    th:nth-child(3), td:nth-child(3),   /* DEPARTMENT */
+    th:nth-child(6), td:nth-child(6)    /* MODULES */
+    { display: none; }
+    td, th { padding: 8px 10px; }
+
+    /* ── PERMISSION MANAGER ── */
+    .perm-layout { grid-template-columns: 1fr; gap: 12px; }
+    .user-list-panel { max-height: 220px; overflow-y: auto; }
+
+    /* ── MODAL ── */
+    .modal { width: 95vw; }
+    .modal-body { padding: 14px; gap: 10px; }
+    .form-2col { grid-template-columns: 1fr; gap: 10px; }
+    .modal-foot { padding: 10px 14px; }
+
+    /* ── ERP HEADER ── */
+    .erp-header { padding: 12px 14px; gap: 8px; }
+
+    /* ── ERP BODY ── */
+    .erp-body { padding: 12px 14px; }
+
+    /* ── METRICS GRID: 2 columns on mobile ── */
+    .metrics-grid { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+
+    /* ── WIDGET GRID: single column, all spans reset ── */
+    .widget-grid { grid-template-columns: 1fr; gap: 10px; }
+    .widget-card.span-2,
+    .widget-card.span-3 { grid-column: span 1; }
+
+    /* ── CUSTOMIZE MODAL ── */
+    .customize-modal { width: 95vw; max-height: 90vh; }
+    .customize-modal-body { grid-template-columns: 1fr; }
+
+    /* ── GENERIC CONTENT ── */
+    .generic-content { padding: 14px; }
+
+    /* ── TOAST ── */
+    .toast { left: 12px; right: 12px; bottom: 12px; }
+  }
 </style>
 </head>
 <body>

@@ -235,7 +235,7 @@ const ERP_DASH_ALL_WIDGETS = [
   { id: 'expenses', label: 'Expenses',                      icon: '📋', color: '#fee2e2', desc: 'Expense breakdown by category',             cols: 1 },
   { id: 'volume',   label: 'Total Volume Traded',           icon: '📦', color: '#e8f5ef', desc: 'Trade volume by metal type',                cols: 1 },
   { id: 'apar',     label: 'Accounts Payable & Receivable', icon: '⚖️', color: '#fef3c7', desc: 'Live AP / AR with outstanding breakdown',   cols: 3, viewTab: 'apar' },
-  { id: 'fixing',   label: 'Fixing Position Summary',       icon: '📌', color: '#f0fdf4', desc: 'Open fixing positions by metal',            cols: 2, viewTab: 'fixing' },
+  { id: 'fixing',   label: 'Fixing Position Summary',       icon: '📌', color: '#f0fdf4', desc: 'Open fixing positions by metal',            cols: 2, viewTab: 'fixing-register' },
   { id: 'chat',     label: 'Chat',                          icon: '💬', color: '#eff6ff', desc: 'Recent team messages',                      cols: 1, viewTab: 'chat' },
   { id: 'notif',    label: 'Notifications & Alerts',        icon: '🔔', color: '#fff7ed', desc: 'System alerts and reminders',               cols: 1, viewTab: 'notif' },
 ]
@@ -480,6 +480,7 @@ function APARWidget({ dashboard, onNavigate }) {
   )
 }
 
+
 function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = null, onNavigateMain = null) {
   const bdr = '1px solid #F0FDF4'
   const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: bdr, fontSize: '0.82rem' }
@@ -496,8 +497,30 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
     return <svg width="52" height="26" style={{ flexShrink: 0 }}><polyline points={pts} fill="none" stroke={clr} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
   }
 
+  // Responsive widget container style
+  const widgetContainerStyle = {
+    background: '#fff',
+    borderRadius: '0.75rem',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
+    padding: '1.1rem 1.2rem',
+    marginBottom: '1.2rem',
+    minWidth: 0,
+    width: '100%',
+    boxSizing: 'border-box',
+    maxWidth: '100%',
+  }
+
+  // For mobile, reduce padding and margin
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 640
+  if (isMobile) {
+    widgetContainerStyle.padding = '0.7rem 0.5rem'
+    widgetContainerStyle.marginBottom = '0.7rem'
+    widgetContainerStyle.borderRadius = '0.5rem'
+  }
+
   switch (id) {
-    case 'margins': return <MarginsWidget dashboard={dashboard} onNavigate={onNavigate} />
+    case 'margins':
+      return <div style={widgetContainerStyle}><MarginsWidget dashboard={dashboard} onNavigate={onNavigate} /></div>
 
     case 'metals': {
       const rates = dashboard?.metalRates
@@ -516,7 +539,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
         { n: 'Palladium', sym: 'XPD', color: '#EC4899', price: pd, cur: pdCur, prev: pd > 0 ? pd * 0.9940 : 0, spark: [pd * 0.97 || 1030, pd * 0.975 || 1020, pd * 0.972 || 1015, pd * 0.978 || 1010, pd * 0.976 || 1012, pd * 0.982 || 1008, pd || 1002] },
       ]
       return (
-        <div>
+        <div style={widgetContainerStyle}>
           {METALS_DEF.map(m => {
             const hasPrice = m.price > 0
             const chg = m.prev > 0 ? ((m.price - m.prev) / m.prev) * 100 : 0
@@ -564,7 +587,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       const allRows = [...bankRows, ...cashRows]
       const total = allRows.reduce((s, a) => s + Number(a.balance || 0), 0)
       return (
-        <div>
+        <div style={widgetContainerStyle}>
           {allRows.length === 0
             ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No accounts found.</p>
             : allRows.map((a, i) => (
@@ -602,7 +625,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
         { label: 'Net',     val: cf?.net,     bg: '#E8F5EF', vc: Number(cf?.net || 0) >= 0 ? '#059669' : '#DC2626' },
       ]
       return (
-        <div>
+        <div style={widgetContainerStyle}>
           {monthly.length > 0 && (
             <>
               <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.4rem' }}>
@@ -650,7 +673,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       const COLORS = ['#1a6647', '#4DB890', '#A8D8C0', '#0EA5E9', '#6366F1', '#D97706']
       const segments = breakdown.slice(0, 6).map((item, i) => ({ label: item.name, value: item.amount, color: COLORS[i % COLORS.length] }))
       return (
-        <div>
+        <div style={widgetContainerStyle}>
           {total === 0
             ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF', textAlign: 'center', padding: '0.5rem 0' }}>No expenses in period.</p>
             : <DonutChart segments={segments} total={total} label={`$${(total / 1000).toFixed(0)}k`} />
@@ -664,7 +687,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       const totalQty = vols.reduce((s, v) => s + Number(v.qty || 0), 0)
       const mx = Math.max(...vols.map(v => Number(v.qty || 0)), 1)
       return (
-        <div>
+        <div style={widgetContainerStyle}>
           {vols.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '68px', marginBottom: '0.625rem' }}>
               {vols.map((v, i) => (
@@ -698,7 +721,8 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       )
     }
 
-    case 'apar': return <APARWidget dashboard={dashboard} onNavigate={onNavigate} />
+    case 'apar':
+      return <div style={widgetContainerStyle}><APARWidget dashboard={dashboard} onNavigate={onNavigate} /></div>
 
     case 'fixing': {
       const positions = dashboard?.fixingPositions || []
@@ -715,7 +739,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
         }
       }
       return (
-        <div>
+        <div style={widgetContainerStyle}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.5rem', marginBottom: '0.75rem' }}>
             {byMetal.map(f => (
               <div key={f.metal} style={{ background: '#F9FAFB', borderRadius: '0.5rem', padding: '0.6rem', textAlign: 'center', border: '1px solid #F0FDF4' }}>
@@ -741,14 +765,6 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
           ) : (
             <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No fixing positions in period.</p>
           )}
-          {onNavigate && (
-            <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
-              <button
-                onClick={handleViewRegister}
-                style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
-              >↗ View Full Register</button>
-            </div>
-          )}
         </div>
       )
     }
@@ -761,7 +777,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       ]
       const hasMsgs = chatMessages.length > 0
       return (
-        <div>
+        <div style={widgetContainerStyle}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: hasMsgs ? '0.4rem' : '0.5rem', marginBottom: '0.6rem', maxHeight: '130px', overflowY: 'auto' }}>
             {hasMsgs
               ? chatMessages.slice(-4).map((m, i) => (
@@ -795,32 +811,35 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       )
     }
 
-    case 'notif': return (
-      <div>
-        {[
-          { icon: '⚠️', iconBg: '#FEE2E2', text: `${Number(dashboard?.vendorComplianceRisk?.nonCompliant || 0)} vendor(s) at risk · Avg score ${Number(dashboard?.vendorComplianceRisk?.averageScore || 0)}%`, time: 'Today' },
-          { icon: '📄', iconBg: '#FEF9C3', text: `Doc expiry: ${Number(dashboard?.vendorDocumentExpiry?.warning30 || 0)} in 30d · ${Number(dashboard?.vendorDocumentExpiry?.warning60 || 0)} in 60d`, time: 'Today' },
-          ...(dashboard?.lowStockAlerts?.length ? [{ icon: '📦', iconBg: '#DBEAFE', text: `${dashboard.lowStockAlerts.length} item(s) below minimum stock`, time: 'Now' }] : []),
-          { icon: '✅', iconBg: '#DCFCE7', text: 'Dashboard refreshed successfully', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
-        ].map((n, i, arr) => (
-          <div key={i} style={{ display: 'flex', gap: '0.625rem', padding: '0.45rem 0', borderBottom: i < arr.length - 1 ? bdr : 'none', alignItems: 'flex-start' }}>
-            <div style={{ width: 28, height: 28, borderRadius: '7px', background: n.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', flexShrink: 0 }}>{n.icon}</div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: '0.75rem', color: ink, lineHeight: 1.4, margin: 0 }}>{n.text}</p>
-              <p style={{ fontSize: '0.68rem', color: '#9CA3AF', marginTop: '2px' }}>{n.time}</p>
+    case 'notif': {
+      return (
+        <div style={widgetContainerStyle}>
+          {[
+            { icon: '⚠️', iconBg: '#FEE2E2', text: `${Number(dashboard?.vendorComplianceRisk?.nonCompliant || 0)} vendor(s) at risk · Avg score ${Number(dashboard?.vendorComplianceRisk?.averageScore || 0)}%`, time: 'Today' },
+            { icon: '📄', iconBg: '#FEF9C3', text: `Doc expiry: ${Number(dashboard?.vendorDocumentExpiry?.warning30 || 0)} in 30d · ${Number(dashboard?.vendorDocumentExpiry?.warning60 || 0)} in 60d`, time: 'Today' },
+            ...(dashboard?.lowStockAlerts?.length ? [{ icon: '📦', iconBg: '#DBEAFE', text: `${dashboard.lowStockAlerts.length} item(s) below minimum stock`, time: 'Now' }] : []),
+            { icon: '✅', iconBg: '#DCFCE7', text: 'Dashboard refreshed successfully', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
+          ].map((n, i, arr) => (
+            <div key={i} style={{ display: 'flex', gap: '0.625rem', padding: '0.45rem 0', borderBottom: i < arr.length - 1 ? bdr : 'none', alignItems: 'flex-start' }}>
+              <div style={{ width: 28, height: 28, borderRadius: '7px', background: n.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', flexShrink: 0 }}>{n.icon}</div>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: '0.75rem', color: ink, lineHeight: 1.4, margin: 0 }}>{n.text}</p>
+                <p style={{ fontSize: '0.68rem', color: '#9CA3AF', marginTop: '2px' }}>{n.time}</p>
+              </div>
             </div>
-          </div>
-        ))}
-        {onNavigate && (
-          <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
-            <button
-              onClick={() => onNavigate('notif')}
-              style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
-            >↗ View All Alerts</button>
-          </div>
-        )}
-      </div>
-    )
+          ))}
+          {onNavigate && (
+            <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
+              <button
+                onClick={() => onNavigate('notif')}
+                style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
+              >↗ View All Alerts</button>
+            </div>
+          )}
+        </div>
+      )
+    }
+    
 
     default: return <p style={{ fontSize: '0.82rem', color: '#9CA3AF', textAlign: 'center', padding: '1.5rem 0' }}>Widget content</p>
   }
@@ -5090,8 +5109,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <button
                 onClick={() => setActiveTab('dashboard')}
-                title="Back to Dashboard"
-                style={{ background: 'none', border: '1px solid #CBD5E1', borderRadius: '0.4rem', padding: '0.3rem 0.5rem', cursor: 'pointer', fontSize: '1rem', color: C.inkSoft, display: 'flex', alignItems: 'center', lineHeight: 1 }}
+                title="Back to ERP Dashboard"
+                style={{ background: 'none', border: '1px solid #A7F3D0', borderRadius: '0.4rem', padding: '0.3rem 0.5rem', cursor: 'pointer', fontSize: '1rem', color: '#1a6647', display: 'flex', alignItems: 'center', lineHeight: 1, fontWeight: '700' }}
               >←</button>
               <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Customer Margin</h3>
             </div>
@@ -5210,6 +5229,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
       {/* FIXING POSITION REGISTER TAB */}
       {activeTab === 'fixing-register' && (
         <div>
+          {/* Back to ERP Dashboard */}
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            title="Back to ERP Dashboard"
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', width: '2rem', height: '2rem', borderRadius: '0.4rem', border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#1E3A5F', fontSize: '1rem', cursor: 'pointer' }}
+          >←</button>
           {/* Filter card */}
           <div style={{ borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid #CBD5E1', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', maxWidth: '860px', marginBottom: '1.8rem' }}>
             {/* Header */}
