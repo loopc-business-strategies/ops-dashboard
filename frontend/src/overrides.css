@@ -16,7 +16,7 @@
 [class*="login-title-bar"],
 form > div:first-child[style*="background"],
 .auth-header {
-  background: linear-gradient(135deg, #00684A, #00ED64) !important;
+  /* background removed for multi-tenant support - now using CSS vars */
 }
 
 /* Sign In / Submit button on login page */
@@ -27,10 +27,10 @@ button[type="submit"],
 [class*="sign-in"] button,
 [class*="signin"] button.btn,
 .auth-form button[type="submit"] {
-  background: linear-gradient(135deg, #00684A, #00ED64) !important;
-  box-shadow: 0 4px 15px rgba(0, 104, 74, 0.35) !important;
-  border: none !important;
-  color: #fff !important;
+  /* background color now handled by CSS vars from tenantBranding.js */
+  /* removed !important rules that forced green for multi-tenant support */
+  border: none;
+  color: #fff;
 }
 
 button[type="submit"]:hover,
@@ -86,33 +86,17 @@ button.tab:hover,
 }
 
 /* ── 3. PRIMARY BUTTONS ─────────────────────────────────
-   Fixes: Orange "+ Add Employee", "+ Add Machine" buttons
+   DISABLED for multi-tenant support
+   These !important rules were forcing green on all orange buttons
 ──────────────────────────────────────────────────────── */
 
-/* Any button with orange/amber inline style or class */
-button[style*="#F97316"],
-button[style*="#FB923C"],
-button[style*="#EA580C"],
-button[style*="rgb(249, 115, 22)"],
-button[style*="rgb(251, 146, 60)"],
-button[style*="orange"],
-a[style*="#F97316"],
-[style*="background: #F97316"],
-[style*="background:#F97316"],
-[style*="background-color: #F97316"] {
-  background: linear-gradient(135deg, #00684A, #00ED64) !important;
-  background-color: #00684A !important;
-  box-shadow: 0 4px 15px rgba(0, 104, 74, 0.35) !important;
-  color: #fff !important;
-  border: none !important;
-}
+/* Removed - button color forcing rules for multi-tenant CSS vars */
 
-/* CSS variable overrides — replaces --acc with purple */
+/* CSS variable overrides — DISABLED for multi-tenant ───────────
 :root {
   --acc:    #00684A !important;
   --acc-h:  #13AA52 !important;
   --acc-d:  #023430 !important;
-  /* Also target old variable names used in existing components */
   --primary:        #00684A;
   --primary-hover:  #13AA52;
   --primary-dark:   #023430;
@@ -121,6 +105,7 @@ a[style*="#F97316"],
   --active-tab-color: #13AA52;
   --active-tab-border: #00684A;
 }
+──────────────────────────────────────────────────────── */
 
 /* ── 4. CHAT TAB ────────────────────────────────────────
    Fixes: Orange "Create New Group" button + orange "+" icon
@@ -182,8 +167,8 @@ a[style*="#F97316"],
 [class*="navItem"].active,
 [class*="sidebar-item"].active,
 [class*="sidebarItem"].active {
-  background: rgba(0, 104, 74, 0.14) !important;
-  border-left-color: #00684A !important;
+  background: rgba(var(--purple-rgb), 0.14) !important;
+  border-left-color: var(--purple) !important;
 }
 
 .ni.on .ni-lb,
@@ -191,7 +176,7 @@ a[style*="#F97316"],
 .sidebar-item.active .sidebar-item-label,
 [class*="nav-item"].active [class*="label"],
 [class*="sidebar-item"].active [class*="label"] {
-  color: #13AA52 !important;
+  color: var(--purple-light) !important;
 }
 
 /* ── 6. TABLE ACTION BUTTONS ────────────────────────────
@@ -276,31 +261,12 @@ button.delete {
 }
 
 /* ── 10. CATCH-ALL INLINE STYLE OVERRIDES ───────────────
-   Intercepts hardcoded orange inline styles still in JSX
+   DISABLED for multi-tenant support
+   These !important rules were forcing green colors everywhere
+   Now using dynamic CSS vars from tenantBranding.js instead
 ──────────────────────────────────────────────────────── */
 
-* {
-  --tab-active-bg: transparent;
-  --tab-active-color: #13AA52;
-  --tab-active-border: #00684A;
-  --btn-primary-bg: linear-gradient(135deg, #00684A, #00ED64);
-  --btn-primary-color: #ffffff;
-  --highlight: #00684A;
-  --accent: #00684A;
-}
-
-[style*="background: #F97316"] { background: #00684A !important; }
-[style*="background:#F97316"]  { background: #00684A !important; }
-[style*="background: #FB923C"] { background: #00684A !important; }
-[style*="background:#FB923C"]  { background: #00684A !important; }
-[style*="background: #EA580C"] { background: #023430 !important; }
-[style*="background:#EA580C"]  { background: #023430 !important; }
-[style*="color: #F97316"]      { color: #13AA52 !important; }
-[style*="color:#F97316"]       { color: #13AA52 !important; }
-[style*="color: #FB923C"]      { color: #13AA52 !important; }
-[style*="color:#FB923C"]       { color: #13AA52 !important; }
-[style*="borderColor: #F97316"]{ border-color: #00684A !important; }
-[style*="border-color: #F97316"]{ border-color: #00684A !important; }
+/* All hardcoded color forcing removed - now handled by CSS variables */
 
 /* ── 11. NOTIFICATIONS PANEL ────────────────────────────
    Slide-in panel for ProductionTab real-time alerts
@@ -622,10 +588,10 @@ main select option {
 .sidebar .text-white:not([style*="background"]) { color: #1C2A33 !important; }
 /* Font override for sidebar */
 .sidebar { font-family: 'Inter', sans-serif; border-right: 1px solid #e8edeb !important; }
-/* Sidebar item active — green accent */
+/* Sidebar item active — brand accent */
 .sidebar-item.active {
-  background: rgba(0,104,74,0.08) !important;
-  border-left-color: #00684A !important;
+  background: rgba(var(--purple-rgb), 0.08) !important;
+  border-left-color: var(--purple) !important;
 }
-.sidebar-item.active span { color: #00684A !important; }
-.sidebar-item:hover { background: rgba(0,104,74,0.05) !important; }
+.sidebar-item.active span { color: var(--purple) !important; }
+.sidebar-item:hover { background: rgba(var(--purple-rgb), 0.05) !important; }

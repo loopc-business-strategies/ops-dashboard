@@ -10,8 +10,8 @@ const today = () => new Date().toISOString().slice(0, 10)
 
 const S = {
   // Colours
-  green: '#059669',
-  greenDark: '#047857',
+  green: 'var(--purple-light)',
+  greenDark: 'var(--purple)',
   danger: '#DC2626',
   ink: '#111827',
   muted: '#6B7280',
@@ -87,11 +87,11 @@ const tabBtn = (active) => ({
   padding: '0.42rem 1rem',
   fontSize: '0.78rem',
   fontWeight: '700',
-  color: active ? '#065F46' : '#374151',
+  color: active ? 'var(--purple)' : '#374151',
   background: active
-    ? 'linear-gradient(180deg, #F6FFFB 0%, #D7F5E6 100%)'
+    ? 'linear-gradient(180deg, #FFF7F0 0%, #FFE8D0 100%)'
     : 'linear-gradient(180deg, #FFFFFF 0%, #ECECEC 100%)',
-  border: `1px solid ${active ? '#7FC7A5' : '#BFC5CB'}`,
+  border: `1px solid ${active ? 'var(--purple)' : '#BFC5CB'}`,
   borderTop: '1px solid #F8FAFC',
   borderLeft: '1px solid #EEF2F7',
   boxShadow: active
@@ -2053,16 +2053,14 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           {/* ── ERP-style Title Bar (draggable) ── */}
           <div
             style={{
-              background: isMetalVoucher
-                ? 'linear-gradient(180deg,#8AA8D6 0%,#4E73AF 18%,#2E5593 55%,#21477F 100%)'
-                : 'linear-gradient(180deg,#8AA8D6 0%,#4E73AF 18%,#2E5593 55%,#21477F 100%)',
+              background: 'var(--grad-brand)',
               color: '#fff',
               padding: '4px 8px 5px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              borderBottom: isMetalVoucher ? '1px solid #173765' : '1px solid #173765',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.45)',
+              borderBottom: '1px solid rgba(0,0,0,0.15)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)',
               borderRadius: '0.5rem 0.5rem 0 0',
               marginBottom: 0,
               flexShrink: 0,

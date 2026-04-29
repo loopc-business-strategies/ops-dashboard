@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const FinanceRecordSchema = new mongoose.Schema(
   {
@@ -36,4 +37,4 @@ const FinanceRecordSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
-module.exports = mongoose.model('FinanceRecord', FinanceRecordSchema)
+module.exports = createTenantModel('FinanceRecord', FinanceRecordSchema)

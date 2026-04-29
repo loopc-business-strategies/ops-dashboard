@@ -9,6 +9,7 @@ const cookieParser = require('cookie-parser')
 
 const sanitizeMiddleware = require('./middleware/sanitize')
 const { requestLoggerMiddleware } = require('./middleware/logger')
+const { bindTenantContext } = require('./middleware/tenantContext')
 
 const authRoutes = require('./routes/auth')
 const employeeRoutes = require('./routes/employees')
@@ -94,6 +95,7 @@ function createApp() {
   app.use('/api', apiLimiter)
   app.use('/api/auth/login', authLimiter)
   app.use('/api/auth/setup', authLimiter)
+  app.use('/api', bindTenantContext)
 
   app.get('/api/health', (req, res) => {
     res.json({ success: true, message: 'Server is running!', time: new Date() })

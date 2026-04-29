@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const vendorWorkflowHistorySchema = new mongoose.Schema(
   {
@@ -83,4 +84,4 @@ vendorSchema.pre('validate', function enforceUsdCurrency(next) {
   next()
 })
 
-module.exports = mongoose.model('Vendor', vendorSchema)
+module.exports = createTenantModel('Vendor', vendorSchema)

@@ -1,6 +1,7 @@
 // FILE: backend/models/Task.js
 
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const taskSchema = new mongoose.Schema(
   {
@@ -85,4 +86,4 @@ const taskSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
-module.exports = mongoose.model('Task', taskSchema)
+module.exports = createTenantModel('Task', taskSchema)

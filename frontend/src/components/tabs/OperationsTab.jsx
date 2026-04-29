@@ -7,19 +7,19 @@ import { useLanguage } from '../../context/LanguageContext'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  grad:   'linear-gradient(135deg,#00684A,#00ED64)',
-  gbar:   'linear-gradient(90deg,#00684A,#00b4d8)',
+  grad:   'var(--grad-brand)',
+  gbar:   'var(--grad-bar)',
   green:  '#065f46', cyan:   '#00b4d8', yellow: '#ffd600',
   orange: '#9a3412', red:    '#ff4757', gold:   '#f59e0b',
   t1:'#1c2a33', t2:'#374151', t3:'#334155', t4:'#475569',
-  border: 'rgba(0,104,74,0.15)', border2:'rgba(0,104,74,0.35)',
+  border: 'rgba(var(--purple-rgb),0.15)', border2:'rgba(var(--purple-rgb),0.35)',
   card:'#ffffff', card2:'#f8f9fa', inp:'#f8f9fa',
-  pur: '#00684A',
+  pur: 'var(--purple)',
 }
 const B = {
-  pri:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', border:'none', background:C.grad, color:'#fff', boxShadow:'0 4px 15px rgba(0,104,74,.35)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#00684A', border:'1px solid #00684A', whiteSpace:'nowrap', fontFamily:'inherit' },
-  ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#475569', border:`1px solid ${C.border}`, whiteSpace:'nowrap', fontFamily:'inherit' },
+  pri:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', border:'none', background:'var(--grad-brand)', color:'#fff', boxShadow:'0 4px 15px rgba(var(--purple-rgb),.35)', whiteSpace:'nowrap', fontFamily:'inherit' },
+  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'var(--purple)', border:'1px solid var(--purple)', whiteSpace:'nowrap', fontFamily:'inherit' },
+  ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#475569', border:`1px solid rgba(var(--purple-rgb),0.15)`, whiteSpace:'nowrap', fontFamily:'inherit' },
   warn:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(255,112,67,.15)', color:'#9a3412', border:'1px solid rgba(255,112,67,.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
   succ:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(0,200,150,.15)', color:'#065f46', border:'1px solid rgba(0,200,150,.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
   sm:    { padding:'5px 11px', fontSize:11 },
@@ -158,7 +158,7 @@ const BADGE_MAP = {
   'Under Investigation':   { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
   'Final Negotiation':     { bg:'rgba(0,180,216,.12)',   color:'#00b4d8', b:'rgba(0,180,216,.3)' },
   'MoU Stage':             { bg:'rgba(0,180,216,.12)',   color:'#00b4d8', b:'rgba(0,180,216,.3)' },
-  'Pending External':      { bg:'rgba(0,104,74,.15)',  color:'#00684A', b:'rgba(0,104,74,.3)' },
+  'Pending External':      { bg:'rgba(var(--purple-rgb),.15)',  color:'var(--purple)', b:'rgba(var(--purple-rgb),.3)' },
   'Not Started':           { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
   'No':                    { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
   'Suspended':             { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
@@ -173,7 +173,7 @@ const BADGE_MAP = {
   'Medium':                { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
   'Low':                   { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
   'Road':                  { bg:'rgba(0,180,216,.12)',   color:'#00b4d8', b:'rgba(0,180,216,.3)' },
-  'Air':                   { bg:'rgba(0,104,74,.15)',  color:'#00684A', b:'rgba(0,104,74,.3)' },
+  'Air':                   { bg:'rgba(var(--purple-rgb),.15)',  color:'var(--purple)', b:'rgba(var(--purple-rgb),.3)' },
   'Rail':                  { bg:'rgba(245,158,11,.12)',  color:'#f59e0b', b:'rgba(245,158,11,.3)' },
 }
 function Badge({ s }) {
@@ -264,7 +264,7 @@ function Restrict({ text, amber }) {
 }
 
 // ─── Modal base ─────────────────────────────────────────────────────────────────
-const IS = { width:'100%', background:'rgba(255,255,255,.05)', border:'1.5px solid rgba(0,104,74,.25)', borderRadius:8, padding:'10px 14px', fontSize:13, color:C.t1, fontFamily:'inherit', outline:'none', marginBottom:12, boxSizing:'border-box' }
+const IS = { width:'100%', background:'rgba(255,255,255,.05)', border:'1.5px solid rgba(var(--purple-rgb),.25)', borderRadius:8, padding:'10px 14px', fontSize:13, color:C.t1, fontFamily:'inherit', outline:'none', marginBottom:12, boxSizing:'border-box' }
 function ML({ children }) { return <div style={{ fontSize:11, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:5 }}>{children}</div> }
 function MI(props) { return <input {...props} style={IS} /> }
 function MS({ children, ...p }) { return <select {...p} style={{ ...IS, appearance:'auto' }}>{children}</select> }
@@ -293,7 +293,7 @@ function Modal({ title, sub, onClose, onSave, saveLabel = 'Save', children }) {
 function Toast({ t }) {
   if (!t) return null
   return (
-    <div style={{ position:'fixed', bottom:22, right:22, minWidth:260, background:'#ffffff', border:`1px solid ${C.border2}`, borderLeft:`3px solid #00684A`, borderRadius:10, padding:'13px 18px', zIndex:9999, boxShadow:'0 8px 30px rgba(0,104,74,.22)' }}>
+    <div style={{ position:'fixed', bottom:22, right:22, minWidth:260, background:'#ffffff', border:`1px solid ${C.border2}`, borderLeft:`3px solid var(--purple)`, borderRadius:10, padding:'13px 18px', zIndex:9999, boxShadow:'0 8px 30px rgba(var(--purple-rgb),.22)' }}>
       <style>{`@keyframes toastIn{from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
       <div style={{ fontWeight:700, color:C.t1, marginBottom:3, animation:'toastIn .3s ease' }}>{t.title}</div>
       <div style={{ fontSize:12, color:C.t3 }}>{t.msg}</div>
@@ -433,7 +433,7 @@ function TabChecklist({ checklist, setChecklist, canEdit, isExternal, isMgmt, se
                     <td style={TD}>
                       {canEdit && c.st !== 'Done' && <button onClick={() => {
                         setChecklist(p => p.map((x,j) => j===i ? {...x, st:'Done', by:'You', ts:'Now'} : x))
-                      }} style={{ background:'none', border:'none', cursor:'pointer', color:'#00684A', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>✓ Done</button>}
+                      }} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--purple)', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>✓ Done</button>}
                       {canEdit && c.st === 'Done' && <button onClick={() => {
                         setChecklist(p => p.map((x,j) => j===i ? {...x, st:'In Progress', by:'—', ts:'—'} : x))
                       }} style={{ background:'none', border:'none', cursor:'pointer', color:C.t3, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Undo</button>}
@@ -484,7 +484,7 @@ function TabSupply({ suppliers, setSuppliers, canEdit, isExternal, isMgmt, showT
                     <td style={TD}><Badge s={s.st} /></td>
                     <td style={{ ...TD, color:C.t3, fontSize:11, maxWidth:140, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{s.notes}</td>
                     {canEdit && <td style={TD} onClick={e => e.stopPropagation()}>
-                      <button onClick={e => { e.stopPropagation(); setModal({ type:'supplier-edit', data:s }) }} style={{ background:'none', border:'none', cursor:'pointer', color:'#00684A', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
+                      <button onClick={e => { e.stopPropagation(); setModal({ type:'supplier-edit', data:s }) }} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--purple)', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
                       <button onClick={() => { setSuppliers(p => p.filter(x => x.id !== s.id)); showToast('Deleted','Supplier removed') }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
                     </td>}
                   </tr>
@@ -628,7 +628,7 @@ function TabRoutes({ routes, setRoutes, canEdit, isExternal, isMgmt, showToast, 
                     <td style={TD}><Badge s={r.gps} /></td>
                     <td style={{ ...TD, fontWeight:700, color: r.checkpoints.split('/')[0] === r.checkpoints.split('/')[1] ? C.green : C.yellow }}>{r.checkpoints}</td>
                     <td style={TD}>
-                      {canEdit && <button onClick={() => setModal({ type:'route-edit', data:r })} style={{ background:'none', border:'none', cursor:'pointer', color:'#00684A', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>}
+                      {canEdit && <button onClick={() => setModal({ type:'route-edit', data:r })} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--purple)', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>}
                       {canEdit && <button onClick={onOpenIncident} style={{ background:'none', border:'none', cursor:'pointer', color:C.orange, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Report</button>}
                       {canEdit && <button onClick={() => { if (window.confirm('Delete route?')) { setRoutes(p => p.filter(x=>x.id!==r.id)); showToast('Deleted','Route removed') } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>}
                     </td>
@@ -694,7 +694,7 @@ function TabSecurity({ secVendors, setSecVendors, incidents, setIncidents, canEd
                   <td style={{ ...TD, color:C.t3 }}>{s.route}</td>
                   <td style={TD}><span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background: s.incidents>0?'rgba(255,71,87,.12)':'rgba(0,200,150,.12)', color: s.incidents>0?C.red:C.green, border:`1px solid ${s.incidents>0?'rgba(255,71,87,.3)':'rgba(0,200,150,.3)'}` }}>{s.incidents} incident{s.incidents!==1?'s':''}</span></td>
                   <td style={TD}>
-                    {canEdit && <button onClick={() => setModal({ type:'secvendor-edit', data:s })} style={{ background:'none', border:'none', cursor:'pointer', color:'#00684A', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>}
+                    {canEdit && <button onClick={() => setModal({ type:'secvendor-edit', data:s })} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--purple)', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>}
                     <button onClick={() => showToast('Protocol',`${s.vendor} protocol document`)} style={{ background:'none', border:'none', cursor:'pointer', color:C.cyan, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Doc</button>
                     {canEdit && <button onClick={() => { if (window.confirm(`Delete ${s.vendor}?`)) { setSecVendors(p => p.filter(x=>x.id!==s.id)); showToast('Deleted',`${s.vendor} removed`) } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>}
                   </td>
@@ -727,7 +727,7 @@ function TabSecurity({ secVendors, setSecVendors, incidents, setIncidents, canEd
                     <td style={TD}><Badge s={inc.st} /></td>
                     <td style={{ ...TD, color: inc.res.includes('ongoing')?C.yellow:C.t2, fontSize:11 }}>{inc.res}</td>
                     <td style={TD}>
-                      {canEdit && <button onClick={() => setModal({ type:'incident-edit', data:inc })} style={{ background:'none', border:'none', cursor:'pointer', color:'#00684A', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>}
+                      {canEdit && <button onClick={() => setModal({ type:'incident-edit', data:inc })} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--purple)', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>}
                       {canEdit && <button onClick={() => { if (window.confirm('Delete incident?')) { setIncidents(p => p.filter(x=>x.id!==inc.id)); showToast('Deleted','Incident removed') } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>}
                     </td>
                   </tr>
@@ -788,7 +788,7 @@ function TabVendors({ vendors, setVendors, canEdit, isAdmin, isHead, isMgmt, isU
                       <td style={TD}><div style={{ display:'flex' }}>{stars(v.rating)}</div></td>
                     </>}
                     {canEdit && <td style={TD}>
-                      <button onClick={() => setModal({ type:'vendor-edit', data:v })} style={{ background:'none', border:'none', cursor:'pointer', color:'#00684A', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
+                      <button onClick={() => setModal({ type:'vendor-edit', data:v })} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--purple)', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
                       <button onClick={() => showToast('Contract','View contract document')} style={{ background:'none', border:'none', cursor:'pointer', color:C.cyan, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>View</button>
                       {v.days && v.days < 120 && <button onClick={() => { setVendors(p => p.map(x => x.id===v.id ? { ...x, renewal:'Under Negotiation' } : x)); showToast('Renewal Started',`Renewal process initiated for ${v.name}`) }} style={{ background:'none', border:'none', cursor:'pointer', color:C.green, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Renew</button>}
                       <button onClick={() => { if (window.confirm(`Delete ${v.name}?`)) { setVendors(p => p.filter(x=>x.id!==v.id)); showToast('Deleted',`${v.name} removed`) } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
@@ -858,7 +858,7 @@ function TabInventory({ inventory, setInventory, suppliers, setSuppliers, canEdi
                     <td style={{ ...TD, color:C.t2 }}>{i.sup}</td>
                     <td style={{ ...TD, color:C.t3 }}>{i.last}</td>
                     <td style={TD}>
-                      {canEdit && <button onClick={() => setModal({ type:'inventory-edit', data:i })} style={{ background:'none', border:'none', cursor:'pointer', color:'#00684A', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>}
+                      {canEdit && <button onClick={() => setModal({ type:'inventory-edit', data:i })} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--purple)', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>}
                       {canEdit && <button onClick={() => {
                         setSuppliers(p => [...p, { id:Date.now(), name:`Restock: ${i.item}`, cat:'Consumables', od:'Today', ed:'TBD', ad:'—', qty:'Restock order', qr:'0', pay:'Not Paid', qc:'Pending', st:'Not Started', notes:'Auto-created from inventory restock request' }])
                         showToast('Restock Requested', `${i.item} — procurement request sent`)
@@ -887,7 +887,7 @@ function TabMap({ canEdit, isAdmin, isHead, isExternal, showToast }) {
       <SH title="Live Operations Map" sub={showGold ? 'Full view — all pins visible' : 'Routes and logistics view'} />
       <div style={{ background:'#f0faf5', borderRadius:10, minHeight:340, position:'relative', overflow:'hidden', border:`1px solid ${C.border}` }}>
         {/* Grid overlay */}
-        <div style={{ position:'absolute', inset:0, backgroundImage:'linear-gradient(rgba(0,104,74,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,104,74,.05) 1px,transparent 1px)', backgroundSize:'40px 40px' }} />
+        <div style={{ position:'absolute', inset:0, backgroundImage:'linear-gradient(rgba(var(--purple-rgb),.05) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--purple-rgb),.05) 1px,transparent 1px)', backgroundSize:'40px 40px' }} />
         {/* Route lines */}
         <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none' }}>
           <line x1="15%" y1="30%" x2="55%" y2="65%" stroke="rgba(0,200,150,.5)"  strokeWidth="2" strokeDasharray="6 3" />
@@ -897,7 +897,7 @@ function TabMap({ canEdit, isAdmin, isHead, isExternal, showToast }) {
         </svg>
         {/* Site Alpha */}
         <MapPin x="55%" y="65%" onClick={() => showToast('Site Alpha','Main production site — all routes terminate here')}>
-          <div style={{ width:16, height:16, borderRadius:'50%', background:'#00684A', border:'2px solid #fff', boxShadow:'0 0 10px #00684A' }} />
+          <div style={{ width:16, height:16, borderRadius:'50%', background:'var(--purple)', border:'2px solid #fff', boxShadow:'0 0 10px var(--purple)' }} />
           <div style={{ fontSize:10, color:'#fff', marginTop:3, fontWeight:700, textShadow:'0 1px 3px #000', whiteSpace:'nowrap' }}>🏭 Site Alpha</div>
         </MapPin>
         {/* Almaty */}
@@ -939,7 +939,7 @@ function TabMap({ canEdit, isAdmin, isHead, isExternal, showToast }) {
         {/* Legend */}
         <div style={{ position:'absolute', bottom:12, left:12, background:'rgba(30,30,53,.9)', border:`1px solid ${C.border}`, borderRadius:10, padding:'10px 14px' }}>
           <div style={{ fontSize:11, fontWeight:700, color:C.t2, marginBottom:8 }}>Legend</div>
-          {[['Active Route',C.green,'circle'],['On Hold',C.yellow,'circle'],['Suspended',C.red,'circle'],['Security Checkpoint',C.orange,'square'],...(showGold?[['Gold Channel',C.gold,'circle']]:[]),['Main Site','#00684A','circle']].map(([lbl,col,shape]) => (
+          {[['Active Route',C.green,'circle'],['On Hold',C.yellow,'circle'],['Suspended',C.red,'circle'],['Security Checkpoint',C.orange,'square'],...(showGold?[['Gold Channel',C.gold,'circle']]:[]),['Main Site','var(--purple)','circle']].map(([lbl,col,shape]) => (
             <div key={lbl} style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:C.t2, marginBottom:4 }}>
               <div style={{ width:8, height:8, borderRadius: shape==='circle'?'50%':3, background:col, flexShrink:0 }} />
               {lbl}
@@ -1104,7 +1104,7 @@ function TabTasks({ tasks, setTasks, canEdit, isExternal, showToast, onOpenAdd, 
                     <td style={TD}><Badge s={t.st} /></td>
                     <td style={TD}><span style={{ fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:20, background:'rgba(0,180,216,.12)', color:C.cyan, border:'1px solid rgba(0,180,216,.3)' }}>{t.sec}</span></td>
                     {canEdit && <td style={TD}>
-                      <button onClick={() => setModal({ type:'task-edit', data:t })} style={{ background:'none', border:'none', cursor:'pointer', color:'#00684A', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
+                      <button onClick={() => setModal({ type:'task-edit', data:t })} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--purple)', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
                       <button onClick={() => { setTasks(p => p.filter(x=>x.id!==t.id)); showToast('Deleted','Task removed') }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
                     </td>}
                   </tr>
@@ -1494,14 +1494,14 @@ export default function OperationsTab() {
             const active = t.id === activeTab
             return (
               <button key={t.id} onClick={() => setActiveTab(t.id)}
-                style={{ padding:'10px 14px', fontSize:12, fontWeight: active ? 700 : 600, cursor:'pointer', border:'none', background:'transparent', color: active ? '#00684A' : C.t3, borderBottom: active ? '2px solid #00684A' : '2px solid transparent', transition:'all .15s', fontFamily:'inherit', whiteSpace:'nowrap', flexShrink:0, marginBottom:-1 }}>
+                style={{ padding:'10px 14px', fontSize:12, fontWeight: active ? 700 : 600, cursor:'pointer', border:'none', background:'transparent', color: active ? 'var(--purple)' : C.t3, borderBottom: active ? '2px solid var(--purple)' : '2px solid transparent', transition:'all .15s', fontFamily:'inherit', whiteSpace:'nowrap', flexShrink:0, marginBottom:-1 }}>
                 {t.label}
               </button>
             )
           })}
         </div>
         {/* Bell */}
-        <button onClick={() => setNotifOpen(true)} style={{ position:'relative', width:36, height:36, borderRadius:8, background:'rgba(0,104,74,.1)', border:`1px solid rgba(0,104,74,.25)`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:17, flexShrink:0, marginBottom:4 }}>
+        <button onClick={() => setNotifOpen(true)} style={{ position:'relative', width:36, height:36, borderRadius:8, background:'rgba(var(--purple-rgb),.1)', border:`1px solid rgba(var(--purple-rgb),.25)`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:17, flexShrink:0, marginBottom:4 }}>
           🔔
           {unreadCount > 0 && <span style={{ position:'absolute', top:-5, right:-5, width:18, height:18, borderRadius:'50%', background:C.red, color:'#fff', fontSize:9, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #13131f' }}>{unreadCount}</span>}
         </button>

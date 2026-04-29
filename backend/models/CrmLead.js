@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const stageHistSchema = new mongoose.Schema({ stage: String, date: Date, note: String, by: String }, { _id: false })
 const nextActSchema   = new mongoose.Schema({ description: String, dueDate: Date, assignedTo: String, isDone: { type: Boolean, default: false } }, { _id: false })
@@ -37,4 +38,4 @@ const crmLeadSchema = new mongoose.Schema({
 crmLeadSchema.index({ stage: 1 })
 crmLeadSchema.index({ assignedRep: 1 })
 
-module.exports = mongoose.model('CrmLead', crmLeadSchema)
+module.exports = createTenantModel('CrmLead', crmLeadSchema)

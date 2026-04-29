@@ -7,18 +7,18 @@ import { useLanguage } from '../../context/LanguageContext'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  grad:   'linear-gradient(135deg,#00684A,#00ED64)',
-  gbar:   'linear-gradient(90deg,#00684A,#00b4d8)',
+  grad:   'var(--grad-brand)',
+  gbar:   'var(--grad-bar)',
   green:  '#065f46', cyan:   '#00b4d8', yellow: '#ffd600',
   orange: '#9a3412', red:    '#ff4757', gold:   '#f59e0b',
   t1:'#1c2a33', t2:'#374151', t3:'#334155', t4:'#475569',
-  border: 'rgba(0,104,74,0.15)', border2:'rgba(0,104,74,0.35)',
+  border: 'rgba(var(--purple-rgb),0.15)', border2:'rgba(var(--purple-rgb),0.35)',
   card:'#ffffff', card2:'#f8f9fa', inp:'#f8f9fa',
-  pur: '#00684A',
+  pur: 'var(--purple)',
 }
 const B = {
-  pri:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', border:'none', background:C.grad, color:'#fff', boxShadow:'0 4px 15px rgba(0,104,74,.35)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#00684A', border:'1px solid #00684A', whiteSpace:'nowrap', fontFamily:'inherit' },
+  pri:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', border:'none', background:C.grad, color:'#fff', boxShadow:'0 4px 15px rgba(var(--purple-rgb),.35)', whiteSpace:'nowrap', fontFamily:'inherit' },
+  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'var(--purple)', border:'1px solid var(--purple)', whiteSpace:'nowrap', fontFamily:'inherit' },
   ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#475569', border:`1px solid ${C.border}`, whiteSpace:'nowrap', fontFamily:'inherit' },
   succ:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(0,200,150,.15)', color:'#065f46', border:'1px solid rgba(0,200,150,.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
   sm:    { padding:'5px 11px', fontSize:11 },
@@ -151,12 +151,12 @@ const BADGE_MAP = {
   'Fail':          { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
   'Absent':        { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
   'Cancelled':     { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
-  'PDF':           { bg:'rgba(0,104,74,.15)',  color:'#00684A', b:'rgba(0,104,74,.3)' },
+  'PDF':           { bg:'rgba(var(--purple-rgb),.15)',  color:'var(--purple)', b:'rgba(var(--purple-rgb),.3)' },
   'Video':         { bg:'rgba(255,112,67,.12)',  color:'#9a3412', b:'rgba(255,112,67,.3)' },
   'Document':      { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
   'Advanced':      { bg:'rgba(0,180,216,.12)',   color:'#00b4d8', b:'rgba(0,180,216,.3)' },
   'Intermediate':  { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
-  'Expert':        { bg:'rgba(0,104,74,.15)',  color:'#00684A', b:'rgba(0,104,74,.3)' },
+  'Expert':        { bg:'rgba(var(--purple-rgb),.15)',  color:'var(--purple)', b:'rgba(var(--purple-rgb),.3)' },
   'Basic':         { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
   'Beginner':      { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
 }
@@ -251,7 +251,7 @@ function Restrict({ text }) {
 }
 
 // ─── Modal base ─────────────────────────────────────────────────────────────────
-const IS = { width:'100%', background:'rgba(255,255,255,.05)', border:'1.5px solid rgba(0,104,74,.25)', borderRadius:8, padding:'10px 14px', fontSize:13, color:C.t1, fontFamily:'inherit', outline:'none', marginBottom:12, boxSizing:'border-box' }
+const IS = { width:'100%', background:'rgba(255,255,255,.05)', border:'1.5px solid rgba(var(--purple-rgb),.25)', borderRadius:8, padding:'10px 14px', fontSize:13, color:C.t1, fontFamily:'inherit', outline:'none', marginBottom:12, boxSizing:'border-box' }
 function ML({ children }) { return <div style={{ fontSize:11, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:5 }}>{children}</div> }
 function MI(props) { return <input {...props} style={IS} /> }
 function MS({ children, ...p }) { return <select {...p} style={{ ...IS, appearance:'auto' }}>{children}</select> }
@@ -282,7 +282,7 @@ function Modal({ title, sub, onClose, onSave, saveLabel = 'Save', wide, children
 function Toast({ t }) {
   if (!t) return null
   return (
-    <div style={{ position:'fixed', bottom:22, right:22, minWidth:260, background:'#ffffff', border:`1px solid ${C.border2}`, borderLeft:`3px solid #00684A`, borderRadius:10, padding:'13px 18px', zIndex:9999, boxShadow:'0 8px 30px rgba(0,104,74,.22)', animation:'toastIn .3s ease' }}>
+    <div style={{ position:'fixed', bottom:22, right:22, minWidth:260, background:'#ffffff', border:`1px solid ${C.border2}`, borderLeft:`3px solid var(--purple)`, borderRadius:10, padding:'13px 18px', zIndex:9999, boxShadow:'0 8px 30px rgba(var(--purple-rgb),.22)', animation:'toastIn .3s ease' }}>
       <style>{`@keyframes toastIn{from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
       <div style={{ fontWeight:700, color:C.t1, marginBottom:3 }}>{t.title}</div>
       <div style={{ fontSize:12, color:C.t3 }}>{t.msg}</div>
@@ -373,7 +373,7 @@ function TabCalendar({ sessions, setSessions, canEdit, isTrainee, showToast, onS
           return (
             <div key={d}
               onClick={() => daySessions.length ? onShowSession(daySessions[0]) : showToast(`April ${d}`, 'No sessions scheduled')}
-              style={{ minHeight:70, background: today ? 'rgba(0,104,74,.08)' : 'rgba(255,255,255,.03)', border:`1px solid ${today ? '#00684A' : 'rgba(255,255,255,.05)'}`, borderRadius:6, padding:5, cursor:'pointer', transition:'all .15s' }}>
+              style={{ minHeight:70, background: today ? 'rgba(var(--purple-rgb),.08)' : 'rgba(255,255,255,.03)', border:`1px solid ${today ? 'var(--purple)' : 'rgba(255,255,255,.05)'}`, borderRadius:6, padding:5, cursor:'pointer', transition:'all .15s' }}>
               <div style={{ fontSize:11, fontWeight:700, color:C.t2, marginBottom:3 }}>{d}</div>
               {daySessions.map(s => (
                 <div key={s.id}
@@ -519,7 +519,7 @@ function TabAttendance({ attendance, trainees, canEdit, isTrainee, showToast, on
                 <tr key={t.name} style={{ background: t.att < 75 ? 'rgba(255,71,87,.04)' : '' }}>
                   <td style={TD}>
                     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(0,104,74,.2)', color:C.pur, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, flexShrink:0 }}>{t.name[0]}</div>
+                      <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(var(--purple-rgb),.2)', color:C.pur, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, flexShrink:0 }}>{t.name[0]}</div>
                       <span style={{ fontWeight:700, color:C.t1 }}>{t.name}</span>
                     </div>
                   </td>
@@ -625,7 +625,7 @@ function TabAssessments({ assessments, setAssessments, canEdit, isTrainee, showT
                 <tr key={i} style={{ background: a.pass ? 'rgba(0,200,150,.04)' : 'rgba(255,71,87,.04)' }}>
                   {!isTrainee && <td style={TD}>
                     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(0,104,74,.2)', color:C.pur, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, flexShrink:0 }}>{a.trainee[0]}</div>
+                      <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(var(--purple-rgb),.2)', color:C.pur, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, flexShrink:0 }}>{a.trainee[0]}</div>
                       <button onClick={() => onShowProfile(a.trainee)} style={{ background:'none', border:'none', cursor:'pointer', color:C.pur, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>{a.trainee}</button>
                     </div>
                   </td>}
@@ -713,7 +713,7 @@ function TabFeedback({ feedback, setFeedback, canEdit, isTrainee, isTrainer, sho
         <SH title="Session Feedback" sub="Submit feedback after each completed session">
           <button style={B.pri} onClick={onOpenFeedback}>⭐ Submit Feedback</button>
         </SH>
-        <div style={{ background:'rgba(0,104,74,.08)', border:`1px solid ${C.border}`, borderRadius:10, padding:'14px 18px', fontSize:13, color:C.t2 }}>
+        <div style={{ background:'rgba(var(--purple-rgb),.08)', border:`1px solid ${C.border}`, borderRadius:10, padding:'14px 18px', fontSize:13, color:C.t2 }}>
           You can submit feedback after each completed session. Click <strong style={{ color:C.pur }}>Submit Feedback</strong> above.
         </div>
       </div>
@@ -797,7 +797,7 @@ function TabAnalytics({ batches, canEdit, isAdmin, isHead, isMgmt }) {
           <div style={{ display:'flex', alignItems:'flex-end', gap:6, height:110 }}>
             {batches.filter(b => b.st !== 'On Hold').map(b => (
               <div key={b.id} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, gap:3 }}>
-                <div style={{ height:b.completion, width:'100%', borderRadius:'4px 4px 0 0', background: b.completion === 100 ? 'linear-gradient(180deg,#00c896,#00b4d8)' : 'linear-gradient(180deg,#00684A,#00ED64)', minHeight:4 }} />
+                <div style={{ height:b.completion, width:'100%', borderRadius:'4px 4px 0 0', background: b.completion === 100 ? 'linear-gradient(180deg,#00c896,#00b4d8)' : 'linear-gradient(180deg,var(--purple),var(--purple-light))', minHeight:4 }} />
                 <div style={{ fontSize:9, fontWeight:700, color:C.t3 }}>{b.completion}%</div>
                 <div style={{ fontSize:9, color:C.t3 }}>{b.name.split('—')[0].trim().split(' ')[1]}</div>
               </div>
@@ -869,7 +869,7 @@ function TabTrainees({ trainees, setTrainees, canEdit, isTrainee, showToast, onS
                 <tr key={t.name}>
                   <td style={TD}>
                     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(0,104,74,.2)', color:C.pur, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, flexShrink:0 }}>{t.name[0]}</div>
+                      <div style={{ width:26, height:26, borderRadius:'50%', background:'rgba(var(--purple-rgb),.2)', color:C.pur, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, flexShrink:0 }}>{t.name[0]}</div>
                       <div>
                         <div style={{ fontWeight:700, color:C.t1 }}>{t.name}</div>
                         <div style={{ fontSize:10, color:C.t3 }}>{t.email}</div>
@@ -878,7 +878,7 @@ function TabTrainees({ trainees, setTrainees, canEdit, isTrainee, showToast, onS
                   </td>
                   <td style={TD}>{t.dept}</td>
                   <td style={{ ...TD, color:C.t3 }}>{t.role}</td>
-                  <td style={TD}>{t.prog.map(p => <span key={p} style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:20, background:'rgba(0,104,74,.15)', color:C.pur, border:'1px solid rgba(0,104,74,.3)', marginRight:3, whiteSpace:'nowrap' }}>{p.split(' ').slice(0,2).join(' ')}</span>)}</td>
+                  <td style={TD}>{t.prog.map(p => <span key={p} style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:20, background:'rgba(var(--purple-rgb),.15)', color:C.pur, border:'1px solid rgba(var(--purple-rgb),.3)', marginRight:3, whiteSpace:'nowrap' }}>{p.split(' ').slice(0,2).join(' ')}</span>)}</td>
                   <td style={{ ...TD, minWidth:130 }}>
                     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                       <ProgBar p={t.att} color={t.att < 75 ? C.red : t.att >= 90 ? C.green : C.yellow} />
@@ -1436,13 +1436,13 @@ export default function TrainingTab() {
             const active = t.id === activeTab
             return (
               <button key={t.id} onClick={() => setActiveTab(t.id)}
-                style={{ padding:'10px 14px', fontSize:12, fontWeight: active ? 700 : 600, cursor:'pointer', border:'none', background:'transparent', color: active ? '#00684A' : C.t3, borderBottom: active ? '2px solid #00684A' : '2px solid transparent', transition:'all .15s', fontFamily:'inherit', whiteSpace:'nowrap', flexShrink:0, marginBottom:-1 }}>
+                style={{ padding:'10px 14px', fontSize:12, fontWeight: active ? 700 : 600, cursor:'pointer', border:'none', background:'transparent', color: active ? 'var(--purple)' : C.t3, borderBottom: active ? '2px solid var(--purple)' : '2px solid transparent', transition:'all .15s', fontFamily:'inherit', whiteSpace:'nowrap', flexShrink:0, marginBottom:-1 }}>
                 {t.label}
               </button>
             )
           })}
         </div>
-        <button onClick={() => setNotifOpen(true)} style={{ position:'relative', width:36, height:36, borderRadius:8, background:'rgba(0,104,74,.1)', border:`1px solid rgba(0,104,74,.25)`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:17, flexShrink:0, marginBottom:4 }}>
+        <button onClick={() => setNotifOpen(true)} style={{ position:'relative', width:36, height:36, borderRadius:8, background:'rgba(var(--purple-rgb),.1)', border:`1px solid rgba(var(--purple-rgb),.25)`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:17, flexShrink:0, marginBottom:4 }}>
           🔔
           {unreadCount > 0 && <span style={{ position:'absolute', top:-5, right:-5, width:18, height:18, borderRadius:'50%', background:C.red, color:'#fff', fontSize:9, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #13131f' }}>{unreadCount}</span>}
         </button>

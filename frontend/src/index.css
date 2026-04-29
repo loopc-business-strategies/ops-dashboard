@@ -31,7 +31,7 @@ html, body, #root {
 }
 
 @layer components {
-  /* Input field — green focus */
+  /* Input field — brand focus */
   .input-field {
     @apply w-full px-4 py-3 bg-white border border-gray-300 rounded-lg
            text-gray-900 placeholder-gray-400
@@ -39,20 +39,20 @@ html, body, #root {
     border-color: #c8d5d0;
   }
   .input-field:focus {
-    border-color: #00684A;
-    box-shadow: 0 0 0 3px rgba(0,104,74,0.12);
+    border-color: var(--purple);
+    box-shadow: 0 0 0 3px rgba(var(--purple-rgb), 0.12);
     outline: none;
   }
 
-  /* Primary button — green gradient */
+  /* Primary button — brand gradient */
   .btn-primary {
     @apply w-full py-3 px-6 text-white font-semibold rounded-lg
            transition-all duration-200
            disabled:opacity-50 disabled:cursor-not-allowed
-           focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2 focus:ring-offset-gray-900
+           focus:outline-none
            text-sm;
-    background: linear-gradient(135deg, #00684A, #13AA52);
-    box-shadow: 0 4px 15px rgba(0, 104, 74, 0.35);
+    background: var(--grad-brand);
+    box-shadow: 0 4px 15px rgba(var(--purple-rgb), 0.35);
   }
 
   .btn-primary:hover:not(:disabled) {
@@ -70,12 +70,12 @@ html, body, #root {
            transition-all duration-150 text-left;
     color: #3D4F58;
   }
-  .nav-btn:hover { background: rgba(0,104,74,0.06); color: #1C2A33; }
+  .nav-btn:hover { background: rgba(var(--purple-rgb), 0.06); color: #1C2A33; }
 
   .nav-btn.active {
-    background: rgba(0,104,74,0.1);
-    color: #00684A;
-    border-left: 3px solid #00684A;
+    background: rgba(var(--purple-rgb), 0.1);
+    color: var(--purple);
+    border-left: 3px solid var(--purple);
   }
 
   /* Tab button (top tabs inside main area) */
@@ -84,11 +84,11 @@ html, body, #root {
            transition-all duration-150;
     color: #6b7280;
   }
-  .tab-btn:hover { color: #1C2A33; background: rgba(0,104,74,0.05); }
+  .tab-btn:hover { color: #1C2A33; background: rgba(var(--purple-rgb), 0.05); }
 
   .tab-btn.active {
-    background: rgba(0,104,74,0.1);
-    color: #00684A;
+    background: rgba(var(--purple-rgb), 0.1);
+    color: var(--purple);
     font-weight: 600;
   }
 }

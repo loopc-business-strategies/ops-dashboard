@@ -217,8 +217,8 @@ const createTransactionForm = () => ({
 const C = {
   p1: '#FFFFFF',
   p2: '#F3F4F6',
-  s1: '#059669',
-  s2: '#047857',
+  s1: 'var(--purple-light)',
+  s2: 'var(--purple)',
   ink: '#111827',
   inkSoft: '#374151',
   t1: '#111827',
@@ -477,7 +477,7 @@ function MarginsWidget({ dashboard, onNavigate }) {
           >
             <div
               onMouseDown={onMouseDown}
-              style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)', padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, cursor: 'grab', userSelect: 'none' }}
+              style={{ background: 'var(--grad-brand)', padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, cursor: 'grab', userSelect: 'none' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <span style={{ fontSize: '1.1rem' }}>📊</span>
@@ -3867,7 +3867,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           <style>
             body { font-family: Georgia, 'Times New Roman', serif; color: #111827; margin: 0; padding: 32px; }
             .sheet { max-width: 980px; margin: 0 auto; }
-            .brandbar { height: 10px; background: linear-gradient(135deg, #00684A, #00684A); border-radius: 999px; margin-bottom: 14px; }
+            .brandbar { height: 10px; background: var(--grad-brand); border-radius: 999px; margin-bottom: 14px; }
             .head { border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 20px; }
             .title { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
             .subtitle { color: #065F46; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin: 0 0 8px; }
@@ -5374,7 +5374,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           {/* Filter card */}
           <div style={{ borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid #CBD5E1', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', maxWidth: '860px', marginBottom: '1.8rem' }}>
             {/* Header */}
-            <div style={{ background: '#1E3A5F', padding: '0.85rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ background: 'var(--purple)', padding: '0.85rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <span style={{ fontSize: '1rem', fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.03em' }}>📊 Fixing position register</span>
             </div>
             {/* Form body */}
@@ -5503,7 +5503,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 <button
                   onClick={handleFixingRegProceed}
                   disabled={fixingRegLoading}
-                  style={{ padding: '0.48rem 1.6rem', background: fixingRegLoading ? '#93C5FD' : '#2563EB', color: '#FFFFFF', border: 'none', borderRadius: '0.4rem', cursor: fixingRegLoading ? 'default' : 'pointer', fontSize: '0.87rem', fontWeight: '700', letterSpacing: '0.02em' }}
+                  style={{ padding: '0.48rem 1.6rem', background: fixingRegLoading ? 'rgba(var(--purple-rgb),0.5)' : 'var(--purple)', color: '#FFFFFF', border: 'none', borderRadius: '0.4rem', cursor: fixingRegLoading ? 'default' : 'pointer', fontSize: '0.87rem', fontWeight: '700', letterSpacing: '0.02em' }}
                 >
                   {fixingRegLoading ? 'Loading…' : 'Proceed'}
                 </button>
@@ -6207,7 +6207,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <button type="submit" disabled={enquiryLoading} style={{ padding: '0.6rem 1rem', background: '#1a7a3a', color: '#FFFFFF', border: 'none', borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}>
+                    <button type="submit" disabled={enquiryLoading} style={{ padding: '0.6rem 1rem', background: 'var(--purple)', color: '#FFFFFF', border: 'none', borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}>
                       {enquiryLoading ? 'Loading...' : 'Load Summary'}
                     </button>
                     <span style={{ fontSize: '0.8rem', color: '#6B7280' }}>Live from ERP accounting balances</span>
@@ -7839,7 +7839,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 </div>
                 <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                   <button type="button" onClick={resetInventoryProductForm} style={{ padding: '0.6rem 1.2rem', background: '#E5E7EB', color: '#111827', border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
-                  <button type="button" disabled={saving} onClick={(e) => handleCreateInventoryCatalogProduct({ preventDefault: () => e.preventDefault() })} style={{ padding: '0.6rem 1.2rem', backgroundColor: '#1a7a3a', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '700', opacity: saving ? 0.75 : 1 }}>{saving ? 'Saving...' : editingInventoryProductId ? 'Update Product' : 'Create Product'}</button>
+                  <button type="button" disabled={saving} onClick={(e) => handleCreateInventoryCatalogProduct({ preventDefault: () => e.preventDefault() })} style={{ padding: '0.6rem 1.2rem', backgroundColor: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '700', opacity: saving ? 0.75 : 1 }}>{saving ? 'Saving...' : editingInventoryProductId ? 'Update Product' : 'Create Product'}</button>
                 </div>
               </form>
             </div>
@@ -8161,7 +8161,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
               <div style={{ marginBottom: '1rem', padding: '1rem', borderRadius: '0.75rem', border: `1px solid ${C.p2}`, background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)' }}>
                 <p style={{ marginTop: 0, marginBottom: '0.75rem', color: C.ink, fontWeight: '700' }}>Company Profile Preview</p>
-                <div style={{ height: '10px', background: 'linear-gradient(135deg, #00684A, #00684A)', borderRadius: '999px', marginBottom: '14px' }} />
+                <div style={{ height: '10px', background: 'var(--grad-brand)', borderRadius: '999px', marginBottom: '14px' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '2px solid #111827', paddingBottom: '0.9rem', marginBottom: '0.9rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                   <div style={{ minWidth: '260px', flex: '1 1 320px' }}>
                     <p style={{ margin: '0 0 0.35rem', color: '#065F46', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>{brandingPreview.companyName || DEFAULT_BRANDING.companyName}</p>
@@ -8696,7 +8696,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   <button
                     onClick={() => fetchAccountEnquiryByCode(accountEnquiryCode)}
                     disabled={enquiryLoading}
-                    style={{ padding: '0.6rem 1.2rem', background: '#1a7a3a', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: enquiryLoading ? 'not-allowed' : 'pointer', fontWeight: '700', fontSize: '0.95rem', opacity: enquiryLoading ? 0.7 : 1 }}
+                    style={{ padding: '0.6rem 1.2rem', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: enquiryLoading ? 'not-allowed' : 'pointer', fontWeight: '700', fontSize: '0.95rem', opacity: enquiryLoading ? 0.7 : 1 }}
                   >
                     {enquiryLoading ? 'Loading…' : 'Load Summary'}
                   </button>
@@ -9073,7 +9073,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
             <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               {canExportAccountSummary && accountEnquiryData && (
                 <>
-                  <button onClick={handleExportEnquiryPdf} style={{ padding: '0.6rem 1.2rem', background: '#1a7a3a', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
+                  <button onClick={handleExportEnquiryPdf} style={{ padding: '0.6rem 1.2rem', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
                 </>
               )}
               <button onClick={() => setShowEnquiryModal(false)} style={{ padding: '0.6rem 1.2rem', background: '#6B7280', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Close</button>

@@ -8,6 +8,7 @@
 
 const mongoose = require('mongoose')
 const bcrypt   = require('bcryptjs')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const userSchema = new mongoose.Schema(
   {
@@ -158,4 +159,8 @@ userSchema.methods.comparePassword = async function (candidate) {
   return bcrypt.compare(candidate, this.password)
 }
 
-module.exports = mongoose.model('User', userSchema)
+const UserModel = createTenantModel('User', userSchema)
+
+module.exports = UserModel
+module.exports.userSchema = userSchema
+module.exports.getTenantUserModel = UserModel.getTenantModel

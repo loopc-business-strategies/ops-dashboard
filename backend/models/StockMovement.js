@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const stockMovementSchema = new mongoose.Schema(
   {
@@ -43,4 +44,4 @@ const stockMovementSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
-module.exports = mongoose.model('StockMovement', stockMovementSchema)
+module.exports = createTenantModel('StockMovement', stockMovementSchema)

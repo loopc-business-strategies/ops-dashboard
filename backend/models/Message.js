@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const messageSchema = new mongoose.Schema(
   {
@@ -49,4 +50,4 @@ messageSchema.index({ department: 1, createdAt: -1 })
 messageSchema.index({ senderId: 1, createdAt: -1 })
 messageSchema.index({ recipientIds: 1, createdAt: -1 })
 
-module.exports = mongoose.model('Message', messageSchema)
+module.exports = createTenantModel('Message', messageSchema)

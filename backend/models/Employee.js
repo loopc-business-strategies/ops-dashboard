@@ -5,6 +5,7 @@
 // ==========================================
 
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const employeeSchema = new mongoose.Schema(
   {
@@ -58,4 +59,8 @@ const employeeSchema = new mongoose.Schema(
   }
 )
 
-module.exports = mongoose.model('Employee', employeeSchema)
+const EmployeeModel = createTenantModel('Employee', employeeSchema)
+
+module.exports = EmployeeModel
+module.exports.employeeSchema = employeeSchema
+module.exports.getTenantEmployeeModel = EmployeeModel.getTenantModel

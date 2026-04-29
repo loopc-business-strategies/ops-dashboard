@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const directDealLineSchema = new mongoose.Schema(
   {
@@ -48,4 +49,4 @@ directDealSchema.pre('validate', function enforceUsdCurrency(next) {
   next()
 })
 
-module.exports = mongoose.model('DirectDeal', directDealSchema)
+module.exports = createTenantModel('DirectDeal', directDealSchema)

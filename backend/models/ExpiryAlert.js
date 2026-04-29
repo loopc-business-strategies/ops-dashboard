@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const ExpiryAlertSchema = new mongoose.Schema(
   {
@@ -32,4 +33,4 @@ const ExpiryAlertSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
-module.exports = mongoose.model('ExpiryAlert', ExpiryAlertSchema)
+module.exports = createTenantModel('ExpiryAlert', ExpiryAlertSchema)

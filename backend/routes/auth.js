@@ -19,14 +19,15 @@ const jwt     = require('jsonwebtoken')
 const User    = require('../models/User')
 const { protect, restrictTo } = require('../middleware/auth')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
+const { normalizeTenant, getDefaultTenant } = require('../config/tenants')
 
 const router = express.Router()
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // Helper: create a JWT token for a user
-const createToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' })
+const createToken = (id, company) =>
+  jwt.sign({ id, company }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' })
 
 const COOKIE_MAX_AGE = Number(process.env.COOKIE_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000)
 
@@ -39,11 +40,13 @@ const cookieOptions = {
 }
 
 const setupSchema = Joi.object({
+  company: Joi.string().trim().valid('mg', 'cg', 'loopc').required(),
   name: Joi.string().trim().min(2).max(80).required(),
   password: Joi.string().min(6).max(128).required(),
 })
 
 const loginSchema = Joi.object({
+  company: Joi.string().trim().valid('mg', 'cg', 'loopc').required(),
   name: Joi.string().trim().min(2).max(80).required(),
   password: Joi.string().min(1).max(128).required(),
 })
@@ -85,8 +88,9 @@ const updateRoleSchema = Joi.object({
 })
 
 // Helper: send user data + token as response
-const sendToken = (user, status, res) => {
-  const token = createToken(user._id)
+const sendToken = (user, status, res, company) => {
+  const tenant = normalizeTenant(company) || getDefaultTenant()
+  const token = createToken(user._id, tenant)
   res.cookie('sessionToken', token, cookieOptions)
   user.password = undefined // never send password
   res.status(status).json({
@@ -107,6 +111,7 @@ const sendToken = (user, status, res) => {
       employeeCode:   user.employeeCode,
       notes:          user.notes,
       modulePermissions: user.modulePermissions,
+      company: tenant,
     },
   })
 }
@@ -119,11 +124,17 @@ const sendToken = (user, status, res) => {
 // ==========================================
 router.post('/setup', validateBody(setupSchema), async (req, res) => {
   try {
-    const count = await User.countDocuments()
+    const tenant = normalizeTenant(req.body.company)
+    if (!tenant) {
+      return res.status(400).json({ success: false, message: 'Valid company is required.' })
+    }
+
+    const TenantUser = await User.getTenantModel(tenant)
+    const count = await TenantUser.countDocuments()
     if (count > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Setup already done. Super Admin already exists.',
+        message: `Setup already done for ${tenant.toUpperCase()}. Super Admin already exists.`,
       })
     }
 
@@ -134,14 +145,14 @@ router.post('/setup', validateBody(setupSchema), async (req, res) => {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' })
 
     // Create super admin — use name as login identifier (no email needed)
-    const user = await User.create({
+    const user = await TenantUser.create({
       name:  name.trim(),
       email: `${name.trim().toLowerCase().replace(/\s+/g, '.')}@system.local`,
       password,
       role: 'super_admin',
     })
 
-    sendToken(user, 201, res)
+    sendToken(user, 201, res, tenant)
   } catch (err) {
     console.error('Setup error:', err)
     res.status(500).json({ success: false, message: 'Server error.' })
@@ -154,14 +165,20 @@ router.post('/setup', validateBody(setupSchema), async (req, res) => {
 // ==========================================
 router.post('/login', validateBody(loginSchema), async (req, res) => {
   try {
-    const { name, password } = req.body
+    const { company, name, password } = req.body
+    const tenant = normalizeTenant(company)
+
+    if (!tenant) {
+      return res.status(400).json({ success: false, message: 'Valid company is required.' })
+    }
 
     if (!name || !password)
       return res.status(400).json({ success: false, message: 'Username and password are required.' })
 
     // Find user by name (case-insensitive, schema-validated above)
     const safeName = escapeRegex(name.trim())
-    const user = await User.findOne({
+    const TenantUser = await User.getTenantModel(tenant)
+    const user = await TenantUser.findOne({
       name: { $regex: new RegExp(`^${safeName}$`, 'i') }
     }).select('+password')
 
@@ -174,7 +191,7 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
     user.lastLogin = new Date()
     await user.save({ validateBeforeSave: false })
 
-    sendToken(user, 200, res)
+    sendToken(user, 200, res, tenant)
   } catch (err) {
     console.error('Login error:', err)
     res.status(500).json({ success: false, message: 'Server error.' })
@@ -203,6 +220,7 @@ router.get('/me', protect, (req, res) => {
       employeeCode:   req.user.employeeCode,
       notes:          req.user.notes,
       modulePermissions: req.user.modulePermissions,
+      company: req.tenant,
       lastLogin:      req.user.lastLogin,
       createdAt:      req.user.createdAt,
     },
@@ -220,7 +238,8 @@ router.post('/logout', protect, (req, res) => {
 // ==========================================
 router.get('/users', protect, restrictTo('super_admin'), async (req, res) => {
   try {
-    const users = await User.find().select('-password').sort({ createdAt: -1 })
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const users = await TenantUser.find().select('-password').sort({ createdAt: -1 })
     res.json({ success: true, count: users.length, users })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })
@@ -240,13 +259,15 @@ router.post('/users', protect, restrictTo('super_admin'), validateBody(createUse
     if (password.length < 6)
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' })
 
+    const TenantUser = await User.getTenantModel(req.tenant)
+
     // Check if name already taken
     const safeName = escapeRegex(name.trim())
-    const exists = await User.findOne({ name: { $regex: new RegExp(`^${safeName}$`, 'i') } })
+    const exists = await TenantUser.findOne({ name: { $regex: new RegExp(`^${safeName}$`, 'i') } })
     if (exists)
       return res.status(400).json({ success: false, message: 'A user with this name already exists.' })
 
-    const user = await User.create({
+    const user = await TenantUser.create({
       name:           name.trim(),
       email:          `${name.trim().toLowerCase().replace(/\s+/g, '.')}@system.local`,
       password,
@@ -279,13 +300,14 @@ router.put('/users/:id/role', protect, restrictTo('super_admin'), validateParams
   try {
     const { role, department, allowedModules, assignedTasks, name, fullName, title, phone, location, timezone, employeeCode, notes, password } = req.body
 
-    const user = await User.findById(req.params.id).select('+password')
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const user = await TenantUser.findById(req.params.id).select('+password')
 
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
 
     if (name && name.trim().toLowerCase() !== user.name.toLowerCase()) {
       const safeName = escapeRegex(name.trim())
-      const exists = await User.findOne({ _id: { $ne: user._id }, name: { $regex: new RegExp(`^${safeName}$`, 'i') } })
+      const exists = await TenantUser.findOne({ _id: { $ne: user._id }, name: { $regex: new RegExp(`^${safeName}$`, 'i') } })
       if (exists)
         return res.status(400).json({ success: false, message: 'A user with this name already exists.' })
       user.name = name.trim()
@@ -321,13 +343,14 @@ router.put('/users/:id/role', protect, restrictTo('super_admin'), validateParams
 // ==========================================
 router.delete('/users/:id', protect, restrictTo('super_admin'), validateParams(userIdParamSchema), async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const user = await TenantUser.findById(req.params.id)
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
 
     if (user._id.toString() === req.user._id.toString())
       return res.status(400).json({ success: false, message: 'Cannot delete your own account.' })
 
-    await User.findByIdAndDelete(req.params.id)
+    await TenantUser.findByIdAndDelete(req.params.id)
     res.json({ success: true, message: 'User deleted.' })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })
@@ -344,7 +367,8 @@ const updatePermissionsSchema = Joi.object({
 
 router.put('/users/:id/permissions', protect, restrictTo('super_admin'), validateParams(userIdParamSchema), validateBody(updatePermissionsSchema), async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const user = await TenantUser.findById(req.params.id)
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
 
     user.modulePermissions = req.body.modulePermissions
@@ -364,7 +388,8 @@ router.put('/users/:id/permissions', protect, restrictTo('super_admin'), validat
 // ==========================================
 router.put('/users/:id/toggle', protect, restrictTo('super_admin'), validateParams(userIdParamSchema), async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const user = await TenantUser.findById(req.params.id)
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
 
     if (user._id.toString() === req.user._id.toString())

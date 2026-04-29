@@ -6,6 +6,7 @@
 //   This avoids passing user data as props through every component.
 
 import { createContext, useContext, useState, useEffect } from 'react'
+import axios from 'axios'
 import authAPI from '../api/auth'
 
 const AuthContext = createContext(null)
@@ -13,6 +14,7 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [user,      setUser]      = useState(null)
   const [token,     setToken]     = useState(null)
+  const [company,   setCompany]   = useState(localStorage.getItem('tenantCompany') || 'loopc')
   const [isLoading, setIsLoading] = useState(true) // checking saved session
 
   // On app load: restore session from server cookie
@@ -24,12 +26,16 @@ export function AuthProvider({ children }) {
         const data = await authAPI.getMe()
         if (!mounted) return
         setUser(data.user)
+        setCompany(data.user?.company || 'loopc')
+        localStorage.setItem('tenantCompany', data.user?.company || 'loopc')
+        axios.defaults.headers.common['x-company'] = data.user?.company || 'loopc'
         // Keep compatibility for existing token checks in tabs.
         setToken('cookie-session')
       } catch {
         if (!mounted) return
         setUser(null)
         setToken(null)
+        setCompany(localStorage.getItem('tenantCompany') || 'loopc')
       } finally {
         if (mounted) setIsLoading(false)
       }
@@ -42,9 +48,13 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const login = async (name, password) => {
-    const data = await authAPI.login(name, password)
+  const login = async (name, password, selectedCompany) => {
+    const tenant = selectedCompany || company || 'loopc'
+    const data = await authAPI.login(name, password, tenant)
     setUser(data.user)
+    setCompany(data.user?.company || tenant)
+    localStorage.setItem('tenantCompany', data.user?.company || tenant)
+    axios.defaults.headers.common['x-company'] = data.user?.company || tenant
     setToken('cookie-session')
     return data
   }
@@ -57,12 +67,14 @@ export function AuthProvider({ children }) {
     }
     setToken(null)
     setUser(null)
+    delete axios.defaults.headers.common['x-company']
   }
 
   return (
     <AuthContext.Provider value={{
-      user, token, isLoading,
+      user, token, company, isLoading,
       isAuthenticated: !!user,
+      setCompany,
       login, logout,
     }}>
       {children}

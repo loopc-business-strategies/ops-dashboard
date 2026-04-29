@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const attendanceRecordSchema = new mongoose.Schema(
   {
@@ -69,4 +70,4 @@ const attendanceRecordSchema = new mongoose.Schema(
 attendanceRecordSchema.index({ date: 1, employeeName: 1 }, { unique: true })
 attendanceRecordSchema.index({ date: 1, department: 1 })
 
-module.exports = mongoose.model('AttendanceRecord', attendanceRecordSchema)
+module.exports = createTenantModel('AttendanceRecord', attendanceRecordSchema)

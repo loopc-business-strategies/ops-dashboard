@@ -8,6 +8,7 @@
 
 const jwt  = require('jsonwebtoken')
 const User = require('../models/User')
+const { normalizeTenant } = require('../config/tenants')
 
 // -----------------------------------------------
 // protect — verifies the JWT token on every request
@@ -38,16 +39,23 @@ const protect = async (req, res, next) => {
 
     // Verify token — throws error if invalid or expired
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    const tenant = normalizeTenant(decoded.company)
+
+    if (!tenant) {
+      return res.status(401).json({ success: false, message: 'Invalid tenant in session. Please log in again.' })
+    }
 
     // Find the user this token belongs to
-    const user = await User.findById(decoded.id)
+    const tenantUserModel = await User.getTenantModel(tenant)
+    const user = await tenantUserModel.findById(decoded.id)
 
     if (!user)          return res.status(401).json({ success: false, message: 'User no longer exists.' })
     if (!user.isActive) return res.status(401).json({ success: false, message: 'Account has been deactivated.' })
 
+    req.tenant = tenant
     req.user = user // attach user to request
     next()
-  } catch {
+  } catch (err) {
     res.status(401).json({ success: false, message: 'Invalid or expired session. Please log in again.' })
   }
 }

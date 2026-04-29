@@ -8,7 +8,7 @@ const C = {
   card: '#ffffff',
   border: 'rgba(0, 104, 74, 0.14)',
   borderStrong: 'rgba(0, 104, 74, 0.26)',
-  primary: '#00684A',
+  primary: 'var(--purple)',
   text: '#1b2a33',
   sub: '#4d5f6d',
   muted: '#7b8b97',

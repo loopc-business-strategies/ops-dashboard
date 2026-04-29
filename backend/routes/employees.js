@@ -37,12 +37,13 @@ const buildEmployeeReadFilter = (user) => {
 // GET all employees
 router.get('/', protect, async (req, res) => {
   try {
+    const TenantEmployee = await Employee.getTenantModel(req.tenant)
     const filter = buildEmployeeReadFilter(req.user)
     if (filter === null) {
       return res.status(403).json({ success: false, message: 'Access denied.' })
     }
 
-    const employees = await Employee.find(filter).sort({ createdAt: -1 })
+    const employees = await TenantEmployee.find(filter).sort({ createdAt: -1 })
     res.json({ success: true, count: employees.length, employees })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })
@@ -52,6 +53,7 @@ router.get('/', protect, async (req, res) => {
 // POST create employee
 router.post('/', protect, async (req, res) => {
   try {
+    const TenantEmployee = await Employee.getTenantModel(req.tenant)
     if (!canManageEmployees(req.user)) {
       return res.status(403).json({ success: false, message: 'Only super admin or HR department head can create employees.' })
     }
@@ -61,7 +63,7 @@ router.post('/', protect, async (req, res) => {
     if (!name || !idNumber || !employeeCode)
       return res.status(400).json({ success: false, message: 'Name, ID number, and employee code are required.' })
 
-    const employee = await Employee.create({ name, idNumber, employeeCode, address, phoneNumber, department, rating })
+    const employee = await TenantEmployee.create({ name, idNumber, employeeCode, address, phoneNumber, department, rating })
     res.status(201).json({ success: true, employee })
   } catch (err) {
     if (err.code === 11000)
@@ -73,18 +75,19 @@ router.post('/', protect, async (req, res) => {
 // PUT update employee
 router.put('/:id', protect, async (req, res) => {
   try {
+    const TenantEmployee = await Employee.getTenantModel(req.tenant)
     if (!canManageEmployees(req.user)) {
       return res.status(403).json({ success: false, message: 'Only super admin or HR department head can update employees.' })
     }
 
-    const existingEmployee = await Employee.findById(req.params.id)
+    const existingEmployee = await TenantEmployee.findById(req.params.id)
     if (!existingEmployee) return res.status(404).json({ success: false, message: 'Employee not found.' })
 
     if (req.user.role !== 'super_admin' && normalize(existingEmployee.department) !== 'hr') {
       return res.status(403).json({ success: false, message: 'HR department head can only update HR employees.' })
     }
 
-    const employee = await Employee.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+    const employee = await TenantEmployee.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
     if (!employee) return res.status(404).json({ success: false, message: 'Employee not found.' })
 
     res.json({ success: true, employee })
@@ -96,18 +99,19 @@ router.put('/:id', protect, async (req, res) => {
 // DELETE employee
 router.delete('/:id', protect, async (req, res) => {
   try {
+    const TenantEmployee = await Employee.getTenantModel(req.tenant)
     if (!canManageEmployees(req.user)) {
       return res.status(403).json({ success: false, message: 'Only super admin or HR department head can delete employees.' })
     }
 
-    const employee = await Employee.findById(req.params.id)
+    const employee = await TenantEmployee.findById(req.params.id)
     if (!employee) return res.status(404).json({ success: false, message: 'Employee not found.' })
 
     if (req.user.role !== 'super_admin' && normalize(employee.department) !== 'hr') {
       return res.status(403).json({ success: false, message: 'HR department head can only delete HR employees.' })
     }
 
-    await Employee.findByIdAndDelete(req.params.id)
+    await TenantEmployee.findByIdAndDelete(req.params.id)
     res.json({ success: true, message: 'Employee deleted.' })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })

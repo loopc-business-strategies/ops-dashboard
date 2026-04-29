@@ -16,10 +16,11 @@
   --bg-table-row:      #f9fafb;
   --bg-table-alt:      #f4f6f5;
 
-  /* Brand / Primary — MongoDB Green */
+  /* Brand / Primary — tenant color (overridden per tenant in JS) */
   --purple:            #00684A;
   --purple-light:      #13AA52;
   --purple-dark:       #023430;
+  --purple-rgb:        0, 104, 74;
   --magenta:           #00ED64;
   --grad-brand:        linear-gradient(135deg, #00684A, #13AA52);
   --grad-bar:          linear-gradient(90deg, #00684A, #00b4d8);
@@ -49,8 +50,8 @@
   /* Shadows */
   --shadow-card:       0 2px 12px rgba(0, 0, 0, 0.08);
   --shadow-card-hover: 0 6px 24px rgba(0, 0, 0, 0.14);
-  --shadow-btn:        0 4px 15px rgba(0, 104, 74, 0.35);
-  --shadow-glow:       0 0 20px rgba(0, 104, 74, 0.2);
+  --shadow-btn:        0 4px 15px rgba(var(--purple-rgb), 0.35);
+  --shadow-glow:       0 0 20px rgba(var(--purple-rgb), 0.2);
 
   /* Radius */
   --radius-sm:         6px;
@@ -88,9 +89,9 @@ html, body, #root {
 /* ─── Scrollbars ─────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,104,74,0.3); border-radius: var(--radius-pill); }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,104,74,0.5); }
-* { scrollbar-width: thin; scrollbar-color: rgba(0,104,74,0.3) transparent; }
+::-webkit-scrollbar-thumb { background: rgba(var(--purple-rgb), 0.3); border-radius: var(--radius-pill); }
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--purple-rgb), 0.5); }
+* { scrollbar-width: thin; scrollbar-color: rgba(var(--purple-rgb), 0.3) transparent; }
 
 /* ─── App Shell ──────────────────────────────────────── */
 .app-shell { display: flex; height: 100vh; overflow: hidden; background: var(--bg-base); }
@@ -135,7 +136,7 @@ html, body, #root {
   transition: var(--transition);
   user-select: none;
 }
-.sidebar-item:hover { background: rgba(0,104,74,0.06); }
+.sidebar-item:hover { background: rgba(var(--purple-rgb), 0.06); }
 .sidebar-item.active {
   background: rgba(0,104,74,0.1);
   border-left-color: var(--purple);

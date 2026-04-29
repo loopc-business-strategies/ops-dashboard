@@ -10,6 +10,7 @@ require('dotenv').config() // load .env variables FIRST
 
 const mongoose = require('mongoose')
 const createApp = require('./app')
+const { getDefaultTenant, getTenantUri } = require('./config/tenants')
 
 const app = createApp()
 
@@ -18,6 +19,10 @@ const PORT      = process.env.PORT      || 5000
 const MONGO_URI = process.env.MONGO_URI
 
 function buildMongoUri() {
+  const defaultTenant = getDefaultTenant()
+  const tenantUri = getTenantUri(defaultTenant)
+  if (tenantUri) return tenantUri
+
   if (MONGO_URI) return MONGO_URI
 
   const DB_USER = process.env.DB_USER
@@ -35,8 +40,17 @@ function buildMongoUri() {
 }
 
 function getMongoConfigInfo() {
+  const defaultTenant = getDefaultTenant()
+  const usingTenantUri = Boolean(getTenantUri(defaultTenant))
   const usingUri = Boolean(MONGO_URI)
   const dbName = process.env.DB_NAME || 'ops-dashboard'
+
+  if (usingTenantUri) {
+    return {
+      mode: `TENANT_URI (${defaultTenant.toUpperCase()})`,
+      target: dbName,
+    }
+  }
 
   if (usingUri) {
     return {
@@ -56,7 +70,7 @@ const mongoInfo = getMongoConfigInfo()
 const hasSplitDbVars = Boolean(process.env.DB_USER || process.env.DB_PASS || process.env.DB_CLUSTER)
 
 if (!mongoUri) {
-  console.error('Mongo config missing. Set MONGO_URI or DB_USER/DB_PASS/DB_CLUSTER in .env.')
+  console.error('Mongo config missing. Set MONGO_URI_MG/MONGO_URI_CG/MONGO_URI_LOOPC or MONGO_URI in .env.')
   process.exit(1)
 }
 

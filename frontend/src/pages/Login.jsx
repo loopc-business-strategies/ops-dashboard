@@ -5,10 +5,19 @@
 // - No sign up link anywhere
 // - "Access by invitation only" message
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
+import { getTenantBranding } from '../config/tenantBranding'
+
+function hexToRgb(hex) {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return `${r}, ${g}, ${b}`
+}
 
 function Login() {
   const navigate = useNavigate()
@@ -17,9 +26,21 @@ function Login() {
 
   const [name,     setName]     = useState('')
   const [password, setPassword] = useState('')
+  const [company,  setCompany]  = useState('loopc')
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
   const [showPass, setShowPass] = useState(false)
+  const branding = getTenantBranding(company)
+
+  // Apply tenant CSS vars on login page so btn-primary and focus styles use brand color
+  useEffect(() => {
+    const root = document.documentElement
+    root.style.setProperty('--purple', branding.colors.brandPrimary)
+    root.style.setProperty('--purple-light', branding.colors.brandSecondary)
+    root.style.setProperty('--purple-rgb', hexToRgb(branding.colors.brandPrimary))
+    root.style.setProperty('--grad-brand', `linear-gradient(135deg, ${branding.colors.brandPrimary}, ${branding.colors.brandSecondary})`)
+    root.style.setProperty('--grad-bar', branding.colors.gradBar)
+  }, [branding])
 
   const handleDemoLogin = async (demoRole) => {
     const demoAccounts = {
@@ -29,7 +50,7 @@ function Login() {
     }
     const account = demoAccounts[demoRole] || demoAccounts.superadmin
     try {
-      await login(account.username, account.password)
+      await login(account.username, account.password, company)
     } catch (err) {
       console.error('Demo login failed', err)
     }
@@ -37,11 +58,11 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!name.trim() || !password) return setError(t('loginErrEmpty'))
+    if (!company || !name.trim() || !password) return setError(t('loginErrEmpty'))
     setLoading(true)
     setError('')
     try {
-      await login(name.trim(), password)
+      await login(name.trim(), password, company)
       navigate('/dashboard')
     } catch (err) {
       if (!err.response) {
@@ -63,17 +84,18 @@ function Login() {
       {/* ── Top: Company logo placeholder ── */}
       <div className="mb-10 text-center">
         {/* Logo placeholder — replace with real logo later */}
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gray-900 border-2 border-violet-500/40 mb-4">
-          <span className="text-3xl">🏢</span>
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4"
+          style={{ background: branding.colors.gradBar, border: '2px solid rgba(255,255,255,0.25)' }}>
+          <span className="text-2xl font-extrabold text-white tracking-wide">{branding.logoText}</span>
         </div>
-        <h1 className="text-2xl font-bold tracking-wide" style={{ color: '#1C2A33' }}>OPS DASHBOARD</h1>
+        <h1 className="text-2xl font-bold tracking-wide" style={{ color: '#1C2A33' }}>{branding.displayName} OPS</h1>
         <p className="text-gray-500 text-sm mt-1">{t('operationsControl')}</p>
       </div>
 
       {/* ── Orange credential box ── */}
       <div className="w-full max-w-sm">
         {/* Green header bar */}
-        <div className="rounded-t-xl px-6 py-4" style={{ background: 'linear-gradient(135deg, #00684A, #13AA52)' }}>
+        <div className="rounded-t-xl px-6 py-4" style={{ background: `linear-gradient(135deg, ${branding.colors.brandPrimary}, ${branding.colors.brandSecondary})` }}>
           <div className="flex items-center gap-3">
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round"
@@ -97,6 +119,23 @@ function Login() {
                 <p className="text-red-400 text-xs">{error}</p>
               </div>
             )}
+
+            {/* Username field */}
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
+                Company
+              </label>
+              <select
+                value={company}
+                onChange={(e) => { setCompany(e.target.value); setError('') }}
+                className="input-field"
+                disabled={loading}
+              >
+                <option value="mg">MG</option>
+                <option value="cg">CG</option>
+                <option value="loopc">LoopC</option>
+              </select>
+            </div>
 
             {/* Username field */}
             <div>
@@ -153,7 +192,7 @@ function Login() {
             </div>
 
             {/* Login button */}
-            <button type="submit" className="btn-primary" disabled={loading}>
+            <button type="submit" className="btn-primary" style={{ background: `linear-gradient(135deg, ${branding.colors.brandPrimary}, ${branding.colors.brandSecondary})` }} disabled={loading}>
               {loading ? (  
                 <span className="flex items-center justify-center gap-2">
                   <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">

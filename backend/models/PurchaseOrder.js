@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const purchaseOrderItemSchema = new mongoose.Schema(
   {
@@ -71,4 +72,4 @@ purchaseOrderSchema.virtual('totalAmount').get(function totalAmount() {
   return (this.items || []).reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0)
 })
 
-module.exports = mongoose.model('PurchaseOrder', purchaseOrderSchema)
+module.exports = createTenantModel('PurchaseOrder', purchaseOrderSchema)

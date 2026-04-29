@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const currencySchema = new mongoose.Schema(
   {
@@ -23,4 +24,4 @@ currencySchema.pre('validate', function enforceUsdCurrency(next) {
   next()
 })
 
-module.exports = mongoose.model('Currency', currencySchema)
+module.exports = createTenantModel('Currency', currencySchema)

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const noteSchema = new mongoose.Schema(
   { text: { type: String, required: true }, author: String, isPrivate: { type: Boolean, default: false } },
@@ -56,4 +57,4 @@ crmContactSchema.index({ email: 1 })
 crmContactSchema.index({ contactType: 1, status: 1 })
 crmContactSchema.index({ assignedRep: 1 })
 
-module.exports = mongoose.model('CrmContact', crmContactSchema)
+module.exports = createTenantModel('CrmContact', crmContactSchema)

@@ -45,9 +45,9 @@ import { useLanguage } from '../../context/LanguageContext'
 const C = {
   bg: '#f4f7f6',
   card: '#ffffff',
-  border: 'rgba(0, 104, 74, 0.14)',
-  borderStrong: 'rgba(0, 104, 74, 0.28)',
-  primary: '#00684A',
+  border: 'rgba(var(--purple-rgb), 0.14)',
+  borderStrong: 'rgba(var(--purple-rgb), 0.28)',
+  primary: 'var(--purple)',
   text: '#1b2a33',
   sub: '#4d5f6d',
   muted: '#7b8b97',

@@ -16,6 +16,7 @@ function Setup() {
 
   const [name,     setName]     = useState('')
   const [password, setPassword] = useState('')
+  const [company,  setCompany]  = useState('loopc')
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
 
@@ -25,9 +26,9 @@ function Setup() {
     if (password.length < 6)   return setError('Password must be at least 6 characters.')
     setLoading(true)
     try {
-      await authAPI.setup(name.trim(), password)
+      await authAPI.setup(name.trim(), password, company)
       // Auto-login after setup
-      await login(name.trim(), password)
+      await login(name.trim(), password, company)
       navigate('/dashboard')
     } catch (err) {
       setError(err.response?.data?.message || 'Setup failed.')
@@ -60,6 +61,14 @@ function Setup() {
             {error && (
               <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs">{error}</div>
             )}
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Company</label>
+              <select value={company} onChange={e => setCompany(e.target.value)} className="input-field">
+                <option value="mg">MG</option>
+                <option value="cg">CG</option>
+                <option value="loopc">LoopC</option>
+              </select>
+            </div>
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Username</label>
               <input type="text" value={name} onChange={e => setName(e.target.value)}

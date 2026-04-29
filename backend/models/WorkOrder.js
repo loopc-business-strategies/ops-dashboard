@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const WorkOrderSchema = new mongoose.Schema(
   {
@@ -42,4 +43,4 @@ const WorkOrderSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
-module.exports = mongoose.model('WorkOrder', WorkOrderSchema)
+module.exports = createTenantModel('WorkOrder', WorkOrderSchema)

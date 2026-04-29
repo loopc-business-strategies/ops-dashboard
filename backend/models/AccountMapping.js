@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const accountMappingSchema = new mongoose.Schema(
   {
@@ -15,4 +16,4 @@ const accountMappingSchema = new mongoose.Schema(
 accountMappingSchema.index({ mappingType: 1 })
 accountMappingSchema.index({ department: 1 })
 
-module.exports = mongoose.model('AccountMapping', accountMappingSchema)
+module.exports = createTenantModel('AccountMapping', accountMappingSchema)

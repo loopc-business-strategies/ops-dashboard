@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const crmActivitySchema = new mongoose.Schema({
   type: { type: String, enum: ['Call','Email','Meeting','Task','Note','Demo'], required: true },
@@ -27,4 +28,4 @@ const crmActivitySchema = new mongoose.Schema({
 crmActivitySchema.index({ contactId: 1, date: -1 })
 crmActivitySchema.index({ 'nextAction.dueDate': 1, 'nextAction.isDone': 1 })
 
-module.exports = mongoose.model('CrmActivity', crmActivitySchema)
+module.exports = createTenantModel('CrmActivity', crmActivitySchema)

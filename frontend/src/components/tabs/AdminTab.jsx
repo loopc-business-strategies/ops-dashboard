@@ -127,13 +127,14 @@ function Toggle({ checked, onChange, label, desc }) {
     <button
       type="button"
       onClick={onChange}
-      className={`w-full flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-all ${checked ? 'border-emerald-700/40 bg-emerald-700/10' : 'border-gray-800 bg-gray-900/40 hover:border-gray-700'}`}
+      className={`w-full flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-all`}
+      style={checked ? { borderColor: 'rgba(var(--purple-rgb),0.4)', background: 'rgba(var(--purple-rgb),0.08)' } : { borderColor: 'rgb(31,41,55)', background: 'rgba(17,24,39,0.4)' }}
     >
       <div>
         <p className="text-sm font-medium text-white">{label}</p>
         <p className="text-xs text-gray-300 mt-1">{desc}</p>
       </div>
-      <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition-all ${checked ? 'bg-emerald-700' : 'bg-gray-700'}`}>
+      <span className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition-all`} style={{ background: checked ? 'var(--purple)' : 'rgb(55,65,81)' }}>
         <span className={`h-4 w-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
       </span>
     </button>
@@ -191,8 +192,8 @@ function UserFormFields({ form, setForm, isEdit = false }) {
         <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Role</label>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {ROLES.map((r) => (
-            <label key={r.value} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${form.role === r.value ? 'border-emerald-700/50 bg-emerald-700/10' : 'border-gray-700 hover:border-gray-600'}`}>
-              <input type="radio" name={isEdit ? 'edit-role' : 'create-role'} value={r.value} checked={form.role === r.value} onChange={() => setForm((f) => ({ ...f, role: r.value, department: '', allowedModules: [] }))} className="accent-emerald-700" />
+            <label key={r.value} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all`} style={form.role === r.value ? { borderColor: 'rgba(var(--purple-rgb),0.5)', background: 'rgba(var(--purple-rgb),0.08)' } : { borderColor: 'rgb(55,65,81)' }}>
+              <input type="radio" name={isEdit ? 'edit-role' : 'create-role'} value={r.value} checked={form.role === r.value} onChange={() => setForm((f) => ({ ...f, role: r.value, department: '', allowedModules: [] }))} style={{ accentColor: 'var(--purple)' }} />
               <div>
                 <p className="text-xs font-semibold text-white">{r.label}</p>
                 <p className="text-xs text-gray-300">{r.desc}</p>
@@ -216,8 +217,8 @@ function UserFormFields({ form, setForm, isEdit = false }) {
           <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Allowed Modules</label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {ALL_MODULES.map((mod) => (
-              <label key={mod} className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer text-sm transition-all ${form.allowedModules.includes(mod) ? 'border-green-500/50 bg-green-500/10 text-green-300' : 'border-gray-700 text-gray-300 hover:border-gray-600'}`}>
-                <input type="checkbox" checked={form.allowedModules.includes(mod)} onChange={() => toggleModule(mod)} className="accent-green-500" />
+              <label key={mod} className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer text-sm transition-all`} style={form.allowedModules.includes(mod) ? { borderColor: 'rgba(var(--purple-rgb),0.5)', background: 'rgba(var(--purple-rgb),0.08)', color: 'var(--purple-light)' } : { borderColor: 'rgb(55,65,81)', color: 'rgb(209,213,219)' }}>
+                <input type="checkbox" checked={form.allowedModules.includes(mod)} onChange={() => toggleModule(mod)} style={{ accentColor: 'var(--purple)' }} />
                 <span className="capitalize text-xs">{mod}</span>
               </label>
             ))}
@@ -291,7 +292,7 @@ function CreateUserForm({ token, onCreated, onCancel }) {
       <form onSubmit={handleSubmit} className="space-y-4">
         <UserFormFields form={form} setForm={setForm} />
         <div className="flex gap-3 pt-1">
-          <button type="submit" disabled={loading} className="px-5 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}>
+          <button type="submit" disabled={loading} className="px-5 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50" style={{ background: 'var(--grad-brand)' }}>
             {loading ? 'Creating...' : 'Create User'}
           </button>
           <button type="button" onClick={onCancel} className="px-5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium rounded-lg transition-colors">Cancel</button>
@@ -367,7 +368,7 @@ function EditUserModal({ user: u, token, onSave, onClose }) {
 
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-2.5 text-sm font-medium text-gray-300 border border-gray-700 rounded-lg hover:bg-gray-800 transition-all">Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 text-sm font-medium text-white rounded-lg transition-all disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}>
+          <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 text-sm font-medium text-white rounded-lg transition-all disabled:opacity-50" style={{ background: 'var(--grad-brand)' }}>
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
@@ -455,7 +456,7 @@ function UsersTab({ users, token, onRefresh, onOpenPermissions }) {
           <h3 className="text-base font-semibold text-white">Users & Access</h3>
           <p className="text-gray-300 text-sm mt-0.5">Manage user accounts, departments, role profiles, and access metadata.</p>
         </div>
-        {!showCreate && <button onClick={() => setShowCreate(true)} className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors" style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}>+ Add User</button>}
+        {!showCreate && <button onClick={() => setShowCreate(true)} className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors" style={{ background: 'var(--grad-brand)' }}>+ Add User</button>}
       </div>
 
       {showCreate && <CreateUserForm token={token} onCreated={() => { setShowCreate(false); onRefresh(); notify('User created.') }} onCancel={() => setShowCreate(false)} />}
@@ -495,9 +496,9 @@ function UsersTab({ users, token, onRefresh, onOpenPermissions }) {
               <tr key={u._id} className="hover:bg-gray-800/20 transition-colors align-top">
                 <td className="px-4 py-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 bg-emerald-700 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0">{u.name?.[0]?.toUpperCase()}</div>
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0" style={{ background: 'var(--purple)' }}>{u.name?.[0]?.toUpperCase()}</div>
                     <div>
-                      <p className="text-sm font-medium text-white">{u.fullName || u.name}{u._id === me?.id && <span className="ml-2 text-xs text-emerald-700">(you)</span>}</p>
+                      <p className="text-sm font-medium text-white">{u.fullName || u.name}{u._id === me?.id && <span className="ml-2 text-xs" style={{ color: 'var(--purple)' }}>(you)</span>}</p>
                       <p className="text-xs text-gray-300">@{u.name}</p>
                       <p className="text-xs text-gray-300 mt-1">{u.title || 'No title'}{u.employeeCode ? ` | ${u.employeeCode}` : ''}</p>
                       <p className="text-xs text-gray-300 mt-1">{u.phone || 'No phone'}{u.location ? ` | ${u.location}` : ''}</p>
@@ -523,7 +524,7 @@ function UsersTab({ users, token, onRefresh, onOpenPermissions }) {
                 <td className="px-4 py-3">
                   {u._id !== me?.id ? (
                     <div className="flex gap-2 flex-wrap">
-                      <button onClick={() => setEditUser(u)} className="px-3 py-1 text-xs font-medium text-emerald-700 border border-emerald-700/30 rounded-lg hover:bg-emerald-700/10 transition-all">Edit</button>
+                      <button onClick={() => setEditUser(u)} className="px-3 py-1 text-xs font-medium rounded-lg transition-all" style={{ color: 'var(--purple)', border: '1px solid rgba(var(--purple-rgb),0.3)' }}>Edit</button>
                       <button onClick={() => onOpenPermissions(u._id)} className="px-3 py-1 text-xs font-medium text-purple-400 border border-purple-500/30 rounded-lg hover:bg-purple-500/10 transition-all">Permissions</button>
                       <button onClick={() => handleToggle(u)} className={`px-3 py-1 text-xs font-medium rounded-lg transition-all border ${u.isActive ? 'text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/10' : 'text-green-400 border-green-500/30 hover:bg-green-500/10'}`}>{u.isActive ? 'Deactivate' : 'Activate'}</button>
                       <button onClick={() => handleDelete(u)} className="px-3 py-1 text-xs font-medium text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/10 transition-all">Delete</button>
@@ -581,7 +582,7 @@ function SettingsTab() {
         </div>
         <div className="flex gap-2">
           <button onClick={resetSettings} className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-all">Reset</button>
-          <button onClick={saveSettings} className="px-4 py-2 text-sm font-medium rounded-lg text-white transition-all" style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}>Save Settings</button>
+          <button onClick={saveSettings} className="px-4 py-2 text-sm font-medium rounded-lg text-white transition-all" style={{ background: 'var(--grad-brand)' }}>Save Settings</button>
         </div>
       </div>
 
@@ -717,9 +718,10 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
               <button
                 key={u._id}
                 onClick={() => setSelectedUserId(u._id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-all border-l-[3px] ${selectedUserId === u._id ? 'border-l-emerald-700 bg-emerald-700/10' : 'border-l-transparent hover:bg-gray-800/40'}`}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-all border-l-[3px]`}
+                style={selectedUserId === u._id ? { borderLeftColor: 'var(--purple)', background: 'rgba(var(--purple-rgb),0.08)' } : { borderLeftColor: 'transparent' }}
               >
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 bg-emerald-700/20 text-emerald-400">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0" style={{ background: 'rgba(var(--purple-rgb),0.2)', color: 'var(--purple-light)' }}>
                   {u.name?.[0]?.toUpperCase()}
                 </div>
                 <div className="min-w-0">
@@ -753,7 +755,7 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
                   onClick={handleSave}
                   disabled={saving}
                   className="px-5 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-                  style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}
+                  style={{ background: 'var(--grad-brand)' }}
                 >
                   {saving ? 'Saving...' : 'Save Permissions'}
                 </button>
@@ -768,12 +770,14 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
                       return (
                         <div
                           key={row.id}
-                          className={`flex items-center justify-between px-4 py-3 mb-1.5 rounded-xl border transition-all ${isOn ? 'border-emerald-700/40 bg-emerald-700/5' : 'border-gray-800 bg-gray-900/30 hover:border-gray-700'}`}
+                          className={`flex items-center justify-between px-4 py-3 mb-1.5 rounded-xl border transition-all`}
+                          style={isOn ? { borderColor: 'rgba(var(--purple-rgb),0.4)', background: 'rgba(var(--purple-rgb),0.04)' } : { borderColor: 'rgb(31,41,55)', background: 'rgba(17,24,39,0.3)' }}
                         >
                           <span className="text-sm text-white">{row.label}</span>
                           <button
                             onClick={() => toggleModule(row.id)}
-                            className={`relative inline-flex h-5 w-9 items-center rounded-full p-0.5 transition-all flex-shrink-0 ${isOn ? 'bg-emerald-700' : 'bg-gray-700'}`}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full p-0.5 transition-all flex-shrink-0`}
+                            style={{ background: isOn ? 'var(--purple)' : 'rgb(55,65,81)' }}
                           >
                             <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm ${isOn ? 'translate-x-4' : 'translate-x-0'}`} />
                           </button>
@@ -826,7 +830,9 @@ function AdminTab() {
     <div>
       <div className="flex gap-2 mb-6 border-b border-gray-800 pb-3 overflow-x-auto">
         {ADMIN_SUB_TABS.map((t) => (
-          <button key={t.id} onClick={() => setSubTab(t.id)} className={`px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all ${subTab === t.id ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-gray-300 hover:text-white border-b-2 border-transparent'}`}>
+          <button key={t.id} onClick={() => setSubTab(t.id)}
+            className={`px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all border-b-2 ${subTab === t.id ? '' : 'text-gray-300 hover:text-white border-transparent'}`}
+            style={subTab === t.id ? { color: 'var(--purple)', borderBottom: '2px solid var(--purple)' } : {}}>
             {t.label}
           </button>
         ))}
@@ -834,7 +840,7 @@ function AdminTab() {
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="w-6 h-6 border-4 border-emerald-700 border-t-transparent rounded-full animate-spin" />
+          <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '4px solid var(--purple)', borderTopColor: 'transparent' }} />
         </div>
       ) : (
         <>

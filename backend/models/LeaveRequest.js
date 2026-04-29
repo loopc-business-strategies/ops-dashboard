@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const leaveRequestSchema = new mongoose.Schema(
   {
@@ -70,4 +71,4 @@ const leaveRequestSchema = new mongoose.Schema(
 
 leaveRequestSchema.index({ status: 1, department: 1, createdAt: -1 })
 
-module.exports = mongoose.model('LeaveRequest', leaveRequestSchema)
+module.exports = createTenantModel('LeaveRequest', leaveRequestSchema)

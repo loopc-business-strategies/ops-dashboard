@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const inventoryItemSchema = new mongoose.Schema(
   {
@@ -93,4 +94,4 @@ const inventoryItemSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
-module.exports = mongoose.model('InventoryItem', inventoryItemSchema)
+module.exports = createTenantModel('InventoryItem', inventoryItemSchema)

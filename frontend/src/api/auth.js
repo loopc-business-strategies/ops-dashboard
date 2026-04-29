@@ -8,12 +8,12 @@ import axios from 'axios'
 const BASE = '/api/auth'
 
 // Login with name + password
-const login = async (name, password) =>
-  (await axios.post(`${BASE}/login`, { name, password })).data
+const login = async (name, password, company) =>
+  (await axios.post(`${BASE}/login`, { name, password, company })).data
 
 // One-time first admin setup (name + password only)
-const setup = async (name, password) =>
-  (await axios.post(`${BASE}/setup`, { name, password })).data
+const setup = async (name, password, company) =>
+  (await axios.post(`${BASE}/setup`, { name, password, company })).data
 
 // Get my own profile
 const getMe = async () =>

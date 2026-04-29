@@ -16,11 +16,12 @@
 //   Operations     → placeholder (to be built)
 //   Training       → placeholder (to be built)
 
-import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { Component, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage, LANGUAGES } from '../context/LanguageContext'
+import { getTenantBranding } from '../config/tenantBranding'
 
 // Import tab content components
 import OverviewTab     from '../components/tabs/OverviewTab'
@@ -77,7 +78,7 @@ function TabLoadingFallback() {
 // ── Role badge config ────────────────────────────
 function getRoleLabels(t) {
   return {
-    super_admin:     { label: t('superAdmin'),  style: { color: '#00684A', background: 'rgba(0,104,74,0.1)', border: '1px solid rgba(0,104,74,0.3)' } },
+    super_admin:     { label: t('superAdmin'),  style: { color: 'var(--purple)', background: 'rgba(var(--purple-rgb),0.1)', border: '1px solid rgba(var(--purple-rgb),0.3)' } },
     management:      { label: t('management'),  style: { color: '#60a5fa', background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.25)' } },
     department_head: { label: t('deptHead'),    style: { color: '#fbbf24', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' } },
     department_user: { label: t('deptUser'),    style: { color: 'var(--text-secondary)', background: 'var(--bg-card-hover)', border: '1px solid var(--border)' } },
@@ -111,8 +112,8 @@ function NavItem({ label, active, onClick, badge }) {
 }
 
 // ── All sidebar tabs definition ─────────────────
-function getNavItems(perms, t, chatUnread = 0) {
-  return [
+function getNavItems(perms, t, chatUnread = 0, branding) {
+  const rawItems = [
     // ── Main ──
     { id: 'overview',    label: t('overview'),    group: 'main',       show: true },
     { id: 'chat',        label: t('chat'),        group: 'main',       show: true, badge: chatUnread || null },
@@ -143,7 +144,18 @@ function getNavItems(perms, t, chatUnread = 0) {
     { id: 'erp-vouchers',     label: 'Vouchers',       group: 'erp', erpSub: 'vouchers',     show: perms.canViewERP },
     { id: 'erp-direct-deals',    label: 'Direct Deals',    group: 'erp', erpSub: 'direct-deals',    show: perms.canViewERP },
     { id: 'erp-fixing-register', label: 'Fixing Register', group: 'erp', erpSub: 'fixing-register', show: perms.canViewERP },
-  ].filter(n => n.show)
+    { id: 'procurement-plus', label: 'Procurement Plus', group: 'departments', show: Boolean(branding?.featureFlags?.procurementPlus) },
+  ]
+
+  return rawItems
+    .filter((item) => item.show)
+    .filter((item) => {
+      if (!branding) return true
+      if (item.group === 'erp') return branding.enabledErpSubTabs.includes(item.erpSub)
+      if (item.id === 'admin') return branding.enabledTabs.includes('admin')
+      if (item.group === 'main' || item.group === 'departments') return branding.enabledTabs.includes(item.id)
+      return true
+    })
 }
 
 // ── Render the content for each tab ────────────
@@ -182,6 +194,16 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab) {
     case 'erp':
       return <ERPTab focusTab={erpSubTab} onNavigateMain={setActiveTab} />
 
+    case 'procurement-plus':
+      return (
+        <PlaceholderTab
+          title="Procurement Plus"
+          icon="🧩"
+          description="Company-specific procurement controls module."
+          subTabs={['Vendor Scoring', 'Contract Rules', 'Approval Matrix']}
+        />
+      )
+
     default:
       return (
         <div className="text-center py-20 text-gray-500">
@@ -205,7 +227,7 @@ function renderTabContent(tabId, setActiveTab, setChatUnread, erpSubTab) {
 // MAIN DASHBOARD COMPONENT
 // ══════════════════════════════════════════════
 function Dashboard() {
-  const { user, logout } = useAuth()
+  const { user, logout, company } = useAuth()
   const perms = usePermissions()
   const navigate = useNavigate()
   const { t, isRTL, switchLanguage, langMeta } = useLanguage()
@@ -226,7 +248,33 @@ function Dashboard() {
   const HIDE_THRESHOLD_X = 320
   const hideTimerRef = useRef(null)
 
-  const navItems = getNavItems(perms, t, chatUnread)
+  const branding = useMemo(() => getTenantBranding(user?.company || company), [company, user?.company])
+  const navItems = getNavItems(perms, t, chatUnread, branding)
+
+  useEffect(() => {
+    const root = document.documentElement
+    const prevPrimary = root.style.getPropertyValue('--purple')
+    const prevSecondary = root.style.getPropertyValue('--purple-light')
+    const prevTopbar = root.style.getPropertyValue('--bg-topbar')
+    const prevGradBrand = root.style.getPropertyValue('--grad-brand')
+    const prevGradBar = root.style.getPropertyValue('--grad-bar')
+
+    const hexToRgb = (hex) => { const h = hex.replace('#',''); const r=parseInt(h.slice(0,2),16); const g=parseInt(h.slice(2,4),16); const b=parseInt(h.slice(4,6),16); return `${r}, ${g}, ${b}` }
+    root.style.setProperty('--purple', branding.colors.brandPrimary)
+    root.style.setProperty('--purple-light', branding.colors.brandSecondary)
+    root.style.setProperty('--purple-rgb', hexToRgb(branding.colors.brandPrimary))
+    root.style.setProperty('--bg-topbar', branding.colors.bgTopbar)
+    root.style.setProperty('--grad-brand', `linear-gradient(135deg, ${branding.colors.brandPrimary}, ${branding.colors.brandSecondary})`)
+    root.style.setProperty('--grad-bar', branding.colors.gradBar)
+
+    return () => {
+      root.style.setProperty('--purple', prevPrimary)
+      root.style.setProperty('--purple-light', prevSecondary)
+      root.style.setProperty('--bg-topbar', prevTopbar)
+      root.style.setProperty('--grad-brand', prevGradBrand)
+      root.style.setProperty('--grad-bar', prevGradBar)
+    }
+  }, [branding])
 
   const clearHideTimer = () => {
     if (hideTimerRef.current) {
@@ -317,13 +365,10 @@ function Dashboard() {
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm"
               style={{ background: 'var(--grad-brand)' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M18.6 4.8C14.9 4.8 11.9 6.2 9.9 8.4C7.7 10.8 6.9 14.1 7.4 18.1C11.4 18.6 14.7 17.8 17.1 15.6C19.3 13.6 20.7 10.6 20.7 6.9V4.8H18.6Z" fill="rgba(255,255,255,0.95)"/>
-                <path d="M4.5 19.5C7.5 16.6 10.2 14.9 13.5 13.4" stroke="rgba(255,255,255,0.95)" strokeWidth="1.8" strokeLinecap="round"/>
-              </svg>
+              <span style={{ color: 'white', fontWeight: 700, letterSpacing: 0.4 }}>{branding.logoText}</span>
             </div>
             <div className="min-w-0">
-              <p className="font-bold text-sm truncate" style={{ color: '#1C2A33' }}>{t('appName')}</p>
+              <p className="font-bold text-sm truncate" style={{ color: '#1C2A33' }}>{branding.displayName} Ops</p>
               <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{t('controlSystem')}</p>
             </div>
           </div>
@@ -450,7 +495,7 @@ function Dashboard() {
                   {currentTab?.label || t('dashboard')}
                 </h1>
                 <p className="topbar-subtitle hidden sm:block">
-                  {new Date().toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' })}
+                  {branding.displayName} | {new Date().toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' })}
                 </p>
               </div>
             </div>
@@ -524,6 +569,9 @@ function Dashboard() {
               {/* Current user role — desktop */}
               <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg"
                 style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                <span className="px-2 py-1 rounded text-xs font-semibold" style={{ background: 'rgba(255,255,255,0.1)', color: '#fff' }}>
+                  {branding.displayName}
+                </span>
                 <div className="w-6 h-6 rounded-md flex items-center justify-center font-bold text-white text-xs"
                   style={{ background: 'var(--grad-brand)' }}>
                   {user?.name?.[0]?.toUpperCase()}

@@ -15,18 +15,18 @@ const C = {
   sidebarActive: '#e6f5ef',
   main:          '#f8f9fa',
   bubbleIn:      '#f0f2f5',
-  bubbleMe:      '#00684A',
+  bubbleMe:      'var(--purple)',
   inputBg:       '#ffffff',
-  border:        'rgba(0,104,74,0.12)',
-  accent:        '#00684A',
-  accent2:       '#00684A',
+  border:        'rgba(var(--purple-rgb),0.12)',
+  accent:        'var(--purple)',
+  accent2:       'var(--purple)',
 }
 
 // ─────────────────────────────────────────────────────────
 // SEED DATA
 // ─────────────────────────────────────────────────────────
 const SEED_USERS = [
-  { id: 'sa',       name: 'Admin',        dept: 'Admin',      color: '#00684A', initials: 'SA' },
+  { id: 'sa',       name: 'Admin',        dept: 'Admin',      color: 'var(--purple)', initials: 'SA' },
   { id: 'ali',      name: 'Ali Hassan',   dept: 'Production', color: '#60a5fa', initials: 'AH' },
   { id: 'sara',     name: 'Sara Ahmed',   dept: 'Compliance', color: '#c084fc', initials: 'SA' },
   { id: 'fatima',   name: 'Fatima Noor',  dept: 'HR',         color: '#2dd4bf', initials: 'FN' },
@@ -342,7 +342,7 @@ function ChatTab({ onUnreadChange, onBack }) {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder={t('searchChats')}
-              style={{ width:'100%', background:'#f8f9fa', border:'1.5px solid rgba(0,104,74,0.2)', borderRadius:10, padding:'9px 12px 9px 36px', fontSize:13, color:'#1c2a33', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
+              style={{ width:'100%', background:'#f8f9fa', border:'1.5px solid rgba(var(--purple-rgb),0.2)', borderRadius:10, padding:'9px 12px 9px 36px', fontSize:13, color:'#1c2a33', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
               onFocus={e => e.target.style.borderColor = C.accent}
               onBlur={e  => e.target.style.borderColor = 'rgba(0,104,74,0.2)'}
             />
@@ -393,7 +393,7 @@ function ChatTab({ onUnreadChange, onBack }) {
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
                         <div style={{ display:'flex', alignItems:'center', gap:5 }}>
                           <span style={{ fontSize:13, fontWeight:600, color:'#1c2a33' }}>{chat.name}</span>
-                          <span style={{ fontSize:9, background:'rgba(0,104,74,0.1)', color:'#00684A', padding:'2px 6px', borderRadius:5, fontWeight:600 }}>Group</span>
+                          <span style={{ fontSize:9, background:'rgba(var(--purple-rgb),0.1)', color:'var(--purple)', padding:'2px 6px', borderRadius:5, fontWeight:600 }}>Group</span>
                         </div>
                         <span style={{ fontSize:10, color:'#334155', flexShrink:0 }}>{last ? msgTime(last.time) : ''}</span>
                       </div>
@@ -666,18 +666,18 @@ function ChatTab({ onUnreadChange, onBack }) {
                 onChange={e => setGroupForm(p => ({ ...p, name:e.target.value }))}
                 placeholder="Group name e.g. Production Team"
                 autoFocus
-                style={{ width:'100%', background:'#f8f9fa', border:'1.5px solid rgba(0,104,74,0.2)', borderRadius:10, padding:'10px 14px', fontSize:13, color:'#1c2a33', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
+                style={{ width:'100%', background:'#f8f9fa', border:'1.5px solid rgba(var(--purple-rgb),0.2)', borderRadius:10, padding:'10px 14px', fontSize:13, color:'#1c2a33', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
                 onFocus={e => e.target.style.borderColor = C.accent}
-                onBlur={e  => e.target.style.borderColor = 'rgba(0,104,74,0.2)'}
+                onBlur={e  => e.target.style.borderColor = 'rgba(var(--purple-rgb),0.2)'}
               />
             </div>
             <div style={{ marginBottom:16 }}>
               <select
                 value={groupForm.dept}
                 onChange={e => setGroupForm(p => ({ ...p, dept:e.target.value }))}
-                style={{ width:'100%', background:'#f8f9fa', border:'1.5px solid rgba(0,104,74,0.2)', borderRadius:10, padding:'10px 14px', fontSize:13, color:'#1c2a33', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
+                style={{ width:'100%', background:'#f8f9fa', border:'1.5px solid rgba(var(--purple-rgb),0.2)', borderRadius:10, padding:'10px 14px', fontSize:13, color:'#1c2a33', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}
                 onFocus={e => e.target.style.borderColor = C.accent}
-                onBlur={e  => e.target.style.borderColor = 'rgba(0,104,74,0.2)'}
+                onBlur={e  => e.target.style.borderColor = 'rgba(var(--purple-rgb),0.2)'}
               >
                 <option value="" style={{ background:'#ffffff' }}>{t('selectDepartmentScope')}</option>
                 {['All Departments','Production & Factory','HR & Hiring','Finance & Accounts','Govt. & Compliance','Sales & Marketing','Operations & Logistics','Training & Dev.'].map(d => (

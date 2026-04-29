@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { createTenantModel } = require('../db/tenantModelProxy')
 
 const crmCompanySchema = new mongoose.Schema({
   name:       { type: String, required: true, trim: true },
@@ -14,4 +15,4 @@ const crmCompanySchema = new mongoose.Schema({
   isDeleted:  { type: Boolean, default: false },
 }, { timestamps: true })
 
-module.exports = mongoose.model('CrmCompany', crmCompanySchema)
+module.exports = createTenantModel('CrmCompany', crmCompanySchema)

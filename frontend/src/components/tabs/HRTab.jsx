@@ -200,7 +200,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
           <button
             type="submit"
             disabled={loading}
-            className="px-5 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}
+            className="px-5 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50" style={{ background: 'var(--grad-brand)' }}
           >
             {loading ? t('saving') : t('saveEmployee')}
           </button>
@@ -269,7 +269,7 @@ function EmployeeList({ token }) {
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors" style={{ background: 'linear-gradient(135deg, #00684A, #00ED64)' }}
+            className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors" style={{ background: 'var(--grad-brand)' }}
           >
             + Add Employee
           </button>
@@ -292,7 +292,7 @@ function EmployeeList({ token }) {
       {/* List */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="w-6 h-6 border-4 border-emerald-700 border-t-transparent rounded-full animate-spin" />
+          <div className="w-6 h-6 rounded-full animate-spin" style={{ border: '4px solid var(--purple)', borderTopColor: 'transparent' }} />
         </div>
       ) : employees.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-gray-800 rounded-2xl">
