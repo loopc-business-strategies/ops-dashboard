@@ -3319,9 +3319,19 @@ function ERPTab({ focusTab, onNavigateMain }) {
     setCustomerMarginContextMenu({ open: true, x, y, row })
   }
 
-  const FIXING_REG_OZ_PER_UNIT = { GOZ: 1, GRAM: 1 / 31.1034768, KG: 1000 / 31.1034768, TOLA: 11.6638 / 31.1034768 }
-  const fixingRegConvertQty = (oz, unit) => oz * (FIXING_REG_OZ_PER_UNIT[unit] || 1)
-  const fixingRegConvertRate = (pricePerOz, unit) => pricePerOz / (FIXING_REG_OZ_PER_UNIT[unit] || 1)
+  const FIXING_REG_UNIT_PER_OZ = { GOZ: 1, GRAM: 31.1034768, KG: 0.0311034768, TOLA: 2.66667 }
+  const fixingRegNormalizeUnit = (unit) => {
+    const normalized = String(unit || 'GOZ').trim().toUpperCase()
+    if (normalized === 'OZ' || normalized === 'OUNCE' || normalized === 'OUNCES') return 'GOZ'
+    return normalized
+  }
+  const fixingRegConvertQty = (oz, unit) => oz * (FIXING_REG_UNIT_PER_OZ[fixingRegNormalizeUnit(unit)] || 1)
+  const fixingRegConvertRate = (pricePerOz, unit) => pricePerOz / (FIXING_REG_UNIT_PER_OZ[fixingRegNormalizeUnit(unit)] || 1)
+  const fixingRegConvertToOz = (qty, unit) => {
+    const normalizedUnit = fixingRegNormalizeUnit(unit)
+    const factor = FIXING_REG_UNIT_PER_OZ[normalizedUnit] || 1
+    return Number(qty || 0) / factor
+  }
   const fixingRegFmtQty = (oz, unit) => fixingRegConvertQty(oz, unit).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 4 })
   const fixingRegFmtRate = (p, unit) => fixingRegConvertRate(p, unit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })
   const fixingRegFmtAmt = (v) => Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -3368,7 +3378,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           startDate: fixingRegFilter.fromDate,
           endDate: fixingRegFilter.toDate,
           ...(fixingRegFilter.status === 'final' ? { status: 'confirmed' } : {}),
-        }), 'directDeals', 100),
+        }), 'deals', 100),
         openingTxParams
           ? fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...openingTxParams, ...p, type: 'sale' }), 'transactions', 200)
           : Promise.resolve([]),
@@ -3380,12 +3390,31 @@ function ERPTab({ focusTab, onNavigateMain }) {
             ...p,
             endDate: openingEndDate.toISOString().slice(0, 10),
             ...(fixingRegFilter.status === 'final' ? { status: 'confirmed' } : {}),
-          }), 'directDeals', 100)
+          }), 'deals', 100)
           : Promise.resolve([]),
       ])
 
       const buildRows = ({ txSales = [], txPurchases = [], directDeals = [] }) => {
         const rows = []
+
+        const toValidNumber = (value) => {
+          if (value === null || value === undefined || value === '') return null
+          const parsed = Number(value)
+          return Number.isFinite(parsed) ? parsed : null
+        }
+
+        const resolveUnfixAmount = (line = {}) => {
+          const premium = toValidNumber(line.premiumAmount)
+            ?? toValidNumber(line.premiumAmt)
+            ?? toValidNumber(line.premium)
+            ?? toValidNumber(line.premiumValueAmount)
+          if (premium !== null) return premium
+
+          const total = toValidNumber(line.totalAmount) ?? toValidNumber(line.amountLC)
+          const metal = toValidNumber(line.metalAmount)
+          if (total !== null && metal !== null) return total - metal
+          return 0
+        }
 
         const txRows = [...txSales, ...txPurchases]
         for (const tx of txRows) {
@@ -3432,6 +3461,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
             if (selectedMetalCode && lineMetal && lineMetal !== selectedMetalCode) return
             if (selectedMetalCode && !lineMetal) return
             const narration = String(line.narration || tx?.description || '')
+            const pureWeightGram = Number(line.pureWeight || line.grossWeight || 0)
+            const qtyOz = pureWeightGram > 0 ? (pureWeightGram / 31.1034768) : 0
             if (fixingRegFilter.excludeOpeningBalance && /opening/i.test(narration)) return
             rows.push({
               rowId: `${tx._id}-${idx}`,
@@ -3443,9 +3474,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
               customerName: partyName,
               direction: tx.type === 'purchase' ? 'buy' : 'sell',
               metal: lineMetal || selectedMetalCode || '',
-              qty: Number(line.pureWeight || line.grossWeight || 0),
+              qty: qtyOz,
               price: Number(line.metalRate || tx?.voucherMeta?.metalRate || 0),
-              amount: Number(line.totalAmount || line.amountLC || tx?.amount || 0),
+              amount: txFixingMode === 'Unfixing'
+                ? resolveUnfixAmount(line)
+                : Number(line.totalAmount || line.amountLC || tx?.amount || 0),
               dealStatus: tx?.status || 'draft',
               remarks: narration,
               fixingMode: txFixingMode,
@@ -3466,6 +3499,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           for (const line of deal.lineItems || []) {
             const lineMetal = resolveDirectDealMetalCode(line.metal || 'XAU')
             if (selectedMetalCode && lineMetal !== selectedMetalCode) continue
+            const qtyOz = fixingRegConvertToOz(Number(line.qty || 0), line.stockCode || 'OZ')
             const partyName = line.customerName || '—'
             if (fixingRegFilter.partyFilter === 'selected' && fixingRegFilter.partySearch.trim()) {
               if (!partyName.toLowerCase().includes(fixingRegFilter.partySearch.trim().toLowerCase())) continue
@@ -3486,7 +3520,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
               remarks: deal.remarks || '',
               direction: line.direction,
               metal: lineMetal || 'XAU',
-              qty: Number(line.qty || 0),
+              qty: qtyOz,
               eqOz: Number(line.eqOz || 0),
               stockCode: (line.stockCode || 'OZ').toUpperCase(),
               price: Number(line.price || 0),
@@ -3536,14 +3570,21 @@ function ERPTab({ focusTab, onNavigateMain }) {
       const rows = buildRows({ txSales: saleTxs, txPurchases: purchaseTxs, directDeals: deals })
 
       const openingQtyOz = openingRows.reduce((sum, row) => {
+        const mode = String(row?.fixingMode || '').trim().toLowerCase()
+        if (mode === 'unfixing') return sum
         const qty = Number(row.qty || 0)
         const sign = String(row.direction || '').toLowerCase() === 'buy' ? 1 : -1
         return sum + (sign * qty)
       }, 0)
+      const getRowSignedAmount = (row) => {
+        const amount = Number(row?.amount || 0)
+        const mode = String(row?.fixingMode || '').trim().toLowerCase()
+        if (mode === 'unfixing') return amount
+        const sign = String(row?.direction || '').toLowerCase() === 'buy' ? 1 : -1
+        return sign * amount
+      }
       const openingValue = openingRows.reduce((sum, row) => {
-        const amount = Number(row.amount || 0)
-        const sign = String(row.direction || '').toLowerCase() === 'buy' ? 1 : -1
-        return sum + (sign * amount)
+        return sum + getRowSignedAmount(row)
       }, 0)
 
       setFixingRegOpening({ qtyOz: openingQtyOz, value: openingValue })
@@ -5205,6 +5246,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
                     {lbl}
                   </label>
                 ))}
+                <div style={{ color: '#64748B', fontSize: '0.76rem', lineHeight: 1.35 }}>
+                  Unfixing rows affect USD amount balance only; XAU position balance is unchanged.
+                </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <label style={{ color: '#64748B', fontSize: '0.72rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</label>
                   <select
@@ -5248,15 +5292,29 @@ function ERPTab({ focusTab, onNavigateMain }) {
             const qUnit = fixingRegFilter.quantityUnit
             const rUnit = fixingRegFilter.rateUnit
             const metalCodeLabel = String(fixingRegFilter.metalType || '').split('::')[0].toUpperCase() || 'XAU'
-            const totalBuyOz = fixingRegResults.filter((r) => r.direction === 'buy').reduce((s, r) => s + Number(r.qty || 0), 0)
-            const totalSellOz = fixingRegResults.filter((r) => r.direction === 'sell').reduce((s, r) => s + Number(r.qty || 0), 0)
+            const isQtyImpactRow = (row) => {
+              const mode = String(row?.fixingMode || '').trim().toLowerCase()
+              if (mode === 'unfixing') return false
+              return true
+            }
+            const totalBuyOz = fixingRegResults
+              .filter((r) => r.direction === 'buy' && isQtyImpactRow(r))
+              .reduce((s, r) => s + Number(r.qty || 0), 0)
+            const totalSellOz = fixingRegResults
+              .filter((r) => r.direction === 'sell' && isQtyImpactRow(r))
+              .reduce((s, r) => s + Number(r.qty || 0), 0)
             const netOz = totalBuyOz - totalSellOz
             const openingQtyOz = fixingRegFilter.excludeOpeningBalance ? 0 : Number(fixingRegOpening.qtyOz || 0)
             const openingValue = fixingRegFilter.excludeOpeningBalance ? 0 : Number(fixingRegOpening.value || 0)
             const closingQtyOz = openingQtyOz + netOz
+            const getRowSignedValue = (row) => {
+              const amount = Number(row?.amount || 0)
+              const mode = String(row?.fixingMode || '').trim().toLowerCase()
+              if (mode === 'unfixing') return amount
+              return String(row?.direction || '').toLowerCase() === 'buy' ? amount : -amount
+            }
             const txnNetValue = fixingRegResults.reduce((sum, row) => {
-              const sign = String(row.direction || '').toLowerCase() === 'buy' ? 1 : -1
-              return sum + (sign * Number(row.amount || 0))
+              return sum + getRowSignedValue(row)
             }, 0)
             const closingValue = openingValue + txnNetValue
             const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '-'
@@ -5307,15 +5365,23 @@ function ERPTab({ focusTab, onNavigateMain }) {
               color: '#1F2937',
               lineHeight: 1.1,
             }
+            const numericCell = {
+              ...legacyCell,
+              textAlign: 'right',
+              fontWeight: '600',
+              color: '#0F172A',
+              fontVariantNumeric: 'tabular-nums',
+              fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif',
+            }
             let runningQtyOz = openingQtyOz
             let runningAmount = openingValue
 
             return (
-              <div style={modalBackdropStyle} onClick={() => setFixingRegShown(false)}>
-                <div style={{ ...modalCardStyle, width: 'min(1280px, 100%)', maxHeight: '88vh', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
+              <div style={{ ...modalBackdropStyle, padding: 0 }} onClick={() => setFixingRegShown(false)}>
+                <div style={{ ...modalCardStyle, width: '100vw', maxWidth: '100vw', height: '100vh', maxHeight: '100vh', borderRadius: 0, padding: '1rem', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.8rem', gap: '0.8rem' }}>
                     <div>
-                      <h4 style={{ margin: 0, color: C.ink, fontSize: '1.02rem' }}>Fixing Register Transactions Window</h4>
+                      <h4 style={{ margin: 0, color: C.ink, fontSize: '1.05rem' }}>Fixing Register Transactions Window</h4>
                       <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Metal sale, purchase, and direct deal entries between selected dates ordered by voucher number.</p>
                     </div>
                     <button onClick={() => setFixingRegShown(false)} style={{ padding: '0.42rem 0.75rem', border: '1px solid #D1D5DB', background: '#FFFFFF', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.8rem' }}>Close</button>
@@ -5336,7 +5402,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   </div>
 
                   <div style={{ overflow: 'auto', border: '1px solid #8F98A6', borderRadius: '0.24rem', flex: 1, background: '#FCFCFC' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', minWidth: '1320px', fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', minWidth: '1320px', fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif', fontVariantNumeric: 'tabular-nums' }}>
                       <colgroup>
                         <col style={{ width: '40px' }} />
                         <col style={{ width: '110px' }} />
@@ -5378,23 +5444,24 @@ function ERPTab({ focusTab, onNavigateMain }) {
                           <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>-</td>
                           <td style={{ ...legacyCell, color: '#111827', fontWeight: '700' }}>Opening C/F</td>
                           <td style={{ ...legacyCell, color: '#4B5563' }}>Opening Carry Forward</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', color: '#6B7280' }}>-</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', color: '#6B7280' }}>-</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{fmtSignedQty(openingQtyOz)}</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', color: '#6B7280' }}>-</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', color: '#6B7280' }}>-</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{fmtSignedAmt(openingValue)}</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{runningQtyOz !== 0 ? fmtSignedRate(runningAmount / runningQtyOz) : '-'}</td>
+                          <td style={{ ...numericCell, color: '#6B7280' }}>-</td>
+                          <td style={{ ...numericCell, color: '#6B7280' }}>-</td>
+                          <td style={numericCell}>{fmtSignedQty(openingQtyOz)}</td>
+                          <td style={{ ...numericCell, color: '#6B7280' }}>-</td>
+                          <td style={{ ...numericCell, color: '#6B7280' }}>-</td>
+                          <td style={numericCell}>{fmtSignedAmt(openingValue)}</td>
+                          <td style={numericCell}>{runningQtyOz !== 0 ? fmtSignedRate(runningAmount / runningQtyOz) : '-'}</td>
                         </tr>
                         {fixingRegResults.map((row, idx) => (
                           (() => {
                             const qtyOz = Number(row.qty || 0)
                             const amount = Number(row.amount || 0)
                             const isBuy = String(row.direction || '').toLowerCase() === 'buy'
+                            const isQtyImpactEnabled = isQtyImpactRow(row)
                             const qtyInOz = isBuy ? qtyOz : 0
                             const qtyOutOz = isBuy ? 0 : qtyOz
-                            const signedQtyOz = isBuy ? qtyOz : -qtyOz
-                            const signedValue = isBuy ? amount : -amount
+                            const signedQtyOz = isQtyImpactEnabled ? (isBuy ? qtyOz : -qtyOz) : 0
+                            const signedValue = getRowSignedValue(row)
                             runningQtyOz += signedQtyOz
                             runningAmount += signedValue
                             const avgRate = runningQtyOz !== 0 ? (runningAmount / runningQtyOz) : null
@@ -5423,13 +5490,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
                               </span>
                               {row.remarks || `${row.sourceType || ''} ${row.customerName || ''}`.trim() || '-'}
                             </td>
-                            <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{qtyInOz > 0 ? fixingRegFmtQty(qtyInOz, qUnit) : '-'}</td>
-                            <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{qtyOutOz > 0 ? fixingRegFmtQty(qtyOutOz, qUnit) : '-'}</td>
-                            <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{fmtSignedQty(runningQtyOz)}</td>
-                            <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{fixingRegFmtRate(Number(row.price || 0), rUnit)}</td>
-                            <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{fmtSignedAmt(signedValue)}</td>
-                            <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{fmtSignedAmt(runningAmount)}</td>
-                            <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '400' }}>{avgRate === null ? '-' : fmtSignedRate(avgRate)}</td>
+                            <td style={numericCell}>{qtyInOz > 0 ? fixingRegFmtQty(qtyInOz, qUnit) : '-'}</td>
+                            <td style={numericCell}>{qtyOutOz > 0 ? fixingRegFmtQty(qtyOutOz, qUnit) : '-'}</td>
+                            <td style={numericCell}>{fmtSignedQty(runningQtyOz)}</td>
+                            <td style={numericCell}>{fixingRegFmtRate(Number(row.price || 0), rUnit)}</td>
+                            <td style={numericCell}>{fmtSignedAmt(signedValue)}</td>
+                            <td style={numericCell}>{fmtSignedAmt(runningAmount)}</td>
+                            <td style={numericCell}>{avgRate === null ? '-' : fmtSignedRate(avgRate)}</td>
                           </tr>
                             )
                           })()
@@ -5440,13 +5507,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
                           <td style={{ ...legacyCell, color: '#78350F', whiteSpace: 'nowrap', fontWeight: '700' }}>-</td>
                           <td style={{ ...legacyCell, color: '#78350F', fontWeight: '700' }}>Closing C/F</td>
                           <td style={{ ...legacyCell, color: '#78350F', fontWeight: '700' }}>Closing Carry Forward</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalBuyOz, qUnit)}</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalSellOz, qUnit)}</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '700', color: '#78350F' }}>{fmtSignedQty(closingQtyOz)}</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', color: '#78350F', fontWeight: '700' }}>-</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(txnNetValue)}</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(closingValue)}</td>
-                          <td style={{ ...legacyCell, textAlign: 'right', fontWeight: '700', color: '#78350F' }}>{closingQtyOz !== 0 ? fmtSignedRate(closingValue / closingQtyOz) : '-'}</td>
+                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalBuyOz, qUnit)}</td>
+                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalSellOz, qUnit)}</td>
+                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fmtSignedQty(closingQtyOz)}</td>
+                          <td style={{ ...numericCell, color: '#78350F', fontWeight: '700' }}>-</td>
+                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(txnNetValue)}</td>
+                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(closingValue)}</td>
+                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{closingQtyOz !== 0 ? fmtSignedRate(closingValue / closingQtyOz) : '-'}</td>
                         </tr>
                         {fixingRegResults.length === 0 && (
                           <tr>
