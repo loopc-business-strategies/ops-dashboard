@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ops Dashboard – Admin Control System</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --green: #1a6647; --green-light: #e8f5ef; --green-mid: #0f4f36;
+    --border: #e4e4e7; --bg: #f8f9fa; --white: #ffffff;
+    --text: #18181b; --muted: #71717a; --danger: #dc2626; --warn: #d97706;
+    --blue: #2563eb; --blue-light: #eff6ff;
+    --font: 'Segoe UI', system-ui, sans-serif;
+  }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+  /* ── TOP NAV ── */
+  .topnav { display: flex; align-items: center; gap: 0; background: #111827; padding: 0 20px; height: 48px; flex-shrink: 0; }
+  .topnav .logo { display: flex; align-items: center; gap: 8px; margin-right: 24px; }
+  .topnav .logo-icon { width: 28px; height: 28px; background: var(--green); border-radius: 7px; display: flex; align-items: center; justify-content: center; }
+  .topnav .logo-icon svg { width: 15px; height: 15px; fill: white; }
+  .topnav .logo-name { font-size: 13px; font-weight: 600; color: white; }
+  .topnav .logo-sub { font-size: 10px; color: #9ca3af; }
+  .topnav-tab { padding: 0 16px; height: 48px; display: flex; align-items: center; font-size: 13px; color: #9ca3af; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .topnav-tab:hover { color: white; }
+  .topnav-tab.active { color: white; border-bottom-color: var(--green); }
+  .topnav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .user-chip { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.1); border-radius: 20px; padding: 4px 12px; }
+  .user-avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: white; }
+  .user-chip span { font-size: 12px; color: white; }
+  .user-chip .role-tag { font-size: 10px; background: var(--green); color: white; border-radius: 10px; padding: 1px 7px; }
+
+  /* ── MAIN LAYOUT ── */
+  .app-body { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── SIDEBAR ── */
+  .sidebar { width: 210px; background: var(--white); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0; }
+  .sidebar-nav { padding: 6px 0 12px; }
+  .nav-item { display: flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 13px; color: var(--muted); cursor: pointer; border-radius: 6px; margin: 1px 6px; transition: background 0.15s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nav-item:hover { background: #f4f4f5; color: var(--text); }
+  .nav-item.active { background: var(--green-light); color: var(--green); font-weight: 500; }
+  .nav-badge { margin-left: auto; background: var(--green); color: white; border-radius: 20px; font-size: 10px; padding: 1px 6px; flex-shrink: 0; }
+  .sec-head { font-size: 10px; font-weight: 600; letter-spacing: 0.07em; color: var(--green); padding: 10px 14px 3px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+  .sec-head svg { width: 12px; height: 12px; transition: transform 0.2s; flex-shrink: 0; }
+  .sec-head.collapsed svg { transform: rotate(-90deg); }
+  .sec-body { overflow: hidden; transition: max-height 0.3s ease; }
+  .sec-body.open { max-height: 600px; }
+  .sec-body.closed { max-height: 0; }
+
+  /* ── CONTENT AREA ── */
+  .content-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+
+  /* ── PAGE PANELS ── */
+  .page { display: none; flex: 1; flex-direction: column; }
+  .page.active { display: flex; }
+
+  /* ADMIN PAGE */
+  .admin-page { padding: 24px; }
+  .page-header { margin-bottom: 20px; }
+  .page-header h1 { font-size: 20px; font-weight: 600; color: var(--text); }
+  .page-header p { font-size: 13px; color: var(--muted); margin-top: 3px; }
+
+  /* USERS TABLE */
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .search-box { flex: 1; max-width: 280px; position: relative; }
+  .search-box input { width: 100%; padding: 7px 12px 7px 32px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; background: var(--white); color: var(--text); outline: none; }
+  .search-box input:focus { border-color: var(--green); }
+  .search-box svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--muted); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 7px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; }
+  .btn-primary { background: var(--green); color: white; }
+  .btn-primary:hover { background: var(--green-mid); }
+  .btn-secondary { background: var(--white); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: #f4f4f5; }
+  .btn-danger { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; }
+  .btn-danger:hover { background: #fee2e2; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  .table-wrap { background: var(--white); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: #f9fafb; }
+  th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+  td { padding: 11px 14px; font-size: 13px; color: var(--text); border-bottom: 1px solid #f4f4f5; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafafa; }
+  .role-pill { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .pill-admin { background: #fef9c3; color: #713f12; }
+  .pill-user { background: var(--blue-light); color: var(--blue); }
+  .status-dot { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot-active { background: #22c55e; }
+  .dot-inactive { background: #d1d5db; }
+
+  /* ── PERMISSION MANAGER (redesigned: sidebar + simple toggles) ── */
+  .perm-layout { display: grid; grid-template-columns: 240px 1fr; gap: 16px; }
+  .user-list-panel { background: var(--white); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .panel-head { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.07em; background: #f9fafb; }
+  .user-list-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f4f4f5; border-left: 3px solid transparent; transition: all 0.15s; }
+  .user-list-item:last-child { border-bottom: none; }
+  .user-list-item:hover { background: #f9fafb; }
+  .user-list-item.active { background: var(--green-light); border-left-color: var(--green); }
+  .u-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+  .u-name { font-size: 13px; font-weight: 500; color: var(--text); }
+  .u-dept { font-size: 11px; color: var(--muted); }
+
+  .perm-detail { background: var(--white); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+  .perm-user-header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); background: #f9fafb; flex-shrink: 0; }
+  .perm-user-info h3 { font-size: 14px; font-weight: 600; color: var(--text); }
+  .perm-user-info p { font-size: 12px; color: var(--muted); }
+  .perm-save-btn { margin-left: auto; }
+  .perm-body { padding: 16px; overflow-y: auto; flex: 1; }
+  .perm-group-label { font-size: 10px; font-weight: 600; letter-spacing: 0.07em; color: var(--muted); padding: 12px 0 6px; }
+  .perm-group-label:first-child { padding-top: 0; }
+  .perm-module-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; margin-bottom: 6px; border-radius: 10px; border: 1px solid var(--border); background: #fafafa; transition: all 0.15s; }
+  .perm-module-row.on { border-color: #a7f3d0; background: #f0fdf4; }
+  .perm-module-label { font-size: 13px; color: var(--text); }
+
+  /* TOGGLE SWITCH */
+  .toggle { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track { position: absolute; inset: 0; border-radius: 10px; background: #d1d5db; cursor: pointer; transition: background 0.2s; border: 1px solid #e5e7eb; }
+  .toggle input:checked + .toggle-track { background: var(--green); border-color: var(--green); }
+  .toggle-thumb { position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: white; transition: left 0.2s; pointer-events: none; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+  .toggle input:checked ~ .toggle-thumb { left: 19px; }
+
+  /* NO SELECTION */
+  .no-select { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 300px; color: var(--muted); gap: 8px; }
+  .no-select svg { width: 40px; height: 40px; opacity: 0.3; }
+  .no-select p { font-size: 13px; }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--white); border-radius: 12px; width: 420px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .modal-head h2 { font-size: 15px; font-weight: 600; }
+  .modal-close { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 18px; line-height: 1; }
+  .modal-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+  .form-row { display: flex; flex-direction: column; gap: 5px; }
+  .form-row label { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .form-row input, .form-row select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; color: var(--text); background: var(--white); outline: none; }
+  .form-row input:focus, .form-row select:focus { border-color: var(--green); }
+  .form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal-foot { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* ERP DASHBOARD */
+  .erp-header { display: flex; align-items: center; gap: 10px; padding: 16px 24px; background: var(--white); border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
+  .erp-header h2 { font-size: 16px; font-weight: 600; }
+  .erp-body { padding: 20px 24px; flex: 1; overflow-y: auto; background: var(--bg); }
+  .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .metric-card { background: var(--white); border-radius: 8px; padding: 14px 16px; border-left: 3px solid; }
+  .m-green { border-color: #22c55e; }
+  .m-red { border-color: var(--danger); }
+  .m-teal { border-color: #0891b2; }
+  .m-blue { border-color: var(--blue); }
+  .m-label { font-size: 11px; color: var(--muted); margin-bottom: 5px; }
+  .m-value { font-size: 16px; font-weight: 600; color: var(--text); }
+  .m-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* WIDGET GRID */
+  .widget-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .widget-card { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; position: relative; }
+  .widget-card.span-2 { grid-column: span 2; }
+  .widget-card.span-3 { grid-column: span 3; }
+  .widget-head { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .widget-icon { font-size: 14px; }
+  .widget-title { font-size: 12px; font-weight: 600; color: var(--text); }
+  .widget-remove { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 50%; background: #fee2e2; color: var(--danger); border: none; cursor: pointer; font-size: 11px; display: flex; align-items: center; justify-content: center; }
+  .widget-drag { cursor: grab; opacity: 0.6; }
+
+  /* CUSTOMIZE MODAL */
+  .customize-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; }
+  .customize-overlay.open { display: flex; }
+  .customize-modal { background: var(--white); border-radius: 12px; width: 480px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.25); overflow: hidden; }
+  .customize-modal-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .customize-modal-head h3 { font-size: 14px; font-weight: 600; }
+  .customize-modal-body { padding: 14px 18px; overflow-y: auto; flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .widget-pick { padding: 10px 12px; border-radius: 8px; border: 2px solid var(--border); background: #fafafa; cursor: pointer; display: flex; gap: 8px; align-items: flex-start; transition: all 0.15s; }
+  .widget-pick.selected { border-color: var(--green); background: var(--green-light); }
+  .widget-pick-icon { font-size: 16px; flex-shrink: 0; }
+  .widget-pick-label { font-size: 12px; font-weight: 600; color: var(--text); }
+  .widget-pick-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .widget-pick-check { margin-left: auto; color: var(--green); font-size: 12px; flex-shrink: 0; }
+  .customize-modal-foot { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* GENERIC CONTENT PAGE */
+  .generic-content { padding: 24px; }
+  .generic-content h1 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+  .generic-content p { font-size: 13px; color: var(--muted); }
+  .content-card { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-top: 16px; }
+
+  .access-denied { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 10px; padding: 40px; text-align: center; }
+  .access-denied svg { width: 48px; height: 48px; color: #d1d5db; }
+  .access-denied h3 { font-size: 16px; font-weight: 600; color: var(--text); }
+  .access-denied p { font-size: 13px; color: var(--muted); max-width: 300px; }
+
+  .toast { position: fixed; bottom: 20px; right: 20px; background: #111827; color: white; padding: 10px 18px; border-radius: 8px; font-size: 13px; z-index: 200; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- TOP NAV -->
+<div class="topnav">
+  <div class="logo">
+    <div class="logo-icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1 14.5v-9l7 4.5-7 4.5z"/></svg></div>
+    <div><div class="logo-name">Ops Dashboard</div><div class="logo-sub">Control System</div></div>
+  </div>
+  <div class="topnav-tab active" onclick="switchTopTab('admin',this)">Admin</div>
+  <div class="topnav-tab" onclick="switchTopTab('user',this)">User View</div>
+  <div class="topnav-right">
+    <div class="user-chip">
+      <div class="user-avatar">N</div>
+      <span>Nan</span>
+      <span class="role-tag">Super Admin</span>
+    </div>
+  </div>
+</div>
+
+<!-- APP BODY -->
+<div class="app-body">
+
+  <!-- ── ADMIN VIEW ── -->
+  <div id="view-admin" style="display:flex;flex:1;overflow:hidden;">
+    <div class="sidebar">
+      <div class="sidebar-nav">
+        <div class="sec-head" onclick="toggleSec('s-admin')"><span>ADMIN</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,6 8,10 12,6"/></svg></div>
+        <div class="sec-body open" id="s-admin">
+          <div class="nav-item active" onclick="showAdminPage('users',this)">Users</div>
+          <div class="nav-item" onclick="showAdminPage('permissions',this)">Permissions</div>
+          <div class="nav-item" onclick="showAdminPage('settings',this)">Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="content-area">
+      <!-- USERS PAGE -->
+      <div class="page active admin-page" id="admin-users">
+        <div class="page-header">
+          <h1>User Management</h1>
+          <p>Create and manage users, assign roles and departments.</p>
+        </div>
+        <div class="toolbar">
+          <div class="search-box">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="9" r="5.5"/><path d="M14 14l3 3"/></svg>
+            <input type="text" placeholder="Search users..." oninput="filterUsers(this.value)"/>
+          </div>
+          <button class="btn btn-primary" onclick="openCreateModal()">＋ Create User</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>NAME</th><th>EMAIL</th><th>DEPARTMENT</th><th>ROLE</th><th>STATUS</th><th>MODULES</th><th>ACTIONS</th></tr>
+            </thead>
+            <tbody id="users-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- PERMISSIONS PAGE (redesigned: sidebar + simple toggles) -->
+      <div class="page admin-page" id="admin-permissions">
+        <div class="page-header">
+          <h1>Permission Manager</h1>
+          <p>Control which modules each user can access.</p>
+        </div>
+        <div class="perm-layout">
+          <div class="user-list-panel">
+            <div class="panel-head">USERS</div>
+            <div id="perm-user-list"></div>
+          </div>
+          <div class="perm-detail" id="perm-detail-panel">
+            <div class="no-select">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+              <p>Select a user to manage permissions</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SETTINGS PAGE -->
+      <div class="page admin-page generic-content" id="admin-settings">
+        <h1>Settings</h1><p>System configuration and preferences.</p>
+        <div class="content-card"><p style="font-size:13px;color:var(--muted)">System settings coming soon.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── USER VIEW ── -->
+  <div id="view-user" style="display:none;flex:1;overflow:hidden;">
+    <div class="sidebar" id="user-sidebar">
+      <div class="sidebar-nav" id="user-sidebar-nav"></div>
+    </div>
+    <div class="content-area" id="user-content-area"></div>
+  </div>
+</div>
+
+<!-- CUSTOMIZE MODAL (for ERP dashboard widgets) -->
+<div class="customize-overlay" id="customize-modal">
+  <div class="customize-modal">
+    <div class="customize-modal-head">
+      <h3>Customize Dashboard</h3>
+      <button style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--muted)" onclick="closeCustomize()">✕</button>
+    </div>
+    <div class="customize-modal-body" id="customize-widget-list"></div>
+    <div class="customize-modal-foot">
+      <button class="btn btn-secondary" onclick="closeCustomize()">Cancel</button>
+      <button class="btn btn-primary" onclick="applyCustomize()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- CREATE USER MODAL -->
+<div class="modal-overlay" id="create-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modal-title">Create New User</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-user-id"/>
+      <div class="form-2col">
+        <div class="form-row"><label>First Name</label><input id="f-fname" type="text" placeholder="John"/></div>
+        <div class="form-row"><label>Last Name</label><input id="f-lname" type="text" placeholder="Doe"/></div>
+      </div>
+      <div class="form-row"><label>Email</label><input id="f-email" type="email" placeholder="john@company.com"/></div>
+      <div class="form-row"><label>Password</label><input id="f-pass" type="password" placeholder="••••••••"/></div>
+      <div class="form-2col">
+        <div class="form-row">
+          <label>Department</label>
+          <select id="f-dept">
+            <option value="HR">HR</option>
+            <option value="Compliance">Compliance</option>
+            <option value="Production">Production</option>
+            <option value="Finance">Finance</option>
+            <option value="Sales">Sales</option>
+            <option value="Operations">Operations</option>
+            <option value="Training">Training</option>
+            <option value="ERP">ERP</option>
+            <option value="Admin">Admin</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Role</label>
+          <select id="f-role">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Status</label>
+        <select id="f-status">
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveUser()">Save User</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DATA ──
+// All ERP sub-items (14 items, including new customer-margin)
+const ERP_SUBS = {
+  dashboard:     'Dashboard',
+  accounts:      'Accounts',
+  mappings:      'Mappings',
+  settings_erp:  'Settings',
+  accsummary:    'Account Summary',
+  customers:     'Customers',
+  'customer-margin': 'Customer Margin',
+  ledger:        'Ledger',
+  transactions:  'Transactions',
+  reports:       'Reports',
+  vendors:       'Vendors',
+  inventory:     'Inventory',
+  vouchers:      'Vouchers',
+  directdeals:   'Direct Deals',
+}
+
+// Modules for permission manager (matching AdminTab.jsx ALL_PERM_ROWS)
+const PERM_ROWS = [
+  { id:'overview',    label:'Overview',               group:'GENERAL' },
+  { id:'chat',        label:'Chat',                   group:'GENERAL' },
+  { id:'hr',          label:'Hiring & HR',            group:'DEPARTMENTS' },
+  { id:'compliance',  label:'Compliance',             group:'DEPARTMENTS' },
+  { id:'production',  label:'Production & Factory',   group:'DEPARTMENTS' },
+  { id:'finance',     label:'Finance & Accounts',     group:'DEPARTMENTS' },
+  { id:'sales',       label:'Sales & Marketing',      group:'DEPARTMENTS' },
+  { id:'operations',  label:'Operations & Logistics', group:'DEPARTMENTS' },
+  { id:'training',    label:'Training & Dev.',        group:'DEPARTMENTS' },
+  { id:'erp',         label:'ERP',                    group:'ERP' },
+]
+
+// ERP Dashboard widget catalogue (matching ERPTab.jsx)
+const ERP_DASH_WIDGETS = [
+  { id:'margins',  label:'Customer & Supplier Margins', icon:'📊', desc:'Margin comparison by customer/supplier', cols:2 },
+  { id:'metals',   label:'Current Metal Prices',        icon:'🥇', desc:'Live gold, silver, platinum, palladium', cols:1 },
+  { id:'bank',     label:'Bank & Cash Balances',        icon:'🏦', desc:'Account balances overview',              cols:1 },
+  { id:'cashflow', label:'Cash Flow',                   icon:'💸', desc:'Monthly inflows and outflows',           cols:1 },
+  { id:'expenses', label:'Expenses',                    icon:'📋', desc:'Expense breakdown by category',          cols:1 },
+  { id:'volume',   label:'Total Volume Traded',         icon:'📦', desc:'Trade volume by metal type',             cols:1 },
+  { id:'apar',     label:'AP & AR',                     icon:'⚖️',  desc:'Payables & receivables overview',        cols:2 },
+  { id:'fixing',   label:'Fixing Position Summary',     icon:'📌', desc:'Open fixing positions by metal',         cols:2 },
+  { id:'assets',   label:'Key Assets & Liabilities',    icon:'🏛️', desc:'Balance sheet snapshot',                 cols:2 },
+  { id:'notif',    label:'Notifications & Alerts',      icon:'🔔', desc:'System alerts and reminders',            cols:1 },
+]
+const ERP_DASH_DEFAULT = ['metals', 'bank', 'apar', 'fixing', 'assets', 'notif']
+
+const AVATAR_COLORS = [
+  ['#dbeafe','#1d4ed8'], ['#fef9c3','#713f12'], ['#fce7f3','#9d174d'],
+  ['#d1fae5','#065f46'], ['#ede9fe','#5b21b6'], ['#ffedd5','#7c2d12']
+]
+
+let users = [
+  { id:1, fname:'Priya', lname:'Kumar', email:'priya@company.com', dept:'HR', role:'user', status:'active',
+    perms:{ hr:{on:true}, overview:{on:true}, chat:{on:true} } },
+  { id:2, fname:'Ravi', lname:'Shankar', email:'ravi@company.com', dept:'ERP', role:'user', status:'active',
+    perms:{ erp:{on:true}, overview:{on:true}, chat:{on:true} } },
+  { id:3, fname:'Meena', lname:'Raj', email:'meena@company.com', dept:'Finance', role:'user', status:'inactive',
+    perms:{ finance:{on:true}, overview:{on:true}, chat:{on:true} } }
+]
+let nextId = 4
+let selectedPermUser = null
+
+// Per-user dashboard widget state (keyed by user id)
+const dashState = {}
+function getDashWidgets(uid) {
+  if (!dashState[uid]) dashState[uid] = [...ERP_DASH_DEFAULT]
+  return dashState[uid]
+}
+
+let customizeForUser = null
+let customizePickSelected = []
+let dashEditMode = {}
+let dragSrcIdx = null
+
+function getInitials(u) { return (u.fname[0]+u.lname[0]).toUpperCase() }
+function getColor(id) { return AVATAR_COLORS[(id-1) % AVATAR_COLORS.length] }
+
+// ── USERS TABLE ──
+function renderUsers(list) {
+  list = list || users
+  const tbody = document.getElementById('users-tbody')
+  tbody.innerHTML = list.map(u => {
+    const [bg,tc] = getColor(u.id)
+    const modCount = Object.keys(u.perms||{}).filter(k => u.perms[k] && u.perms[k].on).length
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:8px">
+        <div style="width:30px;height:30px;border-radius:50%;background:${bg};color:${tc};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">${getInitials(u)}</div>
+        <span style="font-weight:500">${u.fname} ${u.lname}</span>
+      </div></td>
+      <td style="color:var(--muted)">${u.email}</td>
+      <td>${u.dept}</td>
+      <td><span class="role-pill ${u.role==='admin'?'pill-admin':'pill-user'}">${u.role}</span></td>
+      <td><span class="status-dot"><span class="dot ${u.status==='active'?'dot-active':'dot-inactive'}"></span>${u.status}</span></td>
+      <td><span style="font-size:12px;color:var(--muted)">${modCount} module${modCount!==1?'s':''}</span></td>
+      <td><div style="display:flex;gap:6px">
+        <button class="btn btn-secondary btn-sm" onclick="editUser(${u.id})">Edit</button>
+        <button class="btn btn-secondary btn-sm" onclick="goToPermissions(${u.id})" style="color:var(--green)">Permissions</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})">Delete</button>
+      </div></td>
+    </tr>`
+  }).join('')
+}
+
+function filterUsers(q) {
+  const f = users.filter(u => (u.fname+' '+u.lname+u.email+u.dept).toLowerCase().includes(q.toLowerCase()))
+  renderUsers(f)
+}
+
+// ── CREATE / EDIT USER ──
+function openCreateModal() {
+  document.getElementById('modal-title').textContent = 'Create New User'
+  document.getElementById('edit-user-id').value = ''
+  ;['fname','lname','email','pass'].forEach(f => document.getElementById('f-'+f).value = '')
+  document.getElementById('f-dept').value = 'HR'
+  document.getElementById('f-role').value = 'user'
+  document.getElementById('f-status').value = 'active'
+  document.getElementById('create-modal').classList.add('open')
+}
+function editUser(id) {
+  const u = users.find(x => x.id===id)
+  document.getElementById('modal-title').textContent = 'Edit User'
+  document.getElementById('edit-user-id').value = id
+  document.getElementById('f-fname').value = u.fname
+  document.getElementById('f-lname').value = u.lname
+  document.getElementById('f-email').value = u.email
+  document.getElementById('f-pass').value = ''
+  document.getElementById('f-dept').value = u.dept
+  document.getElementById('f-role').value = u.role
+  document.getElementById('f-status').value = u.status
+  document.getElementById('create-modal').classList.add('open')
+}
+function closeModal() { document.getElementById('create-modal').classList.remove('open') }
+function saveUser() {
+  const fname = document.getElementById('f-fname').value.trim()
+  const email = document.getElementById('f-email').value.trim()
+  if (!fname || !email) { showToast('Name and email required'); return }
+  const editId = parseInt(document.getElementById('edit-user-id').value)
+  const data = { fname, lname: document.getElementById('f-lname').value.trim(), email, dept: document.getElementById('f-dept').value, role: document.getElementById('f-role').value, status: document.getElementById('f-status').value }
+  if (editId) {
+    Object.assign(users.find(x => x.id===editId), data)
+  } else {
+    users.push({ id: nextId++, ...data, perms: { overview:{on:true}, chat:{on:true} } })
+  }
+  closeModal(); renderUsers(); renderPermUserList(); showToast(editId ? 'User updated' : 'User created')
+}
+function deleteUser(id) {
+  if (!confirm('Delete this user?')) return
+  users = users.filter(x => x.id!==id)
+  renderUsers(); renderPermUserList()
+  if (selectedPermUser===id) { selectedPermUser=null; resetPermDetail() }
+  showToast('User deleted')
+}
+
+// ── PERMISSIONS (redesigned: simple on/off toggles) ──
+function renderPermUserList() {
+  document.getElementById('perm-user-list').innerHTML = users.map(u => {
+    const [bg,tc] = getColor(u.id)
+    return `<div class="user-list-item${selectedPermUser===u.id?' active':''}" onclick="selectPermUser(${u.id})">
+      <div class="u-avatar" style="background:${bg};color:${tc}">${getInitials(u)}</div>
+      <div><div class="u-name">${u.fname} ${u.lname}</div><div class="u-dept">${u.dept}</div></div>
+    </div>`
+  }).join('')
+}
+
+function resetPermDetail() {
+  document.getElementById('perm-detail-panel').innerHTML = `<div class="no-select">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+    <p>Select a user to manage permissions</p>
+  </div>`
+}
+
+function goToPermissions(id) {
+  showAdminPage('permissions', null)
+  document.querySelectorAll('#s-admin .nav-item').forEach((el,i) => el.classList.toggle('active', i===1))
+  selectedPermUser = id
+  renderPermUserList()
+  renderPermDetail(id)
+}
+
+function selectPermUser(id) {
+  selectedPermUser = id
+  renderPermUserList()
+  renderPermDetail(id)
+}
+
+function renderPermDetail(id) {
+  const u = users.find(x => x.id===id)
+  const [bg,tc] = getColor(u.id)
+  const p = u.perms || {}
+
+  let html = `
+    <div class="perm-user-header">
+      <div class="u-avatar" style="width:38px;height:38px;font-size:14px;background:${bg};color:${tc}">${getInitials(u)}</div>
+      <div class="perm-user-info"><h3>${u.fname} ${u.lname}</h3><p>${u.email} · ${u.dept}</p></div>
+      <button class="btn btn-primary btn-sm perm-save-btn" onclick="savePerms(${id})">Save Permissions</button>
+    </div>
+    <div class="perm-body">`
+
+  let lastGroup = null
+  PERM_ROWS.forEach(row => {
+    if (row.group !== lastGroup) {
+      html += `<div class="perm-group-label">${row.group}</div>`
+      lastGroup = row.group
+    }
+    const isOn = !!(p[row.id] && p[row.id].on)
+    html += `<div class="perm-module-row${isOn?' on':''}" id="pmr-${id}-${row.id}">
+      <span class="perm-module-label">${row.label}</span>
+      <label class="toggle">
+        <input type="checkbox" ${isOn?'checked':''} onchange="toggleModuleAccess(${id},'${row.id}',this.checked)">
+        <div class="toggle-track"></div>
+        <div class="toggle-thumb"></div>
+      </label>
+    </div>`
+  })
+
+  html += `</div>`
+  document.getElementById('perm-detail-panel').innerHTML = html
+}
+
+function toggleModuleAccess(uid, modKey, checked) {
+  const u = users.find(x => x.id===uid)
+  if (!u.perms) u.perms = {}
+  if (checked) u.perms[modKey] = { on: true }
+  else delete u.perms[modKey]
+  const row = document.getElementById(`pmr-${uid}-${modKey}`)
+  if (row) row.classList.toggle('on', checked)
+}
+
+function savePerms(id) {
+  renderUsers()
+  showToast('Permissions saved')
+}
+
+// ── ERP WIDGET CONTENT ──
+function renderWidget(id) {
+  const muted = '#6B7280', ink = '#111827'
+  const row = (l,v,s='') => `<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #F0FDF4;font-size:.82rem"><span style="color:${muted}">${l}</span><span style="font-weight:500;color:${ink}${s}">${v}</span></div>`
+  switch (id) {
+    case 'metals': return `<div>${[
+      {n:'Gold',   c:'#F59E0B',p:'$2,341.50',ch:'+0.42%',up:true},
+      {n:'Silver', c:'#9CA3AF',p:'$27.85',   ch:'+0.18%',up:true},
+      {n:'Platinum',c:'#6366F1',p:'$956.20', ch:'-0.31%',up:false},
+      {n:'Palladium',c:'#EC4899',p:'$1,002', ch:'-0.55%',up:false},
+    ].map(m=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #F9FAFB;font-size:.82rem">
+      <span style="display:flex;align-items:center;gap:.4rem"><span style="width:8px;height:8px;border-radius:50%;background:${m.c};display:inline-block"></span>${m.n}</span>
+      <span>${m.p} <span style="font-size:.7rem;padding:1px 6px;border-radius:10px;background:${m.up?'#DCFCE7':'#FEE2E2'};color:${m.up?'#16A34A':'#DC2626'}">${m.ch}</span></span>
+    </div>`).join('')}</div>`
+    case 'bank': return `<div>
+      ${row('Main Bank Account','$4,82,311.00')}${row('Petty Cash','$1,250.00')}${row('Reserve Account','$98,000.00')}
+      <div style="display:flex;justify-content:space-between;padding-top:.4rem;font-size:.82rem;font-weight:600"><span>Total</span><span style="color:#059669">$5,81,561.00</span></div>
+    </div>`
+    case 'cashflow': return `<div>
+      ${row('Opening Balance','$3,20,000')}${row('Cash Inflows','+ $8,29,642',';color:#16A34A')}${row('Cash Outflows','- $0',';color:#DC2626')}
+      <div style="display:flex;justify-content:space-between;padding-top:.4rem;font-size:.82rem;font-weight:600"><span>Closing</span><span style="color:#059669">$11,49,642</span></div>
+      <div style="display:flex;align-items:flex-end;gap:2px;height:40px;margin-top:.6rem">
+        ${[30,50,40,70,55,80,65,90,75,88,72,95].map((h,i)=>`<div style="flex:1;border-radius:2px 2px 0 0;background:${i===11?'#059669':'#A8D8C0'};height:${h}%"></div>`).join('')}
+      </div>
+    </div>`
+    case 'apar': return `<div style="display:flex;gap:.6rem">
+      ${[{l:'Accounts Receivable',v:'$4,82,311',sub:'12 open',bg:'#DCFCE7',c:'#16A34A'},{l:'Accounts Payable',v:'$1,20,500',sub:'5 pending',bg:'#FEE2E2',c:'#DC2626'},{l:'Net Position',v:'$3,61,811',sub:'▲ Favorable',bg:'#E8F5EF',c:'#059669'}]
+      .map(c=>`<div style="flex:1;background:${c.bg};border-radius:.5rem;padding:.6rem;text-align:center"><p style="font-size:.7rem;color:${muted};margin-bottom:.2rem">${c.l}</p><p style="font-size:1rem;font-weight:600;color:${c.c};margin:0">${c.v}</p><p style="font-size:.7rem;color:${c.c};margin-top:.2rem">${c.sub}</p></div>`).join('')}
+    </div>`
+    case 'fixing': return `<div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:.6rem">
+        ${[['Gold','800 oz'],['Silver','200 oz'],['Platinum','50 oz'],['Palladium','0 oz']].map(([l,v])=>`<div style="background:#F9FAFB;border-radius:.5rem;padding:.5rem;text-align:center"><p style="font-size:.68rem;color:${muted};margin-bottom:.2rem">${l}</p><p style="font-size:.85rem;font-weight:600;color:${ink};margin:0">${v}</p></div>`).join('')}
+      </div>
+      <div style="height:6px;background:#E8F5EF;border-radius:3px;overflow:hidden"><div style="width:65%;height:100%;background:#059669;border-radius:3px"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:.68rem;color:#9CA3AF;margin-top:3px"><span>$0</span><span>$1,87,240 / $2,88,000 limit</span></div>
+    </div>`
+    case 'assets': return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+      <div><p style="font-size:.78rem;font-weight:600;color:${ink};margin-bottom:.4rem">Key Assets</p>
+        ${['1000 – Cash on Hand','1010 – Main Bank Account','1020 – Petty Cash','1100 – Accounts Receivable'].map(a=>`<div style="padding:.3rem 0;border-bottom:1px solid #F9FAFB;font-size:.78rem;color:#374151">${a}</div>`).join('')}
+      </div>
+      <div><p style="font-size:.78rem;font-weight:600;color:${ink};margin-bottom:.4rem">Key Liabilities</p>
+        ${['2000 – Accounts Payable','2010 – Short-term Loans','2100 – Payroll Payable','2110 – Sales Tax Payable'].map(a=>`<div style="padding:.3rem 0;border-bottom:1px solid #F9FAFB;font-size:.78rem;color:#374151">${a}</div>`).join('')}
+      </div>
+    </div>`
+    case 'notif': return `<div>
+      ${[{dot:'#DC2626',text:'1 vendor(s) at risk · Avg score 0%',time:'Today'},{dot:'#D97706',text:'Doc expiry: 0 in 30d · 0 in 60d · 0 in 90d',time:'Today'},{dot:'#059669',text:'Month-end report generated successfully',time:'Yesterday'}]
+      .map((n,i)=>`<div style="display:flex;gap:.5rem;padding:.4rem 0;border-bottom:${i<2?'1px solid #F0FDF4':'none'}">
+        <span style="width:8px;height:8px;border-radius:50%;background:${n.dot};flex-shrink:0;margin-top:3px;display:inline-block"></span>
+        <div><p style="font-size:.78rem;color:${ink};margin:0;line-height:1.4">${n.text}</p><p style="font-size:.7rem;color:#9CA3AF;margin-top:2px">${n.time}</p></div>
+      </div>`).join('')}
+    </div>`
+    case 'margins': return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+      ${[['Customer',[['Gold','18.4%',72,'#059669','#F0FDF4'],['Silver','12.1%',48,'#059669','#F0FDF4']],'#059669'],
+         ['Supplier',[['Gold','14.2%',57,'#D97706','#FEF9C3'],['Silver','8.5%',34,'#D97706','#FEF9C3']],'#D97706']].map(([title,rows,clr])=>`
+        <div><p style="font-size:.72rem;color:${muted};margin-bottom:.4rem">${title} Margin</p>
+        ${rows.map(([m,v,p,c,bg])=>`<div style="margin-bottom:.4rem"><div style="display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:2px"><span>${m}</span><span style="color:${c};font-weight:500">${v}</span></div><div style="height:4px;background:${bg};border-radius:3px"><div style="width:${p}%;height:100%;background:${c};border-radius:3px"></div></div></div>`).join('')}
+        </div>`).join('')}
+    </div>`
+    case 'expenses': return `<div style="display:flex;align-items:center;gap:.75rem">
+      <svg width="72" height="72" viewBox="0 0 80 80" style="flex-shrink:0">
+        <circle cx="40" cy="40" r="28" fill="none" stroke="#E8F5EF" stroke-width="14"/>
+        <circle cx="40" cy="40" r="28" fill="none" stroke="#1a6647" stroke-width="14" stroke-dasharray="88 88" stroke-dashoffset="22" transform="rotate(-90 40 40)"/>
+        <circle cx="40" cy="40" r="28" fill="none" stroke="#4DB890" stroke-width="14" stroke-dasharray="44 132" stroke-dashoffset="-66" transform="rotate(-90 40 40)"/>
+        <circle cx="40" cy="40" r="28" fill="none" stroke="#A8D8C0" stroke-width="14" stroke-dasharray="44 132" stroke-dashoffset="-110" transform="rotate(-90 40 40)"/>
+        <text x="40" y="44" text-anchor="middle" font-size="11" font-weight="600" fill="#111">$0</text>
+      </svg>
+      <div style="display:flex;flex-direction:column;gap:.3rem">
+        ${[['#1a6647','Operations 50%'],['#4DB890','Salaries 25%'],['#A8D8C0','Overheads 25%']].map(([c,l])=>`<div style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;color:${muted}"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block;flex-shrink:0"></span>${l}</div>`).join('')}
+      </div>
+    </div>`
+    case 'volume': return `<div>
+      ${[['Gold','1,000.000 oz','#FEF9C3','#854D0E','High'],['Silver','450.000 oz','#E8F5EF','#166534','Mid'],['Platinum','80.000 oz','#F3F4F6',muted,'Low']]
+      .map(([m,v,bc,tc,tag])=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid #F9FAFB;font-size:.82rem"><span style="font-weight:500">${m}</span><span style="color:#374151">${v}</span><span style="padding:1px 7px;border-radius:10px;font-size:.7rem;font-weight:500;background:${bc};color:${tc}">${tag}</span></div>`).join('')}
+      <div style="display:flex;justify-content:space-between;padding-top:.4rem;font-size:.82rem;font-weight:600;border-top:1px solid #E8F5EF"><span>Total</span><span style="color:#059669">1,530.000 oz</span></div>
+    </div>`
+    default: return `<p style="font-size:.82rem;color:#9CA3AF;text-align:center;padding:1rem 0">Widget content</p>`
+  }
+}
+
+// ── ERP DASHBOARD (customizable widget grid) ──
+function buildErpDashboard(pgId, uid) {
+  const widgets = getDashWidgets(uid)
+  const isEdit = !!dashEditMode[uid]
+
+  const kpiRow = `<div class="metrics-grid">
+    <div class="metric-card m-green"><div class="m-label">Month Income</div><div class="m-value">USD 8,29,642.27</div></div>
+    <div class="metric-card m-red"><div class="m-label">Month Expense</div><div class="m-value">USD 0</div></div>
+    <div class="metric-card m-teal"><div class="m-label">Month Profit</div><div class="m-value">USD 8,29,642.27</div></div>
+    <div class="metric-card m-blue"><div class="m-label">Vendors at Risk</div><div class="m-value">0 vendors</div></div>
+  </div>`
+
+  const widgetGrid = widgets.length === 0
+    ? `<div style="text-align:center;padding:3rem 1rem;background:#F9FAFB;border-radius:.75rem">
+        <p style="font-size:2rem;margin-bottom:.5rem">📊</p>
+        <p style="color:var(--muted);font-size:.9rem;margin-bottom:1rem">No widgets on your dashboard yet.</p>
+        <button class="btn btn-primary btn-sm" onclick="openCustomize(${uid})">+ Add Widgets</button>
+       </div>`
+    : `<div class="widget-grid" id="widget-grid-${uid}" ondragover="event.preventDefault()">
+        ${widgets.map((wid, idx) => {
+          const meta = ERP_DASH_WIDGETS.find(w => w.id === wid)
+          if (!meta) return ''
+          const span = meta.cols >= 2 ? 'span-2' : ''
+          return `<div class="widget-card ${span}" draggable="${isEdit}" id="wcard-${uid}-${wid}"
+            ondragstart="dashDragSrc=${idx}"
+            ondrop="handleDashDrop(event,${uid},${idx})" ondragover="event.preventDefault()">
+            ${isEdit ? `<button class="widget-remove" onclick="removeWidget(${uid},'${wid}')">✕</button>` : ''}
+            <div class="widget-head">
+              <span class="widget-icon">${meta.icon}</span>
+              <span class="widget-title">${meta.label}</span>
+              ${isEdit ? '<span class="widget-drag" style="margin-left:auto;font-size:14px">⠿</span>' : ''}
+            </div>
+            ${renderWidget(wid)}
+          </div>`
+        }).join('')}
+       </div>`
+
+  return `<div class="page" style="flex-direction:column" id="${pgId}">
+    <div class="erp-header">
+      <h2>📊 ERP – Dashboard</h2>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn btn-secondary btn-sm" onclick="toggleDashEdit(${uid})">${isEdit ? 'Done' : '⠿ Arrange'}</button>
+        <button class="btn btn-primary btn-sm" onclick="openCustomize(${uid})">+ Customize</button>
+      </div>
+    </div>
+    <div class="erp-body">
+      ${isEdit ? `<div style="background:linear-gradient(90deg,#DCFCE7,#F0FDF4);border:1px solid #A7F3D0;border-radius:.5rem;padding:.6rem 1rem;margin-bottom:1rem;font-size:.82rem;color:#065f46">↕ Drag widgets to rearrange. Click ✕ to remove. Click <strong>Done</strong> when finished.</div>` : ''}
+      ${kpiRow}
+      ${widgetGrid}
+    </div>
+  </div>`
+}
+
+let dashDragSrc = null
+
+function toggleDashEdit(uid) {
+  dashEditMode[uid] = !dashEditMode[uid]
+  rebuildUserErpDash(uid)
+}
+
+function removeWidget(uid, wid) {
+  dashState[uid] = getDashWidgets(uid).filter(w => w !== wid)
+  rebuildUserErpDash(uid)
+}
+
+function handleDashDrop(event, uid, toIdx) {
+  event.preventDefault()
+  if (dashDragSrc === null || dashDragSrc === toIdx) return
+  const widgets = getDashWidgets(uid)
+  const moved = widgets.splice(dashDragSrc, 1)[0]
+  widgets.splice(toIdx, 0, moved)
+  dashDragSrc = null
+  rebuildUserErpDash(uid)
+}
+
+function rebuildUserErpDash(uid) {
+  const pg = document.getElementById(`u-erp-dashboard`)
+  if (!pg) return
+  const newPg = document.createElement('div')
+  newPg.innerHTML = buildErpDashboard('u-erp-dashboard', uid)
+  const fresh = newPg.firstChild
+  fresh.className = pg.className
+  pg.parentNode.replaceChild(fresh, pg)
+  // keep active if it was
+  if (document.querySelector('#user-content-area .page.active')?.id === 'u-erp-dashboard') {
+    document.getElementById('u-erp-dashboard').classList.add('active')
+  }
+}
+
+// ── CUSTOMIZE MODAL ──
+function openCustomize(uid) {
+  customizeForUser = uid
+  customizePickSelected = [...getDashWidgets(uid)]
+  const body = document.getElementById('customize-widget-list')
+  body.innerHTML = ERP_DASH_WIDGETS.map(w => {
+    const on = customizePickSelected.includes(w.id)
+    return `<div class="widget-pick${on?' selected':''}" id="wpick-${w.id}" onclick="toggleWidgetPick('${w.id}')">
+      <span class="widget-pick-icon">${w.icon}</span>
+      <div style="flex:1">
+        <div class="widget-pick-label">${w.label}</div>
+        <div class="widget-pick-desc">${w.desc}</div>
+      </div>
+      ${on ? '<span class="widget-pick-check">✓</span>' : ''}
+    </div>`
+  }).join('')
+  document.getElementById('customize-modal').classList.add('open')
+}
+
+function toggleWidgetPick(wid) {
+  const el = document.getElementById('wpick-'+wid)
+  if (customizePickSelected.includes(wid)) {
+    customizePickSelected = customizePickSelected.filter(x => x !== wid)
+    el.classList.remove('selected')
+    el.querySelector('.widget-pick-check')?.remove()
+  } else {
+    customizePickSelected.push(wid)
+    el.classList.add('selected')
+    if (!el.querySelector('.widget-pick-check')) {
+      const chk = document.createElement('span')
+      chk.className = 'widget-pick-check'; chk.textContent = '✓'
+      el.appendChild(chk)
+    }
+  }
+}
+
+function applyCustomize() {
+  if (customizeForUser === null) return
+  const current = getDashWidgets(customizeForUser)
+  const ordered = [...customizePickSelected].sort((a,b) => {
+    const ai = current.indexOf(a), bi = current.indexOf(b)
+    if (ai !== -1 && bi !== -1) return ai - bi
+    if (ai !== -1) return -1
+    if (bi !== -1) return 1
+    return ERP_DASH_WIDGETS.findIndex(w => w.id===a) - ERP_DASH_WIDGETS.findIndex(w => w.id===b)
+  })
+  dashState[customizeForUser] = ordered
+  closeCustomize()
+  rebuildUserErpDash(customizeForUser)
+}
+
+function closeCustomize() {
+  document.getElementById('customize-modal').classList.remove('open')
+}
+
+// ── USER VIEW ──
+function buildUserView(uid) {
+  const u = users.find(x => x.id===uid)
+  const p = u.perms || {}
+  const nav = document.getElementById('user-sidebar-nav')
+  const ca = document.getElementById('user-content-area')
+
+  let navHtml = `<div style="padding:10px 14px 6px;border-bottom:1px solid var(--border);margin-bottom:4px">
+    <div style="font-size:12px;font-weight:600;color:var(--text)">${u.fname} ${u.lname}</div>
+    <div style="font-size:10px;color:var(--muted)">${u.dept} · ${u.role}</div>
+  </div>`
+
+  let contentHtml = ''
+  let firstPage = null
+
+  if (p.overview && p.overview.on) {
+    const pg = 'u-overview'; if (!firstPage) firstPage = pg
+    navHtml += `<div class="nav-item" onclick="uShowPage('${pg}',this)">Overview</div>`
+    contentHtml += `<div class="page generic-content" id="${pg}"><h1>Overview</h1><p>Main overview dashboard.</p><div class="content-card"><p style="font-size:13px;color:var(--muted)">Welcome, ${u.fname}!</p></div></div>`
+  }
+  if (p.chat && p.chat.on) {
+    navHtml += `<div class="nav-item" onclick="uShowPage('u-chat',this)">Chat <span class="nav-badge">3</span></div>`
+    contentHtml += `<div class="page generic-content" id="u-chat"><h1>Chat</h1><p>Messages and communication.</p></div>`
+  }
+
+  const depts = ['hr','compliance','production','finance','sales','operations','training']
+  const deptLabels = {hr:'HR',compliance:'Compliance',production:'Production',finance:'Finance',sales:'Sales',operations:'Operations',training:'Training'}
+  const hasDept = depts.some(d => p[d] && p[d].on)
+  if (hasDept) {
+    navHtml += `<div class="sec-head" onclick="toggleSec('u-depts')"><span>DEPARTMENTS</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,6 8,10 12,6"/></svg></div><div class="sec-body open" id="u-depts">`
+    depts.forEach(d => {
+      if (p[d] && p[d].on) {
+        const pg = 'u-'+d; if (!firstPage) firstPage = pg
+        navHtml += `<div class="nav-item" onclick="uShowPage('${pg}',this)">${deptLabels[d]}</div>`
+        contentHtml += `<div class="page generic-content" id="${pg}"><h1>${deptLabels[d]}</h1><p>${deptLabels[d]} module access.</p><div class="content-card"><p style="font-size:13px;color:var(--muted)">You have access to the ${deptLabels[d]} module.</p></div></div>`
+      }
+    })
+    navHtml += `</div>`
+  }
+
+  // ERP section — all sub-items accessible when erp is on
+  if (p.erp && p.erp.on) {
+    if (!firstPage) firstPage = 'u-erp-dashboard'
+    navHtml += `<div class="sec-head" onclick="toggleSec('u-erp')"><span>ERP</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,6 8,10 12,6"/></svg></div><div class="sec-body open" id="u-erp">`
+    Object.entries(ERP_SUBS).forEach(([sk, sl]) => {
+      const pg = 'u-erp-'+sk
+      navHtml += `<div class="nav-item" onclick="uShowPage('${pg}',this)">${sl}</div>`
+      if (sk === 'dashboard') {
+        contentHtml += buildErpDashboard(pg, uid)
+      } else {
+        contentHtml += `<div class="page" style="flex-direction:column" id="${pg}">
+          <div class="erp-header"><h2>📊 ERP – ${sl}</h2></div>
+          <div class="erp-body"><div class="content-card"><p style="font-size:13px;color:var(--muted)">${sl} content will appear here.</p></div></div>
+        </div>`
+      }
+    })
+    navHtml += `</div>`
+  }
+
+  nav.innerHTML = navHtml
+  ca.innerHTML = contentHtml || `<div class="access-denied"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><h3>No Access</h3><p>This user has no module permissions assigned yet.</p></div>`
+
+  if (firstPage) {
+    document.getElementById(firstPage)?.classList.add('active')
+    nav.querySelector('.nav-item')?.classList.add('active')
+  }
+}
+
+function uShowPage(id, el) {
+  document.querySelectorAll('#user-content-area .page').forEach(p => p.classList.remove('active'))
+  document.querySelectorAll('#user-sidebar-nav .nav-item').forEach(n => n.classList.remove('active'))
+  document.getElementById(id)?.classList.add('active')
+  el?.classList.add('active')
+}
+
+// ── NAV HELPERS ──
+function showAdminPage(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
+  document.getElementById('admin-'+id).classList.add('active')
+  document.querySelectorAll('#s-admin .nav-item').forEach(n => n.classList.remove('active'))
+  el?.classList.add('active')
+}
+
+function toggleSec(key) {
+  const sec = document.getElementById(key)
+  if (!sec) return
+  const label = sec.previousElementSibling
+  const isOpen = sec.classList.contains('open')
+  sec.classList.toggle('open', !isOpen)
+  sec.classList.toggle('closed', isOpen)
+  label?.classList.toggle('collapsed', isOpen)
+}
+
+function switchTopTab(tab, el) {
+  document.querySelectorAll('.topnav-tab').forEach(t => t.classList.remove('active'))
+  el.classList.add('active')
+  if (tab === 'admin') {
+    document.getElementById('view-admin').style.display = 'flex'
+    document.getElementById('view-user').style.display = 'none'
+  } else {
+    document.getElementById('view-admin').style.display = 'none'
+    document.getElementById('view-user').style.display = 'flex'
+    showUserPicker()
+  }
+}
+
+function showUserPicker() {
+  const ca = document.getElementById('user-content-area')
+  const nav = document.getElementById('user-sidebar-nav')
+  nav.innerHTML = `<div style="padding:12px 14px">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;font-weight:500">PREVIEW AS USER</div>
+    ${users.map(u => {
+      const [bg,tc] = getColor(u.id)
+      return `<div onclick="selectUserView(${u.id})" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;cursor:pointer;border:1px solid var(--border);margin-bottom:6px;background:var(--white)" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='var(--white)'">
+        <div style="width:28px;height:28px;border-radius:50%;background:${bg};color:${tc};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">${getInitials(u)}</div>
+        <div><div style="font-size:12px;font-weight:500">${u.fname} ${u.lname}</div><div style="font-size:11px;color:var(--muted)">${u.dept}</div></div>
+      </div>`
+    }).join('')}
+  </div>`
+  ca.innerHTML = `<div style="display:flex;flex:1;align-items:center;justify-content:center;color:var(--muted);flex-direction:column;gap:8px"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:.3"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><p style="font-size:13px">Select a user to preview their view</p></div>`
+}
+
+function selectUserView(id) {
+  buildUserView(id)
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast')
+  t.textContent = msg
+  t.classList.add('show')
+  setTimeout(() => t.classList.remove('show'), 2500)
+}
+
+// ── INIT ──
+renderUsers()
+renderPermUserList()
+</script>
+</body>
+</html>

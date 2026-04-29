@@ -4836,106 +4836,320 @@ router.get('/reports/dashboard', protect, async (req, res) => {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
     const today = new Date()
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
-    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+    const { startDate, endDate } = req.query
+    const periodStart = startDate ? new Date(startDate) : new Date(today.getFullYear(), today.getMonth(), 1)
+    const periodEnd = endDate ? new Date(endDate) : new Date(today.getFullYear(), today.getMonth() + 1, 0)
+    periodEnd.setHours(23, 59, 59, 999)
 
-    const monthLedger = await Ledger.find({ date: { $gte: monthStart, $lte: monthEnd }, isDeleted: { $ne: true } })
-      .populate('debitAccountId', 'accountType')
-      .populate('creditAccountId', 'accountType')
+    // --- Period ledger entries (for income / expense / cash-flow) ---
+    const periodLedger = await Ledger.find({
+      date: { $gte: periodStart, $lte: periodEnd },
+      isDeleted: { $ne: true },
+    })
+      .populate('debitAccountId', 'accountCode accountName accountType')
+      .populate('creditAccountId', 'accountCode accountName accountType')
 
-    let income = 0,
-      expense = 0
-    monthLedger.forEach((entry) => {
-      if (entry.creditAccountId.accountType === 'Income') income += entry.amount
-      if (entry.debitAccountId.accountType === 'Expense') expense += entry.amount
+    let income = 0
+    let expenseTotal = 0
+    const expenseByAccount = {}
+    periodLedger.forEach((e) => {
+      const debitType = e.debitAccountId?.accountType
+      const creditType = e.creditAccountId?.accountType
+      if (creditType === 'Income') income += Number(e.amount || 0)
+      if (debitType === 'Expense') {
+        expenseTotal += Number(e.amount || 0)
+        const key = e.debitAccountId?.accountName || 'Other'
+        expenseByAccount[key] = (expenseByAccount[key] || 0) + Number(e.amount || 0)
+      }
+    })
+    const expenseBreakdown = Object.entries(expenseByAccount)
+      .map(([name, amount]) => ({ name, amount: toMoney(amount) }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 6)
+
+    // --- Cash flow: net movement in Asset accounts ---
+    let cashInflow = 0
+    let cashOutflow = 0
+    periodLedger.forEach((e) => {
+      const debitType = e.debitAccountId?.accountType
+      const creditType = e.creditAccountId?.accountType
+      if (debitType === 'Asset') cashInflow += Number(e.amount || 0)
+      if (creditType === 'Asset') cashOutflow += Number(e.amount || 0)
     })
 
-    const allEntries = await Ledger.find({ isDeleted: { $ne: true } })
-      .populate('debitAccountId', 'accountCode accountName')
-      .populate('creditAccountId', 'accountCode accountName')
-      .sort({ date: -1 })
-      .limit(10)
-    const assets = await ChartOfAccount.find({ accountType: 'Asset' }).select('accountName accountCode')
-    const liabilities = await ChartOfAccount.find({ accountType: 'Liability' }).select('accountName accountCode')
-    const bankAccounts = await ChartOfAccount.find({ isActive: true, accountType: 'Asset', $or: [{ accountName: /cash|bank/i }, { accountCode: /10/ }] })
-    const customers = await Customer.find({ isActive: true }).populate('ledgerAccountId', 'accountCode accountName')
-    const vendors = await Vendor.find({ isActive: true, deletedAt: null }).populate('ledgerAccountId', 'accountCode accountName')
-    const inventoryLowStock = await InventoryItem.find({ isDeleted: { $ne: true }, $expr: { $lt: ['$quantity', '$minThreshold'] } }).limit(10)
-
-    const cashBankBalances = await Promise.all(bankAccounts.map(async (account) => {
-      const balance = await getOutstandingForAccount(account._id)
-      return {
-        accountCode: account.accountCode,
-        accountName: account.accountName,
-        balance: toMoney(balance),
-      }
-    }))
-
-    const customerOutstanding = await Promise.all(customers.map(async (customer) => {
-      const aging = await getAgingForAccount(customer.ledgerAccountId?._id)
-      return {
-        customerName: customer.name,
-        outstanding: toMoney(aging.total),
-      }
-    }))
-
-    const vendorOutstanding = await Promise.all(vendors.map(async (vendor) => {
-      const out = await getOutstandingForAccount(vendor.ledgerAccountId?._id)
-      return {
-        vendorName: vendor.name,
-        outstanding: toMoney(Math.abs(out)),
-      }
-    }))
-
-    const vendorDocumentExpiry = buildDocumentExpiryBuckets(vendors, today)
-    const complianceRows = vendors.map((vendor) => evaluateVendorCompliance(vendor, today))
-    const vendorComplianceRisk = {
-      nonCompliant: complianceRows.filter((row) => !row.compliant).length,
-      averageScore: complianceRows.length > 0
-        ? toMoney(complianceRows.reduce((sum, row) => sum + Number(row.complianceScore || 0), 0) / complianceRows.length)
-        : 0,
-    }
-
-    const monthlyPnL = []
+    // Monthly cash-flow bar chart data (last 6 months)
+    const monthlyCashFlow = []
     for (let i = 5; i >= 0; i -= 1) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
-      const ms = new Date(d.getFullYear(), d.getMonth(), 1)
-      const me = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+      const ms = new Date(today.getFullYear(), today.getMonth() - i, 1)
+      const me = new Date(today.getFullYear(), today.getMonth() - i + 1, 0)
+      me.setHours(23, 59, 59, 999)
       const mEntries = await Ledger.find({ date: { $gte: ms, $lte: me }, isDeleted: { $ne: true } })
         .populate('debitAccountId', 'accountType')
         .populate('creditAccountId', 'accountType')
-      let inc = 0
-      let exp = 0
+      let inc = 0; let exp = 0; let cfIn = 0; let cfOut = 0
       mEntries.forEach((e) => {
         if (e.creditAccountId?.accountType === 'Income') inc += Number(e.amount || 0)
         if (e.debitAccountId?.accountType === 'Expense') exp += Number(e.amount || 0)
+        if (e.debitAccountId?.accountType === 'Asset') cfIn += Number(e.amount || 0)
+        if (e.creditAccountId?.accountType === 'Asset') cfOut += Number(e.amount || 0)
       })
-      monthlyPnL.push({ month: ms.toLocaleString('en-US', { month: 'short' }), income: toMoney(inc), expense: toMoney(exp), profit: toMoney(inc - exp) })
+      monthlyCashFlow.push({
+        month: ms.toLocaleString('en-US', { month: 'short', year: '2-digit' }),
+        income: toMoney(inc),
+        expense: toMoney(exp),
+        cashIn: toMoney(cfIn),
+        cashOut: toMoney(cfOut),
+        net: toMoney(cfIn - cfOut),
+      })
     }
+
+    // --- Bank & Cash balances ---
+    const bankAccounts = await ChartOfAccount.find({
+      isActive: true,
+      accountType: 'Asset',
+      $or: [{ accountName: /cash|bank/i }, { accountCode: /^10/ }],
+    })
+    const cashBankBalances = await Promise.all(bankAccounts.map(async (account) => {
+      const balance = await getOutstandingForAccount(account._id)
+      return { accountCode: account.accountCode, accountName: account.accountName, balance: toMoney(balance) }
+    }))
+    const totalBankBalance = cashBankBalances.reduce((s, a) => s + Number(a.balance || 0), 0)
+    const bankRows = cashBankBalances.filter((a) => /bank/i.test(a.accountName))
+    const cashRows = cashBankBalances.filter((a) => /cash/i.test(a.accountName))
+
+    // --- Assets & Liabilities snapshot ---
+    const [assets, liabilities] = await Promise.all([
+      ChartOfAccount.find({ accountType: 'Asset' }).select('accountName accountCode'),
+      ChartOfAccount.find({ accountType: 'Liability' }).select('accountName accountCode'),
+    ])
+
+    // --- AP & AR (via customer / vendor ledger accounts) ---
+    const customers = await Customer.find({ isActive: true }).populate('ledgerAccountId', 'accountCode accountName')
+    const vendors = await Vendor.find({ isActive: true, deletedAt: null }).populate('ledgerAccountId', 'accountCode accountName')
+
+    const customerOutstanding = await Promise.all(customers.map(async (c) => {
+      const aging = await getAgingForAccount(c.ledgerAccountId?._id)
+      return { customerName: c.name, outstanding: toMoney(aging.total) }
+    }))
+    const vendorOutstanding = await Promise.all(vendors.map(async (v) => {
+      const out = await getOutstandingForAccount(v.ledgerAccountId?._id)
+      return { vendorName: v.name, outstanding: toMoney(Math.abs(out)) }
+    }))
+    const totalAR = customerOutstanding.reduce((s, r) => s + Number(r.outstanding || 0), 0)
+    const totalAP = vendorOutstanding.reduce((s, r) => s + Number(r.outstanding || 0), 0)
+
+    // --- Customer margin: expenses and cash-flow per customer (no profit/income) ---
+    const customerMargins = await Promise.all(customers.map(async (c) => {
+      if (!c.ledgerAccountId?._id) return null
+      const cLedger = await Ledger.find({
+        $or: [{ debitAccountId: c.ledgerAccountId._id }, { creditAccountId: c.ledgerAccountId._id }],
+        date: { $gte: periodStart, $lte: periodEnd },
+        isDeleted: { $ne: true },
+      }).populate('debitAccountId', 'accountType').populate('creditAccountId', 'accountType')
+      let custExpense = 0; let custCashIn = 0; let custCashOut = 0
+      cLedger.forEach((e) => {
+        if (e.debitAccountId?.accountType === 'Expense') custExpense += Number(e.amount || 0)
+        if (e.debitAccountId?.accountType === 'Asset') custCashIn += Number(e.amount || 0)
+        if (e.creditAccountId?.accountType === 'Asset') custCashOut += Number(e.amount || 0)
+      })
+      if (custExpense === 0 && custCashIn === 0 && custCashOut === 0) return null
+      return {
+        customerName: c.name,
+        expenses: toMoney(custExpense),
+        cashInflow: toMoney(custCashIn),
+        cashOutflow: toMoney(custCashOut),
+        netCashFlow: toMoney(custCashIn - custCashOut),
+      }
+    }))
+    const filteredCustomerMargins = customerMargins.filter(Boolean).slice(0, 10)
+
+    // --- Supplier margins via mapped purchase/sales accounts ---
+    const purchaseMappings = await AccountMapping.find({ isActive: true, mappingType: { $in: ['purchase', 'expense', 'vendor_payment'] } })
+      .populate('debitAccountId', 'accountCode accountName accountType')
+      .populate('creditAccountId', 'accountCode accountName accountType')
+    const supplierAccountIds = [...new Set(purchaseMappings.map((m) => String(m.debitAccountId?._id || '')))]
+    let supplierExpenseTotal = 0
+    let supplierCashOut = 0
+    if (supplierAccountIds.length) {
+      const suppEntries = await Ledger.find({
+        date: { $gte: periodStart, $lte: periodEnd },
+        isDeleted: { $ne: true },
+        $or: [
+          { debitAccountId: { $in: supplierAccountIds } },
+          { creditAccountId: { $in: supplierAccountIds } },
+        ],
+      }).populate('debitAccountId', 'accountType').populate('creditAccountId', 'accountType')
+      suppEntries.forEach((e) => {
+        if (e.debitAccountId?.accountType === 'Expense') supplierExpenseTotal += Number(e.amount || 0)
+        if (e.creditAccountId?.accountType === 'Asset') supplierCashOut += Number(e.amount || 0)
+      })
+    }
+
+    // --- Fixing positions from DirectDeal ---
+    const fixingDeals = await DirectDeal.find({
+      entryType: 'fixing',
+      isDeleted: { $ne: true },
+      docDate: { $gte: periodStart, $lte: periodEnd },
+    })
+    const fixingByMetal = {}
+    fixingDeals.forEach((deal) => {
+      deal.lineItems.forEach((line) => {
+        const metal = line.metal || 'XAU'
+        if (!fixingByMetal[metal]) fixingByMetal[metal] = { qty: 0, amount: 0 }
+        fixingByMetal[metal].qty += Number(line.eqOz || line.qty || 0)
+        fixingByMetal[metal].amount += Number(line.amount || 0)
+      })
+    })
+    const fixingPositions = Object.entries(fixingByMetal).map(([metal, data]) => ({
+      metal,
+      qty: toMoney(data.qty),
+      amount: toMoney(data.amount),
+    }))
+
+    // --- Volume traded from StockMovement + DirectDeal lines ---
+    const stockMoves = await StockMovement.find({
+      isDeleted: { $ne: true },
+      date: { $gte: periodStart, $lte: periodEnd },
+    })
+    const volumeByMetal = {}
+    stockMoves.forEach((m) => {
+      const metal = String(m.category || m.metal || 'Other').toUpperCase()
+      if (!volumeByMetal[metal]) volumeByMetal[metal] = { qty: 0, value: 0 }
+      volumeByMetal[metal].qty += Number(m.quantity || 0)
+      volumeByMetal[metal].value += Number(m.totalValue || m.unitCost * m.quantity || 0)
+    })
+    fixingDeals.forEach((deal) => {
+      deal.lineItems.forEach((line) => {
+        const metal = line.metal || 'XAU'
+        if (!volumeByMetal[metal]) volumeByMetal[metal] = { qty: 0, value: 0 }
+        volumeByMetal[metal].qty += Number(line.eqOz || line.qty || 0)
+        volumeByMetal[metal].value += Number(line.amount || 0)
+      })
+    })
+    const volumeTraded = Object.entries(volumeByMetal).map(([metal, data]) => ({
+      metal,
+      qty: toMoney(data.qty),
+      value: toMoney(data.value),
+    }))
+
+    // --- Metal rates (latest) ---
+    const latestRate = await MetalRate.findOne().sort({ updatedAt: -1 })
+    // Source of truth for dashboard metals: stock type records from Inventory (exclude product rows)
+    const stockTypeDocs = await InventoryItem.find({
+      isDeleted: { $ne: true },
+      $and: [
+        { category: /mainStock=/i },
+        { category: { $not: /recordType=product/i } },
+      ],
+    }).select('category unitCost currency updatedAt')
+
+    const stockPriceMap = {}
+    stockTypeDocs.forEach((doc) => {
+      const raw = String(doc.category || '')
+      const meta = {}
+      raw.split(';').forEach((pair) => {
+        const [key, ...rest] = pair.split('=')
+        if (!key || rest.length === 0) return
+        meta[String(key).trim()] = rest.join('=').trim()
+      })
+      const metal = String(meta.mainStock || meta.metalType || '').trim().toLowerCase()
+      if (!metal) return
+
+      const price = Number(doc.unitCost || 0)
+      if (!Number.isFinite(price) || price <= 0) return
+
+      const prev = stockPriceMap[metal]
+      if (!prev || new Date(doc.updatedAt || 0) > new Date(prev.updatedAt || 0)) {
+        stockPriceMap[metal] = {
+          price,
+          currency: String(doc.currency || meta.priceCurrency || 'USD').toUpperCase(),
+          unit: String(meta.priceUnit || 'OZ').toUpperCase(),
+          updatedAt: doc.updatedAt || null,
+        }
+      }
+    })
+
+    const latestStockUpdatedAt = Object.values(stockPriceMap)
+      .map((entry) => entry.updatedAt)
+      .filter(Boolean)
+      .sort((a, b) => new Date(b) - new Date(a))[0] || null
+
+    const metalRates = {
+      // Prefer inventory stock-type prices; fallback to legacy metal-rates for compatibility.
+      gold: stockPriceMap.gold?.price || (latestRate ? latestRate.goldPrice : 0),
+      silver: stockPriceMap.silver?.price || (latestRate ? latestRate.silverPrice : 0),
+      platinum: stockPriceMap.platinum?.price || 0,
+      palladium: stockPriceMap.palladium?.price || 0,
+      currency: stockPriceMap.gold?.currency || stockPriceMap.silver?.currency || (latestRate ? latestRate.priceCurrency : 'USD'),
+      updatedAt: latestStockUpdatedAt || (latestRate ? latestRate.updatedAt : null),
+      stockPrices: stockPriceMap,
+    }
+
+    // --- Vendor compliance / doc expiry ---
+    const vendorDocumentExpiry = buildDocumentExpiryBuckets(vendors, today)
+    const complianceRows = vendors.map((v) => evaluateVendorCompliance(v, today))
+    const vendorComplianceRisk = {
+      nonCompliant: complianceRows.filter((r) => !r.compliant).length,
+      averageScore: complianceRows.length > 0
+        ? toMoney(complianceRows.reduce((s, r) => s + Number(r.complianceScore || 0), 0) / complianceRows.length)
+        : 0,
+    }
+
+    // --- Low stock ---
+    const inventoryLowStock = await InventoryItem.find({
+      isDeleted: { $ne: true },
+      $expr: { $lt: ['$quantity', '$minThreshold'] },
+    }).select('name sku quantity minThreshold').limit(10)
 
     res.json({
       success: true,
+      period: { startDate: periodStart, endDate: periodEnd },
       summary: {
-        monthIncome: income,
-        monthExpense: expense,
-        monthProfit: income - expense,
-        recentTransactions: allEntries.length,
+        monthIncome: toMoney(income),
+        monthExpense: toMoney(expenseTotal),
+        monthProfit: toMoney(income - expenseTotal),
       },
-      cashBankBalances,
-      totalAssets: assets.length,
-      totalLiabilities: liabilities.length,
-      outstandingCustomers: customerOutstanding.filter((x) => x.outstanding > 0),
-      pendingVendorPayments: vendorOutstanding.filter((x) => x.outstanding > 0),
-      vendorDocumentExpiry: vendorDocumentExpiry.buckets,
-      vendorComplianceRisk,
-      monthlyPnL,
-      lowStockAlerts: inventoryLowStock,
-      recentTransactions: allEntries,
+      metalRates,
+      bankBalances: bankRows,
+      cashBalances: cashRows,
+      allCashBankBalances: cashBankBalances,
+      totalBankBalance: toMoney(totalBankBalance),
+      cashFlow: {
+        inflow: toMoney(cashInflow),
+        outflow: toMoney(cashOutflow),
+        net: toMoney(cashInflow - cashOutflow),
+        monthly: monthlyCashFlow,
+      },
+      expenses: {
+        total: toMoney(expenseTotal),
+        breakdown: expenseBreakdown,
+      },
+      apAr: {
+        totalAR: toMoney(totalAR),
+        totalAP: toMoney(totalAP),
+        netPosition: toMoney(totalAR - totalAP),
+        arCount: customerOutstanding.filter((x) => x.outstanding > 0).length,
+        apCount: vendorOutstanding.filter((x) => x.outstanding > 0).length,
+        customerOutstanding: customerOutstanding.filter((x) => x.outstanding > 0).slice(0, 10),
+        vendorOutstanding: vendorOutstanding.filter((x) => x.outstanding > 0).slice(0, 10),
+      },
+      customerMargins: filteredCustomerMargins,
+      supplierMargins: {
+        expenses: toMoney(supplierExpenseTotal),
+        cashOutflow: toMoney(supplierCashOut),
+        mappingsCount: purchaseMappings.length,
+      },
+      fixingPositions,
+      volumeTraded,
       assets: assets.slice(0, 5),
       liabilities: liabilities.slice(0, 5),
+      vendorDocumentExpiry: vendorDocumentExpiry.buckets,
+      vendorComplianceRisk,
+      lowStockAlerts: inventoryLowStock,
+      generatedAt: new Date(),
     })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error', detail: err.message })
   }
 })
 

@@ -153,7 +153,7 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab) {
       return <OverviewTab onNavigate={setActiveTab} />
 
     case 'chat':
-      return <ChatTab onUnreadChange={setChatUnread} />
+      return <ChatTab onUnreadChange={setChatUnread} onBack={() => setActiveTab('erp')} />
 
     case 'admin':
       return <AdminTab />
@@ -180,7 +180,7 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab) {
       return <TrainingTab />
 
     case 'erp':
-      return <ERPTab focusTab={erpSubTab} />
+      return <ERPTab focusTab={erpSubTab} onNavigateMain={setActiveTab} />
 
     default:
       return (

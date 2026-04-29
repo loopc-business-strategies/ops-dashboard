@@ -184,7 +184,7 @@ function IBtn({ onClick, title, children, style = {} }) {
 // ─────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────
-function ChatTab({ onUnreadChange }) {
+function ChatTab({ onUnreadChange, onBack }) {
   const { user }  = useAuth()
   const perms     = usePermissions()
   const { t } = useLanguage()
@@ -310,10 +310,19 @@ function ChatTab({ onUnreadChange }) {
         {/* Top */}
         <div style={{ padding:'16px 16px 12px' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-            <div>
-              <div style={{ fontSize:18, fontWeight:700, color:'#1c2a33', letterSpacing:'-0.3px' }}>💬 {t('chat')}</div>
-              <div style={{ fontSize:11, color:'#334155', marginTop:2 }}>
-                {new Date().toLocaleDateString('en-US',{ weekday:'short', day:'numeric', month:'short', year:'numeric' })}
+            <div style={{ display:'flex', alignItems:'center', gap: 10 }}>
+              {onBack && (
+                <button
+                  onClick={onBack}
+                  title="Back to Dashboard"
+                  style={{ background: 'none', border: '1px solid #CBD5E1', borderRadius: '0.4rem', padding: '0.2rem 0.3rem', cursor: 'pointer', fontSize: '1rem', color: '#374151', display: 'flex', alignItems: 'center', fontFamily: 'inherit', lineHeight: 1 }}
+                >←</button>
+              )}
+              <div>
+                <div style={{ fontSize:18, fontWeight:700, color:'#1c2a33', letterSpacing:'-0.3px' }}>💬 {t('chat')}</div>
+                <div style={{ fontSize:11, color:'#334155', marginTop:2 }}>
+                  {new Date().toLocaleDateString('en-US',{ weekday:'short', day:'numeric', month:'short', year:'numeric' })}
+                </div>
               </div>
             </div>
             <div style={{ display:'flex', gap:6 }}>

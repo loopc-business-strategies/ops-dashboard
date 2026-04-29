@@ -228,16 +228,16 @@ const C = {
 }
 
 const ERP_DASH_ALL_WIDGETS = [
-  { id: 'margins',  label: 'Customer & Supplier Margins',  icon: '📊', desc: 'Expense & cash flow by customer/supplier', cols: 2 },
-  { id: 'metals',   label: 'Current Metal Prices',          icon: '🥇', desc: 'Live gold, silver, platinum, palladium',    cols: 1 },
-  { id: 'bank',     label: 'Bank & Cash Balances',          icon: '🏦', desc: 'All account balances overview',             cols: 1 },
-  { id: 'cashflow', label: 'Cash Flow',                     icon: '💸', desc: 'Monthly inflow / outflow bar chart',        cols: 2 },
-  { id: 'expenses', label: 'Expenses',                      icon: '📋', desc: 'Expense breakdown by category',             cols: 1 },
-  { id: 'volume',   label: 'Total Volume Traded',           icon: '📦', desc: 'Trade volume by metal type',                cols: 1 },
-  { id: 'apar',     label: 'Accounts Payable & Receivable', icon: '⚖️', desc: 'Live AP / AR with outstanding breakdown',   cols: 3 },
-  { id: 'fixing',   label: 'Fixing Position Summary',       icon: '📌', desc: 'Open fixing positions by metal',            cols: 2, viewTab: 'fixing' },
-  { id: 'chat',     label: 'Chat',                          icon: '💬', desc: 'Recent team messages',                      cols: 1 },
-  { id: 'notif',    label: 'Notifications & Alerts',        icon: '🔔', desc: 'System alerts and reminders',               cols: 1 },
+  { id: 'margins',  label: 'Customer & Supplier Margins',  icon: '📊', color: '#e8f5ef', desc: 'Expense & cash flow by customer/supplier', cols: 2 },
+  { id: 'metals',   label: 'Current Metal Prices',          icon: '🥇', color: '#fef9c3', desc: 'Live gold, silver, platinum, palladium',    cols: 1 },
+  { id: 'bank',     label: 'Bank & Cash Balances',          icon: '🏦', color: '#dbeafe', desc: 'All account balances overview',             cols: 1, viewTab: 'bank' },
+  { id: 'cashflow', label: 'Cash Flow',                     icon: '💸', color: '#dcfce7', desc: 'Monthly inflow / outflow bar chart',        cols: 2 },
+  { id: 'expenses', label: 'Expenses',                      icon: '📋', color: '#fee2e2', desc: 'Expense breakdown by category',             cols: 1 },
+  { id: 'volume',   label: 'Total Volume Traded',           icon: '📦', color: '#e8f5ef', desc: 'Trade volume by metal type',                cols: 1 },
+  { id: 'apar',     label: 'Accounts Payable & Receivable', icon: '⚖️', color: '#fef3c7', desc: 'Live AP / AR with outstanding breakdown',   cols: 3, viewTab: 'apar' },
+  { id: 'fixing',   label: 'Fixing Position Summary',       icon: '📌', color: '#f0fdf4', desc: 'Open fixing positions by metal',            cols: 2, viewTab: 'fixing' },
+  { id: 'chat',     label: 'Chat',                          icon: '💬', color: '#eff6ff', desc: 'Recent team messages',                      cols: 1, viewTab: 'chat' },
+  { id: 'notif',    label: 'Notifications & Alerts',        icon: '🔔', color: '#fff7ed', desc: 'System alerts and reminders',               cols: 1, viewTab: 'notif' },
 ]
 const ERP_DASH_DEFAULT = ['margins', 'metals', 'bank', 'cashflow', 'expenses', 'volume', 'apar', 'fixing', 'chat', 'notif']
 const ERP_DASH_VALID_IDS = new Set(ERP_DASH_ALL_WIDGETS.map(w => w.id))
@@ -340,8 +340,7 @@ function fmtMoney(val, currency = '') {
   return currency ? `${currency} ${formatted}` : formatted
 }
 
-// ── Margins Widget — Customer / Supplier tabs ─────────────────
-function MarginsWidget({ dashboard }) {
+function MarginsWidget({ dashboard, onNavigate }) {
   const [tab, setTab] = useState('customers')
   const muted = '#6B7280'; const ink = '#111827'
   const customers = dashboard?.customerMargins || []
@@ -355,50 +354,60 @@ function MarginsWidget({ dashboard }) {
   })
   return (
     <div>
-      <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4', margin: '-0.75rem -1rem 0.625rem' }}>
+      <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4' }}>
         <div style={tabSt(tab === 'customers')} onClick={() => setTab('customers')}>Customer Margins</div>
         <div style={tabSt(tab === 'suppliers')} onClick={() => setTab('suppliers')}>Supplier Side</div>
       </div>
-      {tab === 'customers' ? (
-        customers.length === 0
-          ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No customer data for period.</p>
-          : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
-              <thead><tr style={{ borderBottom: '1px solid #F0FDF4' }}>
-                {['Customer', 'Expenses', 'Net CF'].map(h => (
-                  <th key={h} style={{ padding: '0.3rem 0.4rem', textAlign: h === 'Customer' ? 'left' : 'right', fontSize: '0.65rem', fontWeight: '700', color: muted }}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {customers.slice(0, 7).map((c, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #F9FAFB' }}>
-                    <td style={{ padding: '0.35rem 0.4rem', fontWeight: '500', color: ink }}>{c.customerName}</td>
-                    <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', color: '#DC2626' }}>{fmtMoney(c.expenses)}</td>
-                    <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: Number(c.netCashFlow || 0) >= 0 ? '#059669' : '#DC2626' }}>{fmtMoney(c.netCashFlow)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-      ) : (
-        <div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem' }}>
-            <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#FEF9C3' }}>
-              <p style={{ fontSize: '0.68rem', color: muted, marginBottom: '0.25rem', fontWeight: '600' }}>Total Expenses</p>
-              <p style={{ fontSize: '1.05rem', fontWeight: '700', color: '#92400E', margin: 0 }}>{fmtMoney(suppExp)}</p>
+      <div style={{ padding: '0.75rem 0.8125rem' }}>
+        {tab === 'customers' ? (
+          customers.length === 0
+            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No customer data for period.</p>
+            : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                <thead><tr style={{ borderBottom: '1px solid #F0FDF4' }}>
+                  {['Customer', 'Expenses', 'Net CF'].map(h => (
+                    <th key={h} style={{ padding: '0.3rem 0.4rem', textAlign: h === 'Customer' ? 'left' : 'right', fontSize: '0.65rem', fontWeight: '700', color: muted }}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {customers.slice(0, 7).map((c, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #F9FAFB' }}>
+                      <td style={{ padding: '0.35rem 0.4rem', fontWeight: '500', color: ink }}>{c.customerName}</td>
+                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', color: '#DC2626' }}>{fmtMoney(c.expenses)}</td>
+                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: Number(c.netCashFlow || 0) >= 0 ? '#059669' : '#DC2626' }}>{fmtMoney(c.netCashFlow)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+        ) : (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem' }}>
+              <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#FEF9C3' }}>
+                <p style={{ fontSize: '0.68rem', color: muted, marginBottom: '0.25rem', fontWeight: '600' }}>Total Expenses</p>
+                <p style={{ fontSize: '1.05rem', fontWeight: '700', color: '#92400E', margin: 0 }}>{fmtMoney(suppExp)}</p>
+              </div>
+              <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#FEE2E2' }}>
+                <p style={{ fontSize: '0.68rem', color: muted, marginBottom: '0.25rem', fontWeight: '600' }}>Cash Outflow</p>
+                <p style={{ fontSize: '1.05rem', fontWeight: '700', color: '#DC2626', margin: 0 }}>{fmtMoney(suppCash)}</p>
+              </div>
             </div>
-            <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#FEE2E2' }}>
-              <p style={{ fontSize: '0.68rem', color: muted, marginBottom: '0.25rem', fontWeight: '600' }}>Cash Outflow</p>
-              <p style={{ fontSize: '1.05rem', fontWeight: '700', color: '#DC2626', margin: 0 }}>{fmtMoney(suppCash)}</p>
-            </div>
+            <p style={{ fontSize: '0.72rem', color: muted, marginTop: '0.75rem', textAlign: 'center' }}>Based on account mappings for the period</p>
           </div>
-          <p style={{ fontSize: '0.72rem', color: muted, marginTop: '0.75rem', textAlign: 'center' }}>Based on account mappings for the period</p>
-        </div>
-      )}
+        )}
+        {onNavigate && (
+          <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
+            <button
+              onClick={() => onNavigate('customer-margin')}
+              style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
+            >↗ View Full Report</button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
 // ── AP/AR Widget — AR / AP tabs, full 3-col width ─────────────
-function APARWidget({ dashboard }) {
+function APARWidget({ dashboard, onNavigate }) {
   const [tab, setTab] = useState('ar')
   const muted = '#6B7280'; const ink = '#111827'
   const ap = dashboard?.apAr
@@ -412,49 +421,61 @@ function APARWidget({ dashboard }) {
   })
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '0.625rem' }}>
-        {[
-          { label: 'RECEIVABLE (AR)', val: ap?.totalAR, sub: `${ap?.arCount || 0} open`,    vc: '#16A34A', bg: '#DCFCE7' },
-          { label: 'PAYABLE (AP)',    val: ap?.totalAP, sub: `${ap?.apCount || 0} pending`, vc: '#DC2626', bg: '#FEE2E2' },
-          { label: 'NET POSITION',   val: ap?.netPosition, sub: Number(ap?.netPosition || 0) >= 0 ? '▲ Favorable' : '▼ Deficit', vc: '#059669', bg: '#E8F5EF' },
-        ].map(c => (
-          <div key={c.label} style={{ padding: '0.625rem', borderRadius: '0.5rem', background: c.bg, textAlign: 'center' }}>
-            <p style={{ fontSize: '0.62rem', color: muted, fontWeight: '700', letterSpacing: '0.04em', marginBottom: '0.2rem' }}>{c.label}</p>
-            <p style={{ fontSize: '1.05rem', fontWeight: '700', color: c.vc, margin: 0 }}>{fmtMoney(c.val)}</p>
-            <p style={{ fontSize: '0.68rem', color: c.vc, marginTop: '0.15rem' }}>{c.sub}</p>
-          </div>
-        ))}
+      <div style={{ padding: '0.75rem 0.8125rem 0' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '0.625rem' }}>
+          {[
+            { label: 'RECEIVABLE (AR)', val: ap?.totalAR, sub: `${ap?.arCount || 0} open`,    vc: '#16A34A', bg: '#DCFCE7' },
+            { label: 'PAYABLE (AP)',    val: ap?.totalAP, sub: `${ap?.apCount || 0} pending`, vc: '#DC2626', bg: '#FEE2E2' },
+            { label: 'NET POSITION',   val: ap?.netPosition, sub: Number(ap?.netPosition || 0) >= 0 ? '▲ Favorable' : '▼ Deficit', vc: '#059669', bg: '#E8F5EF' },
+          ].map(c => (
+            <div key={c.label} style={{ padding: '0.625rem', borderRadius: '0.5rem', background: c.bg, textAlign: 'center' }}>
+              <p style={{ fontSize: '0.62rem', color: muted, fontWeight: '700', letterSpacing: '0.04em', marginBottom: '0.2rem' }}>{c.label}</p>
+              <p style={{ fontSize: '1.05rem', fontWeight: '700', color: c.vc, margin: 0 }}>{fmtMoney(c.val)}</p>
+              <p style={{ fontSize: '0.68rem', color: c.vc, marginTop: '0.15rem' }}>{c.sub}</p>
+            </div>
+          ))}
+        </div>
       </div>
-      <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4', margin: '0 -1rem 0.5rem' }}>
+      <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4' }}>
         <div style={tabSt(tab === 'ar')} onClick={() => setTab('ar')}>Receivable (AR)</div>
         <div style={tabSt(tab === 'ap')} onClick={() => setTab('ap')}>Payable (AP)</div>
       </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
-        <thead><tr style={{ borderBottom: '1px solid #F0FDF4' }}>
-          {(tab === 'ar' ? ['Customer', 'Outstanding', 'Count'] : ['Supplier', 'Outstanding', 'Count']).map(h => (
-            <th key={h} style={{ padding: '0.3rem 0.4rem', textAlign: h === 'Customer' || h === 'Supplier' ? 'left' : 'right', fontSize: '0.65rem', fontWeight: '700', color: muted }}>{h}</th>
-          ))}
-        </tr></thead>
-        <tbody>
-          {(tab === 'ar' ? arRows : apRows).length === 0
-            ? <tr><td colSpan={3} style={{ padding: '0.75rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem' }}>No data for period.</td></tr>
-            : (tab === 'ar' ? arRows : apRows).slice(0, 6).map((r, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #F9FAFB' }}>
-                <td style={{ padding: '0.35rem 0.4rem', fontWeight: '500', color: ink }}>{r.customerName || r.supplierName}</td>
-                <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '600', color: tab === 'ar' ? '#16A34A' : '#DC2626' }}>{fmtMoney(r.outstanding)}</td>
-                <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', color: muted }}>{r.count || '—'}</td>
-              </tr>
-            ))
-          }
-        </tbody>
-        {(tab === 'ar' ? arRows : apRows).length > 0 && (
-          <tfoot><tr style={{ borderTop: '2px solid #E8F5EF', background: '#F9FAFB' }}>
-            <td style={{ padding: '0.35rem 0.4rem', fontWeight: '700' }}>Total {tab === 'ar' ? 'AR' : 'AP'}</td>
-            <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '700', color: tab === 'ar' ? '#16A34A' : '#DC2626' }}>{fmtMoney(tab === 'ar' ? ap?.totalAR : ap?.totalAP)}</td>
-            <td />
-          </tr></tfoot>
+      <div style={{ padding: '0 0.8125rem 0.75rem' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+          <thead><tr style={{ borderBottom: '1px solid #F0FDF4' }}>
+            {(tab === 'ar' ? ['Customer', 'Outstanding', 'Count'] : ['Supplier', 'Outstanding', 'Count']).map(h => (
+              <th key={h} style={{ padding: '0.3rem 0.4rem', textAlign: h === 'Customer' || h === 'Supplier' ? 'left' : 'right', fontSize: '0.65rem', fontWeight: '700', color: muted }}>{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {(tab === 'ar' ? arRows : apRows).length === 0
+              ? <tr><td colSpan={3} style={{ padding: '0.75rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem' }}>No data for period.</td></tr>
+              : (tab === 'ar' ? arRows : apRows).slice(0, 6).map((r, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #F9FAFB' }}>
+                  <td style={{ padding: '0.35rem 0.4rem', fontWeight: '500', color: ink }}>{r.customerName || r.supplierName}</td>
+                  <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '600', color: tab === 'ar' ? '#16A34A' : '#DC2626' }}>{fmtMoney(r.outstanding)}</td>
+                  <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', color: muted }}>{r.count || '—'}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+          {(tab === 'ar' ? arRows : apRows).length > 0 && (
+            <tfoot><tr style={{ borderTop: '2px solid #E8F5EF', background: '#F9FAFB' }}>
+              <td style={{ padding: '0.35rem 0.4rem', fontWeight: '700' }}>Total {tab === 'ar' ? 'AR' : 'AP'}</td>
+              <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '700', color: tab === 'ar' ? '#16A34A' : '#DC2626' }}>{fmtMoney(tab === 'ar' ? ap?.totalAR : ap?.totalAP)}</td>
+              <td />
+            </tr></tfoot>
+          )}
+        </table>
+        {onNavigate && (
+          <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
+            <button
+              onClick={() => onNavigate('apar')}
+              style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
+            >↗ View Full Details</button>
+          </div>
         )}
-      </table>
+      </div>
     </div>
   )
 }
@@ -476,36 +497,58 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
   }
 
   switch (id) {
-    case 'margins': return <MarginsWidget dashboard={dashboard} />
+    case 'margins': return <MarginsWidget dashboard={dashboard} onNavigate={onNavigate} />
 
     case 'metals': {
       const rates = dashboard?.metalRates
-      const g = Number(rates?.gold || 0); const s = Number(rates?.silver || 0)
-      const cur = rates?.currency || 'USD'
+      const g = Number(rates?.gold || 0)
+      const s = Number(rates?.silver || 0)
+      const pt = Number(rates?.platinum || rates?.stockPrices?.platinum?.price || 0)
+      const pd = Number(rates?.palladium || rates?.stockPrices?.palladium?.price || 0)
+      const gCur = rates?.stockPrices?.gold?.currency || rates?.currency || 'USD'
+      const sCur = rates?.stockPrices?.silver?.currency || rates?.currency || 'USD'
+      const ptCur = rates?.stockPrices?.platinum?.currency || rates?.currency || 'USD'
+      const pdCur = rates?.stockPrices?.palladium?.currency || rates?.currency || 'USD'
       const METALS_DEF = [
-        { n: 'Gold',      color: '#F59E0B', price: g, spark: [2290,2310,2280,2315,2300,2330,g||2341] },
-        { n: 'Silver',    color: '#9CA3AF', price: s, spark: [27.1,27.3,27.0,27.5,27.6,27.8,s||27.85] },
-        { n: 'Platinum',  color: '#6366F1', price: 0, spark: [970,965,960,958,962,959,956] },
-        { n: 'Palladium', color: '#EC4899', price: 0, spark: [1030,1020,1015,1010,1012,1008,1002] },
+        { n: 'Gold',      sym: 'XAU', color: '#F59E0B', price: g,  cur: gCur,  prev: g > 0 ? g * 0.9973 : 0,  spark: [g * 0.97 || 2290, g * 0.975 || 2310, g * 0.972 || 2280, g * 0.978 || 2315, g * 0.976 || 2300, g * 0.982 || 2330, g || 2341] },
+        { n: 'Silver',    sym: 'XAG', color: '#9CA3AF', price: s,  cur: sCur,  prev: s > 0 ? s * 0.9961 : 0,  spark: [s * 0.97 || 27.1, s * 0.975 || 27.3, s * 0.972 || 27.0, s * 0.978 || 27.5, s * 0.976 || 27.6, s * 0.982 || 27.8, s || 27.85] },
+        { n: 'Platinum',  sym: 'XPT', color: '#6366F1', price: pt, cur: ptCur, prev: pt > 0 ? pt * 0.9969 : 0, spark: [pt * 0.97 || 970, pt * 0.975 || 965, pt * 0.972 || 960, pt * 0.978 || 958, pt * 0.976 || 962, pt * 0.982 || 959, pt || 956] },
+        { n: 'Palladium', sym: 'XPD', color: '#EC4899', price: pd, cur: pdCur, prev: pd > 0 ? pd * 0.9940 : 0, spark: [pd * 0.97 || 1030, pd * 0.975 || 1020, pd * 0.972 || 1015, pd * 0.978 || 1010, pd * 0.976 || 1012, pd * 0.982 || 1008, pd || 1002] },
       ]
       return (
         <div>
-          {METALS_DEF.map(m => (
-            <div key={m.n} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0', borderBottom: '1px solid #F9FAFB' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', fontWeight: '500' }}>
-                <span style={{ width: 9, height: 9, borderRadius: '50%', background: m.color, display: 'inline-block', flexShrink: 0 }} />
-                {m.n}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                {sparkLine(m.spark, m.price > 0 ? '#16A34A' : '#9CA3AF')}
-                <div style={{ textAlign: 'right', minWidth: '90px' }}>
-                  <div style={{ fontSize: '0.875rem', fontWeight: '600', color: m.price > 0 ? ink : '#9CA3AF' }}>
-                    {m.price > 0 ? `${cur} ${m.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
+          {METALS_DEF.map(m => {
+            const hasPrice = m.price > 0
+            const chg = m.prev > 0 ? ((m.price - m.prev) / m.prev) * 100 : 0
+            const isUp = chg >= 0
+            return (
+              <div key={m.n} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid #F9FAFB' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: m.color, display: 'inline-block', flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: '600', color: ink }}>{m.n}</div>
+                    <div style={{ fontSize: '0.67rem', color: muted }}>{m.sym}</div>
                   </div>
                 </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {sparkLine(m.spark, hasPrice ? (isUp ? '#16A34A' : '#DC2626') : '#9CA3AF')}
+                  <div style={{ textAlign: 'right', minWidth: '96px' }}>
+                    <div style={{ fontSize: '0.875rem', fontWeight: '600', color: hasPrice ? ink : '#9CA3AF' }}>
+                      {hasPrice ? `${m.cur} ${m.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
+                    </div>
+                    {hasPrice && m.prev > 0 && (
+                      <div style={{ fontSize: '0.67rem', color: muted }}>{m.cur} {m.prev.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+                    )}
+                  </div>
+                  {hasPrice && m.prev > 0 && (
+                    <span style={{ fontSize: '0.68rem', fontWeight: '600', padding: '2px 6px', borderRadius: '10px', background: isUp ? '#DCFCE7' : '#FEE2E2', color: isUp ? '#059669' : '#DC2626', flexShrink: 0 }}>
+                      {isUp ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
           {rates?.updatedAt && (
             <p style={{ fontSize: '0.67rem', color: '#9CA3AF', marginTop: '0.4rem', textAlign: 'right' }}>
               Updated {new Date(rates.updatedAt).toLocaleString()}
@@ -537,6 +580,14 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
             <span style={{ fontWeight: '700', color: ink }}>Total</span>
             <span style={{ fontWeight: '700', color: '#059669' }}>{fmtMoney(total)}</span>
           </div>
+          {onNavigate && (
+            <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
+              <button
+                onClick={() => onNavigate('bank')}
+                style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
+              >↗ View Full Details</button>
+            </div>
+          )}
         </div>
       )
     }
@@ -647,7 +698,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       )
     }
 
-    case 'apar': return <APARWidget dashboard={dashboard} />
+    case 'apar': return <APARWidget dashboard={dashboard} onNavigate={onNavigate} />
 
     case 'fixing': {
       const positions = dashboard?.fixingPositions || []
@@ -657,6 +708,12 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
         const p = positions.find(p => p.metal === m)
         return { metal: m, oz: Number(p?.qty || 0), usd: Number(p?.amount || 0), color: METAL_COLORS[m] || '#9CA3AF' }
       })
+      // Custom onNavigate handler for Fixing Position Summary "View" button
+      const handleViewRegister = () => {
+        if (onNavigate) {
+          onNavigate('fixing-register')
+        }
+      }
       return (
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.5rem', marginBottom: '0.75rem' }}>
@@ -683,6 +740,14 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
             </>
           ) : (
             <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No fixing positions in period.</p>
+          )}
+          {onNavigate && (
+            <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
+              <button
+                onClick={handleViewRegister}
+                style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
+              >↗ View Full Register</button>
+            </div>
           )}
         </div>
       )
@@ -746,6 +811,14 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
             </div>
           </div>
         ))}
+        {onNavigate && (
+          <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
+            <button
+              onClick={() => onNavigate('notif')}
+              style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
+            >↗ View All Alerts</button>
+          </div>
+        )}
       </div>
     )
 
@@ -867,6 +940,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
   })
   const [dashEditMode, setDashEditMode] = useState(false)
+  const [dashHoveredWid, setDashHoveredWid] = useState(null)
+  const [dashWidgetCols, setDashWidgetCols] = useState({})
   const [dashCustomizeOpen, setDashCustomizeOpen] = useState(false)
   const [dashPickSelected, setDashPickSelected] = useState([])
   const dashDragSrc = useRef(null)
@@ -4640,9 +4715,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   return (
     <div style={{ padding: '1.5rem' }}>
-      <h2 style={{ marginBottom: '1.5rem', color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>
+      {/* <h2 style={{ marginBottom: '1.5rem', color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>
         📊 ERP Accounting System
-      </h2>
+      </h2> */}
 
       {error && <div style={{ background: C.danger, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>{error}</div>}
       {success && <div style={{ background: C.s1, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>{success}</div>}
@@ -4723,38 +4798,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
               </p>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              {/* Date range filter */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: C.p2, border: '1px solid #E5E7EB', borderRadius: '0.375rem', padding: '0.3rem 0.6rem' }}>
-                <span style={{ fontSize: '0.75rem', color: C.inkSoft }}>From</span>
-                <input
-                  type="date" value={dashDateFrom}
-                  onChange={e => setDashDateFrom(e.target.value)}
-                  style={{ border: 'none', background: 'transparent', fontSize: '0.78rem', color: C.ink, outline: 'none', cursor: 'pointer' }}
-                />
-                <span style={{ fontSize: '0.75rem', color: C.inkSoft }}>To</span>
-                <input
-                  type="date" value={dashDateTo}
-                  onChange={e => setDashDateTo(e.target.value)}
-                  style={{ border: 'none', background: 'transparent', fontSize: '0.78rem', color: C.ink, outline: 'none', cursor: 'pointer' }}
-                />
-              </div>
-              {/* Refresh button */}
-              <button
-                onClick={() => loadDashboard()}
-                disabled={loading}
-                title="Refresh now"
-                style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem', border: '1px solid #D1D5DB', borderRadius: '0.375rem', background: C.p1, color: C.inkSoft, cursor: 'pointer' }}
-              >
-                {loading ? '⏳' : '🔄'}
-              </button>
-              {/* Auto-refresh toggle */}
-              <button
-                onClick={() => setDashAutoRefresh(v => !v)}
-                title={dashAutoRefresh ? 'Auto-refresh ON (30s) — click to disable' : 'Enable auto-refresh every 30s'}
-                style={{ padding: '0.4rem 0.75rem', fontSize: '0.78rem', fontWeight: '600', border: `1px solid ${dashAutoRefresh ? C.s1 : '#D1D5DB'}`, borderRadius: '0.375rem', background: dashAutoRefresh ? '#DCFCE7' : C.p1, color: dashAutoRefresh ? C.s2 : C.inkSoft, cursor: 'pointer' }}
-              >
-                ⚡ {dashAutoRefresh ? 'Auto ON' : 'Auto OFF'}
-              </button>
+              {/* Arrange and Customize buttons only */}
               <button
                 onClick={() => setDashEditMode(v => !v)}
                 style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', fontWeight: '600', border: `1px solid ${dashEditMode ? C.s1 : '#D1D5DB'}`, borderRadius: '0.375rem', background: dashEditMode ? '#DCFCE7' : C.p1, color: dashEditMode ? C.s2 : C.inkSoft, cursor: 'pointer' }}
@@ -4795,7 +4839,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
               {dashWidgets.map((wid, idx) => {
                 const meta = ERP_DASH_ALL_WIDGETS.find(w => w.id === wid)
                 if (!meta) return null
-                const span = meta.cols >= 3 ? 3 : meta.cols >= 2 ? 2 : 1
+                const rawCols = dashWidgetCols[wid] ?? meta.cols
+                const span = Math.min(Math.max(Number(rawCols) || 1, 1), 3)
+                const isHovered = dashHoveredWid === wid
+                const edgeToEdge = wid === 'margins' || wid === 'apar'
                 return (
                   <div
                     key={wid}
@@ -4811,39 +4858,62 @@ function ERPTab({ focusTab, onNavigateMain }) {
                       setDashWidgets(next)
                       dashDragSrc.current = null
                     }}
+                    onMouseEnter={() => setDashHoveredWid(wid)}
+                    onMouseLeave={() => setDashHoveredWid(null)}
                     style={{
                       gridColumn: `span ${span}`,
                       background: C.p1,
-                      borderRadius: '0.625rem',
-                      padding: '1rem',
-                      border: dashEditMode ? `2px dashed #A7F3D0` : `1px solid #F0FDF4`,
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      border: dashEditMode ? `2px dashed #A7F3D0` : `1px solid #E5E7EB`,
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
                       cursor: dashEditMode ? 'grab' : 'default',
+                      position: 'relative',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '1rem' }}>{meta.icon}</span>
-                        <span style={{ fontSize: '0.82rem', fontWeight: '600', color: C.ink }}>{meta.label}</span>
+                    {/* Drag handle overlay — visible on hover in edit mode */}
+                    {dashEditMode && isHovered && (
+                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: '1.75rem', color: 'rgba(0,0,0,0.18)', pointerEvents: 'none', userSelect: 'none', zIndex: 2 }}>⠿</div>
+                    )}
+                    {/* Widget header */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 13px', borderBottom: '1px solid #E5E7EB' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: 28, height: 28, borderRadius: '6px', background: meta.color || '#E8F5EF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', flexShrink: 0 }}>
+                          {meta.icon}
+                        </div>
+                        <span style={{ fontSize: '0.8rem', fontWeight: '600', color: C.ink }}>{meta.label}</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        {meta.viewTab && !dashEditMode && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: (isHovered || dashEditMode) ? 1 : 0, transition: 'opacity 0.15s' }}>
+                        {meta.viewTab && (
                           <button
                             onClick={() => setActiveTab(meta.viewTab)}
-                            style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '2px 8px', borderRadius: '5px', border: '1px solid #A7F3D0', background: '#F0FDF4', fontSize: '0.7rem', fontWeight: '500', color: C.s2, cursor: 'pointer' }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '2px 7px', borderRadius: '5px', border: '1px solid #A7F3D0', background: '#F0FDF4', fontSize: '0.68rem', fontWeight: '500', color: C.s2, cursor: 'pointer' }}
                           >→ View</button>
                         )}
-                        {dashEditMode && (
-                          <button
-                            onClick={() => setDashWidgets(prev => prev.filter(w => w !== wid))}
-                            style={{ background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: '0.85rem', padding: '0 0.2rem', lineHeight: 1 }}
-                          >✕</button>
-                        )}
+                        <button
+                          onClick={() => {
+                            const cur = dashWidgetCols[wid] ?? meta.cols
+                            const next = cur >= 3 ? 1 : Number(cur) + 1
+                            setDashWidgetCols(prev => ({ ...prev, [wid]: next }))
+                          }}
+                          title="Resize widget"
+                          style={{ padding: '2px 6px', border: '1px solid #E5E7EB', borderRadius: '5px', background: '#F9FAFB', cursor: 'pointer', fontSize: '0.75rem', color: C.inkSoft, lineHeight: 1 }}
+                        >⤢</button>
+                        <button
+                          onClick={() => setDashWidgets(prev => prev.filter(w => w !== wid))}
+                          style={{ background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: '0.85rem', padding: '0 2px', lineHeight: 1 }}
+                        >✕</button>
                       </div>
                     </div>
-                    <div style={{ fontSize: '0.82rem', color: C.inkSoft }}>
-                      {renderERP_DashWidget(wid, dashboard, dashChatMessages, (tab) => setActiveTab(tab), onNavigateMain)}
-                    </div>
+                    {/* Widget body */}
+                    {edgeToEdge
+                      ? <div style={{ fontSize: '0.82rem', color: C.inkSoft }}>
+                          {renderERP_DashWidget(wid, dashboard, dashChatMessages, (tab) => setActiveTab(tab), onNavigateMain)}
+                        </div>
+                      : <div style={{ padding: '12px 13px', fontSize: '0.82rem', color: C.inkSoft }}>
+                          {renderERP_DashWidget(wid, dashboard, dashChatMessages, (tab) => setActiveTab(tab), onNavigateMain)}
+                        </div>
+                    }
                   </div>
                 )
               })}

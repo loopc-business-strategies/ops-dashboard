@@ -104,7 +104,7 @@ const getStockLedger = async (token) => (await axios.get(`${BASE}/inventory/stoc
 // Reports
 const getTrialBalance = async (token, params) => (await axios.get(`${BASE}/reports/trial-balance`, getAuthConfig(token, params))).data
 const getLedgerReport = async (token, params) => (await axios.get(`${BASE}/reports/ledger`, getAuthConfig(token, params))).data
-const getDashboardReport = async (token) => (await axios.get(`${BASE}/reports/dashboard`, getAuthConfig(token))).data
+const getDashboardReport = async (token, params = {}) => (await axios.get(`${BASE}/reports/dashboard`, getAuthConfig(token, params))).data
 const getProfitLossReport = async (token, params) => (await axios.get(`${BASE}/reports/profit-loss`, getAuthConfig(token, params))).data
 const getBalanceSheetReport = async (token, params) => (await axios.get(`${BASE}/reports/balance-sheet`, getAuthConfig(token, params))).data
 const getDayBookReport = async (token, params) => (await axios.get(`${BASE}/reports/day-book`, getAuthConfig(token, params))).data
