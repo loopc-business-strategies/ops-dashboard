@@ -287,7 +287,8 @@ function downloadBlob(blob, filename) {
 function resolveDocUrl(relativePath) {
   if (!relativePath) return '#'
   if (/^https?:\/\//i.test(relativePath)) return relativePath
-  return `http://localhost:5000${relativePath.startsWith('/') ? '' : '/'}${relativePath}`
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  return `${base}${relativePath.startsWith('/') ? '' : '/'}${relativePath}`
 }
 
 function getContactInit(initial, reps) {

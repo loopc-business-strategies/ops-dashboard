@@ -194,7 +194,7 @@ function getTransactionActionLabels(t) {
 const resolveTransactionAttachmentUrl = (attachment) => {
   if (!attachment) return '#'
   if (attachment.url) return attachment.url
-  if (attachment.relativePath) return `http://localhost:5000${attachment.relativePath}`
+  if (attachment.relativePath) return `${import.meta.env.VITE_API_BASE_URL || ''}${attachment.relativePath}`
   return '#'
 }
 
@@ -342,16 +342,64 @@ function fmtMoney(val, currency = '') {
 
 function MarginsWidget({ dashboard, onNavigate }) {
   const [tab, setTab] = useState('customers')
+  const [showModal, setShowModal] = useState(false)
+  const [modalSearch, setModalSearch] = useState('')
+  const [modalSort, setModalSort] = useState('margin-desc')
+  const [dragPos, setDragPos] = useState({ x: 0, y: 0 })
+  const dragRef = useRef(null)
+  const dragging = useRef(false)
+  const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 })
+
   const muted = '#6B7280'; const ink = '#111827'
-  const customers = dashboard?.customerMargins || []
+  const rawCustomers = dashboard?.customerMargins || []
   const suppExp = Number(dashboard?.supplierMargins?.expenses || 0)
   const suppCash = Number(dashboard?.supplierMargins?.cashOutflow || 0)
+
+  const mapCustomer = (c) => {
+    const net = Number(c?.netCashFlow || 0)
+    const exp = Number(c?.expenses || 0)
+    const status = net > 0 ? 'POSITIVE' : net < 0 ? 'NEGATIVE' : 'NEUTRAL'
+    const marginPercent = exp > 0 ? (Math.abs(net) / exp) * 100 : null
+    const equityAbs = Math.abs(net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const equityFmt = net > 0 ? `+${equityAbs}` : net < 0 ? `-${equityAbs}` : equityAbs
+    const marginFmt = Number.isFinite(marginPercent) ? `${Number(marginPercent).toFixed(2)} %` : '—'
+    return { name: String(c?.customerName || c?.name || '-'), equity: net, equityFmt, status, marginFmt, marginPercent }
+  }
+  const customers = rawCustomers.map(mapCustomer)
+
+  const modalRows = (() => {
+    const q = modalSearch.trim().toLowerCase()
+    const rows = customers.filter(c => !q || c.name.toLowerCase().includes(q))
+    if (modalSort === 'margin-asc')    rows.sort((a, b) => (Number.isFinite(a.marginPercent) ? a.marginPercent : -1) - (Number.isFinite(b.marginPercent) ? b.marginPercent : -1))
+    else if (modalSort === 'name-asc') rows.sort((a, b) => a.name.localeCompare(b.name))
+    else                               rows.sort((a, b) => (Number.isFinite(b.marginPercent) ? b.marginPercent : -1) - (Number.isFinite(a.marginPercent) ? a.marginPercent : -1))
+    return rows
+  })()
+
+  const onMouseDown = (e) => {
+    dragging.current = true
+    dragStart.current = { mx: e.clientX, my: e.clientY, px: dragPos.x, py: dragPos.y }
+    e.preventDefault()
+  }
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!dragging.current) return
+      setDragPos({ x: dragStart.current.px + e.clientX - dragStart.current.mx, y: dragStart.current.py + e.clientY - dragStart.current.my })
+    }
+    const onUp = () => { dragging.current = false }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+  }, [])
+
   const tabSt = (active) => ({
     padding: '0.45rem 0.9rem', fontSize: '0.75rem', fontWeight: active ? '600' : '500',
     color: active ? '#059669' : muted, cursor: 'pointer',
     borderBottom: `2px solid ${active ? '#059669' : 'transparent'}`,
     background: active ? '#fff' : 'transparent', userSelect: 'none',
   })
+  const statusColor = (s) => s === 'POSITIVE' ? '#16A34A' : s === 'NEGATIVE' ? '#DC2626' : '#6B7280'
+
   return (
     <div>
       <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4' }}>
@@ -364,16 +412,18 @@ function MarginsWidget({ dashboard, onNavigate }) {
             ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No customer data for period.</p>
             : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                 <thead><tr style={{ borderBottom: '1px solid #F0FDF4' }}>
-                  {['Customer', 'Expenses', 'Net CF'].map(h => (
-                    <th key={h} style={{ padding: '0.3rem 0.4rem', textAlign: h === 'Customer' ? 'left' : 'right', fontSize: '0.65rem', fontWeight: '700', color: muted }}>{h}</th>
-                  ))}
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left',   fontSize: '0.65rem', fontWeight: '700', color: muted }}>Customer</th>
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Equity</th>
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontSize: '0.65rem', fontWeight: '700', color: muted }}>Status</th>
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Margin %</th>
                 </tr></thead>
                 <tbody>
                   {customers.slice(0, 7).map((c, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #F9FAFB' }}>
-                      <td style={{ padding: '0.35rem 0.4rem', fontWeight: '500', color: ink }}>{c.customerName}</td>
-                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', color: '#DC2626' }}>{fmtMoney(c.expenses)}</td>
-                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: Number(c.netCashFlow || 0) >= 0 ? '#059669' : '#DC2626' }}>{fmtMoney(c.netCashFlow)}</td>
+                      <td style={{ padding: '0.35rem 0.4rem', fontWeight: '500', color: ink }}>{c.name}</td>
+                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: c.equity > 0 ? '#16A34A' : c.equity < 0 ? '#DC2626' : ink }}>{c.equityFmt}</td>
+                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'center', fontWeight: '700', fontSize: '0.68rem', color: statusColor(c.status) }}>{c.status}</td>
+                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', color: muted }}>{c.marginFmt}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -393,15 +443,101 @@ function MarginsWidget({ dashboard, onNavigate }) {
             <p style={{ fontSize: '0.72rem', color: muted, marginTop: '0.75rem', textAlign: 'center' }}>Based on account mappings for the period</p>
           </div>
         )}
-        {onNavigate && (
-          <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
-            <button
-              onClick={() => onNavigate('customer-margin')}
-              style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
-            >↗ View Full Report</button>
-          </div>
-        )}
+        <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
+          <button
+            onClick={() => { setShowModal(true); setModalSearch(''); setModalSort('margin-desc'); setDragPos({ x: 0, y: 0 }) }}
+            style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
+          >↗ View Full Report</button>
+        </div>
       </div>
+
+      {/* ── Full Report Modal (centered, draggable, see-through backdrop) ── */}
+      {showModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 3000, pointerEvents: 'none' }}>
+          <div
+            onClick={() => setShowModal(false)}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.18)', backdropFilter: 'blur(1px)', pointerEvents: 'all' }}
+          />
+          <div
+            ref={dragRef}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'absolute',
+              top: '50%', left: '50%',
+              transform: `translate(calc(-50% + ${dragPos.x}px), calc(-50% + ${dragPos.y}px))`,
+              width: 'min(700px, 94vw)', maxHeight: '82vh',
+              display: 'flex', flexDirection: 'column',
+              background: '#FFFFFF',
+              borderRadius: '0.7rem',
+              boxShadow: '0 24px 64px rgba(15,23,42,0.35)',
+              overflow: 'hidden',
+              pointerEvents: 'all',
+            }}
+          >
+            <div
+              onMouseDown={onMouseDown}
+              style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)', padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, cursor: 'grab', userSelect: 'none' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ fontSize: '1.1rem' }}>📊</span>
+                <span style={{ color: '#FFFFFF', fontWeight: '700', fontSize: '1rem', letterSpacing: '0.02em' }}>Customer Margin — Full Report</span>
+                <span style={{ background: 'rgba(255,255,255,0.2)', color: '#FFFFFF', fontSize: '0.7rem', fontWeight: '700', borderRadius: '999px', padding: '0.1rem 0.55rem' }}>{modalRows.length} customers</span>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.68rem', marginLeft: '0.3rem' }}>⠿ drag</span>
+              </div>
+              <button
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => setShowModal(false)}
+                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#FFFFFF', borderRadius: '0.35rem', width: '1.9rem', height: '1.9rem', cursor: 'pointer', fontSize: '1rem', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+              >✕</button>
+            </div>
+            <div style={{ padding: '0.65rem 1rem', borderBottom: '1px solid #E2E8F0', display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap', background: '#F8FAFC', flexShrink: 0 }}>
+              <input
+                placeholder="Search customer…"
+                value={modalSearch}
+                onChange={(e) => setModalSearch(e.target.value)}
+                style={{ flex: 1, minWidth: '160px', padding: '0.42rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '0.4rem', fontSize: '0.82rem', color: ink, background: '#FFFFFF' }}
+              />
+              <select
+                value={modalSort}
+                onChange={(e) => setModalSort(e.target.value)}
+                style={{ padding: '0.42rem 0.6rem', border: '1px solid #CBD5E1', borderRadius: '0.4rem', background: '#FFFFFF', color: ink, fontSize: '0.82rem' }}
+              >
+                <option value="margin-desc">Sort: Margin % ↓</option>
+                <option value="margin-asc">Sort: Margin % ↑</option>
+                <option value="name-asc">Sort: Name A–Z</option>
+              </select>
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {modalRows.length === 0
+                ? <p style={{ textAlign: 'center', color: '#9CA3AF', padding: '2rem', fontSize: '0.85rem' }}>No customers found.</p>
+                : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'linear-gradient(180deg, #E9F3FF 0%, #D7E9FF 100%)', borderBottom: '1px solid #BFD0E5', position: 'sticky', top: 0, zIndex: 1 }}>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'left',   fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem' }}>Customer Name</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Equity</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'center', fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem' }}>Status</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Margin %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {modalRows.map((c, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #EEF2F7', background: i % 2 === 0 ? '#FFFFFF' : '#FCFDFF' }}>
+                          <td style={{ padding: '0.42rem 0.9rem', fontWeight: '600', color: c.equity < 0 ? '#DC2626' : '#1D4ED8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '220px' }}>{c.name}</td>
+                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: c.equity > 0 ? '#16A34A' : c.equity < 0 ? '#DC2626' : ink, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.equityFmt}</td>
+                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'center', fontWeight: '700', fontSize: '0.75rem', color: statusColor(c.status) }}>{c.status}</td>
+                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: c.equity < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.marginFmt}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+              }
+            </div>
+            <div style={{ padding: '0.55rem 1rem', borderTop: '1px solid #E2E8F0', background: '#F8FAFC', fontSize: '0.72rem', color: muted, flexShrink: 0 }}>
+              Equity shows signed net cash flow. Positive values are favorable, negative values are payable.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -5359,7 +5495,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
               {/* Row 5: Buttons */}
               <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '0.2rem' }}>
                 <button
-                  onClick={() => { setFixingRegShown(false); setFixingRegResults([]); setFixingRegError('') }}
+                  onClick={() => { setFixingRegShown(false); setFixingRegResults([]); setFixingRegError(''); setActiveTab('dashboard') }}
                   style={{ padding: '0.48rem 1.4rem', background: 'transparent', color: '#6B7280', border: '1px solid #CBD5E1', borderRadius: '0.4rem', cursor: 'pointer', fontSize: '0.87rem', fontWeight: '600' }}
                 >
                   Cancel
