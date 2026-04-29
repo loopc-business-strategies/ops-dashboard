@@ -377,6 +377,7 @@ function MarginsWidget({ dashboard, onNavigate }) {
   })()
 
   const onMouseDown = (e) => {
+    if (e.target.closest('button')) return
     dragging.current = true
     dragStart.current = { mx: e.clientX, my: e.clientY, px: dragPos.x, py: dragPos.y }
     e.preventDefault()
@@ -485,7 +486,6 @@ function MarginsWidget({ dashboard, onNavigate }) {
                 <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.68rem', marginLeft: '0.3rem' }}>⠿ drag</span>
               </div>
               <button
-                onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => setShowModal(false)}
                 style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#FFFFFF', borderRadius: '0.35rem', width: '1.9rem', height: '1.9rem', cursor: 'pointer', fontSize: '1rem', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
               >✕</button>
