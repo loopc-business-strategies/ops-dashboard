@@ -2054,8 +2054,6 @@ function ERPTab({ focusTab, onNavigateMain }) {
       if (typeCompare !== 0) return typeCompare
       return String(a.accountCode || '').localeCompare(String(b.accountCode || ''))
     })
-
-  const entryAccountOptions = summaryAccounts.length ? summaryAccounts : accounts
     .reduce((groups, account) => {
       const type = String(account.accountType || 'Other').trim() || 'Other'
       const existingGroup = groups.find((group) => group.type === type)
@@ -2063,6 +2061,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
       else groups.push({ type, accounts: [account] })
       return groups
     }, [])
+
+  const entryAccountOptions = summaryAccounts.length ? summaryAccounts : accounts
 
   const filteredGroupedSummaryAccounts = groupedSummaryAccounts
     .map((group) => {
