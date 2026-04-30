@@ -77,6 +77,7 @@ function createApp() {
     origin: (origin, callback) => {
       // Allow server-to-server / health checks (no Origin header)
       if (!origin) return callback(null, true)
+      if (origin.endsWith('.vercel.app')) return callback(null, true)
       if (allowedOrigins.includes(origin)) return callback(null, true)
       callback(new Error(`CORS: origin not allowed — ${origin}`))
     },
