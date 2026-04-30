@@ -11,7 +11,8 @@ const Employee = require('../models/Employee')
 let mongo
 let app
 
-const tokenFor = (user) => jwt.sign({ id: user._id.toString() }, process.env.JWT_SECRET)
+const TEST_TENANT = 'loopc'
+const tokenFor = (user) => jwt.sign({ id: user._id.toString(), company: TEST_TENANT }, process.env.JWT_SECRET)
 
 const createUser = async (overrides = {}) => {
   const now = Date.now().toString(36)
@@ -31,9 +32,13 @@ beforeAll(async () => {
   process.env.JWT_SECRET = 'test-secret'
   process.env.RATE_LIMIT_MAX = '100000'
   process.env.AUTH_RATE_LIMIT_MAX = '100000'
+  process.env.DEFAULT_TENANT = TEST_TENANT
 
   mongo = await MongoMemoryServer.create()
-  await mongoose.connect(mongo.getUri())
+  const mongoUri = mongo.getUri()
+  process.env.MONGO_URI = mongoUri
+  process.env.MONGO_URI_LOOPC = mongoUri
+  await mongoose.connect(mongoUri)
   app = createApp()
 })
 

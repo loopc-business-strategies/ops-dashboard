@@ -22,7 +22,8 @@ let app
 
 const uploadDir = path.join(__dirname, 'tmp-transaction-uploads')
 
-const tokenFor = (user) => jwt.sign({ id: user._id.toString() }, process.env.JWT_SECRET)
+const TEST_TENANT = 'loopc'
+const tokenFor = (user) => jwt.sign({ id: user._id.toString(), company: TEST_TENANT }, process.env.JWT_SECRET)
 
 const authHeader = (user) => ({ Authorization: `Bearer ${tokenFor(user)}` })
 
@@ -56,11 +57,15 @@ beforeAll(async () => {
   process.env.JWT_SECRET = 'test-secret'
   process.env.RATE_LIMIT_MAX = '100000'
   process.env.AUTH_RATE_LIMIT_MAX = '100000'
+  process.env.DEFAULT_TENANT = TEST_TENANT
   process.env.TRANSACTION_UPLOAD_DIR = uploadDir
   process.env.SERVER_BASE_URL = 'http://localhost:5000'
 
   mongo = await MongoMemoryServer.create()
-  await mongoose.connect(mongo.getUri())
+  const mongoUri = mongo.getUri()
+  process.env.MONGO_URI = mongoUri
+  process.env.MONGO_URI_LOOPC = mongoUri
+  await mongoose.connect(mongoUri)
   app = createApp()
 })
 
