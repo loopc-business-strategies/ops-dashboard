@@ -3,7 +3,7 @@
 
 import axios from 'axios'
 
-const API_ORIGIN = import.meta.env.VITE_API_URL || ''
+const API_ORIGIN = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || '') : ''
 const BASE = `${API_ORIGIN}/api/hr/employees`
 
 const getEmployees    = async (_token)         => (await axios.get(BASE)).data
