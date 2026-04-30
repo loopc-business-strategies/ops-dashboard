@@ -5415,20 +5415,28 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   { label: 'Metal', field: 'metalType', opts: fixingRegisterStockTypeOptions.map((option) => [option.value, option.label]) },
                   { label: 'Quantity', field: 'quantityUnit', opts: [['GOZ', 'GOZ — Troy Oz'], ['GRAM', 'Gram'], ['KG', 'KG'], ['TOLA', 'Tola']] },
                   { label: 'Rate', field: 'rateUnit', opts: [['GOZ', 'GOZ — per Troy Oz'], ['GRAM', 'per Gram'], ['KG', 'per KG'], ['TOLA', 'per Tola']] },
-                ].map(({ label, field, opts }) => (
+                ].map(({ label, field, opts }) => {
+                  const resolvedOpts = field === 'metalType' && !opts.length
+                    ? [
+                      ['ALL::all', 'All Metals'],
+                      ['XAU::fallback-gold', 'Gold (XAU)'],
+                      ['XAG::fallback-silver', 'Silver (XAG)'],
+                      ['OTHER::fallback-other', 'Other Metals'],
+                    ]
+                    : opts
+                  return (
                   <div key={field}>
                     <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
                     <select
                       value={fixingRegFilter[field]}
                       onChange={(e) => setFixingRegFilter(f => ({ ...f, [field]: e.target.value }))}
                       style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.84rem' }}
-                      disabled={field === 'metalType' && !opts.length}
+                      disabled={false}
                     >
-                      {field === 'metalType' && !opts.length && <option value="">No metal options found</option>}
-                      {opts.map(([v, lbl]) => <option key={v} value={v}>{lbl}</option>)}
+                      {resolvedOpts.map(([v, lbl]) => <option key={v} value={v}>{lbl}</option>)}
                     </select>
                   </div>
-                ))}
+                )})}
               </div>
               {/* Row 2: Order By | From | To */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
