@@ -1452,10 +1452,15 @@ function ERPTab({ focusTab, onNavigateMain }) {
       }
     }).filter((option) => Boolean(option.metalCode))
 
-    if (stockTypeOptions.length) return stockTypeOptions
+    if (stockTypeOptions.length) {
+      return [
+        { id: 'all-metals', value: 'ALL::all', metalCode: 'ALL', label: 'All Metals' },
+        ...stockTypeOptions,
+      ]
+    }
 
     // Legacy fallback for older datasets where stock types were not encoded in mapping records.
-    return inventoryCatalogProducts.map((item) => {
+    const legacyProductOptions = inventoryCatalogProducts.map((item) => {
       const meta = decodeInventoryCategoryPairs(item.category)
       const source = meta.metalType || meta.mainStock || item.name
       const metalCode = normalizeToMetalCode(source)
@@ -1468,6 +1473,23 @@ function ERPTab({ focusTab, onNavigateMain }) {
         label: `${productLabel}${puritySuffix}`,
       }
     }).filter((option) => Boolean(option.metalCode))
+
+    if (legacyProductOptions.length) {
+      return [
+        { id: 'all-metals', value: 'ALL::all', metalCode: 'ALL', label: 'All Metals' },
+        ...legacyProductOptions,
+      ]
+    }
+
+    // Final fallback: allow fixing register to work even when no inventory stock type/product records exist.
+    return [
+      { id: 'all-metals', value: 'ALL::all', metalCode: 'ALL', label: 'All Metals' },
+      { id: 'metal-gold', value: 'XAU::fallback-gold', metalCode: 'XAU', label: 'Gold (XAU)' },
+      { id: 'metal-silver', value: 'XAG::fallback-silver', metalCode: 'XAG', label: 'Silver (XAG)' },
+      { id: 'metal-platinum', value: 'XPT::fallback-platinum', metalCode: 'XPT', label: 'Platinum (XPT)' },
+      { id: 'metal-palladium', value: 'XPD::fallback-palladium', metalCode: 'XPD', label: 'Palladium (XPD)' },
+      { id: 'metal-other', value: 'OTHER::fallback-other', metalCode: 'OTHER', label: 'Other Metals' },
+    ]
   }, [inventoryCatalogProducts, inventoryMappingProducts])
   const selectedInventoryStockType = inventoryStockTypeOptions.find((item) => item.id === inventoryProductForm.stockTypeId) || null
   const inventoryPurityFactorRaw = Number(inventoryProductForm.purity || 0)
@@ -3575,6 +3597,15 @@ function ERPTab({ focusTab, onNavigateMain }) {
       const fromDate = fixingRegFilter.fromDate ? new Date(`${fixingRegFilter.fromDate}T00:00:00`) : null
       const openingEndDate = fromDate ? new Date(fromDate.getTime() - 86400000) : null
       const selectedMetalCode = String(fixingRegFilter.metalType || '').split('::')[0].toUpperCase()
+      const primaryMetalCodes = new Set(['XAU', 'XAG', 'XPT', 'XPD'])
+      const isAllMetalSelection = !selectedMetalCode || selectedMetalCode === 'ALL'
+      const isOtherMetalSelection = selectedMetalCode === 'OTHER'
+      const matchesSelectedMetal = (metalCodeRaw) => {
+        const metalCode = String(metalCodeRaw || '').toUpperCase()
+        if (isAllMetalSelection) return true
+        if (isOtherMetalSelection) return metalCode && !primaryMetalCodes.has(metalCode)
+        return metalCode === selectedMetalCode
+      }
       const fetchAllPages = async (fetchFn, key, limit = 200) => {
         const allRows = []
         let page = 1
@@ -3663,7 +3694,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           }
 
           if (!lines.length) {
-            if (selectedMetalCode) continue
+            if (!isAllMetalSelection) continue
             if (fixingRegFilter.excludeOpeningBalance && /opening/i.test(String(tx?.description || ''))) continue
             rows.push({
               rowId: `${tx._id}-0`,
@@ -3688,8 +3719,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
           lines.forEach((line, idx) => {
             const lineMetal = resolveVoucherLineMetalCode(line)
-            if (selectedMetalCode && lineMetal && lineMetal !== selectedMetalCode) return
-            if (selectedMetalCode && !lineMetal) return
+            if (!matchesSelectedMetal(lineMetal)) return
             const narration = String(line.narration || tx?.description || '')
             const pureWeightGram = Number(line.pureWeight || line.grossWeight || 0)
             const qtyOz = pureWeightGram > 0 ? (pureWeightGram / 31.1034768) : 0
@@ -3703,7 +3733,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
               branch,
               customerName: partyName,
               direction: tx.type === 'purchase' ? 'buy' : 'sell',
-              metal: lineMetal || selectedMetalCode || '',
+              metal: lineMetal || '',
               qty: qtyOz,
               price: Number(line.metalRate || tx?.voucherMeta?.metalRate || 0),
               amount: txFixingMode === 'Unfixing'
@@ -3728,7 +3758,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           if (fixingRegFilter.excludeFutures && dealValueDate > today) continue
           for (const line of deal.lineItems || []) {
             const lineMetal = resolveDirectDealMetalCode(line.metal || 'XAU')
-            if (selectedMetalCode && lineMetal !== selectedMetalCode) continue
+            if (!matchesSelectedMetal(lineMetal)) continue
             const qtyOz = fixingRegConvertToOz(Number(line.qty || 0), line.stockCode || 'OZ')
             const partyName = line.customerName || '—'
             if (fixingRegFilter.partyFilter === 'selected' && fixingRegFilter.partySearch.trim()) {
@@ -5374,7 +5404,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           {/* Filter card */}
           <div style={{ borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid #CBD5E1', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', maxWidth: '860px', marginBottom: '1.8rem' }}>
             {/* Header */}
-            <div style={{ background: 'var(--purple)', padding: '0.85rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ background: 'var(--purple)', padding: '0.85rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.75rem', position: 'sticky', top: 0, zIndex: 3 }}>
               <span style={{ fontSize: '1rem', fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.03em' }}>📊 Fixing position register</span>
             </div>
             {/* Form body */}
@@ -5394,7 +5424,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                       style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.84rem' }}
                       disabled={field === 'metalType' && !opts.length}
                     >
-                      {field === 'metalType' && !opts.length && <option value="">No created products found</option>}
+                      {field === 'metalType' && !opts.length && <option value="">No metal options found</option>}
                       {opts.map(([v, lbl]) => <option key={v} value={v}>{lbl}</option>)}
                     </select>
                   </div>
@@ -5522,7 +5552,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           {fixingRegShown && !fixingRegLoading && (() => {
             const qUnit = fixingRegFilter.quantityUnit
             const rUnit = fixingRegFilter.rateUnit
-            const metalCodeLabel = String(fixingRegFilter.metalType || '').split('::')[0].toUpperCase() || 'XAU'
+            const metalCodeLabel = String(fixingRegFilter.metalType || '').split('::')[0].toUpperCase() || 'ALL'
             const isQtyImpactRow = (row) => {
               const mode = String(row?.fixingMode || '').trim().toLowerCase()
               if (mode === 'unfixing') return false
@@ -5610,7 +5640,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
             return (
               <div style={{ ...modalBackdropStyle, padding: 0 }} onClick={() => setFixingRegShown(false)}>
                 <div style={{ ...modalCardStyle, width: '100vw', maxWidth: '100vw', height: '100vh', maxHeight: '100vh', borderRadius: 0, padding: '1rem', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.8rem', gap: '0.8rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.8rem', gap: '0.8rem', position: 'sticky', top: 0, zIndex: 3, background: '#FFFFFF', paddingBottom: '0.35rem' }}>
                     <div>
                       <h4 style={{ margin: 0, color: C.ink, fontSize: '1.05rem' }}>Fixing Register Transactions Window</h4>
                       <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Metal sale, purchase, and direct deal entries between selected dates ordered by voucher number.</p>
