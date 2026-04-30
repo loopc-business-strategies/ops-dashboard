@@ -1138,6 +1138,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const [fixingRegLoading, setFixingRegLoading] = useState(false)
   const [fixingRegShown, setFixingRegShown] = useState(false)
   const [fixingRegError, setFixingRegError] = useState('')
+  const [fixingRegPanelOffset, setFixingRegPanelOffset] = useState({ x: 0, y: 0 })
+  const [fixingRegPanelDrag, setFixingRegPanelDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
   const [ledger, setLedger] = useState([])
   const [mappings, setMappings] = useState([])
   const [currencies, setCurrencies] = useState([])
@@ -1805,6 +1807,18 @@ function ERPTab({ focusTab, onNavigateMain }) {
     })
   }
 
+  const beginFixingRegPanelDrag = (event) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    setFixingRegPanelDrag({
+      active: true,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      startX: fixingRegPanelOffset.x,
+      startY: fixingRegPanelOffset.y,
+    })
+  }
+
   useEffect(() => {
     if (!showEnquiryModal) {
       setEnquiryModalOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
@@ -1836,6 +1850,35 @@ function ERPTab({ focusTab, onNavigateMain }) {
       window.removeEventListener('mouseup', handlePointerUp)
     }
   }, [showEnquiryModal, enquiryModalDrag])
+
+  useEffect(() => {
+    if (activeTab !== 'fixing-register') {
+      setFixingRegPanelOffset({ x: 0, y: 0 })
+      setFixingRegPanelDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+      return undefined
+    }
+
+    if (!fixingRegPanelDrag.active) return undefined
+
+    const onMouseMove = (event) => {
+      setFixingRegPanelOffset({
+        x: fixingRegPanelDrag.startX + (event.clientX - fixingRegPanelDrag.pointerX),
+        y: fixingRegPanelDrag.startY + (event.clientY - fixingRegPanelDrag.pointerY),
+      })
+    }
+
+    const onMouseUp = () => {
+      setFixingRegPanelDrag((prev) => ({ ...prev, active: false }))
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [activeTab, fixingRegPanelDrag])
 
   useEffect(() => {
     try {
@@ -5402,10 +5445,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
             style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', width: '2rem', height: '2rem', borderRadius: '0.4rem', border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#1E3A5F', fontSize: '1rem', cursor: 'pointer' }}
           >←</button>
           {/* Filter card */}
-          <div style={{ borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid #CBD5E1', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', maxWidth: '860px', marginBottom: '1.8rem' }}>
+          <div style={{ borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid #CBD5E1', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', maxWidth: '860px', marginBottom: '1.8rem', position: 'relative', transform: `translate(${fixingRegPanelOffset.x}px, ${fixingRegPanelOffset.y}px)`, transition: fixingRegPanelDrag.active ? 'none' : 'transform 120ms ease-out' }}>
             {/* Header */}
-            <div style={{ background: 'var(--purple)', padding: '0.85rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.75rem', position: 'sticky', top: 0, zIndex: 3 }}>
+            <div onMouseDown={beginFixingRegPanelDrag} style={{ background: 'var(--purple)', padding: '0.85rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.75rem', position: 'sticky', top: 0, zIndex: 3, cursor: fixingRegPanelDrag.active ? 'grabbing' : 'grab', userSelect: 'none' }}>
               <span style={{ fontSize: '1rem', fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.03em' }}>📊 Fixing position register</span>
+              <span style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.7)', fontSize: '0.73rem', letterSpacing: '0.04em' }}>drag</span>
             </div>
             {/* Form body */}
             <div style={{ background: '#F8FAFC', padding: '1.25rem 1.2rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>

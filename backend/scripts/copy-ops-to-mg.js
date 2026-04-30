@@ -1,70 +1,101 @@
-require('dotenv').config();
-const mongoose = require('mongoose');
+require('dotenv').config()
+const dns = require('dns')
+const mongoose = require('mongoose')
 
-async function copyCollection(sourceDb, targetDb, name) {
-  const sourceCollection = sourceDb.collection(name);
-  const targetCollection = targetDb.collection(name);
+dns.setServers(['8.8.8.8', '1.1.1.1'])
 
-  const docs = await sourceCollection.find({}).toArray();
+const SOURCE_URI = process.env.MONGO_URI_LOOPC || process.env.MONGO_URI
+const TARGET_URI = process.env.MONGO_URI_MG
+const BATCH_SIZE = 500
 
-  const targetExists = (await targetDb.listCollections({ name }).toArray()).length > 0;
-  if (targetExists) {
-    await targetCollection.drop();
+async function copyCollectionData(sourceDb, targetDb, collectionName) {
+  const sourceCollection = sourceDb.collection(collectionName)
+  const targetCollection = targetDb.collection(collectionName)
+
+  let inserted = 0
+  let batch = []
+
+  const cursor = sourceCollection.find({})
+  try {
+    for await (const doc of cursor) {
+      const clone = { ...doc }
+      delete clone.__v
+      batch.push(clone)
+
+      if (batch.length >= BATCH_SIZE) {
+        await targetCollection.insertMany(batch, { ordered: false })
+        inserted += batch.length
+        batch = []
+      }
+    }
+
+    if (batch.length) {
+      await targetCollection.insertMany(batch, { ordered: false })
+      inserted += batch.length
+    }
+  } finally {
+    await cursor.close()
   }
 
-  if (docs.length > 0) {
-    await targetDb.collection(name).insertMany(docs, { ordered: false });
-  } else {
-    await targetDb.createCollection(name);
-  }
+  return inserted
+}
 
-  const indexes = await sourceCollection.indexes();
-  for (const index of indexes) {
-    if (index.name === '_id_') continue;
-    const { key, name: indexName, ...options } = index;
-    await targetDb.collection(name).createIndex(key, { name: indexName, ...options });
+async function recreateIndexes(sourceDb, targetDb, collectionName) {
+  const sourceIndexes = await sourceDb.collection(collectionName).indexes()
+  for (const index of sourceIndexes) {
+    if (index.name === '_id_') continue
+    const { key, name, ...options } = index
+    await targetDb.collection(collectionName).createIndex(key, { name, ...options })
   }
-
-  return docs.length;
 }
 
 async function main() {
-  if (!process.env.MONGO_URI || !process.env.MONGO_URI_MG) {
-    throw new Error('MONGO_URI and MONGO_URI_MG are required in backend/.env');
+  if (!SOURCE_URI || !TARGET_URI) {
+    throw new Error('MONGO_URI_LOOPC (source) and MONGO_URI_MG (target) are required in backend/.env')
   }
 
-  const sourceConn = await mongoose.createConnection(process.env.MONGO_URI).asPromise();
-  const targetConn = await mongoose.createConnection(process.env.MONGO_URI_MG).asPromise();
+  const sourceConn = await mongoose.createConnection(SOURCE_URI, { autoIndex: false }).asPromise()
+  const targetConn = await mongoose.createConnection(TARGET_URI, { autoIndex: false }).asPromise()
 
-  const sourceDb = sourceConn.db;
-  const targetDb = targetConn.db;
+  try {
+    const sourceDb = sourceConn.db
+    const targetDb = targetConn.db
 
-  const sourceCollections = await sourceDb.listCollections().toArray();
-  const names = sourceCollections
-    .map((c) => c.name)
-    .filter((name) => !name.startsWith('system.'));
+    const sourceCollections = await sourceDb.listCollections({}, { nameOnly: true }).toArray()
+    const sourceNames = sourceCollections
+      .map((c) => c.name)
+      .filter((name) => !name.startsWith('system.'))
 
-  const summary = {};
-  for (const name of names) {
-    const count = await copyCollection(sourceDb, targetDb, name);
-    summary[name] = count;
-    console.log(`copied ${name}: ${count}`);
+    const targetCollections = await targetDb.listCollections({}, { nameOnly: true }).toArray()
+    const targetNames = targetCollections
+      .map((c) => c.name)
+      .filter((name) => !name.startsWith('system.'))
+
+    for (const name of targetNames) {
+      await targetDb.collection(name).drop()
+      console.log(`Dropped target collection: ${name}`)
+    }
+
+    const summary = []
+    for (const name of sourceNames) {
+      await targetDb.createCollection(name)
+      const inserted = await copyCollectionData(sourceDb, targetDb, name)
+      await recreateIndexes(sourceDb, targetDb, name)
+      summary.push({ name, inserted })
+      console.log(`Copied ${name}: inserted=${inserted}`)
+    }
+
+    console.log('Copy completed (FULL clone mode).')
+    console.log(`Source DB: ${sourceConn.name}`)
+    console.log(`Target DB: ${targetConn.name}`)
+    console.log(`Collections copied: ${summary.length}`)
+  } finally {
+    await sourceConn.close()
+    await targetConn.close()
   }
-
-  const targetCollections = await targetDb.listCollections().toArray();
-  for (const col of targetCollections) {
-    if (names.includes(col.name) || col.name.startsWith('system.')) continue;
-    await targetDb.collection(col.name).drop();
-    console.log(`removed extra target collection: ${col.name}`);
-  }
-
-  console.log('done', JSON.stringify({ sourceDb: sourceConn.name, targetDb: targetConn.name, copiedCollections: names.length }));
-
-  await sourceConn.close();
-  await targetConn.close();
 }
 
 main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+  console.error('Copy failed:', err.message)
+  process.exit(1)
+})
