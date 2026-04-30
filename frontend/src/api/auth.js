@@ -5,7 +5,8 @@
 
 import axios from 'axios'
 
-const BASE = '/api/auth'
+const API_ORIGIN = import.meta.env.VITE_API_URL || ''
+const BASE = `${API_ORIGIN}/api/auth`
 
 // Login with name + password
 const login = async (name, password, company) =>

@@ -1,6 +1,7 @@
 import axios from 'axios'
 
-const BASE = '/api/erp'
+const API_ORIGIN = import.meta.env.VITE_API_URL || ''
+const BASE = `${API_ORIGIN}/api/erp`
 
 // Inventory
 const getInventory = async (_token, params = {}) => (await axios.get(`${BASE}/inventory`, { params })).data

@@ -1,6 +1,7 @@
 import axios from 'axios'
 
-const BASE = '/api/messages'
+const API_ORIGIN = import.meta.env.VITE_API_URL || ''
+const BASE = `${API_ORIGIN}/api/messages`
 
 const getLatestMessages = async (_token, type = 'all', limit = 20) =>
   (await axios.get(`${BASE}/latest`, { params: { type, limit } })).data

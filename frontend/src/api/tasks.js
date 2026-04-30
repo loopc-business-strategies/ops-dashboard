@@ -1,7 +1,8 @@
 // FILE: src/api/tasks.js
 import axios from 'axios'
 
-const BASE = '/api/tasks'
+const API_ORIGIN = import.meta.env.VITE_API_URL || ''
+const BASE = `${API_ORIGIN}/api/tasks`
 
 const getTasks    = async (_token)           => (await axios.get(BASE)).data
 const createTask  = async (_token, data)     => (await axios.post(BASE, data)).data

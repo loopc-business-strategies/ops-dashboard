@@ -1,6 +1,7 @@
 import axios from 'axios'
 
-const BASE = '/api/attendance'
+const API_ORIGIN = import.meta.env.VITE_API_URL || ''
+const BASE = `${API_ORIGIN}/api/attendance`
 
 const getSummary = async (_token, date) =>
   (await axios.get(`${BASE}/summary`, { params: { date } })).data

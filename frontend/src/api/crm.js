@@ -3,7 +3,8 @@
 
 import axios from 'axios'
 
-const BASE = '/api/crm'
+const API_ORIGIN = import.meta.env.VITE_API_URL || ''
+const BASE = `${API_ORIGIN}/api/crm`
 const cfg  = ()       => ({ withCredentials: true })
 const cfgP = (params) => ({ withCredentials: true, params })
 

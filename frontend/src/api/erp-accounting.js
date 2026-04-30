@@ -1,6 +1,7 @@
 import axios from 'axios'
 
-const BASE = '/api/erp-accounting'
+const API_ORIGIN = import.meta.env.VITE_API_URL || ''
+const BASE = `${API_ORIGIN}/api/erp-accounting`
 
 // Helper to get auth config
 const getAuthConfig = (_token, params = null) => {
