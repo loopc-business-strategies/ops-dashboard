@@ -2054,6 +2054,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
       if (typeCompare !== 0) return typeCompare
       return String(a.accountCode || '').localeCompare(String(b.accountCode || ''))
     })
+
+  const entryAccountOptions = summaryAccounts.length ? summaryAccounts : accounts
     .reduce((groups, account) => {
       const type = String(account.accountType || 'Other').trim() || 'Other'
       const existingGroup = groups.find((group) => group.type === type)
@@ -3411,7 +3413,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
     if (activeTab === 'dashboard') loadDashboard()
     else if (activeTab === 'accounts') loadAccounts()
     else if (activeTab === 'customers' || activeTab === 'customer-margin') loadCustomers()
-    else if (activeTab === 'ledger') loadLedger()
+    else if (activeTab === 'ledger') {
+      loadLedger()
+      loadAccounts({ scope: 'summary' })
+    }
     else if (activeTab === 'mappings') loadMappings(mappingFilters)
     else if (activeTab === 'transactions') loadTransactions()
     else if (activeTab === 'reports') {
@@ -4856,6 +4861,17 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   const handleLedgerMappingChange = (mappingId) => {
     const selectedMapping = mappings.find((mapping) => mapping._id === mappingId)
+
+    if (!mappingId || !selectedMapping) {
+      setLedgerForm((prev) => ({
+        ...prev,
+        mappingId: '',
+        debitAccountId: '',
+        creditAccountId: '',
+      }))
+      return
+    }
+
     setLedgerForm((prev) => ({
       ...prev,
       mappingId,
@@ -5889,7 +5905,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
               >
                 <option value="">Select Debit Account</option>
-                {accounts.map((account) => (
+                {entryAccountOptions.map((account) => (
                   <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
                 ))}
               </select>
@@ -5899,7 +5915,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
               >
                 <option value="">Select Credit Account</option>
-                {accounts.map((account) => (
+                {entryAccountOptions.map((account) => (
                   <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
                 ))}
               </select>
