@@ -26,7 +26,10 @@ const router = express.Router()
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 function resolveRequestTenant(req, requestedCompany) {
-  return resolveTenantFromHost(req.hostname, normalizeTenant(requestedCompany) || getDefaultTenant())
+  // Priority: 1) hostname subdomain, 2) x-tenant header, 3) posted company field, 4) default
+  const headerTenant = normalizeTenant(req.headers['x-tenant'] || req.headers['x-company'])
+  const fallback = normalizeTenant(requestedCompany) || headerTenant || getDefaultTenant()
+  return resolveTenantFromHost(req.hostname, fallback)
 }
 
 // Helper: create a JWT token for a user

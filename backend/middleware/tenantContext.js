@@ -21,7 +21,10 @@ async function bindTenantContext(req, res, next) {
     const tenant = normalizeTenant(decoded.company)
     if (!tenant) return next()
 
-    const hostTenant = resolveTenantFromHost(req.hostname, tenant)
+    // Prefer hostname resolution; fall back to x-tenant header (needed when
+    // all subdomains proxy through a single API domain like api.loopcstrategies.com)
+    const headerTenant = normalizeTenant(req.headers['x-tenant'] || req.headers['x-company'])
+    const hostTenant = resolveTenantFromHost(req.hostname, headerTenant || tenant)
     if (hostTenant !== tenant) {
       return res.status(401).json({ success: false, message: 'Session tenant does not match this company portal.' })
     }

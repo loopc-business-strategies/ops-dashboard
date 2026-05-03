@@ -82,6 +82,7 @@ function createApp() {
       callback(new Error(`CORS: origin not allowed — ${origin}`))
     },
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant', 'x-company'],
   }))
   app.use(cookieParser())
   app.use(express.json({ limit: REQUEST_BODY_LIMIT }))

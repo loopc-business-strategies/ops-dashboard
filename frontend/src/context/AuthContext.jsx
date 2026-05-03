@@ -20,6 +20,10 @@ export function AuthProvider({ children }) {
   const [company,   setCompany]   = useState(hostTenant)
   const [isLoading, setIsLoading] = useState(true) // checking saved session
 
+  // Always tell the backend which tenant this frontend belongs to
+  axios.defaults.headers.common['x-tenant'] = hostTenant
+  axios.defaults.headers.common['x-company'] = hostTenant
+
   // On app load: restore session from server cookie
   useEffect(() => {
     let mounted = true
@@ -32,6 +36,7 @@ export function AuthProvider({ children }) {
         setUser(data.user)
         setCompany(resolvedTenant)
         localStorage.setItem('tenantCompany', resolvedTenant)
+        axios.defaults.headers.common['x-tenant'] = resolvedTenant
         axios.defaults.headers.common['x-company'] = resolvedTenant
         // Keep compatibility for existing token checks in tabs.
         setToken('cookie-session')
@@ -59,6 +64,7 @@ export function AuthProvider({ children }) {
     setUser(data.user)
     setCompany(resolvedTenant)
     localStorage.setItem('tenantCompany', resolvedTenant)
+    axios.defaults.headers.common['x-tenant'] = resolvedTenant
     axios.defaults.headers.common['x-company'] = resolvedTenant
     setToken('cookie-session')
     return data
@@ -72,6 +78,7 @@ export function AuthProvider({ children }) {
     }
     setToken(null)
     setUser(null)
+    delete axios.defaults.headers.common['x-tenant']
     delete axios.defaults.headers.common['x-company']
   }
 
