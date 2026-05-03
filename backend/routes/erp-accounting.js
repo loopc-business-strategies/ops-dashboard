@@ -3589,6 +3589,18 @@ router.get('/inventory/stock-ledger', protect, async (req, res) => {
   }
 })
 
+router.delete('/inventory/stock-ledger', protect, async (req, res) => {
+  try {
+    if (!isSuperAdmin(req.user) && !isFinance(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+    const result = await StockMovement.deleteMany({})
+    res.json({ success: true, deletedCount: result.deletedCount || 0 })
+  } catch {
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
 // ==========================================
 // DIRECT DEALS MODULE (FIXING / NON-FIXING)
 // ==========================================
