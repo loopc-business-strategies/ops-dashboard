@@ -1,3 +1,5 @@
+const TENANT_KEYS = ['mg', 'cg', 'loopc']
+
 const defaultBranding = {
   key: 'loopc',
   displayName: 'LoopC',
@@ -54,4 +56,28 @@ const tenantBranding = {
 export function getTenantBranding(tenant) {
   const key = String(tenant || '').trim().toLowerCase()
   return tenantBranding[key] || defaultBranding
+}
+
+export function resolveTenantFromHostname(hostname, fallbackTenant = defaultBranding.key) {
+  const fallback = TENANT_KEYS.includes(fallbackTenant) ? fallbackTenant : defaultBranding.key
+  const rawHost = String(hostname || '')
+    .trim()
+    .toLowerCase()
+    .replace(/:\d+$/, '')
+
+  if (!rawHost) return fallback
+  if (TENANT_KEYS.includes(rawHost)) return rawHost
+  if (rawHost === 'localhost' || rawHost === '127.0.0.1' || rawHost === '::1') return fallback
+
+  const [subdomain] = rawHost.split('.')
+  return TENANT_KEYS.includes(subdomain) ? subdomain : fallback
+}
+
+export function isLocalTenantHost(hostname) {
+  const rawHost = String(hostname || '')
+    .trim()
+    .toLowerCase()
+    .replace(/:\d+$/, '')
+
+  return !rawHost || rawHost === 'localhost' || rawHost === '127.0.0.1' || rawHost === '::1'
 }
