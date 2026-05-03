@@ -569,53 +569,38 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const setHdr = (key, value) => setHeader((prev) => ({ ...prev, [key]: value }))
 
   const voucherConfigs = {
-    payment: { key: 'payment', label: 'Payment Voucher', short: t('paymentVoucher'), code: 'PAY', icon: '💳', partySelectLabel: 'Vendor / Customer', partyPlaceholder: 'Auto from vendor' },
+    payment: { key: 'payment', label: 'Payment Voucher', short: t('paymentVoucher'), code: 'PAY', icon: '💳', partySelectLabel: 'Vendor', partyPlaceholder: 'Auto from vendor' },
     receipt: { key: 'receipt', label: 'Receipt Voucher', short: t('receiptVoucher'), code: 'REC', icon: '🧾', partySelectLabel: 'Customer', partyPlaceholder: 'Auto from customer' },
-    purchase: { key: 'purchase', label: 'Metal Purchase Voucher', short: 'Metal Purchase', code: 'PUR', icon: '🟫', partySelectLabel: 'Vendor / Customer', partyPlaceholder: 'Auto from vendor/customer' },
-    sale: { key: 'sale', label: 'Metal Sale Voucher', short: 'Metal Sale', code: 'SAL', icon: '🟨', partySelectLabel: 'Vendor / Customer', partyPlaceholder: 'Auto from vendor/customer' },
+    purchase: { key: 'purchase', label: 'Metal Purchase Voucher', short: 'Metal Purchase', code: 'PUR', icon: '🟫', partySelectLabel: 'Vendor', partyPlaceholder: 'Auto from vendor' },
+    sale: { key: 'sale', label: 'Metal Sale Voucher', short: 'Metal Sale', code: 'SAL', icon: '🟨', partySelectLabel: 'Customer', partyPlaceholder: 'Auto from customer' },
   }
+
+  const voucherPartyMode = voucherType === 'receipt' || voucherType === 'sale'
+    ? 'customer'
+    : 'vendor'
 
   const resolveVoucherParty = useCallback((partyCode) => {
     const lookupValue = normalizeLookupValue(partyCode)
     if (!lookupValue) return null
 
-    if (voucherType === 'payment' || voucherType === 'purchase' || voucherType === 'sale') {
+    if (voucherPartyMode === 'vendor') {
       const vendor = vendors.find((item) => {
         const ledgerCode = normalizeLookupValue(item.ledgerAccountId?.accountCode)
         return lookupValue === normalizeLookupValue(item._id)
           || lookupValue === normalizeLookupValue(item.vendorCode)
           || lookupValue === ledgerCode
       })
-      if (vendor) {
-        return {
-          customerId: '',
-          vendorId: vendor._id,
-          partyName: vendor.name || '',
-          partyCode: vendor.vendorCode || vendor.ledgerAccountId?.accountCode || String(vendor._id),
-          partyId: `vendor:${String(vendor._id)}`,
-          partyType: 'vendor',
-          email: vendor.email || '',
-          phone: vendor.phone || '',
-          address: formatPartyAddress(vendor.address, vendor.city, vendor.country, vendor.postalCode),
-        }
-      }
-
-      const customer = customers.find((item) => {
-        const ledgerCode = normalizeLookupValue(item.ledgerAccountId?.accountCode)
-        return lookupValue === normalizeLookupValue(item._id) || lookupValue === ledgerCode
-      })
-
-      return customer
+      return vendor
         ? {
-            customerId: customer._id,
-            vendorId: '',
-            partyName: customer.name || '',
-            partyCode: customer.ledgerAccountId?.accountCode || String(customer._id),
-            partyId: `customer:${String(customer._id)}`,
-            partyType: 'customer',
-            email: customer.email || '',
-            phone: customer.phone || '',
-            address: customer.address || '',
+            customerId: '',
+            vendorId: vendor._id,
+            partyName: vendor.name || '',
+            partyCode: vendor.vendorCode || vendor.ledgerAccountId?.accountCode || String(vendor._id),
+            partyId: `vendor:${String(vendor._id)}`,
+            partyType: 'vendor',
+            email: vendor.email || '',
+            phone: vendor.phone || '',
+            address: formatPartyAddress(vendor.address, vendor.city, vendor.country, vendor.postalCode),
           }
         : null
     }
@@ -638,9 +623,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           address: customer.address || '',
         }
       : null
-  }, [customers, vendors, voucherType])
+  }, [customers, vendors, voucherPartyMode])
 
-  const partyGroups = ['payment', 'purchase', 'sale'].includes(voucherType)
+  const partyGroups = voucherPartyMode === 'vendor'
     ? [
         {
           label: 'Vendors',
@@ -650,17 +635,6 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
               id: `vendor:${String(item._id)}`,
               label: `${item.name || 'Vendor'}${item.vendorCode ? ` (${item.vendorCode})` : ''}`,
               partyCode: item.vendorCode || item.ledgerAccountId?.accountCode || String(item._id),
-              partyName: item.name || '',
-            })),
-        },
-        {
-          label: 'Customers',
-          options: customers
-            .filter((item) => Boolean(item.ledgerAccountId?.accountCode))
-            .map((item) => ({
-              id: `customer:${String(item._id)}`,
-              label: `${item.name || 'Customer'}${item.ledgerAccountId?.accountCode ? ` (${item.ledgerAccountId.accountCode})` : ''}`,
-              partyCode: item.ledgerAccountId?.accountCode || String(item._id),
               partyName: item.name || '',
             })),
         },
@@ -1426,19 +1400,17 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       setError('Party Code must match an existing customer account for receipt vouchers')
       return
     }
-    if (voucherType === 'sale' && !resolvedParty?.vendorId && !resolvedParty?.customerId) {
-      setError('Party Code must match an existing vendor or customer account for sale vouchers')
+    if (voucherType === 'sale' && !resolvedParty?.customerId) {
+      setError('Party Code must match an existing customer account for sale vouchers')
       return
     }
-    if (voucherType === 'purchase' && !resolvedParty?.vendorId && !resolvedParty?.customerId) {
-      setError('Party Code must match an existing vendor or customer account for purchase vouchers')
+    if (voucherType === 'purchase' && !resolvedParty?.vendorId) {
+      setError('Party Code must match an existing vendor account for purchase vouchers')
       return
     }
     if (voucherType === 'payment' && !resolvedParty?.vendorId) {
-      if (!resolvedParty?.customerId) {
-        setError('Party Code must match an existing vendor or customer account for payment vouchers')
-        return
-      }
+      setError('Party Code must match an existing vendor account for payment vouchers')
+      return
     }
     const payload = {
       type: voucherType,
