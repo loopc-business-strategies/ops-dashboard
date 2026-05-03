@@ -32,6 +32,7 @@ const getLedger = async (token, params) => (await axios.get(`${BASE}/ledger`, ge
 const createLedgerEntry = async (token, payload) => (await axios.post(`${BASE}/ledger`, payload, getAuthConfig(token))).data
 const updateLedgerEntry = async (token, id, payload) => (await axios.put(`${BASE}/ledger/${id}`, payload, getAuthConfig(token))).data
 const deleteLedgerEntry = async (token, id) => (await axios.delete(`${BASE}/ledger/${id}`, getAuthConfig(token))).data
+const permanentDeleteLedgerEntry = async (token, id) => (await axios.delete(`${BASE}/ledger/${id}/permanent`, getAuthConfig(token))).data
 
 // Account Mappings
 const getMappings = async (token, params) => (await axios.get(`${BASE}/mappings`, getAuthConfig(token, params))).data
@@ -129,6 +130,7 @@ const erpAccountingAPI = {
   createLedgerEntry,
   updateLedgerEntry,
   deleteLedgerEntry,
+  permanentDeleteLedgerEntry,
   getMappings,
   createMapping,
   updateMapping,

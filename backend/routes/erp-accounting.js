@@ -2263,7 +2263,7 @@ router.get('/ledger', protect, async (req, res) => {
     if (!canViewLedger(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { startDate, endDate, accountId, department, referenceType, limit = 500 } = req.query
     const safeLimit = Math.min(500, Math.max(1, Number(limit) || 500))
-    const query = {}
+    const query = { isDeleted: { $ne: true } }
     if (startDate || endDate) {
       query.date = {}
       if (startDate) query.date.$gte = new Date(startDate)
@@ -2373,6 +2373,35 @@ router.delete('/ledger/:id', protect, async (req, res) => {
       department: req.user.department,
     })
     res.json({ success: true, message: 'Entry reversed', reversalEntry })
+  } catch {
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+router.delete('/ledger/:id/permanent', protect, async (req, res) => {
+  try {
+    if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const entry = await Ledger.findById(req.params.id)
+    if (!entry) return res.status(404).json({ success: false, message: 'Ledger entry not found' })
+    // Only creator or finance can permanently delete
+    if (entry.createdBy.toString() !== req.user._id.toString() && !isFinance(req.user)) {
+      return res.status(403).json({ success: false, message: 'Can only delete your own entries' })
+    }
+
+    const linkedTx = await Transaction.findOne({ journalEntryId: entry._id }).select('_id')
+    if (linkedTx) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot permanently delete a ledger entry linked to a transaction. Use Reverse instead.',
+      })
+    }
+
+    entry.isDeleted = true
+    entry.deletedAt = new Date()
+    entry.updatedBy = req.user._id
+    await entry.save()
+
+    res.json({ success: true, message: 'Entry deleted permanently' })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }

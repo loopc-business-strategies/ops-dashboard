@@ -4919,7 +4919,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     })
   }
 
-  const handleDeleteLedger = async (entry) => {
+  const handleReverseLedger = async (entry) => {
     if (!window.confirm(`Reverse ledger entry ${entry.referenceType} (${entry.amount})? This will create an offsetting entry.`)) return
     try {
       setSaving(true)
@@ -4929,6 +4929,21 @@ function ERPTab({ focusTab, onNavigateMain }) {
       showNotification('✅ Entry reversed successfully')
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to reverse entry')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handlePermanentDeleteLedger = async (entry) => {
+    if (!window.confirm(`Delete ledger entry ${entry.referenceType} (${entry.amount}) permanently?`)) return
+    try {
+      setSaving(true)
+      await erpAccountingAPI.permanentDeleteLedgerEntry(token, entry._id)
+      await loadLedger()
+      setError('')
+      showNotification('✅ Entry deleted successfully')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to delete entry')
     } finally {
       setSaving(false)
     }
@@ -6042,7 +6057,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
                       <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                           <button onClick={() => handleEditLedger(entry)} title="Edit" style={{ padding: '0.35rem 0.5rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
-                          <button onClick={() => handleDeleteLedger(entry)} title="Reverse" style={{ padding: '0.35rem 0.5rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Reverse</button>
+                          <button onClick={() => handleReverseLedger(entry)} title="Reverse" style={{ padding: '0.35rem 0.5rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Reverse</button>
+                          <button onClick={() => handlePermanentDeleteLedger(entry)} title="Delete" style={{ padding: '0.35rem 0.5rem', background: '#7F1D1D', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Delete</button>
                         </div>
                       </td>
                     </tr>
