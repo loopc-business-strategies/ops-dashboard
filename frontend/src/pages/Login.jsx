@@ -135,16 +135,6 @@ function Login() {
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
-                Company
-              </label>
-              <div className="input-field flex items-center justify-between">
-                <span>{branding.displayName}</span>
-                <span className="text-xs text-gray-500 uppercase tracking-wider">{window.location.hostname}</span>
-              </div>
-            </div>
-
             {/* Username field */}
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
