@@ -48,6 +48,26 @@ function getDefaultTenant() {
   return normalizeTenant(process.env.DEFAULT_TENANT) || 'loopc'
 }
 
+function resolveTenantFromHost(hostname, fallbackTenant = getDefaultTenant()) {
+  const fallback = normalizeTenant(fallbackTenant) || getDefaultTenant()
+  const rawHost = String(hostname || '')
+    .trim()
+    .toLowerCase()
+    .replace(/:\d+$/, '')
+
+  if (!rawHost) return fallback
+
+  const directMatch = normalizeTenant(rawHost)
+  if (directMatch) return directMatch
+
+  if (rawHost === 'localhost' || rawHost === '127.0.0.1' || rawHost === '::1') {
+    return fallback
+  }
+
+  const [subdomain] = rawHost.split('.')
+  return normalizeTenant(subdomain) || fallback
+}
+
 function getTenantUri(tenant) {
   const normalized = normalizeTenant(tenant)
   if (!normalized) return null
@@ -61,5 +81,6 @@ module.exports = {
   TENANTS,
   normalizeTenant,
   getDefaultTenant,
+  resolveTenantFromHost,
   getTenantUri,
 }

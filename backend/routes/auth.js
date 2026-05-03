@@ -19,11 +19,15 @@ const jwt     = require('jsonwebtoken')
 const User    = require('../models/User')
 const { protect, restrictTo } = require('../middleware/auth')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
-const { normalizeTenant, getDefaultTenant } = require('../config/tenants')
+const { normalizeTenant, getDefaultTenant, resolveTenantFromHost } = require('../config/tenants')
 
 const router = express.Router()
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+function resolveRequestTenant(req, requestedCompany) {
+  return resolveTenantFromHost(req.hostname, normalizeTenant(requestedCompany) || getDefaultTenant())
+}
 
 // Helper: create a JWT token for a user
 const createToken = (id, company) =>
@@ -40,13 +44,13 @@ const cookieOptions = {
 }
 
 const setupSchema = Joi.object({
-  company: Joi.string().trim().valid('mg', 'cg', 'loopc').required(),
+  company: Joi.string().trim().valid('mg', 'cg', 'loopc').optional(),
   name: Joi.string().trim().min(2).max(80).required(),
   password: Joi.string().min(6).max(128).required(),
 })
 
 const loginSchema = Joi.object({
-  company: Joi.string().trim().valid('mg', 'cg', 'loopc').required(),
+  company: Joi.string().trim().valid('mg', 'cg', 'loopc').optional(),
   name: Joi.string().trim().min(2).max(80).required(),
   password: Joi.string().min(1).max(128).required(),
 })
@@ -124,9 +128,9 @@ const sendToken = (user, status, res, company) => {
 // ==========================================
 router.post('/setup', validateBody(setupSchema), async (req, res) => {
   try {
-    const tenant = normalizeTenant(req.body.company)
+    const tenant = resolveRequestTenant(req, req.body.company)
     if (!tenant) {
-      return res.status(400).json({ success: false, message: 'Valid company is required.' })
+      return res.status(400).json({ success: false, message: 'Valid company could not be resolved.' })
     }
 
     const TenantUser = await User.getTenantModel(tenant)
@@ -166,10 +170,10 @@ router.post('/setup', validateBody(setupSchema), async (req, res) => {
 router.post('/login', validateBody(loginSchema), async (req, res) => {
   try {
     const { company, name, password } = req.body
-    const tenant = normalizeTenant(company)
+    const tenant = resolveRequestTenant(req, company)
 
     if (!tenant) {
-      return res.status(400).json({ success: false, message: 'Valid company is required.' })
+      return res.status(400).json({ success: false, message: 'Valid company could not be resolved.' })
     }
 
     if (!name || !password)

@@ -8,7 +8,7 @@
 
 const jwt  = require('jsonwebtoken')
 const User = require('../models/User')
-const { normalizeTenant } = require('../config/tenants')
+const { normalizeTenant, resolveTenantFromHost } = require('../config/tenants')
 
 // -----------------------------------------------
 // protect — verifies the JWT token on every request
@@ -43,6 +43,11 @@ const protect = async (req, res, next) => {
 
     if (!tenant) {
       return res.status(401).json({ success: false, message: 'Invalid tenant in session. Please log in again.' })
+    }
+
+    const hostTenant = resolveTenantFromHost(req.hostname, tenant)
+    if (hostTenant !== tenant) {
+      return res.status(401).json({ success: false, message: 'Session tenant does not match this company portal.' })
     }
 
     // Find the user this token belongs to

@@ -8,13 +8,16 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import axios from 'axios'
 import authAPI from '../api/auth'
+import { resolveTenantFromHostname } from '../config/tenantBranding'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
+  const hostTenant = resolveTenantFromHostname(window.location.hostname, localStorage.getItem('tenantCompany') || 'loopc')
+
   const [user,      setUser]      = useState(null)
   const [token,     setToken]     = useState(null)
-  const [company,   setCompany]   = useState(localStorage.getItem('tenantCompany') || 'loopc')
+  const [company,   setCompany]   = useState(hostTenant)
   const [isLoading, setIsLoading] = useState(true) // checking saved session
 
   // On app load: restore session from server cookie
@@ -25,17 +28,18 @@ export function AuthProvider({ children }) {
       try {
         const data = await authAPI.getMe()
         if (!mounted) return
+        const resolvedTenant = resolveTenantFromHostname(window.location.hostname, data.user?.company || hostTenant)
         setUser(data.user)
-        setCompany(data.user?.company || 'loopc')
-        localStorage.setItem('tenantCompany', data.user?.company || 'loopc')
-        axios.defaults.headers.common['x-company'] = data.user?.company || 'loopc'
+        setCompany(resolvedTenant)
+        localStorage.setItem('tenantCompany', resolvedTenant)
+        axios.defaults.headers.common['x-company'] = resolvedTenant
         // Keep compatibility for existing token checks in tabs.
         setToken('cookie-session')
       } catch {
         if (!mounted) return
         setUser(null)
         setToken(null)
-        setCompany(localStorage.getItem('tenantCompany') || 'loopc')
+        setCompany(hostTenant)
       } finally {
         if (mounted) setIsLoading(false)
       }
@@ -49,12 +53,13 @@ export function AuthProvider({ children }) {
   }, [])
 
   const login = async (name, password, selectedCompany) => {
-    const tenant = selectedCompany || company || 'loopc'
+    const tenant = resolveTenantFromHostname(window.location.hostname, selectedCompany || company || hostTenant)
     const data = await authAPI.login(name, password, tenant)
+    const resolvedTenant = resolveTenantFromHostname(window.location.hostname, data.user?.company || tenant)
     setUser(data.user)
-    setCompany(data.user?.company || tenant)
-    localStorage.setItem('tenantCompany', data.user?.company || tenant)
-    axios.defaults.headers.common['x-company'] = data.user?.company || tenant
+    setCompany(resolvedTenant)
+    localStorage.setItem('tenantCompany', resolvedTenant)
+    axios.defaults.headers.common['x-company'] = resolvedTenant
     setToken('cookie-session')
     return data
   }
