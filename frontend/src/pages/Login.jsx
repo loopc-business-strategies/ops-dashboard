@@ -9,7 +9,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
-import { getTenantBranding } from '../config/tenantBranding'
+import { getTenantBranding, resolveTenantFromHostname } from '../config/tenantBranding'
 
 function hexToRgb(hex) {
   const h = hex.replace('#', '')
@@ -24,9 +24,10 @@ function Login() {
   const { login } = useAuth()
   const { t } = useLanguage()
 
+  const company = resolveTenantFromHostname(window.location.hostname, 'loopc')
+
   const [name,     setName]     = useState('')
   const [password, setPassword] = useState('')
-  const [company,  setCompany]  = useState('loopc')
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
   const [showPass, setShowPass] = useState(false)
@@ -42,17 +43,31 @@ function Login() {
     root.style.setProperty('--grad-bar', branding.colors.gradBar)
   }, [branding])
 
-  const handleDemoLogin = async (demoRole) => {
-    const demoAccounts = {
-      superadmin: { username: 'spr', password: 'admin123' },
-      admin:      { username: 'admin', password: 'admin123' },
-      manager:    { username: 'manager', password: 'admin123' },
+  const handleDemoLogin = async () => {
+    const demoAccountsByTenant = {
+      mg: { username: 'mgadmin', password: 'MgAdmin@2026!' },
+      cg: { username: 'cgadmin', password: 'CgAdmin@2026!' },
+      loopc: { username: 'loopcadmin', password: 'LoopcAdmin@2026!' },
     }
-    const account = demoAccounts[demoRole] || demoAccounts.superadmin
+
+    const account = demoAccountsByTenant[company] || demoAccountsByTenant.loopc
+
+    setLoading(true)
+    setError('')
     try {
       await login(account.username, account.password, company)
+      navigate('/dashboard')
     } catch (err) {
+      if (!err.response) {
+        setError(t('loginErrNetwork'))
+      } else if (err.response.status >= 500) {
+        setError(t('loginErrServer'))
+      } else {
+        setError(err.response?.data?.message || t('loginErrInvalid'))
+      }
       console.error('Demo login failed', err)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -120,21 +135,14 @@ function Login() {
               </div>
             )}
 
-            {/* Username field */}
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
                 Company
               </label>
-              <select
-                value={company}
-                onChange={(e) => { setCompany(e.target.value); setError('') }}
-                className="input-field"
-                disabled={loading}
-              >
-                <option value="mg">MG</option>
-                <option value="cg">CG</option>
-                <option value="loopc">LoopC</option>
-              </select>
+              <div className="input-field flex items-center justify-between">
+                <span>{branding.displayName}</span>
+                <span className="text-xs text-gray-500 uppercase tracking-wider">{window.location.hostname}</span>
+              </div>
             </div>
 
             {/* Username field */}
