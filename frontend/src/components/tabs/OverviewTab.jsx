@@ -179,16 +179,16 @@ function getSeverityTone(severity) {
 }
 
 function KpiCard({ title, value, hint, tone = 'green', onClick, readOnly }) {
-  const borderClass = tone === 'red' ? 'border-red-500/40' : tone === 'yellow' ? 'border-yellow-500/40' : 'border-emerald-500/40'
+  const borderClass = tone === 'red' ? 'border-red-400' : tone === 'yellow' ? 'border-yellow-400' : 'border-emerald-400'
   return (
     <button
       onClick={onClick}
-      className={`text-left bg-gray-950 border rounded-xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/30 ${borderClass} ${onClick ? '' : 'cursor-default'}`}
-      style={{ borderTopWidth: 2 }}
+      className={`text-left bg-white border rounded-xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md shadow-sm ${borderClass} ${onClick ? '' : 'cursor-default'}`}
+      style={{ borderTopWidth: 3 }}
       disabled={!onClick}
     >
-      <p className="text-xs text-gray-400 tracking-wider uppercase">{title}</p>
-      <p className="text-2xl font-bold text-white mt-1">{value}</p>
+      <p className="text-xs text-gray-500 tracking-wider uppercase">{title}</p>
+      <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
       <p className="text-xs text-gray-500 mt-1">{hint}{readOnly ? ' - read only' : ''}</p>
     </button>
   )
@@ -196,9 +196,9 @@ function KpiCard({ title, value, hint, tone = 'green', onClick, readOnly }) {
 
 function Section({ title, action, children }) {
   return (
-    <section className="bg-gray-950 border border-gray-800 rounded-2xl p-4 sm:p-5">
+    <section className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3 mb-4">
-        <h2 className="text-sm sm:text-base font-semibold text-white">{title}</h2>
+        <h2 className="text-sm sm:text-base font-semibold text-gray-900">{title}</h2>
         {action}
       </div>
       {children}
@@ -983,7 +983,7 @@ function OverviewTab({ onNavigate }) {
       >
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <p className="text-lg font-bold text-white">Good day, {user?.name || 'User'}</p>
+            <p className="text-lg font-bold text-gray-900">Good day, {user?.name || 'User'}</p>
             <p className="text-sm text-gray-400">Last login: {user?.lastLogin ? fmtDateTime(user.lastLogin) : '2 hrs ago'}</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1126,10 +1126,10 @@ function OverviewTab({ onNavigate }) {
         </div>
 
         {showTaskCreate && canCreateTasks && (
-          <div className="mb-5 p-4 rounded-xl border border-gray-700 bg-gray-900/70 space-y-3">
+          <div className="mb-5 p-4 rounded-xl border border-gray-200 bg-gray-50 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">{editingTaskId ? 'Edit Task' : 'Quick Create Task'}</p>
-              <button onClick={resetTaskComposer} className="text-gray-400 hover:text-white">x</button>
+              <p className="text-sm font-semibold text-gray-900">{editingTaskId ? 'Edit Task' : 'Quick Create Task'}</p>
+              <button onClick={resetTaskComposer} className="text-gray-400 hover:text-gray-700">x</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <input className="input-field" placeholder="Task Title *" value={taskForm.title} onChange={(e) => setTaskForm((p) => ({ ...p, title: e.target.value }))} />
@@ -1173,7 +1173,7 @@ function OverviewTab({ onNavigate }) {
               <textarea className="input-field md:col-span-2" rows={2} placeholder="Message to assignee (optional)" value={taskForm.notifyText} onChange={(e) => setTaskForm((p) => ({ ...p, notifyText: e.target.value }))} />
             </div>
             <div className="flex justify-end gap-2">
-              <button onClick={resetTaskComposer} className="px-3 py-2 rounded-lg bg-gray-800 text-gray-300 text-xs">Cancel</button>
+              <button onClick={resetTaskComposer} className="px-3 py-2 rounded-lg bg-gray-200 text-gray-700 text-xs">Cancel</button>
               <button onClick={onSaveTask} className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-xs">{editingTaskId ? 'Save & Notify' : 'Create & Notify'}</button>
             </div>
           </div>
@@ -1182,18 +1182,18 @@ function OverviewTab({ onNavigate }) {
         {loadingTasks ? (
           <div className="text-sm text-gray-400 py-6">Loading tasks...</div>
         ) : filteredTasks.length === 0 ? (
-          <div className="text-sm text-gray-500 py-6 border border-dashed border-gray-700 rounded-xl text-center">No tasks match current filters</div>
+          <div className="text-sm text-gray-500 py-6 border border-dashed border-gray-300 rounded-xl text-center">No tasks match current filters</div>
         ) : taskView === 'list' ? (
           <div className="space-y-3">
             {filteredTasks.map((task) => {
               const isExpanded = expandedTaskId === task._id
               const overdue = task.dueDate && new Date(task.dueDate) < todayStart && task.status !== 'done'
               return (
-                <div key={task._id} className="border border-gray-800 rounded-xl bg-gray-950">
+                <div key={task._id} className="border border-gray-200 rounded-xl bg-white shadow-sm">
                   <div className="p-3 sm:p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-white">{task.title}</p>
+                        <p className="text-sm font-semibold text-gray-900">{task.title}</p>
                         <p className="text-xs text-gray-500 mt-1">{task.department || 'General'} {'->'} {task.module || 'General'}</p>
                         <p className="text-xs text-gray-400 mt-1">{task.assignedTo || 'Unassigned'} · Due: {fmtDate(task.dueDate)} {overdue ? '· OVERDUE' : ''}</p>
                       </div>
@@ -1224,7 +1224,7 @@ function OverviewTab({ onNavigate }) {
                     <div className="border-t border-gray-800 p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
                       <div>
                         <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Details</p>
-                        <p className="text-sm text-gray-300">{task.description || 'No description provided.'}</p>
+                        <p className="text-sm text-gray-700">{task.description || 'No description provided.'}</p>
                         <div className="text-xs text-gray-500 mt-3 space-y-1">
                           <p>Priority: {task.priority}</p>
                           <p>Status: {statusLabel(task.status)}</p>
@@ -1240,8 +1240,8 @@ function OverviewTab({ onNavigate }) {
                         <div className="space-y-2 max-h-44 overflow-auto pr-1">
                           {(task.comments || []).length === 0 && <p className="text-xs text-gray-600">No comments yet.</p>}
                           {(task.comments || []).map((c, idx) => (
-                            <div key={`${task._id}-c-${idx}`} className="rounded-lg border border-gray-800 p-2 bg-gray-900">
-                              <p className="text-xs text-gray-300"><span className="font-semibold">{c.author}</span> - {fmtDateTime(c.createdAt)}</p>
+                            <div key={`${task._id}-c-${idx}`} className="rounded-lg border border-gray-200 p-2 bg-gray-50">
+                              <p className="text-xs text-gray-700"><span className="font-semibold">{c.author}</span> - {fmtDateTime(c.createdAt)}</p>
                               <p className="text-xs text-gray-400 mt-1">{c.text}</p>
                             </div>
                           ))}
@@ -1267,17 +1267,17 @@ function OverviewTab({ onNavigate }) {
             {['todo', 'in-progress', 'blocked', 'done'].map((col) => {
               const colTasks = filteredTasks.filter((t) => t.status === col)
               return (
-                <div key={col} className="border border-gray-800 rounded-xl p-3 bg-gray-950">
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">{statusLabel(col)} ({colTasks.length})</p>
+                <div key={col} className="border border-gray-200 rounded-xl p-3 bg-gray-50">
+                  <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">{statusLabel(col)} ({colTasks.length})</p>
                   <div className="space-y-2">
                     {colTasks.map((t) => (
-                      <div key={`${col}-${t._id}`} className="border border-gray-800 rounded-lg p-2 bg-gray-900">
-                        <p className="text-sm text-gray-200 font-medium">{t.title}</p>
+                      <div key={`${col}-${t._id}`} className="border border-gray-200 rounded-lg p-2 bg-white">
+                        <p className="text-sm text-gray-900 font-medium">{t.title}</p>
                         <p className="text-xs text-gray-500 mt-1">{t.assignedTo || 'Unassigned'} · {fmtDate(t.dueDate)}</p>
                       </div>
                     ))}
                     {canCreateTasks && (
-                      <button onClick={() => openTaskComposer()} className="w-full py-2 text-xs rounded border border-dashed border-gray-700 text-gray-500 hover:text-gray-300">
+                      <button onClick={() => openTaskComposer()} className="w-full py-2 text-xs rounded border border-dashed border-gray-300 text-gray-500 hover:text-gray-700">
                         + Add Task
                       </button>
                     )}
@@ -1292,7 +1292,7 @@ function OverviewTab({ onNavigate }) {
               const day = idx + 1
               const onDay = filteredTasks.filter((t) => t.dueDate && new Date(t.dueDate).getDate() === day)
               return (
-                <div key={`day-${day}`} className="min-h-20 border border-gray-800 rounded-lg p-1 bg-gray-950">
+                <div key={`day-${day}`} className="min-h-20 border border-gray-200 rounded-lg p-1 bg-white">
                   <p className="text-[10px] text-gray-500">{day}</p>
                   <div className="space-y-1 mt-1">
                     {onDay.slice(0, 2).map((t) => (
@@ -1318,13 +1318,13 @@ function OverviewTab({ onNavigate }) {
         </div>
 
         {!isPersonalView && (
-          <div className="mb-4 border border-gray-800 rounded-xl p-3 bg-gray-950">
+          <div className="mb-4 border border-gray-200 rounded-xl p-3 bg-white">
             <p className="text-xs uppercase tracking-wide text-gray-700 mb-3">Attendance by Department</p>
             <div className="space-y-2">
               {attendanceByDept.map((row) => (
                 <div key={`bar-${row.value}`} className="grid grid-cols-[90px_1fr_90px] gap-2 items-center">
                   <span className="text-xs text-gray-800 capitalize">{row.label}</span>
-                  <div className="h-2 rounded bg-gray-800 overflow-hidden">
+                  <div className="h-2 rounded bg-gray-200 overflow-hidden">
                     <div
                       className={`h-full ${row.pct >= 90 ? 'bg-emerald-500' : row.pct >= 80 ? 'bg-yellow-500' : 'bg-red-500'}`}
                       style={{ width: `${row.pct}%` }}
@@ -1353,9 +1353,9 @@ function OverviewTab({ onNavigate }) {
           <input className="input-field flex-1 min-w-[180px]" placeholder="Search name" value={attendanceSearch} onChange={(e) => setAttendanceSearch(e.target.value)} />
         </div>
 
-        <div className="overflow-x-auto border border-gray-800 rounded-xl">
+        <div className="overflow-x-auto border border-gray-200 rounded-xl">
           <table className="w-full text-xs">
-            <thead className="bg-gray-900">
+            <thead className="bg-gray-50">
               <tr>
                 {['AVT', 'Name', 'Dept', 'Check-in', 'Status', 'Shift', 'Actions'].map((h) => (
                   <th key={h} className="text-left px-3 py-2 text-gray-700 uppercase tracking-wider">{h}</th>
@@ -1364,7 +1364,7 @@ function OverviewTab({ onNavigate }) {
             </thead>
             <tbody>
               {attendanceFilteredRows.map((r) => (
-                <tr key={r.id} className="border-t border-gray-800">
+                <tr key={r.id} className="border-t border-gray-100">
                   <td className="px-3 py-2 text-gray-700">{initials(r.name)}</td>
                   <td className="px-3 py-2 text-gray-900">{r.name}</td>
                   <td className="px-3 py-2 text-gray-700 capitalize">{r.department || '-'}</td>
@@ -1403,9 +1403,9 @@ function OverviewTab({ onNavigate }) {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-          <div className="border border-gray-800 rounded-xl p-3 bg-gray-950">
+          <div className="border border-gray-200 rounded-xl p-3 bg-white shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold text-white">My Attendance - April 2026</p>
+              <p className="text-sm font-semibold text-gray-900">My Attendance - April 2026</p>
               <button className="text-xs text-emerald-700 hover:text-emerald-800">View Full History</button>
             </div>
             <p className="text-xs text-gray-700">This Month: {myAttendance?.presentDays ?? 20}/{myAttendance?.totalDays ?? 22} days ({myAttendance?.attendancePct ?? 91}%)</p>
@@ -1426,17 +1426,17 @@ function OverviewTab({ onNavigate }) {
             <button onClick={submitLeaveRequest} className="mt-3 px-3 py-2 text-xs rounded-lg bg-emerald-700 text-white">Apply for Leave</button>
           </div>
 
-          <div className="border border-gray-800 rounded-xl p-3 bg-gray-950">
+          <div className="border border-gray-200 rounded-xl p-3 bg-white shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold text-white">{t('leaveRequests')}</p>
+              <p className="text-sm font-semibold text-gray-900">{t('leaveRequests')}</p>
               <button className="text-xs text-emerald-700 hover:text-emerald-800">{t('viewAll')}</button>
             </div>
             <div className="space-y-2">
               {visibleLeaveRequests
                 .filter((x) => perms.isSuperAdmin || perms.isManagement || (perms.isDepartmentHead && (x.dept || x.department) === (user?.department || '').toLowerCase()) || (!perms.isDepartmentHead && !perms.isSuperAdmin && !perms.isManagement && (x.name || x.employeeName || '').toLowerCase() === (user?.name || '').toLowerCase()))
                 .map((x) => (
-                  <div key={x.id || x._id} className="border border-gray-800 rounded-lg p-2">
-                    <p className="text-xs text-gray-200">{x.name || x.employeeName} ({x.dept || x.department})</p>
+                  <div key={x.id || x._id} className="border border-gray-200 rounded-lg p-2">
+                    <p className="text-xs text-gray-800">{x.name || x.employeeName} ({x.dept || x.department})</p>
                     <p className="text-xs text-gray-700">{x.dates || `${fmtDate(x.startDate)} - ${fmtDate(x.endDate)}`} · {x.days} days · {x.reason}</p>
                     <div className="mt-2 text-xs text-gray-700 flex gap-2">
                       {(perms.isSuperAdmin || perms.isDepartmentHead || (user?.department || '').toLowerCase() === 'hr') && x.status !== 'approved' && (
@@ -1457,9 +1457,9 @@ function OverviewTab({ onNavigate }) {
       <Section title="Critical Alerts" action={<button className="text-xs text-emerald-700 hover:text-emerald-800">View All Alerts</button>}>
         <div className="space-y-2">
           {alertRows.map((a) => (
-            <div key={a.id} className="border border-gray-800 rounded-xl p-3 bg-gray-950 flex items-center justify-between gap-3">
+            <div key={a.id} className="border border-gray-200 rounded-xl p-3 bg-white flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm text-gray-200">{a.text}</p>
+                <p className="text-sm text-gray-900">{a.text}</p>
                 <p className="text-xs text-gray-700 mt-1 capitalize">{a.dept} · {a.age}</p>
               </div>
               <div className="flex items-center gap-2">
@@ -1474,25 +1474,25 @@ function OverviewTab({ onNavigate }) {
       {canViewExecutiveCharts && (
         <Section title="Charts & Analytics">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="border border-gray-800 rounded-xl p-3 bg-gray-950">
-              <p className="text-xs text-gray-400 mb-2">Revenue Trend</p>
+            <div className="border border-gray-200 rounded-xl p-3 bg-white">
+              <p className="text-xs text-gray-500 mb-2">Revenue Trend</p>
               <svg viewBox="0 0 240 120" className="w-full h-32">
                 <polyline fill="none" stroke="#00ED64" strokeWidth="3" points="0,90 25,78 50,80 75,70 100,75 125,62 150,55 175,58 200,45 225,35 240,38" />
                 <line x1="0" y1="52" x2="240" y2="52" stroke="#64748b" strokeDasharray="4 4" />
               </svg>
             </div>
-            <div className="border border-gray-800 rounded-xl p-3 bg-gray-950">
-              <p className="text-xs text-gray-400 mb-2">Department Health Radar (summary)</p>
+            <div className="border border-gray-200 rounded-xl p-3 bg-white">
+              <p className="text-xs text-gray-500 mb-2">Department Health Radar (summary)</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {DEMO_DEPT_METRICS.map((m) => (
-                  <button key={`rad-${m.dept}`} onClick={() => onNavigate?.(TAB_BY_DEPT[m.dept])} className="text-left p-2 rounded border border-gray-800 bg-gray-900 text-gray-300 hover:text-white">
+                  <button key={`rad-${m.dept}`} onClick={() => onNavigate?.(TAB_BY_DEPT[m.dept])} className="text-left p-2 rounded border border-gray-200 bg-gray-50 text-gray-700 hover:text-gray-900">
                     {m.title}: {m.status}
                   </button>
                 ))}
               </div>
             </div>
-            <div className="border border-gray-800 rounded-xl p-3 bg-gray-950">
-              <p className="text-xs text-gray-400 mb-2">Sales Pipeline Funnel</p>
+            <div className="border border-gray-200 rounded-xl p-3 bg-white">
+              <p className="text-xs text-gray-500 mb-2">Sales Pipeline Funnel</p>
               {[
                 ['Prospect', 42],
                 ['Contacted', 31],
@@ -1502,8 +1502,8 @@ function OverviewTab({ onNavigate }) {
                 ['Active', 4],
               ].map(([name, v]) => (
                 <div key={name} className="mb-1">
-                  <p className="text-[11px] text-gray-400">{name} ({v})</p>
-                  <div className="h-2 rounded bg-gray-800 overflow-hidden"><div className="h-full bg-blue-500" style={{ width: `${Math.max(8, Number(v) * 2)}%` }} /></div>
+                  <p className="text-[11px] text-gray-500">{name} ({v})</p>
+                  <div className="h-2 rounded bg-gray-200 overflow-hidden"><div className="h-full bg-blue-500" style={{ width: `${Math.max(8, Number(v) * 2)}%` }} /></div>
                 </div>
               ))}
             </div>
@@ -1513,9 +1513,9 @@ function OverviewTab({ onNavigate }) {
 
       {canViewExecutiveCharts && (
         <Section title="Gold Operations Snapshot">
-          <p className="text-sm text-gray-300">Gold sourced this month: 430kg / 500kg target (86%)</p>
-          <div className="h-2 rounded bg-gray-800 mt-2 overflow-hidden"><div className="h-full bg-yellow-500" style={{ width: '86%' }} /></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 text-xs text-gray-400">
+          <p className="text-sm text-gray-700">Gold sourced this month: 430kg / 500kg target (86%)</p>
+          <div className="h-2 rounded bg-gray-200 mt-2 overflow-hidden"><div className="h-full bg-yellow-500" style={{ width: '86%' }} /></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 text-xs text-gray-600">
             <p>Channels: GCH-01 active, GCH-04 due diligence</p>
             <p>Security vendors: Titan Secure approved, Shield Response pending</p>
             <p>Routes: Primary Corridor A active, Alternate Air Link hold</p>
@@ -1527,8 +1527,8 @@ function OverviewTab({ onNavigate }) {
       <Section title="Upcoming Deadlines - Next 14 days" action={<button className="text-xs text-emerald-300">View Calendar</button>}>
         <div className="space-y-2">
           {deadlineRows.map((d) => (
-            <div key={d.id} className="flex items-center justify-between border border-gray-800 rounded-lg p-2 bg-gray-950">
-              <p className="text-xs text-gray-200">{d.when} · {d.text}</p>
+            <div key={d.id} className="flex items-center justify-between border border-gray-200 rounded-lg p-2 bg-white">
+              <p className="text-xs text-gray-800">{d.when} · {d.text}</p>
               <button className="text-xs text-gray-400 capitalize" onClick={() => onNavigate?.(TAB_BY_DEPT[d.dept] || 'overview')}>{d.dept}</button>
             </div>
           ))}
@@ -1538,7 +1538,7 @@ function OverviewTab({ onNavigate }) {
       <Section title={t('quickActions')}>
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
           {(QUICK_ACTIONS[role] || QUICK_ACTIONS.department_user).map((action) => (
-            <button key={action} onClick={() => onQuickAction(action)} className="px-3 py-2 text-xs rounded-lg border border-gray-700 bg-gray-900 text-gray-300 hover:text-white hover:border-emerald-500/30">
+            <button key={action} onClick={() => onQuickAction(action)} className="px-3 py-2 text-xs rounded-lg border border-gray-200 bg-gray-50 text-gray-700 hover:text-gray-900 hover:border-emerald-500">
               {action}
             </button>
           ))}
@@ -1549,8 +1549,8 @@ function OverviewTab({ onNavigate }) {
         <Section title="Live Activity Feed" action={<button className="text-xs text-emerald-300">View Full Log</button>}>
           <div className="space-y-2">
             {latestFeed.map((f) => (
-              <div key={f.id} className="border border-gray-800 rounded-lg p-2 bg-gray-950">
-                <p className="text-xs text-gray-200">{f.text}</p>
+              <div key={f.id} className="border border-gray-200 rounded-lg p-2 bg-white">
+                <p className="text-xs text-gray-800">{f.text}</p>
                 <p className="text-[11px] text-gray-500 mt-1">{f.dept} · {fmtDateTime(f.time)}</p>
               </div>
             ))}
@@ -1570,9 +1570,9 @@ function OverviewTab({ onNavigate }) {
         >
           <div className="space-y-2">
             {messageRows.map((m) => (
-              <div key={m.id} className="border border-gray-800 rounded-lg p-2 bg-gray-950">
+              <div key={m.id} className="border border-gray-200 rounded-lg p-2 bg-white">
                 <p className="text-xs text-gray-500 uppercase">{m.type} · {m.room}</p>
-                <p className="text-xs text-gray-200 mt-1"><span className="font-semibold">{m.sender}:</span> {m.text}</p>
+                <p className="text-xs text-gray-800 mt-1"><span className="font-semibold">{m.sender}:</span> {m.text}</p>
                 <p className="text-[11px] text-gray-500 mt-1">{m.ago}</p>
               </div>
             ))}
