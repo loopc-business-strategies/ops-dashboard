@@ -87,6 +87,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
   const { t } = useLanguage()
 
   const [accounts, setAccounts]         = useState([])
+  const [currencies, setCurrencies]     = useState([])
   const [loading, setLoading]           = useState(false)
   const [error, setError]               = useState('')
   const [success, setSuccess]           = useState('')
@@ -165,8 +166,12 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     setLoading(true)
     setError('')
     try {
-      const data = await erpAccountingAPI.getAccounts(token)
-      setAccounts(data.accounts || [])
+      const [accountsData, currenciesData] = await Promise.all([
+        erpAccountingAPI.getAccounts(token),
+        erpAccountingAPI.getCurrencies(token).catch(() => []),
+      ])
+      setAccounts(accountsData.accounts || [])
+      setCurrencies(Array.isArray(currenciesData) ? currenciesData : [])
     } catch (e) {
       setError(e?.response?.data?.message || t('failedToLoadAccounts'))
     } finally {
@@ -945,7 +950,18 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                     <Field label="Currency">
-                      <input value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value.toUpperCase() })} style={inputStyle} />
+                      <select
+                        value={form.currency}
+                        onChange={e => setForm({ ...form, currency: e.target.value })}
+                        style={inputStyle}
+                      >
+                        {currencies.length === 0 && (
+                          <option value="USD">USD</option>
+                        )}
+                        {currencies.map(c => (
+                          <option key={c.code} value={c.code}>{c.code} – {c.name}</option>
+                        ))}
+                      </select>
                     </Field>
                     <Field label="Department">
                       <input value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} style={inputStyle} />
