@@ -8131,22 +8131,6 @@ function ERPTab({ focusTab, onNavigateMain }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
             <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Settings</h3>
-            {canManageAccounts && (
-              <button
-                onClick={() => setActiveTab('currencies')}
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: C.s1,
-                  color: C.t1,
-                  border: 'none',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                }}
-              >
-                Open Currency Tab
-              </button>
-            )}
           </div>
 
           <div style={{ marginBottom: '1.25rem', background: C.p1, padding: '1rem', borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
@@ -8395,18 +8379,6 @@ function ERPTab({ focusTab, onNavigateMain }) {
               </div>
             </form>
 
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1.25rem' }}>
-              <h4 style={{ color: C.ink, marginTop: 0, marginBottom: '0.45rem', fontWeight: '700' }}>Currencies</h4>
-              <p style={{ color: C.inkSoft, margin: 0, fontSize: '0.86rem' }}>
-                Currency management now has a dedicated tab with add/edit/delete, base currency control, exchange rates, and exchange gain/loss setup.
-              </p>
-              <button
-                onClick={() => setActiveTab('currencies')}
-                style={{ marginTop: '0.75rem', padding: '0.45rem 0.85rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600' }}
-              >
-                Go to Currency Master
-              </button>
-            </div>
           </div>
 
           <div style={{ background: C.p1, padding: '1.5rem', borderRadius: '0.5rem', borderLeft: `4px solid ${C.s1}` }}>

@@ -133,6 +133,7 @@ function getNavItems(perms, t, chatUnread = 0, branding) {
     { id: 'erp-accounts',     label: 'Accounts',       group: 'erp', erpSub: 'accounts',     show: perms.canViewERP },
     { id: 'erp-mappings',     label: 'Mappings',       group: 'erp', erpSub: 'mappings',     show: perms.canViewERP },
     { id: 'erp-settings',     label: 'Settings',       group: 'erp', erpSub: 'settings',     show: perms.canViewERP },
+    { id: 'erp-currencies',   label: 'Currency Master',group: 'erp', erpSub: 'currencies',   show: perms.canViewERP },
     { id: 'erp-enquiry',      label: 'Account Summary',group: 'erp', erpSub: 'enquiry',      show: perms.canViewERP },
     { id: 'erp-customers',        label: 'Customers',       group: 'erp', erpSub: 'customers',       show: perms.canViewERP },
     { id: 'erp-customer-margin',  label: 'Customer Margin', group: 'erp', erpSub: 'customer-margin', show: perms.canViewERP },
