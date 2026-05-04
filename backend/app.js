@@ -49,12 +49,13 @@ function createApp() {
   app.use(helmet())
 
   // Build CORS allowlist from environment.
-  // CLIENT_URL may be a single origin or comma-separated list.
-  // In development, localhost and 127.0.0.1 variants are always allowed.
-  const rawOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean)
+  // CLIENT_URL  — single origin (legacy, kept for compatibility)
+  // CLIENT_URLS — comma-separated list of all allowed origins (preferred)
+  // Both are merged; add new Vercel/Railway origins here via env var instead of code.
+  const rawOrigins = Array.from(new Set([
+    ...(process.env.CLIENT_URL  || '').split(','),
+    ...(process.env.CLIENT_URLS || ''),
+  ].flatMap(s => s.split(',')).map(o => o.trim()).filter(Boolean)))
 
   const devOrigins = isProduction
     ? []
@@ -65,13 +66,7 @@ function createApp() {
         'http://127.0.0.1:5174',
       ]
 
-  const vercelOrigins = [
-    'https://ops-dashboard-eta-rose.vercel.app',
-    'https://ops-dashboard-git-main-beulah-4360s-projects.vercel.app',
-    'https://ops-dashboard-bdnocc5c0-beulah-4360s-projects.vercel.app',
-  ]
-
-  const allowedOrigins = Array.from(new Set([...rawOrigins, ...devOrigins, ...vercelOrigins]))
+  const allowedOrigins = Array.from(new Set([...rawOrigins, ...devOrigins]))
 
   app.use(cors({
     origin: (origin, callback) => {

@@ -8,6 +8,26 @@
 
 require('dotenv').config() // load .env variables FIRST
 
+// ── Startup env validation ────────────────────────────────────────────────────
+// Fail fast if critical secrets are missing rather than running in a broken state.
+;(function validateEnv() {
+  const missing = []
+  if (!process.env.JWT_SECRET) missing.push('JWT_SECRET')
+  // At least one DB path must exist: tenant URIs or generic MONGO_URI or split credentials
+  const hasTenantUris = process.env.MONGO_URI_MG || process.env.MONGO_URI_CG || process.env.MONGO_URI_LOOPC
+  const hasLegacyUri  = process.env.MONGO_URI
+  const hasSplitCreds = process.env.DB_USER && process.env.DB_PASS && process.env.DB_CLUSTER
+  if (!hasTenantUris && !hasLegacyUri && !hasSplitCreds) {
+    missing.push('MONGO_URI_MG / MONGO_URI_CG / MONGO_URI_LOOPC (or MONGO_URI)')
+  }
+  if (missing.length) {
+    console.error('[startup] FATAL — missing required environment variables:')
+    missing.forEach(k => console.error(`  • ${k}`))
+    process.exit(1)
+  }
+})()
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ── DNS fix ──────────────────────────────────────────────────────────────────
 // Some local DNS stubs (VPN clients, Docker, routers) cannot resolve MongoDB
 // Atlas SRV records even though nslookup/OS DNS works fine.  Force Node to use

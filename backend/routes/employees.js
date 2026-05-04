@@ -43,8 +43,15 @@ router.get('/', protect, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied.' })
     }
 
-    const employees = await TenantEmployee.find(filter).sort({ createdAt: -1 })
-    res.json({ success: true, count: employees.length, employees })
+    const page  = Math.max(1, Number(req.query.page) || 1)
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 200))
+    const skip  = (page - 1) * limit
+
+    const [employees, total] = await Promise.all([
+      TenantEmployee.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      TenantEmployee.countDocuments(filter),
+    ])
+    res.json({ success: true, count: employees.length, total, page, limit, employees })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })
   }
