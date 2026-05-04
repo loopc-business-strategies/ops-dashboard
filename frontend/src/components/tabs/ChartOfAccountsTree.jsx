@@ -171,7 +171,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
         erpAccountingAPI.getCurrencies(token).catch(() => []),
       ])
       setAccounts(accountsData.accounts || [])
-      setCurrencies(Array.isArray(currenciesData) ? currenciesData : [])
+      setCurrencies(currenciesData?.currencies || (Array.isArray(currenciesData) ? currenciesData : []))
     } catch (e) {
       setError(e?.response?.data?.message || t('failedToLoadAccounts'))
     } finally {
