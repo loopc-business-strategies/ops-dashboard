@@ -22,9 +22,6 @@ chartOfAccountSchema.index({ accountCode: 1 }, { unique: true })
 chartOfAccountSchema.index({ accountType: 1 })
 chartOfAccountSchema.index({ isActive: 1 })
 
-chartOfAccountSchema.pre('validate', function enforceUsdCurrency(next) {
-  this.currency = 'USD'
-  next()
-})
+// No USD lock — currency is set by the account creation logic.
 
 module.exports = createTenantModel('ChartOfAccount', chartOfAccountSchema)

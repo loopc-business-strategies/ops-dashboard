@@ -96,25 +96,59 @@ const directDealEqOzFromQtyAndStock = (qty, stockCode) => {
   return Number(qty || 0) * ratio
 }
 
-const ensureUsdCurrencyConfig = async () => {
-  const usd = await Currency.findOneAndUpdate(
-    { code: BASE_CURRENCY_CODE },
-    {
-      $set: {
-        code: BASE_CURRENCY_CODE,
-        name: 'US Dollar',
-        symbol: '$',
-        baseCurrency: true,
-        exchangeRate: 1,
-        isActive: true,
-        rateUpdatedAt: new Date(),
+const ensureBaseCurrencyConfig = async () => {
+  let base = await Currency.findOne({ baseCurrency: true, isActive: true })
+
+  if (!base) {
+    base = await Currency.findOneAndUpdate(
+      { code: BASE_CURRENCY_CODE },
+      {
+        $set: {
+          code: BASE_CURRENCY_CODE,
+          name: 'US Dollar',
+          symbol: '$',
+          baseCurrency: true,
+          exchangeRate: 1,
+          isActive: true,
+          rateUpdatedAt: new Date(),
+        },
       },
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    )
+  }
+
+  await Currency.updateMany(
+    { _id: { $ne: base._id }, baseCurrency: true },
+    { $set: { baseCurrency: false } }
   )
 
-  await Currency.updateMany({ _id: { $ne: usd._id } }, { $set: { isActive: false, baseCurrency: false } })
-  return usd
+  if (String(base.exchangeRate || 1) !== '1') {
+    base.exchangeRate = 1
+    base.rateUpdatedAt = new Date()
+    await base.save()
+  }
+
+  return base
+}
+
+const ensureExchangeDifferenceAccounts = async (user) => {
+  const gain = await ensureAccountByCode({
+    user,
+    code: '4190',
+    name: 'Exchange Gain',
+    accountType: 'Income',
+    currency: BASE_CURRENCY_CODE,
+  })
+
+  const loss = await ensureAccountByCode({
+    user,
+    code: '5190',
+    name: 'Exchange Loss',
+    accountType: 'Expense',
+    currency: BASE_CURRENCY_CODE,
+  })
+
+  return { gain, loss }
 }
 
 const nextDirectDealDocNo = async () => {
@@ -1444,30 +1478,45 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
     exchangeRate,
   })
 
-  // Record simplified forex gain/loss when posting non-base currency transaction.
-  if (currencyCode !== String(base?.code || 'USD').toUpperCase() && exchangeRate !== 1) {
-    const fxAccount = await ChartOfAccount.findOne({
-      accountType: 'Income',
-      accountName: /forex|exchange gain/i,
-      isActive: true,
-    })
-    const bank = await ensureCashBankAccount(user, base?.code || 'USD')
+  // Post exchange difference only when a reference rate is provided on payment/receipt.
+  const type = String(transaction.type || '').toLowerCase()
+  if (['receipt', 'payment'].includes(type) && currencyCode !== String(base?.code || 'USD').toUpperCase()) {
+    const referenceRate = Number(
+      transaction?.voucherMeta?.referenceExchangeRate
+      || transaction?.voucherMeta?.invoiceExchangeRate
+      || transaction?.voucherMeta?.lineItems?.[0]?.referenceRate
+      || 0
+    )
 
-    if (fxAccount) {
-      await Ledger.create({
-        date: transaction.date || new Date(),
-        debitAccountId: bank._id,
-        creditAccountId: fxAccount._id,
-        amount: toMoney(Math.abs(amountInBase - Number(transaction.amount || 0))),
-        description: `Forex adjustment for transaction ${transaction._id}`,
-        referenceType: 'journal',
-        referenceId: transaction._id,
-        createdBy: user._id,
-        updatedBy: user._id,
-        department: user.department,
-        currency: base?.code || 'USD',
-        exchangeRate: 1,
-      })
+    if (Number.isFinite(referenceRate) && referenceRate > 0) {
+      const expectedBaseAmount = Number(transaction.amount || 0) * referenceRate
+      const diff = toMoney(amountInBase - expectedBaseAmount)
+
+      if (Math.abs(diff) >= 0.01) {
+        const { gain, loss } = await ensureExchangeDifferenceAccounts(user)
+        const bank = await ensureCashBankAccount(user, base?.code || 'USD')
+
+        // receipt: better rate => gain, worse => loss
+        // payment: better rate => gain, worse => loss, but diff direction is inverted
+        const isGain = type === 'payment' ? diff < 0 : diff > 0
+        const debitAccountId = isGain ? bank._id : loss._id
+        const creditAccountId = isGain ? gain._id : bank._id
+
+        await Ledger.create({
+          date: transaction.date || new Date(),
+          debitAccountId,
+          creditAccountId,
+          amount: toMoney(Math.abs(diff)),
+          description: `Exchange ${isGain ? 'gain' : 'loss'} adjustment for transaction ${transaction._id}`,
+          referenceType: 'journal',
+          referenceId: transaction._id,
+          createdBy: user._id,
+          updatedBy: user._id,
+          department: user.department,
+          currency: base?.code || 'USD',
+          exchangeRate: 1,
+        })
+      }
     }
   }
 
@@ -2511,8 +2560,9 @@ router.delete('/mappings/:id', protect, async (req, res) => {
 // ==========================================
 router.get('/currencies', protect, async (req, res) => {
   try {
-    const usd = await ensureUsdCurrencyConfig()
-    res.json({ success: true, currencies: [usd], total: 1, page: 1, limit: 1 })
+    if (!canViewAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const currencies = await Currency.find({}).sort({ baseCurrency: -1, code: 1 })
+    res.json({ success: true, currencies, total: currencies.length, page: 1, limit: currencies.length })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -2650,8 +2700,49 @@ router.put('/metal-rates', protect, async (req, res) => {
 router.post('/currencies', protect, async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const currency = await ensureUsdCurrencyConfig()
-    res.status(201).json({ success: true, message: 'USD is the only supported currency.', currency })
+
+    const code = String(req.body.code || '').trim().toUpperCase()
+    const name = String(req.body.name || '').trim()
+    const symbol = String(req.body.symbol || '').trim() || code
+    const exchangeRate = Number(req.body.exchangeRate)
+    const isActive = req.body.isActive === undefined ? true : Boolean(req.body.isActive)
+    const wantsBase = Boolean(req.body.baseCurrency)
+
+    if (!code || code.length < 2 || code.length > 10) {
+      return res.status(400).json({ success: false, message: 'Currency code is required (2-10 chars).' })
+    }
+    if (!name) {
+      return res.status(400).json({ success: false, message: 'Currency name is required.' })
+    }
+    if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
+      return res.status(400).json({ success: false, message: 'Exchange rate must be greater than zero.' })
+    }
+
+    const existing = await Currency.findOne({ code })
+    if (existing) {
+      return res.status(409).json({ success: false, message: 'Currency code already exists.' })
+    }
+
+    const currency = await Currency.create({
+      code,
+      name,
+      symbol,
+      exchangeRate: wantsBase ? 1 : exchangeRate,
+      rateUpdatedAt: new Date(),
+      isActive,
+      baseCurrency: false,
+    })
+
+    if (wantsBase) {
+      await Currency.updateMany({ _id: { $ne: currency._id }, baseCurrency: true }, { $set: { baseCurrency: false } })
+      currency.baseCurrency = true
+      currency.exchangeRate = 1
+      await currency.save()
+    } else {
+      await ensureBaseCurrencyConfig()
+    }
+
+    res.status(201).json({ success: true, currency })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -2660,11 +2751,55 @@ router.post('/currencies', protect, async (req, res) => {
 router.put('/currencies/:id', protect, async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const currency = await ensureUsdCurrencyConfig()
-    if (String(req.params.id) !== String(currency._id)) {
-      return res.status(404).json({ success: false, message: 'Currency not found' })
+
+    const currency = await Currency.findById(req.params.id)
+    if (!currency) {
+      return res.status(404).json({ success: false, message: 'Currency not found.' })
     }
-    res.json({ success: true, message: 'USD is the only supported currency.', currency })
+
+    const nextCode = req.body.code !== undefined ? String(req.body.code || '').trim().toUpperCase() : currency.code
+    const nextName = req.body.name !== undefined ? String(req.body.name || '').trim() : currency.name
+    const nextSymbol = req.body.symbol !== undefined ? String(req.body.symbol || '').trim() : currency.symbol
+    const wantsBase = req.body.baseCurrency !== undefined ? Boolean(req.body.baseCurrency) : currency.baseCurrency
+    const nextIsActive = req.body.isActive !== undefined ? Boolean(req.body.isActive) : currency.isActive
+    const nextRate = req.body.exchangeRate !== undefined ? Number(req.body.exchangeRate) : Number(currency.exchangeRate || 1)
+
+    if (!nextCode || nextCode.length < 2 || nextCode.length > 10) {
+      return res.status(400).json({ success: false, message: 'Currency code is required (2-10 chars).' })
+    }
+    if (!nextName) return res.status(400).json({ success: false, message: 'Currency name is required.' })
+    if (!nextSymbol) return res.status(400).json({ success: false, message: 'Currency symbol is required.' })
+    if (!Number.isFinite(nextRate) || nextRate <= 0) {
+      return res.status(400).json({ success: false, message: 'Exchange rate must be greater than zero.' })
+    }
+    if (currency.baseCurrency && !wantsBase) {
+      return res.status(400).json({ success: false, message: 'At least one base currency is required.' })
+    }
+    if (currency.baseCurrency && !nextIsActive) {
+      return res.status(400).json({ success: false, message: 'Base currency cannot be inactive.' })
+    }
+
+    const duplicate = await Currency.findOne({ code: nextCode, _id: { $ne: currency._id } })
+    if (duplicate) {
+      return res.status(409).json({ success: false, message: 'Currency code already exists.' })
+    }
+
+    currency.code = nextCode
+    currency.name = nextName
+    currency.symbol = nextSymbol
+    currency.isActive = nextIsActive
+    currency.baseCurrency = wantsBase
+    currency.exchangeRate = wantsBase ? 1 : nextRate
+    currency.rateUpdatedAt = new Date()
+    await currency.save()
+
+    if (wantsBase) {
+      await Currency.updateMany({ _id: { $ne: currency._id }, baseCurrency: true }, { $set: { baseCurrency: false } })
+    } else {
+      await ensureBaseCurrencyConfig()
+    }
+
+    res.json({ success: true, currency })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -2673,11 +2808,19 @@ router.put('/currencies/:id', protect, async (req, res) => {
 router.delete('/currencies/:id', protect, async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const currency = await ensureUsdCurrencyConfig()
-    if (String(req.params.id) !== String(currency._id)) {
-      return res.status(404).json({ success: false, message: 'Currency not found' })
+
+    const currency = await Currency.findById(req.params.id)
+    if (!currency) {
+      return res.status(404).json({ success: false, message: 'Currency not found.' })
     }
-    res.status(400).json({ success: false, message: 'USD is mandatory and cannot be deactivated.' })
+
+    if (currency.baseCurrency) {
+      return res.status(400).json({ success: false, message: 'Base currency cannot be deleted.' })
+    }
+
+    await Currency.deleteOne({ _id: currency._id })
+    await ensureBaseCurrencyConfig()
+    res.json({ success: true, message: 'Currency deleted.' })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }

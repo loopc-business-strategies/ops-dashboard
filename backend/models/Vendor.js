@@ -78,10 +78,4 @@ vendorSchema.index({ status: 1 })
 vendorSchema.index({ approvalStatus: 1 })
 vendorSchema.index({ category: 1 })
 
-vendorSchema.pre('validate', function enforceUsdCurrency(next) {
-  this.preferredCurrency = 'USD'
-  this.currency = 'USD'
-  next()
-})
-
 module.exports = createTenantModel('Vendor', vendorSchema)

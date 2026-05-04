@@ -43,34 +43,6 @@ function Login() {
     root.style.setProperty('--grad-bar', branding.colors.gradBar)
   }, [branding])
 
-  const handleDemoLogin = async () => {
-    const demoAccountsByTenant = {
-      mg: { username: 'mgadmin', password: 'MgAdmin@2026!' },
-      cg: { username: 'cgadmin', password: 'CgAdmin@2026!' },
-      loopc: { username: 'loopcadmin', password: 'LoopcAdmin@2026!' },
-    }
-
-    const account = demoAccountsByTenant[company] || demoAccountsByTenant.loopc
-
-    setLoading(true)
-    setError('')
-    try {
-      await login(account.username, account.password, company)
-      navigate('/dashboard')
-    } catch (err) {
-      if (!err.response) {
-        setError(t('loginErrNetwork'))
-      } else if (err.response.status >= 500) {
-        setError(t('loginErrServer'))
-      } else {
-        setError(err.response?.data?.message || t('loginErrInvalid'))
-      }
-      console.error('Demo login failed', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!company || !name.trim() || !password) return setError(t('loginErrEmpty'))
@@ -202,19 +174,6 @@ function Login() {
               ) : t('signIn')}
             </button>
           </form>
-
-          {/* DEMO LOGIN — delete this block when done */}
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              disabled={loading}
-              className="w-full py-2.5 rounded-lg text-sm font-semibold border border-yellow-500/50 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors disabled:opacity-50"
-            >
-              ⚡ Demo Login (Super Admin)
-            </button>
-            <p className="text-xs text-yellow-600/60 text-center mt-1">For testing only — remove before production</p>
-          </div>
 
           {/* No signup — invitation only */}
           <div className="mt-5 pt-5 border-t border-gray-800 text-center">

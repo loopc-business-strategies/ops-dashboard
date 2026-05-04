@@ -13,9 +13,4 @@ const metalRateSchema = new mongoose.Schema(
 
 metalRateSchema.index({ updatedAt: -1 })
 
-metalRateSchema.pre('validate', function enforceUsdCurrency(next) {
-  this.priceCurrency = 'USD'
-  next()
-})
-
 module.exports = createTenantModel('MetalRate', metalRateSchema)

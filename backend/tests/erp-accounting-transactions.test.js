@@ -14,6 +14,7 @@ const InventoryItem = require('../models/InventoryItem')
 const StockMovement = require('../models/StockMovement')
 const Ledger = require('../models/Ledger')
 const ChartOfAccount = require('../models/ChartOfAccount')
+const Currency = require('../models/Currency')
 
 jest.setTimeout(30000)
 
@@ -79,6 +80,7 @@ afterEach(async () => {
     StockMovement.deleteMany({}),
     Ledger.deleteMany({}),
     ChartOfAccount.deleteMany({}),
+    Currency.deleteMany({}),
   ])
   fs.rmSync(uploadDir, { recursive: true, force: true })
 })
@@ -352,5 +354,231 @@ describe('ERP accounting transactions workflow', () => {
     expect(ledgers[0].referenceType).toBe('purchase')
     expect(String(ledgers[0].debitAccountId)).toBe(String(inventoryAccount._id))
     expect(String(ledgers[0].creditAccountId)).toBe(String(payableAccount._id))
+  })
+
+  test('posts exchange gain for receipt and exchange loss for payment when reference rate is lower than settlement rate', async () => {
+    const financeUser = await createUser({ name: 'FX Tester' })
+    const receivableAccount = await ChartOfAccount.create({
+      accountName: 'Customer Receivable FX',
+      accountCode: '1101',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const customer = await Customer.create({
+      name: 'FX Counterparty',
+      ledgerAccountId: receivableAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    await Currency.create({
+      code: 'USD',
+      name: 'US Dollar',
+      symbol: '$',
+      exchangeRate: 1,
+      baseCurrency: true,
+      isActive: true,
+    })
+
+    const createAndPost = async (type) => {
+      const createRes = await request(app)
+        .post('/api/erp-accounting/transactions')
+        .set(authHeader(financeUser))
+        .send({
+          type,
+          amount: 100,
+          description: `${type} fx check`,
+          currency: 'EUR',
+          exchangeRate: 1.2,
+          customerId: customer._id.toString(),
+          voucherMeta: {
+            referenceExchangeRate: 1.0,
+            lineItems: [{ type: 'cash' }],
+          },
+        })
+
+      expect(createRes.status).toBe(201)
+
+      const submitRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Ready to post' })
+      expect(submitRes.status).toBe(200)
+
+      const postRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Post FX transaction' })
+      expect(postRes.status).toBe(200)
+
+      return createRes.body.transaction._id
+    }
+
+    const receiptTxId = await createAndPost('receipt')
+    const paymentTxId = await createAndPost('payment')
+
+    const gainAccount = await ChartOfAccount.findOne({ accountCode: '4190' })
+    const lossAccount = await ChartOfAccount.findOne({ accountCode: '5190' })
+
+    expect(gainAccount).toBeTruthy()
+    expect(lossAccount).toBeTruthy()
+
+    const receiptJournal = await Ledger.findOne({
+      referenceId: receiptTxId,
+      referenceType: 'journal',
+      isDeleted: { $ne: true },
+    })
+    expect(receiptJournal).toBeTruthy()
+    expect(Number(receiptJournal.amount)).toBeCloseTo(20, 2)
+    expect(String(receiptJournal.creditAccountId)).toBe(String(gainAccount._id))
+
+    const paymentJournal = await Ledger.findOne({
+      referenceId: paymentTxId,
+      referenceType: 'journal',
+      isDeleted: { $ne: true },
+    })
+    expect(paymentJournal).toBeTruthy()
+    expect(Number(paymentJournal.amount)).toBeCloseTo(20, 2)
+    expect(String(paymentJournal.debitAccountId)).toBe(String(lossAccount._id))
+  })
+
+  test('does not post exchange journal when reference rate is missing or zero', async () => {
+    const financeUser = await createUser({ name: 'FX Guard Tester' })
+    const receivableAccount = await ChartOfAccount.create({
+      accountName: 'Customer Receivable FX Guard',
+      accountCode: '1102',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const customer = await Customer.create({
+      name: 'FX Guard Counterparty',
+      ledgerAccountId: receivableAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    await Currency.create({
+      code: 'USD',
+      name: 'US Dollar',
+      symbol: '$',
+      exchangeRate: 1,
+      baseCurrency: true,
+      isActive: true,
+    })
+
+    const createAndPost = async (voucherMeta) => {
+      const createRes = await request(app)
+        .post('/api/erp-accounting/transactions')
+        .set(authHeader(financeUser))
+        .send({
+          type: 'receipt',
+          amount: 100,
+          description: 'receipt fx guard',
+          currency: 'EUR',
+          exchangeRate: 1.2,
+          customerId: customer._id.toString(),
+          voucherMeta,
+        })
+
+      expect(createRes.status).toBe(201)
+
+      const submitRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Ready to post' })
+      expect(submitRes.status).toBe(200)
+
+      const postRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Post FX guard transaction' })
+      expect(postRes.status).toBe(200)
+
+      return createRes.body.transaction._id
+    }
+
+    const missingRateTxId = await createAndPost({ lineItems: [{ type: 'cash' }] })
+    const zeroRateTxId = await createAndPost({ referenceExchangeRate: 0, lineItems: [{ type: 'cash' }] })
+
+    const missingRateJournal = await Ledger.findOne({
+      referenceId: missingRateTxId,
+      referenceType: 'journal',
+      isDeleted: { $ne: true },
+    })
+    const zeroRateJournal = await Ledger.findOne({
+      referenceId: zeroRateTxId,
+      referenceType: 'journal',
+      isDeleted: { $ne: true },
+    })
+
+    expect(missingRateJournal).toBeNull()
+    expect(zeroRateJournal).toBeNull()
+  })
+
+  test('posts exchange journal when line item referenceRate is present without voucher-level reference rate', async () => {
+    const financeUser = await createUser({ name: 'FX Line Item Tester' })
+    const receivableAccount = await ChartOfAccount.create({
+      accountName: 'Customer Receivable FX Line Item',
+      accountCode: '1103',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const customer = await Customer.create({
+      name: 'FX Line Item Counterparty',
+      ledgerAccountId: receivableAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    await Currency.create({
+      code: 'USD',
+      name: 'US Dollar',
+      symbol: '$',
+      exchangeRate: 1,
+      baseCurrency: true,
+      isActive: true,
+    })
+
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'receipt',
+        amount: 100,
+        description: 'receipt fx line item reference rate',
+        currency: 'EUR',
+        exchangeRate: 1.2,
+        customerId: customer._id.toString(),
+        voucherMeta: {
+          lineItems: [{ type: 'cash', referenceRate: 1.0 }],
+        },
+      })
+
+    expect(createRes.status).toBe(201)
+
+    const submitRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Ready to post' })
+    expect(submitRes.status).toBe(200)
+
+    const postRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Post FX line item transaction' })
+    expect(postRes.status).toBe(200)
+
+    const gainAccount = await ChartOfAccount.findOne({ accountCode: '4190' })
+    expect(gainAccount).toBeTruthy()
+
+    const fxJournal = await Ledger.findOne({
+      referenceId: createRes.body.transaction._id,
+      referenceType: 'journal',
+      isDeleted: { $ne: true },
+    })
+
+    expect(fxJournal).toBeTruthy()
+    expect(Number(fxJournal.amount)).toBeCloseTo(20, 2)
+    expect(String(fxJournal.creditAccountId)).toBe(String(gainAccount._id))
   })
 })

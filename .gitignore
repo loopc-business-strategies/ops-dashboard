@@ -6,6 +6,8 @@ frontend/dist/
 # Runtime/generated artifacts
 backend/logs/
 backend/uploads/transactions/
+*.cookies/
+*.cookies
 
 # Optional coverage output
 coverage/

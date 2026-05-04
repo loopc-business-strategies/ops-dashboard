@@ -563,6 +563,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const [modalDrag, setModalDrag] = useState(null)
   const dragMetaRef = useRef({ moved: false })
   const lastViewedIdRef = useRef(null)  // tracks the voucher open before New was clicked
+  const initialFormSnapshotRef = useRef('')
 
   // ─── header form ────────────────────────────────────────────────────────────
   const [header, setHeader] = useState(emptyHeader())
@@ -709,6 +710,54 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const [inventoryProducts, setInventoryProducts] = useState([])
   const [loadingInventoryProducts, setLoadingInventoryProducts] = useState(false)
   const setLF = (k, v) => setLineForm(prev => ({ ...prev, [k]: k === 'rateType' ? normalizeRateType(v) : v }))
+
+  const buildFormSnapshot = useCallback((snapshotHeader, snapshotLineItems, snapshotPartyId) => JSON.stringify({
+    header: {
+      branch: String(snapshotHeader?.branch || ''),
+      partyCode: String(snapshotHeader?.partyCode || ''),
+      partyName: String(snapshotHeader?.partyName || ''),
+      currCode: String(snapshotHeader?.currCode || ''),
+      currRate: String(snapshotHeader?.currRate || ''),
+      vocDate: String(snapshotHeader?.vocDate || ''),
+      vocNo: String(snapshotHeader?.vocNo || ''),
+      salesman: String(snapshotHeader?.salesman || ''),
+      docDate: String(snapshotHeader?.docDate || ''),
+      valueDate: String(snapshotHeader?.valueDate || ''),
+      fixingType: String(snapshotHeader?.fixingType || ''),
+    },
+    selectedPartyId: String(snapshotPartyId || ''),
+    lineItems: Array.isArray(snapshotLineItems)
+      ? snapshotLineItems.map((line) => ({ ...line, type: normalizeLineType(line?.type) }))
+      : [],
+  }), [])
+
+  const hasDraftLineFormData = useCallback(() => {
+    if (!showLineForm) return false
+    return Boolean(
+      String(lineForm.acCode || '').trim()
+      || String(lineForm.stockCode || '').trim()
+      || String(lineForm.productType || '').trim()
+      || Number(lineForm.amountLC || 0)
+      || Number(lineForm.amountFC || 0)
+      || Number(lineForm.totalAmount || 0)
+      || Number(lineForm.metalAmount || 0)
+      || Number(lineForm.grossWeight || 0)
+      || Number(lineForm.pureWeight || 0)
+      || Number(lineForm.premiumAmount || 0)
+      || Number(lineForm.makingCharges || 0)
+    )
+  }, [showLineForm, lineForm])
+
+  const hasUnsavedVoucherChanges = useCallback(() => {
+    if (mode !== 'create') return false
+    if (hasDraftLineFormData()) return true
+    return buildFormSnapshot(header, lineItems, selectedPartyId) !== initialFormSnapshotRef.current
+  }, [mode, hasDraftLineFormData, buildFormSnapshot, header, lineItems, selectedPartyId])
+
+  const confirmExitVoucherForm = useCallback(() => {
+    if (!hasUnsavedVoucherChanges()) return true
+    return window.confirm('Close voucher form and discard unsaved changes?')
+  }, [hasUnsavedVoucherChanges])
 
   const applyLineAutoCalc = useCallback((line) => {
     const next = { ...line }
@@ -877,6 +926,21 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   // ─── helpers ─────────────────────────────────────────────────────────────────
   const showMsg = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 4000) }
   const clearError = () => setError('')
+  const runToolbarAction = useCallback((label, action) => {
+    clearError()
+    try {
+      const result = action?.()
+      if (result && typeof result.then === 'function') {
+        result.catch((err) => {
+          console.error(`[VoucherToolbar] ${label} failed`, err)
+          setError(err?.message || `${label} failed. Please try again.`)
+        })
+      }
+    } catch (err) {
+      console.error(`[VoucherToolbar] ${label} failed`, err)
+      setError(err?.message || `${label} failed. Please try again.`)
+    }
+  }, [clearError])
 
   const effectiveLineItems = (() => {
     if (!showLineForm) return lineItems
@@ -979,15 +1043,16 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const openCreate = (freshList) => {
     // If already filling a new form, ask before discarding
     if (mode === 'create' && !editingId) {
-      const hasData = header.partyCode.trim() || lineItems.length > 0 || header.narration.trim()
+      const hasData = String(header.partyCode || '').trim() || lineItems.length > 0 || String(header.narration || '').trim()
       if (hasData && !window.confirm('Discard current unsaved form and open a new one?')) return
       // Don’t overwrite lastViewedIdRef — it already points to the voucher before the first New
     } else {
       // Only update the back-reference when coming from a real saved voucher
       if (editingId) lastViewedIdRef.current = editingId
     }
+    const nextHeader = { ...emptyHeader(), vocNo: nextVocNo(freshList) }
     setEditingId(null)
-    setHeader({ ...emptyHeader(), vocNo: nextVocNo(freshList) })
+    setHeader(nextHeader)
     setSelectedPartyId('')
     setRecentPartyVouchers([])
     setLineItems([])
@@ -998,6 +1063,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     setModalDrag(null)
     setError('')
     setMode('create')
+    initialFormSnapshotRef.current = buildFormSnapshot(nextHeader, [], '')
   }
 
   // ─── open last voucher for a type, or blank form if none exist ───────────────
@@ -1042,7 +1108,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       dragMetaRef.current.moved = false
       return
     }
-    if (mode === 'create' && !window.confirm('Close voucher form and discard unsaved changes?')) {
+    if (!confirmExitVoucherForm()) {
       return
     }
     setMode('list')
@@ -1183,10 +1249,8 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   }
 
   const handleExitVoucherForm = () => {
-    if (mode === 'create' && !window.confirm('Close voucher form and discard unsaved changes?')) {
-      return
-    }
     setMode('list')
+    showMsg('Closed voucher form')
   }
 
   const handleDeleteVoucher = async () => {
@@ -1196,7 +1260,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     }
 
     if (!editingId && mode === 'create') {
-      const hasData = header.partyCode.trim() || lineItems.length > 0 || header.narration.trim()
+      const hasData = String(header.partyCode || '').trim() || lineItems.length > 0 || String(header.narration || '').trim()
       if (!hasData) {
         showMsg('Nothing to delete')
         return
@@ -1257,8 +1321,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const openVoucher = (v) => {
     const m = v.voucherMeta || {}
     const resolvedParty = resolveVoucherParty(m.partyCode || '')
-    setEditingId(v._id)
-    setHeader({
+    const nextHeader = {
       branch: m.branch || '',
       partyCode: m.partyCode || '',
       partyName: m.partyName || '',
@@ -1270,14 +1333,19 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       docDate: m.docDate ? m.docDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
       valueDate: m.valueDate ? m.valueDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
       fixingType: normalizeVoucherFixingType(m.fixingType),
-    })
-    setSelectedPartyId(resolvedParty?.partyId || '')
-    setLineItems((m.lineItems || []).map((line) => ({ ...line, type: normalizeLineType(line.type) })))
+    }
+    const nextPartyId = resolvedParty?.partyId || ''
+    const nextLineItems = (m.lineItems || []).map((line) => ({ ...line, type: normalizeLineType(line.type) }))
+    setEditingId(v._id)
+    setHeader(nextHeader)
+    setSelectedPartyId(nextPartyId)
+    setLineItems(nextLineItems)
     setShowLineForm(false)
     setMenuTab('header')
     setWorkflowNote('')
     setError('')
     setMode('view')
+    initialFormSnapshotRef.current = buildFormSnapshot(nextHeader, nextLineItems, nextPartyId)
   }
 
   const handleWorkflowAction = async (action) => {
@@ -2051,7 +2119,22 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
               {['─', '□'].map((ch) => (
                 <button key={ch} type="button" style={{ width: 18, height: 15, background: 'linear-gradient(180deg,#D8DCE3,#A9B2C1)', border: '1px solid #6F7B8B', borderTop: '1px solid #EFF3F8', borderLeft: '1px solid #E5EAF1', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#1F2937', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)' }}>{ch}</button>
               ))}
-              <button type="button" title="Close" onClick={handleExitVoucherForm} style={{ width: 18, height: 15, background: 'linear-gradient(180deg,#E3D8D8,#C4A0A0)', border: '1px solid #8A6F6F', borderTop: '1px solid #F4E9E9', borderLeft: '1px solid #EFDDDD', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#3F1D1D', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)' }}>✕</button>
+              <button
+                type="button"
+                title="Close"
+                onMouseDown={(e) => {
+                  if (e.button !== 0) return
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleExitVoucherForm()
+                }}
+                onClick={(e) => {
+                  e.preventDefault()
+                }}
+                style={{ width: 18, height: 15, background: 'linear-gradient(180deg,#E3D8D8,#C4A0A0)', border: '1px solid #8A6F6F', borderTop: '1px solid #F4E9E9', borderLeft: '1px solid #EFDDDD', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#3F1D1D', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)' }}
+              >
+                ✕
+              </button>
             </div>
           </div>
 
@@ -2079,8 +2162,24 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
               flexShrink: 0,
               whiteSpace: compactMetalTb ? 'normal' : 'nowrap',
             }
-            const TbBtn = ({ title: tip, label, icon, onClick, style: extra = {}, disabled = false }) => (
-              <button type="button" title={tip} onClick={disabled ? undefined : onClick} disabled={disabled} style={{ ...tbS, ...extra, ...(disabled ? { opacity: 0.35, cursor: 'default', pointerEvents: 'none' } : {}) }}>{compactMetalTb ? icon : label}</button>
+            const TbBtn = ({ tip, label, icon, onClick, style: extra = {}, disabled = false }) => (
+              <button
+                type="button"
+                title={tip}
+                onMouseDown={disabled ? undefined : (e) => {
+                  if (e.button !== 0) return
+                  e.preventDefault()
+                  e.stopPropagation()
+                  runToolbarAction(label || tip || 'Action', () => onClick?.(e))
+                }}
+                onClick={(e) => {
+                  e.preventDefault()
+                }}
+                disabled={disabled}
+                style={{ ...tbS, ...extra, ...(disabled ? { opacity: 0.35, cursor: 'default', pointerEvents: 'none' } : { pointerEvents: 'auto' }) }}
+              >
+                {compactMetalTb ? icon : label}
+              </button>
             )
             const Sep = () => <div style={{ width: 1, height: 20, background: '#b0b0b0', margin: '0 3px', flexShrink: 0 }} />
             const curIdx = vouchers.findIndex(v => v._id === editingId)

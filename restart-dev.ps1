@@ -3,18 +3,18 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $frontendPath = Join-Path $repoRoot 'frontend'
 $backendPath = Join-Path $repoRoot 'backend'
-$ports = 5173, 5000
+$ports = 5173, 5174, 5000
 
-Write-Host 'Clearing stale Node listeners on ports 5173 and 5000...' -ForegroundColor Cyan
+Write-Host 'Clearing stale Node listeners on ports 5173, 5174 and 5000...' -ForegroundColor Cyan
 
 $listenerPids = Get-NetTCPConnection -LocalPort $ports -ErrorAction SilentlyContinue |
   Select-Object -ExpandProperty OwningProcess -Unique
 
-foreach ($pidValue in $listenerPids) {
-  $process = Get-Process -Id $pidValue -ErrorAction SilentlyContinue
+foreach ($procId in $listenerPids) {
+  $process = Get-Process -Id $procId -ErrorAction SilentlyContinue
   if ($process -and $process.ProcessName -eq 'node') {
-    Write-Host "Stopping Node PID $pidValue" -ForegroundColor Yellow
-    Stop-Process -Id $pidValue -Force -ErrorAction SilentlyContinue
+    Write-Host "Stopping Node PID $procId" -ForegroundColor Yellow
+    Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
   }
 }
 

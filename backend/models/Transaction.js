@@ -80,6 +80,8 @@ const transactionSchema = new mongoose.Schema(
       valueDate: { type: Date, default: null },
       refDate: { type: Date, default: null },
       postedDate: { type: Date, default: null },
+      referenceExchangeRate: { type: Number, default: 0 },
+      invoiceExchangeRate: { type: Number, default: 0 },
       lineItems: [
         {
           branch: { type: String, trim: true, default: '' },
@@ -91,6 +93,7 @@ const transactionSchema = new mongoose.Schema(
           typeCode: { type: String, trim: true, default: '' },
           currCode: { type: String, trim: true, default: 'USD' },
           currRate: { type: Number, default: 1 },
+          referenceRate: { type: Number, default: 0 },
           pcs: { type: Number, default: 0 },
           grossWeight: { type: Number, default: 0 },
           purity: { type: Number, default: 0 },
@@ -132,17 +135,6 @@ const transactionSchema = new mongoose.Schema(
 
 transactionSchema.index({ type: 1, date: -1 })
 
-transactionSchema.pre('validate', function enforceUsdCurrency(next) {
-  this.currency = 'USD'
-  this.exchangeRate = 1
-  if (Array.isArray(this.voucherMeta?.lineItems)) {
-    this.voucherMeta.lineItems = this.voucherMeta.lineItems.map((line) => ({
-      ...line,
-      currCode: 'USD',
-      currRate: 1,
-    }))
-  }
-  next()
-})
+// No USD-lock hook — preserve transaction and line-item currencies/rates.
 
 module.exports = createTenantModel('Transaction', transactionSchema)

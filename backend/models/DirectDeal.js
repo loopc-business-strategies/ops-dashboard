@@ -44,9 +44,4 @@ const directDealSchema = new mongoose.Schema(
 directDealSchema.index({ entryType: 1, docDate: -1 })
 directDealSchema.index({ status: 1, updatedAt: -1 })
 
-directDealSchema.pre('validate', function enforceUsdCurrency(next) {
-  this.currency = 'USD'
-  next()
-})
-
 module.exports = createTenantModel('DirectDeal', directDealSchema)

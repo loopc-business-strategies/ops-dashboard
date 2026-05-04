@@ -56,6 +56,16 @@ afterAll(async () => {
 })
 
 describe('Authorization guards', () => {
+  test('department user cannot view currencies', async () => {
+    const normal = await createUser({ role: 'department_user', department: 'operations' })
+
+    const res = await request(app)
+      .get('/api/erp-accounting/currencies')
+      .set('Authorization', `Bearer ${tokenFor(normal)}`)
+
+    expect(res.status).toBe(403)
+  })
+
   test('non-super-admin cannot list users', async () => {
     const normal = await createUser({ role: 'department_user', department: 'operations' })
 

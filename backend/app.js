@@ -91,7 +91,6 @@ function createApp() {
           // Ignore malformed origins and continue allowlist checks.
         }
       }
-      if (origin.endsWith('.vercel.app')) return callback(null, true)
       if (allowedOrigins.includes(origin)) return callback(null, true)
       callback(new Error(`CORS: origin not allowed — ${origin}`))
     },

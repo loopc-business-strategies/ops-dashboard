@@ -25,10 +25,6 @@ const ledgerSchema = new mongoose.Schema(
 ledgerSchema.index({ date: 1, debitAccountId: 1, creditAccountId: 1 })
 ledgerSchema.index({ referenceType: 1, referenceId: 1 })
 
-ledgerSchema.pre('validate', function enforceUsdCurrency(next) {
-  this.currency = 'USD'
-  this.exchangeRate = 1
-  next()
-})
+// No USD lock — currency and exchangeRate are set by the posting logic.
 
 module.exports = createTenantModel('Ledger', ledgerSchema)

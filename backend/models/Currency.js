@@ -14,14 +14,7 @@ const currencySchema = new mongoose.Schema(
   { timestamps: true }
 )
 
-currencySchema.pre('validate', function enforceUsdCurrency(next) {
-  this.code = 'USD'
-  this.name = 'US Dollar'
-  this.symbol = '$'
-  this.baseCurrency = true
-  this.exchangeRate = 1
-  this.isActive = true
-  next()
-})
-
+// Note: no USD-lock hook — multiple currencies are supported.
+// The base currency (baseCurrency: true) is managed by the routes layer
+// so only one currency can be the base at a time.
 module.exports = createTenantModel('Currency', currencySchema)

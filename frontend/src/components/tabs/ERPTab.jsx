@@ -3448,6 +3448,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
       loadCurrencies()
       loadReportBranding()
     }
+    else if (activeTab === 'currencies') {
+      loadCurrencies()
+      if (!accounts.length) loadAccounts()
+    }
     else if (activeTab === 'enquiry') loadAccounts({ scope: 'summary' })
   }, [
     activeTab,
@@ -4899,7 +4903,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   }
 
   const handleDeleteCurrency = async (currency) => {
-    if (!window.confirm(`Deactivate currency ${currency.code}?`)) return
+    if (!window.confirm(`Delete currency ${currency.code}?`)) return
     try {
       await erpAccountingAPI.deleteCurrency(token, currency._id)
       await loadCurrencies()
@@ -5002,7 +5006,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       {(() => {
         const visibleTabs = [
           'dashboard',
-          ...(canViewAccounts ? ['accounts', 'mappings', 'settings'] : []),
+          ...(canViewAccounts ? ['accounts', 'mappings', 'settings', 'currencies'] : []),
           ...(canViewBalanceEnquiry ? ['enquiry'] : []),
           ...(canViewCustomers ? ['customers'] : []),
           ...(canViewCustomers ? ['customer-margin'] : []),
@@ -5044,6 +5048,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
                     ? t('reports')
                     : tab === 'vendors'
                       ? t('vendors')
+                      : tab === 'currencies'
+                        ? 'Currencies'
                       : tab === 'customer-margin'
                         ? 'Customer Margin'
                       : tab === 'inventory'
@@ -8107,7 +8113,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
             <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Settings</h3>
             {canManageAccounts && (
               <button
-                onClick={() => setShowCurrencyForm(!showCurrencyForm)}
+                onClick={() => setActiveTab('currencies')}
                 style={{
                   padding: '0.5rem 1rem',
                   background: C.s1,
@@ -8118,7 +8124,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   fontWeight: '600',
                 }}
               >
-                + Add Currency
+                Open Currency Tab
               </button>
             )}
           </div>
@@ -8369,82 +8375,18 @@ function ERPTab({ focusTab, onNavigateMain }) {
               </div>
             </form>
 
-            <h4 style={{ color: C.ink, marginBottom: '1rem', fontWeight: '700' }}>Currencies</h4>
-            {showCurrencyForm && (
-              <form onSubmit={handleCreateCurrency} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
-                <input
-                  placeholder="Currency Code"
-                  value={currencyForm.code}
-                  onChange={(e) => setCurrencyForm({ ...currencyForm, code: e.target.value.toUpperCase() })}
-                  style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-                />
-                <input
-                  placeholder="Currency Name"
-                  value={currencyForm.name}
-                  onChange={(e) => setCurrencyForm({ ...currencyForm, name: e.target.value })}
-                  style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-                />
-                <input
-                  placeholder="Symbol"
-                  value={currencyForm.symbol}
-                  onChange={(e) => setCurrencyForm({ ...currencyForm, symbol: e.target.value })}
-                  style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-                />
-                <input
-                  type="number"
-                  step="0.0001"
-                  placeholder="Exchange Rate"
-                  value={currencyForm.exchangeRate}
-                  onChange={(e) => setCurrencyForm({ ...currencyForm, exchangeRate: e.target.value })}
-                  style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-                />
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: C.t1, marginBottom: '0.75rem' }}>
-                  <input
-                    type="checkbox"
-                    checked={currencyForm.baseCurrency}
-                    onChange={(e) => setCurrencyForm({ ...currencyForm, baseCurrency: e.target.checked })}
-                  />
-                  Set as base currency
-                </label>
-                <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', marginRight: '0.5rem' }}>
-                  {saving ? 'Saving...' : 'Create Currency'}
-                </button>
-                <button type="button" onClick={() => setShowCurrencyForm(false)} style={{ padding: '0.5rem 1rem', background: C.p1, color: C.t2, border: `1px solid ${C.t2}`, borderRadius: '0.375rem', cursor: 'pointer' }}>
-                  Cancel
-                </button>
-              </form>
-            )}
-            <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Code</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Name</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Exchange Rate</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Base</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {currencies.map((c) => (
-                    <tr key={c._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
-                      <td style={{ padding: '0.75rem', color: C.t1, fontWeight: '600' }}>{c.code}</td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>{c.name}</td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>{c.exchangeRate?.toFixed(4)}</td>
-                      <td style={{ padding: '0.75rem', color: c.baseCurrency ? C.s1 : C.t2 }}>{c.baseCurrency ? '✓ Base' : '-'}</td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <button onClick={() => handleEditCurrency(c)} style={{ padding: '0.35rem 0.7rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Edit</button>
-                          <button onClick={() => handleDeleteCurrency(c)} style={{ padding: '0.35rem 0.7rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Delete</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1.25rem' }}>
+              <h4 style={{ color: C.ink, marginTop: 0, marginBottom: '0.45rem', fontWeight: '700' }}>Currencies</h4>
+              <p style={{ color: C.inkSoft, margin: 0, fontSize: '0.86rem' }}>
+                Currency management now has a dedicated tab with add/edit/delete, base currency control, exchange rates, and exchange gain/loss setup.
+              </p>
+              <button
+                onClick={() => setActiveTab('currencies')}
+                style={{ marginTop: '0.75rem', padding: '0.45rem 0.85rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600' }}
+              >
+                Go to Currency Tab
+              </button>
             </div>
-
-            {currencies.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No currencies configured yet.</p>}
           </div>
 
           <div style={{ background: C.p1, padding: '1.5rem', borderRadius: '0.5rem', borderLeft: `4px solid ${C.s1}` }}>
@@ -8453,10 +8395,141 @@ function ERPTab({ focusTab, onNavigateMain }) {
               <li style={{ marginBottom: '0.5rem' }}>✓ Central Ledger System: Every transaction creates one ledger entry</li>
               <li style={{ marginBottom: '0.5rem' }}>✓ Auto Journal Logic: Debit/Credit pairs auto-populated based on mappings</li>
               <li style={{ marginBottom: '0.5rem' }}>✓ Role-Based Access: Finance and Super Admin only</li>
-              <li style={{ marginBottom: '0.5rem' }}>✓ Currency Standardization: USD only</li>
+              <li style={{ marginBottom: '0.5rem' }}>✓ Multi-Currency: configurable base currency and exchange rates</li>
               <li style={{ marginBottom: '0.5rem' }}>✓ Reports: Trial Balance, Ledger, and Dashboard all from ledger data</li>
             </ul>
           </div>
+        </div>
+      )}
+
+      {/* CURRENCIES TAB */}
+      {activeTab === 'currencies' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
+            <div>
+              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Currency Management</h3>
+              <p style={{ margin: '0.3rem 0 0', color: C.inkSoft, fontSize: '0.84rem' }}>
+                Manage currency codes, exchange rates, base currency, and FX posting behavior.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {canManageAccounts && (
+                <button
+                  onClick={() => setShowCurrencyForm(!showCurrencyForm)}
+                  style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600' }}
+                >
+                  {showCurrencyForm ? 'Close Form' : '+ Add Currency'}
+                </button>
+              )}
+              <button
+                onClick={() => setActiveTab('settings')}
+                style={{ padding: '0.5rem 1rem', background: '#fff', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.375rem', cursor: 'pointer' }}
+              >
+                Back to Settings
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+              <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>Exchange Difference Accounts</h4>
+              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.82rem' }}>
+                System auto-creates and uses <strong>Exchange Gain (4190)</strong> and <strong>Exchange Loss (5190)</strong> when posting foreign-currency payment/receipt adjustments.
+              </p>
+            </div>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+              <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>Base Currency</h4>
+              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.82rem' }}>
+                Exactly one currency can be base. Base currency exchange rate is always 1.
+              </p>
+            </div>
+          </div>
+
+          {showCurrencyForm && (
+            <form onSubmit={handleCreateCurrency} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem', border: `1px solid ${C.p2}` }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
+                <input
+                  placeholder="Currency Code"
+                  value={currencyForm.code}
+                  onChange={(e) => setCurrencyForm({ ...currencyForm, code: e.target.value.toUpperCase() })}
+                  style={modalInputStyle}
+                />
+                <input
+                  placeholder="Currency Name"
+                  value={currencyForm.name}
+                  onChange={(e) => setCurrencyForm({ ...currencyForm, name: e.target.value })}
+                  style={modalInputStyle}
+                />
+                <input
+                  placeholder="Symbol"
+                  value={currencyForm.symbol}
+                  onChange={(e) => setCurrencyForm({ ...currencyForm, symbol: e.target.value })}
+                  style={modalInputStyle}
+                />
+                <input
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  placeholder="Exchange Rate"
+                  value={currencyForm.exchangeRate}
+                  onChange={(e) => setCurrencyForm({ ...currencyForm, exchangeRate: e.target.value })}
+                  style={modalInputStyle}
+                />
+              </div>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: C.ink, marginTop: '0.6rem' }}>
+                <input
+                  type="checkbox"
+                  checked={currencyForm.baseCurrency}
+                  onChange={(e) => setCurrencyForm({ ...currencyForm, baseCurrency: e.target.checked })}
+                />
+                Set as base currency
+              </label>
+              <div style={{ marginTop: '0.75rem' }}>
+                <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', marginRight: '0.5rem' }}>
+                  {saving ? 'Saving...' : 'Create Currency'}
+                </button>
+                <button type="button" onClick={() => setShowCurrencyForm(false)} style={{ padding: '0.5rem 1rem', background: '#fff', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.375rem', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+
+          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Code</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Name</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Symbol</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Exchange Rate</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Base</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Active</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currencies.map((c) => (
+                  <tr key={c._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                    <td style={{ padding: '0.75rem', color: C.t1, fontWeight: '700' }}>{c.code}</td>
+                    <td style={{ padding: '0.75rem', color: C.t2 }}>{c.name}</td>
+                    <td style={{ padding: '0.75rem', color: C.t2 }}>{c.symbol || '-'}</td>
+                    <td style={{ padding: '0.75rem', color: C.t2 }}>{Number(c.exchangeRate || 0).toFixed(4)}</td>
+                    <td style={{ padding: '0.75rem', color: c.baseCurrency ? C.s1 : C.t2 }}>{c.baseCurrency ? '✓ Base' : '-'}</td>
+                    <td style={{ padding: '0.75rem', color: c.isActive ? '#065F46' : C.inkSoft }}>{c.isActive ? 'Active' : 'Inactive'}</td>
+                    <td style={{ padding: '0.75rem' }}>
+                      <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                        <button onClick={() => handleEditCurrency(c)} style={{ padding: '0.35rem 0.7rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Edit</button>
+                        <button onClick={() => handleDeleteCurrency(c)} style={{ padding: '0.35rem 0.7rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {currencies.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No currencies configured yet.</p>}
         </div>
       )}
 
