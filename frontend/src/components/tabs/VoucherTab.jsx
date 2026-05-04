@@ -370,6 +370,7 @@ const emptyLine = () => ({
   typeCode: '',
   currCode: 'USD',
   currRate: '',
+  currRateSource: 'manual',
   exp: '',
   vatNumber: '',
   vatInv: '',
@@ -396,6 +397,7 @@ const emptyHeader = () => ({
   partyName: '',
   currCode: 'USD',
   currRate: '1.000000',
+  currRateSource: 'currency_table',
   vocDate: today(),
   vocNo: '',
   salesman: '',
@@ -527,6 +529,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const [localCustomers, setLocalCustomers] = useState(propCustomers)
   const [localVendors, setLocalVendors] = useState(propVendors)
   const [localCurrencies, setLocalCurrencies] = useState(Array.isArray(currencies) ? currencies : [])
+  const [latestMetalRates, setLatestMetalRates] = useState({ goldPrice: 0, silverPrice: 0, priceCurrency: 'USD', updatedAt: null })
   const customers = localCustomers.length > 0 ? localCustomers : propCustomers
   const vendors = localVendors.length > 0 ? localVendors : propVendors
   const mergedCurrencies = localCurrencies.length > 0 ? localCurrencies : (Array.isArray(currencies) ? currencies : [])
@@ -576,12 +579,31 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     }
   }, [])
 
+  const refreshMetalRates = useCallback(async () => {
+    try {
+      const res = await axios.get(`${BASE}/metal-rates`, cfg())
+      const rates = res.data?.rates || {}
+      const goldPrice = Number(rates.goldPrice || 0)
+      setLatestMetalRates({
+        goldPrice: Number.isFinite(goldPrice) && goldPrice > 0 ? goldPrice : 0,
+        silverPrice: Number(rates.silverPrice || 0),
+        priceCurrency: String(rates.priceCurrency || 'USD').trim().toUpperCase() || 'USD',
+        updatedAt: rates.updatedAt || null,
+      })
+    } catch {
+      // silently ignore — payment vouchers can still use normal currency rates
+    }
+  }, [])
+
   useEffect(() => {
     if (canView) refreshParties()
   }, [canView, refreshParties])
   useEffect(() => {
     if (canView) refreshCurrencies()
   }, [canView, refreshCurrencies])
+  useEffect(() => {
+    if (canView) refreshMetalRates()
+  }, [canView, refreshMetalRates])
   const [vouchers, setVouchers] = useState([])
   const [loadingList, setLoadingList] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -748,6 +770,33 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const [loadingInventoryProducts, setLoadingInventoryProducts] = useState(false)
   const setLF = (k, v) => setLineForm(prev => ({ ...prev, [k]: k === 'rateType' ? normalizeRateType(v) : v }))
 
+  const resolvePaymentRate = useCallback((currencyCode) => {
+    const normalized = String(currencyCode || 'USD').trim().toUpperCase()
+    const fallbackRate = getCurrencyRateByCode(normalized)
+    if (voucherType !== 'payment') {
+      return { rate: fallbackRate, source: 'currency_table' }
+    }
+
+    const goldPrice = Number(latestMetalRates.goldPrice || 0)
+    if (!Number.isFinite(goldPrice) || goldPrice <= 0) {
+      return { rate: fallbackRate, source: 'currency_table' }
+    }
+
+    const priceCurrencyCode = String(latestMetalRates.priceCurrency || 'USD').trim().toUpperCase() || 'USD'
+    const priceCurrencyRate = getCurrencyRateByCode(priceCurrencyCode)
+    const targetCurrencyRate = getCurrencyRateByCode(normalized)
+    if (!Number.isFinite(priceCurrencyRate) || priceCurrencyRate <= 0 || !Number.isFinite(targetCurrencyRate) || targetCurrencyRate <= 0) {
+      return { rate: fallbackRate, source: 'currency_table' }
+    }
+
+    const computedRate = goldPrice * (priceCurrencyRate / targetCurrencyRate)
+    if (!Number.isFinite(computedRate) || computedRate <= 0) {
+      return { rate: fallbackRate, source: 'currency_table' }
+    }
+
+    return { rate: computedRate, source: 'gold_price' }
+  }, [voucherType, latestMetalRates, getCurrencyRateByCode])
+
   const buildFormSnapshot = useCallback((snapshotHeader, snapshotLineItems, snapshotPartyId) => JSON.stringify({
     header: {
       branch: String(snapshotHeader?.branch || ''),
@@ -755,6 +804,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       partyName: String(snapshotHeader?.partyName || ''),
       currCode: String(snapshotHeader?.currCode || ''),
       currRate: String(snapshotHeader?.currRate || ''),
+      currRateSource: String(snapshotHeader?.currRateSource || ''),
       vocDate: String(snapshotHeader?.vocDate || ''),
       vocNo: String(snapshotHeader?.vocNo || ''),
       salesman: String(snapshotHeader?.salesman || ''),
@@ -1364,6 +1414,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       partyName: m.partyName || '',
       currCode: v.currency || 'USD',
       currRate: String(v.exchangeRate || '1.000000'),
+      currRateSource: m.currRateSource || m.rateMeta?.headerRateSource || 'manual',
       vocDate: v.date ? v.date.slice(0, 10) : today(),
       vocNo: m.vocNo || '',
       salesman: m.salesman || '',
@@ -1372,7 +1423,11 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       fixingType: normalizeVoucherFixingType(m.fixingType),
     }
     const nextPartyId = resolvedParty?.partyId || ''
-    const nextLineItems = (m.lineItems || []).map((line) => ({ ...line, type: normalizeLineType(line.type) }))
+    const nextLineItems = (m.lineItems || []).map((line) => ({
+      ...line,
+      type: normalizeLineType(line.type),
+      currRateSource: line?.currRateSource || 'manual',
+    }))
     setEditingId(v._id)
     setHeader(nextHeader)
     setSelectedPartyId(nextPartyId)
@@ -1535,9 +1590,17 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         vocNo: header.vocNo,
         docDate: header.docDate || null,
         valueDate: header.valueDate || null,
+        currRateSource: header.currRateSource || 'manual',
+        rateMeta: {
+          headerRateSource: header.currRateSource || 'manual',
+          goldPrice: Number(latestMetalRates.goldPrice || 0),
+          goldPriceCurrency: String(latestMetalRates.priceCurrency || 'USD').trim().toUpperCase() || 'USD',
+          goldPriceUpdatedAt: latestMetalRates.updatedAt || null,
+        },
         ...(( voucherType === 'purchase' || voucherType === 'sale') ? { fixingType: normalizeVoucherFixingType(header.fixingType) } : {}),
         lineItems: effectiveLineItems.map(l => ({
           ...l,
+          currRateSource: l.currRateSource || 'manual',
           amountFC: parseFloat(l.amountFC) || 0,
           amountLC: parseFloat(l.amountLC) || 0,
           headerAmt: parseFloat(l.headerAmt) || 0,
@@ -1614,6 +1677,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       ...baseLine,
       currCode: header.currCode || 'USD',
       currRate: String(rate.toFixed(6)),
+      currRateSource: header.currRateSource || 'currency_table',
       vatType: baseLine.vatType || 'VAT',
       narration: header.narration || '',
       amountFC: remaining > 0 ? remaining.toFixed(2) : '',
@@ -1631,6 +1695,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       ...emptyLine(),
       currCode: header.currCode || 'USD',
       currRate: header.currRate || '1.000000',
+      currRateSource: header.currRateSource || 'currency_table',
       type: defaultType,
       typeCode: defaultType.toUpperCase(),
       acCode: defaultAccountCode || '',
@@ -1648,6 +1713,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       type: normalizedType,
       typeCode: normalizedType.toUpperCase(),
       rateType: normalizeRateType(lineItems[idx]?.rateType),
+      currRateSource: lineItems[idx]?.currRateSource || 'manual',
       vatType: lineItems[idx]?.vatType || 'VAT',
     })
     setShowLineForm(true)
@@ -1760,27 +1826,36 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   }
 
   const handleCurrRateChange = (val) => {
-    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, currRate: val }, 'rate'))
+    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, currRate: val, currRateSource: 'manual' }, 'rate'))
+  }
+
+  const handleHeaderCurrRateChange = (val) => {
+    setHeader((prev) => ({
+      ...prev,
+      currRate: val,
+      currRateSource: 'manual',
+    }))
   }
 
   const handleHeaderCurrencyChange = (nextCode) => {
     const normalized = String(nextCode || 'USD').trim().toUpperCase()
-    const nextRate = getCurrencyRateByCode(normalized)
+    const resolved = resolvePaymentRate(normalized)
     setHeader((prev) => ({
       ...prev,
       currCode: normalized,
-      currRate: nextRate.toFixed(6),
+      currRate: resolved.rate.toFixed(6),
+      currRateSource: resolved.source,
     }))
   }
 
   const handleLineCurrencyChange = (nextCode) => {
     const normalized = String(nextCode || 'USD').trim().toUpperCase()
-    const nextRate = getCurrencyRateByCode(normalized)
+    const resolved = resolvePaymentRate(normalized)
     if (isMetalVoucher) {
       setLF('currCode', normalized)
       return
     }
-    setLineForm((prev) => recalcReceiptPaymentLine({ ...prev, currCode: normalized, currRate: nextRate.toFixed(6) }, 'rate'))
+    setLineForm((prev) => recalcReceiptPaymentLine({ ...prev, currCode: normalized, currRate: resolved.rate.toFixed(6), currRateSource: resolved.source }, 'rate'))
   }
 
   const handleVatPerChange = (val) => {
@@ -2483,7 +2558,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                         <input
                           style={formReadOnly ? classicReadInput : classicInput}
                           value={header.currRate}
-                          onChange={e => setHdr('currRate', e.target.value)}
+                          onChange={e => handleHeaderCurrRateChange(e.target.value)}
                           type="number"
                           step="0.000001"
                           readOnly={formReadOnly}

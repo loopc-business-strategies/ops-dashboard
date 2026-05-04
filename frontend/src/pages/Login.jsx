@@ -9,7 +9,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
-import { getTenantBranding, resolveTenantFromHostname } from '../config/tenantBranding'
+import { getTenantBranding, resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
 
 function hexToRgb(hex) {
   const h = hex.replace('#', '')
@@ -24,7 +24,8 @@ function Login() {
   const { login } = useAuth()
   const { t } = useLanguage()
 
-  const company = resolveTenantFromHostname(window.location.hostname, 'loopc')
+  const hostTenant = resolveTenantFromHostname(window.location.hostname, 'loopc')
+  const company = resolveTenantFromSearch(window.location.search, hostTenant)
 
   const [name,     setName]     = useState('')
   const [password, setPassword] = useState('')
@@ -189,6 +190,14 @@ function Login() {
 
       {/* Bottom: live feed placeholder */}
       <div className="mt-8 w-full max-w-sm">
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 text-center mb-3">
+          <p className="text-xs text-gray-500 mb-2">Company portals</p>
+          <div className="flex items-center justify-center gap-2 text-xs">
+            <a href="/login?company=mg" className="px-2 py-1 rounded border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500">MG</a>
+            <a href="/login?company=cg" className="px-2 py-1 rounded border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500">CG</a>
+            <a href="/login?company=loopc" className="px-2 py-1 rounded border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500">LOOPC</a>
+          </div>
+        </div>
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 text-center">
           <p className="text-xs text-gray-600">📡 Live Feed — Coming Soon</p>
         </div>

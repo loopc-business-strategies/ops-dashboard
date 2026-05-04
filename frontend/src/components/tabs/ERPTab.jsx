@@ -1159,6 +1159,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     currency: 'USD',
   })
   const [currencyForm, setCurrencyForm] = useState({ code: '', name: '', symbol: '', exchangeRate: 1, baseCurrency: false })
+  const [usdConversion, setUsdConversion] = useState({ usdAmount: '1', targetCode: 'UZS' })
   const [mappingForm, setMappingForm] = useState({ mappingType: '', debitAccountId: '', creditAccountId: '', department: '', description: '' })
   const [mappingFilters, setMappingFilters] = useState({ department: '' })
   const [mappingSummary, setMappingSummary] = useState({ total: 0, shared: 0, byDepartment: {} })
@@ -1363,6 +1364,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const canAccessVouchers = isSuperAdmin || isFinance || isSalesRole || isManagementRole
   const canAccessDirectDeals = isSuperAdmin || isFinance || isSalesRole || isManagementRole
   const canAccessERP = canViewAccounts || canAccessTransactions || canAccessInventory || canViewCustomers
+  const selectedUsdConversionCurrency = currencies.find((currency) => currency.code === usdConversion.targetCode) || null
+  const selectedUsdConversionRate = Number(selectedUsdConversionCurrency?.exchangeRate || 0)
+  const usdAmountValue = Number(usdConversion.usdAmount || 0)
+  const usdToTargetAmount = Number.isFinite(usdAmountValue) && usdAmountValue >= 0 && selectedUsdConversionRate > 0
+    ? (usdAmountValue / selectedUsdConversionRate)
+    : 0
   const inventoryMappingProducts = inventoryProducts.filter((item) => String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
   const inventoryCatalogProducts = inventoryProducts.filter((item) => String(item?.category || '').includes('recordType=product'))
   const legacyInventoryProducts = inventoryProducts.filter((item) => !String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
@@ -4834,6 +4841,19 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
   }
 
+  const handleSyncCurrencyMaster = async () => {
+    setSaving(true)
+    try {
+      const response = await erpAccountingAPI.seedDefaultCurrencies(token)
+      await loadCurrencies()
+      showNotification(`✅ Currency master synced (${response.createdCount || 0} created, ${response.normalizedCount || 0} updated)`)
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to sync currency master')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleCreateMapping = async (e) => {
     e.preventDefault()
     if (!mappingForm.mappingType || !mappingForm.debitAccountId || !mappingForm.creditAccountId) {
@@ -5049,7 +5069,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                     : tab === 'vendors'
                       ? t('vendors')
                       : tab === 'currencies'
-                        ? 'Currencies'
+                        ? 'Currency Master'
                       : tab === 'customer-margin'
                         ? 'Customer Margin'
                       : tab === 'inventory'
@@ -8384,7 +8404,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 onClick={() => setActiveTab('currencies')}
                 style={{ marginTop: '0.75rem', padding: '0.45rem 0.85rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600' }}
               >
-                Go to Currency Tab
+                Go to Currency Master
               </button>
             </div>
           </div>
@@ -8407,9 +8427,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
             <div>
-              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Currency Management</h3>
+              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Currency Master</h3>
               <p style={{ margin: '0.3rem 0 0', color: C.inkSoft, fontSize: '0.84rem' }}>
-                Manage currency codes, exchange rates, base currency, and FX posting behavior.
+                Manage currency code master and conversion rates vs USD for all ERP postings.
               </p>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -8421,6 +8441,15 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   {showCurrencyForm ? 'Close Form' : '+ Add Currency'}
                 </button>
               )}
+              {canManageAccounts && (
+                <button
+                  onClick={handleSyncCurrencyMaster}
+                  disabled={saving}
+                  style={{ padding: '0.5rem 1rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600' }}
+                >
+                  {saving ? 'Syncing...' : 'Sync USD/EUR/AED/UZS'}
+                </button>
+              )}
               <button
                 onClick={() => setActiveTab('settings')}
                 style={{ padding: '0.5rem 1rem', background: '#fff', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.375rem', cursor: 'pointer' }}
@@ -8430,7 +8459,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
             <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
               <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>Exchange Difference Accounts</h4>
               <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.82rem' }}>
@@ -8438,9 +8467,41 @@ function ERPTab({ focusTab, onNavigateMain }) {
               </p>
             </div>
             <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-              <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>Base Currency</h4>
+              <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>Rate Direction (vs USD)</h4>
               <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.82rem' }}>
-                Exactly one currency can be base. Base currency exchange rate is always 1.
+                Exchange rate stores <strong>USD value of 1 unit</strong> of the selected currency. Example: AED 0.2723 means 1 AED = 0.2723 USD.
+              </p>
+            </div>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
+              <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>USD Converter</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="USD Amount"
+                  value={usdConversion.usdAmount}
+                  onChange={(e) => setUsdConversion((prev) => ({ ...prev, usdAmount: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <select
+                  value={usdConversion.targetCode}
+                  onChange={(e) => setUsdConversion((prev) => ({ ...prev, targetCode: e.target.value }))}
+                  style={modalInputStyle}
+                >
+                  {currencies.map((currency) => (
+                    <option key={currency._id || currency.code} value={currency.code}>{currency.code} - {currency.name}</option>
+                  ))}
+                </select>
+              </div>
+              <p style={{ margin: '0.5rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>
+                {usdConversion.usdAmount || '0'} USD = <strong style={{ color: C.ink }}>{Number(usdToTargetAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</strong> {usdConversion.targetCode || '---'}
+              </p>
+              <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.75rem' }}>
+                1 {usdConversion.targetCode || '---'} = <strong style={{ color: C.ink }}>{Number(selectedUsdConversionRate || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</strong> USD
+              </p>
+              <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.72rem' }}>
+                Rate used: {selectedUsdConversionRate > 0 ? selectedUsdConversionRate.toFixed(6) : 'N/A'} USD per {usdConversion.targetCode || 'unit'}
               </p>
             </div>
           </div>
@@ -8503,6 +8564,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Name</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Symbol</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Exchange Rate</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>1 USD =</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Base</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Active</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Actions</th>
@@ -8514,7 +8576,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
                     <td style={{ padding: '0.75rem', color: C.t1, fontWeight: '700' }}>{c.code}</td>
                     <td style={{ padding: '0.75rem', color: C.t2 }}>{c.name}</td>
                     <td style={{ padding: '0.75rem', color: C.t2 }}>{c.symbol || '-'}</td>
-                    <td style={{ padding: '0.75rem', color: C.t2 }}>{Number(c.exchangeRate || 0).toFixed(4)}</td>
+                    <td style={{ padding: '0.75rem', color: C.t2 }}>{Number(c.exchangeRate || 0).toFixed(6)}</td>
+                    <td style={{ padding: '0.75rem', color: C.t2 }}>{Number(c.exchangeRate || 0) > 0 ? Number(1 / Number(c.exchangeRate || 1)).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '-'}</td>
                     <td style={{ padding: '0.75rem', color: c.baseCurrency ? C.s1 : C.t2 }}>{c.baseCurrency ? '✓ Base' : '-'}</td>
                     <td style={{ padding: '0.75rem', color: c.isActive ? '#065F46' : C.inkSoft }}>{c.isActive ? 'Active' : 'Inactive'}</td>
                     <td style={{ padding: '0.75rem' }}>

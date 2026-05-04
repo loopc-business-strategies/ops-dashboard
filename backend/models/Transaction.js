@@ -82,6 +82,8 @@ const transactionSchema = new mongoose.Schema(
       postedDate: { type: Date, default: null },
       referenceExchangeRate: { type: Number, default: 0 },
       invoiceExchangeRate: { type: Number, default: 0 },
+      currRateSource: { type: String, trim: true, default: 'currency_table' },
+      rateMeta: { type: mongoose.Schema.Types.Mixed, default: null },
       lineItems: [
         {
           branch: { type: String, trim: true, default: '' },
@@ -123,6 +125,7 @@ const transactionSchema = new mongoose.Schema(
           amountWithVAT: { type: Number, default: 0 },
           headerAmountWithVAT: { type: Number, default: 0 },
           narration: { type: String, trim: true, default: '' },
+          currRateSource: { type: String, trim: true, default: 'manual' },
         },
       ],
     },

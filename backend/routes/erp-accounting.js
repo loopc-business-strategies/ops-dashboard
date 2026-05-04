@@ -72,6 +72,12 @@ const canManageDirectDeals = (user) => isSuperAdmin(user) || isFinance(user) || 
 const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
 const TRANSACTION_STATUSES = ['draft', 'submitted', 'approved', 'posted', 'returned', 'rejected']
 const BASE_CURRENCY_CODE = 'USD'
+const DEFAULT_CURRENCY_MASTER = [
+  { code: 'USD', name: 'US Dollar', symbol: '$', exchangeRate: 1, baseCurrency: true },
+  { code: 'EUR', name: 'Euro', symbol: 'EUR', exchangeRate: 1.08, baseCurrency: false },
+  { code: 'AED', name: 'UAE Dirham', symbol: 'AED', exchangeRate: 0.2723, baseCurrency: false },
+  { code: 'UZS', name: 'Uzbekistan Som', symbol: 'UZS', exchangeRate: 0.000078, baseCurrency: false },
+]
 
 const toMoney = (value) => Number(Number(value || 0).toFixed(2))
 const toQty = (value) => Number(Number(value || 0).toFixed(6))
@@ -129,6 +135,63 @@ const ensureBaseCurrencyConfig = async () => {
   }
 
   return base
+}
+
+const ensureDefaultCurrencyMaster = async () => {
+  const base = await ensureBaseCurrencyConfig()
+  const now = new Date()
+  let createdCount = 0
+  let normalizedCount = 0
+
+  for (const preset of DEFAULT_CURRENCY_MASTER) {
+    if (preset.baseCurrency) continue
+
+    const existing = await Currency.findOne({ code: preset.code })
+    if (!existing) {
+      await Currency.create({
+        code: preset.code,
+        name: preset.name,
+        symbol: preset.symbol,
+        exchangeRate: preset.exchangeRate,
+        baseCurrency: false,
+        isActive: true,
+        rateUpdatedAt: now,
+      })
+      createdCount += 1
+      continue
+    }
+
+    let changed = false
+    if (String(existing.name || '').trim() !== preset.name) {
+      existing.name = preset.name
+      changed = true
+    }
+    if (String(existing.symbol || '').trim() !== preset.symbol) {
+      existing.symbol = preset.symbol
+      changed = true
+    }
+    if (existing.baseCurrency) {
+      existing.baseCurrency = false
+      changed = true
+    }
+    if (existing.isActive !== true) {
+      existing.isActive = true
+      changed = true
+    }
+    const nextRate = Number(existing.exchangeRate || 0)
+    if (!Number.isFinite(nextRate) || nextRate <= 0) {
+      existing.exchangeRate = preset.exchangeRate
+      changed = true
+    }
+
+    if (changed) {
+      existing.rateUpdatedAt = now
+      await existing.save()
+      normalizedCount += 1
+    }
+  }
+
+  return { base, createdCount, normalizedCount }
 }
 
 const ensureExchangeDifferenceAccounts = async (user) => {
@@ -2561,8 +2624,28 @@ router.delete('/mappings/:id', protect, async (req, res) => {
 router.get('/currencies', protect, async (req, res) => {
   try {
     if (!canViewAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    await ensureDefaultCurrencyMaster()
     const currencies = await Currency.find({}).sort({ baseCurrency: -1, code: 1 })
     res.json({ success: true, currencies, total: currencies.length, page: 1, limit: currencies.length })
+  } catch {
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+router.post('/currencies/seed-defaults', protect, async (req, res) => {
+  try {
+    if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+
+    const result = await ensureDefaultCurrencyMaster()
+    const currencies = await Currency.find({}).sort({ baseCurrency: -1, code: 1 })
+
+    res.json({
+      success: true,
+      message: 'Currency master defaults synchronized.',
+      createdCount: result.createdCount,
+      normalizedCount: result.normalizedCount,
+      currencies,
+    })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }

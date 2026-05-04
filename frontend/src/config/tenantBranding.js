@@ -1,5 +1,10 @@
 const TENANT_KEYS = ['mg', 'cg', 'loopc']
 
+function normalizeTenantKey(value) {
+  const key = String(value || '').trim().toLowerCase()
+  return TENANT_KEYS.includes(key) ? key : ''
+}
+
 const defaultBranding = {
   key: 'loopc',
   displayName: 'LoopC',
@@ -54,23 +59,33 @@ const tenantBranding = {
 }
 
 export function getTenantBranding(tenant) {
-  const key = String(tenant || '').trim().toLowerCase()
+  const key = normalizeTenantKey(tenant)
   return tenantBranding[key] || defaultBranding
 }
 
 export function resolveTenantFromHostname(hostname, fallbackTenant = defaultBranding.key) {
-  const fallback = TENANT_KEYS.includes(fallbackTenant) ? fallbackTenant : defaultBranding.key
+  const fallback = normalizeTenantKey(fallbackTenant) || defaultBranding.key
   const rawHost = String(hostname || '')
     .trim()
     .toLowerCase()
     .replace(/:\d+$/, '')
 
   if (!rawHost) return fallback
-  if (TENANT_KEYS.includes(rawHost)) return rawHost
+  if (normalizeTenantKey(rawHost)) return rawHost
   if (rawHost === 'localhost' || rawHost === '127.0.0.1' || rawHost === '::1') return fallback
 
   const [subdomain] = rawHost.split('.')
-  return TENANT_KEYS.includes(subdomain) ? subdomain : fallback
+  return normalizeTenantKey(subdomain) || fallback
+}
+
+export function resolveTenantFromSearch(search, fallbackTenant = defaultBranding.key) {
+  const fallback = normalizeTenantKey(fallbackTenant) || defaultBranding.key
+  const params = new URLSearchParams(String(search || ''))
+  const fromCompany = normalizeTenantKey(params.get('company'))
+  if (fromCompany) return fromCompany
+  const fromTenant = normalizeTenantKey(params.get('tenant'))
+  if (fromTenant) return fromTenant
+  return fallback
 }
 
 export function isLocalTenantHost(hostname) {

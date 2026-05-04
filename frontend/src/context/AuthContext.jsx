@@ -8,21 +8,22 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import axios from 'axios'
 import authAPI from '../api/auth'
-import { resolveTenantFromHostname } from '../config/tenantBranding'
+import { resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const hostTenant = resolveTenantFromHostname(window.location.hostname, localStorage.getItem('tenantCompany') || 'loopc')
+  const resolvedTenant = resolveTenantFromSearch(window.location.search, hostTenant)
 
   const [user,      setUser]      = useState(null)
   const [token,     setToken]     = useState(null)
-  const [company,   setCompany]   = useState(hostTenant)
+  const [company,   setCompany]   = useState(resolvedTenant)
   const [isLoading, setIsLoading] = useState(true) // checking saved session
 
   // Always tell the backend which tenant this frontend belongs to
-  axios.defaults.headers.common['x-tenant'] = hostTenant
-  axios.defaults.headers.common['x-company'] = hostTenant
+  axios.defaults.headers.common['x-tenant'] = resolvedTenant
+  axios.defaults.headers.common['x-company'] = resolvedTenant
 
   // On app load: restore session from server cookie
   useEffect(() => {
@@ -32,19 +33,22 @@ export function AuthProvider({ children }) {
       try {
         const data = await authAPI.getMe()
         if (!mounted) return
-        const resolvedTenant = resolveTenantFromHostname(window.location.hostname, data.user?.company || hostTenant)
+        const nextTenant = resolveTenantFromSearch(
+          window.location.search,
+          resolveTenantFromHostname(window.location.hostname, data.user?.company || resolvedTenant)
+        )
         setUser(data.user)
-        setCompany(resolvedTenant)
-        localStorage.setItem('tenantCompany', resolvedTenant)
-        axios.defaults.headers.common['x-tenant'] = resolvedTenant
-        axios.defaults.headers.common['x-company'] = resolvedTenant
+        setCompany(nextTenant)
+        localStorage.setItem('tenantCompany', nextTenant)
+        axios.defaults.headers.common['x-tenant'] = nextTenant
+        axios.defaults.headers.common['x-company'] = nextTenant
         // Keep compatibility for existing token checks in tabs.
         setToken('cookie-session')
       } catch {
         if (!mounted) return
         setUser(null)
         setToken(null)
-        setCompany(hostTenant)
+        setCompany(resolvedTenant)
       } finally {
         if (mounted) setIsLoading(false)
       }
@@ -58,14 +62,20 @@ export function AuthProvider({ children }) {
   }, [])
 
   const login = async (name, password, selectedCompany) => {
-    const tenant = resolveTenantFromHostname(window.location.hostname, selectedCompany || company || hostTenant)
+    const tenant = resolveTenantFromSearch(
+      window.location.search,
+      resolveTenantFromHostname(window.location.hostname, selectedCompany || company || resolvedTenant)
+    )
     const data = await authAPI.login(name, password, tenant)
-    const resolvedTenant = resolveTenantFromHostname(window.location.hostname, data.user?.company || tenant)
+    const nextTenant = resolveTenantFromSearch(
+      window.location.search,
+      resolveTenantFromHostname(window.location.hostname, data.user?.company || tenant)
+    )
     setUser(data.user)
-    setCompany(resolvedTenant)
-    localStorage.setItem('tenantCompany', resolvedTenant)
-    axios.defaults.headers.common['x-tenant'] = resolvedTenant
-    axios.defaults.headers.common['x-company'] = resolvedTenant
+    setCompany(nextTenant)
+    localStorage.setItem('tenantCompany', nextTenant)
+    axios.defaults.headers.common['x-tenant'] = nextTenant
+    axios.defaults.headers.common['x-company'] = nextTenant
     setToken('cookie-session')
     return data
   }
