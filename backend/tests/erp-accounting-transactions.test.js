@@ -40,6 +40,18 @@ const createUser = async (overrides = {}) => {
   })
 }
 
+const createOpsUser = async (overrides = {}) => {
+  const now = Date.now().toString(36)
+  return User.create({
+    name: `ops-${now}-${Math.random().toString(36).slice(2, 8)}`,
+    email: `ops-${now}-${Math.random().toString(36).slice(2, 8)}@example.com`,
+    password: 'password123',
+    role: 'department_head',
+    department: 'operations',
+    ...overrides,
+  })
+}
+
 const createDraftTransaction = async (user, overrides = {}) => Transaction.create({
   type: 'expense',
   amount: 1250,
@@ -241,6 +253,12 @@ describe('ERP accounting transactions workflow', () => {
       .send({ comment: 'Ready to post' })
     expect(submitRes.status).toBe(200)
 
+    const approveRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/approve`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Approved for posting' })
+    expect(approveRes.status).toBe(200)
+
     const postRes = await request(app)
       .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
       .set(authHeader(financeUser))
@@ -329,6 +347,12 @@ describe('ERP accounting transactions workflow', () => {
       .send({ comment: 'Ready to post' })
     expect(submitRes.status).toBe(200)
 
+    const approveRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/approve`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Approved for posting' })
+    expect(approveRes.status).toBe(200)
+
     const postRes = await request(app)
       .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
       .set(authHeader(financeUser))
@@ -404,6 +428,12 @@ describe('ERP accounting transactions workflow', () => {
         .set(authHeader(financeUser))
         .send({ comment: 'Ready to post' })
       expect(submitRes.status).toBe(200)
+
+      const approveRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/approve`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Approve FX transaction' })
+      expect(approveRes.status).toBe(200)
 
       const postRes = await request(app)
         .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
@@ -488,6 +518,12 @@ describe('ERP accounting transactions workflow', () => {
         .send({ comment: 'Ready to post' })
       expect(submitRes.status).toBe(200)
 
+      const approveRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/approve`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Approve FX guard transaction' })
+      expect(approveRes.status).toBe(200)
+
       const postRes = await request(app)
         .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
         .set(authHeader(financeUser))
@@ -562,6 +598,12 @@ describe('ERP accounting transactions workflow', () => {
       .send({ comment: 'Ready to post' })
     expect(submitRes.status).toBe(200)
 
+    const approveRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/approve`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Approve FX line item transaction' })
+    expect(approveRes.status).toBe(200)
+
     const postRes = await request(app)
       .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
       .set(authHeader(financeUser))
@@ -580,5 +622,123 @@ describe('ERP accounting transactions workflow', () => {
     expect(fxJournal).toBeTruthy()
     expect(Number(fxJournal.amount)).toBeCloseTo(20, 2)
     expect(String(fxJournal.creditAccountId)).toBe(String(gainAccount._id))
+  })
+
+  test('non-finance user cannot void or delete transaction', async () => {
+    const financeUser = await createUser({ name: 'Finance Owner' })
+    const opsUser = await createOpsUser({ name: 'Ops Reviewer' })
+
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'expense',
+        amount: 250,
+        description: 'Ops should not void/delete this',
+        currency: 'USD',
+      })
+
+    expect(createRes.status).toBe(201)
+    const txId = createRes.body.transaction._id
+
+    const voidRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/void`)
+      .set(authHeader(opsUser))
+      .send({ reason: 'Trying unauthorized void' })
+
+    expect(voidRes.status).toBe(403)
+
+    const deleteRes = await request(app)
+      .delete(`/api/erp-accounting/transactions/${txId}`)
+      .set(authHeader(opsUser))
+
+    expect(deleteRes.status).toBe(403)
+  })
+
+  test('role-restricted user cannot submit disallowed transaction type', async () => {
+    const financeUser = await createUser({ name: 'Finance Creator' })
+    const managementUser = await createUser({
+      name: 'Management Submitter',
+      role: 'management',
+      department: 'management',
+    })
+
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'expense',
+        amount: 400,
+        description: 'Finance draft transaction',
+        currency: 'USD',
+      })
+
+    expect(createRes.status).toBe(201)
+
+    const submitRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
+      .set(authHeader(managementUser))
+      .send({ comment: 'Attempt unauthorized submit' })
+
+    expect(submitRes.status).toBe(403)
+  })
+
+  test('post requires approved status and rejects submitted transaction', async () => {
+    const financeUser = await createUser({ name: 'Finance Approver' })
+
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'expense',
+        amount: 300,
+        description: 'Submitted-only should fail post',
+        currency: 'USD',
+      })
+
+    expect(createRes.status).toBe(201)
+
+    const submitRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'submit first' })
+
+    expect(submitRes.status).toBe(200)
+
+    const postRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'attempt posting while submitted' })
+
+    expect(postRes.status).toBe(400)
+  })
+
+  test('rejects invalid numeric values on transaction create', async () => {
+    const financeUser = await createUser({ name: 'Numeric Guard' })
+
+    const badRateRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'expense',
+        amount: 100,
+        exchangeRate: 0,
+        description: 'invalid exchange rate',
+      })
+
+    expect(badRateRes.status).toBe(400)
+    expect(badRateRes.body.message).toMatch(/Invalid exchange rate/i)
+
+    const badAmountRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'expense',
+        amount: 'not-a-number',
+        description: 'invalid amount',
+      })
+
+    expect(badAmountRes.status).toBe(400)
+    expect(badAmountRes.body.message).toMatch(/Invalid amount/i)
   })
 })
