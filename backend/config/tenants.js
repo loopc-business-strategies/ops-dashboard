@@ -81,6 +81,7 @@ module.exports = {
   TENANTS,
   normalizeTenant,
   getDefaultTenant,
+  getLegacyMongoUri,
   resolveTenantFromHost,
   getTenantUri,
 }

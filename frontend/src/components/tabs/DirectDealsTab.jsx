@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import erpAccountingAPI from '../../api/erp-accounting'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
+import Papa from 'papaparse'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { useLanguage } from '../../context/LanguageContext'
@@ -136,13 +137,55 @@ const getFileExtension = (fileName = '') => {
 }
 
 const getWorksheetColumnCount = (worksheet) => {
-  if (!worksheet || !worksheet['!ref']) return 0
-  try {
-    const range = XLSX.utils.decode_range(worksheet['!ref'])
-    return (range.e.c - range.s.c) + 1
-  } catch {
-    return 0
+  if (!worksheet) return 0
+  return Number(worksheet.actualColumnCount || worksheet.columnCount || 0)
+}
+
+const triggerDownload = (blob, fileName) => {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+const addJsonSheet = (workbook, sheetName, rows) => {
+  const worksheet = workbook.addWorksheet(sheetName)
+  const normalizedRows = Array.isArray(rows) ? rows : []
+  const headers = normalizedRows.length ? Object.keys(normalizedRows[0]) : []
+  if (!headers.length) return
+  worksheet.addRow(headers)
+  normalizedRows.forEach((row) => {
+    worksheet.addRow(headers.map((header) => row[header]))
+  })
+}
+
+const worksheetToRows = (worksheet) => {
+  if (!worksheet || worksheet.rowCount < 1) return []
+  const headerValues = worksheet.getRow(1).values || []
+  const headers = headerValues
+    .slice(1)
+    .map((h) => String(h ?? '').trim())
+
+  if (!headers.length || headers.every((h) => !h)) return []
+
+  const rows = []
+  for (let i = 2; i <= worksheet.rowCount; i += 1) {
+    const values = (worksheet.getRow(i).values || []).slice(1)
+    const mapped = {}
+    let hasAnyValue = false
+    headers.forEach((header, idx) => {
+      if (!header) return
+      const value = values[idx]
+      if (value !== null && value !== undefined && String(value).trim() !== '') {
+        hasAnyValue = true
+      }
+      mapped[header] = value ?? ''
+    })
+    if (hasAnyValue) rows.push(mapped)
   }
+  return rows
 }
 
 export default function DirectDealsTab({ token, customers = [], currencies = [], canManage = false, isSuperAdmin = false }) {
@@ -438,7 +481,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     clearImportPreview()
   }
 
-  const exportDealToExcel = (deal) => {
+  const exportDealToExcel = async (deal) => {
     const headerRows = [
       { Field: 'Doc No', Value: deal.docNo || '' },
       { Field: 'Entry Type', Value: deal.entryType === 'fixing' ? 'Fixing' : 'Non-Fixing' },
@@ -466,10 +509,11 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
       Notes: line.notes || '',
     }))
 
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(headerRows), 'Deal Summary')
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lineRows), 'Line Items')
-    XLSX.writeFile(wb, `direct-deal-${deal.docNo || deal._id}.xlsx`)
+    const wb = new ExcelJS.Workbook()
+    addJsonSheet(wb, 'Deal Summary', headerRows)
+    addJsonSheet(wb, 'Line Items', lineRows)
+    const buffer = await wb.xlsx.writeBuffer()
+    triggerDownload(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `direct-deal-${deal.docNo || deal._id}.xlsx`)
   }
 
   const exportDealToPdf = (deal) => {
@@ -535,17 +579,46 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     try {
       setSaving(true)
       setError('')
-      const data = await file.arrayBuffer()
-      const wb = XLSX.read(data, { type: 'array' })
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      const columnCount = getWorksheetColumnCount(ws)
-      if (columnCount > IMPORT_MAX_COLUMNS) {
-        setError(`Import has too many columns (${columnCount}). Maximum supported columns: ${IMPORT_MAX_COLUMNS}.`)
-        setSaving(false)
-        return
-      }
+      let rows = []
 
-      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' })
+      if (extension === '.csv') {
+        const csvText = await file.text()
+        const parsed = Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (header) => String(header || '').trim(),
+        })
+        if (parsed.errors?.length) {
+          setError(`Failed to parse CSV: ${parsed.errors[0].message}`)
+          setSaving(false)
+          return
+        }
+        const firstRow = parsed.data?.[0] || {}
+        const columnCount = Object.keys(firstRow).length
+        if (columnCount > IMPORT_MAX_COLUMNS) {
+          setError(`Import has too many columns (${columnCount}). Maximum supported columns: ${IMPORT_MAX_COLUMNS}.`)
+          setSaving(false)
+          return
+        }
+        rows = parsed.data || []
+      } else {
+        const data = await file.arrayBuffer()
+        const workbook = new ExcelJS.Workbook()
+        await workbook.xlsx.load(data)
+        const worksheet = workbook.worksheets[0]
+        if (!worksheet) {
+          setError('Import file has no worksheet')
+          setSaving(false)
+          return
+        }
+        const columnCount = getWorksheetColumnCount(worksheet)
+        if (columnCount > IMPORT_MAX_COLUMNS) {
+          setError(`Import has too many columns (${columnCount}). Maximum supported columns: ${IMPORT_MAX_COLUMNS}.`)
+          setSaving(false)
+          return
+        }
+        rows = worksheetToRows(worksheet)
+      }
 
       if (!rows.length) {
         setError('Import file is empty')
@@ -602,7 +675,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     URL.revokeObjectURL(url)
   }
 
-  const downloadXlsxTemplate = () => {
+  const downloadXlsxTemplate = async () => {
     const sampleRows = [
       {
         CustomerCode: 'GC0007',
@@ -645,11 +718,12 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
       { Rule: 'CustomerCode', Value: 'Recommended to match code from Customer Reference sheet' },
     ]
 
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sampleRows), 'Import Template')
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(instructionsRows), 'Instructions')
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(customerRefRows.length ? customerRefRows : [{ CustomerCode: '', CustomerName: '', CustomerId: '' }]), 'Customer Reference')
-    XLSX.writeFile(wb, 'direct-deals-import-template.xlsx')
+    const wb = new ExcelJS.Workbook()
+    addJsonSheet(wb, 'Import Template', sampleRows)
+    addJsonSheet(wb, 'Instructions', instructionsRows)
+    addJsonSheet(wb, 'Customer Reference', customerRefRows.length ? customerRefRows : [{ CustomerCode: '', CustomerName: '', CustomerId: '' }])
+    const buffer = await wb.xlsx.writeBuffer()
+    triggerDownload(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'direct-deals-import-template.xlsx')
   }
 
   const editDeal = (deal, idxOverride) => {

@@ -77,6 +77,20 @@ function createApp() {
     origin: (origin, callback) => {
       // Allow server-to-server / health checks (no Origin header)
       if (!origin) return callback(null, true)
+      if (!isProduction) {
+        try {
+          const url = new URL(origin)
+          const isLocalHost =
+            url.hostname === 'localhost' ||
+            url.hostname === '127.0.0.1' ||
+            url.hostname === '::1' ||
+            url.hostname.endsWith('.localhost')
+          const isDevPort = url.port === '5173' || url.port === '5174'
+          if (isLocalHost && isDevPort) return callback(null, true)
+        } catch {
+          // Ignore malformed origins and continue allowlist checks.
+        }
+      }
       if (origin.endsWith('.vercel.app')) return callback(null, true)
       if (allowedOrigins.includes(origin)) return callback(null, true)
       callback(new Error(`CORS: origin not allowed — ${origin}`))

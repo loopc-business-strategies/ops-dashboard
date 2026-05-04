@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import erpAccountingAPI from '../../api/erp-accounting'
@@ -3329,7 +3329,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
   }, [])
 
   useEffect(() => {
-    setSelectedTransactionIds((prev) => prev.filter((id) => transactions.some((tx) => tx._id === id)))
+    setSelectedTransactionIds((prev) => {
+      const next = prev.filter((id) => transactions.some((tx) => tx._id === id))
+      if (next.length === prev.length && next.every((id, idx) => id === prev[idx])) {
+        return prev
+      }
+      return next
+    })
     if (selectedTransactionId && !transactions.some((tx) => tx._id === selectedTransactionId)) {
       setSelectedTransactionId('')
     }
@@ -4135,11 +4141,22 @@ function ERPTab({ focusTab, onNavigateMain }) {
     URL.revokeObjectURL(url)
   }
 
-  const downloadXlsx = (rows, fileName, sheetName = 'Report') => {
-    const workbook = XLSX.utils.book_new()
-    const worksheet = XLSX.utils.aoa_to_sheet(rows)
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
-    XLSX.writeFile(workbook, fileName)
+  const downloadXlsx = async (rows, fileName, sheetName = 'Report') => {
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet(sheetName)
+    ;(rows || []).forEach((row) => {
+      worksheet.addRow(Array.isArray(row) ? row : [row])
+    })
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
   const buildTransactionExportPayload = () => {
@@ -4190,13 +4207,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
     showNotification('✅ Transactions CSV exported')
   }
 
-  const handleExportTransactionsXlsx = () => {
+  const handleExportTransactionsXlsx = async () => {
     const payload = buildTransactionExportPayload()
     if (!payload) {
       setError('No transactions available to export')
       return
     }
-    downloadXlsx(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
+    await downloadXlsx(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
     showNotification('✅ Transactions XLSX exported')
   }
 
@@ -4333,13 +4350,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
     showNotification(`✅ ${payload.successLabel} CSV exported`)
   }
 
-  const handleExportReportXlsx = () => {
+  const handleExportReportXlsx = async () => {
     const payload = buildReportExportPayload()
     if (!payload) {
       setError('Load reports first before exporting')
       return
     }
-    downloadXlsx(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
+    await downloadXlsx(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
     showNotification(`✅ ${payload.successLabel} XLSX exported`)
   }
 

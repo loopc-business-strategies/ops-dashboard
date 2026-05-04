@@ -585,6 +585,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
     if (voucherPartyMode === 'vendor') {
       const vendor = vendors.find((item) => {
+        if (item.ledgerAccountId && item.ledgerAccountId.isActive === false) return false
         const ledgerCode = normalizeLookupValue(item.ledgerAccountId?.accountCode)
         return lookupValue === normalizeLookupValue(item._id)
           || lookupValue === normalizeLookupValue(item.vendorCode)
@@ -606,6 +607,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     }
 
     const customer = customers.find((item) => {
+      if (item.ledgerAccountId && item.ledgerAccountId.isActive === false) return false
       const ledgerCode = normalizeLookupValue(item.ledgerAccountId?.accountCode)
       return lookupValue === normalizeLookupValue(item._id) || lookupValue === ledgerCode
     })
@@ -630,7 +632,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         {
           label: 'Vendors',
           options: vendors
-            .filter((item) => Boolean(item.ledgerAccountId?.accountCode))
+            .filter((item) => Boolean(item.ledgerAccountId?.accountCode) && item.ledgerAccountId?.isActive !== false)
             .map((item) => ({
               id: `vendor:${String(item._id)}`,
               label: `${item.name || 'Vendor'}${item.vendorCode ? ` (${item.vendorCode})` : ''}`,
@@ -643,7 +645,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         {
           label: 'Customers',
           options: customers
-            .filter((item) => Boolean(item.ledgerAccountId?.accountCode))
+            .filter((item) => Boolean(item.ledgerAccountId?.accountCode) && item.ledgerAccountId?.isActive !== false)
             .map((item) => ({
               id: `customer:${String(item._id)}`,
               label: `${item.name || 'Customer'}${item.ledgerAccountId?.accountCode ? ` (${item.ledgerAccountId.accountCode})` : ''}`,

@@ -1,5 +1,5 @@
 const mongoose = require('mongoose')
-const { getTenantUri, normalizeTenant } = require('../config/tenants')
+const { getTenantUri, getLegacyMongoUri, normalizeTenant } = require('../config/tenants')
 
 const tenantConnectionPromises = new Map()
 
@@ -15,12 +15,31 @@ async function connectTenant(tenant) {
       throw new Error(`Mongo URI not configured for tenant: ${normalized}`)
     }
 
-    const connectionPromise = mongoose
-      .createConnection(uri, {
-        autoIndex: true,
-      })
-      .asPromise()
-      .catch((err) => {
+    const connectionPromise = (async () => {
+      try {
+        return await mongoose
+          .createConnection(uri, {
+            autoIndex: true,
+          })
+          .asPromise()
+      } catch (err) {
+        const legacyUri = getLegacyMongoUri()
+        const shouldRetryWithLegacy =
+          legacyUri &&
+          legacyUri !== uri &&
+          (String(err?.message || '').includes('querySrv') || String(err?.code || '').includes('ECONNREFUSED'))
+
+        if (!shouldRetryWithLegacy) {
+          throw err
+        }
+
+        return mongoose
+          .createConnection(legacyUri, {
+            autoIndex: true,
+          })
+          .asPromise()
+      }
+    })().catch((err) => {
       tenantConnectionPromises.delete(normalized)
       throw err
     })

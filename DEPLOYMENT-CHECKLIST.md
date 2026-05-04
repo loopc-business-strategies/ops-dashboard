@@ -69,7 +69,7 @@ In Railway dashboard, go to **Variables** and add:
 After you have your Vercel domain, add:
 
 ```
-CLIENT_URL=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com
+CLIENT_URL=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com,http://mg.localhost:5173,http://cg.localhost:5173,http://loopc.localhost:5173
 ```
 
 ### 2.4 Deploy Backend
@@ -179,7 +179,7 @@ Once all domains are live:
 
 1. In Railway backend variables, update:
    ```
-   CLIENT_URL=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com
+   CLIENT_URL=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com,http://mg.localhost:5173,http://cg.localhost:5173,http://loopc.localhost:5173
    ```
 
 ---

@@ -1578,7 +1578,11 @@ router.get('/customers', protect, async (req, res) => {
 
     const [customers, total] = await Promise.all([
       Customer.find({ isActive: true })
-      .populate('ledgerAccountId', 'accountName accountCode accountType')
+      .populate({
+        path: 'ledgerAccountId',
+        select: 'accountName accountCode accountType isActive',
+        match: { isActive: true },
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
@@ -2713,7 +2717,11 @@ router.get('/vendors', protect, async (req, res) => {
 
     const [vendors, total] = await Promise.all([
       Vendor.find(query)
-        .populate('ledgerAccountId', 'accountCode accountName accountType')
+        .populate({
+          path: 'ledgerAccountId',
+          select: 'accountCode accountName accountType isActive',
+          match: { isActive: true },
+        })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),

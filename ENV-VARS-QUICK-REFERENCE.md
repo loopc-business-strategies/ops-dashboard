@@ -56,7 +56,7 @@ REQUEST_BODY_LIMIT=100kb
 **Set this AFTER you have your Vercel domains configured:**
 
 ```
-CLIENT_URL=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com
+CLIENT_URL=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com,http://mg.localhost:5173,http://cg.localhost:5173,http://loopc.localhost:5173
 ```
 
 ---
