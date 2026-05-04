@@ -1,8 +1,9 @@
 require('dotenv').config()
 
 const BASE_URL = process.env.SMOKE_API_BASE_URL || process.env.API_BASE_URL || 'http://localhost:5000'
-const LOGIN_NAME = process.env.SMOKE_LOGIN_NAME || 'AdminUser'
-const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD || 'admin123'
+const LOGIN_COMPANY = process.env.SMOKE_LOGIN_COMPANY || process.env.DEFAULT_TENANT || 'loopc'
+const LOGIN_NAME = process.env.SMOKE_LOGIN_NAME || process.env.SMOKE_DEFAULT_NAME || 'Nan'
+const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD || process.env.SMOKE_DEFAULT_PASSWORD || '123456'
 const FILTER_DEPARTMENT = process.env.SMOKE_LEDGER_DEPARTMENT || 'sales'
 const FILTER_REFERENCE_TYPE = process.env.SMOKE_LEDGER_REFERENCE_TYPE || 'invoice'
 const FILTER_LIMIT = Number(process.env.SMOKE_LEDGER_LIMIT || 5)
@@ -19,19 +20,22 @@ async function login() {
   const response = await fetch(`${BASE_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: LOGIN_NAME, password: LOGIN_PASSWORD }),
+    body: JSON.stringify({ company: LOGIN_COMPANY, name: LOGIN_NAME, password: LOGIN_PASSWORD }),
   })
 
   const data = await safeJson(response)
-  if (!response.ok || !data?.token) {
+  const setCookie = response.headers.get('set-cookie') || ''
+  const sessionCookie = setCookie.split(',').find((value) => value.includes('sessionToken=')) || ''
+
+  if (!response.ok || !sessionCookie) {
     const message = data?.message || `HTTP ${response.status}`
     throw new Error(`Login failed: ${message}`)
   }
 
-  return data.token
+  return sessionCookie
 }
 
-async function fetchLedger(token) {
+async function fetchLedger(sessionCookie) {
   const params = new URLSearchParams({
     department: FILTER_DEPARTMENT,
     referenceType: FILTER_REFERENCE_TYPE,
@@ -40,7 +44,11 @@ async function fetchLedger(token) {
 
   const response = await fetch(`${BASE_URL}/api/erp-accounting/ledger?${params.toString()}`, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Cookie: sessionCookie,
+      'x-tenant': LOGIN_COMPANY,
+      'x-company': LOGIN_COMPANY,
+    },
   })
 
   const data = await safeJson(response)
@@ -58,12 +66,12 @@ function uniqueValues(entries, key) {
 
 async function run() {
   console.log(`ERP smoke test -> ${BASE_URL}`)
-  console.log(`Login user: ${LOGIN_NAME}`)
+  console.log(`Login tenant/user: ${LOGIN_COMPANY}/${LOGIN_NAME}`)
   console.log(`Ledger filter: department=${FILTER_DEPARTMENT}, referenceType=${FILTER_REFERENCE_TYPE}, limit=${FILTER_LIMIT}`)
-  console.log('Optional env overrides: SMOKE_API_BASE_URL, SMOKE_LOGIN_NAME, SMOKE_LOGIN_PASSWORD, SMOKE_LEDGER_DEPARTMENT, SMOKE_LEDGER_REFERENCE_TYPE, SMOKE_LEDGER_LIMIT')
+  console.log('Optional env overrides: SMOKE_API_BASE_URL, SMOKE_LOGIN_COMPANY, SMOKE_LOGIN_NAME, SMOKE_LOGIN_PASSWORD, SMOKE_DEFAULT_NAME, SMOKE_DEFAULT_PASSWORD, SMOKE_LEDGER_DEPARTMENT, SMOKE_LEDGER_REFERENCE_TYPE, SMOKE_LEDGER_LIMIT')
 
-  const token = await login()
-  const ledger = await fetchLedger(token)
+  const sessionCookie = await login()
+  const ledger = await fetchLedger(sessionCookie)
   const entries = Array.isArray(ledger.entries) ? ledger.entries : []
 
   const departments = uniqueValues(entries, 'department')

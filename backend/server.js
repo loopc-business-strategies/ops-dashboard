@@ -8,15 +8,33 @@
 
 require('dotenv').config() // load .env variables FIRST
 
+// ── DNS fix ──────────────────────────────────────────────────────────────────
+// Some local DNS stubs (VPN clients, Docker, routers) cannot resolve MongoDB
+// Atlas SRV records even though nslookup/OS DNS works fine.  Force Node to use
+// a reliable public resolver before any Mongoose connection is attempted.
+// Override via DNS_SERVERS env var, e.g. "1.1.1.1,1.0.0.1" for Cloudflare.
+const dns = require('dns')
+const dnsServers = process.env.DNS_SERVERS
+  ? process.env.DNS_SERVERS.split(',').map(s => s.trim()).filter(Boolean)
+  : ['8.8.8.8', '8.8.4.4']
+dns.setServers(dnsServers)
+// ─────────────────────────────────────────────────────────────────────────────
+
 const mongoose = require('mongoose')
 const createApp = require('./app')
 const { getDefaultTenant, getTenantUri } = require('./config/tenants')
 
 const app = createApp()
 
+function envBool(value, defaultValue = false) {
+  if (value === undefined || value === null || value === '') return defaultValue
+  return String(value).trim().toLowerCase() === 'true'
+}
+
 // ── Connect to MongoDB then start server ────────
 const PORT      = process.env.PORT      || 5000
 const MONGO_URI = process.env.MONGO_URI
+const ALLOW_SERVER_LEGACY_FALLBACK = envBool(process.env.ALLOW_SERVER_LEGACY_FALLBACK, false)
 
 function buildMongoUri() {
   const defaultTenant = getDefaultTenant()
@@ -82,9 +100,10 @@ console.log(`Mongo config mode: ${mongoInfo.mode}`)
 console.log(`Mongo target: ${mongoInfo.target}`)
 
 async function startServer() {
-  // Try primary URI first; fall back to legacy MONGO_URI if it fails
+  // Try primary URI first. Legacy fallback is disabled by default so tenant
+  // isolation stays strict and we never silently collapse to one shared DB.
   const urisToTry = [mongoUri]
-  if (MONGO_URI && mongoUri !== MONGO_URI) urisToTry.push(MONGO_URI)
+  if (ALLOW_SERVER_LEGACY_FALLBACK && MONGO_URI && mongoUri !== MONGO_URI) urisToTry.push(MONGO_URI)
 
   for (const uri of urisToTry) {
     try {
@@ -99,6 +118,8 @@ async function startServer() {
       console.warn(`⚠️  MongoDB connect failed (${uri.split('@')[1]?.split('/')[0] || 'unknown'}): ${err.message}`)
       if (uri !== urisToTry[urisToTry.length - 1]) {
         console.warn('   Retrying with legacy MONGO_URI...')
+      } else if (!ALLOW_SERVER_LEGACY_FALLBACK && MONGO_URI && mongoUri !== MONGO_URI) {
+        console.warn('   Legacy fallback disabled. Enable ALLOW_SERVER_LEGACY_FALLBACK=true only for emergency recovery.')
       }
     }
   }

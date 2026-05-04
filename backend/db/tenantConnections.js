@@ -3,6 +3,13 @@ const { getTenantUri, getLegacyMongoUri, normalizeTenant } = require('../config/
 
 const tenantConnectionPromises = new Map()
 
+function envBool(value, defaultValue = false) {
+  if (value === undefined || value === null || value === '') return defaultValue
+  return String(value).trim().toLowerCase() === 'true'
+}
+
+const ALLOW_TENANT_LEGACY_FALLBACK = envBool(process.env.ALLOW_TENANT_LEGACY_FALLBACK, false)
+
 async function connectTenant(tenant) {
   const normalized = normalizeTenant(tenant)
   if (!normalized) {
@@ -23,6 +30,14 @@ async function connectTenant(tenant) {
           })
           .asPromise()
       } catch (err) {
+        if (!ALLOW_TENANT_LEGACY_FALLBACK) {
+          throw new Error(
+            `Tenant DB connection failed for "${normalized}" and legacy fallback is disabled. ` +
+            `Set ALLOW_TENANT_LEGACY_FALLBACK=true only as an emergency temporary override. ` +
+            `Original error: ${err.message}`
+          )
+        }
+
         const legacyUri = getLegacyMongoUri()
         const shouldRetryWithLegacy =
           legacyUri &&

@@ -1,10 +1,26 @@
 // Tenant smoke test — runs login + 7 module checks for MG, CG, and LoopC
 require('dotenv').config()
 
+const BASE = process.env.SMOKE_API_BASE_URL || 'http://localhost:5000'
+const DEFAULT_NAME = process.env.SMOKE_DEFAULT_NAME || 'Nan'
+const DEFAULT_PASSWORD = process.env.SMOKE_DEFAULT_PASSWORD || '123456'
+
 const TENANTS = [
-  { company: 'mg',    name: 'mgadmin',    password: 'MgAdmin@2026!'    },
-  { company: 'cg',    name: 'cgadmin',    password: 'CgAdmin@2026!'    },
-  { company: 'loopc', name: 'loopcadmin', password: 'LoopcAdmin@2026!' },
+  {
+    company: 'mg',
+    name: process.env.SMOKE_MG_NAME || DEFAULT_NAME,
+    password: process.env.SMOKE_MG_PASSWORD || DEFAULT_PASSWORD,
+  },
+  {
+    company: 'cg',
+    name: process.env.SMOKE_CG_NAME || DEFAULT_NAME,
+    password: process.env.SMOKE_CG_PASSWORD || DEFAULT_PASSWORD,
+  },
+  {
+    company: 'loopc',
+    name: process.env.SMOKE_LOOPC_NAME || DEFAULT_NAME,
+    password: process.env.SMOKE_LOOPC_PASSWORD || DEFAULT_PASSWORD,
+  },
 ]
 
 const ENDPOINTS = [
@@ -17,8 +33,6 @@ const ENDPOINTS = [
   '/api/erp/inventory',
   '/api/erp-accounting/reports/dashboard?startDate=2026-04-01&endDate=2026-04-30',
 ]
-
-const BASE = 'http://localhost:5000'
 
 async function runSmoke () {
   const results = {}
@@ -33,8 +47,7 @@ async function runSmoke () {
       body: JSON.stringify(tenant),
     })
     const setCookie = loginRes.headers.get('set-cookie') || ''
-    const tokenMatch = setCookie.match(/sessionToken=([^;]+)/)
-    const token = tokenMatch && tokenMatch[1]
+    const sessionCookie = setCookie.split(',').find((value) => value.includes('sessionToken=')) || ''
     const loginBody = await loginRes.json()
 
     results[tenant.company].login = {
@@ -43,7 +56,7 @@ async function runSmoke () {
       company: loginBody?.user?.company,
     }
 
-    if (!token) {
+    if (!sessionCookie) {
       results[tenant.company].error = 'no-session-token'
       continue
     }
@@ -51,7 +64,11 @@ async function runSmoke () {
     // Module endpoints
     for (const path of ENDPOINTS) {
       const res = await fetch(`${BASE}${path}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Cookie: sessionCookie,
+          'x-tenant': tenant.company,
+          'x-company': tenant.company,
+        },
       })
       const body = await res.text()
       let preview = body.slice(0, 160)
@@ -61,6 +78,8 @@ async function runSmoke () {
   }
 
   // Print results
+  console.log(`\nSMOKE TARGET: ${BASE}`)
+  console.log('Credential env overrides: SMOKE_DEFAULT_NAME, SMOKE_DEFAULT_PASSWORD, SMOKE_MG_NAME, SMOKE_MG_PASSWORD, SMOKE_CG_NAME, SMOKE_CG_PASSWORD, SMOKE_LOOPC_NAME, SMOKE_LOOPC_PASSWORD')
   for (const [company, data] of Object.entries(results)) {
     console.log(`\n${'='.repeat(60)}`)
     console.log(`TENANT: ${company.toUpperCase()}`)
