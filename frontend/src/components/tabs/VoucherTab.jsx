@@ -526,8 +526,30 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   // ─── own customers/vendors state (always fresh, not stale props) ─────────────
   const [localCustomers, setLocalCustomers] = useState(propCustomers)
   const [localVendors, setLocalVendors] = useState(propVendors)
+  const [localCurrencies, setLocalCurrencies] = useState(Array.isArray(currencies) ? currencies : [])
   const customers = localCustomers.length > 0 ? localCustomers : propCustomers
   const vendors = localVendors.length > 0 ? localVendors : propVendors
+  const mergedCurrencies = localCurrencies.length > 0 ? localCurrencies : (Array.isArray(currencies) ? currencies : [])
+  const currencyOptions = mergedCurrencies
+    .filter((item) => String(item?.code || '').trim())
+    .map((item) => ({
+      code: String(item.code || '').trim().toUpperCase(),
+      name: String(item.name || '').trim(),
+      exchangeRate: Number(item.exchangeRate || 1),
+      isActive: item.isActive !== false,
+      baseCurrency: Boolean(item.baseCurrency),
+    }))
+    .sort((a, b) => {
+      if (a.baseCurrency !== b.baseCurrency) return a.baseCurrency ? -1 : 1
+      return a.code.localeCompare(b.code)
+    })
+
+  const getCurrencyRateByCode = useCallback((code) => {
+    const normalized = String(code || '').trim().toUpperCase()
+    const selected = currencyOptions.find((item) => item.code === normalized)
+    const rate = Number(selected?.exchangeRate || 1)
+    return Number.isFinite(rate) && rate > 0 ? rate : 1
+  }, [currencyOptions])
 
   const refreshParties = useCallback(async () => {
     try {
@@ -542,9 +564,24 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     }
   }, [])
 
+  const refreshCurrencies = useCallback(async () => {
+    try {
+      const res = await axios.get(`${BASE}/currencies`, cfg())
+      const items = Array.isArray(res.data?.currencies) ? res.data.currencies : []
+      if (items.length > 0) {
+        setLocalCurrencies(items)
+      }
+    } catch {
+      // silently ignore — fallback to prop currencies or USD-only defaults
+    }
+  }, [])
+
   useEffect(() => {
     if (canView) refreshParties()
   }, [canView, refreshParties])
+  useEffect(() => {
+    if (canView) refreshCurrencies()
+  }, [canView, refreshCurrencies])
   const [vouchers, setVouchers] = useState([])
   const [loadingList, setLoadingList] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -1726,6 +1763,26 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     setLineForm(prev => recalcReceiptPaymentLine({ ...prev, currRate: val }, 'rate'))
   }
 
+  const handleHeaderCurrencyChange = (nextCode) => {
+    const normalized = String(nextCode || 'USD').trim().toUpperCase()
+    const nextRate = getCurrencyRateByCode(normalized)
+    setHeader((prev) => ({
+      ...prev,
+      currCode: normalized,
+      currRate: nextRate.toFixed(6),
+    }))
+  }
+
+  const handleLineCurrencyChange = (nextCode) => {
+    const normalized = String(nextCode || 'USD').trim().toUpperCase()
+    const nextRate = getCurrencyRateByCode(normalized)
+    if (isMetalVoucher) {
+      setLF('currCode', normalized)
+      return
+    }
+    setLineForm((prev) => recalcReceiptPaymentLine({ ...prev, currCode: normalized, currRate: nextRate.toFixed(6) }, 'rate'))
+  }
+
   const handleVatPerChange = (val) => {
     setLineForm(prev => recalcReceiptPaymentLine({ ...prev, vatPer: val }, 'vatPer'))
   }
@@ -2410,10 +2467,16 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                         <select
                           style={formReadOnly ? classicReadInput : classicInput}
                           value={header.currCode}
-                          onChange={e => setHdr('currCode', e.target.value)}
+                          onChange={e => handleHeaderCurrencyChange(e.target.value)}
                           disabled={formReadOnly}
                         >
-                          <option value="USD">USD</option>
+                          {currencyOptions.length === 0 ? (
+                            <option value="USD">USD</option>
+                          ) : currencyOptions.map((item) => (
+                            <option key={item.code} value={item.code}>
+                              {item.code}{item.name ? ` - ${item.name}` : ''}{item.isActive ? '' : ' (Inactive)'}
+                            </option>
+                          ))}
                         </select>
 
                         <label style={classicLabel}>Curr. Rate :</label>
@@ -2707,8 +2770,12 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                             <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                               <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Premi. Curr.</div>
                               <div style={{ display: 'grid', gridTemplateColumns: '58px minmax(44px, 1fr)' }}>
-                                <select style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.25rem' }} value={lineForm.currCode} onChange={e => setLF('currCode', e.target.value)}>
-                                  <option value="USD">USD</option>
+                                <select style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.25rem' }} value={lineForm.currCode} onChange={e => handleLineCurrencyChange(e.target.value)}>
+                                  {currencyOptions.length === 0 ? (
+                                    <option value="USD">USD</option>
+                                  ) : currencyOptions.map((item) => (
+                                    <option key={item.code} value={item.code}>{item.code}</option>
+                                  ))}
                                 </select>
                                 <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.35rem', textAlign: 'right' }} type="number" step="0.000001" value={lineForm.premiumValue} onChange={e => setLF('premiumValue', e.target.value)} />
                               </div>
@@ -2817,8 +2884,12 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                           ))}
                         </select>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Curr</div>
-                        <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.currCode} onChange={e => setLF('currCode', e.target.value)}>
-                          <option value="USD">USD</option>
+                        <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.currCode} onChange={e => handleLineCurrencyChange(e.target.value)}>
+                          {currencyOptions.length === 0 ? (
+                            <option value="USD">USD</option>
+                          ) : currencyOptions.map((item) => (
+                            <option key={item.code} value={item.code}>{item.code}</option>
+                          ))}
                         </select>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Rate</div>
                         <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%' }} type="number" step="0.000001" value={lineForm.currRate} onChange={e => handleCurrRateChange(e.target.value)} placeholder={header.currRate} />
