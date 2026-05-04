@@ -9,6 +9,8 @@ const defaultBranding = {
   key: 'loopc',
   displayName: 'LoopC',
   logoText: 'LC',
+  logoImage: null,  // set to '/logos/loopc-logo.png' once the file is placed in frontend/public/logos/
+  tagline: 'Loop C Business Platform',
   colors: {
     bgTopbar: '#1C2A33',
     brandPrimary: '#00684A',
@@ -27,6 +29,8 @@ const tenantBranding = {
     key: 'mg',
     displayName: 'MG',
     logoText: 'MG',
+    logoImage: null,  // set to '/logos/mg-logo.png' once the file is placed in frontend/public/logos/
+    tagline: 'Metal Group Operations',
     colors: {
       bgTopbar: '#1C2638',
       brandPrimary: '#005B96',
@@ -43,6 +47,8 @@ const tenantBranding = {
     key: 'cg',
     displayName: 'CG',
     logoText: 'CG',
+    logoImage: null,  // set to '/logos/cg-logo.png' once the file is placed in frontend/public/logos/
+    tagline: 'CG Enterprise Suite',
     colors: {
       bgTopbar: '#2C1B1B',
       brandPrimary: '#9A3412',

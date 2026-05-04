@@ -240,6 +240,30 @@ router.post('/logout', protect, (req, res) => {
 })
 
 // ==========================================
+// POST /api/auth/refresh
+// Re-issues a fresh session token if the current
+// token is valid and within the refresh window.
+// Call this on app focus to silently extend sessions.
+// ==========================================
+router.post('/refresh', protect, async (req, res) => {
+  try {
+    // Verify user still exists and is active (already done by protect, but re-check freshness)
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const user = await TenantUser.findById(req.user._id).select('-password')
+    if (!user || !user.isActive) {
+      res.clearCookie('sessionToken', { ...cookieOptions, maxAge: undefined })
+      return res.status(401).json({ success: false, message: 'Session revoked.' })
+    }
+    // Issue a fresh token — effectively sliding the expiry window
+    const token = createToken(user._id, req.tenant)
+    res.cookie('sessionToken', token, cookieOptions)
+    res.json({ success: true, message: 'Session refreshed.' })
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+// ==========================================
 // GET /api/auth/users — list all users
 // All authenticated users
 // ==========================================

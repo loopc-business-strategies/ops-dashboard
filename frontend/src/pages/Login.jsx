@@ -69,15 +69,17 @@ function Login() {
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-4">
 
-      {/* ── Top: Company logo placeholder ── */}
+      {/* ── Top: Company logo ── */}
       <div className="mb-10 text-center">
-        {/* Logo placeholder — replace with real logo later */}
         <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4"
           style={{ background: branding.colors.gradBar, border: '2px solid rgba(255,255,255,0.25)' }}>
-          <span className="text-2xl font-extrabold text-white tracking-wide">{branding.logoText}</span>
+          {branding.logoImage
+            ? <img src={branding.logoImage} alt={branding.displayName} className="w-14 h-14 object-contain" />
+            : <span className="text-2xl font-extrabold text-white tracking-wide">{branding.logoText}</span>
+          }
         </div>
         <h1 className="text-2xl font-bold tracking-wide" style={{ color: '#1C2A33' }}>{branding.displayName} OPS</h1>
-        <p className="text-gray-500 text-sm mt-1">{t('operationsControl')}</p>
+        <p className="text-gray-500 text-sm mt-1">{branding.tagline || t('operationsControl')}</p>
       </div>
 
       {/* ── Orange credential box ── */}

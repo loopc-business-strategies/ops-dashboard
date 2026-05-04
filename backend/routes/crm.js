@@ -21,6 +21,17 @@ const csvUpload = multer({
 })
 
 const contactDocDir = path.join(__dirname, '..', 'uploads', 'crm-contacts')
+const ALLOWED_DOC_MIME_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+  'application/pdf',
+])
+const docFileFilter = (req, file, cb) => {
+  if (ALLOWED_DOC_MIME_TYPES.has(file.mimetype)) {
+    cb(null, true)
+  } else {
+    cb(new Error('Only images (JPEG, PNG, GIF, WebP, SVG) and PDF files are allowed.'), false)
+  }
+}
 const docStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (!fs.existsSync(contactDocDir)) fs.mkdirSync(contactDocDir, { recursive: true })
@@ -31,7 +42,7 @@ const docStorage = multer.diskStorage({
     cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${safe}`)
   },
 })
-const docUpload = multer({ storage: docStorage, limits: { fileSize: 10 * 1024 * 1024 } })
+const docUpload = multer({ storage: docStorage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: docFileFilter })
 
 const csvEscape = (value) => {
   const text = value == null ? '' : String(value)

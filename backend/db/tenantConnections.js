@@ -23,11 +23,17 @@ async function connectTenant(tenant) {
     }
 
     const connectionPromise = (async () => {
+      const mongoOptions = {
+        autoIndex: true,
+        serverSelectionTimeoutMS: 10000,   // fail fast if Atlas SRV unreachable
+        socketTimeoutMS:          45000,   // drop idle sockets after 45s
+        connectTimeoutMS:         10000,   // initial TCP timeout
+        maxPoolSize:              10,      // connection pool per tenant
+        retryWrites:              true,
+      }
       try {
         return await mongoose
-          .createConnection(uri, {
-            autoIndex: true,
-          })
+          .createConnection(uri, mongoOptions)
           .asPromise()
       } catch (err) {
         if (!ALLOW_TENANT_LEGACY_FALLBACK) {
@@ -49,9 +55,7 @@ async function connectTenant(tenant) {
         }
 
         return mongoose
-          .createConnection(legacyUri, {
-            autoIndex: true,
-          })
+          .createConnection(legacyUri, mongoOptions)
           .asPromise()
       }
     })().catch((err) => {

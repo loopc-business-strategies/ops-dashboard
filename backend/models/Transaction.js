@@ -137,6 +137,10 @@ const transactionSchema = new mongoose.Schema(
 )
 
 transactionSchema.index({ type: 1, date: -1 })
+transactionSchema.index({ date: -1 })
+transactionSchema.index({ customerId: 1, date: -1 })
+transactionSchema.index({ vendorId: 1, date: -1 })
+transactionSchema.index({ 'voucherMeta.vocNo': 1 })
 
 // No USD-lock hook — preserve transaction and line-item currencies/rates.
 

@@ -140,6 +140,10 @@ const userSchema = new mongoose.Schema(
   }
 )
 
+userSchema.index({ name: 1 })
+userSchema.index({ role: 1 })
+userSchema.index({ isActive: 1 })
+
 // -----------------------------------------------
 // BEFORE SAVING: Hash the password automatically
 // This runs every time a user is saved with a new password
