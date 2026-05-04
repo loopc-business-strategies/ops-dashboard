@@ -98,6 +98,8 @@ const DIRECT_DEAL_STOCK_TO_OZ = {
 
 const MAX_TRANSACTION_AMOUNT = Number(process.env.MAX_TRANSACTION_AMOUNT || 1_000_000_000)
 const MAX_EXCHANGE_RATE = Number(process.env.MAX_EXCHANGE_RATE || 1_000_000)
+const MAX_ACCOUNT_CODE_GENERATION_ATTEMPTS = Number(process.env.MAX_ACCOUNT_CODE_GENERATION_ATTEMPTS || 1000)
+const MAX_ACCOUNT_HIERARCHY_DEPTH = Number(process.env.MAX_ACCOUNT_HIERARCHY_DEPTH || 10)
 
 const normalizeDirectDealStockCode = (value) => String(value || 'OZ').trim().toUpperCase()
 const directDealEqOzFromQtyAndStock = (qty, stockCode) => {
@@ -355,12 +357,46 @@ const nextGeneratedAccountCode = async (prefix) => {
 
   let seq = latest ? Number(String(latest.accountCode).slice(normalizedPrefix.length) || 0) + 1 : 1
   let code = ''
+  let attempts = 0
   // Keep retry deterministic in very rare parallel races.
   while (!code || await ChartOfAccount.exists({ accountCode: code })) {
+    attempts += 1
+    if (attempts > MAX_ACCOUNT_CODE_GENERATION_ATTEMPTS) {
+      throw new Error('Unable to generate account code. Please retry.')
+    }
     code = `${normalizedPrefix}${String(seq).padStart(4, '0')}`
     seq += 1
   }
   return code
+}
+
+const validateAccountParentAssignment = async ({ accountId = null, parentAccountId = null }) => {
+  if (!parentAccountId) return
+
+  const accountKey = accountId ? String(accountId) : ''
+  let cursorId = parentAccountId
+  let depth = 0
+  const seen = new Set(accountKey ? [accountKey] : [])
+
+  while (cursorId) {
+    const key = String(cursorId)
+    if (seen.has(key)) {
+      throw new Error('Circular account hierarchy is not allowed')
+    }
+    seen.add(key)
+
+    const cursor = await ChartOfAccount.findById(cursorId).select('parentAccountId')
+    if (!cursor) {
+      throw new Error('Parent account not found')
+    }
+
+    depth += 1
+    if (depth > MAX_ACCOUNT_HIERARCHY_DEPTH) {
+      throw new Error(`Account hierarchy depth cannot exceed ${MAX_ACCOUNT_HIERARCHY_DEPTH}`)
+    }
+
+    cursorId = cursor.parentAccountId || null
+  }
 }
 
 const ensureChildAccountByName = async ({ user, parentAccount, accountType, accountName, codePrefix, currency = BASE_CURRENCY_CODE }) => {
@@ -2400,11 +2436,17 @@ router.post('/accounts', protect, async (req, res) => {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { accountName, accountCode, accountType, parentAccountId, currency, description } = req.body
     if (!accountName || !accountCode || !accountType) return res.status(400).json({ success: false, message: 'Required fields missing' })
+    if (parentAccountId) {
+      await validateAccountParentAssignment({ parentAccountId })
+    }
     const account = await ChartOfAccount.create({
       accountName, accountCode, accountType, parentAccountId, currency, description, createdBy: req.user._id,
     })
     res.status(201).json({ success: true, account })
   } catch (e) {
+    if (/Circular account hierarchy|Parent account not found|Account hierarchy depth/i.test(e?.message || '')) {
+      return res.status(400).json({ success: false, message: e.message })
+    }
     if (e?.code === 11000) {
       const existing = await ChartOfAccount.findOne({ accountCode: req.body?.accountCode })
       if (existing && existing.isActive === false) {
@@ -2455,10 +2497,17 @@ router.put('/accounts/:id', protect, async (req, res) => {
     if (Object.prototype.hasOwnProperty.call(req.body, 'parentAccountId') && req.body.parentAccountId === null) {
       updates.parentAccountId = null
     }
+    if (Object.prototype.hasOwnProperty.call(req.body, 'parentAccountId') && req.body.parentAccountId) {
+      await validateAccountParentAssignment({ accountId: req.params.id, parentAccountId: req.body.parentAccountId })
+    }
     const account = await ChartOfAccount.findByIdAndUpdate(req.params.id, updates, { new: true })
     if (!account) return res.status(404).json({ success: false, message: 'Account not found' })
     res.json({ success: true, account })
-  } catch {
+  } catch (e) {
+    if (/Circular account hierarchy|Parent account not found|Account hierarchy depth/i.test(e?.message || '')) {
+      return res.status(400).json({ success: false, message: e.message })
+    }
+    console.error('Update account error:', e)
     res.status(500).json({ success: false, message: 'Server error' })
   }
 })
@@ -4484,7 +4533,8 @@ router.post('/transactions/:id/comments', protect, async (req, res) => {
     const populated = await populateTransactionQuery(Transaction.findById(tx._id))
     res.json({ success: true, transaction: populated })
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message || 'Server error' })
+    console.error('Add transaction comment error:', e)
+    res.status(500).json({ success: false, message: 'Server error' })
   }
 })
 
@@ -4600,7 +4650,8 @@ router.post('/transactions/bulk-action', protect, async (req, res) => {
     const refreshed = await populateTransactionQuery(Transaction.find({ _id: { $in: results.successIds } }))
     res.json({ success: true, action, processed: transactions.length, successCount: results.successIds.length, failureCount: results.failed.length, transactions: refreshed, ...results })
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message || 'Server error' })
+    console.error('Bulk transaction action error:', e)
+    res.status(500).json({ success: false, message: 'Server error' })
   }
 })
 

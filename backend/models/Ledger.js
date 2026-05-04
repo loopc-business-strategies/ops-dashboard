@@ -24,6 +24,8 @@ const ledgerSchema = new mongoose.Schema(
 
 ledgerSchema.index({ date: 1, debitAccountId: 1, creditAccountId: 1 })
 ledgerSchema.index({ referenceType: 1, referenceId: 1 })
+ledgerSchema.index({ debitAccountId: 1, date: 1 })
+ledgerSchema.index({ creditAccountId: 1, date: 1 })
 
 // No USD lock — currency and exchangeRate are set by the posting logic.
 
