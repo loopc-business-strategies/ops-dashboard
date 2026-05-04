@@ -96,10 +96,27 @@ const DIRECT_DEAL_STOCK_TO_OZ = {
   KG: 32.1507,
 }
 
+const MAX_TRANSACTION_AMOUNT = Number(process.env.MAX_TRANSACTION_AMOUNT || 1_000_000_000)
+const MAX_EXCHANGE_RATE = Number(process.env.MAX_EXCHANGE_RATE || 1_000_000)
+
 const normalizeDirectDealStockCode = (value) => String(value || 'OZ').trim().toUpperCase()
 const directDealEqOzFromQtyAndStock = (qty, stockCode) => {
   const ratio = DIRECT_DEAL_STOCK_TO_OZ[normalizeDirectDealStockCode(stockCode)] || 1
   return Number(qty || 0) * ratio
+}
+
+const normalizeMoneyValue = (value, field = 'amount') => {
+  const num = Number(value)
+  if (!Number.isFinite(num) || num <= 0) throw new Error(`Invalid ${field}`)
+  if (num > MAX_TRANSACTION_AMOUNT) throw new Error(`${field} exceeds allowed maximum`)
+  return num
+}
+
+const normalizeExchangeRateValue = (value, field = 'exchange rate') => {
+  const num = Number(value)
+  if (!Number.isFinite(num) || num <= 0) throw new Error(`Invalid ${field}`)
+  if (num > MAX_EXCHANGE_RATE) throw new Error(`${field} exceeds allowed maximum`)
+  return num
 }
 
 const ensureBaseCurrencyConfig = async () => {
@@ -300,7 +317,7 @@ const validateTransactionPayload = (payload) => {
 }
 
 const ensureAccountByCode = async ({ user, code, name, accountType, currency = BASE_CURRENCY_CODE }) => {
-  let account = await ChartOfAccount.findOne({ accountCode: code })
+  let account = await ChartOfAccount.findOne({ accountCode: code, isActive: true })
   if (!account) {
     try {
       account = await ChartOfAccount.create({
@@ -313,14 +330,12 @@ const ensureAccountByCode = async ({ user, code, name, accountType, currency = B
       })
     } catch (err) {
       if (err?.code !== 11000) throw err
-      // Another request created the account in parallel; reuse it.
-      account = await ChartOfAccount.findOne({ accountCode: code })
+      // Another request may have created it in parallel; only reuse active accounts.
+      account = await ChartOfAccount.findOne({ accountCode: code, isActive: true })
+      if (!account) {
+        throw new Error(`Account code ${code} already exists but is inactive`)
+      }
     }
-  }
-
-  if (account && !account.isActive) {
-    account.isActive = true
-    await account.save()
   }
 
   return account
@@ -723,6 +738,16 @@ const getTransactionWorkflowErrorStatus = (message) => {
   return 500
 }
 
+const respondWorkflowError = (res, err) => {
+  const message = err?.message || 'Server error'
+  const status = getTransactionWorkflowErrorStatus(message)
+  if (status === 500) {
+    console.error('Transaction workflow error:', err)
+    return res.status(500).json({ success: false, message: 'Server error' })
+  }
+  return res.status(status).json({ success: false, message })
+}
+
 const transactionUploadDir = path.resolve(process.env.TRANSACTION_UPLOAD_DIR || path.join(__dirname, '../uploads/transactions'))
 fs.mkdirSync(transactionUploadDir, { recursive: true })
 
@@ -754,14 +779,83 @@ const transactionUpload = multer({
   },
 })
 
-const buildTransactionAttachment = (file, user) => {
+const detectAttachmentSignature = (filePath) => {
+  const fd = fs.openSync(filePath, 'r')
+  try {
+    const header = Buffer.alloc(16)
+    const bytesRead = fs.readSync(fd, header, 0, 16, 0)
+    const b = header.slice(0, bytesRead)
+
+    if (b.length >= 4 && b.toString('ascii', 0, 4) === '%PDF') return 'pdf'
+    if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 && b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A) return 'png'
+    if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpeg'
+    if (b.length >= 12 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP') return 'webp'
+    if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4B && b[2] === 0x03 && b[3] === 0x04) return 'zip'
+    if (b.length >= 8 && b[0] === 0xD0 && b[1] === 0xCF && b[2] === 0x11 && b[3] === 0xE0 && b[4] === 0xA1 && b[5] === 0xB1 && b[6] === 0x1A && b[7] === 0xE1) return 'ole'
+
+    return 'unknown'
+  } finally {
+    fs.closeSync(fd)
+  }
+}
+
+const isLikelyTextFile = (filePath) => {
+  const fd = fs.openSync(filePath, 'r')
+  try {
+    const sample = Buffer.alloc(1024)
+    const bytesRead = fs.readSync(fd, sample, 0, 1024, 0)
+    const b = sample.slice(0, bytesRead)
+    if (!b.length) return true
+
+    let suspicious = 0
+    for (const byte of b) {
+      const isControl = byte < 9 || (byte > 13 && byte < 32)
+      if (isControl) suspicious += 1
+    }
+    return (suspicious / b.length) < 0.05
+  } finally {
+    fs.closeSync(fd)
+  }
+}
+
+const validateAttachmentContent = (file) => {
+  const sig = detectAttachmentSignature(file.path)
+  const mime = String(file.mimetype || '')
+
+  if (mime === 'application/pdf') return sig === 'pdf'
+  if (mime === 'image/png') return sig === 'png'
+  if (mime === 'image/jpeg') return sig === 'jpeg'
+  if (mime === 'image/webp') return sig === 'webp'
+  if (mime === 'text/plain' || mime === 'text/csv') return isLikelyTextFile(file.path)
+  if (mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return sig === 'zip'
+  if (mime === 'application/vnd.ms-excel' || mime === 'application/msword') return sig === 'ole' || sig === 'zip'
+
+  return false
+}
+
+const resolveBackendBaseUrl = (req) => {
+  const configured = String(process.env.SERVER_BASE_URL || '').trim()
+  if (configured) return configured.replace(/\/+$/, '')
+
+  if (req) {
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim()
+    const proto = forwardedProto || req.protocol || 'http'
+    const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim()
+    const host = forwardedHost || req.get('host')
+    if (host) return `${proto}://${host}`
+  }
+
+  return ''
+}
+
+const buildTransactionAttachment = (req, file, user) => {
   const relativePath = `/uploads/transactions/${file.filename}`
-  const backendBaseUrl = process.env.SERVER_BASE_URL || `http://localhost:${process.env.PORT || 5000}`
+  const backendBaseUrl = resolveBackendBaseUrl(req)
   return {
     originalName: file.originalname,
     fileName: file.filename,
     relativePath,
-    url: `${backendBaseUrl}${relativePath}`,
+    url: backendBaseUrl ? `${backendBaseUrl}${relativePath}` : relativePath,
     mimeType: file.mimetype || 'application/octet-stream',
     size: Number(file.size || 0),
     uploadedBy: user._id,
@@ -835,7 +929,7 @@ const applyTransactionWorkflowAction = async (tx, user, action, options = {}) =>
 
   if (action === 'post') {
     if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can post transactions')
-    if (!['approved', 'submitted'].includes(tx.status)) throw new Error('Transaction must be approved/submitted before posting')
+    if (tx.status !== 'approved') throw new Error('Transaction must be approved before posting')
 
     if (tx.type === 'sale' && tx.customerId) {
       const customer = await Customer.findById(tx.customerId)
@@ -1523,8 +1617,8 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
   const currencyCode = String(transaction.currency || 'USD').toUpperCase()
   const base = await Currency.findOne({ baseCurrency: true, isActive: true })
   const txCurrency = await Currency.findOne({ code: currencyCode, isActive: true })
-  const exchangeRate = Number(transaction.exchangeRate || txCurrency?.exchangeRate || 1)
-  const amountInBase = Number(transaction.amount || 0) * exchangeRate
+  const exchangeRate = normalizeExchangeRateValue(transaction.exchangeRate ?? txCurrency?.exchangeRate ?? 1)
+  const amountInBase = normalizeMoneyValue(transaction.amount, 'amount') * exchangeRate
 
   const entry = await Ledger.create({
     date: transaction.voucherMeta?.valueDate || transaction.date || new Date(),
@@ -2311,7 +2405,15 @@ router.post('/accounts', protect, async (req, res) => {
     })
     res.status(201).json({ success: true, account })
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message })
+    if (e?.code === 11000) {
+      const existing = await ChartOfAccount.findOne({ accountCode: req.body?.accountCode })
+      if (existing && existing.isActive === false) {
+        return res.status(409).json({ success: false, message: 'Account code already exists and is inactive' })
+      }
+      return res.status(409).json({ success: false, message: 'Account code already exists' })
+    }
+    console.error('Create account error:', e)
+    res.status(500).json({ success: false, message: 'Server error' })
   }
 })
 
@@ -2336,7 +2438,8 @@ router.post('/accounts/bulk-seed', protect, async (req, res) => {
     }
     res.json({ success: true, created, updated })
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message })
+    console.error('Bulk seed accounts error:', e)
+    res.status(500).json({ success: false, message: 'Server error' })
   }
 })
 
@@ -4127,10 +4230,13 @@ router.get('/transactions', protect, async (req, res) => {
 router.post('/transactions', protect, async (req, res) => {
   try {
     const { type, amount, date, description, currency, exchangeRate, customerId, vendorId, inventoryItemId, mappingId, debitAccountId, creditAccountId, voucherMeta, metalFixStatus } = req.body
-    if (!type || !amount) return res.status(400).json({ success: false, message: 'Type and amount are required' })
+    if (!type || amount === undefined || amount === null || amount === '') return res.status(400).json({ success: false, message: 'Type and amount are required' })
     if (!canCreateTransactionFor(req.user, type)) {
       return res.status(403).json({ success: false, message: 'You are not allowed to create this transaction type' })
     }
+
+    const normalizedAmount = normalizeMoneyValue(amount, 'amount')
+    const normalizedExchangeRate = normalizeExchangeRateValue(exchangeRate ?? 1)
 
     const validationMessage = validateTransactionPayload({
       type,
@@ -4152,11 +4258,11 @@ router.post('/transactions', protect, async (req, res) => {
 
     const tx = await Transaction.create({
       type,
-      amount: Number(amount),
+      amount: normalizedAmount,
       date: date ? new Date(date) : new Date(),
       description,
       currency: (currency || 'USD').toUpperCase(),
-      exchangeRate: Number(exchangeRate || 1),
+      exchangeRate: normalizedExchangeRate,
       customerId: sanitizeOptionalRef(customerId),
       vendorId: sanitizeOptionalRef(vendorId),
       inventoryItemId: sanitizeOptionalRef(inventoryItemId),
@@ -4174,12 +4280,20 @@ router.post('/transactions', protect, async (req, res) => {
 
     res.status(201).json({ success: true, transaction: tx })
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message || 'Server error' })
+    if (/Invalid|exceeds allowed maximum/i.test(e?.message || '')) {
+      return res.status(400).json({ success: false, message: e.message })
+    }
+    console.error('Create transaction error:', e)
+    res.status(500).json({ success: false, message: 'Server error' })
   }
 })
 
 router.put('/transactions/:id', protect, async (req, res) => {
   try {
+    if (!canAccessTransactions(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
 
@@ -4219,11 +4333,11 @@ router.put('/transactions/:id', protect, async (req, res) => {
     }
 
     if (req.body.type !== undefined) tx.type = req.body.type
-    if (req.body.amount !== undefined) tx.amount = Number(req.body.amount)
+    if (req.body.amount !== undefined) tx.amount = normalizeMoneyValue(req.body.amount, 'amount')
     if (req.body.date !== undefined) tx.date = req.body.date ? new Date(req.body.date) : tx.date
     if (req.body.description !== undefined) tx.description = req.body.description
     if (req.body.currency !== undefined) tx.currency = String(req.body.currency || 'USD').toUpperCase()
-    if (req.body.exchangeRate !== undefined) tx.exchangeRate = Number(req.body.exchangeRate || 1)
+    if (req.body.exchangeRate !== undefined) tx.exchangeRate = normalizeExchangeRateValue(req.body.exchangeRate ?? 1)
     if (req.body.customerId !== undefined) tx.customerId = sanitizeOptionalRef(req.body.customerId)
     if (req.body.vendorId !== undefined) tx.vendorId = sanitizeOptionalRef(req.body.vendorId)
     if (req.body.inventoryItemId !== undefined) tx.inventoryItemId = sanitizeOptionalRef(req.body.inventoryItemId)
@@ -4242,13 +4356,21 @@ router.put('/transactions/:id', protect, async (req, res) => {
     appendTransactionAudit(tx, req.user, 'update', { fromStatus: tx.status, toStatus: tx.status, comment: req.body.description || '' })
     await tx.save()
     res.json({ success: true, transaction: tx })
-  } catch {
+  } catch (e) {
+    if (/Invalid|exceeds allowed maximum/i.test(e?.message || '')) {
+      return res.status(400).json({ success: false, message: e.message })
+    }
+    console.error('Update transaction error:', e)
     res.status(500).json({ success: false, message: 'Server error' })
   }
 })
 
 router.post('/transactions/:id/void', protect, async (req, res) => {
   try {
+    if (!isSuperAdmin(req.user) && !isFinance(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
 
@@ -4276,12 +4398,17 @@ router.post('/transactions/:id/void', protect, async (req, res) => {
 
     res.json({ success: true, message: 'Transaction voided and ledger entries removed' })
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message || 'Server error' })
+    console.error('Void transaction error:', e)
+    res.status(500).json({ success: false, message: 'Server error' })
   }
 })
 
 router.delete('/transactions/:id', protect, async (req, res) => {
   try {
+    if (!isSuperAdmin(req.user) && !isFinance(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
     if (tx.status === 'posted') {
@@ -4302,11 +4429,14 @@ router.post('/transactions/:id/submit', protect, async (req, res) => {
   try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+    if (!canCreateTransactionFor(req.user, tx.type) && !isFinance(req.user) && !isSuperAdmin(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
     const result = await applyTransactionWorkflowAction(tx, req.user, 'submit', { comment: req.body?.comment })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     res.json({ success: true, transaction: populated })
   } catch (e) {
-    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
+    respondWorkflowError(res, e)
   }
 })
 
@@ -4318,7 +4448,7 @@ router.post('/transactions/:id/approve', protect, async (req, res) => {
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     res.json({ success: true, transaction: populated })
   } catch (e) {
-    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
+    respondWorkflowError(res, e)
   }
 })
 
@@ -4330,7 +4460,7 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     res.json({ success: true, transaction: populated, ledgerEntry: result.ledgerEntry })
   } catch (e) {
-    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
+    respondWorkflowError(res, e)
   }
 })
 
@@ -4368,7 +4498,13 @@ router.post('/transactions/:id/attachments', protect, transactionUpload.single('
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
     if (!req.file) return res.status(400).json({ success: false, message: 'Attachment file is required' })
 
-    const attachment = buildTransactionAttachment(req.file, req.user)
+    if (!validateAttachmentContent(req.file)) {
+      const filePath = path.resolve(transactionUploadDir, req.file.filename)
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+      return res.status(400).json({ success: false, message: 'Attachment content does not match file type' })
+    }
+
+    const attachment = buildTransactionAttachment(req, req.file, req.user)
     tx.attachments.push(attachment)
     tx.updatedBy = req.user._id
     appendTransactionAudit(tx, req.user, 'upload_attachment', { fromStatus: tx.status, toStatus: tx.status, comment: attachment.originalName })
@@ -4377,7 +4513,7 @@ router.post('/transactions/:id/attachments', protect, transactionUpload.single('
     const populated = await populateTransactionQuery(Transaction.findById(tx._id))
     res.status(201).json({ success: true, transaction: populated, attachment: populated.attachments[populated.attachments.length - 1] })
   } catch (e) {
-    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
+    respondWorkflowError(res, e)
   }
 })
 
@@ -4404,7 +4540,7 @@ router.delete('/transactions/:id/attachments/:attachmentId', protect, async (req
     const populated = await populateTransactionQuery(Transaction.findById(tx._id))
     res.json({ success: true, transaction: populated })
   } catch (e) {
-    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
+    respondWorkflowError(res, e)
   }
 })
 
@@ -4416,7 +4552,7 @@ router.post('/transactions/:id/return', protect, async (req, res) => {
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     res.json({ success: true, transaction: populated })
   } catch (e) {
-    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
+    respondWorkflowError(res, e)
   }
 })
 
@@ -4428,7 +4564,7 @@ router.post('/transactions/:id/reject', protect, async (req, res) => {
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     res.json({ success: true, transaction: populated })
   } catch (e) {
-    res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
+    respondWorkflowError(res, e)
   }
 })
 

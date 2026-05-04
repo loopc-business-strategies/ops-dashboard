@@ -13,6 +13,9 @@ require('dotenv').config() // load .env variables FIRST
 ;(function validateEnv() {
   const missing = []
   if (!process.env.JWT_SECRET) missing.push('JWT_SECRET')
+  if (process.env.NODE_ENV === 'production' && !process.env.SERVER_BASE_URL) {
+    missing.push('SERVER_BASE_URL (required in production for attachment links)')
+  }
   // At least one DB path must exist: tenant URIs or generic MONGO_URI or split credentials
   const hasTenantUris = process.env.MONGO_URI_MG || process.env.MONGO_URI_CG || process.env.MONGO_URI_LOOPC
   const hasLegacyUri  = process.env.MONGO_URI
