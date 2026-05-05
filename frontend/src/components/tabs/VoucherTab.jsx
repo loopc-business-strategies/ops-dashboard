@@ -409,6 +409,12 @@ const emptyHeader = () => ({
 const normalizeLookupValue = (value) => String(value || '').trim().toLowerCase()
 const normalizeLineType = (value) => (value === 'Transfer' ? 'TT' : (value || 'Cash'))
 const FIXED_AED_RATE = 3.674
+// AED display convention: 3.674 (AED per USD) — invert to get backend multiply-convention (USD per AED)
+const displayRateToBackendRate = (displayRate, currCode) => {
+  const r = parseFloat(displayRate) || 1
+  if (String(currCode || '').trim().toUpperCase() === 'AED' && r > 1) return 1 / r
+  return r
+}
 const normalizeRateType = (value) => {
   const normalized = String(value || '').trim().toUpperCase()
   if (!normalized || normalized === 'GOZ') return 'OZ'
@@ -1610,7 +1616,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       date: header.valueDate || header.vocDate,
       description: `${voucherType} voucher ${header.vocNo || ''}`.trim(),
       currency: header.currCode,
-      exchangeRate: parseFloat(header.currRate) || 1,
+      exchangeRate: displayRateToBackendRate(header.currRate, header.currCode),
       customerId: resolvedParty?.customerId || undefined,
       vendorId: resolvedParty?.vendorId || undefined,
       voucherMeta: {
@@ -1634,7 +1640,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           amountFC: parseFloat(l.amountFC) || 0,
           amountLC: parseFloat(l.amountLC) || 0,
           headerAmt: parseFloat(l.headerAmt) || 0,
-          currRate: parseFloat(l.currRate) || 1,
+          currRate: displayRateToBackendRate(l.currRate, l.currCode || header.currCode),
           vatPer: parseFloat(l.vatPer) || 0,
           vatAmountFC: parseFloat(l.vatAmountFC) || 0,
           vatAmountLC: parseFloat(l.vatAmountLC) || 0,
