@@ -1377,7 +1377,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const inventoryReportRows = inventoryReportProducts.map((item) => {
     const categoryMeta = decodeInventoryCategoryMeta(item.category)
     const productMeta = decodeInventoryCategoryPairs(item.category)
-    const quantity = Number(item.quantity || 0)
+    const quantity = Math.max(0, Number(item.quantity || 0))
     const unitCost = Number(item.unitCost || 0)
     const stockValue = quantity * unitCost
     const minThreshold = Number(item.minThreshold || 0)

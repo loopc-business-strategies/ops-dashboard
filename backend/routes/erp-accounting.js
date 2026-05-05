@@ -1889,6 +1889,7 @@ const getOutstandingForAccount = async (accountId) => {
   const totals = await Ledger.aggregate([
     {
       $match: {
+        isDeleted: { $ne: true },
         $or: [{ debitAccountId: accountId }, { creditAccountId: accountId }],
       },
     },
@@ -1922,6 +1923,7 @@ const getAgingForAccount = async (accountId, asOfDate = new Date()) => {
   }
 
   const entries = await Ledger.find({
+    isDeleted: { $ne: true },
     $or: [{ debitAccountId: accountId }, { creditAccountId: accountId }],
   })
     .select('date debitAccountId creditAccountId amount')
