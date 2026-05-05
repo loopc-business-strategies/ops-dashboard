@@ -370,13 +370,14 @@ const nextGeneratedAccountCode = async (prefix) => {
   return code
 }
 
-const validateAccountParentAssignment = async ({ accountId = null, parentAccountId = null }) => {
+const validateAccountParentAssignment = async ({ accountId = null, parentAccountId = null, accountType = null }) => {
   if (!parentAccountId) return
 
   const accountKey = accountId ? String(accountId) : ''
   let cursorId = parentAccountId
   let depth = 0
   const seen = new Set(accountKey ? [accountKey] : [])
+  let isDirectParent = true
 
   while (cursorId) {
     const key = String(cursorId)
@@ -385,9 +386,13 @@ const validateAccountParentAssignment = async ({ accountId = null, parentAccount
     }
     seen.add(key)
 
-    const cursor = await ChartOfAccount.findById(cursorId).select('parentAccountId')
+    const cursor = await ChartOfAccount.findById(cursorId).select('parentAccountId accountType')
     if (!cursor) {
       throw new Error('Parent account not found')
+    }
+
+    if (isDirectParent && accountType && String(cursor.accountType || '') !== String(accountType)) {
+      throw new Error(`Parent account type must match selected account type (${accountType})`)
     }
 
     depth += 1
@@ -396,6 +401,7 @@ const validateAccountParentAssignment = async ({ accountId = null, parentAccount
     }
 
     cursorId = cursor.parentAccountId || null
+    isDirectParent = false
   }
 }
 
@@ -2608,7 +2614,7 @@ router.post('/accounts', protect, async (req, res) => {
     const { accountName, accountCode, accountType, parentAccountId, currency, description } = req.body
     if (!accountName || !accountCode || !accountType) return res.status(400).json({ success: false, message: 'Required fields missing' })
     if (parentAccountId) {
-      await validateAccountParentAssignment({ parentAccountId })
+      await validateAccountParentAssignment({ parentAccountId, accountType })
     }
     const account = await ChartOfAccount.create({
       accountName, accountCode, accountType, parentAccountId, currency, description, createdBy: req.user._id,
@@ -2659,6 +2665,9 @@ router.post('/accounts/bulk-seed', protect, async (req, res) => {
 router.put('/accounts/:id', protect, async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const existingAccount = await ChartOfAccount.findById(req.params.id).select('accountType')
+    if (!existingAccount) return res.status(404).json({ success: false, message: 'Account not found' })
+
     const updates = {}
     const allowedFields = ['accountName', 'description', 'isActive', 'currency', 'department', 'parentAccountId']
     allowedFields.forEach((field) => {
@@ -2669,7 +2678,7 @@ router.put('/accounts/:id', protect, async (req, res) => {
       updates.parentAccountId = null
     }
     if (Object.prototype.hasOwnProperty.call(req.body, 'parentAccountId') && req.body.parentAccountId) {
-      await validateAccountParentAssignment({ accountId: req.params.id, parentAccountId: req.body.parentAccountId })
+      await validateAccountParentAssignment({ accountId: req.params.id, parentAccountId: req.body.parentAccountId, accountType: existingAccount.accountType })
     }
     const account = await ChartOfAccount.findByIdAndUpdate(req.params.id, updates, { new: true })
     if (!account) return res.status(404).json({ success: false, message: 'Account not found' })

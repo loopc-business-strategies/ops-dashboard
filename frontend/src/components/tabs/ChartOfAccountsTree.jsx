@@ -113,10 +113,13 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
   const [modalOffset, setModalOffset] = useState({ x: 0, y: 0 })
   const [modalDrag, setModalDrag] = useState({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 })
   const [creatingCustomer, setCreatingCustomer] = useState(false)
+  const [creatingSupplier, setCreatingSupplier] = useState(false)
   const [accountCodeTouched, setAccountCodeTouched] = useState(false)
   const [lastAutoSuggestedCode, setLastAutoSuggestedCode] = useState('')
   const [newCustomerDraft, setNewCustomerDraft] = useState({ name: '', phone: '', email: '', currency: 'USD' })
+  const [newSupplierDraft, setNewSupplierDraft] = useState({ name: '', phone: '', email: '', currency: 'USD' })
   const isCustomerCreateMode = modal?.mode === 'add' && (modal?.action === 'customer' || form.createAs === 'customer')
+  const isSupplierCreateMode = modal?.mode === 'add' && (modal?.action === 'supplier' || form.createAs === 'supplier')
 
   const suggestNextAccountCode = useCallback((parentId) => {
     if (!parentId) return ''
@@ -285,11 +288,12 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     const suggestedCode = suggestNextAccountCode(parentId)
     const isLockedSubAccountFlow = action === 'general' && Boolean(parentId)
     setNewCustomerDraft({ name: '', phone: '', email: '', currency: 'USD' })
+    setNewSupplierDraft({ name: '', phone: '', email: '', currency: 'USD' })
     setAccountCodeTouched(false)
     setLastAutoSuggestedCode(suggestedCode || '')
     setForm({
       ...emptyForm(),
-      createAs: action === 'customer' ? 'customer' : 'standard',
+      createAs: action === 'customer' ? 'customer' : action === 'supplier' ? 'supplier' : 'standard',
       accountType: preset.accountType || (parentNode?.accountType || ''),
       parentAccountId: parentId,
       accountCode: suggestedCode || '',
@@ -341,8 +345,15 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     try {
       if (modal.mode === 'add') {
         const creatingCustomerAccount = modal.action === 'customer' || form.createAs === 'customer'
+        const creatingSupplierAccount = modal.action === 'supplier' || form.createAs === 'supplier'
         if (creatingCustomerAccount && !newCustomerDraft.name.trim()) {
           setError('Please enter customer name')
+          setSaving(false)
+          return
+        }
+
+        if (creatingSupplierAccount && !newSupplierDraft.name.trim()) {
+          setError('Please enter supplier name')
           setSaving(false)
           return
         }
@@ -359,6 +370,28 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
           setSuccess('New customer and receivable account created')
           setModal(null)
           await load()
+          return
+        }
+
+        if (creatingSupplierAccount) {
+          setCreatingSupplier(true)
+          await erpAccountingAPI.createVendor(token, {
+            name: newSupplierDraft.name.trim(),
+            phone: newSupplierDraft.phone.trim(),
+            email: newSupplierDraft.email.trim(),
+            currency: newSupplierDraft.currency || 'USD',
+          })
+
+          setSuccess('New supplier and payable account created')
+          setModal(null)
+          await load()
+          return
+        }
+
+        const selectedParent = accounts.find((item) => String(item._id) === String(form.parentAccountId))
+        if (selectedParent && selectedParent.accountType !== form.accountType) {
+          setError('Selected parent account type does not match the account type')
+          setSaving(false)
           return
         }
 
@@ -395,6 +428,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
       setError(err?.response?.data?.message || 'Save failed')
     } finally {
       setCreatingCustomer(false)
+      setCreatingSupplier(false)
       setSaving(false)
     }
   }
@@ -841,6 +875,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                       >
                         <option value="standard">Standard Account</option>
                         <option value="customer">Customer Account</option>
+                        <option value="supplier">Supplier Account</option>
                       </select>
                     </Field>
                   )}
@@ -885,7 +920,47 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                     </Field>
                   )}
 
-                  {!isCustomerCreateMode && (
+                  {modal.mode === 'add' && isSupplierCreateMode && (
+                    <Field label="New Supplier *">
+                      <div style={{ marginTop: '0.1rem', padding: '0.6rem', border: '1px solid #D1D5DB', borderRadius: '0.45rem', background: '#F9FAFB' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem' }}>
+                          <input
+                            placeholder="Supplier / Account Name *"
+                            value={newSupplierDraft.name}
+                            onChange={(e) => {
+                              const nextName = e.target.value
+                              setNewSupplierDraft((prev) => ({ ...prev, name: nextName }))
+                              setForm((prev) => ({ ...prev, accountName: nextName }))
+                            }}
+                            style={inputStyle}
+                          />
+                          <input
+                            placeholder="Phone"
+                            value={newSupplierDraft.phone}
+                            onChange={(e) => setNewSupplierDraft((prev) => ({ ...prev, phone: e.target.value }))}
+                            style={inputStyle}
+                          />
+                          <input
+                            placeholder="Email"
+                            value={newSupplierDraft.email}
+                            onChange={(e) => setNewSupplierDraft((prev) => ({ ...prev, email: e.target.value }))}
+                            style={inputStyle}
+                          />
+                          <input
+                            placeholder="Currency"
+                            value={newSupplierDraft.currency}
+                            onChange={(e) => setNewSupplierDraft((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))}
+                            style={inputStyle}
+                          />
+                        </div>
+                      </div>
+                      <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#6B7280' }}>
+                        One name is used for both supplier and account creation.
+                      </p>
+                    </Field>
+                  )}
+
+                  {!isCustomerCreateMode && !isSupplierCreateMode && (
                     <Field label="Account Name *">
                       <input required value={form.accountName} onChange={e => setForm({ ...form, accountName: e.target.value })} style={inputStyle} />
                     </Field>
@@ -918,15 +993,12 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                         value={form.accountType}
                         onChange={e => {
                           const nextType = e.target.value
-                          setForm((prev) => {
-                            const selectedParent = accounts.find((item) => String(item._id) === String(prev.parentAccountId))
-                            const shouldClearParent = prev.parentAccountId && selectedParent?.accountType !== nextType
-                            return {
-                              ...prev,
-                              accountType: nextType,
-                              parentAccountId: shouldClearParent ? '' : prev.parentAccountId,
-                            }
-                          })
+                          setForm((prev) => ({
+                            ...prev,
+                            accountType: nextType,
+                            // Always reset parent on type switch; user can pick a valid one from filtered list.
+                            parentAccountId: '',
+                          }))
                         }}
                         style={inputStyle}
                       >
@@ -984,8 +1056,8 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                 <button type="button" onClick={() => setModal(null)} style={{ padding: '0.5rem 1rem', background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600', fontSize: '0.875rem' }}>
                   {t('cancel')}
                 </button>
-                <button type="submit" disabled={saving || creatingCustomer} style={{ padding: '0.5rem 1.25rem', background: '#059669', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.875rem', opacity: (saving || creatingCustomer) ? 0.7 : 1 }}>
-                  {(saving || creatingCustomer) ? t('saving') : modal.mode === 'edit' ? t('update') : modal.mode === 'move' ? t('move') : t('create')}
+                <button type="submit" disabled={saving || creatingCustomer || creatingSupplier} style={{ padding: '0.5rem 1.25rem', background: '#059669', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.875rem', opacity: (saving || creatingCustomer || creatingSupplier) ? 0.7 : 1 }}>
+                  {(saving || creatingCustomer || creatingSupplier) ? t('saving') : modal.mode === 'edit' ? t('update') : modal.mode === 'move' ? t('move') : t('create')}
                 </button>
               </div>
             </form>
