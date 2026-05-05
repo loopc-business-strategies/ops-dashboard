@@ -234,9 +234,6 @@ const resolveAccountIdFromInput = (inputValue, accountOptions = []) => {
   const exactLabel = accountOptions.find((account) => accountLookupText(account).toLowerCase() === normalized)
   if (exactLabel) return String(exactLabel._id)
 
-  const startsWithMatch = accountOptions.find((account) => accountLookupText(account).toLowerCase().startsWith(normalized))
-  if (startsWithMatch) return String(startsWithMatch._id)
-
   return ''
 }
 
@@ -1181,7 +1178,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
     debitAccountInput: '',
     creditAccountId: '',
     creditAccountInput: '',
-    amount: '',
+    debitAmount: '',
+    creditAmount: '',
     description: '',
     referenceType: 'journal',
     currency: 'USD',
@@ -4727,13 +4725,21 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   const handleCreateLedgerEntry = async (e) => {
     e.preventDefault()
-    const resolvedDebitAccountId = ledgerForm.debitAccountId || resolveAccountIdFromInput(ledgerForm.debitAccountInput, entryAccountOptions)
-    const resolvedCreditAccountId = ledgerForm.creditAccountId || resolveAccountIdFromInput(ledgerForm.creditAccountInput, entryAccountOptions)
+    const resolvedDebitAccountId = resolveAccountIdFromInput(ledgerForm.debitAccountInput, entryAccountOptions) || ledgerForm.debitAccountId
+    const resolvedCreditAccountId = resolveAccountIdFromInput(ledgerForm.creditAccountInput, entryAccountOptions) || ledgerForm.creditAccountId
+    const debitAmount = Number(ledgerForm.debitAmount || 0)
+    const creditAmount = Number(ledgerForm.creditAmount || 0)
 
-    if (!resolvedDebitAccountId || !resolvedCreditAccountId || !ledgerForm.amount) {
-      setError('Debit account, credit account, and amount are required')
+    if (!resolvedDebitAccountId || !resolvedCreditAccountId || !debitAmount || !creditAmount) {
+      setError('Debit account, credit account, debit amount, and credit amount are required')
       return
     }
+
+    if (debitAmount !== creditAmount) {
+      setError('Debit and credit amounts must be equal for a journal entry')
+      return
+    }
+
     setSaving(true)
     try {
       await erpAccountingAPI.createLedgerEntry(token, {
@@ -4741,7 +4747,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
         debitAccountId: resolvedDebitAccountId,
         creditAccountId: resolvedCreditAccountId,
         currency: baseCurrencyCode,
-        amount: Number(ledgerForm.amount),
+        amount: debitAmount,
       })
       setLedgerForm({
         date: new Date().toISOString().slice(0, 10),
@@ -4750,7 +4756,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
         debitAccountInput: '',
         creditAccountId: '',
         creditAccountInput: '',
-        amount: '',
+        debitAmount: '',
+        creditAmount: '',
         description: '',
         referenceType: 'journal',
         currency: baseCurrencyCode,
@@ -6044,7 +6051,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   onChange={(e) => setLedgerForm({ ...ledgerForm, debitAccountInput: e.target.value, debitAccountId: '' })}
                   onBlur={(e) => {
                     const resolvedId = resolveAccountIdFromInput(e.target.value, entryAccountOptions)
-                    if (!resolvedId) return
+                    if (!resolvedId) {
+                      setLedgerForm((prev) => ({
+                        ...prev,
+                        debitAccountId: '',
+                      }))
+                      return
+                    }
                     const resolvedAccount = entryAccountOptions.find((account) => String(account._id) === String(resolvedId))
                     setLedgerForm((prev) => ({
                       ...prev,
@@ -6061,7 +6074,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   onChange={(e) => setLedgerForm({ ...ledgerForm, creditAccountInput: e.target.value, creditAccountId: '' })}
                   onBlur={(e) => {
                     const resolvedId = resolveAccountIdFromInput(e.target.value, entryAccountOptions)
-                    if (!resolvedId) return
+                    if (!resolvedId) {
+                      setLedgerForm((prev) => ({
+                        ...prev,
+                        creditAccountId: '',
+                      }))
+                      return
+                    }
                     const resolvedAccount = entryAccountOptions.find((account) => String(account._id) === String(resolvedId))
                     setLedgerForm((prev) => ({
                       ...prev,
@@ -6082,14 +6101,24 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   <option key={`credit-${account._id}`} value={accountLookupText(account)} />
                 ))}
               </datalist>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Amount"
-                value={ledgerForm.amount}
-                onChange={(e) => setLedgerForm({ ...ledgerForm, amount: e.target.value })}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Debit Amount"
+                  value={ledgerForm.debitAmount}
+                  onChange={(e) => setLedgerForm({ ...ledgerForm, debitAmount: e.target.value })}
+                  style={{ display: 'block', width: '100%', padding: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Credit Amount"
+                  value={ledgerForm.creditAmount}
+                  onChange={(e) => setLedgerForm({ ...ledgerForm, creditAmount: e.target.value })}
+                  style={{ display: 'block', width: '100%', padding: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+                />
+              </div>
               <select
                 value={ledgerForm.referenceType}
                 onChange={(e) => setLedgerForm({ ...ledgerForm, referenceType: e.target.value })}
