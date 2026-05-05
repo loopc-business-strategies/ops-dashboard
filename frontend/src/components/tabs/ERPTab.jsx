@@ -7839,8 +7839,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   </thead>
                   <tbody>
                     {sortedInventoryTableRows.map(({ item, categoryMeta, productMeta }) => {
-                      const lowStock = Number(item.minThreshold || 0) > 0 && Number(item.quantity || 0) <= Number(item.minThreshold || 0)
-                      const totalValue = Number(item.quantity || 0) * Number(item.unitCost || 0)
+                      const displayQty = Math.max(0, Number(item.quantity || 0))
+                      const lowStock = Number(item.minThreshold || 0) > 0 && displayQty <= Number(item.minThreshold || 0)
+                      const totalValue = displayQty * Number(item.unitCost || 0)
                       return (
                         <tr key={item._id} style={{ borderBottom: '1px solid #F1F5F9', background: lowStock ? '#FFF7ED' : undefined }}>
                           <td style={{ padding: '0.5rem 0.7rem', color: '#6B7280', fontFamily: 'monospace' }}>{item.sku || '—'}</td>
@@ -7848,7 +7849,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                           <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{item.category ? (categoryMeta.mainStock || item.category).slice(0, 30) : '—'}</td>
                           <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{productMeta.taxType || '—'}</td>
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft, fontSize: '0.78rem' }}>{formatVatPercent(productMeta.vatPercent)}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: lowStock ? '#B45309' : '#065F46' }}>{Number(item.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: lowStock ? '#B45309' : '#065F46' }}>{displayQty.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
                           <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft }}>{item.unit || 'pcs'}</td>
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(item.unitCost || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(item.sellingPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
