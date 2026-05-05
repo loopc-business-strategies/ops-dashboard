@@ -17,3 +17,6 @@ backend/uploads/transactions/
 
 # Optional coverage output
 coverage/
+
+.vercel
+.env*.local
