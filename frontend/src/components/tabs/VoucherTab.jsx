@@ -553,6 +553,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       if (a.baseCurrency !== b.baseCurrency) return a.baseCurrency ? -1 : 1
       return a.code.localeCompare(b.code)
     })
+  const baseCurrencyCode = String(currencyOptions.find((item) => item.baseCurrency)?.code || 'USD').trim().toUpperCase() || 'USD'
 
   const getCurrencyRateByCode = useCallback((code) => {
     const normalized = String(code || '').trim().toUpperCase()
@@ -666,6 +667,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         partyCode: vendor.vendorCode || vendor.ledgerAccountId?.accountCode || String(vendor._id),
         partyId: `vendor:${String(vendor._id)}`,
         partyType: 'vendor',
+        accountCurrency: String(vendor.ledgerAccountId?.currency || vendor.currency || '').trim().toUpperCase(),
         email: vendor.email || '',
         phone: vendor.phone || '',
         address: formatPartyAddress(vendor.address, vendor.city, vendor.country, vendor.postalCode),
@@ -687,6 +689,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           partyCode: customer.ledgerAccountId?.accountCode || String(customer._id),
           partyId: `customer:${String(customer._id)}`,
           partyType: 'customer',
+          accountCurrency: String(customer.ledgerAccountId?.currency || customer.currency || '').trim().toUpperCase(),
           email: customer.email || '',
           phone: customer.phone || '',
           address: customer.address || '',
@@ -1600,8 +1603,8 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       amount: totals.grandTotal || 0.01,
       date: header.valueDate || header.vocDate,
       description: `${voucherType} voucher ${header.vocNo || ''}`.trim(),
-      currency: header.currCode,
-      exchangeRate: displayRateToBackendRate(header.currRate, header.currCode),
+      currency: baseCurrencyCode,
+      exchangeRate: 1,
       customerId: resolvedParty?.customerId || undefined,
       vendorId: resolvedParty?.vendorId || undefined,
       voucherMeta: {
@@ -1875,6 +1878,26 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     }))
   }
 
+  const applyPartyCurrency = useCallback((resolvedParty) => {
+    if (!resolvedParty) return
+    if (!['payment', 'receipt'].includes(String(voucherType || '').toLowerCase())) return
+
+    const preferredCode = String(resolvedParty.accountCurrency || '').trim().toUpperCase()
+    if (!preferredCode) return
+
+    const hasCurrency = currencyOptions.some((item) => item.code === preferredCode)
+    if (!hasCurrency) return
+    if (String(header.currCode || '').trim().toUpperCase() === preferredCode) return
+
+    const resolved = resolvePaymentRate(preferredCode)
+    setHeader((prev) => ({
+      ...prev,
+      currCode: preferredCode,
+      currRate: resolved.rate.toFixed(6),
+      currRateSource: resolved.source,
+    }))
+  }, [voucherType, currencyOptions, header.currCode, resolvePaymentRate])
+
   const handleLineCurrencyChange = (nextCode) => {
     const normalized = String(nextCode || 'USD').trim().toUpperCase()
     const resolved = resolvePaymentRate(normalized)
@@ -1913,6 +1936,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     const resolvedParty = resolveVoucherParty(code)
     setSelectedPartyId(resolvedParty?.partyId || '')
     setHdr('partyName', resolvedParty?.partyName || '')
+    applyPartyCurrency(resolvedParty)
   }
 
   const searchPartyByCode = () => {
@@ -1941,6 +1965,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     }
     setHdr('partyCode', selected.partyCode)
     setHdr('partyName', selected.partyName)
+    applyPartyCurrency(resolveVoucherParty(selected.partyCode))
   }
 
   useEffect(() => {

@@ -214,6 +214,32 @@ const createTransactionForm = () => ({
   creditAccountId: '',
 })
 
+const accountLookupText = (account) => {
+  const code = String(account?.accountCode || '').trim()
+  const name = String(account?.accountName || '').trim()
+  return [code, name].filter(Boolean).join(' - ')
+}
+
+const resolveAccountIdFromInput = (inputValue, accountOptions = []) => {
+  const value = String(inputValue || '').trim()
+  if (!value) return ''
+
+  const byId = accountOptions.find((account) => String(account?._id || '') === value)
+  if (byId) return String(byId._id)
+
+  const normalized = value.toLowerCase()
+  const exactCode = accountOptions.find((account) => String(account?.accountCode || '').trim().toLowerCase() === normalized)
+  if (exactCode) return String(exactCode._id)
+
+  const exactLabel = accountOptions.find((account) => accountLookupText(account).toLowerCase() === normalized)
+  if (exactLabel) return String(exactLabel._id)
+
+  const startsWithMatch = accountOptions.find((account) => accountLookupText(account).toLowerCase().startsWith(normalized))
+  if (startsWithMatch) return String(startsWithMatch._id)
+
+  return ''
+}
+
 const C = {
   p1: '#FFFFFF',
   p2: '#F3F4F6',
@@ -1152,7 +1178,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
     date: new Date().toISOString().slice(0, 10),
     mappingId: '',
     debitAccountId: '',
+    debitAccountInput: '',
     creditAccountId: '',
+    creditAccountInput: '',
     amount: '',
     description: '',
     referenceType: 'journal',
@@ -2070,6 +2098,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }, [])
 
   const entryAccountOptions = summaryAccounts.length ? summaryAccounts : accounts
+  const baseCurrencyCode = String(currencies.find((currency) => currency.baseCurrency)?.code || 'USD').toUpperCase()
+
+  useEffect(() => {
+    setLedgerForm((prev) => ({ ...prev, currency: baseCurrencyCode }))
+  }, [baseCurrencyCode])
 
   const filteredGroupedSummaryAccounts = groupedSummaryAccounts
     .map((group) => {
@@ -2265,7 +2298,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   const resetTransactionComposer = () => {
     setEditingTransactionId('')
-    setTransactionForm(createTransactionForm())
+    setTransactionForm({
+      ...createTransactionForm(),
+      currency: baseCurrencyCode,
+      exchangeRate: '1',
+    })
   }
 
   const toggleTransactionSelection = (id) => {
@@ -2308,6 +2345,32 @@ function ERPTab({ focusTab, onNavigateMain }) {
     if (['purchase', 'payment'].includes(transactionForm.type) && !transactionForm.vendorId) return 'Vendor is required for purchases and payments'
     return ''
   }
+
+  useEffect(() => {
+    const normalizedType = String(transactionForm.type || '').toLowerCase()
+    if (!['receipt', 'payment'].includes(normalizedType)) return
+
+    let selectedAccountCurrency = ''
+    if (normalizedType === 'receipt' && transactionForm.customerId) {
+      const customer = customers.find((item) => String(item._id) === String(transactionForm.customerId))
+      selectedAccountCurrency = String(customer?.ledgerAccountId?.currency || customer?.currency || '').trim().toUpperCase()
+    }
+    if (normalizedType === 'payment' && transactionForm.vendorId) {
+      const vendor = vendors.find((item) => String(item._id) === String(transactionForm.vendorId))
+      selectedAccountCurrency = String(vendor?.ledgerAccountId?.currency || vendor?.currency || '').trim().toUpperCase()
+    }
+
+    if (!selectedAccountCurrency) return
+    if (String(transactionForm.currency || '').toUpperCase() === selectedAccountCurrency) return
+
+    const matchedCurrency = currencies.find((currency) => String(currency.code || '').toUpperCase() === selectedAccountCurrency)
+    const nextRate = Number(matchedCurrency?.exchangeRate || 1)
+    setTransactionForm((prev) => ({
+      ...prev,
+      currency: selectedAccountCurrency,
+      exchangeRate: Number.isFinite(nextRate) && nextRate > 0 ? String(nextRate) : prev.exchangeRate,
+    }))
+  }, [transactionForm.type, transactionForm.customerId, transactionForm.vendorId, customers, vendors, currencies])
 
   const loadVendors = async (filters = vendorFilters) => {
     if (!canAccessVendors) return
@@ -2518,8 +2581,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
       setSaving(true)
       const payload = {
         ...transactionForm,
+        currency: baseCurrencyCode,
+        exchangeRate: 1,
         amount: Number(transactionForm.amount),
-        exchangeRate: Number(transactionForm.exchangeRate || 1),
         ...(['sale', 'purchase'].includes(String(transactionForm.type || '').toLowerCase()) ? { metalFixStatus: transactionForm.metalFixStatus || 'fixed' } : {}),
       }
 
@@ -4663,7 +4727,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   const handleCreateLedgerEntry = async (e) => {
     e.preventDefault()
-    if (!ledgerForm.debitAccountId || !ledgerForm.creditAccountId || !ledgerForm.amount) {
+    const resolvedDebitAccountId = ledgerForm.debitAccountId || resolveAccountIdFromInput(ledgerForm.debitAccountInput, entryAccountOptions)
+    const resolvedCreditAccountId = ledgerForm.creditAccountId || resolveAccountIdFromInput(ledgerForm.creditAccountInput, entryAccountOptions)
+
+    if (!resolvedDebitAccountId || !resolvedCreditAccountId || !ledgerForm.amount) {
       setError('Debit account, credit account, and amount are required')
       return
     }
@@ -4671,17 +4738,22 @@ function ERPTab({ focusTab, onNavigateMain }) {
     try {
       await erpAccountingAPI.createLedgerEntry(token, {
         ...ledgerForm,
+        debitAccountId: resolvedDebitAccountId,
+        creditAccountId: resolvedCreditAccountId,
+        currency: baseCurrencyCode,
         amount: Number(ledgerForm.amount),
       })
       setLedgerForm({
         date: new Date().toISOString().slice(0, 10),
         mappingId: '',
         debitAccountId: '',
+        debitAccountInput: '',
         creditAccountId: '',
+        creditAccountInput: '',
         amount: '',
         description: '',
         referenceType: 'journal',
-        currency: currencies.find((currency) => currency.baseCurrency)?.code || 'USD',
+        currency: baseCurrencyCode,
       })
       setShowLedgerForm(false)
       await Promise.all([loadLedger(), loadDashboard()])
@@ -4908,16 +4980,23 @@ function ERPTab({ focusTab, onNavigateMain }) {
         ...prev,
         mappingId: '',
         debitAccountId: '',
+        debitAccountInput: '',
         creditAccountId: '',
+        creditAccountInput: '',
       }))
       return
     }
+
+    const mappedDebit = entryAccountOptions.find((account) => String(account._id) === String(selectedMapping?.debitAccountId?._id || ''))
+    const mappedCredit = entryAccountOptions.find((account) => String(account._id) === String(selectedMapping?.creditAccountId?._id || ''))
 
     setLedgerForm((prev) => ({
       ...prev,
       mappingId,
       debitAccountId: selectedMapping?.debitAccountId?._id || prev.debitAccountId,
+      debitAccountInput: mappedDebit ? accountLookupText(mappedDebit) : prev.debitAccountInput,
       creditAccountId: selectedMapping?.creditAccountId?._id || prev.creditAccountId,
+      creditAccountInput: mappedCredit ? accountLookupText(mappedCredit) : prev.creditAccountInput,
       description: selectedMapping && !prev.description ? selectedMapping.description || prev.description : prev.description,
     }))
   }
@@ -5957,26 +6036,52 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 onChange={(e) => setLedgerForm({ ...ledgerForm, date: e.target.value })}
                 style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
               />
-              <select
-                value={ledgerForm.debitAccountId}
-                onChange={(e) => setLedgerForm({ ...ledgerForm, debitAccountId: e.target.value })}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              >
-                <option value="">Select Debit Account</option>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <input
+                  list="ledger-debit-account-options"
+                  placeholder="Select or type Debit Account"
+                  value={ledgerForm.debitAccountInput}
+                  onChange={(e) => setLedgerForm({ ...ledgerForm, debitAccountInput: e.target.value, debitAccountId: '' })}
+                  onBlur={(e) => {
+                    const resolvedId = resolveAccountIdFromInput(e.target.value, entryAccountOptions)
+                    if (!resolvedId) return
+                    const resolvedAccount = entryAccountOptions.find((account) => String(account._id) === String(resolvedId))
+                    setLedgerForm((prev) => ({
+                      ...prev,
+                      debitAccountId: resolvedId,
+                      debitAccountInput: resolvedAccount ? accountLookupText(resolvedAccount) : prev.debitAccountInput,
+                    }))
+                  }}
+                  style={{ display: 'block', width: '100%', padding: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+                />
+                <input
+                  list="ledger-credit-account-options"
+                  placeholder="Select or type Credit Account"
+                  value={ledgerForm.creditAccountInput}
+                  onChange={(e) => setLedgerForm({ ...ledgerForm, creditAccountInput: e.target.value, creditAccountId: '' })}
+                  onBlur={(e) => {
+                    const resolvedId = resolveAccountIdFromInput(e.target.value, entryAccountOptions)
+                    if (!resolvedId) return
+                    const resolvedAccount = entryAccountOptions.find((account) => String(account._id) === String(resolvedId))
+                    setLedgerForm((prev) => ({
+                      ...prev,
+                      creditAccountId: resolvedId,
+                      creditAccountInput: resolvedAccount ? accountLookupText(resolvedAccount) : prev.creditAccountInput,
+                    }))
+                  }}
+                  style={{ display: 'block', width: '100%', padding: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+                />
+              </div>
+              <datalist id="ledger-debit-account-options">
                 {entryAccountOptions.map((account) => (
-                  <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
+                  <option key={`debit-${account._id}`} value={accountLookupText(account)} />
                 ))}
-              </select>
-              <select
-                value={ledgerForm.creditAccountId}
-                onChange={(e) => setLedgerForm({ ...ledgerForm, creditAccountId: e.target.value })}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              >
-                <option value="">Select Credit Account</option>
+              </datalist>
+              <datalist id="ledger-credit-account-options">
                 {entryAccountOptions.map((account) => (
-                  <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
+                  <option key={`credit-${account._id}`} value={accountLookupText(account)} />
                 ))}
-              </select>
+              </datalist>
               <input
                 type="number"
                 step="0.01"
@@ -5996,12 +6101,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
               </select>
               <select
                 value={ledgerForm.currency}
-                onChange={(e) => setLedgerForm({ ...ledgerForm, currency: e.target.value })}
                 style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+                disabled
               >
-                {(currencies.length ? currencies : [{ code: 'USD', name: 'US Dollar' }]).map((currency) => (
-                  <option key={currency.code} value={currency.code}>{currency.code} - {currency.name}</option>
-                ))}
+                <option value={baseCurrencyCode}>{baseCurrencyCode} - Base Currency</option>
               </select>
               <input
                 placeholder="Description"

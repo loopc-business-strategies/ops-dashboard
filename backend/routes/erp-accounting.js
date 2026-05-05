@@ -1808,6 +1808,7 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
 const createLedgerFromTransaction = async ({ user, transaction, referenceType }) => {
   const currencyCode = String(transaction.currency || 'USD').toUpperCase()
   const base = await Currency.findOne({ baseCurrency: true, isActive: true })
+  const baseCurrencyCode = String(base?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
   const txCurrency = await Currency.findOne({ code: currencyCode, isActive: true })
   const exchangeRate = normalizeExchangeRateValue(transaction.exchangeRate ?? txCurrency?.exchangeRate ?? 1)
   const amountInBase = normalizeMoneyValue(transaction.amount, 'amount') * exchangeRate
@@ -1823,8 +1824,8 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
     createdBy: user._id,
     updatedBy: user._id,
     department: user.department,
-    currency: currencyCode,
-    exchangeRate,
+    currency: baseCurrencyCode,
+    exchangeRate: 1,
   })
 
   // Post exchange difference only when a reference rate is provided on payment/receipt.
@@ -2824,7 +2825,7 @@ router.get('/ledger', protect, async (req, res) => {
 router.post('/ledger', protect, async (req, res) => {
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const { date, debitAccountId, creditAccountId, amount, description, referenceType, referenceId, currency } = req.body
+    const { date, debitAccountId, creditAccountId, amount, description, referenceType, referenceId } = req.body
     if (!debitAccountId || !creditAccountId || !amount) return res.status(400).json({ success: false, message: 'Required fields missing' })
     // Validation: debit account cannot equal credit account
     if (debitAccountId === creditAccountId) return res.status(400).json({ success: false, message: 'Debit and Credit accounts must be different' })
@@ -2832,6 +2833,9 @@ router.post('/ledger', protect, async (req, res) => {
     if (!canCreateTransactionFor(req.user, referenceType || 'journal')) {
       return res.status(403).json({ success: false, message: `Your department cannot post ${referenceType} transactions` })
     }
+    const base = await Currency.findOne({ baseCurrency: true, isActive: true })
+    const baseCurrencyCode = String(base?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+
     const entry = await Ledger.create({
       date: new Date(date),
       debitAccountId,
@@ -2840,7 +2844,8 @@ router.post('/ledger', protect, async (req, res) => {
       description,
       referenceType,
       referenceId,
-      currency,
+      currency: baseCurrencyCode,
+      exchangeRate: 1,
       createdBy: req.user._id,
       department: req.user.department,
     })
@@ -2862,7 +2867,7 @@ router.put('/ledger/:id', protect, async (req, res) => {
     if (entry.createdBy.toString() !== req.user._id.toString() && !isFinance(req.user)) {
       return res.status(403).json({ success: false, message: 'Can only edit your own entries' })
     }
-    const { date, debitAccountId, creditAccountId, amount, description, referenceType, currency } = req.body
+    const { date, debitAccountId, creditAccountId, amount, description, referenceType } = req.body
     if (debitAccountId && creditAccountId && debitAccountId === creditAccountId) {
       return res.status(400).json({ success: false, message: 'Debit and Credit accounts must be different' })
     }
@@ -2873,7 +2878,11 @@ router.put('/ledger/:id', protect, async (req, res) => {
     if (amount !== undefined) updates.amount = amount
     if (description !== undefined) updates.description = description
     if (referenceType !== undefined) updates.referenceType = referenceType
-    if (currency !== undefined) updates.currency = currency
+    if (req.body.currency !== undefined) {
+      const base = await Currency.findOne({ baseCurrency: true, isActive: true })
+      updates.currency = String(base?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+      updates.exchangeRate = 1
+    }
     const updated = await Ledger.findByIdAndUpdate(req.params.id, updates, { new: true })
     res.json({ success: true, entry: updated })
   } catch {
