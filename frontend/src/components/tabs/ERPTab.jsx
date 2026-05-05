@@ -1543,7 +1543,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const xagBalance = accountEnquiryData ? Number(accountEnquiryData.metals?.silverBalance || 0) : 0
   const goldPriceUSD = accountEnquiryData ? Number(accountEnquiryData.metals?.goldPrice || 0) : 0
   const silverPriceUSD = accountEnquiryData ? Number(accountEnquiryData.metals?.silverPrice || 0) : 0
-  const totalFunds = accountEnquiryData ? Math.abs(Number(accountEnquiryData.balances?.rateCurrencyBalance || 0)) : 0
+  const totalFunds = accountEnquiryData ? Number(accountEnquiryData.balances?.absoluteNetBalance || 0) : 0
   
   // Derived calculations
   const xauCurrentValue = xauBalance * goldPriceUSD

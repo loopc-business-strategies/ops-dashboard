@@ -2247,11 +2247,11 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     const [debitAgg, creditAgg] = await Promise.all([
       Ledger.aggregate([
         { $match: { debitAccountId: { $in: targetAccountIds }, isDeleted: { $ne: true } } },
-        { $group: { _id: null, total: { $sum: '$amount' } } },
+        { $group: { _id: null, total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
       ]),
       Ledger.aggregate([
         { $match: { creditAccountId: { $in: targetAccountIds }, isDeleted: { $ne: true } } },
-        { $group: { _id: null, total: { $sum: '$amount' } } },
+        { $group: { _id: null, total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
       ]),
     ])
 
@@ -2461,7 +2461,9 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     const statementEntries = ledgerEntries.map((entry) => {
       const debitId = String(entry.debitAccountId?._id || entry.debitAccountId || '')
       const isDebitEntry = targetAccountIds.some((id) => String(id) === debitId)
-      const signedAmount = isDebitEntry ? Number(entry.amount || 0) : -Number(entry.amount || 0)
+      const entryRate = Number(entry.exchangeRate || 1)
+      const convertedAmount = Number(entry.amount || 0) * entryRate
+      const signedAmount = isDebitEntry ? convertedAmount : -convertedAmount
       let linkedTx = transactionByLedgerId.get(String(entry._id)) || transactionById.get(String(entry.referenceId || '')) || null
       if (!linkedTx && String(entry.referenceType || '').toLowerCase() === 'direct_deal') {
         const deal = directDealById.get(String(entry.referenceId || ''))
@@ -2491,11 +2493,11 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         department: entry.department || '',
         currency: entry.currency || accountCurrencyCode,
         exchangeRate: Number(entry.exchangeRate || 1),
-        debitAmount: isDebitEntry ? Number(entry.amount || 0) : 0,
-        creditAmount: isDebitEntry ? 0 : Number(entry.amount || 0),
+        debitAmount: isDebitEntry ? convertedAmount : 0,
+        creditAmount: isDebitEntry ? 0 : convertedAmount,
         signedAmount,
         runningBalance,
-        currentValue: Number(runningBalance || 0) * Number(entry.exchangeRate || exchangeRateToBase || 1),
+        currentValue: Number(runningBalance || 0),
         limitValue: Number(account.openingBalance || 0),
         offsetAccountCode: isDebitEntry ? (entry.creditAccountId?.accountCode || '') : (entry.debitAccountId?.accountCode || ''),
         offsetAccountName: isDebitEntry ? (entry.creditAccountId?.accountName || '') : (entry.debitAccountId?.accountName || ''),
