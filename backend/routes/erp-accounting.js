@@ -2706,6 +2706,86 @@ router.delete('/accounts/:id', protect, async (req, res) => {
   }
 })
 
+router.post('/accounts/hard-delete-by-code', protect, async (req, res) => {
+  try {
+    if (!isSuperAdmin(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+
+    const codes = Array.isArray(req.body?.accountCodes)
+      ? Array.from(new Set(req.body.accountCodes.map((value) => String(value || '').trim()).filter(Boolean)))
+      : []
+
+    if (!codes.length) {
+      return res.status(400).json({ success: false, message: 'accountCodes array is required' })
+    }
+
+    const accounts = await ChartOfAccount.find({ accountCode: { $in: codes } }).select('_id accountCode accountName accountType')
+    if (!accounts.length) {
+      return res.status(404).json({ success: false, message: 'No matching accounts found' })
+    }
+
+    const accountIds = accounts.map((account) => account._id)
+    const ledgerIds = await Ledger.find({
+      $or: [{ debitAccountId: { $in: accountIds } }, { creditAccountId: { $in: accountIds } }],
+    }).distinct('_id')
+
+    const [
+      detachedChildren,
+      unlinkedCustomers,
+      unlinkedVendors,
+      unlinkedInventoryItems,
+      deletedMappings,
+      deletedTransactions,
+      deletedLedger,
+      deletedAccounts,
+    ] = await Promise.all([
+      ChartOfAccount.updateMany({ parentAccountId: { $in: accountIds } }, { $set: { parentAccountId: null } }),
+      Customer.updateMany({ ledgerAccountId: { $in: accountIds } }, { $set: { ledgerAccountId: null } }),
+      Vendor.updateMany({ ledgerAccountId: { $in: accountIds } }, { $set: { ledgerAccountId: null } }),
+      InventoryItem.updateMany({ ledgerAccountId: { $in: accountIds } }, { $set: { ledgerAccountId: null } }),
+      AccountMapping.deleteMany({
+        $or: [{ debitAccountId: { $in: accountIds } }, { creditAccountId: { $in: accountIds } }],
+      }),
+      Transaction.deleteMany({
+        $or: [
+          { debitAccountId: { $in: accountIds } },
+          { creditAccountId: { $in: accountIds } },
+          ...(ledgerIds.length ? [{ journalEntryId: { $in: ledgerIds } }] : []),
+        ],
+      }),
+      Ledger.deleteMany({ _id: { $in: ledgerIds } }),
+      ChartOfAccount.deleteMany({ _id: { $in: accountIds } }),
+    ])
+
+    const deletedCodes = accounts.map((account) => account.accountCode)
+    const missingCodes = codes.filter((code) => !deletedCodes.includes(code))
+
+    res.json({
+      success: true,
+      message: 'Accounts deleted permanently',
+      deleted: accounts.map((account) => ({
+        id: account._id,
+        accountCode: account.accountCode,
+        accountName: account.accountName,
+        accountType: account.accountType,
+      })),
+      counts: {
+        detachedChildren: detachedChildren.modifiedCount || 0,
+        unlinkedCustomers: unlinkedCustomers.modifiedCount || 0,
+        unlinkedVendors: unlinkedVendors.modifiedCount || 0,
+        unlinkedInventoryItems: unlinkedInventoryItems.modifiedCount || 0,
+        deletedMappings: deletedMappings.deletedCount || 0,
+        deletedTransactions: deletedTransactions.deletedCount || 0,
+        deletedLedger: deletedLedger.deletedCount || 0,
+        deletedAccounts: deletedAccounts.deletedCount || 0,
+      },
+      missingCodes,
+    })
+  } catch (e) {
+    console.error('Hard delete accounts error:', e)
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
 // ==========================================
 // LEDGER ENDPOINTS
 // ==========================================
