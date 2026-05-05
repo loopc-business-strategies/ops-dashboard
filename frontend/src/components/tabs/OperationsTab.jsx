@@ -1,9 +1,11 @@
 // FILE: src/components/tabs/OperationsTab.jsx
 // Operations & Logistics — 11 sub-tabs, role-based access, full feature set
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
+import { useAuth } from '../../context/AuthContext'
+import erpAPI from '../../api/erp'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -823,7 +825,7 @@ function TabVendors({ vendors, setVendors, canEdit, isAdmin, isHead, isMgmt, isU
 }
 
 // ─── TAB: Inventory ─────────────────────────────────────────────────────────────
-function TabInventory({ inventory, setInventory, suppliers, setSuppliers, canEdit, isExternal, isMgmt, showToast, setModal }) {
+function TabInventory({ inventory, setInventory, suppliers, setSuppliers, canEdit, isExternal, isMgmt, showToast, setModal, onDeleteInventory }) {
   if (isExternal || isMgmt) return <Restrict text="Inventory tracking is restricted to Operations team." />
 
   return (
@@ -863,7 +865,7 @@ function TabInventory({ inventory, setInventory, suppliers, setSuppliers, canEdi
                         setSuppliers(p => [...p, { id:Date.now(), name:`Restock: ${i.item}`, cat:'Consumables', od:'Today', ed:'TBD', ad:'—', qty:'Restock order', qr:'0', pay:'Not Paid', qc:'Pending', st:'Not Started', notes:'Auto-created from inventory restock request' }])
                         showToast('Restock Requested', `${i.item} — procurement request sent`)
                       }} style={{ ...B.sec, ...B.sm }}>Restock</button>}
-                      {canEdit && <button onClick={() => { if (window.confirm(`Delete ${i.item}?`)) { setInventory(p => p.filter(x=>x.id!==i.id)); showToast('Deleted',`${i.item} removed`) } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit', marginLeft:6 }}>Del</button>}
+                      {canEdit && <button onClick={() => onDeleteInventory && onDeleteInventory(i)} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit', marginLeft:6 }}>Del</button>}
                       {i.st === 'Critical' && <span style={{ marginLeft:6, fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:20, background:'rgba(255,71,87,.15)', color:C.red, border:'1px solid rgba(255,71,87,.3)' }}>⚠ URGENT</span>}
                     </td>
                   </tr>
@@ -1373,6 +1375,7 @@ export default function OperationsTab() {
   const perms = usePermissions()
   const isAdmin    = perms.isSuperAdmin
   const { t } = useLanguage()
+    const { token } = useAuth()
   const TABS = useMemo(() => getOpsTabs(t), [t])
   const isHead     = perms.isDepartmentHead
   const isMgmt     = perms.isManagement
@@ -1388,6 +1391,26 @@ export default function OperationsTab() {
   const [incidents, setIncidents] = useState(INIT_INCIDENTS)
   const [vendors,   setVendors]   = useState(INIT_VENDORS)
   const [inventory, setInventory] = useState(INIT_INVENTORY)
+
+    const invToRow = item => ({
+      id:    item._id || item.id,
+      item:  item.name || item.item,
+      stock: item.quantity ?? item.stock ?? 0,
+      min:   item.minThreshold ?? item.min ?? 0,
+      sup:   item.supplierName || item.sup || '—',
+      last:  item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : (item.last || '—'),
+      st:    item.quantity === 0 || item.stock === 0 ? 'Critical' : (item.quantity || item.stock || 0) <= (item.minThreshold || item.min || 0) ? 'Low Stock' : 'Sufficient',
+    })
+
+    const loadInventory = useCallback(async () => {
+      try {
+        const res = await erpAPI.getInventory(token)
+        const items = res.items || res.data || []
+        if (items.length > 0) setInventory(items.map(invToRow))
+      } catch { /* keep seed data */ }
+    }, [token])
+
+    useEffect(() => { loadInventory() }, [loadInventory])
   const [tasks,     setTasks]     = useState(INIT_TASKS)
   const [checklist, setChecklist] = useState(INIT_CHECKLIST)
   const [notifs,    setNotifs]    = useState(INIT_NOTIFS)
@@ -1463,15 +1486,27 @@ export default function OperationsTab() {
   }
   function addInventoryItem(f) {
     const stock = Number(f.stock)||0, min = Number(f.min)||0
-    const st = stock === 0 ? 'Critical' : stock <= min ? 'Low Stock' : 'Sufficient'
-    setInventory(p => [...p, { id:`INV-${String(p.length+7).padStart(3,'0')}`, item:f.item, stock, min, sup:f.sup||'—', last:f.last||'Today', st }])
-    closeModal(); showToast('Item Added', f.item + ' added to inventory')
+    const payload = { name: f.item, quantity: stock, minThreshold: min, supplierName: f.sup || '', unit: 'units' }
+    erpAPI.createInventoryItem(token, payload)
+      .then(res => { setInventory(p => [...p, invToRow(res.item || res.data || { ...payload, _id: Date.now() })]); closeModal(); showToast('Item Added', f.item + ' added to inventory') })
+      .catch(() => showToast('Error', 'Failed to add inventory item'))
   }
   function editInventoryItem(f) {
     const stock = Number(f.stock)||0, min = Number(f.min)||0
-    const st = stock === 0 ? 'Critical' : stock <= min ? 'Low Stock' : 'Sufficient'
-    setInventory(p => p.map(x => x.id===f.id ? { ...x, item:f.item, stock, min, sup:f.sup, last:f.last||x.last, st } : x))
-    closeModal(); showToast('Item Updated', f.item + ' updated')
+    const payload = { name: f.item, quantity: stock, minThreshold: min, supplierName: f.sup || '' }
+    erpAPI.updateInventoryItem(token, f.id, payload)
+      .then(res => { setInventory(p => p.map(x => x.id===f.id ? invToRow({ ...x, ...payload, _id: f.id, updatedAt: new Date().toISOString() }) : x)); closeModal(); showToast('Item Updated', f.item + ' updated') })
+      .catch(() => showToast('Error', 'Failed to update inventory item'))
+    async function deleteInventoryItem(row) {
+      if (!window.confirm(`Delete ${row.item}?`)) return
+      try {
+        await erpAPI.deleteInventoryItem(token, row.id)
+        setInventory(p => p.filter(x => x.id !== row.id))
+        showToast('Deleted', `${row.item} removed`)
+      } catch {
+        showToast('Error', 'Failed to delete item')
+      }
+    }
   }
   function addChecklistItem(f) {
     setChecklist(p => [...p, { item:f.item, assign:f.assign||'—', st:f.st||'In Progress', due:f.due||'—', by:'—', ts:'—' }])
@@ -1514,7 +1549,7 @@ export default function OperationsTab() {
       {activeTab === 'routes'    && <TabRoutes     {...shared} onOpenIncident={() => setModal({ type:'incident-add', data:null })} />}
       {activeTab === 'security'  && <TabSecurity   {...shared} onOpenIncident={() => setModal({ type:'incident-add', data:null })} />}
       {activeTab === 'vendors'   && <TabVendors    {...shared} onOpenAdd={() => setModal({ type:'vendor-add', data:null })} />}
-      {activeTab === 'inventory' && <TabInventory  {...shared} />}
+      {activeTab === 'inventory' && <TabInventory  {...shared} onDeleteInventory={deleteInventoryItem} />}
       {activeTab === 'map'       && <TabMap        {...shared} />}
       {activeTab === 'analytics' && <TabAnalytics  {...shared} />}
       {activeTab === 'tasks'     && <TabTasks      {...shared} onOpenAdd={() => setModal({ type:'task-add', data:null })} />}

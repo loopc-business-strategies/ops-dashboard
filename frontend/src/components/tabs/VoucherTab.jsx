@@ -408,6 +408,7 @@ const emptyHeader = () => ({
 
 const normalizeLookupValue = (value) => String(value || '').trim().toLowerCase()
 const normalizeLineType = (value) => (value === 'Transfer' ? 'TT' : (value || 'Cash'))
+const FIXED_AED_RATE = 3.674
 const normalizeRateType = (value) => {
   const normalized = String(value || '').trim().toUpperCase()
   if (!normalized || normalized === 'GOZ') return 'OZ'
@@ -772,6 +773,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
   const resolvePaymentRate = useCallback((currencyCode) => {
     const normalized = String(currencyCode || 'USD').trim().toUpperCase()
+    if (normalized === 'AED') {
+      return { rate: FIXED_AED_RATE, source: 'fixed_aed' }
+    }
     const fallbackRate = getCurrencyRateByCode(normalized)
     if (voucherType !== 'payment') {
       return { rate: fallbackRate, source: 'currency_table' }
@@ -1408,13 +1412,25 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const openVoucher = (v) => {
     const m = v.voucherMeta || {}
     const resolvedParty = resolveVoucherParty(m.partyCode || '')
+    const voucherCurrency = String(v.currency || 'USD').trim().toUpperCase()
+    const isAedVoucher = voucherCurrency === 'AED'
+    const headerRateSource = m.currRateSource || m.rateMeta?.headerRateSource || 'manual'
+    const loadedRate = parseFloat(v.exchangeRate)
+    // AED uses "FC per USD" convention (divide). Old vouchers stored rate < 1 (multiply convention).
+    // Auto-convert: if AED rate < 2, treat as old-format (USD per AED) and invert.
+    const normalizedHeaderRate = isAedVoucher
+      ? (() => {
+          if (!Number.isFinite(loadedRate) || loadedRate <= 0) return FIXED_AED_RATE
+          return loadedRate < 2 ? (1 / loadedRate) : loadedRate
+        })()
+      : (Number.isFinite(loadedRate) && loadedRate > 0 ? loadedRate : 1)
     const nextHeader = {
       branch: m.branch || '',
       partyCode: m.partyCode || '',
       partyName: m.partyName || '',
-      currCode: v.currency || 'USD',
-      currRate: String(v.exchangeRate || '1.000000'),
-      currRateSource: m.currRateSource || m.rateMeta?.headerRateSource || 'manual',
+      currCode: voucherCurrency,
+      currRate: normalizedHeaderRate.toFixed(6),
+      currRateSource: isAedVoucher ? 'fixed_aed' : headerRateSource,
       vocDate: v.date ? v.date.slice(0, 10) : today(),
       vocNo: m.vocNo || '',
       salesman: m.salesman || '',
@@ -1423,11 +1439,25 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       fixingType: normalizeVoucherFixingType(m.fixingType),
     }
     const nextPartyId = resolvedParty?.partyId || ''
-    const nextLineItems = (m.lineItems || []).map((line) => ({
-      ...line,
-      type: normalizeLineType(line.type),
-      currRateSource: line?.currRateSource || 'manual',
-    }))
+    const nextLineItems = (m.lineItems || []).map((line) => {
+      const lineCurrency = String(line?.currCode || voucherCurrency || 'USD').trim().toUpperCase()
+      const lineRateSource = line?.currRateSource || 'manual'
+      const lineRate = parseFloat(line?.currRate)
+      // Same AED convention fix for lines
+      const normalizedLineRate = lineCurrency === 'AED'
+        ? (() => {
+            if (!Number.isFinite(lineRate) || lineRate <= 0) return FIXED_AED_RATE
+            return lineRate < 2 ? (1 / lineRate) : lineRate
+          })()
+        : (Number.isFinite(lineRate) && lineRate > 0 ? lineRate : 1)
+      return {
+        ...line,
+        type: normalizeLineType(line.type),
+        currCode: lineCurrency,
+        currRate: normalizedLineRate.toFixed(6),
+        currRateSource: lineCurrency === 'AED' ? 'fixed_aed' : lineRateSource,
+      }
+    })
     setEditingId(v._id)
     setHeader(nextHeader)
     setSelectedPartyId(nextPartyId)
@@ -1791,16 +1821,22 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   }
 
   // Payment/Receipt: simple FC ↔ LC conversion via exchange rate — no VAT/tax.
+  // AED uses "FC per USD" convention (rate = 3.674 means 1 USD = 3.674 AED)
+  //   → LC = FC / rate (divide)
+  // Other currencies use "USD per FC" convention (rate = 1.08 means 1 EUR = 1.08 USD)
+  //   → LC = FC * rate (multiply)
   const recalcReceiptPaymentLine = (baseLine, source) => {
     const next = { ...baseLine }
+    const currCode = String(next.currCode || header.currCode || 'USD').trim().toUpperCase()
+    const isAedConvention = currCode === 'AED'
     const rate = parseFloat(next.currRate) || parseFloat(header.currRate) || 1
     let amountFC = parseFloat(next.amountFC) || 0
     let amountLC = parseFloat(next.amountLC) || 0
 
     if (source === 'amountFC' || source === 'rate') {
-      amountLC = amountFC * rate
+      amountLC = isAedConvention ? (rate > 0 ? amountFC / rate : 0) : amountFC * rate
     } else if (source === 'amountLC') {
-      amountFC = rate > 0 ? amountLC / rate : 0
+      amountFC = isAedConvention ? amountLC * rate : (rate > 0 ? amountLC / rate : 0)
     }
 
     const hasAmountFC = String(next.amountFC || '').trim() !== ''
@@ -2561,6 +2597,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                           onChange={e => handleHeaderCurrRateChange(e.target.value)}
                           type="number"
                           step="0.000001"
+                          title="AED auto-default: 3.674 (you can edit manually)"
                           readOnly={formReadOnly}
                         />
                       </div>

@@ -1,9 +1,11 @@
 // FILE: src/components/tabs/TrainingTab.jsx
 // Training & Development — 11 sub-tabs, role-based access, full feature set
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
+import departmentStateAPI from '../../api/department-state'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -1286,6 +1288,7 @@ function NotifPanel({ notifs, setNotifs, onClose }) {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function TrainingTab() {
+  const { token } = useAuth()
   const perms    = usePermissions()
   const isAdmin  = perms.isSuperAdmin
   const { t } = useLanguage()
@@ -1317,6 +1320,55 @@ export default function TrainingTab() {
   const [profName,  setProfName]  = useState(null)
   const [notifOpen, setNotifOpen] = useState(false)
   const [toast,     setToast]     = useState(null)
+  const loadedRef = useRef(false)
+  const persistTimerRef = useRef(null)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!token) return
+    departmentStateAPI.getDepartmentState(token, 'training')
+      .then((res) => {
+        if (cancelled) return
+        const state = res?.state
+        if (!state || typeof state !== 'object') return
+        if (Array.isArray(state.sessions)) setSessions(state.sessions)
+        if (Array.isArray(state.batches)) setBatches(state.batches)
+        if (Array.isArray(state.attendance)) setAttendance(state.attendance)
+        if (Array.isArray(state.resources)) setResources(state.resources)
+        if (Array.isArray(state.assessments)) setAssessments(state.assessments)
+        if (Array.isArray(state.certs)) setCerts(state.certs)
+        if (Array.isArray(state.feedback)) setFeedback(state.feedback)
+        if (Array.isArray(state.trainees)) setTrainees(state.trainees)
+        if (Array.isArray(state.notifs)) setNotifs(state.notifs)
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) loadedRef.current = true
+      })
+    return () => { cancelled = true }
+  }, [token])
+
+  useEffect(() => {
+    if (!token || !loadedRef.current) return
+    if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current)
+    persistTimerRef.current = window.setTimeout(() => {
+      departmentStateAPI.saveDepartmentState(token, 'training', {
+        sessions,
+        batches,
+        attendance,
+        resources,
+        assessments,
+        certs,
+        feedback,
+        trainees,
+        notifs,
+      }).catch(() => {})
+    }, 600)
+
+    return () => {
+      if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current)
+    }
+  }, [token, sessions, batches, attendance, resources, assessments, certs, feedback, trainees, notifs])
 
   function closeModal() { setModal({ type:null, data:null }) }
 

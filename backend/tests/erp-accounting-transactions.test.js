@@ -380,6 +380,129 @@ describe('ERP accounting transactions workflow', () => {
     expect(String(ledgers[0].creditAccountId)).toBe(String(payableAccount._id))
   })
 
+  test('auto-posts VAT split journals for sale and purchase vouchers from voucher line VAT amounts', async () => {
+    const financeUser = await createUser({ name: 'VAT Poster' })
+
+    const receivableAccount = await ChartOfAccount.create({
+      accountName: 'Customer Receivable VAT',
+      accountCode: '1203',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const payableAccount = await ChartOfAccount.create({
+      accountName: 'Vendor Payable VAT',
+      accountCode: '2103',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+
+    const customer = await Customer.create({
+      name: 'VAT Sale Customer',
+      ledgerAccountId: receivableAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+    const vendor = await Vendor.create({
+      name: 'VAT Purchase Vendor',
+      ledgerAccountId: payableAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    const saleCreate = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'sale',
+        amount: 1000,
+        description: 'Sale with VAT',
+        currency: 'USD',
+        customerId: customer._id.toString(),
+        voucherMeta: {
+          lineItems: [
+            {
+              amountLC: 1000,
+              vatAmountLC: 50,
+            },
+          ],
+        },
+      })
+    expect(saleCreate.status).toBe(201)
+
+    await request(app)
+      .post(`/api/erp-accounting/transactions/${saleCreate.body.transaction._id}/submit`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Submit sale VAT voucher' })
+    await request(app)
+      .post(`/api/erp-accounting/transactions/${saleCreate.body.transaction._id}/approve`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Approve sale VAT voucher' })
+    const salePost = await request(app)
+      .post(`/api/erp-accounting/transactions/${saleCreate.body.transaction._id}/post`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Post sale VAT voucher' })
+    expect(salePost.status).toBe(200)
+
+    const purchaseCreate = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'purchase',
+        amount: 700,
+        description: 'Purchase with VAT',
+        currency: 'USD',
+        vendorId: vendor._id.toString(),
+        voucherMeta: {
+          lineItems: [
+            {
+              amountLC: 700,
+              vatAmountLC: 35,
+            },
+          ],
+        },
+      })
+    expect(purchaseCreate.status).toBe(201)
+
+    await request(app)
+      .post(`/api/erp-accounting/transactions/${purchaseCreate.body.transaction._id}/submit`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Submit purchase VAT voucher' })
+    await request(app)
+      .post(`/api/erp-accounting/transactions/${purchaseCreate.body.transaction._id}/approve`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Approve purchase VAT voucher' })
+    const purchasePost = await request(app)
+      .post(`/api/erp-accounting/transactions/${purchaseCreate.body.transaction._id}/post`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Post purchase VAT voucher' })
+    expect(purchasePost.status).toBe(200)
+
+    const vatPayableAccount = await ChartOfAccount.findOne({ accountCode: '2190' })
+    const vatReceivableAccount = await ChartOfAccount.findOne({ accountCode: '1190' })
+    expect(vatPayableAccount).toBeTruthy()
+    expect(vatReceivableAccount).toBeTruthy()
+
+    const saleVatLedger = await Ledger.findOne({
+      referenceId: saleCreate.body.transaction._id,
+      referenceType: 'vat_output',
+      isDeleted: { $ne: true },
+    })
+    expect(saleVatLedger).toBeTruthy()
+    expect(Number(saleVatLedger.amount)).toBeCloseTo(50, 2)
+    expect(String(saleVatLedger.debitAccountId)).toBe(String(receivableAccount._id))
+    expect(String(saleVatLedger.creditAccountId)).toBe(String(vatPayableAccount._id))
+
+    const purchaseVatLedger = await Ledger.findOne({
+      referenceId: purchaseCreate.body.transaction._id,
+      referenceType: 'vat_input',
+      isDeleted: { $ne: true },
+    })
+    expect(purchaseVatLedger).toBeTruthy()
+    expect(Number(purchaseVatLedger.amount)).toBeCloseTo(35, 2)
+    expect(String(purchaseVatLedger.debitAccountId)).toBe(String(vatReceivableAccount._id))
+    expect(String(purchaseVatLedger.creditAccountId)).toBe(String(payableAccount._id))
+  })
+
   test('posts exchange gain for receipt and exchange loss for payment when reference rate is lower than settlement rate', async () => {
     const financeUser = await createUser({ name: 'FX Tester' })
     const receivableAccount = await ChartOfAccount.create({

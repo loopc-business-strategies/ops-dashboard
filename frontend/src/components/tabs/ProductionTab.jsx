@@ -1,8 +1,9 @@
 // FILE: src/components/tabs/ProductionTab.jsx
 // Production Control Center — 9 sub-tabs, role-based access
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import erpAPI from '../../api/erp'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -1131,10 +1132,34 @@ function ShiftManagement({ canEdit, showToast }) {
 
 // ── Planning ──────────────────────────────────────
 function Planning({ canEdit, showToast }) {
-  const [orders, setOrders] = useState(DEFAULT_ORDERS)
+  const { token } = useAuth()
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
   const [modal, setModal]   = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ product: '', quantity: '', unit: 'pcs', line: 'L1', startDate: '', dueDate: '', status: 'scheduled', progress: 0 })
+
+  const toRow = wo => ({
+    id:        wo._id,
+    woNumber:  wo.woNumber,
+    product:   wo.product || wo.woNumber || '',
+    quantity:  wo.quantity || 0,
+    unit:      wo.unit || 'pcs',
+    line:      wo.line || '',
+    startDate: wo.startDate ? wo.startDate.slice(0, 10) : '',
+    dueDate:   wo.targetDate ? wo.targetDate.slice(0, 10) : '',
+    status:    wo.status || 'scheduled',
+    progress:  wo.progress || 0,
+  })
+
+  const load = useCallback(async () => {
+    try {
+      const res = await erpAPI.getWorkOrders(token)
+      setOrders((res.workOrders || res.data || []).map(toRow))
+    } catch { /* keep previous */ } finally { setLoading(false) }
+  }, [token])
+
+  useEffect(() => { load() }, [load])
 
   const set = f => e => setForm(p => ({ ...p, [f]: e.target.value }))
 
@@ -1146,29 +1171,47 @@ function Planning({ canEdit, showToast }) {
 
   const openEdit = order => {
     setEditId(order.id)
-    setForm({ ...order })
+    setForm({ product: order.product, quantity: order.quantity, unit: order.unit, line: order.line, startDate: order.startDate, dueDate: order.dueDate, status: order.status, progress: order.progress })
     setModal(true)
   }
 
-  const deleteOrder = order => {
-    if (!window.confirm(`Delete order ${order.id}?`)) return
-    setOrders(p => p.filter(x => x.id !== order.id))
-    showToast('Order Deleted', `${order.id} removed.`)
+  const deleteOrder = async order => {
+    if (!window.confirm(`Delete order ${order.product || order.id}?`)) return
+    try {
+      await erpAPI.deleteWorkOrder(token, order.id)
+      setOrders(p => p.filter(x => x.id !== order.id))
+      showToast('Order Deleted', `Order removed.`)
+    } catch { showToast('Error', 'Failed to delete order.') }
   }
 
-  const handleCreate = e => {
+  const handleCreate = async e => {
     e.preventDefault()
     if (!form.product.trim() || !form.quantity) return
-    if (editId) {
-      setOrders(p => p.map(x => x.id === editId ? { ...x, ...form, quantity: parseInt(form.quantity, 10) || 0, progress: parseInt(form.progress, 10) || 0 } : x))
-      showToast('Production Order Updated', `${editId} updated.`)
-    } else {
-      const id = `PO-2406-${String(orders.length + 1).padStart(2, '0')}`
-      setOrders(p => [...p, { ...form, id, quantity: parseInt(form.quantity, 10), status: 'scheduled', progress: 0 }])
-      showToast('Production Order Created', `${id} scheduled.`)
+    const payload = {
+      woNumber: form.product.replace(/\s+/g, '-').toUpperCase() + '-' + Date.now(),
+      product: form.product.trim(),
+      quantity: parseInt(form.quantity, 10) || 1,
+      unit: form.unit,
+      line: form.line,
+      startDate: form.startDate || null,
+      targetDate: form.dueDate || null,
+      status: form.status,
+      progress: parseInt(form.progress, 10) || 0,
     }
-    setEditId(null)
-    setModal(false)
+    try {
+      if (editId) {
+        const res = await erpAPI.updateWorkOrder(token, editId, { ...payload })
+        const updated = toRow(res.workOrder || res.data || { ...payload, _id: editId })
+        setOrders(p => p.map(x => x.id === editId ? updated : x))
+        showToast('Production Order Updated', `${form.product} updated.`)
+      } else {
+        const res = await erpAPI.createWorkOrder(token, payload)
+        setOrders(p => [...p, toRow(res.workOrder || res.data || { ...payload, _id: Date.now() })])
+        showToast('Production Order Created', `${form.product} scheduled.`)
+      }
+      setEditId(null)
+      setModal(false)
+    } catch (err) { showToast('Error', err?.response?.data?.message || 'Failed to save order.') }
   }
 
   // Forecast banner data
@@ -1192,6 +1235,7 @@ function Planning({ canEdit, showToast }) {
       />
 
       {/* Forecast Banner */}
+        {loading && <p className="text-sm text-gray-500">Loading orders...</p>}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
         <h4 className="text-sm font-semibold text-white mb-4">Weekly Forecast</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -13,12 +13,17 @@ const WorkOrderSchema = new mongoose.Schema(
       type: Number,
       default: 1,
     },
+    product: { type: String, trim: true, default: '' },
+    unit: { type: String, trim: true, default: 'pcs' },
+    line: { type: String, trim: true, default: '' },
+    startDate: { type: Date, default: null },
+    progress: { type: Number, min: 0, max: 100, default: 0 },
     stage: {
       type: String,
       enum: ['casting', 'polishing', 'finishing', 'packaging', 'completed'],
       default: 'casting',
     },
-    assignedTo: String,
+    assignedTo: { type: String, default: '' },
     materialNeeded: [
       {
         itemId: mongoose.Schema.Types.ObjectId,
@@ -29,7 +34,7 @@ const WorkOrderSchema = new mongoose.Schema(
     targetDate: Date,
     status: {
       type: String,
-      enum: ['pending', 'in_progress', 'quality_check', 'completed'],
+      enum: ['pending', 'scheduled', 'in-progress', 'in_progress', 'quality_check', 'completed', 'on_hold', 'cancelled'],
       default: 'pending',
     },
     qcPassed: {

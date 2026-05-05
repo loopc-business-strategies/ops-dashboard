@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
+import departmentStateAPI from '../../api/department-state'
 
 const C = {
   bg: '#f4f7f6',
@@ -173,7 +174,7 @@ function RowActions({ canEdit, onEdit, onDelete, extra }) {
 }
 
 function ComplianceTab() {
-  const { user } = useAuth()
+  const { user, token } = useAuth()
   const perms = usePermissions()
   const { t } = useLanguage()
   const TABS = useMemo(() => getComplianceTabs(t), [t])
@@ -197,6 +198,47 @@ function ComplianceTab() {
   const [dForm, setDForm] = useState({ name: '', category: 'Certificate', owner: '', version: 'v1', expiry: '', status: 'Active' })
   const [uForm, setUForm] = useState({ title: '', source: '', effective: '', impact: 'Medium', actionOwner: '', status: 'Planned' })
   const [gForm, setGForm] = useState({ partner: '', type: '', start: '', end: '', value: '', status: 'Active' })
+  const loadedRef = useRef(false)
+  const persistTimerRef = useRef(null)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!token) return
+    departmentStateAPI.getDepartmentState(token, 'compliance')
+      .then((res) => {
+        if (cancelled) return
+        const state = res?.state
+        if (!state || typeof state !== 'object') return
+        if (Array.isArray(state.eligibility)) setEligibility(state.eligibility)
+        if (Array.isArray(state.approvals)) setApprovals(state.approvals)
+        if (Array.isArray(state.docs)) setDocs(state.docs)
+        if (Array.isArray(state.updates)) setUpdates(state.updates)
+        if (Array.isArray(state.agreements)) setAgreements(state.agreements)
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) loadedRef.current = true
+      })
+    return () => { cancelled = true }
+  }, [token])
+
+  useEffect(() => {
+    if (!token || !loadedRef.current) return
+    if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current)
+    persistTimerRef.current = window.setTimeout(() => {
+      departmentStateAPI.saveDepartmentState(token, 'compliance', {
+        eligibility,
+        approvals,
+        docs,
+        updates,
+        agreements,
+      }).catch(() => {})
+    }, 600)
+
+    return () => {
+      if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current)
+    }
+  }, [token, eligibility, approvals, docs, updates, agreements])
 
   const inGovTeam = user?.department === 'government'
   const canEdit = perms.isSuperAdmin || ((perms.isDepartmentHead || perms.isDepartmentUser) && inGovTeam)

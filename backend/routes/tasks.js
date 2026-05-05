@@ -10,6 +10,7 @@ const Task    = require('../models/Task')
 const Message = require('../models/Message')
 const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams, validateQuery } = require('../middleware/validate')
+const { publishRealtimeEvent } = require('../utils/realtimeBus')
 
 const router = express.Router()
 
@@ -257,6 +258,12 @@ router.post('/', protect, validateBody(createTaskSchema), async (req, res) => {
     const recipients = taskMessageRecipients({ assignedToId: payload.assignedToId, assignedTo: payload.assignedTo, alsoNotifyIds, alsoNotifyNames })
     await createTaskMessage(req.user, task, notifyText || `New task assigned: ${task.title}`, recipients)
 
+    publishRealtimeEvent({
+      type: 'task.created',
+      tenant: req.tenant?.key,
+      data: { id: task._id, title: task.title, status: task.status, assignedTo: task.assignedTo },
+    })
+
     res.status(201).json({ success: true, task })
   } catch (err) {
     console.error('Create task error:', err)
@@ -316,6 +323,12 @@ router.put('/:id', protect, validateParams(taskIdParamSchema), validateBody(upda
       await createTaskMessage(req.user, updatedTask, notifyText || `Task updated: ${updatedTask.title}${parts.length ? ` (${parts.join(', ')})` : ''}`, recipients)
     }
 
+    publishRealtimeEvent({
+      type: 'task.updated',
+      tenant: req.tenant?.key,
+      data: { id: updatedTask._id, title: updatedTask.title, status: updatedTask.status, assignedTo: updatedTask.assignedTo },
+    })
+
     res.json({ success: true, task: updatedTask })
   } catch (err) {
     console.error('Update task error:', err)
@@ -343,6 +356,12 @@ router.post('/:id/comments', protect, validateParams(taskIdParamSchema), validat
     const recipients = taskMessageRecipients({ assignedToId: task.assignedToId, assignedTo: task.assignedTo })
     await createTaskMessage(req.user, task, `${req.user.name} commented on task: ${task.title}`, recipients)
 
+    publishRealtimeEvent({
+      type: 'task.commented',
+      tenant: req.tenant?.key,
+      data: { id: task._id, title: task.title, commentBy: req.user.name },
+    })
+
     res.json({ success: true, task })
   } catch (err) {
     console.error('Task comment error:', err)
@@ -364,6 +383,12 @@ router.delete('/:id', protect, validateParams(taskIdParamSchema), async (req, re
 
     const recipients = taskMessageRecipients({ assignedToId: task.assignedToId, assignedTo: task.assignedTo })
     await createTaskMessage(req.user, task, `Task removed: ${task.title}`, recipients)
+
+    publishRealtimeEvent({
+      type: 'task.deleted',
+      tenant: req.tenant?.key,
+      data: { id: task._id, title: task.title },
+    })
 
     res.json({ success: true, message: 'Task deleted.' })
   } catch (err) {

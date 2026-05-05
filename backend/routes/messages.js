@@ -2,6 +2,7 @@ const express = require('express')
 const { protect } = require('../middleware/auth')
 const Message = require('../models/Message')
 const { Joi, validateBody, validateQuery } = require('../middleware/validate')
+const { publishRealtimeEvent } = require('../utils/realtimeBus')
 
 const router = express.Router()
 
@@ -86,6 +87,18 @@ router.post('/', protect, validateBody(createMessageSchema), async (req, res) =>
       recipientIds: parsedRecipientIds,
       recipientNames: parsedRecipientNames,
       text: String(text).trim(),
+    })
+
+    publishRealtimeEvent({
+      type: 'message.created',
+      tenant: req.tenant?.key,
+      data: {
+        id: message._id,
+        room: message.room,
+        type: message.type,
+        senderName: message.senderName,
+        createdAt: message.createdAt,
+      },
     })
 
     res.status(201).json({ success: true, message })

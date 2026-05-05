@@ -1,10 +1,11 @@
 // FILE: src/components/tabs/FinanceTab.jsx
 // Finance & Accounts — 11 sub-tabs, 8 finance roles, full role-based access
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
+import departmentStateAPI from '../../api/department-state'
 
 // ─── Design tokens ────────────────────────────────────────────
 const C = {
@@ -1401,7 +1402,7 @@ function AuditTrail({ finRole, can, auditLog }) {
 // ═══════════════════════════════════════════════════════════════
 export default function FinanceTab() {
   const { isSuperAdmin, isManagement, isDepartmentHead, isDepartmentUser, isExternal } = usePermissions()
-  const { user } = useAuth()
+  const { user, token } = useAuth()
   const { t } = useLanguage()
   const TABS = useMemo(() => getFinanceTabs(t), [t])
 
@@ -1439,6 +1440,57 @@ export default function FinanceTab() {
   const [toast,        setToast]        = useState(null)
   const [modal,        setModal]        = useState(null)   // 'invoice'|'expense'|'payroll'|'budget'|null
   const [notifOpen,    setNotifOpen]    = useState(false)
+  const loadedRef = useRef(false)
+  const persistTimerRef = useRef(null)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!token) return
+
+    departmentStateAPI.getDepartmentState(token, 'finance')
+      .then((res) => {
+        if (cancelled) return
+        const state = res?.state
+        if (!state || typeof state !== 'object') return
+        if (Array.isArray(state.invoices)) setInvoices(state.invoices)
+        if (Array.isArray(state.expenses)) setExpenses(state.expenses)
+        if (Array.isArray(state.payroll)) setPayroll(state.payroll)
+        if (Array.isArray(state.budgets)) setBudgets(state.budgets)
+        if (Array.isArray(state.taxes)) setTaxes(state.taxes)
+        if (Array.isArray(state.receivables)) setReceivables(state.receivables)
+        if (Array.isArray(state.payables)) setPayables(state.payables)
+        if (Array.isArray(state.auditLog)) setAuditLog(state.auditLog)
+        if (Array.isArray(state.notifications)) setNotifications(state.notifications)
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) loadedRef.current = true
+      })
+
+    return () => { cancelled = true }
+  }, [token])
+
+  useEffect(() => {
+    if (!token || !loadedRef.current) return
+    if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current)
+    persistTimerRef.current = window.setTimeout(() => {
+      departmentStateAPI.saveDepartmentState(token, 'finance', {
+        invoices,
+        expenses,
+        payroll,
+        budgets,
+        taxes,
+        receivables,
+        payables,
+        auditLog,
+        notifications,
+      }).catch(() => {})
+    }, 600)
+
+    return () => {
+      if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current)
+    }
+  }, [token, invoices, expenses, payroll, budgets, taxes, receivables, payables, auditLog, notifications])
 
   function showToast(title, msg) {
     setToast({ title, msg })

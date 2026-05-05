@@ -5,6 +5,10 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
+import messagesAPI from '../../api/messages'
+
+const API_ORIGIN = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || '') : ''
+const REALTIME_URL = `${API_ORIGIN}/api/realtime/events`
 
 // ─────────────────────────────────────────────────────────
 // DESIGN TOKENS (matching prototype exactly)
@@ -185,7 +189,7 @@ function IBtn({ onClick, title, children, style = {} }) {
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────
 function ChatTab({ onUnreadChange, onBack }) {
-  const { user }  = useAuth()
+  const { user, token }  = useAuth()
   const perms     = usePermissions()
   const { t } = useLanguage()
 
@@ -202,6 +206,7 @@ function ChatTab({ onUnreadChange, onBack }) {
   const messagesEndRef   = useRef(null)
   const inputRef         = useRef(null)
   const activeChatIdRef  = useRef(activeChatId)
+  const latestSeenRef    = useRef('')
   useEffect(() => { activeChatIdRef.current = activeChatId }, [activeChatId])
 
   // unread badge for sidebar
@@ -212,6 +217,65 @@ function ChatTab({ onUnreadChange, onBack }) {
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior:'smooth' }) }, [activeChatId, chats])
   useEffect(() => { if (activeChatId) setTimeout(() => inputRef.current?.focus(), 60) }, [activeChatId])
+
+  const senderToSeedId = (senderName = '') => {
+    const byName = SEED_USERS.find(u => u.name.toLowerCase() === String(senderName).toLowerCase())
+    if (byName) return byName.id
+    if ((user?.name || '').toLowerCase() === String(senderName).toLowerCase()) return myId
+    return 'sa'
+  }
+
+  async function loadLatestFromApi(showIncomingToast = false) {
+    if (!token) return
+    try {
+      const data = await messagesAPI.getLatestMessages(token, 'all', 40)
+      const rows = (data.messages || [])
+        .slice()
+        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+        .map(m => ({
+          id: m._id,
+          from: senderToSeedId(m.senderName),
+          text: m.text,
+          time: m.createdAt,
+          file: null,
+        }))
+
+      if (!rows.length) return
+
+      const latestId = rows[rows.length - 1].id
+      const hasNew = latestSeenRef.current && latestSeenRef.current !== latestId
+      latestSeenRef.current = latestId
+
+      setChats(prev => prev.map(c => c.id === 'g1' ? { ...c, messages: rows } : c))
+
+      if (showIncomingToast && hasNew) {
+        const m = rows[rows.length - 1]
+        const sender = getUser(m.from)
+        showToast(`New message from ${sender?.name || 'Team'}`, m.text || 'New message', sender?.color || C.accent)
+      }
+    } catch {
+      // Keep local fallback if API is unavailable.
+    }
+  }
+
+  useEffect(() => {
+    if (!token) return
+    loadLatestFromApi(false)
+
+    const source = new EventSource(REALTIME_URL, { withCredentials: true })
+    const onMessageCreated = () => { loadLatestFromApi(true) }
+
+    source.addEventListener('message.created', onMessageCreated)
+
+    const fallbackId = window.setInterval(() => { loadLatestFromApi(false) }, 60000)
+
+    return () => {
+      source.removeEventListener('message.created', onMessageCreated)
+      source.close()
+      window.clearInterval(fallbackId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token])
 
   // Map real role → seed user
   const myId = (() => {
@@ -248,6 +312,14 @@ function ChatTab({ onUnreadChange, onBack }) {
     const newMsg = { id:`m${Date.now()}`, from:myId, text, time:new Date().toISOString(), file:null }
     setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages:[...c.messages, newMsg] } : c))
     setMsgText('')
+    const currentChat = chats.find(c => c.id === chatId)
+    messagesAPI.createMessage(token, {
+      type: currentChat?.type === 'direct' ? 'dm' : 'group',
+      room: currentChat?.name || 'All Departments',
+      text,
+      department: user?.department || '',
+      recipientNames: currentChat?.type === 'direct' ? [currentChat?.name].filter(Boolean) : [],
+    }).catch(() => {})
     const chat = chats.find(c => c.id === chatId)
     if (chat?.type !== 'direct') return
     const otherId = chat.otherId

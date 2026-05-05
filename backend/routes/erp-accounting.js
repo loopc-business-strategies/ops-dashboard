@@ -743,6 +743,154 @@ const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
   }
 }
 
+const resolveVoucherLineVatAmount = (line = {}) => {
+  const vatAmountLC = Number(line.vatAmountLC || 0)
+  if (Number.isFinite(vatAmountLC) && vatAmountLC > 0) return vatAmountLC
+
+  const vatAmountFC = Number(line.vatAmountFC || 0)
+  const currRate = Number(line.currRate || 0)
+  if (Number.isFinite(vatAmountFC) && vatAmountFC > 0 && Number.isFinite(currRate) && currRate > 0) {
+    return vatAmountFC * currRate
+  }
+
+  const amountWithVAT = Number(line.amountWithVAT || 0)
+  const totalAmount = Number(line.totalAmount || line.amountLC || 0)
+  if (Number.isFinite(amountWithVAT) && Number.isFinite(totalAmount) && amountWithVAT > totalAmount) {
+    return amountWithVAT - totalAmount
+  }
+
+  return 0
+}
+
+const resolveVoucherVatAmount = (tx) => {
+  const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+  if (!lines.length) return 0
+
+  const total = lines.reduce((sum, line) => sum + resolveVoucherLineVatAmount(line), 0)
+  return toMoney(total)
+}
+
+const resolveVatPostingAccounts = async ({ user, tx, resolvedAccounts }) => {
+  const transactionType = String(tx?.type || '').toLowerCase()
+
+  if (transactionType === 'sale') {
+    const mapping = await AccountMapping.findOne({ mappingType: 'vat_output', isActive: true })
+      .select('debitAccountId creditAccountId')
+      .lean()
+
+    let debitAccountId = resolvedAccounts?.debitAccountId || null
+    let creditAccountId = mapping?.creditAccountId || null
+
+    if (mapping?.debitAccountId) debitAccountId = mapping.debitAccountId
+    if (!debitAccountId) {
+      const receivable = await ensureAccountByCode({
+        user,
+        code: '1100',
+        name: 'Accounts Receivable',
+        accountType: 'Asset',
+        currency: tx.currency || BASE_CURRENCY_CODE,
+      })
+      debitAccountId = receivable._id
+    }
+    if (!creditAccountId) {
+      const vatPayable = await ensureAccountByCode({
+        user,
+        code: '2190',
+        name: 'VAT Payable',
+        accountType: 'Liability',
+        currency: tx.currency || BASE_CURRENCY_CODE,
+      })
+      creditAccountId = vatPayable._id
+    }
+
+    return {
+      referenceType: 'vat_output',
+      debitAccountId,
+      creditAccountId,
+    }
+  }
+
+  if (transactionType === 'purchase') {
+    const mapping = await AccountMapping.findOne({ mappingType: 'vat_input', isActive: true })
+      .select('debitAccountId creditAccountId')
+      .lean()
+
+    let debitAccountId = mapping?.debitAccountId || null
+    let creditAccountId = resolvedAccounts?.creditAccountId || null
+
+    if (mapping?.creditAccountId) creditAccountId = mapping.creditAccountId
+    if (!debitAccountId) {
+      const vatReceivable = await ensureAccountByCode({
+        user,
+        code: '1190',
+        name: 'VAT Receivable',
+        accountType: 'Asset',
+        currency: tx.currency || BASE_CURRENCY_CODE,
+      })
+      debitAccountId = vatReceivable._id
+    }
+    if (!creditAccountId) {
+      const payable = await ensureAccountByCode({
+        user,
+        code: '2000',
+        name: 'Accounts Payable',
+        accountType: 'Liability',
+        currency: tx.currency || BASE_CURRENCY_CODE,
+      })
+      creditAccountId = payable._id
+    }
+
+    return {
+      referenceType: 'vat_input',
+      debitAccountId,
+      creditAccountId,
+    }
+  }
+
+  return null
+}
+
+const applyVoucherVatImpact = async ({ user, tx, resolvedAccounts }) => {
+  const transactionType = String(tx?.type || '').toLowerCase()
+  if (!['sale', 'purchase'].includes(transactionType)) return null
+
+  await Ledger.updateMany(
+    {
+      referenceType: { $in: ['vat_output', 'vat_input'] },
+      referenceId: tx._id,
+      isDeleted: { $ne: true },
+    },
+    { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
+  )
+
+  const vatAmount = resolveVoucherVatAmount(tx)
+  if (!Number.isFinite(vatAmount) || vatAmount <= 0) return null
+
+  const posting = await resolveVatPostingAccounts({ user, tx, resolvedAccounts })
+  if (!posting?.debitAccountId || !posting?.creditAccountId) {
+    throw new Error('Unable to resolve VAT posting accounts')
+  }
+  if (String(posting.debitAccountId) === String(posting.creditAccountId)) {
+    throw new Error('VAT posting debit and credit accounts cannot be identical')
+  }
+
+  return Ledger.create({
+    date: tx.voucherMeta?.valueDate || tx.date || new Date(),
+    debitAccountId: posting.debitAccountId,
+    creditAccountId: posting.creditAccountId,
+    amount: vatAmount,
+    description: `Auto VAT ${transactionType === 'sale' ? 'output' : 'input'} for transaction ${tx._id}`,
+    referenceType: posting.referenceType,
+    referenceId: tx._id,
+    createdBy: user._id,
+    updatedBy: user._id,
+    department: user.department || tx.department || '',
+    currency: tx.currency || BASE_CURRENCY_CODE,
+    exchangeRate: Number(tx.exchangeRate || 1),
+    notes: 'Auto VAT split from voucher line amounts.',
+  })
+}
+
 const normalizeTransactionNote = (value) => String(value || '').trim()
 
 const appendTransactionComment = (transaction, user, message, kind = 'comment') => {
@@ -1084,6 +1232,8 @@ const applyTransactionWorkflowAction = async (tx, user, action, options = {}) =>
     )
 
     tx.journalEntryId = ledgerEntry._id
+
+    await applyVoucherVatImpact({ user, tx, resolvedAccounts: resolved })
 
     // Apply inventory impact: UNFIXED posts stock only, FIXED skips stock
     await applyVoucherInventoryImpact({ user, tx, preparedImpact: preparedVoucherImpact })
@@ -1686,19 +1836,15 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
       const diff = toMoney(amountInBase - expectedBaseAmount)
 
       if (Math.abs(diff) >= 0.01) {
-        const { gain, loss } = await ensureExchangeDifferenceAccounts(user)
-        const bank = await ensureCashBankAccount(user, base?.code || 'USD')
-
         // receipt: better rate => gain, worse => loss
         // payment: better rate => gain, worse => loss, but diff direction is inverted
         const isGain = type === 'payment' ? diff < 0 : diff > 0
-        const debitAccountId = isGain ? bank._id : loss._id
-        const creditAccountId = isGain ? gain._id : bank._id
+        const accounts = await resolveExchangeAdjustmentAccounts({ user, isGain })
 
         await Ledger.create({
           date: transaction.date || new Date(),
-          debitAccountId,
-          creditAccountId,
+          debitAccountId: accounts.debitAccountId,
+          creditAccountId: accounts.creditAccountId,
           amount: toMoney(Math.abs(diff)),
           description: `Exchange ${isGain ? 'gain' : 'loss'} adjustment for transaction ${transaction._id}`,
           referenceType: 'journal',
@@ -1714,6 +1860,27 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
   }
 
   return entry
+}
+
+const resolveExchangeAdjustmentAccounts = async ({ user, isGain }) => {
+  const mappingType = isGain ? 'exchange_gain' : 'exchange_loss'
+  const mapping = await AccountMapping.findOne({ mappingType, isActive: true })
+    .select('debitAccountId creditAccountId')
+    .lean()
+
+  if (mapping?.debitAccountId && mapping?.creditAccountId) {
+    return {
+      debitAccountId: mapping.debitAccountId,
+      creditAccountId: mapping.creditAccountId,
+    }
+  }
+
+  const { gain, loss } = await ensureExchangeDifferenceAccounts(user)
+  const bank = await ensureCashBankAccount(user, BASE_CURRENCY_CODE, 'bank')
+
+  return isGain
+    ? { debitAccountId: bank._id, creditAccountId: gain._id }
+    : { debitAccountId: loss._id, creditAccountId: bank._id }
 }
 
 const getOutstandingForAccount = async (accountId) => {

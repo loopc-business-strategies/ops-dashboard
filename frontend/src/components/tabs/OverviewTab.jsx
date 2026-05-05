@@ -8,6 +8,9 @@ import hrAPI from '../../api/hr'
 import attendanceAPI from '../../api/attendance'
 import messagesAPI from '../../api/messages'
 
+const API_ORIGIN = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || '') : ''
+const REALTIME_URL = `${API_ORIGIN}/api/realtime/events`
+
 const overviewConfig = {
   super_admin: 'executive_dashboard',
   management: 'executive_readonly',
@@ -403,6 +406,15 @@ function OverviewTab({ onNavigate }) {
   }, [token])
 
   useEffect(() => {
+    if (!token) return
+    const id = window.setInterval(() => {
+      loadTasks()
+    }, 120000)
+    return () => window.clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token])
+
+  useEffect(() => {
     loadAssigneesAndEmployees()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, tasks.length])
@@ -451,8 +463,32 @@ function OverviewTab({ onNavigate }) {
     loadAttendanceAndMessages()
     const id = window.setInterval(() => {
       loadAttendanceAndMessages()
-    }, 20000)
+    }, 120000)
     return () => window.clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token])
+
+  useEffect(() => {
+    if (!token) return
+
+    const source = new EventSource(REALTIME_URL, { withCredentials: true })
+    const onTaskEvent = () => { loadTasks() }
+    const onMessageEvent = () => { loadAttendanceAndMessages() }
+
+    source.addEventListener('task.created', onTaskEvent)
+    source.addEventListener('task.updated', onTaskEvent)
+    source.addEventListener('task.deleted', onTaskEvent)
+    source.addEventListener('task.commented', onTaskEvent)
+    source.addEventListener('message.created', onMessageEvent)
+
+    return () => {
+      source.removeEventListener('task.created', onTaskEvent)
+      source.removeEventListener('task.updated', onTaskEvent)
+      source.removeEventListener('task.deleted', onTaskEvent)
+      source.removeEventListener('task.commented', onTaskEvent)
+      source.removeEventListener('message.created', onMessageEvent)
+      source.close()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
