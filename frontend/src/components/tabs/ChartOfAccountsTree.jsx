@@ -164,23 +164,41 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     return accounts.filter((item) => item.accountType === form.accountType)
   }, [accounts, form.accountType])
 
+  const loadAllAccounts = useCallback(async () => {
+    const pageSize = 200
+    let page = 1
+    let total = 0
+    let collected = []
+
+    do {
+      const chunk = await erpAccountingAPI.getAccounts(token, { page, limit: pageSize })
+      const rows = Array.isArray(chunk?.accounts) ? chunk.accounts : []
+      total = Number(chunk?.total || rows.length)
+      collected = collected.concat(rows)
+      page += 1
+      if (rows.length === 0) break
+    } while (collected.length < total)
+
+    return collected
+  }, [token])
+
   // ── data loading ─────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
       const [accountsData, currenciesData] = await Promise.all([
-        erpAccountingAPI.getAccounts(token),
+        loadAllAccounts(),
         erpAccountingAPI.getCurrencies(token).catch(() => []),
       ])
-      setAccounts(accountsData.accounts || [])
+      setAccounts(Array.isArray(accountsData) ? accountsData : [])
       setCurrencies(currenciesData?.currencies || (Array.isArray(currenciesData) ? currenciesData : []))
     } catch (e) {
       setError(e?.response?.data?.message || t('failedToLoadAccounts'))
     } finally {
       setLoading(false)
     }
-  }, [token, t])
+  }, [loadAllAccounts, token, t])
 
   useEffect(() => { load() }, [load])
 
