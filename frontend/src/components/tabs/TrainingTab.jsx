@@ -1,11 +1,11 @@
 // FILE: src/components/tabs/TrainingTab.jsx
 // Training & Development — 11 sub-tabs, role-based access, full feature set
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
-import departmentStateAPI from '../../api/department-state'
+import trainingAPI from '../../api/training'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -346,7 +346,7 @@ function TabKPI({ batches, certs, sessions }) {
 }
 
 // ─── TAB: Calendar ──────────────────────────────────────────────────────────────
-function TabCalendar({ sessions, setSessions, canEdit, isTrainee, showToast, onShowSession, setModal }) {
+function TabCalendar({ sessions, setSessions, canEdit, isTrainee, showToast, onShowSession, setModal, deleteSession }) {
   const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
   const myBatch = 'Batch A'
 
@@ -406,7 +406,7 @@ function TabCalendar({ sessions, setSessions, canEdit, isTrainee, showToast, onS
                     <td style={TD}><Badge s={s.st} /></td>
                     <td style={TD}>
                       <button onClick={() => setModal({ type:'session', data:s })} style={{ ...B.sec, ...B.sm, marginRight:6 }}>Edit</button>
-                      <button onClick={() => { if (window.confirm('Delete this session?')) { setSessions(p => p.filter(x => x.id !== s.id)); showToast('Deleted', 'Session removed') } }} style={{ background:'none', border:'none', color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Del</button>
+                      <button onClick={() => { if (window.confirm('Delete this session?')) { deleteSession(s.id); showToast('Deleted', 'Session removed') } }} style={{ background:'none', border:'none', color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Del</button>
                     </td>
                   </tr>
                 ))}
@@ -420,7 +420,7 @@ function TabCalendar({ sessions, setSessions, canEdit, isTrainee, showToast, onS
 }
 
 // ─── TAB: Batches ───────────────────────────────────────────────────────────────
-function TabBatches({ batches, setBatches, canEdit, isTrainee, showToast, setModal }) {
+function TabBatches({ batches, setBatches, canEdit, isTrainee, showToast, setModal, deleteBatch }) {
   const showData = isTrainee ? batches.filter(b => b.name.includes('Batch A')) : batches
 
   return (
@@ -454,7 +454,7 @@ function TabBatches({ batches, setBatches, canEdit, isTrainee, showToast, setMod
                 <div style={{ marginTop:10, display:'flex', gap:6 }}>
                   <button onClick={e => { e.stopPropagation(); setModal({ type:'batch', data:b }) }} style={{ ...B.sec, ...B.sm }}>Edit</button>
                   <button onClick={e => { e.stopPropagation(); showToast('Trainees', `View all ${b.trainees} trainees in ${b.name}`) }} style={{ ...B.ghost, ...B.sm }}>View Trainees</button>
-                  <button onClick={e => { e.stopPropagation(); if (window.confirm('Delete this batch?')) { setBatches(p => p.filter(x => x.id !== b.id)); showToast('Deleted', 'Batch removed') } }} style={{ background:'none', border:'none', color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Del</button>
+                  <button onClick={e => { e.stopPropagation(); if (window.confirm('Delete this batch?')) { deleteBatch(b.id); showToast('Deleted', 'Batch removed') } }} style={{ background:'none', border:'none', color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Del</button>
                 </div>
               )}
             </div>
@@ -544,7 +544,7 @@ function TabAttendance({ attendance, trainees, canEdit, isTrainee, showToast, on
 }
 
 // ─── TAB: Resources ─────────────────────────────────────────────────────────────
-function TabResources({ resources, setResources, canEdit, isTrainee, showToast, setModal }) {
+function TabResources({ resources, setResources, canEdit, isTrainee, showToast, setModal, deleteResource }) {
   const showData = isTrainee ? resources.filter(r => r.prog === 'Gold Safety Essentials') : resources
 
   return (
@@ -583,7 +583,7 @@ function TabResources({ resources, setResources, canEdit, isTrainee, showToast, 
                     <td style={TD}>
                       <button onClick={() => showToast('Download', `${r.name} downloaded`)} style={{ ...B.sec, ...B.sm }}>⬇ Download</button>
                       {canEdit && <button onClick={() => setModal({ type:'resource', data:r })} style={{ ...B.ghost, ...B.sm, marginLeft:6 }}>Edit</button>}
-                      {canEdit && <button onClick={() => { setResources(p => p.filter(x => x.id !== r.id)); showToast('Deleted', 'File removed') }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit', marginLeft:8 }}>Del</button>}
+                      {canEdit && <button onClick={() => { deleteResource(r.id); showToast('Deleted', 'File removed') }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit', marginLeft:8 }}>Del</button>}
                     </td>
                   </tr>
                 )
@@ -597,7 +597,7 @@ function TabResources({ resources, setResources, canEdit, isTrainee, showToast, 
 }
 
 // ─── TAB: Assessments ───────────────────────────────────────────────────────────
-function TabAssessments({ assessments, setAssessments, canEdit, isTrainee, showToast, onOpenAdd, onShowProfile, setModal }) {
+function TabAssessments({ assessments, setAssessments, canEdit, isTrainee, showToast, onOpenAdd, onShowProfile, setModal, deleteAssessment }) {
   const myData = isTrainee ? assessments.filter(a => a.trainee === 'Ahmad Yusuf') : assessments
   const pass = assessments.filter(a => a.pass).length
   const passRate = pct(pass, assessments.length)
@@ -643,7 +643,7 @@ function TabAssessments({ assessments, setAssessments, canEdit, isTrainee, showT
                   <td style={{ ...TD, color: a.attempt > 1 ? C.yellow : C.t3 }}>#{a.attempt}{a.attempt > 1 ? ' (Retest)' : ''}</td>
                   {!isTrainee && canEdit && <td style={TD}>
                     <button onClick={() => setModal({ type:'assess', data:a })} style={{ ...B.sec, ...B.sm, marginRight:6 }}>Edit</button>
-                    <button onClick={() => { if (window.confirm('Delete this result?')) { setAssessments(p => p.filter((x, idx) => idx !== i)); showToast('Deleted', 'Assessment removed') } }} style={{ background:'none', border:'none', color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Del</button>
+                    <button onClick={() => { if (window.confirm('Delete this result?')) { deleteAssessment(a.id); showToast('Deleted', 'Assessment removed') } }} style={{ background:'none', border:'none', color:C.red, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Del</button>
                   </td>}
                 </tr>
               ))}
@@ -656,7 +656,7 @@ function TabAssessments({ assessments, setAssessments, canEdit, isTrainee, showT
 }
 
 // ─── TAB: Certifications ────────────────────────────────────────────────────────
-function TabCerts({ certs, setCerts, canEdit, canApprove, isTrainee, showToast, onShowProfile, setModal }) {
+function TabCerts({ certs, setCerts, canEdit, canApprove, isTrainee, showToast, onShowProfile, setModal, deleteCert, approveCert }) {
   const myData = isTrainee ? certs.filter(c => c.trainee === 'Ahmad Yusuf') : certs
 
   return (
@@ -690,11 +690,11 @@ function TabCerts({ certs, setCerts, canEdit, canApprove, isTrainee, showToast, 
                     <td style={TD}>
                       {c.doc !== '—' && <button onClick={() => showToast('Download', `${c.cert} certificate downloaded`)} style={{ background:'none', border:'none', cursor:'pointer', color:C.pur, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>⬇ Download</button>}
                       {canApprove && c.st === 'Pending' && <button onClick={() => {
-                        setCerts(p => p.map(x => x.trainee === c.trainee && x.st === 'Pending' ? {...x, st:'Issued', issued:'Apr 13, 2026', expiry:'Apr 13, 2028'} : x))
+                        approveCert(c.trainee)
                         showToast('Certificate Approved', `${c.trainee} certificate issued`)
                       }} style={{ background:'none', border:'none', cursor:'pointer', color:C.green, fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Approve</button>}
                       {canEdit && <button onClick={() => setModal({ type:'cert', data:c })} style={{ ...B.ghost, ...B.sm, marginRight:6 }}>Edit</button>}
-                      {canEdit && <button onClick={() => { if (window.confirm('Delete this certificate row?')) { setCerts(p => p.filter((x, idx) => idx !== i)); showToast('Deleted', 'Certificate record removed') } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>}
+                      {canEdit && <button onClick={() => { if (window.confirm('Delete this certificate row?')) { deleteCert(c.id); showToast('Deleted', 'Certificate record removed') } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>}
                     </td>
                   </tr>
                 )
@@ -851,7 +851,7 @@ function TabAnalytics({ batches, canEdit, isAdmin, isHead, isMgmt }) {
 }
 
 // ─── TAB: Trainees ──────────────────────────────────────────────────────────────
-function TabTrainees({ trainees, setTrainees, canEdit, isTrainee, showToast, onShowProfile, setModal }) {
+function TabTrainees({ trainees, setTrainees, canEdit, isTrainee, showToast, onShowProfile, setModal, deleteTrainee }) {
   const showData = isTrainee ? trainees.filter(t => t.name === 'Ahmad Yusuf') : trainees
 
   return (
@@ -891,7 +891,7 @@ function TabTrainees({ trainees, setTrainees, canEdit, isTrainee, showToast, onS
                   <td style={TD}><button onClick={() => onShowProfile(t.name)} style={{ ...B.sec, ...B.sm }}>View Profile</button></td>
                   {canEdit && !isTrainee && <td style={TD}>
                     <button onClick={() => setModal({ type:'trainee', data:t })} style={{ ...B.sec, ...B.sm, marginRight:6 }}>Edit</button>
-                    <button onClick={() => { if (window.confirm(`Delete ${t.name}?`)) { setTrainees(p => p.filter(x => x.name !== t.name)); showToast('Deleted', 'Trainee removed') } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
+                    <button onClick={() => { if (window.confirm(`Delete ${t.name}?`)) { deleteTrainee(t.id); showToast('Deleted', 'Trainee removed') } }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
                   </td>}
                 </tr>
               ))}
@@ -1320,55 +1320,32 @@ export default function TrainingTab() {
   const [profName,  setProfName]  = useState(null)
   const [notifOpen, setNotifOpen] = useState(false)
   const [toast,     setToast]     = useState(null)
-  const loadedRef = useRef(false)
-  const persistTimerRef = useRef(null)
-
   useEffect(() => {
-    let cancelled = false
     if (!token) return
-    departmentStateAPI.getDepartmentState(token, 'training')
-      .then((res) => {
-        if (cancelled) return
-        const state = res?.state
-        if (!state || typeof state !== 'object') return
-        if (Array.isArray(state.sessions)) setSessions(state.sessions)
-        if (Array.isArray(state.batches)) setBatches(state.batches)
-        if (Array.isArray(state.attendance)) setAttendance(state.attendance)
-        if (Array.isArray(state.resources)) setResources(state.resources)
-        if (Array.isArray(state.assessments)) setAssessments(state.assessments)
-        if (Array.isArray(state.certs)) setCerts(state.certs)
-        if (Array.isArray(state.feedback)) setFeedback(state.feedback)
-        if (Array.isArray(state.trainees)) setTrainees(state.trainees)
-        if (Array.isArray(state.notifs)) setNotifs(state.notifs)
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) loadedRef.current = true
-      })
+    let cancelled = false
+    const norm = rows => rows.map(r => ({ ...r, id: r._id?.toString() || r.id }))
+    Promise.all([
+      trainingAPI.sessions.list(),
+      trainingAPI.batches.list(),
+      trainingAPI.attendance.list(),
+      trainingAPI.resources.list(),
+      trainingAPI.assessments.list(),
+      trainingAPI.certs.list(),
+      trainingAPI.feedback.list(),
+      trainingAPI.trainees.list(),
+    ]).then(([s, b, a, res, ass, c, fb, tr]) => {
+      if (cancelled) return
+      if (s.length)   setSessions(norm(s))
+      if (b.length)   setBatches(norm(b))
+      if (a.length)   setAttendance(norm(a))
+      if (res.length) setResources(norm(res))
+      if (ass.length) setAssessments(norm(ass))
+      if (c.length)   setCerts(norm(c))
+      if (fb.length)  setFeedback(norm(fb))
+      if (tr.length)  setTrainees(norm(tr))
+    }).catch(() => {})
     return () => { cancelled = true }
   }, [token])
-
-  useEffect(() => {
-    if (!token || !loadedRef.current) return
-    if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current)
-    persistTimerRef.current = window.setTimeout(() => {
-      departmentStateAPI.saveDepartmentState(token, 'training', {
-        sessions,
-        batches,
-        attendance,
-        resources,
-        assessments,
-        certs,
-        feedback,
-        trainees,
-        notifs,
-      }).catch(() => {})
-    }, 600)
-
-    return () => {
-      if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current)
-    }
-  }, [token, sessions, batches, attendance, resources, assessments, certs, feedback, trainees, notifs])
 
   function closeModal() { setModal({ type:null, data:null }) }
 
@@ -1380,7 +1357,6 @@ export default function TrainingTab() {
 
   function saveSession(f) {
     const payload = {
-      id: f.id || Date.now(),
       title: f.title.trim(),
       prog: f.prog,
       date: f.date || 'Apr 30',
@@ -1391,13 +1367,20 @@ export default function TrainingTab() {
       venue: f.venue,
       st: f.st,
     }
-    setSessions(p => f.id ? p.map(x => x.id === f.id ? payload : x) : [...p, payload])
+    if (f.id) {
+      trainingAPI.sessions.update(f.id, payload).then(doc => {
+        setSessions(p => p.map(x => x.id === f.id ? { ...doc, id: doc._id?.toString() || f.id } : x))
+      }).catch(() => setSessions(p => p.map(x => x.id === f.id ? { ...x, ...payload } : x)))
+    } else {
+      trainingAPI.sessions.create(payload).then(doc => {
+        setSessions(p => [...p, { ...doc, id: doc._id?.toString() || Date.now() }])
+      }).catch(() => setSessions(p => [...p, { ...payload, id: Date.now() }]))
+    }
     closeModal()
     showToast(f.id ? 'Session Updated' : 'Session Added', payload.title)
   }
   function saveBatch(f) {
     const payload = {
-      id: f.id || Date.now(),
       name: f.name.trim(),
       prog: f.prog,
       start: f.start || 'TBD',
@@ -1407,13 +1390,20 @@ export default function TrainingTab() {
       st: f.st,
       completion: Number(f.completion) || 0,
     }
-    setBatches(p => f.id ? p.map(x => x.id === f.id ? payload : x) : [...p, payload])
+    if (f.id) {
+      trainingAPI.batches.update(f.id, payload).then(doc => {
+        setBatches(p => p.map(x => x.id === f.id ? { ...doc, id: doc._id?.toString() || f.id } : x))
+      }).catch(() => setBatches(p => p.map(x => x.id === f.id ? { ...x, ...payload } : x)))
+    } else {
+      trainingAPI.batches.create(payload).then(doc => {
+        setBatches(p => [...p, { ...doc, id: doc._id?.toString() || Date.now() }])
+      }).catch(() => setBatches(p => [...p, { ...payload, id: Date.now() }]))
+    }
     closeModal()
     showToast(f.id ? 'Batch Updated' : 'Batch Created', payload.name)
   }
   function saveResource(f) {
     const payload = {
-      id: f.id || Date.now(),
       name: f.name.trim(),
       prog: f.prog,
       type: f.type,
@@ -1421,7 +1411,15 @@ export default function TrainingTab() {
       date: f.date || 'Today',
       views: Number(f.views) || 0,
     }
-    setResources(p => f.id ? p.map(x => x.id === f.id ? payload : x) : [...p, payload])
+    if (f.id) {
+      trainingAPI.resources.update(f.id, payload).then(doc => {
+        setResources(p => p.map(x => x.id === f.id ? { ...doc, id: doc._id?.toString() || f.id } : x))
+      }).catch(() => setResources(p => p.map(x => x.id === f.id ? { ...x, ...payload } : x)))
+    } else {
+      trainingAPI.resources.create(payload).then(doc => {
+        setResources(p => [...p, { ...doc, id: doc._id?.toString() || Date.now() }])
+      }).catch(() => setResources(p => [...p, { ...payload, id: Date.now() }]))
+    }
     closeModal()
     showToast(f.id ? 'Resource Updated' : 'Resource Added', payload.name)
   }
@@ -1429,7 +1427,6 @@ export default function TrainingTab() {
     const score = parseInt(f.score) || 0
     const pass  = score >= 75
     const payload = {
-      id: f.id || Date.now(),
       trainee: f.trainee,
       prog: f.prog,
       score,
@@ -1437,13 +1434,20 @@ export default function TrainingTab() {
       date: f.date || 'Apr 13, 2026',
       attempt: parseInt(f.attempt, 10) || 1,
     }
-    setAssessments(p => f.id ? p.map(x => x.id === f.id ? payload : x) : [...p, payload])
+    if (f.id) {
+      trainingAPI.assessments.update(f.id, payload).then(doc => {
+        setAssessments(p => p.map(x => x.id === f.id ? { ...doc, id: doc._id?.toString() || f.id } : x))
+      }).catch(() => setAssessments(p => p.map(x => x.id === f.id ? { ...x, ...payload } : x)))
+    } else {
+      trainingAPI.assessments.create(payload).then(doc => {
+        setAssessments(p => [...p, { ...doc, id: doc._id?.toString() || Date.now() }])
+      }).catch(() => setAssessments(p => [...p, { ...payload, id: Date.now() }]))
+    }
     closeModal()
     showToast('Assessment Saved', `Score: ${score}% — ${pass ? 'PASS' : 'FAIL'}`)
   }
   function saveCert(f) {
     const payload = {
-      id: f.id || Date.now(),
       trainee: f.trainee,
       cert: f.cert,
       issued: f.issued || '—',
@@ -1451,13 +1455,20 @@ export default function TrainingTab() {
       st: f.st,
       doc: f.doc || '—',
     }
-    setCerts(p => f.id ? p.map(x => (x.id || `${x.trainee}-${x.cert}`) === (f.id || `${f.trainee}-${f.cert}`) ? payload : x) : [...p, payload])
+    if (f.id) {
+      trainingAPI.certs.update(f.id, payload).then(doc => {
+        setCerts(p => p.map(x => x.id === f.id ? { ...doc, id: doc._id?.toString() || f.id } : x))
+      }).catch(() => setCerts(p => p.map(x => x.id === f.id ? { ...x, ...payload } : x)))
+    } else {
+      trainingAPI.certs.create(payload).then(doc => {
+        setCerts(p => [...p, { ...doc, id: doc._id?.toString() || Date.now() }])
+      }).catch(() => setCerts(p => [...p, { ...payload, id: Date.now() }]))
+    }
     closeModal()
     showToast(f.id ? 'Certificate Updated' : 'Certificate Added', payload.cert)
   }
   function saveTrainee(f) {
     const payload = {
-      id: f.id || Date.now(),
       name: f.name,
       dept: f.dept,
       role: f.role,
@@ -1466,18 +1477,42 @@ export default function TrainingTab() {
       att: Number(f.att) || 0,
       certs: Number(f.certs) || 0,
     }
-    setTrainees(p => f.id ? p.map(x => x.id === f.id || x.name === f.name ? payload : x) : [...p, payload])
+    if (f.id) {
+      trainingAPI.trainees.update(f.id, payload).then(doc => {
+        setTrainees(p => p.map(x => x.id === f.id ? { ...doc, id: doc._id?.toString() || f.id } : x))
+      }).catch(() => setTrainees(p => p.map(x => x.id === f.id || x.name === f.name ? { ...x, ...payload } : x)))
+    } else {
+      trainingAPI.trainees.create(payload).then(doc => {
+        setTrainees(p => [...p, { ...doc, id: doc._id?.toString() || Date.now() }])
+      }).catch(() => setTrainees(p => [...p, { ...payload, id: Date.now() }]))
+    }
     closeModal()
     showToast(f.id ? 'Trainee Updated' : 'Trainee Enrolled', payload.name)
   }
   function addFeedback(f) {
-    setFeedback(p => [...p, { trainer:'James O.', trainee:'You', session:'Equipment Operation', trainerRating:f.trainerRating, contentRating:f.contentRating, venueRating:f.venueRating, comment:f.comment }])
+    const payload = { trainer:'James O.', trainee:'You', session:'Equipment Operation', trainerRating:f.trainerRating, contentRating:f.contentRating, venueRating:f.venueRating, comment:f.comment }
+    trainingAPI.feedback.create(payload).then(doc => {
+      setFeedback(p => [...p, { ...doc, id: doc._id?.toString() || Date.now() }])
+    }).catch(() => setFeedback(p => [...p, { ...payload, id: Date.now() }]))
     closeModal()
     showToast('Feedback Submitted', 'Thank you for your feedback!')
   }
 
+  function deleteSession(id)    { trainingAPI.sessions.remove(id).catch(() => {}); setSessions(p => p.filter(x => x.id !== id)) }
+  function deleteBatch(id)      { trainingAPI.batches.remove(id).catch(() => {}); setBatches(p => p.filter(x => x.id !== id)) }
+  function deleteResource(id)   { trainingAPI.resources.remove(id).catch(() => {}); setResources(p => p.filter(x => x.id !== id)) }
+  function deleteAssessment(id) { trainingAPI.assessments.remove(id).catch(() => {}); setAssessments(p => p.filter(x => x.id !== id)) }
+  function deleteCert(id)       { trainingAPI.certs.remove(id).catch(() => {}); setCerts(p => p.filter(x => x.id !== id)) }
+  function deleteTrainee(id)    { trainingAPI.trainees.remove(id).catch(() => {}); setTrainees(p => p.filter(x => x.id !== id)) }
+  function approveCert(traineeId) {
+    const c = certs.find(x => x.trainee === traineeId && x.st === 'Pending')
+    if (!c) return
+    trainingAPI.certs.update(c.id, { st:'Issued', issued:'Apr 13, 2026', expiry:'Apr 13, 2028' }).catch(() => {})
+    setCerts(p => p.map(x => x.trainee === traineeId && x.st === 'Pending' ? { ...x, st:'Issued', issued:'Apr 13, 2026', expiry:'Apr 13, 2028' } : x))
+  }
+
   const unreadCount = notifs.filter(n => !n.read).length
-  const shared = { sessions, setSessions, batches, setBatches, attendance, setAttendance, resources, setResources, assessments, setAssessments, certs, setCerts, feedback, setFeedback, trainees, setTrainees, notifs, setNotifs, canEdit, canApprove, isAdmin, isHead, isMgmt, isUser, isTrainee, isTrainer, showToast, setModal }
+  const shared = { sessions, setSessions, batches, setBatches, attendance, setAttendance, resources, setResources, assessments, setAssessments, certs, setCerts, feedback, setFeedback, trainees, setTrainees, notifs, setNotifs, canEdit, canApprove, isAdmin, isHead, isMgmt, isUser, isTrainee, isTrainer, showToast, setModal, deleteSession, deleteBatch, deleteResource, deleteAssessment, deleteCert, deleteTrainee, approveCert }
 
   return (
     <div style={{ fontFamily:'inherit', color:C.t1 }}>

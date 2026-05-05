@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
-import departmentStateAPI from '../../api/department-state'
+import complianceAPI from '../../api/compliance'
 
 const C = {
   bg: '#f4f7f6',
@@ -199,46 +199,28 @@ function ComplianceTab() {
   const [uForm, setUForm] = useState({ title: '', source: '', effective: '', impact: 'Medium', actionOwner: '', status: 'Planned' })
   const [gForm, setGForm] = useState({ partner: '', type: '', start: '', end: '', value: '', status: 'Active' })
   const loadedRef = useRef(false)
-  const persistTimerRef = useRef(null)
 
   useEffect(() => {
-    let cancelled = false
     if (!token) return
-    departmentStateAPI.getDepartmentState(token, 'compliance')
-      .then((res) => {
-        if (cancelled) return
-        const state = res?.state
-        if (!state || typeof state !== 'object') return
-        if (Array.isArray(state.eligibility)) setEligibility(state.eligibility)
-        if (Array.isArray(state.approvals)) setApprovals(state.approvals)
-        if (Array.isArray(state.docs)) setDocs(state.docs)
-        if (Array.isArray(state.updates)) setUpdates(state.updates)
-        if (Array.isArray(state.agreements)) setAgreements(state.agreements)
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) loadedRef.current = true
-      })
+    let cancelled = false
+    const norm = rows => (rows || []).map(r => ({ ...r, id: r._id?.toString() || r.id }))
+    Promise.all([
+      complianceAPI.eligibility.list(),
+      complianceAPI.approvals.list(),
+      complianceAPI.docs.list(),
+      complianceAPI.updates.list(),
+      complianceAPI.agreements.list(),
+    ]).then(([els, apps, ds, ups, ags]) => {
+      if (cancelled) return
+      if (els.length)  setEligibility(norm(els))
+      if (apps.length) setApprovals(norm(apps))
+      if (ds.length)   setDocs(norm(ds))
+      if (ups.length)  setUpdates(norm(ups))
+      if (ags.length)  setAgreements(norm(ags))
+      loadedRef.current = true
+    }).catch(() => { loadedRef.current = true })
     return () => { cancelled = true }
   }, [token])
-
-  useEffect(() => {
-    if (!token || !loadedRef.current) return
-    if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current)
-    persistTimerRef.current = window.setTimeout(() => {
-      departmentStateAPI.saveDepartmentState(token, 'compliance', {
-        eligibility,
-        approvals,
-        docs,
-        updates,
-        agreements,
-      }).catch(() => {})
-    }, 600)
-
-    return () => {
-      if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current)
-    }
-  }, [token, eligibility, approvals, docs, updates, agreements])
 
   const inGovTeam = user?.department === 'government'
   const canEdit = perms.isSuperAdmin || ((perms.isDepartmentHead || perms.isDepartmentUser) && inGovTeam)
@@ -265,6 +247,14 @@ function ComplianceTab() {
   function removeRow(setter, rows, id, label) {
     if (!window.confirm(`Delete ${label}?`)) return
     setter(rows.filter(r => r.id !== id))
+    // delete from API using id (= _id.toString())
+    pushToast(`${label} deleted`)
+  }
+
+  function removeRowApi(setter, rows, id, label, apiResource) {
+    if (!window.confirm(`Delete ${label}?`)) return
+    setter(rows.filter(r => r.id !== id))
+    if (id) apiResource.remove(id).catch(() => {})
     pushToast(`${label} deleted`)
   }
 
@@ -282,9 +272,12 @@ function ComplianceTab() {
     if (!eForm.entity.trim() || !eForm.permit.trim()) return
     if (eModal.editId) {
       setEligibility(prev => prev.map(r => r.id === eModal.editId ? { ...r, ...eForm } : r))
+      complianceAPI.eligibility.update(eModal.editId, eForm).catch(() => {})
       pushToast('Eligibility updated')
     } else {
-      setEligibility(prev => [{ id: nextId('EL', prev), ...eForm }, ...prev])
+      complianceAPI.eligibility.create(eForm).then(doc => {
+        setEligibility(prev => [{ ...doc, id: doc._id?.toString() || doc.id }, ...prev])
+      }).catch(() => setEligibility(prev => [{ id: nextId('EL', prev), ...eForm }, ...prev]))
       pushToast('Eligibility added')
     }
     setEModal({ open: false, editId: '' })
@@ -304,9 +297,12 @@ function ComplianceTab() {
     if (!aForm.authority.trim() || !aForm.filing.trim()) return
     if (aModal.editId) {
       setApprovals(prev => prev.map(r => r.id === aModal.editId ? { ...r, ...aForm } : r))
+      complianceAPI.approvals.update(aModal.editId, aForm).catch(() => {})
       pushToast('Approval updated')
     } else {
-      setApprovals(prev => [{ id: nextId('AP', prev), ...aForm }, ...prev])
+      complianceAPI.approvals.create(aForm).then(doc => {
+        setApprovals(prev => [{ ...doc, id: doc._id?.toString() || doc.id }, ...prev])
+      }).catch(() => setApprovals(prev => [{ id: nextId('AP', prev), ...aForm }, ...prev]))
       pushToast('Approval filing added')
     }
     setAModal({ open: false, editId: '' })
@@ -326,9 +322,12 @@ function ComplianceTab() {
     if (!dForm.name.trim()) return
     if (dModal.editId) {
       setDocs(prev => prev.map(r => r.id === dModal.editId ? { ...r, ...dForm } : r))
+      complianceAPI.docs.update(dModal.editId, dForm).catch(() => {})
       pushToast('Document updated')
     } else {
-      setDocs(prev => [{ id: nextId('DC', prev), ...dForm }, ...prev])
+      complianceAPI.docs.create(dForm).then(doc => {
+        setDocs(prev => [{ ...doc, id: doc._id?.toString() || doc.id }, ...prev])
+      }).catch(() => setDocs(prev => [{ id: nextId('DC', prev), ...dForm }, ...prev]))
       pushToast('Document added')
     }
     setDModal({ open: false, editId: '' })
@@ -348,9 +347,12 @@ function ComplianceTab() {
     if (!uForm.title.trim() || !uForm.source.trim()) return
     if (uModal.editId) {
       setUpdates(prev => prev.map(r => r.id === uModal.editId ? { ...r, ...uForm } : r))
+      complianceAPI.updates.update(uModal.editId, uForm).catch(() => {})
       pushToast('Regulatory update edited')
     } else {
-      setUpdates(prev => [{ id: nextId('RU', prev), ...uForm }, ...prev])
+      complianceAPI.updates.create(uForm).then(doc => {
+        setUpdates(prev => [{ ...doc, id: doc._id?.toString() || doc.id }, ...prev])
+      }).catch(() => setUpdates(prev => [{ id: nextId('RU', prev), ...uForm }, ...prev]))
       pushToast('Regulatory update added')
     }
     setUModal({ open: false, editId: '' })
@@ -371,9 +373,12 @@ function ComplianceTab() {
     const payload = { ...gForm, value: Number(gForm.value || 0) }
     if (gModal.editId) {
       setAgreements(prev => prev.map(r => r.id === gModal.editId ? { ...r, ...payload } : r))
+      complianceAPI.agreements.update(gModal.editId, payload).catch(() => {})
       pushToast('Agreement updated')
     } else {
-      setAgreements(prev => [{ id: nextId('AG', prev), ...payload }, ...prev])
+      complianceAPI.agreements.create(payload).then(doc => {
+        setAgreements(prev => [{ ...doc, id: doc._id?.toString() || doc.id }, ...prev])
+      }).catch(() => setAgreements(prev => [{ id: nextId('AG', prev), ...payload }, ...prev]))
       pushToast('Agreement added')
     }
     setGModal({ open: false, editId: '' })
@@ -413,7 +418,7 @@ function ComplianceTab() {
               <thead><tr style={{ background: 'rgba(0,104,74,0.06)' }}><th style={th}>Entity</th><th style={th}>Permit</th><th style={th}>Status</th><th style={th}>Last Review</th><th style={th}>Owner</th><th style={th}>Notes</th><th style={th}>Actions</th></tr></thead>
               <tbody>
                 {eligibility.map(r => (
-                  <tr key={r.id}><td style={td}>{r.entity}</td><td style={td}>{r.permit}</td><td style={td}><Badge>{r.status}</Badge></td><td style={td}>{r.lastReview || '—'}</td><td style={td}>{r.owner || '—'}</td><td style={td}>{r.notes || '—'}</td><td style={td}><RowActions canEdit={!readOnlyByRole} onEdit={() => openEligibility(r)} onDelete={() => removeRow(setEligibility, eligibility, r.id, r.entity)} /></td></tr>
+                  <tr key={r.id}><td style={td}>{r.entity}</td><td style={td}>{r.permit}</td><td style={td}><Badge>{r.status}</Badge></td><td style={td}>{r.lastReview || '—'}</td><td style={td}>{r.owner || '—'}</td><td style={td}>{r.notes || '—'}</td><td style={td}><RowActions canEdit={!readOnlyByRole} onEdit={() => openEligibility(r)} onDelete={() => removeRowApi(setEligibility, eligibility, r.id, r.entity, complianceAPI.eligibility)} /></td></tr>
                 ))}
               </tbody>
             </table>
@@ -438,9 +443,9 @@ function ComplianceTab() {
                       <RowActions
                         canEdit={!readOnlyByRole}
                         onEdit={() => openApproval(r)}
-                        onDelete={() => removeRow(setApprovals, approvals, r.id, r.filing)}
+                        onDelete={() => removeRowApi(setApprovals, approvals, r.id, r.filing, complianceAPI.approvals)}
                         extra={!readOnlyByRole && r.status === 'Pending' ? (
-                          <button onClick={() => { setApprovals(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Submitted', submittedDate: 'Today' } : x)); pushToast('Marked as submitted') }} style={{ border: 'none', background: 'transparent', color: C.blue, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Submit</button>
+                          <button onClick={() => { complianceAPI.approvals.update(r.id, { status: 'Submitted', submittedDate: 'Today' }).catch(() => {}); setApprovals(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Submitted', submittedDate: 'Today' } : x)); pushToast('Marked as submitted') }} style={{ border: 'none', background: 'transparent', color: C.blue, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Submit</button>
                         ) : null}
                       />
                     </td>
@@ -469,9 +474,9 @@ function ComplianceTab() {
                       <RowActions
                         canEdit={!readOnlyByRole}
                         onEdit={() => openDoc(r)}
-                        onDelete={() => removeRow(setDocs, docs, r.id, r.name)}
+                        onDelete={() => removeRowApi(setDocs, docs, r.id, r.name, complianceAPI.docs)}
                         extra={!readOnlyByRole && r.status === 'Expiring Soon' ? (
-                          <button onClick={() => { setDocs(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Active', version: x.version === 'v1' ? 'v2' : `v${Number(String(x.version).replace('v', '')) + 1}` } : x)); pushToast('Document renewed') }} style={{ border: 'none', background: 'transparent', color: C.blue, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Renew</button>
+                          <button onClick={() => { const newVer = x => x.version === 'v1' ? 'v2' : `v${Number(String(x.version).replace('v',''))+1}`; const found = docs.find(x => x.id === r.id); complianceAPI.docs.update(r.id, { status: 'Active', version: found ? newVer(found) : 'v2' }).catch(() => {}); setDocs(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Active', version: x.version === 'v1' ? 'v2' : `v${Number(String(x.version).replace('v', '')) + 1}` } : x)); pushToast('Document renewed') }} style={{ border: 'none', background: 'transparent', color: C.blue, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Renew</button>
                         ) : null}
                       />
                     </td>
@@ -494,7 +499,7 @@ function ComplianceTab() {
               <thead><tr style={{ background: 'rgba(0,104,74,0.06)' }}><th style={th}>Title</th><th style={th}>Source</th><th style={th}>Effective</th><th style={th}>Impact</th><th style={th}>Owner</th><th style={th}>Status</th><th style={th}>Actions</th></tr></thead>
               <tbody>
                 {updates.map(r => (
-                  <tr key={r.id}><td style={td}>{r.title}</td><td style={td}>{r.source}</td><td style={td}>{r.effective || '—'}</td><td style={td}>{r.impact}</td><td style={td}>{r.actionOwner || '—'}</td><td style={td}><Badge>{r.status}</Badge></td><td style={td}><RowActions canEdit={!readOnlyByRole} onEdit={() => openUpdate(r)} onDelete={() => removeRow(setUpdates, updates, r.id, r.title)} /></td></tr>
+                  <tr key={r.id}><td style={td}>{r.title}</td><td style={td}>{r.source}</td><td style={td}>{r.effective || '—'}</td><td style={td}>{r.impact}</td><td style={td}>{r.actionOwner || '—'}</td><td style={td}><Badge>{r.status}</Badge></td><td style={td}><RowActions canEdit={!readOnlyByRole} onEdit={() => openUpdate(r)} onDelete={() => removeRowApi(setUpdates, updates, r.id, r.title, complianceAPI.updates)} /></td></tr>
                 ))}
               </tbody>
             </table>
@@ -519,9 +524,9 @@ function ComplianceTab() {
                       <RowActions
                         canEdit={!readOnlyByRole}
                         onEdit={() => openAgreement(r)}
-                        onDelete={() => removeRow(setAgreements, agreements, r.id, r.partner)}
+                        onDelete={() => removeRowApi(setAgreements, agreements, r.id, r.partner, complianceAPI.agreements)}
                         extra={!readOnlyByRole && r.status === 'Renewal Required' ? (
-                          <button onClick={() => { setAgreements(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Active' } : x)); pushToast('Agreement moved to active') }} style={{ border: 'none', background: 'transparent', color: C.blue, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Renew</button>
+                          <button onClick={() => { complianceAPI.agreements.update(r.id, { status: 'Active' }).catch(() => {}); setAgreements(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Active' } : x)); pushToast('Agreement moved to active') }} style={{ border: 'none', background: 'transparent', color: C.blue, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Renew</button>
                         ) : null}
                       />
                     </td>

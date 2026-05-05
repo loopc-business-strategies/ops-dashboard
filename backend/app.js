@@ -21,6 +21,9 @@ const messageRoutes = require('./routes/messages')
 const crmRoutes = require('./routes/crm')
 const departmentStateRoutes = require('./routes/department-state')
 const realtimeRoutes = require('./routes/realtime')
+const financeRoutes    = require('./routes/finance')
+const complianceRoutes = require('./routes/compliance')
+const trainingRoutes   = require('./routes/training')
 
 function createApp() {
   const app = express()
@@ -123,6 +126,9 @@ function createApp() {
   app.use('/api/crm', crmRoutes)
   app.use('/api/department-state', departmentStateRoutes)
   app.use('/api/realtime', realtimeRoutes)
+  app.use('/api/finance',    financeRoutes)
+  app.use('/api/compliance', complianceRoutes)
+  app.use('/api/training',   trainingRoutes)
 
   if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.join(__dirname, '../frontend/dist')))

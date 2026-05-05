@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import departmentStateAPI from '../../api/department-state'
+import financeAPI from '../../api/finance'
 
 // ─── Design tokens ────────────────────────────────────────────
 const C = {
@@ -640,19 +640,21 @@ function RevenueTracking({ finRole, can, canEdit, onToast }) {
 }
 
 // ─── Expense Management ───────────────────────────────────────
-function ExpenseManagement({ finRole, can, canEdit, expenses, setExpenses, addAudit, onToast, openModal }) {
+function ExpenseManagement({ finRole, can, canEdit, expenses, setExpenses, addAudit, onToast, openModal, financeApi }) {
   if (can('vendor','sales_head','hr_mgr')) return <Restricted msg="Expense management is not available for your role." />
   const deptOnly = finRole === 'dept_head'
   const data = deptOnly ? expenses.filter(e=>e.dept==='Operations') : expenses
 
   function approve(id) {
     setExpenses(p => p.map(e => e.id===id ? {...e, status:'Approved', approvedBy:'You'} : e))
+    financeApi.expenses.update(id, { status:'Approved', approvedBy:'You' }).catch(() => {})
     const e = expenses.find(x=>x.id===id)
     addAudit({ action:'Expense Approved', user:'You', urole:'Finance Manager', amount:fmtFull(e?.amount||0), dt:'Now', ip:'192.168.1.x', before:'Pending', after:'Approved' })
     onToast('Approved','Expense '+id+' approved')
   }
   function reject(id) {
     setExpenses(p => p.map(e => e.id===id ? {...e, status:'Rejected', approvedBy:'You'} : e))
+    financeApi.expenses.update(id, { status:'Rejected', approvedBy:'You' }).catch(() => {})
     onToast('Rejected','Expense '+id+' rejected')
   }
 
@@ -710,7 +712,7 @@ function ExpenseManagement({ finRole, can, canEdit, expenses, setExpenses, addAu
 }
 
 // ─── Invoice Management ───────────────────────────────────────
-function InvoiceManagement({ finRole, can, canEdit, invoices, setInvoices, addAudit, onToast, openModal }) {
+function InvoiceManagement({ finRole, can, canEdit, invoices, setInvoices, addAudit, onToast, openModal, financeApi }) {
   const myOnly    = finRole === 'vendor'
   const salesOnly = finRole === 'sales_head'
   const data = myOnly ? invoices.filter(i=>i.client.includes('KazTrans')) : salesOnly ? invoices.filter(i=>i.type==='Sales') : invoices
@@ -718,6 +720,7 @@ function InvoiceManagement({ finRole, can, canEdit, invoices, setInvoices, addAu
   function markPaid(id) {
     const inv = invoices.find(i=>i.id===id)
     setInvoices(p => p.map(i => i.id===id ? {...i, status:'Paid', daysOverdue:0} : i))
+    financeApi.invoices.update(id, { status:'Paid', daysOverdue:0 }).catch(() => {})
     addAudit({ action:'Invoice Marked Paid', user:'You', urole:'Finance Manager', amount:fmtFull(inv?.amount||0), dt:'Now', ip:'192.168.1.x', before:'Sent/Overdue', after:'Paid' })
     onToast('Invoice Paid', id+' marked as paid. Audit log updated.')
   }
@@ -786,22 +789,22 @@ function InvoiceManagement({ finRole, can, canEdit, invoices, setInvoices, addAu
 }
 
 // ─── Budget Planning ──────────────────────────────────────────
-function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, setBudgets }) {
+function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, setBudgets, financeApi }) {
   if (can('vendor','sales_head','hr_mgr')) return <Restricted msg="Budget planning is not available for your role." />
   const deptOnly = finRole === 'dept_head'
   const data     = deptOnly ? budgets.filter(b=>b.dept==='Operations & Logistics') : budgets
   const totalB   = budgets.reduce((a,b)=>a+b.annual,0)
   const totalS   = budgets.reduce((a,b)=>a+b.spent,0)
   const [budgetModal, setBudgetModal] = useState(false)
-  const [editDept, setEditDept] = useState('')
+  const [editId, setEditId] = useState('')
   const [bf, setBf] = useState({ dept:'', annual:'', spent:'' })
 
   function openBudgetEditor(row) {
     if (row) {
-      setEditDept(row.dept)
+      setEditId(row.id || row._id?.toString() || '')
       setBf({ dept:row.dept, annual:String(row.annual), spent:String(row.spent) })
     } else {
-      setEditDept('')
+      setEditId('')
       setBf({ dept:'', annual:'', spent:'' })
     }
     setBudgetModal(true)
@@ -812,11 +815,16 @@ function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, se
     const annual = Number(bf.annual) || 0
     const spent = Number(bf.spent) || 0
     const status = spent > annual ? 'Over Budget' : pct(spent, annual || 1) >= 80 ? 'Warning' : 'On Track'
-    if (editDept) {
-      setBudgets(p => p.map(x => x.dept === editDept ? { dept:bf.dept.trim(), annual, spent, status } : x))
+    const payload = { dept:bf.dept.trim(), annual, spent, status }
+    if (editId) {
+      setBudgets(p => p.map(x => (x.id || x._id?.toString()) === editId ? { ...x, ...payload } : x))
+      financeApi.budgets.update(editId, payload).catch(() => {})
       onToast('Budget Updated', bf.dept.trim() + ' budget updated')
     } else {
-      setBudgets(p => [...p, { dept:bf.dept.trim(), annual, spent, status }])
+      financeApi.budgets.create(payload).then(doc => {
+        if (doc) setBudgets(p => [...p, { ...doc, id: doc._id?.toString() || doc.id }])
+        else setBudgets(p => [...p, payload])
+      }).catch(() => { setBudgets(p => [...p, payload]) })
       onToast('Budget Added', bf.dept.trim() + ' added')
     }
     setBudgetModal(false)
@@ -824,7 +832,9 @@ function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, se
 
   function deleteBudget(row) {
     if (!window.confirm('Delete budget for ' + row.dept + '?')) return
-    setBudgets(p => p.filter(x => x.dept !== row.dept))
+    const rid = row.id || row._id?.toString()
+    setBudgets(p => p.filter(x => (x.id || x._id?.toString()) !== rid))
+    if (rid) financeApi.budgets.remove(rid).catch(() => {})
     onToast('Budget Deleted', row.dept + ' budget removed')
   }
 
@@ -868,7 +878,7 @@ function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, se
         </Card>
       )}
 
-      <ModalShell open={budgetModal} title={editDept ? 'Edit Budget' : 'Add Budget'} onClose={() => setBudgetModal(false)}>
+      <ModalShell open={budgetModal} title={editId ? 'Edit Budget' : 'Add Budget'} onClose={() => setBudgetModal(false)}>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
           <div><ML>Department</ML><input value={bf.dept} onChange={e=>setBf(p=>({...p,dept:e.target.value}))} style={iStyle} placeholder="Department" /></div>
           <div><ML>Annual Budget ($)</ML><input type="number" value={bf.annual} onChange={e=>setBf(p=>({...p,annual:e.target.value}))} style={iStyle} /></div>
@@ -876,7 +886,7 @@ function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, se
         </div>
         <div style={{ display:'flex', gap:8, marginTop:8 }}>
           <button style={{ ...B.ghost, flex:1 }} onClick={() => setBudgetModal(false)}>Cancel</button>
-          <button style={{ ...B.pri, flex:1 }} onClick={saveBudget}>{editDept ? 'Save Changes' : 'Add Budget'}</button>
+          <button style={{ ...B.pri, flex:1 }} onClick={saveBudget}>{editId ? 'Save Changes' : 'Add Budget'}</button>
         </div>
       </ModalShell>
     </div>
@@ -884,12 +894,16 @@ function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, se
 }
 
 // ─── Payroll Management ───────────────────────────────────────
-function PayrollManagement({ finRole, can, canEdit, payroll, setPayroll, addAudit, onToast, openModal }) {
+function PayrollManagement({ finRole, can, canEdit, payroll, setPayroll, addAudit, onToast, openModal, financeApi }) {
   if (can('vendor','sales_head','dept_head')) return <Restricted msg="Payroll management is restricted to Finance and HR departments." />
   const hrOnly = finRole === 'hr_mgr'
 
   function runPayroll() {
     setPayroll(p => p.map(e => ({...e, status:'Processed'})))
+    payroll.filter(e => e.status !== 'Processed').forEach(e => {
+      const rid = e.id || e._id?.toString()
+      if (rid) financeApi.payroll.update(rid, { status:'Processed' }).catch(() => {})
+    })
     addAudit({ action:'Payroll Run', user:'You', urole:'Finance Manager', amount:'$284,600', dt:'Now', ip:'192.168.1.x', before:'Pending', after:'Processed' })
     onToast('Payroll Processed','April 2026 payroll of $284,600 processed for 47 employees.')
   }
@@ -1059,19 +1073,19 @@ function GoldTracker({ finRole, can, canEdit, onToast }) {
 }
 
 // ─── Tax & Compliance ─────────────────────────────────────────
-function TaxCompliance({ finRole, can, canEdit, onToast, taxes, setTaxes }) {
+function TaxCompliance({ finRole, can, canEdit, onToast, taxes, setTaxes, financeApi }) {
   if (can('vendor','hr_mgr','dept_head','sales_head')) return <Restricted msg="Tax & Compliance Financials are restricted to Finance Manager, Super Admin and Auditor." />
 
   const [taxModal, setTaxModal] = useState(false)
-  const [editType, setEditType] = useState('')
+  const [editId, setEditId] = useState('')
   const [tf, setTf] = useState({ type:'', period:'', amount:'', due:'', filed:'—', status:'Pending' })
 
   function openTaxForm(row) {
     if (row) {
-      setEditType(row.type + row.period)
+      setEditId(row.id || row._id?.toString() || '')
       setTf({ type:row.type, period:row.period, amount:String(row.amount), due:row.due, filed:row.filed, status:row.status })
     } else {
-      setEditType('')
+      setEditId('')
       setTf({ type:'', period:'', amount:'', due:'', filed:'—', status:'Pending' })
     }
     setTaxModal(true)
@@ -1080,11 +1094,15 @@ function TaxCompliance({ finRole, can, canEdit, onToast, taxes, setTaxes }) {
   function saveTax() {
     if (!tf.type.trim() || !tf.period.trim() || !tf.amount) return
     const payload = { type:tf.type.trim(), period:tf.period.trim(), amount:Number(tf.amount)||0, due:tf.due||'—', filed:tf.filed||'—', status:tf.status }
-    if (editType) {
-      setTaxes(p => p.map(x => (x.type + x.period) === editType ? payload : x))
+    if (editId) {
+      setTaxes(p => p.map(x => (x.id || x._id?.toString()) === editId ? { ...x, ...payload } : x))
+      financeApi.taxes.update(editId, payload).catch(() => {})
       onToast('Tax Updated', payload.type + ' updated')
     } else {
-      setTaxes(p => [payload, ...p])
+      financeApi.taxes.create(payload).then(doc => {
+        if (doc) setTaxes(p => [{ ...doc, id: doc._id?.toString() || doc.id }, ...p])
+        else setTaxes(p => [payload, ...p])
+      }).catch(() => { setTaxes(p => [payload, ...p]) })
       onToast('Tax Entry Added', payload.type + ' added')
     }
     setTaxModal(false)
@@ -1092,7 +1110,9 @@ function TaxCompliance({ finRole, can, canEdit, onToast, taxes, setTaxes }) {
 
   function deleteTax(row) {
     if (!window.confirm('Delete tax row for ' + row.type + '?')) return
-    setTaxes(p => p.filter(x => !(x.type === row.type && x.period === row.period)))
+    const rid = row.id || row._id?.toString()
+    setTaxes(p => p.filter(x => (x.id || x._id?.toString()) !== rid))
+    if (rid) financeApi.taxes.remove(rid).catch(() => {})
     onToast('Tax Deleted', row.type + ' removed')
   }
 
@@ -1132,7 +1152,7 @@ function TaxCompliance({ finRole, can, canEdit, onToast, taxes, setTaxes }) {
             <Td style={{ color:t.filed==='—'?C.t4:C.green }}>{t.filed}</Td>
             <Td><Badge status={t.status} /></Td>
             {canEdit() && <Td style={{ whiteSpace:'nowrap' }}>
-              {t.filed==='—' ? <button onClick={() => { setTaxes(p => p.map(x => x.type===t.type && x.period===t.period ? {...x, filed:'Today', status:'Filed'} : x)); onToast('Filed',t.type+' marked as filed') }} style={{...B.link,color:'var(--purple)',marginRight:8}}>Mark Filed</button> : <span style={{ color:C.t4, marginRight:8 }}>—</span>}
+              {t.filed==='—' ? <button onClick={() => { const rid = t.id || t._id?.toString(); setTaxes(p => p.map(x => (x.id||x._id?.toString())===rid ? {...x, filed:'Today', status:'Filed'} : x)); if (rid) financeApi.taxes.update(rid, { filed:'Today', status:'Filed' }).catch(()=>{}); onToast('Filed',t.type+' marked as filed') }} style={{...B.link,color:'var(--purple)',marginRight:8}}>Mark Filed</button> : <span style={{ color:C.t4, marginRight:8 }}>—</span>}
               <button onClick={() => openTaxForm(t)} style={{...B.link,color:C.cyan,marginRight:8}}>Edit</button>
               <button onClick={() => deleteTax(t)} style={{...B.link,color:C.red}}>Del</button>
             </Td>}
@@ -1140,7 +1160,7 @@ function TaxCompliance({ finRole, can, canEdit, onToast, taxes, setTaxes }) {
         ))}
       </DataTable>
 
-      <ModalShell open={taxModal} title={editType ? 'Edit Tax Entry' : 'Add Tax Entry'} onClose={() => setTaxModal(false)}>
+      <ModalShell open={taxModal} title={editId ? 'Edit Tax Entry' : 'Add Tax Entry'} onClose={() => setTaxModal(false)}>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
           <div><ML>Tax Type</ML><input value={tf.type} onChange={e=>setTf(p=>({...p,type:e.target.value}))} style={iStyle} /></div>
           <div><ML>Period</ML><input value={tf.period} onChange={e=>setTf(p=>({...p,period:e.target.value}))} style={iStyle} placeholder="Q2 2026" /></div>
@@ -1151,7 +1171,7 @@ function TaxCompliance({ finRole, can, canEdit, onToast, taxes, setTaxes }) {
         </div>
         <div style={{ display:'flex', gap:8, marginTop:8 }}>
           <button style={{ ...B.ghost, flex:1 }} onClick={() => setTaxModal(false)}>Cancel</button>
-          <button style={{ ...B.pri, flex:1 }} onClick={saveTax}>{editType ? 'Save Changes' : 'Add Entry'}</button>
+          <button style={{ ...B.pri, flex:1 }} onClick={saveTax}>{editId ? 'Save Changes' : 'Add Entry'}</button>
         </div>
       </ModalShell>
     </div>
@@ -1440,57 +1460,26 @@ export default function FinanceTab() {
   const [toast,        setToast]        = useState(null)
   const [modal,        setModal]        = useState(null)   // 'invoice'|'expense'|'payroll'|'budget'|null
   const [notifOpen,    setNotifOpen]    = useState(false)
-  const loadedRef = useRef(false)
-  const persistTimerRef = useRef(null)
-
   useEffect(() => {
-    let cancelled = false
     if (!token) return
-
-    departmentStateAPI.getDepartmentState(token, 'finance')
-      .then((res) => {
-        if (cancelled) return
-        const state = res?.state
-        if (!state || typeof state !== 'object') return
-        if (Array.isArray(state.invoices)) setInvoices(state.invoices)
-        if (Array.isArray(state.expenses)) setExpenses(state.expenses)
-        if (Array.isArray(state.payroll)) setPayroll(state.payroll)
-        if (Array.isArray(state.budgets)) setBudgets(state.budgets)
-        if (Array.isArray(state.taxes)) setTaxes(state.taxes)
-        if (Array.isArray(state.receivables)) setReceivables(state.receivables)
-        if (Array.isArray(state.payables)) setPayables(state.payables)
-        if (Array.isArray(state.auditLog)) setAuditLog(state.auditLog)
-        if (Array.isArray(state.notifications)) setNotifications(state.notifications)
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) loadedRef.current = true
-      })
-
+    let cancelled = false
+    const norm = rows => (rows || []).map(r => ({ ...r, id: r._id?.toString() || r.id }))
+    Promise.all([
+      financeAPI.invoices.list(),
+      financeAPI.expenses.list(),
+      financeAPI.payroll.list(),
+      financeAPI.budgets.list(),
+      financeAPI.taxes.list(),
+    ]).then(([invs, exps, pays, buds, taxs]) => {
+      if (cancelled) return
+      if (invs.length)  setInvoices(norm(invs))
+      if (exps.length)  setExpenses(norm(exps))
+      if (pays.length)  setPayroll(norm(pays))
+      if (buds.length)  setBudgets(norm(buds))
+      if (taxs.length)  setTaxes(norm(taxs))
+    }).catch(() => {})
     return () => { cancelled = true }
   }, [token])
-
-  useEffect(() => {
-    if (!token || !loadedRef.current) return
-    if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current)
-    persistTimerRef.current = window.setTimeout(() => {
-      departmentStateAPI.saveDepartmentState(token, 'finance', {
-        invoices,
-        expenses,
-        payroll,
-        budgets,
-        taxes,
-        receivables,
-        payables,
-        auditLog,
-        notifications,
-      }).catch(() => {})
-    }, 600)
-
-    return () => {
-      if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current)
-    }
-  }, [token, invoices, expenses, payroll, budgets, taxes, receivables, payables, auditLog, notifications])
 
   function showToast(title, msg) {
     setToast({ title, msg })
@@ -1508,7 +1497,7 @@ export default function FinanceTab() {
   const unreadCount = roleNotifs.filter(n => !n.read).length
 
   // Shared props passed to every sub-tab
-  const sh = { finRole, can, canEdit, invoices, setInvoices, expenses, setExpenses, payroll, setPayroll, budgets, setBudgets, taxes, setTaxes, receivables, setReceivables, payables, setPayables, auditLog, addAudit, onToast:showToast, openModal:setModal }
+  const sh = { finRole, can, canEdit, invoices, setInvoices, expenses, setExpenses, payroll, setPayroll, budgets, setBudgets, taxes, setTaxes, receivables, setReceivables, payables, setPayables, auditLog, addAudit, onToast:showToast, openModal:setModal, financeApi:financeAPI }
 
   function renderTab() {
     switch (activeTab) {
@@ -1575,19 +1564,22 @@ export default function FinanceTab() {
         onClose={() => setModal(null)}
         onToast={showToast}
         onSubmit={(f, calc) => {
-          const newId = 'INV-2026-0'+(invoices.length+42)
-          setInvoices(p => [{
-            id: newId,
+          const amount = calc ? calc.total : (parseFloat(f.qty)||0)*(parseFloat(f.price)||0)+(parseFloat(f.fee)||0)
+          const payload = {
             client: f.client,
-            type: f.type.includes('Sales') ? 'Sales' : 'Purchase',
-            amount: calc ? calc.total : (parseFloat(f.qty)||0)*(parseFloat(f.price)||0)+(parseFloat(f.fee)||0),
-            issue: 'Apr 14, 2026',
-            due: f.due || 'May 14, 2026',
+            invoiceType: f.type.includes('Sales') ? 'Sales' : 'Purchase',
+            amount,
+            issueDate: new Date().toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}),
+            dueDate: f.due || '',
             status: 'Draft',
             daysOverdue: 0,
-          }, ...p])
-          addAudit({ action:'Invoice Created', user:'You', urole:'Finance Manager', amount:fmtFull(calc?.total||0), dt:'Now', ip:'192.168.1.x', before:'—', after:newId+' Created' })
-          showToast('Invoice Created', newId+' created as Draft — ready to send to '+f.client)
+          }
+          financeAPI.invoices.create(payload).then(doc => {
+            const row = { ...doc, id: doc._id?.toString() || doc.id, type: doc.invoiceType, issue: doc.issueDate, due: doc.dueDate }
+            setInvoices(p => [row, ...p])
+            addAudit({ action:'Invoice Created', user:'You', urole:'Finance Manager', amount:fmtFull(amount), dt:'Now', ip:'192.168.1.x', before:'—', after:(doc.invoiceNo||doc._id)+' Created' })
+            showToast('Invoice Created', 'Invoice created as Draft — ready to send to '+f.client)
+          }).catch(() => showToast('Error', 'Failed to create invoice'))
         }}
       />
 
@@ -1595,9 +1587,11 @@ export default function FinanceTab() {
         open={modal==='expense'}
         onClose={() => setModal(null)}
         onSubmit={f => {
-          const newId = 'EXP-0'+(expenses.length+92)
-          setExpenses(p => [{ id:newId, date:'Apr 14, 2026', dept:f.dept, cat:f.cat, amount:f.amount, by:'You', status:'Pending', approvedBy:'—', flagged:f.flagged }, ...p])
-          showToast('Expense Submitted', `${f.dept} expense of ${fmtFull(f.amount)} submitted${f.flagged?' — auto-flagged (>$10,000)':''}`)
+          const payload = { date:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}), dept:f.dept, cat:f.cat, amount:f.amount, submittedBy:'You', status:'Pending', approvedBy:'—', flagged:f.flagged, description:f.desc||'' }
+          financeAPI.expenses.create(payload).then(doc => {
+            setExpenses(p => [{ ...doc, id:doc._id?.toString()||doc.id, by:doc.submittedBy||'You' }, ...p])
+            showToast('Expense Submitted', `${f.dept} expense of ${fmtFull(f.amount)} submitted${f.flagged?' — auto-flagged (>$10,000)':''}`)
+          }).catch(() => showToast('Error','Failed to submit expense'))
         }}
       />
 
@@ -1606,6 +1600,10 @@ export default function FinanceTab() {
         onClose={() => setModal(null)}
         onRun={(auth, bank) => {
           setPayroll(p => p.map(e => ({...e, status:'Processed'})))
+          payroll.filter(e => e.status !== 'Processed').forEach(e => {
+            const rid = e.id || e._id?.toString()
+            if (rid) financeAPI.payroll.update(rid, { status:'Processed' }).catch(() => {})
+          })
           addAudit({ action:'Payroll Run', user:auth||'You', urole:'Finance Manager', amount:'$284,600', dt:'Now', ip:'192.168.1.x', before:'Pending', after:'Processed' })
           showToast('Payroll Processed','April 2026 payroll of $284,600 processed for 47 employees. Salary slips generated.')
         }}
