@@ -1902,7 +1902,11 @@ const getOutstandingForAccount = async (accountId) => {
     {
       $project: {
         amountSigned: {
-          $cond: [{ $eq: ['$debitAccountId', accountId] }, '$amount', { $multiply: ['$amount', -1] }],
+          $cond: [
+            { $eq: ['$debitAccountId', accountId] },
+            { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] },
+            { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }, -1] },
+          ],
         },
       },
     },
@@ -1932,14 +1936,14 @@ const getAgingForAccount = async (accountId, asOfDate = new Date()) => {
     isDeleted: { $ne: true },
     $or: [{ debitAccountId: accountId }, { creditAccountId: accountId }],
   })
-    .select('date debitAccountId creditAccountId amount')
+    .select('date debitAccountId creditAccountId amount exchangeRate')
     .sort({ date: 1, _id: 1 })
 
   const openDebits = []
   const accountKey = accountId.toString()
 
   entries.forEach((entry) => {
-    const amount = Number(entry.amount || 0)
+    const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
     const debitMatch = entry.debitAccountId?.toString() === accountKey
     const creditMatch = entry.creditAccountId?.toString() === accountKey
 
@@ -2284,11 +2288,10 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         }
 
     const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true })
-    const accountCurrencyCode = String(account.currency || (baseCurrency?.code || 'USD')).toUpperCase()
-    const accountCurrency = await Currency.findOne({ code: accountCurrencyCode, isActive: true })
-
-    const exchangeRateToBase = Number(accountCurrency?.exchangeRate || 1)
-    const convertedToRateCurrency = Number(netBalance) * exchangeRateToBase
+    const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+    const accountCurrencyCode = String(account.currency || baseCurrencyCode).toUpperCase()
+    // netBalance is already aggregated in base currency (amount * exchangeRate).
+    const convertedToRateCurrency = Number(netBalance)
 
     // Metal position: sum pureWeight from actual UNFIXED metal sale/purchase transactions for this account's customer.
     // Fixed deals must affect value only, while unfixed deals affect metal balance.
@@ -2574,7 +2577,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         netDirection,
         absoluteNetBalance: Math.abs(netBalance),
         rateCurrencyBalance: convertedToRateCurrency,
-        rateCurrency: rates.priceCurrency,
+        rateCurrency: baseCurrencyCode,
       },
       metals: {
         goldPrice: rates.goldPrice,
