@@ -12,7 +12,19 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            return 'vendor'
+            if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/react-router-dom/')) {
+              return 'vendor-react'
+            }
+            if (id.includes('/jspdf/') || id.includes('/jspdf-autotable/')) {
+              return 'vendor-pdf'
+            }
+            if (id.includes('/exceljs/')) {
+              return 'vendor-excel'
+            }
+            if (id.includes('/axios/')) {
+              return 'vendor-http'
+            }
+            return 'vendor-misc'
           }
         },
       },
