@@ -783,29 +783,8 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       return { rate: FIXED_AED_RATE, source: 'fixed_aed' }
     }
     const fallbackRate = getCurrencyRateByCode(normalized)
-    if (voucherType !== 'payment') {
-      return { rate: fallbackRate, source: 'currency_table' }
-    }
-
-    const goldPrice = Number(latestMetalRates.goldPrice || 0)
-    if (!Number.isFinite(goldPrice) || goldPrice <= 0) {
-      return { rate: fallbackRate, source: 'currency_table' }
-    }
-
-    const priceCurrencyCode = String(latestMetalRates.priceCurrency || 'USD').trim().toUpperCase() || 'USD'
-    const priceCurrencyRate = getCurrencyRateByCode(priceCurrencyCode)
-    const targetCurrencyRate = getCurrencyRateByCode(normalized)
-    if (!Number.isFinite(priceCurrencyRate) || priceCurrencyRate <= 0 || !Number.isFinite(targetCurrencyRate) || targetCurrencyRate <= 0) {
-      return { rate: fallbackRate, source: 'currency_table' }
-    }
-
-    const computedRate = goldPrice * (priceCurrencyRate / targetCurrencyRate)
-    if (!Number.isFinite(computedRate) || computedRate <= 0) {
-      return { rate: fallbackRate, source: 'currency_table' }
-    }
-
-    return { rate: computedRate, source: 'gold_price' }
-  }, [voucherType, latestMetalRates, getCurrencyRateByCode])
+    return { rate: fallbackRate, source: 'currency_table' }
+  }, [getCurrencyRateByCode])
 
   const buildFormSnapshot = useCallback((snapshotHeader, snapshotLineItems, snapshotPartyId) => JSON.stringify({
     header: {
