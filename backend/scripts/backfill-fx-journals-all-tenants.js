@@ -5,6 +5,7 @@ const mongoose = require('mongoose')
 dns.setServers((process.env.ATLAS_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map((s) => s.trim()).filter(Boolean))
 
 const APPLY = process.argv.includes('--apply')
+const STRICT_FC_DELTA = process.argv.includes('--strict-fc-delta')
 const modeArg = process.argv.find((arg) => arg.startsWith('--mode='))
 const MODE = (modeArg ? modeArg.split('=')[1] : 'rate').trim().toLowerCase()
 const VALID_MODES = new Set(['rate', 'pair'])
@@ -95,6 +96,14 @@ const parseBaseSettlementAmount = (tx, baseCurrencyCode) => {
   }
 
   return 0
+}
+
+const deriveImpliedRateToBase = (tx, fcAmount) => {
+  const baseAmount = toMoney(Number(tx?.amount || 0) * Number(tx?.exchangeRate || 1))
+  const fc = Number(fcAmount || 0)
+  if (!Number.isFinite(baseAmount) || baseAmount <= 0 || !Number.isFinite(fc) || fc <= 0) return null
+  const impliedRate = baseAmount / fc
+  return Number.isFinite(impliedRate) && impliedRate > 0 ? impliedRate : null
 }
 
 const ensureFallbackAccounts = async ({ db, baseCurrencyCode }) => {
@@ -313,6 +322,7 @@ const processTenantByPairMode = async ({ db, baseCurrencyCode, fallback, name })
     scanned: txs.length,
     candidatePairs: 0,
     fallbackPairs: 0,
+    strictFcDeltaPairs: 0,
     alreadyHasFxJournal: 0,
     noDifference: 0,
     queued: 0,
@@ -332,9 +342,39 @@ const processTenantByPairMode = async ({ db, baseCurrencyCode, fallback, name })
       return
     }
 
-    const receiptBase = parseBaseSettlementAmount(receipt, baseCurrencyCode)
-    const paymentBase = parseBaseSettlementAmount(payment, baseCurrencyCode)
-    const diff = toMoney(receiptBase - paymentBase)
+    const receiptLineCurrency = parseVoucherCurrency(receipt)
+    const paymentLineCurrency = parseVoucherCurrency(payment)
+    const sameLineCurrency = receiptLineCurrency && receiptLineCurrency === paymentLineCurrency
+
+    let diff = 0
+    let postingCurrency = baseCurrencyCode
+    let postingExchangeRate = 1
+
+    if (STRICT_FC_DELTA && sameLineCurrency) {
+      const fcReceipt = toMoney(parseForeignAmount(receipt))
+      const fcPayment = toMoney(parseForeignAmount(payment))
+
+      if (fcReceipt > 0 && fcPayment > 0) {
+        diff = toMoney(fcReceipt - fcPayment)
+        postingCurrency = receiptLineCurrency
+
+        if (postingCurrency !== baseCurrencyCode) {
+          const impliedFromPayment = deriveImpliedRateToBase(payment, fcPayment)
+          const impliedFromReceipt = deriveImpliedRateToBase(receipt, fcReceipt)
+          postingExchangeRate = Number(impliedFromPayment || impliedFromReceipt || 1)
+        }
+
+        stats.strictFcDeltaPairs += 1
+      }
+    }
+
+    if (Math.abs(diff) < EPSILON) {
+      const receiptBase = parseBaseSettlementAmount(receipt, baseCurrencyCode)
+      const paymentBase = parseBaseSettlementAmount(payment, baseCurrencyCode)
+      diff = toMoney(receiptBase - paymentBase)
+      postingCurrency = baseCurrencyCode
+      postingExchangeRate = 1
+    }
 
     if (Math.abs(diff) < EPSILON) {
       stats.noDifference += 1
@@ -355,11 +395,11 @@ const processTenantByPairMode = async ({ db, baseCurrencyCode, fallback, name })
       createdBy: pickActor(payment) || pickActor(receipt),
       updatedBy: pickActor(payment) || pickActor(receipt),
       department: '',
-      currency: baseCurrencyCode,
-      exchangeRate: 1,
+      currency: postingCurrency,
+      exchangeRate: Number(postingExchangeRate || 1),
       createdAt: new Date(),
       updatedAt: new Date(),
-      notes: `FX backfill (${resolved.source}, mode=pair, counterpart=${receipt._id})`,
+      notes: `FX backfill (${resolved.source}, mode=pair, counterpart=${receipt._id}, strictFcDelta=${STRICT_FC_DELTA})`,
     }
 
     stats.queued += 1
@@ -461,6 +501,7 @@ const printStats = (stats) => {
     console.log(`  scanned             : ${stats.scanned}`)
     console.log(`  candidate pairs     : ${stats.candidatePairs}`)
     console.log(`  fallback pairs      : ${stats.fallbackPairs}`)
+    console.log(`  strict FC pairs     : ${stats.strictFcDeltaPairs}`)
     console.log(`  ambiguous buckets   : ${stats.ambiguous}`)
     console.log(`  has FX journal      : ${stats.alreadyHasFxJournal}`)
     console.log(`  no diff             : ${stats.noDifference}`)
@@ -507,6 +548,7 @@ const addTotals = (acc, row) => {
       scanned: 0,
       candidatePairs: 0,
       fallbackPairs: 0,
+      strictFcDeltaPairs: 0,
       ambiguous: 0,
       alreadyHasFxJournal: 0,
       noDifference: 0,
@@ -519,6 +561,7 @@ const addTotals = (acc, row) => {
     console.log(`  scanned             : ${totals.scanned}`)
     console.log(`  candidate pairs     : ${totals.candidatePairs}`)
     console.log(`  fallback pairs      : ${totals.fallbackPairs}`)
+    console.log(`  strict FC pairs     : ${totals.strictFcDeltaPairs}`)
     console.log(`  ambiguous buckets   : ${totals.ambiguous}`)
     console.log(`  has FX journal      : ${totals.alreadyHasFxJournal}`)
     console.log(`  no diff             : ${totals.noDifference}`)
