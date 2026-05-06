@@ -326,6 +326,48 @@ curl https://api.yourdomain.com/api/auth/me \
   - [ ] Backup/restore procedures
   - [ ] Scaling MongoDB if needed
 
+### 7.1 FX Realized Gain/Loss Audit (Reusable)
+
+Use this whenever you need to verify or backfill exchange gain/loss journals for receipt/payment settlements.
+
+1. Dry-run pair audit (no writes):
+
+```powershell
+Set-Location C:\Users\USER\Desktop\ops-dashboard\backend
+node .\scripts\backfill-fx-journals-all-tenants.js --mode=pair
+```
+
+2. Strict FC delta dry-run (uses line-item FC difference):
+
+```powershell
+Set-Location C:\Users\USER\Desktop\ops-dashboard\backend
+node .\scripts\backfill-fx-journals-all-tenants.js --mode=pair --strict-fc-delta
+```
+
+3. Apply strict FC delta backfill (writes journal rows):
+
+```powershell
+Set-Location C:\Users\USER\Desktop\ops-dashboard\backend
+node .\scripts\backfill-fx-journals-all-tenants.js --mode=pair --strict-fc-delta --apply
+```
+
+4. Verify inserted journal account names/codes:
+
+```powershell
+Set-Location C:\Users\USER\Desktop\ops-dashboard\backend
+node .\scripts\verify-fx-journal-audit.js
+```
+
+Expected verification output should include:
+- Journal amount, currency, and exchangeRate
+- Debit account code/name
+- Credit account code/name
+- Reference payment ID and counterpart receipt ID
+
+Scripts:
+- [backend/scripts/backfill-fx-journals-all-tenants.js](backend/scripts/backfill-fx-journals-all-tenants.js)
+- [backend/scripts/verify-fx-journal-audit.js](backend/scripts/verify-fx-journal-audit.js)
+
 ---
 
 ## Step 8: Optional Enhancements
