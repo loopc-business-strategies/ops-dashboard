@@ -26,6 +26,19 @@ async function bindTenantContext(req, res, next) {
     const headerTenant = normalizeTenant(req.headers['x-tenant'] || req.headers['x-company'])
     const hostTenant = resolveTenantFromHost(req.hostname, headerTenant || tenant)
     if (hostTenant !== tenant) {
+      // Let users switch tenant portals by logging in again.
+      // Without this, a stale session cookie from another tenant blocks /auth/login.
+      const path = String(req.path || '')
+      const isAuthTenantSwitchRoute = path === '/auth/login' || path === '/auth/setup'
+      if (isAuthTenantSwitchRoute) {
+        res.clearCookie('sessionToken', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+          path: '/',
+        })
+        return next()
+      }
       return res.status(401).json({ success: false, message: 'Session tenant does not match this company portal.' })
     }
 
