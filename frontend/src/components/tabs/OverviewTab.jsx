@@ -8,7 +8,7 @@ import hrAPI from '../../api/hr'
 import attendanceAPI from '../../api/attendance'
 import messagesAPI from '../../api/messages'
 
-const API_ORIGIN = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || '') : ''
+const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const REALTIME_URL = `${API_ORIGIN}/api/realtime/events`
 
 const overviewConfig = {

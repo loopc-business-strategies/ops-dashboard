@@ -595,7 +595,7 @@ describe('ERP accounting transactions workflow', () => {
     expect(String(paymentJournal.debitAccountId)).toBe(String(lossAccount._id))
   })
 
-  test('does not post exchange journal when reference rate is missing or zero', async () => {
+  test('rejects non-base receipt when reference rate is missing or zero', async () => {
     const financeUser = await createUser({ name: 'FX Guard Tester' })
     const receivableAccount = await ChartOfAccount.create({
       accountName: 'Customer Receivable FX Guard',
@@ -619,59 +619,37 @@ describe('ERP accounting transactions workflow', () => {
       isActive: true,
     })
 
-    const createAndPost = async (voucherMeta) => {
-      const createRes = await request(app)
-        .post('/api/erp-accounting/transactions')
-        .set(authHeader(financeUser))
-        .send({
-          type: 'receipt',
-          amount: 100,
-          description: 'receipt fx guard',
-          currency: 'EUR',
-          exchangeRate: 1.2,
-          customerId: customer._id.toString(),
-          voucherMeta,
-        })
+    const missingRateRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'receipt',
+        amount: 100,
+        description: 'receipt fx guard missing rate',
+        currency: 'EUR',
+        exchangeRate: 1.2,
+        customerId: customer._id.toString(),
+        voucherMeta: { lineItems: [{ type: 'cash' }] },
+      })
 
-      expect(createRes.status).toBe(201)
+    expect(missingRateRes.status).toBe(400)
+    expect(String(missingRateRes.body?.message || '')).toMatch(/Reference exchange rate is required/i)
 
-      const submitRes = await request(app)
-        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
-        .set(authHeader(financeUser))
-        .send({ comment: 'Ready to post' })
-      expect(submitRes.status).toBe(200)
+    const zeroRateRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'receipt',
+        amount: 100,
+        description: 'receipt fx guard zero rate',
+        currency: 'EUR',
+        exchangeRate: 1.2,
+        customerId: customer._id.toString(),
+        voucherMeta: { referenceExchangeRate: 0, lineItems: [{ type: 'cash' }] },
+      })
 
-      const approveRes = await request(app)
-        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/approve`)
-        .set(authHeader(financeUser))
-        .send({ comment: 'Approve FX guard transaction' })
-      expect(approveRes.status).toBe(200)
-
-      const postRes = await request(app)
-        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
-        .set(authHeader(financeUser))
-        .send({ comment: 'Post FX guard transaction' })
-      expect(postRes.status).toBe(200)
-
-      return createRes.body.transaction._id
-    }
-
-    const missingRateTxId = await createAndPost({ lineItems: [{ type: 'cash' }] })
-    const zeroRateTxId = await createAndPost({ referenceExchangeRate: 0, lineItems: [{ type: 'cash' }] })
-
-    const missingRateJournal = await Ledger.findOne({
-      referenceId: missingRateTxId,
-      referenceType: 'journal',
-      isDeleted: { $ne: true },
-    })
-    const zeroRateJournal = await Ledger.findOne({
-      referenceId: zeroRateTxId,
-      referenceType: 'journal',
-      isDeleted: { $ne: true },
-    })
-
-    expect(missingRateJournal).toBeNull()
-    expect(zeroRateJournal).toBeNull()
+    expect(zeroRateRes.status).toBe(400)
+    expect(String(zeroRateRes.body?.message || '')).toMatch(/Reference exchange rate is required/i)
   })
 
   test('posts exchange journal when line item referenceRate is present without voucher-level reference rate', async () => {

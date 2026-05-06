@@ -59,7 +59,7 @@ function createApp() {
   // Both are merged; add new Vercel/Railway origins here via env var instead of code.
   const rawOrigins = Array.from(new Set([
     ...(process.env.CLIENT_URL  || '').split(','),
-    ...(process.env.CLIENT_URLS || ''),
+    ...(process.env.CLIENT_URLS || '').split(','),
   ].flatMap(s => s.split(',')).map(o => o.trim()).filter(Boolean)))
 
   const devOrigins = isProduction

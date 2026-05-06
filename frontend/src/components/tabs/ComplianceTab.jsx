@@ -178,14 +178,15 @@ function ComplianceTab() {
   const perms = usePermissions()
   const { t } = useLanguage()
   const TABS = useMemo(() => getComplianceTabs(t), [t])
+  const USE_SEED_DATA = import.meta.env.DEV && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
 
   const [tab, setTab] = useState('eligibility')
   const [toast, setToast] = useState('')
-  const [eligibility, setEligibility] = useState(INIT_ELIGIBILITY)
-  const [approvals, setApprovals] = useState(INIT_APPROVALS)
-  const [docs, setDocs] = useState(INIT_DOCS)
-  const [updates, setUpdates] = useState(INIT_UPDATES)
-  const [agreements, setAgreements] = useState(INIT_AGREEMENTS)
+  const [eligibility, setEligibility] = useState(USE_SEED_DATA ? INIT_ELIGIBILITY : [])
+  const [approvals, setApprovals] = useState(USE_SEED_DATA ? INIT_APPROVALS : [])
+  const [docs, setDocs] = useState(USE_SEED_DATA ? INIT_DOCS : [])
+  const [updates, setUpdates] = useState(USE_SEED_DATA ? INIT_UPDATES : [])
+  const [agreements, setAgreements] = useState(USE_SEED_DATA ? INIT_AGREEMENTS : [])
 
   const [eModal, setEModal] = useState({ open: false, editId: '' })
   const [aModal, setAModal] = useState({ open: false, editId: '' })

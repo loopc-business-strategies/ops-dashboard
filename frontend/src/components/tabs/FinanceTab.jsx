@@ -1446,17 +1446,18 @@ export default function FinanceTab() {
 
   const can     = (...roles) => roles.includes(finRole)
   const canEdit = ()         => can('superadmin','fin_mgr')
+  const USE_SEED_DATA = import.meta.env.DEV && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
 
   const [activeTab,    setActiveTab]    = useState('kpi')
-  const [invoices,     setInvoices]     = useState(INIT_INVOICES)
-  const [expenses,     setExpenses]     = useState(INIT_EXPENSES)
-  const [payroll,      setPayroll]      = useState(INIT_PAYROLL)
-  const [budgets,      setBudgets]      = useState(BUDGETS)
-  const [taxes,        setTaxes]        = useState(TAXES)
-  const [receivables,  setReceivables]  = useState(RECEIVABLES)
-  const [payables,     setPayables]     = useState(PAYABLES)
-  const [auditLog,     setAuditLog]     = useState(INIT_AUDIT)
-  const [notifications,setNotifications]= useState(INIT_NOTIFS)
+  const [invoices,     setInvoices]     = useState(USE_SEED_DATA ? INIT_INVOICES : [])
+  const [expenses,     setExpenses]     = useState(USE_SEED_DATA ? INIT_EXPENSES : [])
+  const [payroll,      setPayroll]      = useState(USE_SEED_DATA ? INIT_PAYROLL : [])
+  const [budgets,      setBudgets]      = useState(USE_SEED_DATA ? BUDGETS : [])
+  const [taxes,        setTaxes]        = useState(USE_SEED_DATA ? TAXES : [])
+  const [receivables,  setReceivables]  = useState(USE_SEED_DATA ? RECEIVABLES : [])
+  const [payables,     setPayables]     = useState(USE_SEED_DATA ? PAYABLES : [])
+  const [auditLog,     setAuditLog]     = useState(USE_SEED_DATA ? INIT_AUDIT : [])
+  const [notifications,setNotifications]= useState(USE_SEED_DATA ? INIT_NOTIFS : [])
   const [toast,        setToast]        = useState(null)
   const [modal,        setModal]        = useState(null)   // 'invoice'|'expense'|'payroll'|'budget'|null
   const [notifOpen,    setNotifOpen]    = useState(false)

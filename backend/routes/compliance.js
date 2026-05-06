@@ -10,6 +10,8 @@ const {
 
 const router = express.Router()
 
+const canWrite = (user) => user?.role === 'super_admin' || user?.role === 'department_head'
+
 function crudRoutes(router, path, Model) {
   router.get(path, protect, async (req, res) => {
     try {
@@ -21,6 +23,7 @@ function crudRoutes(router, path, Model) {
   })
 
   router.post(path, protect, async (req, res) => {
+    if (!canWrite(req.user)) return res.status(403).json({ success: false, message: 'Access denied.' })
     try {
       const doc = await Model.create({
         ...req.body,
@@ -34,6 +37,7 @@ function crudRoutes(router, path, Model) {
   })
 
   router.put(`${path}/:id`, protect, async (req, res) => {
+    if (!canWrite(req.user)) return res.status(403).json({ success: false, message: 'Access denied.' })
     try {
       const doc = await Model.findByIdAndUpdate(
         req.params.id,
@@ -48,6 +52,7 @@ function crudRoutes(router, path, Model) {
   })
 
   router.delete(`${path}/:id`, protect, async (req, res) => {
+    if (req.user?.role !== 'super_admin') return res.status(403).json({ success: false, message: 'Only super admin can delete records.' })
     try {
       const doc = await Model.findByIdAndDelete(req.params.id)
       if (!doc) return res.status(404).json({ success: false, message: 'Not found' })

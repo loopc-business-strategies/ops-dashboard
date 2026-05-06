@@ -8,12 +8,15 @@ const FinanceTax     = require('../models/FinanceTax')
 
 const router = express.Router()
 
+const canWrite = (user) => user?.role === 'super_admin' || user?.role === 'department_head'
+
 // ─── generic CRUD factory ──────────────────────────────────────
 function crudRoutes(router, path, Model) {
   // LIST
   router.get(path, protect, async (req, res) => {
     try {
-      const rows = await Model.find().sort({ createdAt: -1 }).lean()
+      const TenantModel = await Model.getTenantModel(req.tenant)
+      const rows = await TenantModel.find().sort({ createdAt: -1 }).lean()
       res.json({ success: true, data: rows })
     } catch (err) {
       res.status(500).json({ success: false, message: err.message })
@@ -22,8 +25,10 @@ function crudRoutes(router, path, Model) {
 
   // CREATE
   router.post(path, protect, async (req, res) => {
+    if (!canWrite(req.user)) return res.status(403).json({ success: false, message: 'Access denied.' })
     try {
-      const doc = await Model.create({
+      const TenantModel = await Model.getTenantModel(req.tenant)
+      const doc = await TenantModel.create({
         ...req.body,
         createdById:   req.user._id,
         createdByName: req.user.name,
@@ -36,8 +41,10 @@ function crudRoutes(router, path, Model) {
 
   // UPDATE
   router.put(`${path}/:id`, protect, async (req, res) => {
+    if (!canWrite(req.user)) return res.status(403).json({ success: false, message: 'Access denied.' })
     try {
-      const doc = await Model.findByIdAndUpdate(
+      const TenantModel = await Model.getTenantModel(req.tenant)
+      const doc = await TenantModel.findByIdAndUpdate(
         req.params.id,
         { $set: req.body },
         { new: true, runValidators: true }
@@ -51,8 +58,10 @@ function crudRoutes(router, path, Model) {
 
   // DELETE
   router.delete(`${path}/:id`, protect, async (req, res) => {
+    if (req.user?.role !== 'super_admin') return res.status(403).json({ success: false, message: 'Only super admin can delete records.' })
     try {
-      const doc = await Model.findByIdAndDelete(req.params.id)
+      const TenantModel = await Model.getTenantModel(req.tenant)
+      const doc = await TenantModel.findByIdAndDelete(req.params.id)
       if (!doc) return res.status(404).json({ success: false, message: 'Not found' })
       res.json({ success: true })
     } catch (err) {

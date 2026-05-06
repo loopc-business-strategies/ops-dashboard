@@ -194,7 +194,7 @@ function getTransactionActionLabels(t) {
 const resolveTransactionAttachmentUrl = (attachment) => {
   if (!attachment) return '#'
   if (attachment.url) return attachment.url
-  if (attachment.relativePath) return `${import.meta.env.VITE_API_BASE_URL || ''}${attachment.relativePath}`
+  if (attachment.relativePath) return `${import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || ''}${attachment.relativePath}`
   return '#'
 }
 

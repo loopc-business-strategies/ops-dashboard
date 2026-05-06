@@ -200,13 +200,6 @@ function Login() {
         </div>
       </div>
 
-      {/* Bottom: live feed placeholder */}
-      <div className="mt-8 w-full max-w-sm">
-        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 text-center">
-          <p className="text-xs text-gray-600">📡 Live Feed — Coming Soon</p>
-        </div>
-      </div>
-
     </div>
   )
 }

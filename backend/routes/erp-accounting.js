@@ -318,6 +318,32 @@ const validateTransactionPayload = (payload) => {
   return ''
 }
 
+const resolveReferenceExchangeRate = (voucherMeta) => {
+  const rate = Number(
+    voucherMeta?.referenceExchangeRate
+    || voucherMeta?.invoiceExchangeRate
+    || voucherMeta?.lineItems?.[0]?.referenceRate
+    || 0
+  )
+  if (!Number.isFinite(rate) || rate <= 0) return null
+  return rate
+}
+
+const validateFxReferenceRateRequirement = ({ type, currency, voucherMeta, baseCurrencyCode }) => {
+  const normalizedType = String(type || '').trim().toLowerCase()
+  if (!['receipt', 'payment'].includes(normalizedType)) return ''
+
+  const txCurrency = String(currency || baseCurrencyCode || 'USD').trim().toUpperCase()
+  const baseCode = String(baseCurrencyCode || BASE_CURRENCY_CODE || 'USD').trim().toUpperCase()
+  if (!txCurrency || txCurrency === baseCode) return ''
+
+  if (!resolveReferenceExchangeRate(voucherMeta)) {
+    return `Reference exchange rate is required for ${normalizedType} transactions in ${txCurrency}.`
+  }
+
+  return ''
+}
+
 const ensureAccountByCode = async ({ user, code, name, accountType, currency = BASE_CURRENCY_CODE }) => {
   let account = await ChartOfAccount.findOne({ accountCode: code, isActive: true })
   if (!account) {
@@ -1120,6 +1146,16 @@ const applyTransactionWorkflowAction = async (tx, user, action, options = {}) =>
   if (action === 'post') {
     if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can post transactions')
     if (tx.status !== 'approved') throw new Error('Transaction must be approved before posting')
+
+    const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
+    const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+    const fxValidationMessage = validateFxReferenceRateRequirement({
+      type: tx.type,
+      currency: tx.currency,
+      voucherMeta: tx.voucherMeta,
+      baseCurrencyCode,
+    })
+    if (fxValidationMessage) throw new Error(fxValidationMessage)
 
     if (tx.type === 'sale' && tx.customerId) {
       const customer = await Customer.findById(tx.customerId)
@@ -4569,6 +4605,18 @@ router.post('/transactions', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: validationMessage })
     }
 
+    const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
+    const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+    const fxValidationMessage = validateFxReferenceRateRequirement({
+      type,
+      currency: String(currency || 'USD').toUpperCase(),
+      voucherMeta,
+      baseCurrencyCode,
+    })
+    if (fxValidationMessage) {
+      return res.status(400).json({ success: false, message: fxValidationMessage })
+    }
+
     const normalizedMetalFixStatus = normalizeMetalFixStatus(metalFixStatus)
     const voucherMetaPayload = (['sale', 'purchase'].includes(String(type || '').toLowerCase()) && normalizedMetalFixStatus)
       ? {
@@ -4651,6 +4699,22 @@ router.put('/transactions/:id', protect, async (req, res) => {
     })
     if (validationMessage) {
       return res.status(400).json({ success: false, message: validationMessage })
+    }
+
+    const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
+    const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+    const nextCurrency = req.body.currency !== undefined
+      ? String(req.body.currency || 'USD').toUpperCase()
+      : String(tx.currency || 'USD').toUpperCase()
+    const nextVoucherMeta = req.body.voucherMeta !== undefined ? req.body.voucherMeta : tx.voucherMeta
+    const fxValidationMessage = validateFxReferenceRateRequirement({
+      type: nextType,
+      currency: nextCurrency,
+      voucherMeta: nextVoucherMeta,
+      baseCurrencyCode,
+    })
+    if (fxValidationMessage) {
+      return res.status(400).json({ success: false, message: fxValidationMessage })
     }
 
     if (req.body.type !== undefined) tx.type = req.body.type

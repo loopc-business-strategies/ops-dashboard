@@ -1,7 +1,17 @@
 require('dotenv').config()
 const mongoose = require('mongoose')
+const dns = require('dns')
 
 const Customer = require('../models/Customer')
+
+const dnsServers = (process.env.ATLAS_DNS_SERVERS || '8.8.8.8,1.1.1.1')
+  .split(',')
+  .map((v) => v.trim())
+  .filter(Boolean)
+
+if (dnsServers.length) {
+  dns.setServers(dnsServers)
+}
 
 async function findAndRemoveOOOMarkFromCG() {
   const mongoUri = process.env.MONGO_URI_CG

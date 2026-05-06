@@ -1382,15 +1382,16 @@ export default function OperationsTab() {
   const isUser     = perms.isDepartmentUser
   const isExternal = perms.isExternal
   const canEdit    = isAdmin || isHead
+  const USE_SEED_DATA = import.meta.env.DEV && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
 
   const [activeTab, setActiveTab] = useState('kpi')
-  const [suppliers, setSuppliers] = useState(INIT_SUPPLIERS)
-  const [gold,      setGold]      = useState(INIT_GOLD)
-  const [routes,    setRoutes]    = useState(INIT_ROUTES)
-  const [secVendors,setSecVendors]= useState(INIT_SEC_VENDORS)
-  const [incidents, setIncidents] = useState(INIT_INCIDENTS)
-  const [vendors,   setVendors]   = useState(INIT_VENDORS)
-  const [inventory, setInventory] = useState(INIT_INVENTORY)
+  const [suppliers, setSuppliers] = useState(USE_SEED_DATA ? INIT_SUPPLIERS : [])
+  const [gold,      setGold]      = useState(USE_SEED_DATA ? INIT_GOLD : [])
+  const [routes,    setRoutes]    = useState(USE_SEED_DATA ? INIT_ROUTES : [])
+  const [secVendors,setSecVendors]= useState(USE_SEED_DATA ? INIT_SEC_VENDORS : [])
+  const [incidents, setIncidents] = useState(USE_SEED_DATA ? INIT_INCIDENTS : [])
+  const [vendors,   setVendors]   = useState(USE_SEED_DATA ? INIT_VENDORS : [])
+  const [inventory, setInventory] = useState(USE_SEED_DATA ? INIT_INVENTORY : [])
 
     const invToRow = item => ({
       id:    item._id || item.id,
@@ -1407,13 +1408,13 @@ export default function OperationsTab() {
         const res = await erpAPI.getInventory(token)
         const items = res.items || res.data || []
         if (items.length > 0) setInventory(items.map(invToRow))
-      } catch { /* keep seed data */ }
+      } catch { /* keep current state */ }
     }, [token])
 
     useEffect(() => { loadInventory() }, [loadInventory])
-  const [tasks,     setTasks]     = useState(INIT_TASKS)
-  const [checklist, setChecklist] = useState(INIT_CHECKLIST)
-  const [notifs,    setNotifs]    = useState(INIT_NOTIFS)
+  const [tasks,     setTasks]     = useState(USE_SEED_DATA ? INIT_TASKS : [])
+  const [checklist, setChecklist] = useState(USE_SEED_DATA ? INIT_CHECKLIST : [])
+  const [notifs,    setNotifs]    = useState(USE_SEED_DATA ? INIT_NOTIFS : [])
   const [modal,     setModal]     = useState({ type:null, data:null })
   const [notifOpen, setNotifOpen] = useState(false)
   const [toast,     setToast]     = useState(null)

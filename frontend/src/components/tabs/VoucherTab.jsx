@@ -1598,13 +1598,24 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       setError('Party Code must match an existing account (vendor or customer)')
       return
     }
+
+    const normalizedVoucherType = String(voucherType || '').toLowerCase()
+    const normalizedHeaderCurrency = String(header.currCode || baseCurrencyCode || 'USD').trim().toUpperCase()
+    const backendHeaderRate = displayRateToBackendRate(header.currRate, normalizedHeaderCurrency)
+    const isReceiptPayment = ['receipt', 'payment'].includes(normalizedVoucherType)
+    const requiresReferenceRate = isReceiptPayment && normalizedHeaderCurrency !== String(baseCurrencyCode || 'USD').trim().toUpperCase()
+    if (requiresReferenceRate && (!Number.isFinite(backendHeaderRate) || backendHeaderRate <= 0)) {
+      setError(`Reference exchange rate is required for ${normalizedVoucherType} transactions in ${normalizedHeaderCurrency}`)
+      return
+    }
+
     const payload = {
       type: voucherType,
       amount: totals.grandTotal || 0.01,
       date: header.valueDate || header.vocDate,
       description: `${voucherType} voucher ${header.vocNo || ''}`.trim(),
-      currency: baseCurrencyCode,
-      exchangeRate: 1,
+      currency: isReceiptPayment ? normalizedHeaderCurrency : baseCurrencyCode,
+      exchangeRate: isReceiptPayment ? backendHeaderRate : 1,
       customerId: resolvedParty?.customerId || undefined,
       vendorId: resolvedParty?.vendorId || undefined,
       voucherMeta: {
@@ -1621,6 +1632,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           goldPriceCurrency: String(latestMetalRates.priceCurrency || 'USD').trim().toUpperCase() || 'USD',
           goldPriceUpdatedAt: latestMetalRates.updatedAt || null,
         },
+        ...(requiresReferenceRate ? { referenceExchangeRate: backendHeaderRate } : {}),
         ...(( voucherType === 'purchase' || voucherType === 'sale') ? { fixingType: normalizeVoucherFixingType(header.fixingType) } : {}),
         lineItems: effectiveLineItems.map(l => ({
           ...l,

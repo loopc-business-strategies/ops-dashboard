@@ -13,7 +13,7 @@ const isSuper = (user) => user?.role === 'super_admin'
 const isManagement = (user) => user?.role === 'management'
 const isHrHead = (user) => user?.role === 'department_head' && normalize(user.department) === 'hr'
 
-const canManageAttendance = (user) => isSuper(user) || isHrHead(user) || user?.role === 'department_head'
+const canManageAttendance = (user) => isSuper(user) || isHrHead(user)
 const canReviewLeave = (user) => isSuper(user) || isHrHead(user) || user?.role === 'department_head'
 
 const scopedDepartment = (user) => {
