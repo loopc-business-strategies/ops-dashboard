@@ -1835,27 +1835,45 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     const next = { ...baseLine }
     const currCode = String(next.currCode || header.currCode || 'USD').trim().toUpperCase()
     const isAedConvention = currCode === 'AED'
-    const rate = parseFloat(next.currRate) || parseFloat(header.currRate) || 1
-    let amountFC = parseFloat(next.amountFC) || 0
-    let amountLC = parseFloat(next.amountLC) || 0
-
-    if (source === 'amountFC' || source === 'rate') {
-      amountLC = isAedConvention ? (rate > 0 ? amountFC / rate : 0) : amountFC * rate
-    } else if (source === 'amountLC') {
-      amountFC = isAedConvention ? amountLC * rate : (rate > 0 ? amountLC / rate : 0)
+    const parseEditableNumber = (value) => {
+      const raw = String(value ?? '').trim()
+      if (!raw || raw === '.' || raw === '-' || raw === '-.') return null
+      const num = Number.parseFloat(raw)
+      return Number.isFinite(num) ? num : null
     }
 
-    const hasAmountFC = String(next.amountFC || '').trim() !== ''
-    const hasAmountLC = String(next.amountLC || '').trim() !== ''
+    const rawRate = String(next.currRate ?? '')
+    const rawAmountFC = String(next.amountFC ?? '')
+    const rawAmountLC = String(next.amountLC ?? '')
+
+    const parsedRate = parseEditableNumber(rawRate)
+    const headerRate = parseEditableNumber(header.currRate)
+    const rate = parsedRate ?? headerRate ?? 1
+
+    const parsedAmountFC = parseEditableNumber(rawAmountFC)
+    const parsedAmountLC = parseEditableNumber(rawAmountLC)
+
+    let nextAmountFC = rawAmountFC
+    let nextAmountLC = rawAmountLC
+
+    if ((source === 'amountFC' || source === 'rate') && parsedAmountFC !== null) {
+      const computedLC = isAedConvention ? (rate > 0 ? parsedAmountFC / rate : 0) : parsedAmountFC * rate
+      nextAmountLC = Number.isFinite(computedLC) ? computedLC.toFixed(2) : nextAmountLC
+    } else if (source === 'amountLC' && parsedAmountLC !== null) {
+      const computedFC = isAedConvention ? parsedAmountLC * rate : (rate > 0 ? parsedAmountLC / rate : 0)
+      nextAmountFC = Number.isFinite(computedFC) ? computedFC.toFixed(2) : nextAmountFC
+    }
+
+    const amountLCForTotal = parseEditableNumber(nextAmountLC)
 
     return {
       ...next,
-      amountFC: hasAmountFC || amountFC > 0 ? amountFC.toFixed(2) : '',
-      amountLC: hasAmountLC || amountLC > 0 ? amountLC.toFixed(2) : '',
+      amountFC: nextAmountFC,
+      amountLC: nextAmountLC,
       vatPer: '',
       vatAmountFC: '',
       vatAmountLC: '',
-      amountWithVAT: amountLC > 0 ? amountLC.toFixed(2) : '',
+      amountWithVAT: amountLCForTotal !== null ? amountLCForTotal.toFixed(2) : '',
     }
   }
 
@@ -3032,14 +3050,14 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                           ))}
                         </select>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Rate</div>
-                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%' }} type="number" step="0.000001" value={lineForm.currRate} onChange={e => handleCurrRateChange(e.target.value)} placeholder={header.currRate} />
+                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%' }} type="text" inputMode="decimal" value={lineForm.currRate} onChange={e => handleCurrRateChange(e.target.value)} placeholder={header.currRate} />
                         </div>
                       {/* Amount row */}
                       <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 72px 1fr', borderBottom: '1px solid #E5E7EB' }}>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Amt FC</div>
-                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }} type="number" step="0.01" value={lineForm.amountFC} onChange={e => handleAmountFC(e.target.value)} onKeyDown={handleLineAmountEnter} />
+                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.amountFC} onChange={e => handleAmountFC(e.target.value)} onKeyDown={handleLineAmountEnter} />
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Amt LC *</div>
-                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} type="number" step="0.01" value={lineForm.amountLC} onChange={e => handleAmountLC(e.target.value)} onKeyDown={handleLineAmountEnter} />
+                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.amountLC} onChange={e => handleAmountLC(e.target.value)} onKeyDown={handleLineAmountEnter} />
                       </div>
 
                       {/* Narration row */}
