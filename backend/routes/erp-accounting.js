@@ -1866,17 +1866,34 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
 
   // Post exchange difference only when a reference rate is provided on payment/receipt.
   const type = String(transaction.type || '').toLowerCase()
-  if (['receipt', 'payment'].includes(type) && currencyCode !== String(base?.code || 'USD').toUpperCase()) {
+  const voucherLine = transaction?.voucherMeta?.lineItems?.[0] || {}
+  const voucherCurrencyCode = String(
+    transaction?.voucherMeta?.currCode
+    || voucherLine?.currCode
+    || currencyCode
+    || 'USD'
+  ).toUpperCase()
+
+  if (['receipt', 'payment'].includes(type)) {
     const referenceRate = Number(
       transaction?.voucherMeta?.referenceExchangeRate
       || transaction?.voucherMeta?.invoiceExchangeRate
-      || transaction?.voucherMeta?.lineItems?.[0]?.referenceRate
+      || voucherLine?.referenceRate
       || 0
     )
 
     if (Number.isFinite(referenceRate) && referenceRate > 0) {
-      const expectedBaseAmount = Number(transaction.amount || 0) * referenceRate
-      const diff = toMoney(amountInBase - expectedBaseAmount)
+      const foreignAmount = Number(
+        voucherLine?.amountFC
+        || voucherLine?.amountFc
+        || voucherLine?.amtFc
+        || voucherLine?.headerAmt
+        || 0
+      )
+      const expectedBaseAmount = Number.isFinite(foreignAmount) && foreignAmount > 0
+        ? toMoney(foreignAmount * referenceRate)
+        : toMoney(Number(transaction.amount || 0) * referenceRate)
+      const diff = toMoney(toMoney(amountInBase) - expectedBaseAmount)
 
       if (Math.abs(diff) >= 0.01) {
         // receipt: better rate => gain, worse => loss
@@ -1912,9 +1929,16 @@ const resolveExchangeAdjustmentAccounts = async ({ user, isGain }) => {
     .lean()
 
   if (mapping?.debitAccountId && mapping?.creditAccountId) {
-    return {
-      debitAccountId: mapping.debitAccountId,
-      creditAccountId: mapping.creditAccountId,
+    const [debitAccount, creditAccount] = await Promise.all([
+      ChartOfAccount.findOne({ _id: mapping.debitAccountId, isActive: true }).select('_id').lean(),
+      ChartOfAccount.findOne({ _id: mapping.creditAccountId, isActive: true }).select('_id').lean(),
+    ])
+
+    if (debitAccount && creditAccount) {
+      return {
+        debitAccountId: mapping.debitAccountId,
+        creditAccountId: mapping.creditAccountId,
+      }
     }
   }
 
