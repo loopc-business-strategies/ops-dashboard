@@ -779,6 +779,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
   const resolvePaymentRate = useCallback((currencyCode) => {
     const normalized = String(currencyCode || 'USD').trim().toUpperCase()
+    if (normalized === 'USD') {
+      return { rate: 1, source: 'base_currency' }
+    }
     if (normalized === 'AED') {
       return { rate: FIXED_AED_RATE, source: 'fixed_aed' }
     }
@@ -1869,6 +1872,15 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   }
 
   const handleHeaderCurrRateChange = (val) => {
+    const normalizedHeaderCurrency = String(header.currCode || 'USD').trim().toUpperCase()
+    if (normalizedHeaderCurrency === 'USD') {
+      setHeader((prev) => ({
+        ...prev,
+        currRate: '1.000000',
+        currRateSource: 'base_currency',
+      }))
+      return
+    }
     setHeader((prev) => ({
       ...prev,
       currRate: val,
@@ -1885,6 +1897,16 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       currRate: resolved.rate.toFixed(6),
       currRateSource: resolved.source,
     }))
+
+    // Keep payment/receipt line entry aligned with header currency unless user changes line currency again.
+    if (!isMetalVoucher && ['payment', 'receipt'].includes(String(voucherType || '').toLowerCase())) {
+      setLineForm((prev) => recalcReceiptPaymentLine({
+        ...prev,
+        currCode: normalized,
+        currRate: resolved.rate.toFixed(6),
+        currRateSource: resolved.source,
+      }, 'rate'))
+    }
   }
 
   const applyPartyCurrency = useCallback((resolvedParty) => {
