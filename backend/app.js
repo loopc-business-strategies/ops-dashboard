@@ -71,7 +71,13 @@ function createApp() {
         'http://127.0.0.1:5174',
       ]
 
-  const allowedOrigins = Array.from(new Set([...rawOrigins, ...devOrigins]))
+  const productionFrontendOrigins = isProduction
+    ? [
+        'https://frontend-snowy-gamma-76.vercel.app',
+      ]
+    : []
+
+  const allowedOrigins = Array.from(new Set([...rawOrigins, ...devOrigins, ...productionFrontendOrigins]))
 
   app.use(cors({
     origin: (origin, callback) => {
