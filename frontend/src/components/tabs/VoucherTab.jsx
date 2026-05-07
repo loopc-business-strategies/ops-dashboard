@@ -1549,6 +1549,61 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     }
   }
 
+  const formatFxRevalueSummary = (result, applied = false) => {
+    const tx = result?.transaction || {}
+    const counts = result?.counts || {}
+    const candidate = (result?.journals || []).find((row) => row.status === 'update' || row.status === 'updated')
+    const prefix = applied ? 'Revalued' : 'Preview'
+
+    if (!counts.updateCandidates && !counts.updatedCount) {
+      return `${prefix}: voucher #${tx.vocNo || '-'} already matches reference-rate FX valuation.`
+    }
+
+    const rowSummary = candidate ? ` ${fmt(candidate.currentAmount)} -> ${fmt(candidate.correctedAmount)}` : ''
+    return `${prefix}: voucher #${tx.vocNo || '-'} ${counts.updatedCount || counts.updateCandidates || 0} FX journal row(s), reference rate ${Number(tx.referenceRate || 0).toFixed(6)}.${rowSummary}`
+  }
+
+  const handleRevalueFxJournal = async (voucher) => {
+    if (!voucher?._id) return
+
+    setSaving(true)
+    clearError()
+    try {
+      const previewRes = await axios.post(`${BASE}/transactions/${voucher._id}/revalue-fx-journal`, { apply: false }, cfg())
+      const preview = previewRes.data || {}
+      const tx = preview.transaction || {}
+      const counts = preview.counts || {}
+      const candidate = (preview.journals || []).find((row) => row.status === 'update')
+      const confirmMessage = counts.updateCandidates
+        ? [
+            `Voucher #${tx.vocNo || '-'} FX preview`,
+            `Direction: ${tx.expectedDirection || '-'}`,
+            `Reference rate: ${Number(tx.referenceRate || 0).toFixed(6)}`,
+            `Line rate: ${Number(tx.lineRate || 0).toFixed(6)}`,
+            candidate ? `Journal amount: ${fmt(candidate.currentAmount)} -> ${fmt(candidate.correctedAmount)}` : '',
+            'Apply revaluation now?',
+          ].filter(Boolean).join('\n')
+        : formatFxRevalueSummary(preview, false)
+
+      if (!counts.updateCandidates) {
+        showMsg(formatFxRevalueSummary(preview, false))
+        return
+      }
+
+      if (!window.confirm(confirmMessage)) {
+        showMsg(formatFxRevalueSummary(preview, false))
+        return
+      }
+
+      const applyRes = await axios.post(`${BASE}/transactions/${voucher._id}/revalue-fx-journal`, { apply: true }, cfg())
+      showMsg(formatFxRevalueSummary(applyRes.data, true))
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to revalue FX journal')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   // ─── save voucher ────────────────────────────────────────────────────────────
   const saveVoucher = async () => {
     clearError()
@@ -2026,6 +2081,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const canReturnWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(currentVoucherStatus)
   const canRejectWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && ['submitted', 'approved', 'returned'].includes(currentVoucherStatus)
   const canPostWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(currentVoucherStatus)
+  const canRevalueCurrentVoucher = Boolean(editingId) && isSuperAdmin && ['payment', 'receipt'].includes(voucherType) && currentVoucherStatus === 'posted'
 
   // ─── guard ───────────────────────────────────────────────────────────────────
   if (!canView) {
@@ -2263,6 +2319,16 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                                 style={{ ...btn('danger'), padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
                               >
                                 Void
+                              </button>
+                            )}
+                            {isSuperAdmin && ['receipt', 'payment'].includes(String(v.type || voucherType).toLowerCase()) && v.status === 'posted' && (
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => handleRevalueFxJournal(v)}
+                                style={{ ...btn('gray'), padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#E0F2FE', color: '#0C4A6E' }}
+                              >
+                                Revalue FX
                               </button>
                             )}
                           </div>
@@ -3211,6 +3277,11 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                     {canPostWorkflow && (
                       <button type="button" disabled={saving} onClick={() => handleWorkflowAction('post')} style={{ ...btn('primary') }}>
                         {t('post')}
+                      </button>
+                    )}
+                    {canRevalueCurrentVoucher && (
+                      <button type="button" disabled={saving} onClick={() => handleRevalueFxJournal(currentVoucher)} style={{ ...btn('gray'), background: '#E0F2FE', color: '#0C4A6E' }}>
+                        Revalue FX Journal
                       </button>
                     )}
                     {!canSubmitWorkflow && !canApproveWorkflow && !canReturnWorkflow && !canRejectWorkflow && !canPostWorkflow && (

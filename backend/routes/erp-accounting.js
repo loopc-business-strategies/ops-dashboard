@@ -72,6 +72,7 @@ const canManageDirectDeals = (user) => isSuperAdmin(user) || isFinance(user) || 
 const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
 const TRANSACTION_STATUSES = ['draft', 'submitted', 'approved', 'posted', 'returned', 'rejected']
 const BASE_CURRENCY_CODE = 'USD'
+const FX_REVALUATION_EPSILON = 0.01
 const DEFAULT_CURRENCY_MASTER = [
   { code: 'USD', name: 'US Dollar', symbol: '$', exchangeRate: 1, baseCurrency: true },
   { code: 'EUR', name: 'Euro', symbol: 'EUR', exchangeRate: 1.08, baseCurrency: false },
@@ -81,6 +82,10 @@ const DEFAULT_CURRENCY_MASTER = [
 
 const toMoney = (value) => Number(Number(value || 0).toFixed(2))
 const toQty = (value) => Number(Number(value || 0).toFixed(6))
+const parseNumber = (value, fallback = 0) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
 
 const sanitizeOptionalRef = (value) => (value ? value : null)
 const normalizeMetalFixStatus = (value) => {
@@ -327,6 +332,173 @@ const resolveReferenceExchangeRate = (voucherMeta) => {
   )
   if (!Number.isFinite(rate) || rate <= 0) return null
   return rate
+}
+
+const getFxJournalEntriesForTransaction = async (txId) => Ledger.find({
+  referenceId: txId,
+  referenceType: 'journal',
+  isDeleted: { $ne: true },
+  description: /Exchange (gain|loss) adjustment/i,
+})
+  .sort({ createdAt: 1, _id: 1 })
+  .populate('debitAccountId', 'accountCode accountName')
+  .populate('creditAccountId', 'accountCode accountName')
+
+const buildFxJournalRevaluationPreview = async (transaction) => {
+  const voucherMeta = transaction?.voucherMeta || {}
+  const referenceRate = parseNumber(resolveReferenceExchangeRate(voucherMeta), 0)
+  if (!(referenceRate > 0)) {
+    return {
+      ok: false,
+      message: 'Reference exchange rate is missing for this voucher.',
+      transaction: {
+        id: String(transaction?._id || ''),
+        vocNo: voucherMeta?.vocNo || '',
+        type: transaction?.type || '',
+      },
+      counts: { journalCount: 0, updateCandidates: 0, unchangedCount: 0, skippedDirectionCount: 0 },
+      journals: [],
+    }
+  }
+
+  const firstLine = Array.isArray(voucherMeta.lineItems) ? (voucherMeta.lineItems[0] || {}) : {}
+  const lineRate = parseNumber(firstLine.currRate || transaction?.exchangeRate || 0, 0)
+  const txAmount = parseNumber(transaction?.amount, 0)
+  const foreignAmount = parseNumber(
+    firstLine.amountFC
+      || firstLine.amountFc
+      || firstLine.amtFc
+      || firstLine.headerAmt
+      || 0,
+    0,
+  )
+  const actualForeignAmount = foreignAmount > 0 ? foreignAmount : (lineRate > 0 ? txAmount / lineRate : 0)
+  const expectedForeignAmount = referenceRate > 0 ? txAmount / referenceRate : 0
+  const foreignDifference = actualForeignAmount - expectedForeignAmount
+  const correctedAmount = toMoney(Math.abs(foreignDifference) * referenceRate)
+  const isGain = String(transaction?.type || '').toLowerCase() === 'payment' ? foreignDifference < 0 : foreignDifference > 0
+  const expectedDirection = isGain ? 'gain' : 'loss'
+
+  const journals = await getFxJournalEntriesForTransaction(transaction._id)
+  const previewRows = journals.map((journal) => {
+    const currentAmount = toMoney(parseNumber(journal.amount, 0))
+    const description = String(journal.description || '')
+    const descriptionLower = description.toLowerCase()
+    const journalDirection = descriptionLower.includes('exchange gain')
+      ? 'gain'
+      : descriptionLower.includes('exchange loss')
+        ? 'loss'
+        : 'unknown'
+    const directionMatches = journalDirection === expectedDirection
+    const deltaAmount = toMoney(correctedAmount - currentAmount)
+    const needsUpdate = directionMatches
+      && correctedAmount >= FX_REVALUATION_EPSILON
+      && Math.abs(deltaAmount) >= FX_REVALUATION_EPSILON
+
+    return {
+      journalId: String(journal._id),
+      description,
+      journalDirection,
+      expectedDirection,
+      directionMatches,
+      currentAmount,
+      correctedAmount,
+      deltaAmount,
+      status: directionMatches
+        ? (needsUpdate ? 'update' : 'unchanged')
+        : 'skipped_direction',
+      debitAccount: journal.debitAccountId
+        ? {
+            id: String(journal.debitAccountId._id || journal.debitAccountId),
+            code: journal.debitAccountId.accountCode || '',
+            name: journal.debitAccountId.accountName || '',
+          }
+        : null,
+      creditAccount: journal.creditAccountId
+        ? {
+            id: String(journal.creditAccountId._id || journal.creditAccountId),
+            code: journal.creditAccountId.accountCode || '',
+            name: journal.creditAccountId.accountName || '',
+          }
+        : null,
+    }
+  })
+
+  return {
+    ok: true,
+    message: correctedAmount >= FX_REVALUATION_EPSILON
+      ? 'FX journal revaluation preview generated.'
+      : 'No FX difference remains after reference-rate valuation.',
+    transaction: {
+      id: String(transaction._id),
+      vocNo: voucherMeta?.vocNo || '',
+      type: transaction.type,
+      status: transaction.status,
+      currency: transaction.currency,
+      amount: txAmount,
+      lineRate,
+      referenceRate,
+      actualForeignAmount,
+      expectedForeignAmount,
+      foreignDifference,
+      correctedAmount,
+      expectedDirection,
+    },
+    counts: {
+      journalCount: previewRows.length,
+      updateCandidates: previewRows.filter((row) => row.status === 'update').length,
+      unchangedCount: previewRows.filter((row) => row.status === 'unchanged').length,
+      skippedDirectionCount: previewRows.filter((row) => row.status === 'skipped_direction').length,
+    },
+    journals: previewRows,
+  }
+}
+
+const applyFxJournalRevaluation = async ({ transaction, user, preview }) => {
+  let updatedCount = 0
+
+  for (const row of preview.journals) {
+    if (row.status !== 'update') continue
+
+    await Ledger.updateOne(
+      { _id: row.journalId, isDeleted: { $ne: true } },
+      {
+        $set: {
+          amount: row.correctedAmount,
+          updatedAt: new Date(),
+          updatedBy: user._id,
+          notes: `FX journal revalued using reference rate ${preview.transaction.referenceRate}`,
+        },
+      },
+    )
+    updatedCount += 1
+  }
+
+  if (updatedCount > 0) {
+    transaction.updatedBy = user._id
+    appendTransactionAudit(transaction, user, 'revalue_fx_journal', {
+      fromStatus: transaction.status,
+      toStatus: transaction.status,
+      comment: `Revalued ${updatedCount} FX journal row(s) to ${preview.transaction.correctedAmount.toFixed(2)} using reference rate ${preview.transaction.referenceRate}`,
+    })
+    await transaction.save()
+  }
+
+  return {
+    ...preview,
+    message: updatedCount > 0
+      ? `Revalued ${updatedCount} FX journal row(s).`
+      : preview.message,
+    counts: {
+      ...preview.counts,
+      updatedCount,
+    },
+    journals: preview.journals.map((row) => (
+      row.status === 'update'
+        ? { ...row, currentAmount: row.correctedAmount, deltaAmount: 0, status: 'updated' }
+        : row
+    )),
+  }
 }
 
 const validateFxReferenceRateRequirement = ({ type, currency, voucherMeta, baseCurrencyCode }) => {
@@ -5101,6 +5273,39 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
     res.json({ success: true, transaction: populated, ledgerEntry: result.ledgerEntry })
   } catch (e) {
     respondWorkflowError(res, e)
+  }
+})
+
+router.post('/transactions/:id/revalue-fx-journal', protect, async (req, res) => {
+  try {
+    if (!isSuperAdmin(req.user)) {
+      return res.status(403).json({ success: false, message: 'Only Admin can revalue FX journals' })
+    }
+
+    const tx = await Transaction.findById(req.params.id)
+    if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+    if (!['receipt', 'payment'].includes(String(tx.type || '').toLowerCase())) {
+      return res.status(400).json({ success: false, message: 'Only receipt/payment vouchers support FX revaluation' })
+    }
+    if (tx.status !== 'posted') {
+      return res.status(400).json({ success: false, message: 'Only posted vouchers can be revalued' })
+    }
+
+    const preview = await buildFxJournalRevaluationPreview(tx)
+    if (!preview.ok) {
+      return res.status(400).json({ success: false, message: preview.message, dryRun: true, ...preview })
+    }
+
+    const apply = Boolean(req.body?.apply)
+    if (!apply) {
+      return res.json({ success: true, dryRun: true, ...preview })
+    }
+
+    const applied = await applyFxJournalRevaluation({ transaction: tx, user: req.user, preview })
+    res.json({ success: true, dryRun: false, ...applied })
+  } catch (e) {
+    console.error('FX journal revaluation error:', e)
+    res.status(500).json({ success: false, message: 'Server error' })
   }
 })
 
