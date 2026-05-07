@@ -9533,10 +9533,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
                               let runningPureWeight = Number(accountEnquiryData?.metals?.goldBalance || 0)
                               return filteredStatementEntries.map((entry, index) => {
                               const receiptNo = entry.sourceTransactionNumber || entry.sourceTransactionId || entry.referenceId || entry._id || '-'
-                              const rowExchangeRate = Number(entry.exchangeRate || 1)
-                              const debitUsd = Number(entry.debitAmount || 0) * rowExchangeRate
-                              const creditUsd = Number(entry.creditAmount || 0) * rowExchangeRate
-                              const balanceUsd = Number(entry.runningBalance || 0) * rowExchangeRate
+                              // Account enquiry statement amounts are already in base currency from API.
+                              const debitUsd = Number(entry.debitAmount || 0)
+                              const creditUsd = Number(entry.creditAmount || 0)
+                              const balanceUsd = Number(entry.runningBalance || 0)
                               const sourceType = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
                               const isMetalRow = entry.isMetalTrade || sourceType === 'sale' || sourceType === 'purchase'
                               const signedPureWeight = Number(entry.metalSignedWeight || 0)
