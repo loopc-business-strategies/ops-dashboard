@@ -16,7 +16,7 @@ function crudRoutes(router, path, Model) {
   router.get(path, protect, async (req, res) => {
     try {
       const TenantModel = await Model.getTenantModel(req.tenant)
-      const rows = await TenantModel.find().sort({ createdAt: -1 }).lean()
+      const rows = await TenantModel.find().sort({ createdAt: -1 }).limit(500).lean()
       res.json({ success: true, data: rows })
     } catch (err) {
       res.status(500).json({ success: false, message: err.message })

@@ -8,7 +8,7 @@ const ledgerSchema = new mongoose.Schema(
     creditAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', required: true },
     amount: { type: Number, required: true, min: 0 },
     description: { type: String, default: '' },
-    referenceType: { type: String, enum: ['expense', 'invoice', 'payment', 'purchase', 'vendor_payment', 'journal', 'inventory', 'payroll', 'sale', 'receipt', 'cogs', 'reversal', 'direct_deal', 'vat_input', 'vat_output'], default: 'journal' },
+    referenceType: { type: String, enum: ['expense', 'invoice', 'payment', 'purchase', 'vendor_payment', 'journal', 'inventory', 'payroll', 'sale', 'receipt', 'cogs', 'reversal', 'direct_deal', 'vat_input', 'vat_output', 'bank_jv'], default: 'journal' },
     referenceId: { type: mongoose.Schema.Types.ObjectId, default: null },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     department: { type: String, default: '' },
@@ -18,6 +18,15 @@ const ledgerSchema = new mongoose.Schema(
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     isDeleted: { type: Boolean, default: false, index: true },
     deletedAt: { type: Date, default: null },
+    // Bank JV fields
+    autoTxNo:       { type: String, default: '' },
+    txRefNo:        { type: String, default: '' },
+    chequeNo:       { type: String, default: '' },
+    bankRemarks:    { type: String, default: '' },
+    paymentType:    { type: String, enum: ['cash', 'bank', 'transfer', ''], default: '' },
+    bankReconciled: { type: Boolean, default: false },
+    attachmentUrl:  { type: String, default: '' },
+    attachmentName: { type: String, default: '' },
   },
   { timestamps: true }
 )

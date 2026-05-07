@@ -11,7 +11,7 @@ import ChartOfAccountsTree from './ChartOfAccountsTree'
 import VoucherTab from './VoucherTab'
 import DirectDealsTab from './DirectDealsTab'
 
-const LEDGER_REFERENCE_TYPES = ['journal', 'expense', 'invoice', 'payment', 'purchase', 'vendor_payment', 'inventory', 'payroll']
+const LEDGER_REFERENCE_TYPES = ['journal', 'expense', 'invoice', 'payment', 'purchase', 'vendor_payment', 'inventory', 'payroll', 'bank_jv']
 const LEDGER_DEPARTMENTS = ['finance', 'sales', 'production', 'hr', 'operations', 'management']
 const ENQUIRY_HISTORY_STORAGE_KEY = 'erp-account-enquiry-history'
 const ENQUIRY_DETAILS_PANEL_STORAGE_KEY = 'erp-account-enquiry-details-panel'
@@ -1183,6 +1183,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
     description: '',
     referenceType: 'journal',
     currency: 'USD',
+    txRefNo: '',
+    chequeNo: '',
+    bankRemarks: '',
+    paymentType: 'bank',
+    bankAttachment: null,
   })
   const [currencyForm, setCurrencyForm] = useState({ code: '', name: '', symbol: '', exchangeRate: 1, baseCurrency: false })
   const [usdConversion, setUsdConversion] = useState({ usdAmount: '1', targetCode: 'UZS' })
@@ -4740,16 +4745,34 @@ function ERPTab({ focusTab, onNavigateMain }) {
       return
     }
 
+    const isBankJV = ledgerForm.referenceType === 'bank_jv'
     setSaving(true)
     try {
-      await erpAccountingAPI.createLedgerEntry(token, {
-        ...ledgerForm,
-        debitAccountId: resolvedDebitAccountId,
-        creditAccountId: resolvedCreditAccountId,
-        currency: baseCurrencyCode,
-        amount: debitAmount,
-      })
-      setLedgerForm({
+      if (isBankJV) {
+        const formData = new FormData()
+        formData.append('date', ledgerForm.date)
+        formData.append('debitAccountId', resolvedDebitAccountId)
+        formData.append('creditAccountId', resolvedCreditAccountId)
+        formData.append('amount', String(debitAmount))
+        formData.append('description', ledgerForm.description || '')
+        formData.append('referenceType', 'bank_jv')
+        formData.append('currency', baseCurrencyCode)
+        formData.append('txRefNo', ledgerForm.txRefNo || '')
+        formData.append('chequeNo', ledgerForm.chequeNo || '')
+        formData.append('bankRemarks', ledgerForm.bankRemarks || '')
+        formData.append('paymentType', ledgerForm.paymentType || 'bank')
+        if (ledgerForm.bankAttachment) formData.append('attachment', ledgerForm.bankAttachment)
+        await erpAccountingAPI.createBankJvEntry(token, formData)
+      } else {
+        await erpAccountingAPI.createLedgerEntry(token, {
+          ...ledgerForm,
+          debitAccountId: resolvedDebitAccountId,
+          creditAccountId: resolvedCreditAccountId,
+          currency: baseCurrencyCode,
+          amount: debitAmount,
+        })
+      }
+      const emptyForm = {
         date: new Date().toISOString().slice(0, 10),
         mappingId: '',
         debitAccountId: '',
@@ -4761,7 +4784,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
         description: '',
         referenceType: 'journal',
         currency: baseCurrencyCode,
-      })
+        txRefNo: '',
+        chequeNo: '',
+        bankRemarks: '',
+        paymentType: 'bank',
+        bankAttachment: null,
+      }
+      setLedgerForm(emptyForm)
       setShowLedgerForm(false)
       await Promise.all([loadLedger(), loadDashboard()])
       showNotification('✅ Ledger entry created')
@@ -5056,6 +5085,19 @@ function ERPTab({ focusTab, onNavigateMain }) {
       showNotification('✅ Entry reversed successfully')
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to reverse entry')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleReconcileLedger = async (entry) => {
+    try {
+      setSaving(true)
+      await erpAccountingAPI.reconcileLedgerEntry(token, entry._id)
+      await loadLedger()
+      showNotification(`✅ Entry marked as ${entry.bankReconciled ? 'Unreconciled' : 'Reconciled'}`)
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to update reconciliation status')
     } finally {
       setSaving(false)
     }
@@ -6052,17 +6094,16 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   onBlur={(e) => {
                     const resolvedId = resolveAccountIdFromInput(e.target.value, entryAccountOptions)
                     if (!resolvedId) {
-                      setLedgerForm((prev) => ({
-                        ...prev,
-                        debitAccountId: '',
-                      }))
+                      setLedgerForm((prev) => ({ ...prev, debitAccountId: '' }))
                       return
                     }
                     const resolvedAccount = entryAccountOptions.find((account) => String(account._id) === String(resolvedId))
+                    const isBank = /bank/i.test(resolvedAccount?.accountName || '')
                     setLedgerForm((prev) => ({
                       ...prev,
                       debitAccountId: resolvedId,
                       debitAccountInput: resolvedAccount ? accountLookupText(resolvedAccount) : prev.debitAccountInput,
+                      ...(isBank && prev.referenceType !== 'bank_jv' ? { referenceType: 'bank_jv' } : {}),
                     }))
                   }}
                   style={{ display: 'block', width: '100%', padding: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
@@ -6075,17 +6116,16 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   onBlur={(e) => {
                     const resolvedId = resolveAccountIdFromInput(e.target.value, entryAccountOptions)
                     if (!resolvedId) {
-                      setLedgerForm((prev) => ({
-                        ...prev,
-                        creditAccountId: '',
-                      }))
+                      setLedgerForm((prev) => ({ ...prev, creditAccountId: '' }))
                       return
                     }
                     const resolvedAccount = entryAccountOptions.find((account) => String(account._id) === String(resolvedId))
+                    const isBank = /bank/i.test(resolvedAccount?.accountName || '')
                     setLedgerForm((prev) => ({
                       ...prev,
                       creditAccountId: resolvedId,
                       creditAccountInput: resolvedAccount ? accountLookupText(resolvedAccount) : prev.creditAccountInput,
+                      ...(isBank && prev.referenceType !== 'bank_jv' ? { referenceType: 'bank_jv' } : {}),
                     }))
                   }}
                   style={{ display: 'block', width: '100%', padding: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
@@ -6119,15 +6159,95 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   style={{ display: 'block', width: '100%', padding: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
                 />
               </div>
-              <select
-                value={ledgerForm.referenceType}
-                onChange={(e) => setLedgerForm({ ...ledgerForm, referenceType: e.target.value })}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              >
-                {LEDGER_REFERENCE_TYPES.map((referenceType) => (
-                  <option key={referenceType} value={referenceType}>{referenceType}</option>
-                ))}
-              </select>
+              {/* Bank JV Toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setLedgerForm((prev) => ({
+                    ...prev,
+                    referenceType: prev.referenceType === 'bank_jv' ? 'journal' : 'bank_jv',
+                    txRefNo: '',
+                    chequeNo: '',
+                    bankRemarks: '',
+                    paymentType: 'bank',
+                    bankAttachment: null,
+                  }))}
+                  style={{
+                    padding: '0.4rem 1rem',
+                    background: ledgerForm.referenceType === 'bank_jv' ? '#1D4ED8' : C.p2,
+                    color: ledgerForm.referenceType === 'bank_jv' ? '#fff' : C.t2,
+                    border: `2px solid ${ledgerForm.referenceType === 'bank_jv' ? '#1D4ED8' : '#94A3B8'}`,
+                    borderRadius: '2rem',
+                    cursor: 'pointer',
+                    fontWeight: '700',
+                    fontSize: '0.82rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <span style={{ fontSize: '1rem' }}>🏦</span>
+                  {ledgerForm.referenceType === 'bank_jv' ? 'Bank JV ✓' : 'Bank JV'}
+                </button>
+                {ledgerForm.referenceType !== 'bank_jv' && (
+                  <select
+                    value={ledgerForm.referenceType}
+                    onChange={(e) => setLedgerForm({ ...ledgerForm, referenceType: e.target.value })}
+                    style={{ flex: 1, padding: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
+                  >
+                    {LEDGER_REFERENCE_TYPES.filter((t) => t !== 'bank_jv').map((referenceType) => (
+                      <option key={referenceType} value={referenceType}>{referenceType}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              {ledgerForm.referenceType === 'bank_jv' && (
+                <div style={{ background: '#EFF6FF', border: '2px solid #BFDBFE', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '0.5rem' }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#1E40AF', marginBottom: '0.6rem' }}>🏦 Bank JV Details</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <input
+                      placeholder="Transaction Reference No"
+                      value={ledgerForm.txRefNo}
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, txRefNo: e.target.value })}
+                      style={{ padding: '0.5rem', background: '#fff', border: '1px solid #BFDBFE', color: C.ink, borderRadius: '0.375rem' }}
+                    />
+                    <input
+                      placeholder="Cheque No"
+                      value={ledgerForm.chequeNo}
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, chequeNo: e.target.value })}
+                      style={{ padding: '0.5rem', background: '#fff', border: '1px solid #BFDBFE', color: C.ink, borderRadius: '0.375rem' }}
+                    />
+                    <select
+                      value={ledgerForm.paymentType}
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, paymentType: e.target.value })}
+                      style={{ padding: '0.5rem', background: '#fff', border: '1px solid #BFDBFE', color: C.ink, borderRadius: '0.375rem' }}
+                    >
+                      <option value="bank">Bank Transfer</option>
+                      <option value="cash">Cash</option>
+                      <option value="transfer">Wire Transfer</option>
+                    </select>
+                  </div>
+                  <input
+                    placeholder="Bank Remarks"
+                    value={ledgerForm.bankRemarks}
+                    onChange={(e) => setLedgerForm({ ...ledgerForm, bankRemarks: e.target.value })}
+                    style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: '#fff', border: '1px solid #BFDBFE', color: C.ink, borderRadius: '0.375rem' }}
+                  />
+                  <div>
+                    <label style={{ fontSize: '0.78rem', color: '#1E40AF', fontWeight: '600', display: 'block', marginBottom: '0.25rem' }}>Bank Slip / Receipt (PDF, JPG, PNG — max 5MB)</label>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.webp"
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, bankAttachment: e.target.files[0] || null })}
+                      style={{ display: 'block', width: '100%', padding: '0.4rem 0', color: C.t1, fontSize: '0.85rem' }}
+                    />
+                    {ledgerForm.bankAttachment && (
+                      <span style={{ fontSize: '0.78rem', color: '#16A34A' }}>✓ {ledgerForm.bankAttachment.name}</span>
+                    )}
+                  </div>
+                </div>
+              )}
               <select
                 value={ledgerForm.currency}
                 style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
@@ -6223,15 +6343,34 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   })
                   .slice((pagination.ledger - 1) * ITEMS_PER_PAGE, pagination.ledger * ITEMS_PER_PAGE)
                   .map((entry) => (
-                    <tr key={entry._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
+                    <tr key={entry._id} style={{ borderBottom: `1px solid ${C.p2}`, background: entry.referenceType === 'bank_jv' ? '#F0F9FF' : 'transparent' }}>
                       <td style={{ padding: '0.75rem', color: C.t2 }}>{new Date(entry.date).toLocaleDateString()}</td>
                       <td style={{ padding: '0.75rem', color: C.t2 }}>{entry.debitAccountId?.accountCode}</td>
                       <td style={{ padding: '0.75rem', color: C.t2 }}>{entry.creditAccountId?.accountCode}</td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>{entry.amount?.toLocaleString()}</td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>{entry.referenceType}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>
+                        {entry.referenceType === 'bank_jv' ? (
+                          <div>
+                            <span style={{ background: '#DBEAFE', color: '#1E40AF', padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '700' }}>🏦 Bank JV</span>
+                            {entry.autoTxNo && <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '0.15rem' }}>{entry.autoTxNo}</div>}
+                            {entry.chequeNo && <div style={{ fontSize: '0.7rem', color: '#64748B' }}>Chq: {entry.chequeNo}</div>}
+                            <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.3rem', borderRadius: '0.25rem', background: entry.bankReconciled ? '#DCFCE7' : '#FEF3C7', color: entry.bankReconciled ? '#166534' : '#92400E', fontWeight: '600' }}>
+                              {entry.bankReconciled ? '✓ Reconciled' : '⏳ Unreconciled'}
+                            </span>
+                          </div>
+                        ) : entry.referenceType}
+                      </td>
                       <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                           <button onClick={() => handleEditLedger(entry)} title="Edit" style={{ padding: '0.35rem 0.5rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
+                          {entry.referenceType === 'bank_jv' && (
+                            <button onClick={() => handleReconcileLedger(entry)} title={entry.bankReconciled ? 'Unreconcile' : 'Reconcile'} style={{ padding: '0.35rem 0.5rem', background: entry.bankReconciled ? '#92400E' : '#15803D', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>
+                              {entry.bankReconciled ? 'Unreconcile' : 'Reconcile'}
+                            </button>
+                          )}
+                          {entry.attachmentUrl && (
+                            <a href={`${(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')}${entry.attachmentUrl}`} target="_blank" rel="noreferrer" style={{ padding: '0.35rem 0.5rem', background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'none' }}>Slip</a>
+                          )}
                           <button onClick={() => handleReverseLedger(entry)} title="Reverse" style={{ padding: '0.35rem 0.5rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Reverse</button>
                           <button onClick={() => handlePermanentDeleteLedger(entry)} title="Delete" style={{ padding: '0.35rem 0.5rem', background: '#7F1D1D', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Delete</button>
                         </div>

@@ -269,13 +269,6 @@ function Login() {
             </form>
         </div>
 
-        {/* Live Feed */}
-        <div className="mt-6 w-full max-w-sm">
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
-            <p className="text-xs text-gray-400">📡 Live Feed — Coming Soon</p>
-          </div>
-        </div>
-
         <div className="absolute rounded-full"
              style={{
                width: '300px',

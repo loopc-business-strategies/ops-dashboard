@@ -967,6 +967,25 @@ const respondWorkflowError = (res, err) => {
 const transactionUploadDir = path.resolve(process.env.TRANSACTION_UPLOAD_DIR || path.join(__dirname, '../uploads/transactions'))
 fs.mkdirSync(transactionUploadDir, { recursive: true })
 
+const bankSlipUploadDir = path.resolve(process.env.BANK_SLIP_UPLOAD_DIR || path.join(__dirname, '../uploads/bank-slips'))
+fs.mkdirSync(bankSlipUploadDir, { recursive: true })
+
+const bankSlipUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, bankSlipUploadDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || '')
+      cb(null, `bankslip-${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`)
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp']
+    if (allowed.includes(file.mimetype)) return cb(null, true)
+    cb(new Error('Only PDF, PNG, JPG, WEBP files are allowed for bank slips'))
+  },
+})
+
 const transactionUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, transactionUploadDir),
@@ -1453,6 +1472,79 @@ const buildVendorSummary = async (vendor) => {
     lastTransaction: recentTransaction || null,
     compliance,
   }
+}
+
+// Batch version of buildVendorSummary for list endpoints — 4 queries total regardless of vendor count
+const batchVendorSummaries = async (vendors) => {
+  if (!vendors.length) return []
+  const vendorIds = vendors.map((v) => v._id)
+  const accountIds = vendors.map((v) => v.ledgerAccountId?._id).filter(Boolean)
+
+  const [debitAggs, creditAggs, txAggs, recentTxRows] = await Promise.all([
+    accountIds.length
+      ? Ledger.aggregate([
+          { $match: { debitAccountId: { $in: accountIds }, isDeleted: { $ne: true } } },
+          { $group: { _id: '$debitAccountId', total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
+        ])
+      : Promise.resolve([]),
+    accountIds.length
+      ? Ledger.aggregate([
+          { $match: { creditAccountId: { $in: accountIds }, isDeleted: { $ne: true } } },
+          { $group: { _id: '$creditAccountId', total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
+        ])
+      : Promise.resolve([]),
+    Transaction.aggregate([
+      { $match: { vendorId: { $in: vendorIds }, isDeleted: { $ne: true }, status: 'posted' } },
+      { $group: { _id: { vendorId: '$vendorId', type: '$type' }, count: { $sum: 1 }, total: { $sum: '$amount' } } },
+    ]),
+    Transaction.find({ vendorId: { $in: vendorIds }, isDeleted: { $ne: true } })
+      .sort({ date: -1, createdAt: -1 })
+      .select('vendorId type amount date status currency')
+      .lean(),
+  ])
+
+  const debitMap = new Map(debitAggs.map((r) => [String(r._id), r.total]))
+  const creditMap = new Map(creditAggs.map((r) => [String(r._id), r.total]))
+
+  const txMap = new Map()
+  txAggs.forEach((row) => {
+    const vid = String(row._id.vendorId)
+    if (!txMap.has(vid)) txMap.set(vid, { purchaseCount: 0, paymentCount: 0, purchaseAmount: 0, paymentAmount: 0 })
+    const m = txMap.get(vid)
+    if (row._id.type === 'purchase') { m.purchaseCount = row.count; m.purchaseAmount = toMoney(row.total) }
+    if (row._id.type === 'payment')  { m.paymentCount  = row.count; m.paymentAmount  = toMoney(row.total) }
+  })
+
+  const recentMap = new Map()
+  recentTxRows.forEach((tx) => {
+    const vid = String(tx.vendorId)
+    if (!recentMap.has(vid)) recentMap.set(vid, tx)
+  })
+
+  return vendors.map((vendor) => {
+    const acId = String(vendor.ledgerAccountId?._id || '')
+    const debit = debitMap.get(acId) || 0
+    const credit = creditMap.get(acId) || 0
+    const outstandingRaw = debit - credit
+    const outstanding = toMoney(Math.abs(outstandingRaw))
+    const vid = String(vendor._id)
+    const tx = txMap.get(vid) || { purchaseCount: 0, paymentCount: 0, purchaseAmount: 0, paymentAmount: 0 }
+    const utilization = Number(vendor.creditLimit || 0) > 0 ? toMoney((outstanding / Number(vendor.creditLimit || 1)) * 100) : 0
+    const compliance = evaluateVendorCompliance(vendor)
+    return {
+      outstanding,
+      outstandingType: outstandingRaw >= 0 ? 'Credit' : 'Debit',
+      aging: { bucket0to30: 0, bucket31to60: 0, bucket61to90: 0, bucket90Plus: 0, total: outstanding },
+      purchaseCount: tx.purchaseCount,
+      paymentCount: tx.paymentCount,
+      purchaseAmount: tx.purchaseAmount,
+      paymentAmount: tx.paymentAmount,
+      utilizationPercent: utilization,
+      isOverLimit: Number(vendor.creditLimit || 0) > 0 && outstanding > Number(vendor.creditLimit || 0),
+      lastTransaction: recentMap.get(vid) || null,
+      compliance,
+    }
+  })
 }
 
 const normalizeVendorCategory = (value) => {
@@ -2071,16 +2163,37 @@ router.get('/customers', protect, async (req, res) => {
       Customer.countDocuments({ isActive: true }),
     ])
 
-    const data = await Promise.all(
-      customers.map(async (customer) => {
-        const aging = await getAgingForAccount(customer.ledgerAccountId?._id)
-        return {
-          ...customer.toObject(),
-          outstandingBalance: aging.total,
-          aging,
-        }
-      })
-    )
+    // Batch outstanding balance for all customers in 2 aggregations (avoids N+1)
+    const accountIds = customers.map((c) => c.ledgerAccountId?._id).filter(Boolean)
+    const [debitAggs, creditAggs] = await Promise.all([
+      accountIds.length
+        ? Ledger.aggregate([
+            { $match: { debitAccountId: { $in: accountIds }, isDeleted: { $ne: true } } },
+            { $group: { _id: '$debitAccountId', total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
+          ])
+        : Promise.resolve([]),
+      accountIds.length
+        ? Ledger.aggregate([
+            { $match: { creditAccountId: { $in: accountIds }, isDeleted: { $ne: true } } },
+            { $group: { _id: '$creditAccountId', total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
+          ])
+        : Promise.resolve([]),
+    ])
+    const debitMap = new Map(debitAggs.map((r) => [String(r._id), r.total]))
+    const creditMap = new Map(creditAggs.map((r) => [String(r._id), r.total]))
+
+    const data = customers.map((customer) => {
+      const acId = String(customer.ledgerAccountId?._id || '')
+      const debit = debitMap.get(acId) || 0
+      const credit = creditMap.get(acId) || 0
+      const net = debit - credit
+      const outstanding = toMoney(Math.abs(net))
+      return {
+        ...customer.toObject(),
+        outstandingBalance: outstanding,
+        aging: { bucket0to30: 0, bucket31to60: 0, bucket61to90: 0, bucket90Plus: 0, total: outstanding },
+      }
+    })
 
     res.json({ success: true, customers: data, total, page, limit })
   } catch {
@@ -2882,10 +2995,11 @@ router.get('/ledger', protect, async (req, res) => {
   }
 })
 
-router.post('/ledger', protect, async (req, res) => {
+router.post('/ledger', protect, bankSlipUpload.single('attachment'), async (req, res) => {
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const { date, debitAccountId, creditAccountId, amount, description, referenceType, referenceId } = req.body
+    const { date, debitAccountId, creditAccountId, amount, description, referenceType, referenceId,
+      txRefNo, chequeNo, bankRemarks, paymentType } = req.body
     if (!debitAccountId || !creditAccountId || !amount) return res.status(400).json({ success: false, message: 'Required fields missing' })
     // Validation: debit account cannot equal credit account
     if (debitAccountId === creditAccountId) return res.status(400).json({ success: false, message: 'Debit and Credit accounts must be different' })
@@ -2895,6 +3009,24 @@ router.post('/ledger', protect, async (req, res) => {
     }
     const base = await Currency.findOne({ baseCurrency: true, isActive: true })
     const baseCurrencyCode = String(base?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+
+    const isBankJV = referenceType === 'bank_jv'
+
+    // Auto-generate transaction number for Bank JV
+    let autoTxNo = ''
+    if (isBankJV) {
+      const today = new Date()
+      const yyyymmdd = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`
+      autoTxNo = `BJV-${yyyymmdd}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`
+    }
+
+    // Handle attachment
+    let attachmentUrl = ''
+    let attachmentName = ''
+    if (req.file) {
+      attachmentUrl = `/uploads/bank-slips/${req.file.filename}`
+      attachmentName = req.file.originalname || req.file.filename
+    }
 
     const entry = await Ledger.create({
       date: new Date(date),
@@ -2908,10 +3040,20 @@ router.post('/ledger', protect, async (req, res) => {
       exchangeRate: 1,
       createdBy: req.user._id,
       department: req.user.department,
+      ...(isBankJV && {
+        autoTxNo,
+        txRefNo: txRefNo || '',
+        chequeNo: chequeNo || '',
+        bankRemarks: bankRemarks || '',
+        paymentType: paymentType || 'bank',
+        bankReconciled: false,
+        attachmentUrl,
+        attachmentName,
+      }),
     })
     res.status(201).json({ success: true, entry })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message || 'Server error' })
   }
 })
 
@@ -3002,6 +3144,22 @@ router.delete('/ledger/:id/permanent', protect, async (req, res) => {
     await entry.save()
 
     res.json({ success: true, message: 'Entry deleted permanently' })
+  } catch {
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+// Bank JV reconciliation toggle
+router.put('/ledger/:id/reconcile', protect, async (req, res) => {
+  try {
+    if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const entry = await Ledger.findById(req.params.id)
+    if (!entry) return res.status(404).json({ success: false, message: 'Ledger entry not found' })
+    if (entry.referenceType !== 'bank_jv') return res.status(400).json({ success: false, message: 'Only Bank JV entries can be reconciled' })
+    entry.bankReconciled = !entry.bankReconciled
+    entry.updatedBy = req.user._id
+    await entry.save()
+    res.json({ success: true, bankReconciled: entry.bankReconciled })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -3438,12 +3596,10 @@ router.get('/vendors', protect, async (req, res) => {
       Vendor.countDocuments(query),
     ])
 
-    const data = await Promise.all(vendors.map(async (vendor) => {
-      const summary = await buildVendorSummary(vendor)
-      return {
-        ...vendor.toObject(),
-        ...summary,
-      }
+    const summaries = await batchVendorSummaries(vendors)
+    const data = vendors.map((vendor, i) => ({
+      ...vendor.toObject(),
+      ...summaries[i],
     }))
 
     const totals = data.reduce((acc, row) => {
