@@ -1967,11 +1967,28 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
   ).toUpperCase()
 
   if (['receipt', 'payment'].includes(type)) {
-    // Line-item reference rate takes priority, then header-level reference rates
+    // Determine reference rate: explicit line/header field takes priority,
+    // then fall back to the currency master's stored exchange rate.
+    // This allows automatic FX gain/loss when the transaction rate differs
+    // from the rate currently stored in the currency table (no manual entry needed).
+    const lineCurrCode = String(voucherLine?.currCode || currencyCode || 'USD').toUpperCase()
+    const baseCurr = String(baseCurrencyCode || 'USD').toUpperCase()
+    const isForeignLine = lineCurrCode !== baseCurr
+
+    // Fetch the line currency's master rate if it differs from the header currency
+    let masterRate = 0
+    if (isForeignLine) {
+      const lineCurrency = lineCurrCode === currencyCode
+        ? txCurrency
+        : await Currency.findOne({ code: lineCurrCode, isActive: true })
+      masterRate = Number(lineCurrency?.exchangeRate || 0)
+    }
+
     const referenceRate = Number(
       voucherLine?.referenceRate
       || transaction?.voucherMeta?.referenceExchangeRate
       || transaction?.voucherMeta?.invoiceExchangeRate
+      || masterRate  // auto: use currency master rate as reference
       || 0
     )
 
@@ -1984,9 +2001,10 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
         || 0
       )
 
-      // Use the line item's own exchange rate for FC↔base conversion
-      // This supports vouchers where the header is USD but line items are in a foreign currency
-      const lineRate = Number(voucherLine?.currRate || exchangeRate || 1)
+      // Use the line item's own exchange rate for FC↔base conversion.
+      // If the line has its own currRate use it; otherwise fall back to the
+      // transaction's rate or the currency master rate (already fetched above).
+      const lineRate = Number(voucherLine?.currRate || exchangeRate || masterRate || 1)
       const txAmount = Number(transaction.amount || 0)
 
       // FC-based gain/loss model:
