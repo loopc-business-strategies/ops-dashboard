@@ -102,10 +102,11 @@ function createApp() {
   app.use(express.urlencoded({ extended: true, limit: REQUEST_BODY_LIMIT }))
   
   // ─── Security & Logging Middleware ─────────────────────────────────────────
-  app.use(sanitizeMiddleware)        // Sanitize inputs (XSS, NoSQL injection protection)
+  app.use(sanitizeMiddleware)        // Validate inputs (reject dangerous keys)
   app.use(requestLoggerMiddleware)   // Log all requests & responses
 
-  app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
+  // NOTE: Uploads directory is NOT served publicly.
+  // Use /api/erp-accounting/attachments/download/:type/:filename for protected file access.
 
   app.use('/api', apiLimiter)
   app.use('/api/auth/login', authLimiter)

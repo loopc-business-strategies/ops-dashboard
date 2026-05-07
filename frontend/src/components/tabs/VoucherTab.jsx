@@ -410,10 +410,27 @@ const emptyHeader = () => ({
 const normalizeLookupValue = (value) => String(value || '').trim().toLowerCase()
 const normalizeLineType = (value) => (value === 'Transfer' ? 'TT' : (value || 'Cash'))
 const FIXED_AED_RATE = 3.674
-// AED display convention: 3.674 (AED per USD) — invert to get backend multiply-convention (USD per AED)
-const displayRateToBackendRate = (displayRate, currCode) => {
+const toFinitePositive = (value, fallback = 1) => {
+  const parsed = Number.parseFloat(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+const backendRateToDisplayRate = (backendRate, currCode, usePerUsdDisplay = false) => {
+  const normalized = String(currCode || '').trim().toUpperCase()
+  const r = toFinitePositive(backendRate, 1)
+  if (normalized === 'USD') return 1
+  if (usePerUsdDisplay) return 1 / r
+  if (normalized === 'AED' && r < 2) return 1 / r
+  return r
+}
+
+// Payment/receipt UI shows rates as "1 USD = FC" while backend stores "USD per FC".
+const displayRateToBackendRate = (displayRate, currCode, usePerUsdDisplay = false) => {
+  const normalized = String(currCode || '').trim().toUpperCase()
   const r = parseFloat(displayRate) || 1
-  if (String(currCode || '').trim().toUpperCase() === 'AED' && r > 1) return 1 / r
+  if (normalized === 'USD') return 1
+  if (usePerUsdDisplay && r > 0) return 1 / r
+  if (normalized === 'AED' && r > 1) return 1 / r
   return r
 }
 const normalizeRateType = (value) => {
@@ -787,7 +804,8 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       return { rate: FIXED_AED_RATE, source: 'fixed_aed' }
     }
     const fallbackRate = getCurrencyRateByCode(normalized)
-    return { rate: fallbackRate, source: 'currency_table' }
+    const displayRate = backendRateToDisplayRate(fallbackRate, normalized, true)
+    return { rate: displayRate, source: 'currency_table' }
   }, [getCurrencyRateByCode])
 
   const buildFormSnapshot = useCallback((snapshotHeader, snapshotLineItems, snapshotPartyId) => JSON.stringify({
@@ -1403,16 +1421,11 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     const resolvedParty = resolveVoucherParty(m.partyCode || '')
     const voucherCurrency = String(v.currency || 'USD').trim().toUpperCase()
     const isAedVoucher = voucherCurrency === 'AED'
+    const voucherKind = String(v?.type || voucherType || '').trim().toLowerCase()
+    const isReceiptPaymentVoucher = voucherKind === 'receipt' || voucherKind === 'payment'
     const headerRateSource = m.currRateSource || m.rateMeta?.headerRateSource || 'manual'
     const loadedRate = parseFloat(v.exchangeRate)
-    // AED uses "FC per USD" convention (divide). Old vouchers stored rate < 1 (multiply convention).
-    // Auto-convert: if AED rate < 2, treat as old-format (USD per AED) and invert.
-    const normalizedHeaderRate = isAedVoucher
-      ? (() => {
-          if (!Number.isFinite(loadedRate) || loadedRate <= 0) return FIXED_AED_RATE
-          return loadedRate < 2 ? (1 / loadedRate) : loadedRate
-        })()
-      : (Number.isFinite(loadedRate) && loadedRate > 0 ? loadedRate : 1)
+    const normalizedHeaderRate = backendRateToDisplayRate(loadedRate, voucherCurrency, isReceiptPaymentVoucher)
     const nextHeader = {
       branch: m.branch || '',
       partyCode: m.partyCode || '',
@@ -1432,19 +1445,13 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       const lineCurrency = String(line?.currCode || voucherCurrency || 'USD').trim().toUpperCase()
       const lineRateSource = line?.currRateSource || 'manual'
       const lineRate = parseFloat(line?.currRate)
-      // Same AED convention fix for lines
-      const normalizedLineRate = lineCurrency === 'AED'
-        ? (() => {
-            if (!Number.isFinite(lineRate) || lineRate <= 0) return FIXED_AED_RATE
-            return lineRate < 2 ? (1 / lineRate) : lineRate
-          })()
-        : (Number.isFinite(lineRate) && lineRate > 0 ? lineRate : 1)
+      const normalizedLineRate = backendRateToDisplayRate(lineRate, lineCurrency, isReceiptPaymentVoucher)
       return {
         ...line,
         type: normalizeLineType(line.type),
         currCode: lineCurrency,
         currRate: normalizedLineRate.toFixed(6),
-        currRateSource: lineCurrency === 'AED' ? 'fixed_aed' : lineRateSource,
+        currRateSource: (lineCurrency === 'AED' && isReceiptPaymentVoucher) ? 'fixed_aed' : lineRateSource,
       }
     })
     setEditingId(v._id)
@@ -1584,8 +1591,8 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
     const normalizedVoucherType = String(voucherType || '').toLowerCase()
     const normalizedHeaderCurrency = String(header.currCode || baseCurrencyCode || 'USD').trim().toUpperCase()
-    const backendHeaderRate = displayRateToBackendRate(header.currRate, normalizedHeaderCurrency)
     const isReceiptPayment = ['receipt', 'payment'].includes(normalizedVoucherType)
+    const backendHeaderRate = displayRateToBackendRate(header.currRate, normalizedHeaderCurrency, isReceiptPayment)
     const requiresReferenceRate = isReceiptPayment && normalizedHeaderCurrency !== String(baseCurrencyCode || 'USD').trim().toUpperCase()
     if (requiresReferenceRate && (!Number.isFinite(backendHeaderRate) || backendHeaderRate <= 0)) {
       setError(`Reference exchange rate is required for ${normalizedVoucherType} transactions in ${normalizedHeaderCurrency}`)
@@ -1623,8 +1630,8 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           amountFC: parseFloat(l.amountFC) || 0,
           amountLC: parseFloat(l.amountLC) || 0,
           headerAmt: parseFloat(l.headerAmt) || 0,
-          currRate: displayRateToBackendRate(l.currRate, l.currCode || header.currCode),
-          ...(l.referenceRate ? { referenceRate: displayRateToBackendRate(l.referenceRate, l.currCode || header.currCode) } : {}),
+          currRate: displayRateToBackendRate(l.currRate, l.currCode || header.currCode, isReceiptPayment),
+          ...(l.referenceRate ? { referenceRate: displayRateToBackendRate(l.referenceRate, l.currCode || header.currCode, isReceiptPayment) } : {}),
           vatPer: parseFloat(l.vatPer) || 0,
           vatAmountFC: parseFloat(l.vatAmountFC) || 0,
           vatAmountLC: parseFloat(l.vatAmountLC) || 0,
@@ -1811,14 +1818,10 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   }
 
   // Payment/Receipt: simple FC ↔ LC conversion via exchange rate — no VAT/tax.
-  // AED uses "FC per USD" convention (rate = 3.674 means 1 USD = 3.674 AED)
-  //   → LC = FC / rate (divide)
-  // Other currencies use "USD per FC" convention (rate = 1.08 means 1 EUR = 1.08 USD)
-  //   → LC = FC * rate (multiply)
+  // UI convention is "1 USD = FC" for non-USD currencies (e.g. UZS 12048.1928).
+  //   → LC = FC / rate, and FC = LC * rate
   const recalcReceiptPaymentLine = (baseLine, source) => {
     const next = { ...baseLine }
-    const currCode = String(next.currCode || header.currCode || 'USD').trim().toUpperCase()
-    const isAedConvention = currCode === 'AED'
     const parseEditableNumber = (value) => {
       const raw = String(value ?? '').trim()
       if (!raw || raw === '.' || raw === '-' || raw === '-.') return null
@@ -1841,10 +1844,10 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     let nextAmountLC = rawAmountLC
 
     if ((source === 'amountFC' || source === 'rate') && parsedAmountFC !== null) {
-      const computedLC = isAedConvention ? (rate > 0 ? parsedAmountFC / rate : 0) : parsedAmountFC * rate
+      const computedLC = rate > 0 ? parsedAmountFC / rate : 0
       nextAmountLC = Number.isFinite(computedLC) ? computedLC.toFixed(2) : nextAmountLC
     } else if (source === 'amountLC' && parsedAmountLC !== null) {
-      const computedFC = isAedConvention ? parsedAmountLC * rate : (rate > 0 ? parsedAmountLC / rate : 0)
+      const computedFC = parsedAmountLC * rate
       nextAmountFC = Number.isFinite(computedFC) ? computedFC.toFixed(2) : nextAmountFC
     }
 

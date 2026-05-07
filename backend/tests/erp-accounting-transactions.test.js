@@ -15,11 +15,14 @@ const StockMovement = require('../models/StockMovement')
 const Ledger = require('../models/Ledger')
 const ChartOfAccount = require('../models/ChartOfAccount')
 const Currency = require('../models/Currency')
+const { runWithTenantConnection } = require('../db/tenantModelProxy')
+const { connectTenant, registerAllOnConnection } = require('../db/tenantModelRegistry')
 
 jest.setTimeout(30000)
 
 let mongo
 let app
+let mongoConnection
 
 const uploadDir = path.join(__dirname, 'tmp-transaction-uploads')
 
@@ -78,7 +81,16 @@ beforeAll(async () => {
   const mongoUri = mongo.getUri()
   process.env.MONGO_URI = mongoUri
   process.env.MONGO_URI_LOOPC = mongoUri
+  process.env.MONGO_URI_MG = mongoUri
+  process.env.MONGO_URI_CG = mongoUri
+  
   await mongoose.connect(mongoUri)
+  mongoConnection = await mongoose.connection
+  
+  // For tests, use the default mongoose connection for all tenant models
+  const registry = require('../db/tenantModelRegistry')
+  registry.registerAllOnConnection(mongoConnection)
+  
   app = createApp()
 })
 
@@ -582,7 +594,7 @@ describe('ERP accounting transactions workflow', () => {
       isDeleted: { $ne: true },
     })
     expect(receiptJournal).toBeTruthy()
-    expect(Number(receiptJournal.amount)).toBeCloseTo(20, 2)
+    expect(Number(receiptJournal.amount)).toBeCloseTo(16.67, 2)
     expect(String(receiptJournal.creditAccountId)).toBe(String(gainAccount._id))
 
     const paymentJournal = await Ledger.findOne({
@@ -591,7 +603,7 @@ describe('ERP accounting transactions workflow', () => {
       isDeleted: { $ne: true },
     })
     expect(paymentJournal).toBeTruthy()
-    expect(Number(paymentJournal.amount)).toBeCloseTo(20, 2)
+    expect(Number(paymentJournal.amount)).toBeCloseTo(16.67, 2)
     expect(String(paymentJournal.debitAccountId)).toBe(String(lossAccount._id))
   })
 
@@ -721,7 +733,7 @@ describe('ERP accounting transactions workflow', () => {
     })
 
     expect(fxJournal).toBeTruthy()
-    expect(Number(fxJournal.amount)).toBeCloseTo(20, 2)
+    expect(Number(fxJournal.amount)).toBeCloseTo(16.67, 2)
     expect(String(fxJournal.creditAccountId)).toBe(String(gainAccount._id))
   })
 

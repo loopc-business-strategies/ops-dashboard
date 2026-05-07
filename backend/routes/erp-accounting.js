@@ -2015,7 +2015,9 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
       const expectedFC = txAmount / referenceRate
       const actualFC = foreignAmount > 0 ? foreignAmount : (txAmount / lineRate)
       const fcDiff = actualFC - expectedFC
-      const diffInBase = toMoney(Math.abs(fcDiff) * lineRate)
+      // Convert the FC difference using the original obligation/reference rate,
+      // not settlement rate, to keep gain/loss valuation consistent.
+      const diffInBase = toMoney(Math.abs(fcDiff) * referenceRate)
 
       if (diffInBase >= 0.01) {
         const isGain = type === 'payment' ? fcDiff < 0 : fcDiff > 0
@@ -2251,8 +2253,14 @@ router.get('/customers/:id/aging', protect, async (req, res) => {
 })
 
 router.post('/customers', protect, async (req, res) => {
+  const session = await mongoose.startSession()
+  session.startTransaction()
+
   try {
-    if (!canManageCustomers(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    if (!canManageCustomers(req.user)) {
+      await session.abortTransaction()
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
 
     const {
       name,
@@ -2267,7 +2275,10 @@ router.post('/customers', protect, async (req, res) => {
       notes,
     } = req.body
 
-    if (!name) return res.status(400).json({ success: false, message: 'Customer name is required' })
+    if (!name) {
+      await session.abortTransaction()
+      return res.status(400).json({ success: false, message: 'Customer name is required' })
+    }
 
     const receivableParent = await ChartOfAccount.findOne({
       accountType: 'Asset',
@@ -2276,10 +2287,10 @@ router.post('/customers', protect, async (req, res) => {
         { accountCode: '1100' },
         { accountName: /accounts receivable|receivable/i },
       ],
-    }).sort({ accountCode: 1 })
+    }).sort({ accountCode: 1 }).session(session)
 
     const accountCode = await nextCustomerAccountCode()
-    const debtorAccount = await ChartOfAccount.create({
+    const debtorAccount = await ChartOfAccount.create([{
       accountName: `${name} (Debtor)`,
       accountCode,
       accountType: 'Asset',
@@ -2287,9 +2298,9 @@ router.post('/customers', protect, async (req, res) => {
       currency: currency || 'USD',
       description: `Auto-created receivable account for customer ${name}`,
       createdBy: req.user._id,
-    })
+    }], { session })
 
-    const customer = await Customer.create({
+    const customer = await Customer.create([{
       name,
       phone,
       email,
@@ -2300,28 +2311,29 @@ router.post('/customers', protect, async (req, res) => {
       paymentTermsDays: Number(paymentTermsDays || 0),
       currency: currency || 'USD',
       notes,
-      ledgerAccountId: debtorAccount._id,
+      ledgerAccountId: debtorAccount[0]._id,
       createdBy: req.user._id,
-    })
+    }], { session })
 
     const opening = Number(openingBalance || 0)
     if (opening > 0) {
-      let equityAccount = await ChartOfAccount.findOne({ accountType: 'Equity', isActive: true }).sort({ accountCode: 1 })
+      let equityAccount = await ChartOfAccount.findOne({ accountType: 'Equity', isActive: true }).sort({ accountCode: 1 }).session(session)
 
       if (!equityAccount) {
-        equityAccount = await ChartOfAccount.create({
+        const created = await ChartOfAccount.create([{
           accountName: 'Owner Equity',
           accountCode: '3000',
           accountType: 'Equity',
           currency: currency || 'USD',
           description: 'Default equity account for opening balances',
           createdBy: req.user._id,
-        })
+        }], { session })
+        equityAccount = created[0]
       }
 
-      await Ledger.create({
+      await Ledger.create([{
         date: new Date(),
-        debitAccountId: debtorAccount._id,
+        debitAccountId: debtorAccount[0]._id,
         creditAccountId: equityAccount._id,
         amount: opening,
         description: `Opening balance for customer ${name}`,
@@ -2329,12 +2341,16 @@ router.post('/customers', protect, async (req, res) => {
         createdBy: req.user._id,
         department: req.user.department,
         currency: currency || 'USD',
-      })
+      }], { session })
     }
 
-    res.status(201).json({ success: true, customer })
+    await session.commitTransaction()
+    res.status(201).json({ success: true, customer: customer[0] })
   } catch (e) {
+    await session.abortTransaction()
     res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
+  } finally {
+    await session.endSession()
   }
 })
 
@@ -2909,26 +2925,34 @@ router.delete('/accounts/:id', protect, async (req, res) => {
 })
 
 router.post('/accounts/hard-delete-by-code', protect, async (req, res) => {
+  const session = await mongoose.startSession()
+  session.startTransaction()
+
   try {
-    if (!isSuperAdmin(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    if (!isSuperAdmin(req.user)) {
+      await session.abortTransaction()
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
 
     const codes = Array.isArray(req.body?.accountCodes)
       ? Array.from(new Set(req.body.accountCodes.map((value) => String(value || '').trim()).filter(Boolean)))
       : []
 
     if (!codes.length) {
+      await session.abortTransaction()
       return res.status(400).json({ success: false, message: 'accountCodes array is required' })
     }
 
-    const accounts = await ChartOfAccount.find({ accountCode: { $in: codes } }).select('_id accountCode accountName accountType')
+    const accounts = await ChartOfAccount.find({ accountCode: { $in: codes } }).select('_id accountCode accountName accountType').session(session)
     if (!accounts.length) {
+      await session.abortTransaction()
       return res.status(404).json({ success: false, message: 'No matching accounts found' })
     }
 
     const accountIds = accounts.map((account) => account._id)
     const ledgerIds = await Ledger.find({
       $or: [{ debitAccountId: { $in: accountIds } }, { creditAccountId: { $in: accountIds } }],
-    }).distinct('_id')
+    }).distinct('_id').session(session)
 
     const [
       detachedChildren,
@@ -2940,27 +2964,28 @@ router.post('/accounts/hard-delete-by-code', protect, async (req, res) => {
       deletedLedger,
       deletedAccounts,
     ] = await Promise.all([
-      ChartOfAccount.updateMany({ parentAccountId: { $in: accountIds } }, { $set: { parentAccountId: null } }),
-      Customer.updateMany({ ledgerAccountId: { $in: accountIds } }, { $set: { ledgerAccountId: null } }),
-      Vendor.updateMany({ ledgerAccountId: { $in: accountIds } }, { $set: { ledgerAccountId: null } }),
-      InventoryItem.updateMany({ ledgerAccountId: { $in: accountIds } }, { $set: { ledgerAccountId: null } }),
+      ChartOfAccount.updateMany({ parentAccountId: { $in: accountIds } }, { $set: { parentAccountId: null } }, { session }),
+      Customer.updateMany({ ledgerAccountId: { $in: accountIds } }, { $set: { ledgerAccountId: null } }, { session }),
+      Vendor.updateMany({ ledgerAccountId: { $in: accountIds } }, { $set: { ledgerAccountId: null } }, { session }),
+      InventoryItem.updateMany({ ledgerAccountId: { $in: accountIds } }, { $set: { ledgerAccountId: null } }, { session }),
       AccountMapping.deleteMany({
         $or: [{ debitAccountId: { $in: accountIds } }, { creditAccountId: { $in: accountIds } }],
-      }),
+      }, { session }),
       Transaction.deleteMany({
         $or: [
           { debitAccountId: { $in: accountIds } },
           { creditAccountId: { $in: accountIds } },
           ...(ledgerIds.length ? [{ journalEntryId: { $in: ledgerIds } }] : []),
         ],
-      }),
-      Ledger.deleteMany({ _id: { $in: ledgerIds } }),
-      ChartOfAccount.deleteMany({ _id: { $in: accountIds } }),
+      }, { session }),
+      Ledger.deleteMany({ _id: { $in: ledgerIds } }, { session }),
+      ChartOfAccount.deleteMany({ _id: { $in: accountIds } }, { session }),
     ])
 
     const deletedCodes = accounts.map((account) => account.accountCode)
     const missingCodes = codes.filter((code) => !deletedCodes.includes(code))
 
+    await session.commitTransaction()
     res.json({
       success: true,
       message: 'Accounts deleted permanently',
@@ -2983,8 +3008,11 @@ router.post('/accounts/hard-delete-by-code', protect, async (req, res) => {
       missingCodes,
     })
   } catch (e) {
+    await session.abortTransaction()
     console.error('Hard delete accounts error:', e)
     res.status(500).json({ success: false, message: 'Server error' })
+  } finally {
+    await session.endSession()
   }
 })
 
@@ -3825,8 +3853,12 @@ router.get('/vendors/alerts/overdue-queue', protect, async (req, res) => {
 })
 
 router.post('/vendors', protect, async (req, res) => {
+  const session = await mongoose.startSession()
+  session.startTransaction()
+
   try {
     if (!canManageVendors(req.user)) {
+      await session.abortTransaction()
       return res.status(403).json({ success: false, message: 'Only Admin/Finance can create vendors' })
     }
 
@@ -3858,25 +3890,30 @@ router.post('/vendors', protect, async (req, res) => {
       swiftCode,
       currency,
     } = req.body
-    if (!name) return res.status(400).json({ success: false, message: 'Vendor name is required' })
+    
+    if (!name) {
+      await session.abortTransaction()
+      return res.status(400).json({ success: false, message: 'Vendor name is required' })
+    }
 
     const normalizedCode = String(vendorCode || '').trim().toUpperCase() || await nextVendorCode()
-    const duplicateCode = await Vendor.exists({ vendorCode: normalizedCode, deletedAt: null })
+    const duplicateCode = await Vendor.exists({ vendorCode: normalizedCode, deletedAt: null }).session(session)
     if (duplicateCode) {
+      await session.abortTransaction()
       return res.status(400).json({ success: false, message: 'Vendor code already exists' })
     }
 
     const accountCode = await nextVendorAccountCode()
-    const creditorAccount = await ChartOfAccount.create({
+    const creditorAccount = await ChartOfAccount.create([{
       accountName: `${name} (Creditor)`,
       accountCode,
       accountType: 'Liability',
       currency: currency || 'USD',
       description: `Auto-created payable account for vendor ${name}`,
       createdBy: req.user._id,
-    })
+    }], { session })
 
-    const vendor = await Vendor.create({
+    const vendor = await Vendor.create([{
       vendorCode: normalizedCode,
       name,
       contactPerson: contactPerson || '',
@@ -3905,19 +3942,19 @@ router.post('/vendors', protect, async (req, res) => {
       iban: iban || '',
       swiftCode: swiftCode || '',
       currency: currency || 'USD',
-      ledgerAccountId: creditorAccount._id,
+      ledgerAccountId: creditorAccount[0]._id,
       createdBy: req.user._id,
       updatedBy: req.user._id,
-    })
+    }], { session })
 
     const opening = Number(openingBalance || 0)
     if (opening > 0) {
-      const inventoryAccount = await ChartOfAccount.findOne({ accountType: 'Asset', isActive: true }).sort({ accountCode: 1 })
+      const inventoryAccount = await ChartOfAccount.findOne({ accountType: 'Asset', isActive: true }).sort({ accountCode: 1 }).session(session)
       if (inventoryAccount) {
-        await Ledger.create({
+        await Ledger.create([{
           date: new Date(),
           debitAccountId: inventoryAccount._id,
-          creditAccountId: creditorAccount._id,
+          creditAccountId: creditorAccount[0]._id,
           amount: opening,
           description: `Opening balance for vendor ${name}`,
           referenceType: 'journal',
@@ -3925,13 +3962,17 @@ router.post('/vendors', protect, async (req, res) => {
           updatedBy: req.user._id,
           department: req.user.department,
           currency: currency || 'USD',
-        })
+        }], { session })
       }
     }
 
-    res.status(201).json({ success: true, vendor })
+    await session.commitTransaction()
+    res.status(201).json({ success: true, vendor: vendor[0] })
   } catch (e) {
+    await session.abortTransaction()
     res.status(500).json({ success: false, message: e.message || 'Server error' })
+  } finally {
+    await session.endSession()
   }
 })
 
@@ -6187,6 +6228,77 @@ router.get('/reports/dashboard', protect, async (req, res) => {
     })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error', detail: err.message })
+  }
+})
+
+// ==========================================
+// PROTECTED FILE DOWNLOAD
+// Download transaction attachments or bank slips with authorization
+// ==========================================
+router.get('/attachments/download/:type/:filename', protect, async (req, res) => {
+  try {
+    const { type, filename } = req.params
+
+    // Only allow transaction and bank-slip attachment downloads
+    if (!['transaction', 'bank-slip'].includes(type)) {
+      return res.status(400).json({ success: false, message: 'Invalid attachment type' })
+    }
+
+    // Validate filename is safe (no path traversal)
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ success: false, message: 'Invalid filename' })
+    }
+
+    const uploadDir = type === 'transaction'
+      ? path.resolve(process.env.TRANSACTION_UPLOAD_DIR || path.join(__dirname, '../uploads/transactions'))
+      : path.resolve(process.env.BANK_SLIP_UPLOAD_DIR || path.join(__dirname, '../uploads/bank-slips'))
+
+    const filePath = path.resolve(uploadDir, filename)
+
+    // Verify the file is within the expected directory (prevent directory traversal)
+    if (!filePath.startsWith(uploadDir)) {
+      return res.status(403).json({ success: false, message: 'Access denied' })
+    }
+
+    // Check file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: 'File not found' })
+    }
+
+    // For transaction attachments, verify user has access to the transaction
+    if (type === 'transaction') {
+      const txId = req.query.txId
+      if (!txId) {
+        return res.status(400).json({ success: false, message: 'Transaction ID required' })
+      }
+
+      const tx = await Transaction.findById(txId)
+      if (!tx || tx.isDeleted) {
+        return res.status(404).json({ success: false, message: 'Transaction not found' })
+      }
+
+      // User must have access to transactions
+      if (!canAccessTransactions(req.user)) {
+        return res.status(403).json({ success: false, message: 'Forbidden' })
+      }
+
+      // Verify the attachment belongs to this transaction
+      const attachment = tx.attachments.find((att) => att.fileName === filename)
+      if (!attachment) {
+        return res.status(404).json({ success: false, message: 'Attachment not found' })
+      }
+    }
+
+    // For bank slips, just verify user has finance access
+    if (type === 'bank-slip' && !isFinance(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+
+    // Send the file
+    res.download(filePath)
+  } catch (err) {
+    console.error('Download error:', err)
+    res.status(500).json({ success: false, message: 'Server error' })
   }
 })
 
