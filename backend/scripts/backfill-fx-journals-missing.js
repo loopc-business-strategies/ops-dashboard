@@ -123,7 +123,7 @@ async function backfillTenant(uri, tenantName) {
       const expectedFC = txAmount / referenceRate
       const actualFC   = foreignAmount > 0 ? foreignAmount : (txAmount / lineRate)
       const fcDiff     = actualFC - expectedFC
-      const diffInBase = toMoney(Math.abs(fcDiff) * lineRate)
+      const diffInBase = toMoney(Math.abs(fcDiff) * referenceRate)
 
       // Sanity check: skip if the FC difference is more than 200% of actual FC
       // (protects against test/bad data with grossly wrong amountFC values)
