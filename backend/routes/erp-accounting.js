@@ -1967,10 +1967,11 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
   ).toUpperCase()
 
   if (['receipt', 'payment'].includes(type)) {
+    // Line-item reference rate takes priority, then header-level reference rates
     const referenceRate = Number(
-      transaction?.voucherMeta?.referenceExchangeRate
+      voucherLine?.referenceRate
+      || transaction?.voucherMeta?.referenceExchangeRate
       || transaction?.voucherMeta?.invoiceExchangeRate
-      || voucherLine?.referenceRate
       || 0
     )
 
@@ -1982,22 +1983,31 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
         || voucherLine?.headerAmt
         || 0
       )
-      const expectedBaseAmount = Number.isFinite(foreignAmount) && foreignAmount > 0
-        ? toMoney(foreignAmount * referenceRate)
-        : toMoney(Number(transaction.amount || 0) * referenceRate)
-      const diff = toMoney(toMoney(amountInBase) - expectedBaseAmount)
 
-      if (Math.abs(diff) >= 0.01) {
-        // receipt: better rate => gain, worse => loss
-        // payment: better rate => gain, worse => loss, but diff direction is inverted
-        const isGain = type === 'payment' ? diff < 0 : diff > 0
+      // Use the line item's own exchange rate for FC↔base conversion
+      // This supports vouchers where the header is USD but line items are in a foreign currency
+      const lineRate = Number(voucherLine?.currRate || exchangeRate || 1)
+      const txAmount = Number(transaction.amount || 0)
+
+      // FC-based gain/loss model:
+      //   expectedFC = how many FC units were expected at the original (reference) rate
+      //   actualFC   = how many FC units were actually received / paid
+      //   For receipt: actualFC > expectedFC → gain (received more FC than expected)
+      //   For payment: actualFC < expectedFC → gain (paid less FC than expected)
+      const expectedFC = txAmount / referenceRate
+      const actualFC = foreignAmount > 0 ? foreignAmount : (txAmount / lineRate)
+      const fcDiff = actualFC - expectedFC
+      const diffInBase = toMoney(Math.abs(fcDiff) * lineRate)
+
+      if (diffInBase >= 0.01) {
+        const isGain = type === 'payment' ? fcDiff < 0 : fcDiff > 0
         const accounts = await resolveExchangeAdjustmentAccounts({ user, isGain })
 
         await Ledger.create({
           date: transaction.date || new Date(),
           debitAccountId: accounts.debitAccountId,
           creditAccountId: accounts.creditAccountId,
-          amount: toMoney(Math.abs(diff)),
+          amount: diffInBase,
           description: `Exchange ${isGain ? 'gain' : 'loss'} adjustment for transaction ${transaction._id}`,
           referenceType: 'journal',
           referenceId: transaction._id,

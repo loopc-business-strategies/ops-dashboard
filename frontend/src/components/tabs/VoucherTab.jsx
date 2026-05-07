@@ -389,6 +389,7 @@ const emptyLine = () => ({
   amountWithVAT: '',
   headerAmountWithVAT: '',
   narration: '',
+  referenceRate: '',
 })
 
 const emptyHeader = () => ({
@@ -1623,6 +1624,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           amountLC: parseFloat(l.amountLC) || 0,
           headerAmt: parseFloat(l.headerAmt) || 0,
           currRate: displayRateToBackendRate(l.currRate, l.currCode || header.currCode),
+          ...(l.referenceRate ? { referenceRate: displayRateToBackendRate(l.referenceRate, l.currCode || header.currCode) } : {}),
           vatPer: parseFloat(l.vatPer) || 0,
           vatAmountFC: parseFloat(l.vatAmountFC) || 0,
           vatAmountLC: parseFloat(l.vatAmountLC) || 0,
@@ -3053,6 +3055,16 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Rate</div>
                         <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%' }} type="text" inputMode="decimal" value={lineForm.currRate} onChange={e => handleCurrRateChange(e.target.value)} placeholder={header.currRate} />
                         </div>
+                      {/* Ref Rate row - shows for payment/receipt with non-base foreign currency */}
+                      {['payment', 'receipt'].includes(String(voucherType || '').toLowerCase()) &&
+                        String(lineForm.currCode || 'USD').toUpperCase() !== baseCurrencyCode && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 72px 1fr', borderBottom: '1px solid #E5E7EB', background: '#FFFBEB' }}>
+                          <div style={{ padding: '0.26rem 0.45rem', background: '#FEF3C7', fontWeight: '700', fontSize: '0.7rem', color: '#92400E', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Ref Rate</div>
+                          <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFFBEB', outline: 'none', textAlign: 'right', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.referenceRate || ''} onChange={e => setLF('referenceRate', e.target.value)} placeholder="Original invoice rate" />
+                          <div style={{ padding: '0.26rem 0.45rem', background: '#FEF3C7', fontSize: '0.68rem', color: '#92400E', borderRight: '1px solid #DDE1E8', display: 'flex', alignItems: 'center' }}></div>
+                          <div style={{ padding: '0.26rem 0.45rem', fontSize: '0.68rem', color: '#92400E', fontStyle: 'italic', display: 'flex', alignItems: 'center' }}>Rate when obligation was created (for FX gain/loss)</div>
+                        </div>
+                      )}
                       {/* Amount row */}
                       <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 72px 1fr', borderBottom: '1px solid #E5E7EB' }}>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Amt FC</div>
