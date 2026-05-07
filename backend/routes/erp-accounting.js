@@ -2966,6 +2966,7 @@ router.post('/accounts/hard-delete-by-code', protect, async (req, res) => {
 router.get('/ledger', protect, async (req, res) => {
   try {
     if (!canViewLedger(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const TenantLedger = await Ledger.getTenantModel(req.tenant)
     const { startDate, endDate, accountId, department, referenceType, limit = 500 } = req.query
     const safeLimit = Math.min(500, Math.max(1, Number(limit) || 500))
     const query = { isDeleted: { $ne: true } }
@@ -2983,7 +2984,7 @@ router.get('/ledger', protect, async (req, res) => {
     if (referenceType) {
       query.referenceType = referenceType
     }
-    const entries = await Ledger.find(query)
+    const entries = await TenantLedger.find(query)
       .populate('debitAccountId', 'accountName accountCode')
       .populate('creditAccountId', 'accountName accountCode')
       .populate('createdBy', 'name')
@@ -3063,7 +3064,8 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), async (req,
 router.put('/ledger/:id', protect, async (req, res) => {
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const entry = await Ledger.findById(req.params.id)
+    const TenantLedger = await Ledger.getTenantModel(req.tenant)
+    const entry = await TenantLedger.findById(req.params.id)
     if (!entry) return res.status(404).json({ success: false, message: 'Ledger entry not found' })
     // Only creator or finance can edit
     if (entry.createdBy.toString() !== req.user._id.toString() && !isFinance(req.user)) {
@@ -3085,7 +3087,7 @@ router.put('/ledger/:id', protect, async (req, res) => {
       updates.currency = String(base?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
       updates.exchangeRate = 1
     }
-    const updated = await Ledger.findByIdAndUpdate(req.params.id, updates, { new: true })
+    const updated = await TenantLedger.findByIdAndUpdate(req.params.id, updates, { new: true })
     res.json({ success: true, entry: updated })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
@@ -3095,14 +3097,15 @@ router.put('/ledger/:id', protect, async (req, res) => {
 router.delete('/ledger/:id', protect, async (req, res) => {
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const entry = await Ledger.findById(req.params.id)
+    const TenantLedger = await Ledger.getTenantModel(req.tenant)
+    const entry = await TenantLedger.findById(req.params.id)
     if (!entry) return res.status(404).json({ success: false, message: 'Ledger entry not found' })
     // Only creator or finance can delete
     if (entry.createdBy.toString() !== req.user._id.toString() && !isFinance(req.user)) {
       return res.status(403).json({ success: false, message: 'Can only delete your own entries' })
     }
     // Create reversal entry instead of hard delete (for audit trail)
-    const reversalEntry = await Ledger.create({
+    const reversalEntry = await TenantLedger.create({
       date: new Date(),
       debitAccountId: entry.creditAccountId,
       creditAccountId: entry.debitAccountId,
@@ -3123,14 +3126,16 @@ router.delete('/ledger/:id', protect, async (req, res) => {
 router.delete('/ledger/:id/permanent', protect, async (req, res) => {
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const entry = await Ledger.findById(req.params.id)
+    const TenantLedger = await Ledger.getTenantModel(req.tenant)
+    const TenantTransaction = await Transaction.getTenantModel(req.tenant)
+    const entry = await TenantLedger.findById(req.params.id)
     if (!entry) return res.status(404).json({ success: false, message: 'Ledger entry not found' })
     // Only creator or finance can permanently delete
     if (entry.createdBy.toString() !== req.user._id.toString() && !isFinance(req.user)) {
       return res.status(403).json({ success: false, message: 'Can only delete your own entries' })
     }
 
-    const linkedTx = await Transaction.findOne({ journalEntryId: entry._id }).select('_id')
+    const linkedTx = await TenantTransaction.findOne({ journalEntryId: entry._id }).select('_id')
     if (linkedTx) {
       return res.status(400).json({
         success: false,
@@ -3153,7 +3158,8 @@ router.delete('/ledger/:id/permanent', protect, async (req, res) => {
 router.put('/ledger/:id/reconcile', protect, async (req, res) => {
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const entry = await Ledger.findById(req.params.id)
+    const TenantLedger = await Ledger.getTenantModel(req.tenant)
+    const entry = await TenantLedger.findById(req.params.id)
     if (!entry) return res.status(404).json({ success: false, message: 'Ledger entry not found' })
     if (entry.referenceType !== 'bank_jv') return res.status(400).json({ success: false, message: 'Only Bank JV entries can be reconciled' })
     entry.bankReconciled = !entry.bankReconciled

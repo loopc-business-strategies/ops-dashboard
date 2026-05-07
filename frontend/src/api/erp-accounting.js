@@ -30,7 +30,7 @@ const getCustomerAging = async (token, id) => (await axios.get(`${BASE}/customer
 // Ledger
 const getLedger = async (token, params) => (await axios.get(`${BASE}/ledger`, getAuthConfig(token, params))).data
 const createLedgerEntry = async (token, payload) => (await axios.post(`${BASE}/ledger`, payload, getAuthConfig(token))).data
-const createBankJvEntry = async (token, formData) => (await axios.post(`${BASE}/ledger`, formData, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } })).data
+const createBankJvEntry = async (token, formData) => (await axios.post(`${BASE}/ledger`, formData, { withCredentials: true })).data
 const updateLedgerEntry = async (token, id, payload) => (await axios.put(`${BASE}/ledger/${id}`, payload, getAuthConfig(token))).data
 const deleteLedgerEntry = async (token, id) => (await axios.delete(`${BASE}/ledger/${id}`, getAuthConfig(token))).data
 const permanentDeleteLedgerEntry = async (token, id) => (await axios.delete(`${BASE}/ledger/${id}/permanent`, getAuthConfig(token))).data

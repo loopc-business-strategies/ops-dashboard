@@ -5026,6 +5026,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
     const mappedDebit = entryAccountOptions.find((account) => String(account._id) === String(selectedMapping?.debitAccountId?._id || ''))
     const mappedCredit = entryAccountOptions.find((account) => String(account._id) === String(selectedMapping?.creditAccountId?._id || ''))
 
+    // Check if either account is a bank account for auto-detection
+    const debitIsBank = /bank/i.test(mappedDebit?.accountName || '')
+    const creditIsBank = /bank/i.test(mappedCredit?.accountName || '')
+    const shouldAutoDetectBank = debitIsBank || creditIsBank
+
     setLedgerForm((prev) => ({
       ...prev,
       mappingId,
@@ -5034,6 +5039,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       creditAccountId: selectedMapping?.creditAccountId?._id || prev.creditAccountId,
       creditAccountInput: mappedCredit ? accountLookupText(mappedCredit) : prev.creditAccountInput,
       description: selectedMapping && !prev.description ? selectedMapping.description || prev.description : prev.description,
+      ...(shouldAutoDetectBank && prev.referenceType !== 'bank_jv' ? { referenceType: 'bank_jv' } : {}),
     }))
   }
 
