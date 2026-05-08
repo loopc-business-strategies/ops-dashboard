@@ -6244,18 +6244,19 @@ function ERPTab({ focusTab, onNavigateMain }) {
             <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Journal Voucher</h3>
             {canManageAccounts && (
               <button
-                onClick={() => { if (showLedgerForm) closeJvModal(); else openJvModal() }}
+                onClick={() => { if (!showLedgerForm) openJvModal() }}
+                disabled={showLedgerForm}
                 style={{
                   padding: '0.5rem 1rem',
-                  background: C.s1,
+                  background: showLedgerForm ? '#9CA3AF' : C.s1,
                   color: C.t1,
                   border: 'none',
                   borderRadius: '0.375rem',
-                  cursor: 'pointer',
+                  cursor: showLedgerForm ? 'not-allowed' : 'pointer',
                   fontWeight: '600',
                 }}
               >
-                {showLedgerForm ? '✕ Close' : '+ New Journal Voucher'}
+                + New Journal Voucher
               </button>
             )}
           </div>
@@ -6267,19 +6268,19 @@ function ERPTab({ focusTab, onNavigateMain }) {
             const numCellSt = { ...cellSt, textAlign: 'right' }
             return (
             <div
-              style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.42)', zIndex: 1700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.62)', zIndex: 1700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
               onClick={closeJvModal}
             >
               <div
-                style={{ width: 'min(1840px, 98vw)', maxHeight: '92vh', transform: `translate(${jvModalOffset.x}px, ${jvModalOffset.y}px)`, userSelect: jvModalDrag.active ? 'none' : 'auto' }}
+                style={{ width: 'min(1240px, 92vw)', maxHeight: '90vh', transform: `translate(${jvModalOffset.x}px, ${jvModalOffset.y}px)`, userSelect: jvModalDrag.active ? 'none' : 'auto', boxShadow: '0 28px 55px rgba(2, 6, 23, 0.45)', borderRadius: '0.6rem' }}
                 onClick={(e) => e.stopPropagation()}
               >
                 <div
                   onMouseDown={beginJvModalDrag}
-                  style={{ background: '#0F172A', color: '#fff', padding: '0.58rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderTopLeftRadius: '0.5rem', borderTopRightRadius: '0.5rem', cursor: jvModalDrag.active ? 'grabbing' : 'grab' }}
+                  style={{ background: '#0F172A', color: '#fff', padding: '0.62rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderTopLeftRadius: '0.6rem', borderTopRightRadius: '0.6rem', cursor: jvModalDrag.active ? 'grabbing' : 'grab', userSelect: 'none' }}
                 >
                   <span style={{ fontWeight: '700', fontSize: '0.88rem' }}>Journal Voucher</span>
-                  <span style={{ color: '#94A3B8', fontSize: '0.72rem', marginLeft: '0.35rem' }}>drag</span>
+                  <span style={{ color: '#94A3B8', fontSize: '0.72rem', marginLeft: '0.35rem' }}>drag window</span>
                   <button
                     type="button"
                     onMouseDown={(e) => e.stopPropagation()}
@@ -6289,7 +6290,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                     X Close
                   </button>
                 </div>
-            <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderTop: 'none', borderBottomLeftRadius: '0.5rem', borderBottomRightRadius: '0.5rem', marginBottom: '1rem', overflow: 'hidden auto', maxHeight: 'calc(92vh - 44px)' }}>
+            <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderTop: 'none', borderBottomLeftRadius: '0.6rem', borderBottomRightRadius: '0.6rem', marginBottom: 0, overflow: 'hidden auto', maxHeight: 'calc(90vh - 46px)' }}>
               {/* JV Header bar */}
               <div style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%)', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ color: '#fff', fontWeight: '800', fontSize: '0.95rem', letterSpacing: '0.04em' }}>📒 JOURNAL VOUCHER</span>
