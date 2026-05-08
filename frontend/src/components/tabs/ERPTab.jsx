@@ -1220,8 +1220,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const [showForm, setShowForm] = useState(false)
   const [showCustomerForm, setShowCustomerForm] = useState(false)
   const [showLedgerForm, setShowLedgerForm] = useState(false)
+  const JV_MODAL_DEFAULT_SIZE = { width: 980, height: 640 }
   const [jvModalOffset, setJvModalOffset] = useState({ x: 0, y: 0 })
   const [jvModalDrag, setJvModalDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+  const [jvModalSize, setJvModalSize] = useState(JV_MODAL_DEFAULT_SIZE)
+  const [jvModalResize, setJvModalResize] = useState({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
   const [showCurrencyForm, setShowCurrencyForm] = useState(false)
   const [showMappingForm, setShowMappingForm] = useState(false)
   const [ledgerFilters, setLedgerFilters] = useState({ startDate: '', endDate: '', department: '', referenceType: '', accountId: '' })
@@ -1882,6 +1885,19 @@ function ERPTab({ focusTab, onNavigateMain }) {
     })
   }
 
+  const beginJvModalResize = (event) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    setJvModalResize({
+      active: true,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      startW: jvModalSize.width,
+      startH: jvModalSize.height,
+    })
+  }
+
   useEffect(() => {
     if (!showEnquiryModal) {
       setEnquiryModalOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
@@ -1921,6 +1937,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
         if (!prev.active && prev.pointerX === 0 && prev.pointerY === 0 && prev.startX === 0 && prev.startY === 0) return prev
         return { active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 }
       })
+      setJvModalResize((prev) => {
+        if (!prev.active && prev.pointerX === 0 && prev.pointerY === 0 && prev.startW === JV_MODAL_DEFAULT_SIZE.width && prev.startH === JV_MODAL_DEFAULT_SIZE.height) return prev
+        return { active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height }
+      })
+      setJvModalSize((prev) => (prev.width === JV_MODAL_DEFAULT_SIZE.width && prev.height === JV_MODAL_DEFAULT_SIZE.height ? prev : JV_MODAL_DEFAULT_SIZE))
       return undefined
     }
 
@@ -1945,6 +1966,28 @@ function ERPTab({ focusTab, onNavigateMain }) {
       window.removeEventListener('mouseup', onMouseUp)
     }
   }, [showLedgerForm, jvModalDrag])
+
+  useEffect(() => {
+    if (!showLedgerForm || !jvModalResize.active) return undefined
+
+    const onMouseMove = (event) => {
+      const nextWidth = Math.max(860, Math.min(window.innerWidth - 24, jvModalResize.startW + (event.clientX - jvModalResize.pointerX)))
+      const nextHeight = Math.max(500, Math.min(window.innerHeight - 24, jvModalResize.startH + (event.clientY - jvModalResize.pointerY)))
+      setJvModalSize({ width: nextWidth, height: nextHeight })
+    }
+
+    const onMouseUp = () => {
+      setJvModalResize((prev) => ({ ...prev, active: false }))
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [showLedgerForm, jvModalResize])
 
   useEffect(() => {
     if (activeTab !== 'fixing-register') {
@@ -4911,11 +4954,15 @@ function ERPTab({ focusTab, onNavigateMain }) {
     resetJvForm()
     setJvModalOffset({ x: 0, y: 0 })
     setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+    setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
+    setJvModalSize(JV_MODAL_DEFAULT_SIZE)
   }
 
   const openJvModal = () => {
     setJvModalOffset({ x: 0, y: 0 })
     setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+    setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
+    setJvModalSize(JV_MODAL_DEFAULT_SIZE)
     setShowLedgerForm(true)
   }
 
@@ -6272,7 +6319,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
               onClick={closeJvModal}
             >
               <div
-                style={{ width: 'min(1240px, 92vw)', maxHeight: '90vh', transform: `translate(${jvModalOffset.x}px, ${jvModalOffset.y}px)`, userSelect: jvModalDrag.active ? 'none' : 'auto', boxShadow: '0 28px 55px rgba(2, 6, 23, 0.45)', borderRadius: '0.6rem' }}
+                style={{ width: `min(${jvModalSize.width}px, 92vw)`, height: `min(${jvModalSize.height}px, 90vh)`, transform: `translate(${jvModalOffset.x}px, ${jvModalOffset.y}px)`, userSelect: (jvModalDrag.active || jvModalResize.active) ? 'none' : 'auto', boxShadow: '0 28px 55px rgba(2, 6, 23, 0.45)', borderRadius: '0.6rem', position: 'relative', display: 'flex', flexDirection: 'column' }}
                 onClick={(e) => e.stopPropagation()}
               >
                 <div
@@ -6290,7 +6337,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                     X Close
                   </button>
                 </div>
-            <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderTop: 'none', borderBottomLeftRadius: '0.6rem', borderBottomRightRadius: '0.6rem', marginBottom: 0, overflow: 'hidden auto', maxHeight: 'calc(90vh - 46px)' }}>
+            <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderTop: 'none', borderBottomLeftRadius: '0.6rem', borderBottomRightRadius: '0.6rem', marginBottom: 0, overflow: 'hidden auto', flex: 1, minHeight: 0 }}>
               {/* JV Header bar */}
               <div style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%)', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ color: '#fff', fontWeight: '800', fontSize: '0.95rem', letterSpacing: '0.04em' }}>📒 JOURNAL VOUCHER</span>
@@ -6433,6 +6480,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 <span style={{ marginLeft: 'auto', fontSize: '0.74rem', color: '#94A3B8' }}>Press <kbd style={{ background: '#E5E7EB', padding: '0 0.3rem', borderRadius: '0.2rem', fontSize: '0.72rem' }}>Enter</kbd> on last row to add a new line</span>
               </div>
             </div>
+                <div
+                  onMouseDown={beginJvModalResize}
+                  title="Resize"
+                  style={{ position: 'absolute', right: '6px', bottom: '6px', width: '16px', height: '16px', cursor: 'nwse-resize', background: 'linear-gradient(135deg, transparent 50%, #64748B 50%)', borderBottomRightRadius: '0.35rem' }}
+                />
               </div>
             </div>
             )
