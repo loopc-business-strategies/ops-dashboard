@@ -1211,6 +1211,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const [jvHeader, setJvHeader] = useState(createJvHeader)
   const [nextJvLineId, setNextJvLineId] = useState(3)
   const [jvMode] = useState('journal')
+  const [jvEditEntryIds, setJvEditEntryIds] = useState([]) // IDs of entries being edited (empty = new JV)
   const [currencyForm, setCurrencyForm] = useState({ code: '', name: '', symbol: '', exchangeRate: 1, baseCurrency: false })
   const [usdConversion, setUsdConversion] = useState({ usdAmount: '1', targetCode: 'UZS' })
   const [mappingForm, setMappingForm] = useState({ mappingType: '', debitAccountId: '', creditAccountId: '', department: '', description: '' })
@@ -5039,6 +5040,55 @@ function ERPTab({ focusTab, onNavigateMain }) {
     setJvLines([emptyJvLine(1), emptyJvLine(2)])
     setJvHeader(createJvHeader(baseCurrencyCode))
     setNextJvLineId(3)
+    setJvEditEntryIds([])
+  }
+
+  const handleEditJv = (entry) => {
+    // Find all ledger entries belonging to the same JV document by docNo prefix in description
+    const descParts = (entry.description || '').split(' — ')
+    const docNo = descParts[0]
+    const relatedEntries = (docNo && docNo.startsWith('JV-'))
+      ? ledger.filter((e) => (e.description || '').startsWith(docNo))
+      : [entry]
+
+    // Reconstruct JV lines by grouping debit and credit sides by account
+    const debitMap = new Map()
+    const creditMap = new Map()
+    relatedEntries.forEach((e) => {
+      const drId = e.debitAccountId?._id
+      const crId = e.creditAccountId?._id
+      if (drId) {
+        if (!debitMap.has(drId)) {
+          debitMap.set(drId, { accountId: drId, accountInput: `${e.debitAccountId.accountCode} - ${e.debitAccountId.accountName}`, debit: 0, description: '' })
+        }
+        debitMap.get(drId).debit = Number((debitMap.get(drId).debit + e.amount).toFixed(2))
+      }
+      if (crId) {
+        if (!creditMap.has(crId)) {
+          creditMap.set(crId, { accountId: crId, accountInput: `${e.creditAccountId.accountCode} - ${e.creditAccountId.accountName}`, credit: 0, description: '' })
+        }
+        creditMap.get(crId).credit = Number((creditMap.get(crId).credit + e.amount).toFixed(2))
+      }
+    })
+
+    let id = 1
+    const lines = [
+      ...Array.from(debitMap.values()).map((d) => ({ id: id++, accountId: d.accountId, accountInput: d.accountInput, description: d.description, debit: d.debit, credit: '' })),
+      ...Array.from(creditMap.values()).map((c) => ({ id: id++, accountId: c.accountId, accountInput: c.accountInput, description: c.description, debit: '', credit: c.credit })),
+    ]
+
+    const narration = relatedEntries[0].notes || ''
+    const headerDocNo = (docNo && docNo.startsWith('JV-')) ? docNo : `JV-EDIT-${entry._id.slice(-6)}`
+
+    setJvEditEntryIds(relatedEntries.map((e) => e._id))
+    setJvLines(lines)
+    setNextJvLineId(id)
+    setJvHeader({ docNo: headerDocNo, date: new Date(relatedEntries[0].date).toISOString().slice(0, 10), narration, currency: relatedEntries[0].currency || baseCurrencyCode })
+    setJvModalOffset({ x: 0, y: 0 })
+    setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+    setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
+    setJvModalSize(JV_MODAL_DEFAULT_SIZE)
+    setShowLedgerForm(true)
   }
 
   const closeJvModal = () => {
@@ -5139,6 +5189,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
         if (ledgerForm.bankAttachment) formData.append('attachment', ledgerForm.bankAttachment)
         await erpAccountingAPI.createBankJvEntry(token, formData)
       } else {
+        // If editing an existing JV, permanently delete old entries first
+        if (jvEditEntryIds.length > 0) {
+          await Promise.all(jvEditEntryIds.map((id) => erpAccountingAPI.permanentDeleteLedgerEntry(token, id)))
+        }
         await Promise.all(entries.map((entry) => erpAccountingAPI.createLedgerEntry(token, {
           date: jvHeader.date,
           description: entry.lineDesc ? `${sharedDesc} — ${entry.lineDesc}` : sharedDesc,
@@ -5150,9 +5204,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
           amount: entry.amount,
         })))
       }
+      const isEdit = jvEditEntryIds.length > 0
       closeJvModal()
       await Promise.all([loadLedger(), loadDashboard()])
-      showNotification(`✅ Journal Voucher saved — ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} posted`)
+      showNotification(isEdit ? `✅ Journal Voucher updated — ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} reposted` : `✅ Journal Voucher saved — ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} posted`)
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to save Journal Voucher')
     } finally {
@@ -6469,7 +6524,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
             <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderTop: 'none', borderBottomLeftRadius: '0.6rem', borderBottomRightRadius: '0.6rem', marginBottom: 0, overflow: 'hidden auto', flex: 1, minHeight: 0 }}>
               {/* JV Header bar */}
               <div style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%)', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ color: '#fff', fontWeight: '800', fontSize: '0.95rem', letterSpacing: '0.04em' }}>📒 JOURNAL VOUCHER</span>
+                <span style={{ color: '#fff', fontWeight: '800', fontSize: '0.95rem', letterSpacing: '0.04em' }}>📒 {jvEditEntryIds.length > 0 ? 'EDIT JOURNAL VOUCHER' : 'JOURNAL VOUCHER'}</span>
                 <span style={{ marginLeft: 'auto', color: '#94A3B8', fontSize: '0.75rem' }}>Base: {baseCurrencyCode}</span>
               </div>
 
@@ -6624,7 +6679,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   disabled={saving || !jvValidation.canSave}
                   style={{ padding: '0.38rem 1.2rem', background: jvValidation.canSave ? '#16A34A' : '#9CA3AF', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: jvValidation.canSave ? 'pointer' : 'not-allowed', fontWeight: '700', fontSize: '0.85rem' }}
                 >
-                  {saving ? 'Saving...' : '💾 Save JV'}
+                  {saving ? 'Saving...' : jvEditEntryIds.length > 0 ? '💾 Update JV' : '💾 Save JV'}
                 </button>
                 <button type="button" onClick={closeJvModal} style={{ padding: '0.38rem 0.8rem', background: '#fff', color: '#374151', border: '1px solid #D1D5DB', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.82rem' }}>Cancel</button>
                 <span style={{ marginLeft: 'auto', fontSize: '0.74rem', color: '#94A3B8' }}>Press <kbd style={{ background: '#E5E7EB', padding: '0 0.3rem', borderRadius: '0.2rem', fontSize: '0.72rem' }}>Enter</kbd> on last row to add a new line</span>
@@ -6732,7 +6787,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                          <button onClick={() => handleEditLedger(entry)} title="Edit" style={{ padding: '0.35rem 0.5rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
+                          <button onClick={() => entry.referenceType === 'journal' ? handleEditJv(entry) : handleEditLedger(entry)} title="Edit" style={{ padding: '0.35rem 0.5rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
                           {entry.referenceType === 'bank_jv' && (
                             <button onClick={() => handleReconcileLedger(entry)} title={entry.bankReconciled ? 'Unreconcile' : 'Reconcile'} style={{ padding: '0.35rem 0.5rem', background: entry.bankReconciled ? '#92400E' : '#15803D', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>
                               {entry.bankReconciled ? 'Unreconcile' : 'Reconcile'}
