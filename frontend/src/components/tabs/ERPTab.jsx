@@ -1189,6 +1189,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
     paymentType: 'bank',
     bankAttachment: null,
   })
+
+  // ─── Multi-line Journal Voucher state ─────────────────────────────────────
+  const emptyJvLine = (id) => ({ id, accountInput: '', accountId: '', debit: '', credit: '' })
+  const [jvLines, setJvLines] = useState([emptyJvLine(1), emptyJvLine(2)])
+  const [jvHeader, setJvHeader] = useState({ docNo: '', date: new Date().toISOString().slice(0, 10), narration: '' })
+  const [nextJvLineId, setNextJvLineId] = useState(3)
+  const [jvMode, setJvMode] = useState('journal') // 'journal' | 'bank_jv'
   const [currencyForm, setCurrencyForm] = useState({ code: '', name: '', symbol: '', exchangeRate: 1, baseCurrency: false })
   const [usdConversion, setUsdConversion] = useState({ usdAmount: '1', targetCode: 'UZS' })
   const [mappingForm, setMappingForm] = useState({ mappingType: '', debitAccountId: '', creditAccountId: '', department: '', description: '' })
@@ -4801,6 +4808,137 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
   }
 
+  // ─── Multi-line Journal Voucher helpers ──────────────────────────────────────
+  const updateJvLine = (id, field, value, kind) => {
+    setJvLines((prev) => prev.map((line) => {
+      if (line.id !== id) return line
+      const updated = { ...line, [field]: value }
+      if (kind === 'debit' && value) return { ...updated, credit: '' }
+      if (kind === 'credit' && value) return { ...updated, debit: '' }
+      return updated
+    }))
+  }
+
+  const resolveJvLineAccount = (id, inputValue) => {
+    const resolvedId = resolveAccountIdFromInput(inputValue, entryAccountOptions)
+    if (!resolvedId) return
+    const account = entryAccountOptions.find((a) => String(a._id) === String(resolvedId))
+    setJvLines((prev) => prev.map((line) => line.id !== id ? line : {
+      ...line,
+      accountId: resolvedId,
+      accountInput: account ? accountLookupText(account) : inputValue,
+    }))
+  }
+
+  const addJvLine = () => {
+    setJvLines((prev) => [...prev, emptyJvLine(nextJvLineId)])
+    setNextJvLineId((n) => n + 1)
+  }
+
+  const removeJvLine = (id) => {
+    setJvLines((prev) => prev.filter((l) => l.id !== id))
+  }
+
+  const handleJvLineKeyDown = (e, idx) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (idx === jvLines.length - 1) addJvLine()
+    }
+  }
+
+  const resetJvForm = () => {
+    setJvLines([emptyJvLine(1), emptyJvLine(2)])
+    setJvHeader({ docNo: '', date: new Date().toISOString().slice(0, 10), narration: '' })
+    setNextJvLineId(3)
+    setJvMode('journal')
+  }
+
+  const handleSaveMultiLineJV = async () => {
+    const filledLines = jvLines.filter((l) => l.accountId && (Number(l.debit) > 0 || Number(l.credit) > 0))
+    const debitLines = filledLines.filter((l) => Number(l.debit) > 0)
+    const creditLines = filledLines.filter((l) => Number(l.credit) > 0)
+
+    if (debitLines.length === 0 || creditLines.length === 0) {
+      setError('JV must have at least one debit line and one credit line')
+      return
+    }
+    const totalDR = debitLines.reduce((s, l) => s + Number(l.debit), 0)
+    const totalCR = creditLines.reduce((s, l) => s + Number(l.credit), 0)
+    if (Math.abs(totalDR - totalCR) > 0.005) {
+      setError(`Unbalanced JV — Debit ${totalDR.toFixed(2)} ≠ Credit ${totalCR.toFixed(2)}`)
+      return
+    }
+
+    // Build pairs of (debitAccountId, creditAccountId, amount) using waterfall method
+    const entries = []
+    if (debitLines.length === 1) {
+      for (const cr of creditLines) {
+        entries.push({ debitAccountId: debitLines[0].accountId, creditAccountId: cr.accountId, amount: Number(cr.credit) })
+      }
+    } else if (creditLines.length === 1) {
+      for (const dr of debitLines) {
+        entries.push({ debitAccountId: dr.accountId, creditAccountId: creditLines[0].accountId, amount: Number(dr.debit) })
+      }
+    } else {
+      // Many-to-many: waterfall pairing
+      const drs = debitLines.map((l) => ({ ...l, remaining: Number(l.debit) }))
+      const crs = creditLines.map((l) => ({ ...l, remaining: Number(l.credit) }))
+      let di = 0; let ci = 0
+      while (di < drs.length && ci < crs.length) {
+        const amt = Math.min(drs[di].remaining, crs[ci].remaining)
+        if (amt > 0.001) entries.push({ debitAccountId: drs[di].accountId, creditAccountId: crs[ci].accountId, amount: Number(amt.toFixed(2)) })
+        drs[di].remaining -= amt
+        crs[ci].remaining -= amt
+        if (drs[di].remaining < 0.001) di++
+        if (crs[ci].remaining < 0.001) ci++
+      }
+    }
+
+    const isBankJV = jvMode === 'bank_jv'
+    const sharedDesc = [jvHeader.docNo, jvHeader.narration].filter(Boolean).join(' — ') || 'Manual JV'
+
+    setSaving(true)
+    try {
+      if (isBankJV && entries.length === 1) {
+        // Bank JV uses multipart formData (single entry only)
+        const formData = new FormData()
+        formData.append('date', jvHeader.date)
+        formData.append('debitAccountId', entries[0].debitAccountId)
+        formData.append('creditAccountId', entries[0].creditAccountId)
+        formData.append('amount', String(entries[0].amount))
+        formData.append('description', sharedDesc)
+        formData.append('referenceType', 'bank_jv')
+        formData.append('currency', baseCurrencyCode)
+        formData.append('txRefNo', ledgerForm.txRefNo || '')
+        formData.append('chequeNo', ledgerForm.chequeNo || '')
+        formData.append('bankRemarks', ledgerForm.bankRemarks || '')
+        formData.append('paymentType', ledgerForm.paymentType || 'bank')
+        if (ledgerForm.bankAttachment) formData.append('attachment', ledgerForm.bankAttachment)
+        await erpAccountingAPI.createBankJvEntry(token, formData)
+      } else {
+        await Promise.all(entries.map((entry) => erpAccountingAPI.createLedgerEntry(token, {
+          date: jvHeader.date,
+          description: sharedDesc,
+          notes: jvHeader.narration || '',
+          referenceType: isBankJV ? 'bank_jv' : 'journal',
+          currency: baseCurrencyCode,
+          debitAccountId: entry.debitAccountId,
+          creditAccountId: entry.creditAccountId,
+          amount: entry.amount,
+        })))
+      }
+      resetJvForm()
+      setShowLedgerForm(false)
+      await Promise.all([loadLedger(), loadDashboard()])
+      showNotification(`✅ Journal Voucher saved — ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} posted`)
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to save Journal Voucher')
+    } finally {
+      setSaving(false)
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+
   const handleCreateCustomer = async (e) => {
     e.preventDefault()
     if (!customerForm.name) {
@@ -6055,10 +6193,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
       {activeTab === 'ledger' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
-            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Journal Entry (Advanced)</h3>
+            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Journal Voucher</h3>
             {canManageAccounts && (
               <button
-                onClick={() => setShowLedgerForm(!showLedgerForm)}
+                onClick={() => { setShowLedgerForm(!showLedgerForm); if (showLedgerForm) resetJvForm() }}
                 style={{
                   padding: '0.5rem 1rem',
                   background: C.s1,
@@ -6069,212 +6207,140 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   fontWeight: '600',
                 }}
               >
-                + Create Ledger Entry
+                {showLedgerForm ? '✕ Close' : '+ New Journal Voucher'}
               </button>
             )}
           </div>
-          {showLedgerForm && (
-            <form onSubmit={handleCreateLedgerEntry} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
-              <select
-                value={ledgerForm.mappingId}
-                onChange={(e) => handleLedgerMappingChange(e.target.value)}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              >
-                <option value="">Post From Mapping (Optional)</option>
-                {mappings.map((mapping) => (
-                  <option key={mapping._id} value={mapping._id}>{mapping.mappingType}</option>
-                ))}
-              </select>
-              <input
-                type="date"
-                value={ledgerForm.date}
-                onChange={(e) => setLedgerForm({ ...ledgerForm, date: e.target.value })}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <input
-                  list="ledger-debit-account-options"
-                  placeholder="Select or type Debit Account"
-                  value={ledgerForm.debitAccountInput}
-                  onChange={(e) => setLedgerForm({ ...ledgerForm, debitAccountInput: e.target.value, debitAccountId: '' })}
-                  onBlur={(e) => {
-                    const resolvedId = resolveAccountIdFromInput(e.target.value, entryAccountOptions)
-                    if (!resolvedId) {
-                      setLedgerForm((prev) => ({ ...prev, debitAccountId: '' }))
-                      return
-                    }
-                    const resolvedAccount = entryAccountOptions.find((account) => String(account._id) === String(resolvedId))
-                    const isBank = /bank/i.test(resolvedAccount?.accountName || '')
-                    setLedgerForm((prev) => ({
-                      ...prev,
-                      debitAccountId: resolvedId,
-                      debitAccountInput: resolvedAccount ? accountLookupText(resolvedAccount) : prev.debitAccountInput,
-                      ...(isBank && prev.referenceType !== 'bank_jv' ? { referenceType: 'bank_jv' } : {}),
-                    }))
-                  }}
-                  style={{ display: 'block', width: '100%', padding: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-                />
-                <input
-                  list="ledger-credit-account-options"
-                  placeholder="Select or type Credit Account"
-                  value={ledgerForm.creditAccountInput}
-                  onChange={(e) => setLedgerForm({ ...ledgerForm, creditAccountInput: e.target.value, creditAccountId: '' })}
-                  onBlur={(e) => {
-                    const resolvedId = resolveAccountIdFromInput(e.target.value, entryAccountOptions)
-                    if (!resolvedId) {
-                      setLedgerForm((prev) => ({ ...prev, creditAccountId: '' }))
-                      return
-                    }
-                    const resolvedAccount = entryAccountOptions.find((account) => String(account._id) === String(resolvedId))
-                    const isBank = /bank/i.test(resolvedAccount?.accountName || '')
-                    setLedgerForm((prev) => ({
-                      ...prev,
-                      creditAccountId: resolvedId,
-                      creditAccountInput: resolvedAccount ? accountLookupText(resolvedAccount) : prev.creditAccountInput,
-                      ...(isBank && prev.referenceType !== 'bank_jv' ? { referenceType: 'bank_jv' } : {}),
-                    }))
-                  }}
-                  style={{ display: 'block', width: '100%', padding: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-                />
+          {showLedgerForm && (() => {
+            const jvTotalDebit = jvLines.reduce((s, l) => s + (Number(l.debit) || 0), 0)
+            const jvTotalCredit = jvLines.reduce((s, l) => s + (Number(l.credit) || 0), 0)
+            const jvIsBalanced = jvTotalDebit > 0 && jvTotalCredit > 0 && Math.abs(jvTotalDebit - jvTotalCredit) < 0.005
+            const cellSt = { padding: '0.28rem 0.4rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, borderRadius: '0.25rem', fontSize: '0.875rem', width: '100%', boxSizing: 'border-box' }
+            const numCellSt = { ...cellSt, textAlign: 'right' }
+            return (
+            <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '0.5rem', marginBottom: '1rem', overflow: 'hidden' }}>
+              {/* JV Header bar */}
+              <div style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%)', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ color: '#fff', fontWeight: '800', fontSize: '0.95rem', letterSpacing: '0.04em' }}>📒 JOURNAL VOUCHER</span>
+                <span style={{ marginLeft: 'auto', color: '#94A3B8', fontSize: '0.75rem' }}>Base: {baseCurrencyCode}</span>
               </div>
-              <datalist id="ledger-debit-account-options">
-                {entryAccountOptions.map((account) => (
-                  <option key={`debit-${account._id}`} value={accountLookupText(account)} />
-                ))}
-              </datalist>
-              <datalist id="ledger-credit-account-options">
-                {entryAccountOptions.map((account) => (
-                  <option key={`credit-${account._id}`} value={accountLookupText(account)} />
-                ))}
-              </datalist>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="Debit Amount"
-                  value={ledgerForm.debitAmount}
-                  onChange={(e) => setLedgerForm({ ...ledgerForm, debitAmount: e.target.value })}
-                  style={{ display: 'block', width: '100%', padding: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="Credit Amount"
-                  value={ledgerForm.creditAmount}
-                  onChange={(e) => setLedgerForm({ ...ledgerForm, creditAmount: e.target.value })}
-                  style={{ display: 'block', width: '100%', padding: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-                />
+
+              {/* Header fields */}
+              <div style={{ display: 'grid', gridTemplateColumns: '160px 170px 1fr', gap: '0.6rem', padding: '0.65rem 1rem 0.5rem', alignItems: 'end', background: '#F1F5F9', borderBottom: '1px solid #CBD5E1' }}>
+                <div>
+                  <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Doc No</div>
+                  <input value={jvHeader.docNo} onChange={(e) => setJvHeader((p) => ({ ...p, docNo: e.target.value }))} placeholder="JV-001" style={cellSt} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Date</div>
+                  <input type="date" value={jvHeader.date} onChange={(e) => setJvHeader((p) => ({ ...p, date: e.target.value }))} style={cellSt} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Narration</div>
+                  <input value={jvHeader.narration} onChange={(e) => setJvHeader((p) => ({ ...p, narration: e.target.value }))} placeholder="Narration / description..." style={cellSt} />
+                </div>
               </div>
-              {/* Bank JV Toggle */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setLedgerForm((prev) => ({
-                    ...prev,
-                    referenceType: prev.referenceType === 'bank_jv' ? 'journal' : 'bank_jv',
-                    txRefNo: '',
-                    chequeNo: '',
-                    bankRemarks: '',
-                    paymentType: 'bank',
-                    bankAttachment: null,
-                  }))}
-                  style={{
-                    padding: '0.4rem 1rem',
-                    background: ledgerForm.referenceType === 'bank_jv' ? '#1D4ED8' : C.p2,
-                    color: ledgerForm.referenceType === 'bank_jv' ? '#fff' : C.t2,
-                    border: `2px solid ${ledgerForm.referenceType === 'bank_jv' ? '#1D4ED8' : '#94A3B8'}`,
-                    borderRadius: '2rem',
-                    cursor: 'pointer',
-                    fontWeight: '700',
-                    fontSize: '0.82rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <span style={{ fontSize: '1rem' }}>🏦</span>
-                  {ledgerForm.referenceType === 'bank_jv' ? 'Bank JV ✓' : 'Bank JV'}
-                </button>
-                {ledgerForm.referenceType !== 'bank_jv' && (
-                  <select
-                    value={ledgerForm.referenceType}
-                    onChange={(e) => setLedgerForm({ ...ledgerForm, referenceType: e.target.value })}
-                    style={{ flex: 1, padding: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-                  >
-                    {LEDGER_REFERENCE_TYPES.filter((t) => t !== 'bank_jv').map((referenceType) => (
-                      <option key={referenceType} value={referenceType}>{referenceType}</option>
+
+              {/* Lines table */}
+              <div style={{ padding: '0 0 0 0', overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                  <thead>
+                    <tr style={{ background: '#1E3A5F', color: '#fff' }}>
+                      <th style={{ padding: '0.45rem 0.5rem', textAlign: 'center', width: '36px', fontWeight: '600', fontSize: '0.75rem' }}>#</th>
+                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'left', fontWeight: '600', fontSize: '0.75rem' }}>Account</th>
+                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', width: '150px', fontWeight: '600', fontSize: '0.75rem', color: '#93C5FD' }}>Debit ({baseCurrencyCode})</th>
+                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', width: '150px', fontWeight: '600', fontSize: '0.75rem', color: '#FCA5A5' }}>Credit ({baseCurrencyCode})</th>
+                      <th style={{ padding: '0.45rem 0.4rem', width: '36px' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {jvLines.map((line, idx) => (
+                      <tr key={line.id} style={{ background: idx % 2 === 0 ? '#fff' : '#F8FAFC', borderBottom: '1px solid #E5E7EB' }}>
+                        <td style={{ padding: '0.3rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem', userSelect: 'none' }}>{idx + 1}</td>
+                        <td style={{ padding: '0.25rem 0.4rem' }}>
+                          <input
+                            list="jv-account-datalist"
+                            value={line.accountInput}
+                            onChange={(e) => updateJvLine(line.id, 'accountInput', e.target.value)}
+                            onBlur={(e) => resolveJvLineAccount(line.id, e.target.value)}
+                            onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
+                            placeholder="Type account name or code..."
+                            style={{ ...cellSt, minWidth: '220px' }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.25rem 0.4rem' }}>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={line.debit}
+                            onChange={(e) => updateJvLine(line.id, 'debit', e.target.value, 'debit')}
+                            onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
+                            placeholder="0.00"
+                            style={{ ...numCellSt, color: '#1D4ED8', fontWeight: line.debit ? '700' : '400' }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.25rem 0.4rem' }}>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={line.credit}
+                            onChange={(e) => updateJvLine(line.id, 'credit', e.target.value, 'credit')}
+                            onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
+                            placeholder="0.00"
+                            style={{ ...numCellSt, color: '#DC2626', fontWeight: line.credit ? '700' : '400' }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.25rem 0.3rem', textAlign: 'center' }}>
+                          {jvLines.length > 2 && (
+                            <button type="button" onClick={() => removeJvLine(line.id)} title="Remove row" style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1, padding: '0 0.1rem' }}>×</button>
+                          )}
+                        </td>
+                      </tr>
                     ))}
-                  </select>
-                )}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: '#F1F5F9', borderTop: '2px solid #CBD5E1' }}>
+                      <td colSpan={2} style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '700', fontSize: '0.82rem', color: C.ink }}>TOTAL</td>
+                      <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#1D4ED8' }}>{jvTotalDebit > 0 ? jvTotalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+                      <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#DC2626' }}>{jvTotalCredit > 0 ? jvTotalCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
-              {ledgerForm.referenceType === 'bank_jv' && (
-                <div style={{ background: '#EFF6FF', border: '2px solid #BFDBFE', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '0.5rem' }}>
-                  <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#1E40AF', marginBottom: '0.6rem' }}>🏦 Bank JV Details</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <input
-                      placeholder="Transaction Reference No"
-                      value={ledgerForm.txRefNo}
-                      onChange={(e) => setLedgerForm({ ...ledgerForm, txRefNo: e.target.value })}
-                      style={{ padding: '0.5rem', background: '#fff', border: '1px solid #BFDBFE', color: C.ink, borderRadius: '0.375rem' }}
-                    />
-                    <input
-                      placeholder="Cheque No"
-                      value={ledgerForm.chequeNo}
-                      onChange={(e) => setLedgerForm({ ...ledgerForm, chequeNo: e.target.value })}
-                      style={{ padding: '0.5rem', background: '#fff', border: '1px solid #BFDBFE', color: C.ink, borderRadius: '0.375rem' }}
-                    />
-                    <select
-                      value={ledgerForm.paymentType}
-                      onChange={(e) => setLedgerForm({ ...ledgerForm, paymentType: e.target.value })}
-                      style={{ padding: '0.5rem', background: '#fff', border: '1px solid #BFDBFE', color: C.ink, borderRadius: '0.375rem' }}
-                    >
-                      <option value="bank">Bank Transfer</option>
-                      <option value="cash">Cash</option>
-                      <option value="transfer">Wire Transfer</option>
-                    </select>
-                  </div>
-                  <input
-                    placeholder="Bank Remarks"
-                    value={ledgerForm.bankRemarks}
-                    onChange={(e) => setLedgerForm({ ...ledgerForm, bankRemarks: e.target.value })}
-                    style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: '#fff', border: '1px solid #BFDBFE', color: C.ink, borderRadius: '0.375rem' }}
-                  />
-                  <div>
-                    <label style={{ fontSize: '0.78rem', color: '#1E40AF', fontWeight: '600', display: 'block', marginBottom: '0.25rem' }}>Bank Slip / Receipt (PDF, JPG, PNG — max 5MB)</label>
-                    <input
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png,.webp"
-                      onChange={(e) => setLedgerForm({ ...ledgerForm, bankAttachment: e.target.files[0] || null })}
-                      style={{ display: 'block', width: '100%', padding: '0.4rem 0', color: C.t1, fontSize: '0.85rem' }}
-                    />
-                    {ledgerForm.bankAttachment && (
-                      <span style={{ fontSize: '0.78rem', color: '#16A34A' }}>✓ {ledgerForm.bankAttachment.name}</span>
-                    )}
-                  </div>
+
+              <datalist id="jv-account-datalist">
+                {entryAccountOptions.map((a) => <option key={a._id} value={accountLookupText(a)} />)}
+              </datalist>
+
+              {/* Balance status */}
+              {(jvTotalDebit > 0 || jvTotalCredit > 0) && (
+                <div style={{ margin: '0.5rem 1rem 0', padding: '0.4rem 0.75rem', borderRadius: '0.375rem', background: jvIsBalanced ? '#DCFCE7' : '#FEF2F2', border: `1px solid ${jvIsBalanced ? '#86EFAC' : '#FECACA'}`, color: jvIsBalanced ? '#166534' : '#991B1B', fontSize: '0.82rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  {jvIsBalanced
+                    ? `✓ Balanced — Total = ${jvTotalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${baseCurrencyCode}`
+                    : `⚠ Unbalanced — Debit ${jvTotalDebit.toFixed(2)} ≠ Credit ${jvTotalCredit.toFixed(2)} (diff: ${Math.abs(jvTotalDebit - jvTotalCredit).toFixed(2)})`}
                 </div>
               )}
-              <select
-                value={ledgerForm.currency}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-                disabled
-              >
-                <option value={baseCurrencyCode}>{baseCurrencyCode} - Base Currency</option>
-              </select>
-              <input
-                placeholder="Description"
-                value={ledgerForm.description}
-                onChange={(e) => setLedgerForm({ ...ledgerForm, description: e.target.value })}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              />
-              <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', marginRight: '0.5rem' }}>
-                {saving ? 'Saving...' : 'Create Entry'}
-              </button>
-              <button type="button" onClick={() => setShowLedgerForm(false)} style={{ padding: '0.5rem 1rem', background: C.p1, color: C.t2, border: `1px solid ${C.t2}`, borderRadius: '0.375rem', cursor: 'pointer' }}>
-                Cancel
-              </button>
-            </form>
-          )}
+
+              {/* Action row */}
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', padding: '0.65rem 1rem', background: '#F8FAFC', borderTop: '1px solid #E2E8F0', flexWrap: 'wrap' }}>
+                <button type="button" onClick={addJvLine} style={{ padding: '0.38rem 0.8rem', background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>+ Add Row</button>
+                <button
+                  type="button"
+                  onClick={handleSaveMultiLineJV}
+                  disabled={saving || !jvIsBalanced}
+                  style={{ padding: '0.38rem 1.2rem', background: jvIsBalanced ? '#16A34A' : '#9CA3AF', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: jvIsBalanced ? 'pointer' : 'not-allowed', fontWeight: '700', fontSize: '0.85rem' }}
+                >
+                  {saving ? 'Saving...' : '💾 Save JV'}
+                </button>
+                <button type="button" onClick={() => { setShowLedgerForm(false); resetJvForm() }} style={{ padding: '0.38rem 0.8rem', background: '#fff', color: '#374151', border: '1px solid #D1D5DB', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.82rem' }}>Cancel</button>
+                <span style={{ marginLeft: 'auto', fontSize: '0.74rem', color: '#94A3B8' }}>Press <kbd style={{ background: '#E5E7EB', padding: '0 0.3rem', borderRadius: '0.2rem', fontSize: '0.72rem' }}>Enter</kbd> on last row to add a new line</span>
+              </div>
+            </div>
+            )
+          })()}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
             <input
               type="date"
