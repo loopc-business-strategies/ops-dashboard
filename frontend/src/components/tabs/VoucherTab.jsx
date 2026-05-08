@@ -726,38 +726,28 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       : null
   }, [customers, vendors])
 
-  const basePartyGroups = [
-    {
-      label: 'Vendors',
-      options: vendors
-        .filter((item) => Boolean(item.ledgerAccountId?.accountCode) && item.ledgerAccountId?.isActive !== false)
-        .map((item) => ({
-          id: `vendor:${String(item._id)}`,
-          label: `${item.name || 'Vendor'}${item.vendorCode ? ` (${item.vendorCode})` : ''}`,
-          partyCode: item.vendorCode || item.ledgerAccountId?.accountCode || String(item._id),
-          partyName: item.name || '',
-        })),
-    },
-    {
-      label: 'Customers',
-      options: customers
-        .filter((item) => Boolean(item.ledgerAccountId?.accountCode) && item.ledgerAccountId?.isActive !== false)
-        .map((item) => ({
-          id: `customer:${String(item._id)}`,
-          label: `${item.name || 'Customer'}${item.ledgerAccountId?.accountCode ? ` (${item.ledgerAccountId.accountCode})` : ''}`,
-          partyCode: item.ledgerAccountId?.accountCode || String(item._id),
-          partyName: item.name || '',
-        })),
-    },
-  ]
+  const partyOptions = (Array.isArray(accounts) ? accounts : [])
+    .map((account) => {
+      const code = getAccountCodeValue(account)
+      const name = String(account?.accountName || account?.name || '').trim()
+      return {
+        id: `account:${String(account?._id || code)}`,
+        label: `${code}${name ? ` - ${name}` : ''}`,
+        partyCode: code,
+        partyName: name,
+      }
+    })
+    .filter((item) => Boolean(item.partyCode))
+    .sort((a, b) => String(a.partyCode).localeCompare(String(b.partyCode)))
 
-  const partyGroups = basePartyGroups.filter((group) => {
-    if (voucherPartyMode === 'vendor') return group.label === 'Vendors'
-    if (voucherPartyMode === 'customer') return group.label === 'Customers'
-    return true
-  })
-
-  const partyOptions = partyGroups.flatMap((group) => group.options)
+  const findPartyOptionByCode = useCallback((code) => {
+    const lookupValue = normalizeLookupValue(code)
+    if (!lookupValue) return null
+    return partyOptions.find((item) => (
+      lookupValue === normalizeLookupValue(item.partyCode)
+      || lookupValue === normalizeLookupValue(item.partyName)
+    )) || null
+  }, [partyOptions])
 
   const voucherLineAccountOptions = (Array.isArray(accounts) ? accounts : [])
     .map((a) => ({ id: a?._id, code: getAccountCodeValue(a), name: a?.accountName || a?.name || '', raw: a }))
@@ -1662,8 +1652,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     if (!header.partyCode.trim()) { setError('Party Code is required'); return }
     if (!effectiveLineItems.length) { setError('Add at least one line item'); return }
     const resolvedParty = resolveVoucherParty(header.partyCode)
-    if (!resolvedParty) {
-      setError('Party Code must match an existing account (vendor or customer)')
+    const selectedAccount = findPartyOptionByCode(header.partyCode)
+    if (!resolvedParty && !selectedAccount) {
+      setError('Party Code must match an existing chart account')
       return
     }
 
@@ -2048,8 +2039,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   // Lookup party name from the relevant customer/vendor master record.
   const lookupParty = (code) => {
     const resolvedParty = resolveVoucherParty(code)
-    setSelectedPartyId(resolvedParty?.partyId || '')
-    setHdr('partyName', resolvedParty?.partyName || '')
+    const selectedAccount = findPartyOptionByCode(code)
+    setSelectedPartyId(selectedAccount?.id || resolvedParty?.partyId || '')
+    setHdr('partyName', resolvedParty?.partyName || selectedAccount?.partyName || '')
     applyPartyCurrency(resolvedParty)
   }
 
@@ -2556,15 +2548,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                         onChange={e => handlePartySelect(e.target.value)}
                         disabled={formReadOnly}
                       >
-                        <option value="">Select {voucherConfig.partySelectLabel}</option>
-                        {partyGroups.map((group) => (
-                          group.options.length > 0 ? (
-                            <optgroup key={group.label} label={group.label}>
-                              {group.options.map((item) => (
-                                <option key={item.id} value={item.id}>{item.label}</option>
-                              ))}
-                            </optgroup>
-                          ) : null
+                        <option value="">Select Account</option>
+                        {partyOptions.map((item) => (
+                          <option key={item.id} value={item.id}>{item.label}</option>
                         ))}
                       </select>
                     </div>
@@ -2584,15 +2570,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                               onChange={e => handlePartySelect(e.target.value)}
                               disabled={formReadOnly}
                             >
-                              <option value="">Select {voucherConfig.partySelectLabel}</option>
-                              {partyGroups.map((group) => (
-                                group.options.length > 0 ? (
-                                  <optgroup key={group.label} label={group.label}>
-                                    {group.options.map((item) => (
-                                      <option key={item.id} value={item.id}>{item.label}</option>
-                                    ))}
-                                  </optgroup>
-                                ) : null
+                              <option value="">Select Account</option>
+                              {partyOptions.map((item) => (
+                                <option key={item.id} value={item.id}>{item.label}</option>
                               ))}
                             </select>
                           </div>
