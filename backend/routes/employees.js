@@ -13,8 +13,31 @@
 const express  = require('express')
 const Employee = require('../models/Employee')
 const { protect } = require('../middleware/auth')
+const { Joi, validateBody, validateParams } = require('../middleware/validate')
 
 const router = express.Router()
+
+const employeeIdParam = Joi.object({ id: Joi.string().hex().length(24).required() })
+
+const createEmployeeSchema = Joi.object({
+  name:         Joi.string().trim().min(2).max(120).required(),
+  idNumber:     Joi.string().trim().min(1).max(60).required(),
+  employeeCode: Joi.string().trim().min(1).max(40).required(),
+  address:      Joi.string().trim().allow('').max(300).optional(),
+  phoneNumber:  Joi.string().trim().allow('').max(30).optional(),
+  department:   Joi.string().trim().allow('').max(80).optional(),
+  rating:       Joi.number().integer().min(1).max(5).optional(),
+})
+
+const updateEmployeeSchema = Joi.object({
+  name:         Joi.string().trim().min(2).max(120).optional(),
+  idNumber:     Joi.string().trim().min(1).max(60).optional(),
+  employeeCode: Joi.string().trim().min(1).max(40).optional(),
+  address:      Joi.string().trim().allow('').max(300).optional(),
+  phoneNumber:  Joi.string().trim().allow('').max(30).optional(),
+  department:   Joi.string().trim().allow('').max(80).optional(),
+  rating:       Joi.number().integer().min(1).max(5).optional(),
+}).min(1)
 
 const normalize = (value = '') => String(value).trim().toLowerCase()
 
@@ -58,7 +81,7 @@ router.get('/', protect, async (req, res) => {
 })
 
 // POST create employee
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, validateBody(createEmployeeSchema), async (req, res) => {
   try {
     const TenantEmployee = await Employee.getTenantModel(req.tenant)
     if (!canManageEmployees(req.user)) {
@@ -80,7 +103,7 @@ router.post('/', protect, async (req, res) => {
 })
 
 // PUT update employee
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', protect, validateParams(employeeIdParam), validateBody(updateEmployeeSchema), async (req, res) => {
   try {
     const TenantEmployee = await Employee.getTenantModel(req.tenant)
     if (!canManageEmployees(req.user)) {
@@ -104,7 +127,7 @@ router.put('/:id', protect, async (req, res) => {
 })
 
 // DELETE employee
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, validateParams(employeeIdParam), async (req, res) => {
   try {
     const TenantEmployee = await Employee.getTenantModel(req.tenant)
     if (!canManageEmployees(req.user)) {

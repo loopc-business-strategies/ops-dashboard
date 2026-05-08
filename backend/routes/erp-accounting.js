@@ -3,6 +3,7 @@ const path = require('path')
 const express = require('express')
 const multer = require('multer')
 const { protect } = require('../middleware/auth')
+const { Joi, validateBody, validateParams } = require('../middleware/validate')
 const Ledger = require('../models/Ledger')
 const ChartOfAccount = require('../models/ChartOfAccount')
 const AccountMapping = require('../models/AccountMapping')
@@ -19,6 +20,147 @@ const Employee = require('../models/Employee')
 const Customer = require('../models/Customer')
 
 const router = express.Router()
+
+// ─── Joi Schemas ────────────────────────────────────────────────────────────
+const ACC_TYPES = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense', 'Bank', 'Cash']
+const TX_TYPES  = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
+
+const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
+
+const accountCreateSchema = Joi.object({
+  accountName:     Joi.string().trim().min(1).max(200).required(),
+  accountCode:     Joi.string().trim().min(1).max(20).required(),
+  accountType:     Joi.string().valid(...ACC_TYPES).required(),
+  parentAccountId: Joi.string().hex().length(24).allow('', null).optional(),
+  currency:        Joi.string().trim().allow('').max(10).optional(),
+  description:     Joi.string().trim().allow('').max(500).optional(),
+})
+
+const accountPatchSchema = Joi.object({
+  accountName:     Joi.string().trim().min(1).max(200).optional(),
+  accountCode:     Joi.string().trim().min(1).max(20).optional(),
+  accountType:     Joi.string().valid(...ACC_TYPES).optional(),
+  parentAccountId: Joi.string().hex().length(24).allow('', null).optional(),
+  currency:        Joi.string().trim().allow('').max(10).optional(),
+  description:     Joi.string().trim().allow('').max(500).optional(),
+  isActive:        Joi.boolean().optional(),
+}).min(1)
+
+const mappingCreateSchema = Joi.object({
+  mappingType:     Joi.string().trim().min(1).max(100).required(),
+  debitAccountId:  Joi.string().hex().length(24).required(),
+  creditAccountId: Joi.string().hex().length(24).required(),
+  description:     Joi.string().trim().allow('').max(300).optional(),
+  department:      Joi.string().trim().allow('').max(80).optional(),
+})
+
+const mappingPatchSchema = Joi.object({
+  mappingType:     Joi.string().trim().min(1).max(100).optional(),
+  debitAccountId:  Joi.string().hex().length(24).optional(),
+  creditAccountId: Joi.string().hex().length(24).optional(),
+  description:     Joi.string().trim().allow('').max(300).optional(),
+  department:      Joi.string().trim().allow('').max(80).optional(),
+  isActive:        Joi.boolean().optional(),
+}).min(1)
+
+const currencyCreateSchema = Joi.object({
+  code:         Joi.string().trim().min(2).max(10).required(),
+  name:         Joi.string().trim().min(1).max(100).required(),
+  symbol:       Joi.string().trim().allow('').max(20).optional(),
+  exchangeRate: Joi.number().positive().required(),
+  isActive:     Joi.boolean().optional(),
+  baseCurrency: Joi.boolean().optional(),
+})
+
+const currencyPatchSchema = Joi.object({
+  code:         Joi.string().trim().min(2).max(10).optional(),
+  name:         Joi.string().trim().min(1).max(100).optional(),
+  symbol:       Joi.string().trim().allow('').max(20).optional(),
+  exchangeRate: Joi.number().positive().optional(),
+  isActive:     Joi.boolean().optional(),
+  baseCurrency: Joi.boolean().optional(),
+}).min(1)
+
+const customerCreateSchema = Joi.object({
+  name:             Joi.string().trim().min(1).max(200).required(),
+  phone:            Joi.string().trim().allow('').max(30).optional(),
+  email:            Joi.string().email({ tlds: { allow: false } }).allow('').optional(),
+  address:          Joi.string().trim().allow('').max(300).optional(),
+  gstVat:           Joi.string().trim().allow('').max(60).optional(),
+  openingBalance:   Joi.number().optional(),
+  creditLimit:      Joi.number().min(0).optional(),
+  paymentTermsDays: Joi.number().integer().min(0).optional(),
+  currency:         Joi.string().trim().allow('').max(10).optional(),
+  notes:            Joi.string().trim().allow('').max(2000).optional(),
+})
+
+const customerPatchSchema = Joi.object({}).unknown(true)
+
+const vendorCreateSchema = Joi.object({
+  vendorCode:         Joi.string().trim().allow('').max(30).optional(),
+  name:               Joi.string().trim().min(1).max(200).required(),
+  contactPerson:      Joi.string().trim().allow('').max(120).optional(),
+  phone:              Joi.string().trim().allow('').max(30).optional(),
+  email:              Joi.string().email({ tlds: { allow: false } }).allow('').optional(),
+  address:            Joi.string().trim().allow('').max(300).optional(),
+  city:               Joi.string().trim().allow('').max(80).optional(),
+  country:            Joi.string().trim().allow('').max(80).optional(),
+  postalCode:         Joi.string().trim().allow('').max(20).optional(),
+  gstVat:             Joi.string().trim().allow('').max(60).optional(),
+  taxRegistrationNo:  Joi.string().trim().allow('').max(60).optional(),
+  openingBalance:     Joi.number().optional(),
+  paymentTermsDays:   Joi.number().integer().min(0).optional(),
+  creditLimit:        Joi.number().min(0).optional(),
+  category:           Joi.string().trim().allow('').max(80).optional(),
+  rating:             Joi.number().integer().min(1).max(5).optional(),
+  riskLevel:          Joi.string().valid('Low', 'Medium', 'High').optional(),
+  status:             Joi.string().trim().allow('').max(30).optional(),
+  notes:              Joi.string().trim().allow('').max(2000).optional(),
+  tags:               Joi.array().items(Joi.string().trim().max(50)).max(20).optional(),
+  preferredCurrency:  Joi.string().trim().allow('').max(10).optional(),
+  bankName:           Joi.string().trim().allow('').max(120).optional(),
+  bankAccountNumber:  Joi.string().trim().allow('').max(60).optional(),
+  iban:               Joi.string().trim().allow('').max(34).optional(),
+  swiftCode:          Joi.string().trim().allow('').max(20).optional(),
+  currency:           Joi.string().trim().allow('').max(10).optional(),
+})
+
+const vendorPatchSchema = Joi.object({}).unknown(true)
+
+const transactionCreateSchema = Joi.object({
+  type:              Joi.string().valid(...TX_TYPES).required(),
+  amount:            Joi.number().required(),
+  date:              Joi.string().allow('', null).optional(),
+  description:       Joi.string().trim().allow('').max(1000).optional(),
+  currency:          Joi.string().trim().allow('').max(10).optional(),
+  exchangeRate:      Joi.number().positive().optional(),
+  customerId:        Joi.string().hex().length(24).allow('', null).optional(),
+  vendorId:          Joi.string().hex().length(24).allow('', null).optional(),
+  inventoryItemId:   Joi.string().hex().length(24).allow('', null).optional(),
+  mappingId:         Joi.string().hex().length(24).allow('', null).optional(),
+  debitAccountId:    Joi.string().hex().length(24).allow('', null).optional(),
+  creditAccountId:   Joi.string().hex().length(24).allow('', null).optional(),
+  voucherMeta:       Joi.object().optional(),
+  metalFixStatus:    Joi.string().trim().allow('').max(30).optional(),
+})
+
+const ledgerEntrySchema = Joi.object({
+  date:          Joi.string().allow('', null).optional(),
+  description:   Joi.string().trim().allow('').max(1000).optional(),
+  debitAmount:   Joi.number().min(0).optional(),
+  creditAmount:  Joi.number().min(0).optional(),
+  currency:      Joi.string().trim().allow('').max(10).optional(),
+  exchangeRate:  Joi.number().positive().optional(),
+  referenceType: Joi.string().trim().allow('').max(80).optional(),
+  referenceId:   Joi.string().hex().length(24).allow('', null).optional(),
+  accountId:     Joi.string().hex().length(24).allow('', null).optional(),
+  notes:         Joi.string().trim().allow('').max(1000).optional(),
+}).unknown(true)
+
+const hardDeleteSchema = Joi.object({
+  code: Joi.string().trim().min(1).max(20).required(),
+})
+// ────────────────────────────────────────────────────────────────────────────
 
 // ==========================================
 // ROLE-BASED ACCESS CONTROL
@@ -2452,7 +2594,7 @@ router.get('/customers/:id/aging', protect, async (req, res) => {
   }
 })
 
-router.post('/customers', protect, async (req, res) => {
+router.post('/customers', protect, validateBody(customerCreateSchema), async (req, res) => {
   const session = await mongoose.startSession()
   session.startTransaction()
 
@@ -2554,7 +2696,7 @@ router.post('/customers', protect, async (req, res) => {
   }
 })
 
-router.put('/customers/:id', protect, async (req, res) => {
+router.put('/customers/:id', protect, validateParams(idParam), validateBody(customerPatchSchema), async (req, res) => {
   try {
     if (!canManageCustomers(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const updates = {}
@@ -3029,7 +3171,7 @@ router.get('/accounts/:id', protect, async (req, res) => {
   }
 })
 
-router.post('/accounts', protect, async (req, res) => {
+router.post('/accounts', protect, validateBody(accountCreateSchema), async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { accountName, accountCode, accountType, parentAccountId, currency, description } = req.body
@@ -3083,7 +3225,7 @@ router.post('/accounts/bulk-seed', protect, async (req, res) => {
   }
 })
 
-router.put('/accounts/:id', protect, async (req, res) => {
+router.put('/accounts/:id', protect, validateParams(idParam), validateBody(accountPatchSchema), async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const existingAccount = await ChartOfAccount.findById(req.params.id).select('accountType')
@@ -3113,7 +3255,7 @@ router.put('/accounts/:id', protect, async (req, res) => {
   }
 })
 
-router.delete('/accounts/:id', protect, async (req, res) => {
+router.delete('/accounts/:id', protect, validateParams(idParam), async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const account = await ChartOfAccount.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true })
@@ -3252,7 +3394,7 @@ router.get('/ledger', protect, async (req, res) => {
   }
 })
 
-router.post('/ledger', protect, bankSlipUpload.single('attachment'), async (req, res) => {
+router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBody(ledgerEntrySchema), async (req, res) => {
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { date, debitAccountId, creditAccountId, amount, description, referenceType, referenceId,
@@ -3482,7 +3624,7 @@ router.get('/mappings', protect, async (req, res) => {
   }
 })
 
-router.post('/mappings', protect, async (req, res) => {
+router.post('/mappings', protect, validateBody(mappingCreateSchema), async (req, res) => {
   try {
     if (!canManageMappings(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { mappingType, debitAccountId, creditAccountId, description, department } = req.body
@@ -3494,7 +3636,7 @@ router.post('/mappings', protect, async (req, res) => {
   }
 })
 
-router.put('/mappings/:id', protect, async (req, res) => {
+router.put('/mappings/:id', protect, validateParams(idParam), validateBody(mappingPatchSchema), async (req, res) => {
   try {
     if (!canManageMappings(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const updates = {}
@@ -3684,7 +3826,7 @@ router.put('/metal-rates', protect, async (req, res) => {
   }
 })
 
-router.post('/currencies', protect, async (req, res) => {
+router.post('/currencies', protect, validateBody(currencyCreateSchema), async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
@@ -3735,7 +3877,7 @@ router.post('/currencies', protect, async (req, res) => {
   }
 })
 
-router.put('/currencies/:id', protect, async (req, res) => {
+router.put('/currencies/:id', protect, validateParams(idParam), validateBody(currencyPatchSchema), async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
@@ -4052,7 +4194,7 @@ router.get('/vendors/alerts/overdue-queue', protect, async (req, res) => {
   }
 })
 
-router.post('/vendors', protect, async (req, res) => {
+router.post('/vendors', protect, validateBody(vendorCreateSchema), async (req, res) => {
   const session = await mongoose.startSession()
   session.startTransaction()
 
@@ -4176,7 +4318,7 @@ router.post('/vendors', protect, async (req, res) => {
   }
 })
 
-router.put('/vendors/:id', protect, async (req, res) => {
+router.put('/vendors/:id', protect, validateParams(idParam), validateBody(vendorPatchSchema), async (req, res) => {
   try {
     if (!canUpdateVendorOperational(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Admin/Finance/Operations can update vendors' })
@@ -5039,7 +5181,7 @@ router.get('/transactions', protect, async (req, res) => {
   }
 })
 
-router.post('/transactions', protect, async (req, res) => {
+router.post('/transactions', protect, validateBody(transactionCreateSchema), async (req, res) => {
   try {
     const { type, amount, date, description, currency, exchangeRate, customerId, vendorId, inventoryItemId, mappingId, debitAccountId, creditAccountId, voucherMeta, metalFixStatus } = req.body
     if (!type || amount === undefined || amount === null || amount === '') return res.status(400).json({ success: false, message: 'Type and amount are required' })

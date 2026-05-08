@@ -8,8 +8,92 @@ const FinanceRecord = require('../models/FinanceRecord')
 const ProcurementDoc = require('../models/ProcurementDoc')
 const ExpiryAlert = require('../models/ExpiryAlert')
 const { protect } = require('../middleware/auth')
+const { Joi, validateBody, validateParams } = require('../middleware/validate')
 
 const router = express.Router()
+
+// ─── Joi Schemas ────────────────────────────────────────────────────────────
+const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
+
+const inventoryCreateSchema = Joi.object({
+  type:            Joi.string().valid('raw', 'wip', 'finished', 'consumable').optional(),
+  name:            Joi.string().trim().min(1).max(200).required(),
+  sku:             Joi.string().trim().allow('').max(80).optional(),
+  category:        Joi.string().trim().allow('').max(100).optional(),
+  quantity:        Joi.number().min(0).optional(),
+  unit:            Joi.string().trim().allow('').max(30).optional(),
+  minThreshold:    Joi.number().min(0).optional(),
+  unitCost:        Joi.number().min(0).optional(),
+  supplierName:    Joi.string().trim().allow('').max(200).optional(),
+  weight:          Joi.number().min(0).optional(),
+  sellingPrice:    Joi.number().min(0).optional(),
+  wipStage:        Joi.string().trim().allow('').max(80).optional(),
+  lastRestockedAt: Joi.string().allow('', null).optional(),
+})
+
+const inventoryPatchSchema = Joi.object({
+  type:            Joi.string().valid('raw', 'wip', 'finished', 'consumable').optional(),
+  name:            Joi.string().trim().min(1).max(200).optional(),
+  sku:             Joi.string().trim().allow('').max(80).optional(),
+  category:        Joi.string().trim().allow('').max(100).optional(),
+  quantity:        Joi.number().min(0).optional(),
+  unit:            Joi.string().trim().allow('').max(30).optional(),
+  minThreshold:    Joi.number().min(0).optional(),
+  unitCost:        Joi.number().min(0).optional(),
+  supplierName:    Joi.string().trim().allow('').max(200).optional(),
+  weight:          Joi.number().min(0).optional(),
+  sellingPrice:    Joi.number().min(0).optional(),
+  wipStage:        Joi.string().trim().allow('').max(80).optional(),
+  lastRestockedAt: Joi.string().allow('', null).optional(),
+  reason:          Joi.string().trim().allow('').max(300).optional(),
+}).min(1)
+
+const supplierCreateSchema = Joi.object({
+  name:         Joi.string().trim().min(1).max(200).required(),
+  country:      Joi.string().trim().allow('').max(80).optional(),
+  contact:      Joi.string().trim().allow('').max(120).optional(),
+  productType:  Joi.string().trim().allow('').max(100).optional(),
+  rating:       Joi.number().integer().min(1).max(5).optional(),
+  paymentTerms: Joi.string().trim().allow('').max(60).optional(),
+})
+
+const supplierPatchSchema = Joi.object({
+  name:         Joi.string().trim().min(1).max(200).optional(),
+  country:      Joi.string().trim().allow('').max(80).optional(),
+  contact:      Joi.string().trim().allow('').max(120).optional(),
+  productType:  Joi.string().trim().allow('').max(100).optional(),
+  rating:       Joi.number().integer().min(1).max(5).optional(),
+  paymentTerms: Joi.string().trim().allow('').max(60).optional(),
+}).min(1)
+
+const poItemSchema = Joi.object({
+  itemName:  Joi.string().trim().min(1).max(200).required(),
+  quantity:  Joi.number().min(0).required(),
+  unitPrice: Joi.number().min(0).required(),
+})
+
+const poCreateSchema = Joi.object({
+  poNumber:             Joi.string().trim().min(1).max(80).required(),
+  supplierId:           Joi.string().hex().length(24).required(),
+  items:                Joi.array().items(poItemSchema).min(1).required(),
+  expectedDeliveryDate: Joi.string().allow('', null).optional(),
+  paymentTerms:         Joi.string().trim().allow('').max(60).optional(),
+  status:               Joi.string().trim().allow('').max(30).optional(),
+})
+
+const poPatchSchema = Joi.object({}).unknown(true)
+
+const workOrderCreateSchema = Joi.object({
+  woNumber:        Joi.string().trim().min(1).max(80).required(),
+  quantity:        Joi.number().min(1).optional(),
+  stage:           Joi.string().valid('casting','filing','setting','polishing','quality','packaging').optional(),
+  assignedTo:      Joi.string().trim().allow('').max(120).optional(),
+  materialNeeded:  Joi.array().optional(),
+  targetDate:      Joi.string().allow('', null).optional(),
+})
+
+const workOrderPatchSchema = Joi.object({}).unknown(true)
+// ────────────────────────────────────────────────────────────────────────────
 
 const normalize = (value = '') => String(value).trim().toLowerCase()
 const ERP_PO_FINAL_APPROVAL_THRESHOLD = Number(process.env.ERP_PO_FINAL_APPROVAL_THRESHOLD || 50000)
@@ -114,7 +198,7 @@ router.get('/inventory', protect, async (req, res) => {
   }
 })
 
-router.post('/inventory', protect, async (req, res) => {
+router.post('/inventory', protect, validateBody(inventoryCreateSchema), async (req, res) => {
   try {
     if (!canEditInventory(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Super Admin or Production Head can add inventory items.' })
@@ -159,7 +243,7 @@ router.post('/inventory', protect, async (req, res) => {
   }
 })
 
-router.put('/inventory/:id', protect, async (req, res) => {
+router.put('/inventory/:id', protect, validateParams(idParam), validateBody(inventoryPatchSchema), async (req, res) => {
   try {
     if (!canEditInventory(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Super Admin or Production Head can edit inventory items.' })
@@ -210,7 +294,7 @@ router.put('/inventory/:id', protect, async (req, res) => {
   }
 })
 
-router.delete('/inventory/:id', protect, async (req, res) => {
+router.delete('/inventory/:id', protect, validateParams(idParam), async (req, res) => {
   try {
     if (!canEditInventory(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Super Admin or Production Head can delete inventory items.' })
@@ -273,7 +357,7 @@ router.get('/procurement/suppliers', protect, async (req, res) => {
   }
 })
 
-router.post('/procurement/suppliers', protect, async (req, res) => {
+router.post('/procurement/suppliers', protect, validateBody(supplierCreateSchema), async (req, res) => {
   try {
     if (!canManageSuppliers(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Super Admin or Operations Head can create suppliers.' })
@@ -298,7 +382,7 @@ router.post('/procurement/suppliers', protect, async (req, res) => {
   }
 })
 
-router.put('/procurement/suppliers/:id', protect, async (req, res) => {
+router.put('/procurement/suppliers/:id', protect, validateParams(idParam), validateBody(supplierPatchSchema), async (req, res) => {
   try {
     if (!canManageSuppliers(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Super Admin or Operations Head can update suppliers.' })
@@ -315,7 +399,7 @@ router.put('/procurement/suppliers/:id', protect, async (req, res) => {
   }
 })
 
-router.delete('/procurement/suppliers/:id', protect, async (req, res) => {
+router.delete('/procurement/suppliers/:id', protect, validateParams(idParam), async (req, res) => {
   try {
     if (!canManageSuppliers(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Super Admin or Operations Head can delete suppliers.' })
@@ -383,7 +467,7 @@ router.get('/procurement/purchase-orders', protect, async (req, res) => {
   }
 })
 
-router.post('/procurement/purchase-orders', protect, async (req, res) => {
+router.post('/procurement/purchase-orders', protect, validateBody(poCreateSchema), async (req, res) => {
   try {
     if (!canCreatePO(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Operations Head or Super Admin can create purchase orders.' })
@@ -437,7 +521,7 @@ router.post('/procurement/purchase-orders', protect, async (req, res) => {
   }
 })
 
-router.put('/procurement/purchase-orders/:id', protect, async (req, res) => {
+router.put('/procurement/purchase-orders/:id', protect, validateParams(idParam), validateBody(poPatchSchema), async (req, res) => {
   try {
     const po = await PurchaseOrder.findById(req.params.id)
     if (!po) {
@@ -482,7 +566,7 @@ router.put('/procurement/purchase-orders/:id', protect, async (req, res) => {
   }
 })
 
-router.delete('/procurement/purchase-orders/:id', protect, async (req, res) => {
+router.delete('/procurement/purchase-orders/:id', protect, validateParams(idParam), async (req, res) => {
   try {
     if (!canCreatePO(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Operations Head or Super Admin can delete purchase orders.' })
@@ -537,7 +621,7 @@ router.get('/production/work-orders', protect, async (req, res) => {
   }
 })
 
-router.post('/production/work-orders', protect, async (req, res) => {
+router.post('/production/work-orders', protect, validateBody(workOrderCreateSchema), async (req, res) => {
   try {
     if (!canManageProduction(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Production Head or Super Admin can create work orders.' })
@@ -569,7 +653,7 @@ router.post('/production/work-orders', protect, async (req, res) => {
   }
 })
 
-router.put('/production/work-orders/:id', protect, async (req, res) => {
+router.put('/production/work-orders/:id', protect, validateParams(idParam), validateBody(workOrderPatchSchema), async (req, res) => {
   try {
     if (!canManageProduction(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Production Head or Super Admin can update work orders.' })
@@ -586,7 +670,7 @@ router.put('/production/work-orders/:id', protect, async (req, res) => {
   }
 })
 
-router.delete('/production/work-orders/:id', protect, async (req, res) => {
+router.delete('/production/work-orders/:id', protect, validateParams(idParam), async (req, res) => {
   try {
     if (!canManageProduction(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Production Head or Super Admin can delete work orders.' })

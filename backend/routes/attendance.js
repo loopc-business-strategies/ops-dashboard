@@ -3,8 +3,42 @@ const { protect } = require('../middleware/auth')
 const AttendanceRecord = require('../models/AttendanceRecord')
 const LeaveRequest = require('../models/LeaveRequest')
 const Employee = require('../models/Employee')
+const { Joi, validateBody, validateParams } = require('../middleware/validate')
 
 const router = express.Router()
+
+const ATTENDANCE_STATUSES = ['present', 'absent', 'late', 'leave', 'wfh', 'holiday']
+const LEAVE_TYPES = ['personal', 'sick', 'annual', 'emergency', 'maternity', 'paternity', 'unpaid', 'other']
+const LEAVE_DECISIONS = ['approved', 'rejected']
+
+const recordIdParam = Joi.object({ id: Joi.string().hex().length(24).required() })
+
+const attendanceRecordSchema = Joi.object({
+  employeeId:   Joi.string().hex().length(24).allow('', null).optional(),
+  userId:       Joi.string().hex().length(24).allow('', null).optional(),
+  employeeName: Joi.string().trim().min(1).max(120).required(),
+  department:   Joi.string().trim().min(1).max(80).required(),
+  date:         Joi.string().isoDate().optional(),
+  status:       Joi.string().valid(...ATTENDANCE_STATUSES).optional(),
+  checkIn:      Joi.string().trim().allow('').max(10).optional(),
+  checkOut:     Joi.string().trim().allow('').max(10).optional(),
+  shift:        Joi.string().trim().allow('').max(50).optional(),
+  notes:        Joi.string().trim().allow('').max(500).optional(),
+})
+
+const leaveRequestSchema = Joi.object({
+  startDate:    Joi.string().isoDate().required(),
+  endDate:      Joi.string().isoDate().required(),
+  reason:       Joi.string().trim().allow('').max(1000).optional(),
+  leaveType:    Joi.string().valid(...LEAVE_TYPES).optional(),
+  employeeName: Joi.string().trim().allow('').max(120).optional(),
+  department:   Joi.string().trim().allow('').max(80).optional(),
+})
+
+const leaveDecisionSchema = Joi.object({
+  status:     Joi.string().valid(...LEAVE_DECISIONS).required(),
+  reviewNote: Joi.string().trim().allow('').max(500).optional(),
+})
 
 const normalize = (value = '') => String(value).trim().toLowerCase()
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -189,7 +223,7 @@ router.get('/me', protect, async (req, res) => {
   }
 })
 
-router.post('/records', protect, async (req, res) => {
+router.post('/records', protect, validateBody(attendanceRecordSchema), async (req, res) => {
   try {
     if (!canManageAttendance(req.user)) {
       return res.status(403).json({ success: false, message: 'You do not have permission to mark attendance.' })
@@ -254,7 +288,7 @@ router.get('/leave', protect, async (req, res) => {
   }
 })
 
-router.post('/leave', protect, async (req, res) => {
+router.post('/leave', protect, validateBody(leaveRequestSchema), async (req, res) => {
   try {
     if (isManagement(req.user)) {
       return res.status(403).json({ success: false, message: 'Management accounts cannot submit leave requests.' })
@@ -295,7 +329,7 @@ router.post('/leave', protect, async (req, res) => {
   }
 })
 
-router.put('/leave/:id/decision', protect, async (req, res) => {
+router.put('/leave/:id/decision', protect, validateParams(recordIdParam), validateBody(leaveDecisionSchema), async (req, res) => {
   try {
     if (!canReviewLeave(req.user)) {
       return res.status(403).json({ success: false, message: 'You do not have permission to review leave requests.' })

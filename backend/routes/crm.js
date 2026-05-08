@@ -6,6 +6,7 @@ const fs = require('fs')
 const path = require('path')
 const multer = require('multer')
 const { protect } = require('../middleware/auth')
+const { Joi, validateBody, validateParams } = require('../middleware/validate')
 const CrmContact  = require('../models/CrmContact')
 const CrmCompany  = require('../models/CrmCompany')
 const CrmLead     = require('../models/CrmLead')
@@ -14,6 +15,124 @@ const CrmActivity = require('../models/CrmActivity')
 
 const router = express.Router()
 router.use(protect)
+
+// ─── Joi Schemas ────────────────────────────────────────────────────────────
+const LEAD_STAGES = ['Prospect', 'Contacted', 'Qualified', 'Proposal', 'Negotiating', 'Closed Won', 'Closed Lost']
+const DEAL_STAGES = [...LEAD_STAGES]
+const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
+
+const contactCreateSchema = Joi.object({
+  firstName:      Joi.string().trim().min(1).max(80).required(),
+  lastName:       Joi.string().trim().min(1).max(80).required(),
+  email:          Joi.string().email({ tlds: { allow: false } }).allow('').optional(),
+  phone:          Joi.string().trim().allow('').max(30).optional(),
+  jobTitle:       Joi.string().trim().allow('').max(120).optional(),
+  companyName:    Joi.string().trim().allow('').max(200).optional(),
+  companyId:      Joi.string().hex().length(24).allow('', null).optional(),
+  contactType:    Joi.string().trim().allow('').max(50).optional(),
+  country:        Joi.string().trim().allow('').max(80).optional(),
+  city:           Joi.string().trim().allow('').max(80).optional(),
+  status:         Joi.string().trim().allow('').max(50).optional(),
+  assignedRep:    Joi.string().trim().allow('').max(120).optional(),
+  leadSource:     Joi.string().trim().allow('').max(80).optional(),
+  estDealValue:   Joi.number().min(0).optional(),
+  volumeTargetKg: Joi.number().min(0).optional(),
+  paymentTerms:   Joi.string().trim().allow('').max(60).optional(),
+  priority:       Joi.string().valid('Low', 'Medium', 'High').optional(),
+  tags:           Joi.array().items(Joi.string().trim().max(50)).max(20).optional(),
+  kyc:            Joi.object().optional(),
+})
+
+const contactPatchSchema = Joi.object({}).unknown(true)
+
+const companyCreateSchema = Joi.object({
+  name:        Joi.string().trim().min(1).max(200).required(),
+  type:        Joi.string().trim().allow('').max(80).optional(),
+  country:     Joi.string().trim().allow('').max(80).optional(),
+  city:        Joi.string().trim().allow('').max(80).optional(),
+  website:     Joi.string().uri({ allowRelative: true }).allow('').optional(),
+  industry:    Joi.string().trim().allow('').max(100).optional(),
+  status:      Joi.string().trim().allow('').max(50).optional(),
+  riskRating:  Joi.string().valid('Low', 'Medium', 'High').optional(),
+  notes:       Joi.string().trim().allow('').max(2000).optional(),
+})
+
+const companyPatchSchema = Joi.object({}).unknown(true)
+
+const leadCreateSchema = Joi.object({
+  name:               Joi.string().trim().min(1).max(200).required(),
+  contactId:          Joi.string().hex().length(24).allow('', null).optional(),
+  contactName:        Joi.string().trim().allow('').max(200).optional(),
+  companyName:        Joi.string().trim().allow('').max(200).optional(),
+  source:             Joi.string().trim().allow('').max(80).optional(),
+  stage:              Joi.string().valid(...LEAD_STAGES).optional(),
+  assignedRep:        Joi.string().trim().allow('').max(120).optional(),
+  estValueUSD:        Joi.number().min(0).optional(),
+  volumeKg:           Joi.number().min(0).optional(),
+  probability:        Joi.number().min(0).max(100).optional(),
+  expectedCloseDate:  Joi.string().allow('', null).optional(),
+  temperature:        Joi.string().valid('Cold', 'Warm', 'Hot', 'Very Hot').optional(),
+  score:              Joi.object().optional(),
+  nextAction:         Joi.object().optional(),
+  stageHistory:       Joi.array().optional(),
+})
+
+const leadPatchSchema = Joi.object({}).unknown(true)
+
+const stageSchema = Joi.object({
+  stage: Joi.string().valid(...LEAD_STAGES).required(),
+  note:  Joi.string().trim().allow('').max(500).optional(),
+})
+
+const dealCreateSchema = Joi.object({
+  name:              Joi.string().trim().min(1).max(200).required(),
+  companyName:       Joi.string().trim().allow('').max(200).optional(),
+  companyId:         Joi.string().hex().length(24).allow('', null).optional(),
+  contactName:       Joi.string().trim().allow('').max(200).optional(),
+  contactId:         Joi.string().hex().length(24).allow('', null).optional(),
+  stage:             Joi.string().valid(...DEAL_STAGES).optional(),
+  assignedRep:       Joi.string().trim().allow('').max(120).optional(),
+  volumeKg:          Joi.number().min(0).optional(),
+  valueUSD:          Joi.number().min(0).optional(),
+  probability:       Joi.number().min(0).max(100).optional(),
+  paymentTerms:      Joi.string().trim().allow('').max(60).optional(),
+  expectedCloseDate: Joi.string().allow('', null).optional(),
+  nextAction:        Joi.object().optional(),
+  stageHistory:      Joi.array().optional(),
+})
+
+const dealPatchSchema = Joi.object({}).unknown(true)
+
+const closeSchema = Joi.object({
+  outcome:        Joi.string().valid('won', 'lost').required(),
+  finalValue:     Joi.number().min(0).optional(),
+  closeDate:      Joi.string().allow('', null).optional(),
+  contractSigned: Joi.boolean().optional(),
+  reason:         Joi.string().trim().allow('').max(500).optional(),
+  competitor:     Joi.string().trim().allow('').max(200).optional(),
+  notes:          Joi.string().trim().allow('').max(2000).optional(),
+})
+
+const noteSchema = Joi.object({
+  text:      Joi.string().trim().min(1).max(2000).required(),
+  isPrivate: Joi.boolean().optional(),
+})
+
+const activityCreateSchema = Joi.object({
+  type:       Joi.string().trim().min(1).max(80).required(),
+  contactId:  Joi.string().hex().length(24).allow('', null).optional(),
+  contactName:Joi.string().trim().allow('').max(200).optional(),
+  companyName:Joi.string().trim().allow('').max(200).optional(),
+  date:       Joi.string().allow('', null).optional(),
+  duration:   Joi.number().min(0).optional(),
+  notes:      Joi.string().trim().allow('').max(5000).optional(),
+  outcome:    Joi.string().trim().allow('').max(50).optional(),
+  assignedRep:Joi.string().trim().allow('').max(120).optional(),
+  nextAction: Joi.object().optional(),
+})
+
+const activityPatchSchema = Joi.object({}).unknown(true)
+// ────────────────────────────────────────────────────────────────────────────
 
 const csvUpload = multer({
   storage: multer.memoryStorage(),
@@ -532,7 +651,7 @@ router.get('/contacts', salesOnly, async (req, res) => {
   }
 })
 
-router.post('/contacts', salesOnly, async (req, res) => {
+router.post('/contacts', salesOnly, validateBody(contactCreateSchema), async (req, res) => {
   try {
     const contact = await CrmContact.create({ ...req.body, createdBy: req.user._id })
     res.status(201).json({ success: true, data: contact })
@@ -541,7 +660,7 @@ router.post('/contacts', salesOnly, async (req, res) => {
   }
 })
 
-router.put('/contacts/:id', salesOnly, async (req, res) => {
+router.put('/contacts/:id', salesOnly, validateParams(idParam), validateBody(contactPatchSchema), async (req, res) => {
   try {
     const contact = await CrmContact.findOneAndUpdate(
       { _id: req.params.id, isDeleted: false },
@@ -565,7 +684,7 @@ router.delete('/contacts/:id', salesOnly, async (req, res) => {
   }
 })
 
-router.post('/contacts/:id/notes', salesOnly, async (req, res) => {
+router.post('/contacts/:id/notes', salesOnly, validateParams(idParam), validateBody(noteSchema), async (req, res) => {
   try {
     const { text, isPrivate } = req.body
     if (!text) return res.status(400).json({ success: false, message: 'Note text is required.' })
@@ -702,7 +821,7 @@ router.get('/companies', salesOnly, async (req, res) => {
   }
 })
 
-router.post('/companies', salesOnly, async (req, res) => {
+router.post('/companies', salesOnly, validateBody(companyCreateSchema), async (req, res) => {
   try {
     const co = await CrmCompany.create({ ...req.body, createdBy: req.user._id })
     res.status(201).json({ success: true, data: co })
@@ -711,7 +830,7 @@ router.post('/companies', salesOnly, async (req, res) => {
   }
 })
 
-router.put('/companies/:id', salesOnly, async (req, res) => {
+router.put('/companies/:id', salesOnly, validateParams(idParam), validateBody(companyPatchSchema), async (req, res) => {
   try {
     const co = await CrmCompany.findOneAndUpdate(
       { _id: req.params.id, isDeleted: false },
@@ -747,7 +866,7 @@ router.get('/leads', salesOnly, async (req, res) => {
   }
 })
 
-router.post('/leads', salesOnly, async (req, res) => {
+router.post('/leads', salesOnly, validateBody(leadCreateSchema), async (req, res) => {
   try {
     const body = { ...req.body, createdBy: req.user._id }
     if (!body.stageHistory) {
@@ -760,7 +879,7 @@ router.post('/leads', salesOnly, async (req, res) => {
   }
 })
 
-router.put('/leads/:id', salesOnly, async (req, res) => {
+router.put('/leads/:id', salesOnly, validateParams(idParam), validateBody(leadPatchSchema), async (req, res) => {
   try {
     const lead = await CrmLead.findOneAndUpdate(
       { _id: req.params.id, isDeleted: false },
@@ -774,7 +893,7 @@ router.put('/leads/:id', salesOnly, async (req, res) => {
   }
 })
 
-router.post('/leads/:id/stage', salesOnly, async (req, res) => {
+router.post('/leads/:id/stage', salesOnly, validateParams(idParam), validateBody(stageSchema), async (req, res) => {
   try {
     const { stage, note } = req.body
     const lead = await CrmLead.findOneAndUpdate(
@@ -885,7 +1004,7 @@ router.get('/deals', salesOnly, async (req, res) => {
   }
 })
 
-router.post('/deals', salesOnly, async (req, res) => {
+router.post('/deals', salesOnly, validateBody(dealCreateSchema), async (req, res) => {
   try {
     if (!canEdit(req.user)) return res.status(403).json({ success: false, message: 'Sales Head or above required to create deals.' })
     const body = { ...req.body, createdBy: req.user._id }
@@ -899,7 +1018,7 @@ router.post('/deals', salesOnly, async (req, res) => {
   }
 })
 
-router.put('/deals/:id', salesOnly, async (req, res) => {
+router.put('/deals/:id', salesOnly, validateParams(idParam), validateBody(dealPatchSchema), async (req, res) => {
   try {
     const deal = await CrmDeal.findOneAndUpdate(
       { _id: req.params.id, isDeleted: false },
@@ -913,7 +1032,7 @@ router.put('/deals/:id', salesOnly, async (req, res) => {
   }
 })
 
-router.post('/deals/:id/close', salesOnly, async (req, res) => {
+router.post('/deals/:id/close', salesOnly, validateParams(idParam), validateBody(closeSchema), async (req, res) => {
   try {
     if (!canEdit(req.user)) return res.status(403).json({ success: false, message: 'Sales Head or above required to close deals.' })
     const { outcome, finalValue, closeDate, contractSigned, reason, competitor, notes: lostNotes } = req.body
@@ -956,7 +1075,7 @@ router.get('/activities', salesOnly, async (req, res) => {
   }
 })
 
-router.post('/activities', salesOnly, async (req, res) => {
+router.post('/activities', salesOnly, validateBody(activityCreateSchema), async (req, res) => {
   try {
     const activity = await CrmActivity.create({
       ...req.body,
@@ -969,7 +1088,7 @@ router.post('/activities', salesOnly, async (req, res) => {
   }
 })
 
-router.put('/activities/:id', salesOnly, async (req, res) => {
+router.put('/activities/:id', salesOnly, validateParams(idParam), validateBody(activityPatchSchema), async (req, res) => {
   try {
     const act = await CrmActivity.findOneAndUpdate(
       { _id: req.params.id, isDeleted: false },

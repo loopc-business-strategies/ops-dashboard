@@ -6,6 +6,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import financeAPI from '../../api/finance'
+import erpAccountingAPI from '../../api/erp-accounting'
 
 // ─── Design tokens ────────────────────────────────────────────
 const C = {
@@ -1235,15 +1236,32 @@ function ReportsAnalytics({ finRole, can, canEdit, onToast }) {
 }
 
 // ─── General Ledger Management ────────────────────────────────
-function GeneralLedger({ finRole, can, canEdit, onToast }) {
+function GeneralLedger({ finRole, can, canEdit, onToast, token }) {
   if (can('vendor','hr_mgr','dept_head','sales_head')) return <Restricted msg="General Ledger is restricted to Finance Manager, Super Admin and Auditor." />
   
-  const [ledgerEntries, setLedgerEntries] = useState([
-    { _id:'LE-001', date:'Apr 1, 2026', debitAccount:'Cash', creditAccount:'Revenue', amount:100000, description:'Sales invoice INV-001', status:'Posted' },
-    { _id:'LE-002', date:'Apr 2, 2026', debitAccount:'Accounts Receivable', creditAccount:'Revenue', amount:250000, description:'Accrued revenue', status:'Posted' },
-    { _id:'LE-003', date:'Apr 3, 2026', debitAccount:'Expenses', creditAccount:'Cash', amount:45000, description:'Office supplies purchase', status:'Posted' },
-    { _id:'LE-004', date:'Apr 4, 2026', debitAccount:'Equipment', creditAccount:'Accounts Payable', amount:500000, description:'Equipment acquisition', status:'Draft' },
-  ])
+  const [ledgerEntries, setLedgerEntries] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!token) return
+    setLoading(true)
+    erpAccountingAPI.getLedger(token, { limit: 200 })
+      .then(data => {
+        const entries = (data.entries || []).map(e => ({
+          _id: e._id,
+          date: e.date ? new Date(e.date).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—',
+          debitAccount: e.debitAccountId?.accountName || e.debitAccountId || '—',
+          creditAccount: e.creditAccountId?.accountName || e.creditAccountId || '—',
+          amount: e.amount || 0,
+          description: e.description || '',
+          status: e.bankReconciled ? 'Reconciled' : (e.isDeleted ? 'Reversed' : 'Posted'),
+          _raw: e,
+        }))
+        setLedgerEntries(entries)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [token])
   
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
@@ -1317,7 +1335,8 @@ function GeneralLedger({ finRole, can, canEdit, onToast }) {
       </div>
 
       <Card title={`Ledger Entries — Page ${page} of ${totalPages}`}>
-        <DataTable title="" headers={['Date','Debit Account','Credit Account','Amount','Description','Status',...(canEdit()?['Actions']:[])]}>
+        {loading && <div style={{ padding:20, textAlign:'center', color:C.t3, fontSize:13 }}>Loading ledger entries…</div>}
+        {!loading && <DataTable title="" headers={['Date','Debit Account','Credit Account','Amount','Description','Status',...(canEdit()?['Actions']:[])]}>
           {paginatedEntries.map((entry,i) => (
             <tr key={entry._id} style={{ background:entry.status==='Reversed'?'rgba(255,71,87,.05)':entry.status==='Draft'?'rgba(255,214,0,.04)':(i%2===0?'#ffffff':'#f8f9fa'), borderBottom:'1px solid rgba(255,255,255,.04)' }}>
               <Td style={{ color:C.t3 }}>{entry.date}</Td>
@@ -1339,7 +1358,7 @@ function GeneralLedger({ finRole, can, canEdit, onToast }) {
               )}
             </tr>
           ))}
-        </DataTable>
+        </DataTable>}
 
         {/* Pagination Controls */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:14, paddingTop:12, borderTop:`1px solid ${C.border}` }}>
@@ -1512,7 +1531,7 @@ export default function FinanceTab() {
       case 'gold':    return <GoldTracker     {...sh} />
       case 'tax':     return <TaxCompliance   {...sh} />
       case 'reports': return <ReportsAnalytics {...sh} />
-      case 'ledger':  return <GeneralLedger    finRole={finRole} can={can} canEdit={canEdit} onToast={showToast} />
+      case 'ledger':  return <GeneralLedger    finRole={finRole} can={can} canEdit={canEdit} onToast={showToast} token={token} />
       case 'audit':   return <AuditTrail      finRole={finRole} can={can} auditLog={auditLog} />
       default:        return null
     }

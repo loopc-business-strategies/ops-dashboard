@@ -1032,7 +1032,7 @@ describe('ERP accounting transactions workflow', () => {
       })
 
     expect(badRateRes.status).toBe(400)
-    expect(badRateRes.body.message).toMatch(/Invalid exchange rate/i)
+    expect(badRateRes.body.message).toMatch(/exchangeRate/i)
 
     const badAmountRes = await request(app)
       .post('/api/erp-accounting/transactions')
@@ -1044,6 +1044,6 @@ describe('ERP accounting transactions workflow', () => {
       })
 
     expect(badAmountRes.status).toBe(400)
-    expect(badAmountRes.body.message).toMatch(/Invalid amount/i)
+    expect(badAmountRes.body.message).toMatch(/amount/i)
   })
 })
