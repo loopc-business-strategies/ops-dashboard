@@ -12,6 +12,7 @@ backend/.env
 # Runtime/generated artifacts
 backend/logs/
 backend/uploads/transactions/
+backend/reports/
 *.cookies/
 *.cookies
 

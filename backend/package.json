@@ -17,6 +17,8 @@
     "migrate:mapping-departments": "node scripts/backfill-mapping-departments.js",
     "smoke:erp": "node scripts/smoke-erp-api.js",
     "test": "jest --runInBand",
+    "test:fast": "jest --runInBand tests/permissions.test.js",
+    "test:integration": "jest --runInBand --testTimeout=120000 tests/erp-accounting-transactions.test.js",
     "test:watch": "jest --watch"
   },
   "dependencies": {

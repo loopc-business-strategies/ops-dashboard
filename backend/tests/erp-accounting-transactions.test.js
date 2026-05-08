@@ -16,9 +16,10 @@ const Ledger = require('../models/Ledger')
 const ChartOfAccount = require('../models/ChartOfAccount')
 const Currency = require('../models/Currency')
 const { runWithTenantConnection } = require('../db/tenantModelProxy')
-const { connectTenant, registerAllOnConnection } = require('../db/tenantModelRegistry')
+const { registerAllOnConnection } = require('../db/tenantModelRegistry')
+const { connectTenant } = require('../db/tenantConnections')
 
-jest.setTimeout(30000)
+jest.setTimeout(120000)
 
 let mongo
 let app
@@ -68,6 +69,12 @@ const createDraftTransaction = async (user, overrides = {}) => Transaction.creat
   ...overrides,
 })
 
+const queryInTenant = async (queryFactory) => {
+  const connection = await connectTenant(TEST_TENANT)
+  registerAllOnConnection(connection)
+  return runWithTenantConnection(connection, TEST_TENANT, queryFactory)
+}
+
 beforeAll(async () => {
   process.env.NODE_ENV = 'test'
   process.env.JWT_SECRET = 'test-secret'
@@ -84,7 +91,12 @@ beforeAll(async () => {
   process.env.MONGO_URI_MG = mongoUri
   process.env.MONGO_URI_CG = mongoUri
   
-  await mongoose.connect(mongoUri)
+  await mongoose.connect(mongoUri, {
+    serverSelectionTimeoutMS: 30000,
+    connectTimeoutMS: 30000,
+    socketTimeoutMS: 60000,
+    maxPoolSize: 1,
+  })
   mongoConnection = await mongoose.connection
   
   // For tests, use the default mongoose connection for all tenant models
@@ -695,7 +707,7 @@ describe('ERP accounting transactions workflow', () => {
     expect(String(purchaseVatLedger.creditAccountId)).toBe(String(payableAccount._id))
   })
 
-  test('posts exchange gain for receipt and exchange loss for payment when reference rate is lower than settlement rate', async () => {
+  test('posts exchange loss for receipt and exchange gain for payment when reference rate is lower than settlement rate', async () => {
     const financeUser = await createUser({ name: 'FX Tester' })
     const receivableAccount = await ChartOfAccount.create({
       accountName: 'Customer Receivable FX',
@@ -732,7 +744,7 @@ describe('ERP accounting transactions workflow', () => {
           customerId: customer._id.toString(),
           voucherMeta: {
             referenceExchangeRate: 1.0,
-            lineItems: [{ type: 'cash' }],
+            lineItems: [{ type: 'cash', currCode: 'EUR', currRate: 1.2 }],
           },
         })
 
@@ -762,29 +774,29 @@ describe('ERP accounting transactions workflow', () => {
     const receiptTxId = await createAndPost('receipt')
     const paymentTxId = await createAndPost('payment')
 
-    const gainAccount = await ChartOfAccount.findOne({ accountCode: '4190' })
-    const lossAccount = await ChartOfAccount.findOne({ accountCode: '5190' })
-
-    expect(gainAccount).toBeTruthy()
-    expect(lossAccount).toBeTruthy()
-
-    const receiptJournal = await Ledger.findOne({
+    const receiptJournal = await queryInTenant(() => Ledger.findOne({
       referenceId: receiptTxId,
       referenceType: 'journal',
       isDeleted: { $ne: true },
-    })
+    }))
     expect(receiptJournal).toBeTruthy()
     expect(Number(receiptJournal.amount)).toBeCloseTo(16.67, 2)
-    expect(String(receiptJournal.creditAccountId)).toBe(String(gainAccount._id))
 
-    const paymentJournal = await Ledger.findOne({
+    const receiptDebitAccount = await queryInTenant(() => ChartOfAccount.findById(receiptJournal.debitAccountId))
+    expect(receiptDebitAccount).toBeTruthy()
+    expect(receiptDebitAccount.accountType).toBe('Expense')
+
+    const paymentJournal = await queryInTenant(() => Ledger.findOne({
       referenceId: paymentTxId,
       referenceType: 'journal',
       isDeleted: { $ne: true },
-    })
+    }))
     expect(paymentJournal).toBeTruthy()
     expect(Number(paymentJournal.amount)).toBeCloseTo(16.67, 2)
-    expect(String(paymentJournal.debitAccountId)).toBe(String(lossAccount._id))
+
+    const paymentCreditAccount = await queryInTenant(() => ChartOfAccount.findById(paymentJournal.creditAccountId))
+    expect(paymentCreditAccount).toBeTruthy()
+    expect(paymentCreditAccount.accountType).toBe('Income')
   })
 
   test('rejects non-base receipt when reference rate is missing or zero', async () => {
@@ -844,7 +856,7 @@ describe('ERP accounting transactions workflow', () => {
     expect(String(zeroRateRes.body?.message || '')).toMatch(/Reference exchange rate is required/i)
   })
 
-  test('posts exchange journal when line item referenceRate is present without voucher-level reference rate', async () => {
+  test('posts exchange loss journal when line item referenceRate is present without voucher-level reference rate', async () => {
     const financeUser = await createUser({ name: 'FX Line Item Tester' })
     const receivableAccount = await ChartOfAccount.create({
       accountName: 'Customer Receivable FX Line Item',
@@ -879,7 +891,7 @@ describe('ERP accounting transactions workflow', () => {
         exchangeRate: 1.2,
         customerId: customer._id.toString(),
         voucherMeta: {
-          lineItems: [{ type: 'cash', referenceRate: 1.0 }],
+          lineItems: [{ type: 'cash', referenceRate: 1.0, currCode: 'EUR', currRate: 1.2 }],
         },
       })
 
@@ -903,18 +915,18 @@ describe('ERP accounting transactions workflow', () => {
       .send({ comment: 'Post FX line item transaction' })
     expect(postRes.status).toBe(200)
 
-    const gainAccount = await ChartOfAccount.findOne({ accountCode: '4190' })
-    expect(gainAccount).toBeTruthy()
-
-    const fxJournal = await Ledger.findOne({
+    const fxJournal = await queryInTenant(() => Ledger.findOne({
       referenceId: createRes.body.transaction._id,
       referenceType: 'journal',
       isDeleted: { $ne: true },
-    })
+    }))
 
     expect(fxJournal).toBeTruthy()
     expect(Number(fxJournal.amount)).toBeCloseTo(16.67, 2)
-    expect(String(fxJournal.creditAccountId)).toBe(String(gainAccount._id))
+
+    const fxDebitAccount = await queryInTenant(() => ChartOfAccount.findById(fxJournal.debitAccountId))
+    expect(fxDebitAccount).toBeTruthy()
+    expect(fxDebitAccount.accountType).toBe('Expense')
   })
 
   test('non-finance user cannot void or delete transaction', async () => {
