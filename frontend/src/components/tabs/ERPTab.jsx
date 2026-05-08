@@ -1192,12 +1192,25 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   // ─── Multi-line Journal Voucher state ─────────────────────────────────────
   const emptyJvLine = (id) => ({ id, description: '', debit: '', credit: '' })
-  const [jvLines, setJvLines] = useState([emptyJvLine(1), emptyJvLine(2)])
-  const [jvHeader, setJvHeader] = useState({
-    docNo: '', date: new Date().toISOString().slice(0, 10), narration: '',
-    debitAccountInput: '', debitAccountId: '',
-    creditAccountInput: '', creditAccountId: '',
+  const buildJvDocNo = () => {
+    const now = new Date()
+    const y = now.getFullYear()
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const d = String(now.getDate()).padStart(2, '0')
+    const suffix = String(now.getTime()).slice(-4)
+    return `JV-${y}${m}${d}-${suffix}`
+  }
+  const createJvHeader = () => ({
+    docNo: buildJvDocNo(),
+    date: new Date().toISOString().slice(0, 10),
+    narration: '',
+    debitAccountInput: '',
+    debitAccountId: '',
+    creditAccountInput: '',
+    creditAccountId: '',
   })
+  const [jvLines, setJvLines] = useState([emptyJvLine(1), emptyJvLine(2)])
+  const [jvHeader, setJvHeader] = useState(createJvHeader)
   const [nextJvLineId, setNextJvLineId] = useState(3)
   const [jvMode] = useState('journal')
   const [currencyForm, setCurrencyForm] = useState({ code: '', name: '', symbol: '', exchangeRate: 1, baseCurrency: false })
@@ -4945,7 +4958,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   const resetJvForm = () => {
     setJvLines([emptyJvLine(1), emptyJvLine(2)])
-    setJvHeader({ docNo: '', date: new Date().toISOString().slice(0, 10), narration: '', debitAccountInput: '', debitAccountId: '', creditAccountInput: '', creditAccountId: '' })
+    setJvHeader(createJvHeader())
     setNextJvLineId(3)
   }
 
@@ -4959,6 +4972,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   }
 
   const openJvModal = () => {
+    resetJvForm()
     setJvModalOffset({ x: 0, y: 0 })
     setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
     setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
