@@ -1987,11 +1987,10 @@ const resolveVoucherSettlementAccount = async (user, tx) => {
   const settlementPreference = normalizeVoucherSettlementType(preferredLine?.type)
 
   if (accountCode) {
-    const account = await ChartOfAccount.findOne({
-      isActive: true,
-      accountType: 'Asset',
-      accountCode,
-    })
+    // Try Asset type first (bank/cash accounts are normally Assets)
+    let account = await ChartOfAccount.findOne({ isActive: true, accountType: 'Asset', accountCode })
+    // Fall back to any active account with this code
+    if (!account) account = await ChartOfAccount.findOne({ isActive: true, accountCode })
     if (account) return account._id
   }
 

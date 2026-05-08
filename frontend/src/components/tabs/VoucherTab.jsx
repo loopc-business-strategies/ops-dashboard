@@ -778,6 +778,32 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     .filter((a) => isBankLikeAccount(a.raw))
     .sort((a, b) => a.code.localeCompare(b.code))
 
+  const LINE_ACCOUNT_TYPE_ORDER = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
+  const lineAccountComboGroups = (() => {
+    const accountList = (Array.isArray(accounts) ? accounts : [])
+      .map((a) => ({
+        code: getAccountCodeValue(a),
+        name: String(a?.accountName || a?.name || '').trim(),
+        accountType: String(a?.accountType || 'Other').trim(),
+      }))
+      .filter((a) => a.code)
+      .sort((a, b) => {
+        const ai = LINE_ACCOUNT_TYPE_ORDER.indexOf(a.accountType)
+        const bi = LINE_ACCOUNT_TYPE_ORDER.indexOf(b.accountType)
+        const tc = (ai === -1 ? LINE_ACCOUNT_TYPE_ORDER.length : ai) - (bi === -1 ? LINE_ACCOUNT_TYPE_ORDER.length : bi)
+        if (tc !== 0) return tc
+        return a.code.localeCompare(b.code)
+      })
+    const groupMap = {}
+    accountList.forEach((item) => {
+      if (!groupMap[item.accountType]) groupMap[item.accountType] = []
+      groupMap[item.accountType].push({ value: item.code, label: `${item.code}${item.name ? ` - ${item.name}` : ''}` })
+    })
+    return LINE_ACCOUNT_TYPE_ORDER
+      .filter((type) => groupMap[type])
+      .map((type) => ({ label: type, options: groupMap[type] }))
+  })()
+
   const loadRecentPartyVouchers = useCallback(async (resolvedParty) => {
     if (!resolvedParty || (!resolvedParty.customerId && !resolvedParty.vendorId)) {
       setRecentPartyVouchers([])
@@ -3130,12 +3156,14 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                           <option value="Card">Card</option>
                         </select>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>A/C Code *</div>
-                        <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.acCode || ''} onChange={e => setLF('acCode', e.target.value)}>
-                          <option value="">— Select Bank Account —</option>
-                          {voucherLineAccountOptions.map((a) => (
-                            <option key={a.id || a.code} value={a.code}>{a.code}{a.name ? ` - ${a.name}` : ''}</option>
-                          ))}
-                        </select>
+                        <AccountCombobox
+                          groups={lineAccountComboGroups}
+                          value={lineForm.acCode || ''}
+                          onChange={(val) => setLF('acCode', val)}
+                          placeholder="— Select Account —"
+                          style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }}
+                          disabled={formReadOnly}
+                        />
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Curr</div>
                         <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.currCode} onChange={e => handleLineCurrencyChange(e.target.value)}>
                           {currencyOptions.length === 0 ? (
