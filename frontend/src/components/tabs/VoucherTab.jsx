@@ -726,6 +726,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       : null
   }, [customers, vendors])
 
+  const PARTY_TYPE_ORDER = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
   const partyOptions = (Array.isArray(accounts) ? accounts : [])
     .map((account) => {
       const code = getAccountCodeValue(account)
@@ -735,10 +736,25 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         label: `${code}${name ? ` - ${name}` : ''}`,
         partyCode: code,
         partyName: name,
+        accountType: String(account?.accountType || 'Other').trim() || 'Other',
       }
     })
     .filter((item) => Boolean(item.partyCode))
-    .sort((a, b) => String(a.partyCode).localeCompare(String(b.partyCode)))
+    .sort((a, b) => {
+      const ai = PARTY_TYPE_ORDER.indexOf(a.accountType)
+      const bi = PARTY_TYPE_ORDER.indexOf(b.accountType)
+      const tc = (ai === -1 ? PARTY_TYPE_ORDER.length : ai) - (bi === -1 ? PARTY_TYPE_ORDER.length : bi)
+      if (tc !== 0) return tc
+      return String(a.partyCode).localeCompare(String(b.partyCode))
+    })
+
+  const partyGroupedOptions = partyOptions.reduce((groups, item) => {
+    const type = item.accountType
+    const existing = groups.find((g) => g.type === type)
+    if (existing) existing.items.push(item)
+    else groups.push({ type, items: [item] })
+    return groups
+  }, [])
 
   const findPartyOptionByCode = useCallback((code) => {
     const lookupValue = normalizeLookupValue(code)
@@ -2549,8 +2565,12 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                         disabled={formReadOnly}
                       >
                         <option value="">Select Account</option>
-                        {partyOptions.map((item) => (
-                          <option key={item.id} value={item.id}>{item.label}</option>
+                        {partyGroupedOptions.map((group) => (
+                          <optgroup key={group.type} label={`── ${group.type} ──`}>
+                            {group.items.map((item) => (
+                              <option key={item.id} value={item.id}>{item.label}</option>
+                            ))}
+                          </optgroup>
                         ))}
                       </select>
                     </div>
@@ -2571,8 +2591,12 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                               disabled={formReadOnly}
                             >
                               <option value="">Select Account</option>
-                              {partyOptions.map((item) => (
-                                <option key={item.id} value={item.id}>{item.label}</option>
+                              {partyGroupedOptions.map((group) => (
+                                <optgroup key={group.type} label={`── ${group.type} ──`}>
+                                  {group.items.map((item) => (
+                                    <option key={item.id} value={item.id}>{item.label}</option>
+                                  ))}
+                                </optgroup>
                               ))}
                             </select>
                           </div>

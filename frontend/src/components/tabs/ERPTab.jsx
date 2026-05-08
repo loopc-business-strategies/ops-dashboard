@@ -6374,27 +6374,43 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 </div>
                 <div>
                   <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#1D4ED8', textTransform: 'uppercase', marginBottom: '2px' }}>Debit Account</div>
-                  <input
-                    list="jv-account-datalist"
-                    value={jvHeader.debitAccountInput}
-                    onChange={(e) => setJvHeader((p) => ({ ...p, debitAccountInput: e.target.value, debitAccountId: '' }))}
-                    onBlur={(e) => resolveJvHeaderAccount('debit', e.target.value)}
-                    placeholder="Type account name or code..."
+                  <select
+                    value={jvHeader.debitAccountId}
+                    onChange={(e) => {
+                      const chosen = entryAccountOptions.find((a) => String(a._id) === e.target.value)
+                      setJvHeader((p) => ({ ...p, debitAccountId: e.target.value, debitAccountInput: chosen ? accountLookupText(chosen) : '' }))
+                    }}
                     style={{ ...cellSt, borderColor: jvHeader.debitAccountId ? '#93C5FD' : '#D1D5DB' }}
-                  />
-                  {jvHeader.debitAccountId && <div style={{ fontSize: '0.7rem', color: '#1D4ED8', marginTop: '2px' }}>✓ resolved</div>}
+                  >
+                    <option value="">Type account name or code...</option>
+                    {groupedSummaryAccounts.map((group) => (
+                      <optgroup key={group.type} label={`── ${group.type} ──`}>
+                        {group.accounts.map((a) => (
+                          <option key={a._id} value={a._id}>{a.accountCode} - {a.accountName}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#DC2626', textTransform: 'uppercase', marginBottom: '2px' }}>Credit Account</div>
-                  <input
-                    list="jv-account-datalist"
-                    value={jvHeader.creditAccountInput}
-                    onChange={(e) => setJvHeader((p) => ({ ...p, creditAccountInput: e.target.value, creditAccountId: '' }))}
-                    onBlur={(e) => resolveJvHeaderAccount('credit', e.target.value)}
-                    placeholder="Type account name or code..."
+                  <select
+                    value={jvHeader.creditAccountId}
+                    onChange={(e) => {
+                      const chosen = entryAccountOptions.find((a) => String(a._id) === e.target.value)
+                      setJvHeader((p) => ({ ...p, creditAccountId: e.target.value, creditAccountInput: chosen ? accountLookupText(chosen) : '' }))
+                    }}
                     style={{ ...cellSt, borderColor: jvHeader.creditAccountId ? '#FCA5A5' : '#D1D5DB' }}
-                  />
-                  {jvHeader.creditAccountId && <div style={{ fontSize: '0.7rem', color: '#DC2626', marginTop: '2px' }}>✓ resolved</div>}
+                  >
+                    <option value="">Type account name or code...</option>
+                    {groupedSummaryAccounts.map((group) => (
+                      <optgroup key={group.type} label={`── ${group.type} ──`}>
+                        {group.accounts.map((a) => (
+                          <option key={a._id} value={a._id}>{a.accountCode} - {a.accountName}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
                 </div>
               </div>
 
