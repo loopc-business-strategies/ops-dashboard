@@ -6553,7 +6553,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
               </div>
 
               {/* Lines table */}
-              <div style={{ padding: '0 0 0 0', overflowX: 'auto' }}>
+              <div style={{ padding: '0 0 0 0', overflow: 'visible', position: 'relative', zIndex: 5 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                   <thead>
                     <tr style={{ background: '#1E3A5F', color: '#fff' }}>
@@ -6572,7 +6572,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                         <Fragment key={`line-wrap-${line.id}`}>
                           <tr key={`line-${line.id}`} style={{ background: idx % 2 === 0 ? '#fff' : '#F8FAFC', borderBottom: lineIssue ? 'none' : '1px solid #E5E7EB' }}>
                             <td style={{ padding: '0.3rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem', userSelect: 'none' }}>{idx + 1}</td>
-                            <td style={{ padding: '0.25rem 0.4rem' }}>
+                            <td style={{ padding: '0.25rem 0.4rem', position: 'relative', zIndex: 20 }}>
                               <AccountCombobox
                                 groups={jvComboGroups}
                                 value={line.accountId || ''}
