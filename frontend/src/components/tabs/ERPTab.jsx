@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import AccountCombobox from '../AccountCombobox'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -1192,7 +1192,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   })
 
   // ─── Multi-line Journal Voucher state ─────────────────────────────────────
-  const emptyJvLine = (id) => ({ id, description: '', debit: '', credit: '' })
+  const emptyJvLine = (id) => ({ id, accountId: '', accountInput: '', description: '', debit: '', credit: '' })
   const buildJvDocNo = () => {
     const now = new Date()
     const y = now.getFullYear()
@@ -1201,14 +1201,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
     const suffix = String(now.getTime()).slice(-4)
     return `JV-${y}${m}${d}-${suffix}`
   }
-  const createJvHeader = () => ({
+  const createJvHeader = (currencyCode = 'USD') => ({
     docNo: buildJvDocNo(),
     date: new Date().toISOString().slice(0, 10),
     narration: '',
-    debitAccountInput: '',
-    debitAccountId: '',
-    creditAccountInput: '',
-    creditAccountId: '',
+    currency: currencyCode,
   })
   const [jvLines, setJvLines] = useState([emptyJvLine(1), emptyJvLine(2)])
   const [jvHeader, setJvHeader] = useState(createJvHeader)
@@ -2245,6 +2242,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   useEffect(() => {
     setLedgerForm((prev) => ({ ...prev, currency: baseCurrencyCode }))
+    setJvHeader((prev) => ({ ...prev, currency: prev.currency || baseCurrencyCode }))
   }, [baseCurrencyCode])
 
   const filteredGroupedSummaryAccounts = groupedSummaryAccounts
@@ -4946,14 +4944,72 @@ function ERPTab({ focusTab, onNavigateMain }) {
     setJvLines((prev) => prev.map((line) => line.id !== id ? line : { ...line, [field]: value }))
   }
 
-  const resolveJvHeaderAccount = (side, inputValue) => {
-    const resolvedId = resolveAccountIdFromInput(inputValue, entryAccountOptions)
+  const resolveJvLineAccount = (lineId, value, label = '') => {
+    const resolvedId = resolveAccountIdFromInput(value, entryAccountOptions)
     const account = resolvedId ? entryAccountOptions.find((a) => String(a._id) === String(resolvedId)) : null
-    setJvHeader((p) => ({
-      ...p,
-      [`${side}AccountId`]: resolvedId || '',
-      [`${side}AccountInput`]: account ? accountLookupText(account) : inputValue,
-    }))
+    const resolvedLabel = account ? accountLookupText(account) : label
+    setJvLines((prev) => prev.map((line) => (
+      line.id !== lineId
+        ? line
+        : { ...line, accountId: resolvedId || '', accountInput: resolvedLabel || '' }
+    )))
+  }
+
+  const getJvValidation = (lines) => {
+    const lineIssuesById = {}
+    const activeLines = []
+    let totalDebit = 0
+    let totalCredit = 0
+
+    lines.forEach((line, index) => {
+      const debit = Number(line.debit || 0)
+      const credit = Number(line.credit || 0)
+      const debitValue = Number.isFinite(debit) && debit > 0 ? debit : 0
+      const creditValue = Number.isFinite(credit) && credit > 0 ? credit : 0
+      const accountId = String(line.accountId || '').trim()
+      const hasNarration = String(line.description || '').trim().length > 0
+      const hasAmount = debitValue > 0 || creditValue > 0
+      const hasTyped = hasAmount || hasNarration || accountId
+
+      if (debitValue > 0 && creditValue > 0) {
+        lineIssuesById[line.id] = `Row ${index + 1}: Only one side allowed per row`
+      } else if (hasTyped && !hasAmount) {
+        lineIssuesById[line.id] = `Row ${index + 1}: Enter debit or credit amount`
+      } else if (hasAmount && !accountId) {
+        lineIssuesById[line.id] = `Row ${index + 1}: Account is required`
+      }
+
+      totalDebit += debitValue
+      totalCredit += creditValue
+
+      if (!lineIssuesById[line.id] && hasAmount && accountId) {
+        activeLines.push({
+          id: line.id,
+          accountId,
+          description: String(line.description || '').trim(),
+          debit: debitValue,
+          credit: creditValue,
+        })
+      }
+    })
+
+    const difference = Number((totalDebit - totalCredit).toFixed(2))
+    const hasLineIssues = Object.keys(lineIssuesById).length > 0
+    const hasDebit = totalDebit > 0
+    const hasCredit = totalCredit > 0
+    const isBalanced = hasDebit && hasCredit && Math.abs(difference) < 0.005
+    const canSave = !hasLineIssues && isBalanced && activeLines.length > 1
+
+    return {
+      activeLines,
+      lineIssuesById,
+      totalDebit,
+      totalCredit,
+      difference,
+      isBalanced,
+      canSave,
+      hasLineIssues,
+    }
   }
 
   const addJvLine = () => {
@@ -4972,9 +5028,16 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
   }
 
+  const handleJvAccountKeyDown = (e, idx) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (idx === jvLines.length - 1) addJvLine()
+    }
+  }
+
   const resetJvForm = () => {
     setJvLines([emptyJvLine(1), emptyJvLine(2)])
-    setJvHeader(createJvHeader())
+    setJvHeader(createJvHeader(baseCurrencyCode))
     setNextJvLineId(3)
   }
 
@@ -4997,28 +5060,62 @@ function ERPTab({ focusTab, onNavigateMain }) {
   }
 
   const handleSaveMultiLineJV = async () => {
-    if (!jvHeader.debitAccountId || !jvHeader.creditAccountId) {
-      setError('Please select both Debit Account and Credit Account')
+    const validation = getJvValidation(jvLines)
+    if (validation.hasLineIssues) {
+      const firstLineIssue = Object.values(validation.lineIssuesById)[0]
+      setError(firstLineIssue || 'Please fix JV row errors before saving')
       return
     }
-    const filledLines = jvLines.filter((l) => Number(l.debit) > 0 || Number(l.credit) > 0)
-    if (filledLines.length === 0) {
-      setError('Add at least one amount line')
+    if (!validation.activeLines.length) {
+      setError('Add at least one debit row and one credit row')
       return
     }
-    const totalDR = filledLines.reduce((s, l) => s + (Number(l.debit) || 0), 0)
-    const totalCR = filledLines.reduce((s, l) => s + (Number(l.credit) || 0), 0)
-    if (Math.abs(totalDR - totalCR) > 0.005) {
-      setError(`Unbalanced JV — Debit ${totalDR.toFixed(2)} ≠ Credit ${totalCR.toFixed(2)}`)
+    if (!validation.isBalanced) {
+      setError('Debit and Credit totals are not balanced')
       return
     }
 
-    const entries = filledLines.map((l) => ({
-      debitAccountId: jvHeader.debitAccountId,
-      creditAccountId: jvHeader.creditAccountId,
-      amount: Number(l.debit) > 0 ? Number(l.debit) : Number(l.credit),
-      lineDesc: l.description,
-    }))
+    const debitQueue = validation.activeLines
+      .filter((line) => line.debit > 0)
+      .map((line) => ({ ...line, remaining: Number(line.debit.toFixed(2)) }))
+    const creditQueue = validation.activeLines
+      .filter((line) => line.credit > 0)
+      .map((line) => ({ ...line, remaining: Number(line.credit.toFixed(2)) }))
+
+    if (!debitQueue.length || !creditQueue.length) {
+      setError('JV requires at least one debit row and one credit row')
+      return
+    }
+
+    const entries = []
+    let drIndex = 0
+    let crIndex = 0
+    while (drIndex < debitQueue.length && crIndex < creditQueue.length) {
+      const debitLine = debitQueue[drIndex]
+      const creditLine = creditQueue[crIndex]
+      const pairAmount = Math.min(debitLine.remaining, creditLine.remaining)
+
+      if (pairAmount > 0) {
+        entries.push({
+          debitAccountId: debitLine.accountId,
+          creditAccountId: creditLine.accountId,
+          amount: Number(pairAmount.toFixed(2)),
+          lineDesc: [debitLine.description, creditLine.description].filter(Boolean).join(' | '),
+        })
+      }
+
+      debitLine.remaining = Number((debitLine.remaining - pairAmount).toFixed(2))
+      creditLine.remaining = Number((creditLine.remaining - pairAmount).toFixed(2))
+      if (debitLine.remaining <= 0.004) drIndex += 1
+      if (creditLine.remaining <= 0.004) crIndex += 1
+    }
+
+    const debitRemainder = debitQueue.reduce((sum, line) => sum + Math.max(0, line.remaining), 0)
+    const creditRemainder = creditQueue.reduce((sum, line) => sum + Math.max(0, line.remaining), 0)
+    if (debitRemainder > 0.01 || creditRemainder > 0.01) {
+      setError('Failed to allocate JV lines into balanced ledger entries')
+      return
+    }
 
     const isBankJV = false
     const sharedDesc = [jvHeader.docNo, jvHeader.narration].filter(Boolean).join(' — ') || 'Manual JV'
@@ -5047,7 +5144,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           description: entry.lineDesc ? `${sharedDesc} — ${entry.lineDesc}` : sharedDesc,
           notes: jvHeader.narration || '',
           referenceType: 'journal',
-          currency: baseCurrencyCode,
+          currency: jvHeader.currency || baseCurrencyCode,
           debitAccountId: entry.debitAccountId,
           creditAccountId: entry.creditAccountId,
           amount: entry.amount,
@@ -6338,9 +6435,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
             )}
           </div>
           {showLedgerForm && (() => {
-            const jvTotalDebit = jvLines.reduce((s, l) => s + (Number(l.debit) || 0), 0)
-            const jvTotalCredit = jvLines.reduce((s, l) => s + (Number(l.credit) || 0), 0)
-            const jvIsBalanced = jvTotalDebit > 0 && jvTotalCredit > 0 && Math.abs(jvTotalDebit - jvTotalCredit) < 0.005
+            const jvValidation = getJvValidation(jvLines)
+            const jvTotalDebit = jvValidation.totalDebit
+            const jvTotalCredit = jvValidation.totalCredit
+            const jvDifference = jvValidation.difference
+            const jvIsBalanced = jvValidation.isBalanced
             const cellSt = { padding: '0.28rem 0.4rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, borderRadius: '0.25rem', fontSize: '0.875rem', width: '100%', boxSizing: 'border-box' }
             const numCellSt = { ...cellSt, textAlign: 'right' }
             return (
@@ -6389,24 +6488,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   <input value={jvHeader.narration} onChange={(e) => setJvHeader((p) => ({ ...p, narration: e.target.value }))} placeholder="Narration / description..." style={cellSt} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#1D4ED8', textTransform: 'uppercase', marginBottom: '2px' }}>Debit Account</div>
-                  <AccountCombobox
-                    groups={jvComboGroups}
-                    value={jvHeader.debitAccountId}
-                    onChange={(val, lbl) => setJvHeader((p) => ({ ...p, debitAccountId: val, debitAccountInput: lbl }))}
-                    placeholder="Type account name or code…"
-                    style={{ ...cellSt, borderColor: jvHeader.debitAccountId ? '#93C5FD' : '#D1D5DB' }}
-                  />
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#DC2626', textTransform: 'uppercase', marginBottom: '2px' }}>Credit Account</div>
-                  <AccountCombobox
-                    groups={jvComboGroups}
-                    value={jvHeader.creditAccountId}
-                    onChange={(val, lbl) => setJvHeader((p) => ({ ...p, creditAccountId: val, creditAccountInput: lbl }))}
-                    placeholder="Type account name or code…"
-                    style={{ ...cellSt, borderColor: jvHeader.creditAccountId ? '#FCA5A5' : '#D1D5DB' }}
-                  />
+                  <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Currency</div>
+                  <select value={jvHeader.currency || baseCurrencyCode} onChange={(e) => setJvHeader((p) => ({ ...p, currency: e.target.value }))} style={cellSt}>
+                    {currencies.map((currency) => (
+                      <option key={currency._id || currency.code} value={currency.code}>{currency.code} - {currency.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -6416,6 +6503,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   <thead>
                     <tr style={{ background: '#1E3A5F', color: '#fff' }}>
                       <th style={{ padding: '0.45rem 0.5rem', textAlign: 'center', width: '36px', fontWeight: '600', fontSize: '0.75rem' }}>#</th>
+                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'left', minWidth: '240px', fontWeight: '600', fontSize: '0.75rem' }}>Account</th>
                       <th style={{ padding: '0.45rem 0.6rem', textAlign: 'left', fontWeight: '600', fontSize: '0.75rem' }}>Description (optional)</th>
                       <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', width: '160px', fontWeight: '600', fontSize: '0.75rem', color: '#93C5FD' }}>Debit ({baseCurrencyCode})</th>
                       <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', width: '160px', fontWeight: '600', fontSize: '0.75rem', color: '#FCA5A5' }}>Credit ({baseCurrencyCode})</th>
@@ -6423,53 +6511,76 @@ function ERPTab({ focusTab, onNavigateMain }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {jvLines.map((line, idx) => (
-                      <tr key={line.id} style={{ background: idx % 2 === 0 ? '#fff' : '#F8FAFC', borderBottom: '1px solid #E5E7EB' }}>
-                        <td style={{ padding: '0.3rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem', userSelect: 'none' }}>{idx + 1}</td>
-                        <td style={{ padding: '0.25rem 0.4rem' }}>
-                          <input
-                            value={line.description}
-                            onChange={(e) => updateJvLine(line.id, 'description', e.target.value)}
-                            onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
-                            placeholder="Line description..."
-                            style={{ ...cellSt, minWidth: '180px' }}
-                          />
-                        </td>
-                        <td style={{ padding: '0.25rem 0.4rem' }}>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={line.debit}
-                            onChange={(e) => updateJvLine(line.id, 'debit', e.target.value)}
-                            onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
-                            placeholder="0.00"
-                            style={{ ...numCellSt, color: '#1D4ED8', fontWeight: line.debit ? '700' : '400' }}
-                          />
-                        </td>
-                        <td style={{ padding: '0.25rem 0.4rem' }}>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={line.credit}
-                            onChange={(e) => updateJvLine(line.id, 'credit', e.target.value)}
-                            onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
-                            placeholder="0.00"
-                            style={{ ...numCellSt, color: '#DC2626', fontWeight: line.credit ? '700' : '400' }}
-                          />
-                        </td>
-                        <td style={{ padding: '0.25rem 0.3rem', textAlign: 'center' }}>
-                          {jvLines.length > 2 && (
-                            <button type="button" onClick={() => removeJvLine(line.id)} title="Remove row" style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1, padding: '0 0.1rem' }}>×</button>
+                    {jvLines.map((line, idx) => {
+                      const lineIssue = jvValidation.lineIssuesById[line.id] || ''
+                      return (
+                        <Fragment key={`line-wrap-${line.id}`}>
+                          <tr key={`line-${line.id}`} style={{ background: idx % 2 === 0 ? '#fff' : '#F8FAFC', borderBottom: lineIssue ? 'none' : '1px solid #E5E7EB' }}>
+                            <td style={{ padding: '0.3rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem', userSelect: 'none' }}>{idx + 1}</td>
+                            <td style={{ padding: '0.25rem 0.4rem' }}>
+                              <AccountCombobox
+                                groups={jvComboGroups}
+                                value={line.accountId || ''}
+                                onChange={(val, lbl) => resolveJvLineAccount(line.id, val, lbl)}
+                                onKeyDown={(e) => handleJvAccountKeyDown(e, idx)}
+                                placeholder="Type account code or name..."
+                                style={{ ...cellSt, minWidth: '220px', borderColor: lineIssue && !line.accountId ? '#FCA5A5' : '#D1D5DB' }}
+                              />
+                            </td>
+                            <td style={{ padding: '0.25rem 0.4rem' }}>
+                              <input
+                                value={line.description}
+                                onChange={(e) => updateJvLine(line.id, 'description', e.target.value)}
+                                onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
+                                placeholder="Line description..."
+                                style={{ ...cellSt, minWidth: '180px' }}
+                              />
+                            </td>
+                            <td style={{ padding: '0.25rem 0.4rem' }}>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={line.debit}
+                                onChange={(e) => updateJvLine(line.id, 'debit', e.target.value)}
+                                onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
+                                placeholder="0.00"
+                                style={{ ...numCellSt, color: '#1D4ED8', fontWeight: line.debit ? '700' : '400', borderColor: (lineIssue && Number(line.debit || 0) > 0 && Number(line.credit || 0) > 0) ? '#FCA5A5' : '#D1D5DB' }}
+                              />
+                            </td>
+                            <td style={{ padding: '0.25rem 0.4rem' }}>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={line.credit}
+                                onChange={(e) => updateJvLine(line.id, 'credit', e.target.value)}
+                                onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
+                                placeholder="0.00"
+                                style={{ ...numCellSt, color: '#DC2626', fontWeight: line.credit ? '700' : '400', borderColor: (lineIssue && Number(line.debit || 0) > 0 && Number(line.credit || 0) > 0) ? '#FCA5A5' : '#D1D5DB' }}
+                              />
+                            </td>
+                            <td style={{ padding: '0.25rem 0.3rem', textAlign: 'center' }}>
+                              {jvLines.length > 2 && (
+                                <button type="button" onClick={() => removeJvLine(line.id)} title="Remove row" style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1, padding: '0 0.1rem' }}>×</button>
+                              )}
+                            </td>
+                          </tr>
+                          {lineIssue && (
+                            <tr key={`line-issue-${line.id}`} style={{ background: '#FEF2F2', borderBottom: '1px solid #FECACA' }}>
+                              <td></td>
+                              <td colSpan={5} style={{ padding: '0.2rem 0.5rem 0.35rem', color: '#B91C1C', fontSize: '0.74rem', fontWeight: '600' }}>
+                                {lineIssue}
+                              </td>
+                            </tr>
                           )}
-                        </td>
-                      </tr>
-                    ))}
+                        </Fragment>
+                      )
+                    })}
                   </tbody>
                   <tfoot>
                     <tr style={{ background: '#F1F5F9', borderTop: '2px solid #CBD5E1' }}>
-                      <td colSpan={2} style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '700', fontSize: '0.82rem', color: C.ink }}>TOTAL</td>
+                      <td colSpan={3} style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '700', fontSize: '0.82rem', color: C.ink }}>TOTAL</td>
                       <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#1D4ED8' }}>{jvTotalDebit > 0 ? jvTotalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
                       <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#DC2626' }}>{jvTotalCredit > 0 ? jvTotalCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
                       <td></td>
@@ -6478,18 +6589,31 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 </table>
               </div>
 
-              <datalist id="jv-account-datalist">
-                {entryAccountOptions.map((a) => <option key={a._id} value={accountLookupText(a)} />)}
-              </datalist>
-
               {/* Balance status */}
-              {(jvTotalDebit > 0 || jvTotalCredit > 0) && (
+              {(jvTotalDebit > 0 || jvTotalCredit > 0 || jvValidation.hasLineIssues) && (
                 <div style={{ margin: '0.5rem 1rem 0', padding: '0.4rem 0.75rem', borderRadius: '0.375rem', background: jvIsBalanced ? '#DCFCE7' : '#FEF2F2', border: `1px solid ${jvIsBalanced ? '#86EFAC' : '#FECACA'}`, color: jvIsBalanced ? '#166534' : '#991B1B', fontSize: '0.82rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  {jvIsBalanced
+                  {jvValidation.hasLineIssues
+                    ? Object.values(jvValidation.lineIssuesById)[0]
+                    : jvIsBalanced
                     ? `✓ Balanced — Total = ${jvTotalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${baseCurrencyCode}`
-                    : `⚠ Unbalanced — Debit ${jvTotalDebit.toFixed(2)} ≠ Credit ${jvTotalCredit.toFixed(2)} (diff: ${Math.abs(jvTotalDebit - jvTotalCredit).toFixed(2)})`}
+                    : `⚠ Debit and Credit totals are not balanced (diff: ${Math.abs(jvDifference).toFixed(2)})`}
                 </div>
               )}
+
+              <div style={{ margin: '0.5rem 1rem 0', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(140px, 1fr))', gap: '0.45rem' }}>
+                <div style={{ border: '1px solid #BFDBFE', background: '#EFF6FF', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
+                  <div style={{ color: '#1D4ED8', fontSize: '0.72rem', fontWeight: '700' }}>Total Debit</div>
+                  <div style={{ color: '#1E3A8A', fontWeight: '800' }}>{jvTotalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </div>
+                <div style={{ border: '1px solid #FECACA', background: '#FEF2F2', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
+                  <div style={{ color: '#DC2626', fontSize: '0.72rem', fontWeight: '700' }}>Total Credit</div>
+                  <div style={{ color: '#991B1B', fontWeight: '800' }}>{jvTotalCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </div>
+                <div style={{ border: `1px solid ${jvIsBalanced ? '#86EFAC' : '#FDE68A'}`, background: jvIsBalanced ? '#ECFDF5' : '#FFFBEB', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
+                  <div style={{ color: jvIsBalanced ? '#166534' : '#92400E', fontSize: '0.72rem', fontWeight: '700' }}>Difference</div>
+                  <div style={{ color: jvIsBalanced ? '#166534' : '#B45309', fontWeight: '800' }}>{Math.abs(jvDifference).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </div>
+              </div>
 
               {/* Action row */}
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', padding: '0.65rem 1rem', background: '#F8FAFC', borderTop: '1px solid #E2E8F0', flexWrap: 'wrap' }}>
@@ -6497,8 +6621,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 <button
                   type="button"
                   onClick={handleSaveMultiLineJV}
-                  disabled={saving || !jvIsBalanced}
-                  style={{ padding: '0.38rem 1.2rem', background: jvIsBalanced ? '#16A34A' : '#9CA3AF', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: jvIsBalanced ? 'pointer' : 'not-allowed', fontWeight: '700', fontSize: '0.85rem' }}
+                  disabled={saving || !jvValidation.canSave}
+                  style={{ padding: '0.38rem 1.2rem', background: jvValidation.canSave ? '#16A34A' : '#9CA3AF', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: jvValidation.canSave ? 'pointer' : 'not-allowed', fontWeight: '700', fontSize: '0.85rem' }}
                 >
                   {saving ? 'Saving...' : '💾 Save JV'}
                 </button>

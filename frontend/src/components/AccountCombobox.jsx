@@ -10,8 +10,9 @@ import React, { useState, useEffect, useRef } from 'react'
  *   placeholder: string
  *   style     : object  – applied to the <input>
  *   disabled  : bool
+ *   onKeyDown : (event) => void
  */
-export default function AccountCombobox({ groups = [], value = '', onChange, placeholder = 'Type or select account…', style = {}, disabled = false }) {
+export default function AccountCombobox({ groups = [], value = '', onChange, placeholder = 'Type or select account…', style = {}, disabled = false, onKeyDown = null }) {
   const allOptions = groups.flatMap((g) => g.options)
   const labelFor = (val) => allOptions.find((o) => o.value === val)?.label || ''
 
@@ -80,6 +81,15 @@ export default function AccountCombobox({ groups = [], value = '', onChange, pla
     }, 150)
   }
 
+  const handleInputKeyDown = (e) => {
+    if (e.key === 'Tab') {
+      setOpen(false)
+    }
+    if (typeof onKeyDown === 'function') {
+      onKeyDown(e)
+    }
+  }
+
   // Close on outside click
   useEffect(() => {
     const handler = (e) => {
@@ -136,6 +146,7 @@ export default function AccountCombobox({ groups = [], value = '', onChange, pla
         onChange={handleInput}
         onFocus={handleFocus}
         onBlur={handleBlur}
+        onKeyDown={handleInputKeyDown}
         placeholder={placeholder}
         style={style}
         disabled={disabled}
