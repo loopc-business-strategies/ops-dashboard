@@ -2111,7 +2111,18 @@ function ERPTab({ focusTab, onNavigateMain }) {
       return groups
     }, [])
 
-  const entryAccountOptions = summaryAccounts.length ? summaryAccounts : accounts
+  const baseEntryAccountOptions = summaryAccounts.length ? summaryAccounts : accounts
+  const customerVendorLedgerOptions = [...(Array.isArray(customers) ? customers : []), ...(Array.isArray(vendors) ? vendors : [])]
+    .map((party) => party?.ledgerAccountId)
+    .filter((ledger) => ledger && (ledger._id || ledger.accountCode))
+  const seenEntryAccountKeys = new Set()
+  const entryAccountOptions = [...baseEntryAccountOptions, ...customerVendorLedgerOptions].filter((account) => {
+    const key = String(account?._id || account?.accountCode || '').trim()
+    if (!key) return false
+    if (seenEntryAccountKeys.has(key)) return false
+    seenEntryAccountKeys.add(key)
+    return true
+  })
   const baseCurrencyCode = String(currencies.find((currency) => currency.baseCurrency)?.code || 'USD').toUpperCase()
 
   useEffect(() => {

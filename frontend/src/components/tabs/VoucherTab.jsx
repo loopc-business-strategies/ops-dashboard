@@ -494,6 +494,19 @@ const decodeFullMeta = (category) => {
 const getAccountCodeValue = (account) => String(account?.code || account?.accountCode || '').trim()
 const getAccountNameValue = (account) => String(account?.name || account?.accountName || '').trim().toLowerCase()
 
+const isBankLikeAccount = (account) => {
+  const name = getAccountNameValue(account)
+  const type = String(account?.accountType || '').trim().toLowerCase()
+  const category = String(account?.category || '').trim().toLowerCase()
+  const code = getAccountCodeValue(account).toLowerCase()
+  return name.includes('bank')
+    || name.includes('cash')
+    || type.includes('bank')
+    || category.includes('bank')
+    || category.includes('cash')
+    || code.includes('bank')
+}
+
 const pickDefaultAccountCodeByType = (accounts, lineType) => {
   const normalizedType = normalizeLineType(lineType)
   const accountList = Array.isArray(accounts) ? accounts : []
@@ -715,7 +728,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       : null
   }, [customers, vendors])
 
-  const partyGroups = [
+  const basePartyGroups = [
     {
       label: 'Vendors',
       options: vendors
@@ -740,7 +753,19 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     },
   ]
 
+  const partyGroups = basePartyGroups.filter((group) => {
+    if (voucherPartyMode === 'vendor') return group.label === 'Vendors'
+    if (voucherPartyMode === 'customer') return group.label === 'Customers'
+    return true
+  })
+
   const partyOptions = partyGroups.flatMap((group) => group.options)
+
+  const voucherLineAccountOptions = (Array.isArray(accounts) ? accounts : [])
+    .map((a) => ({ id: a?._id, code: getAccountCodeValue(a), name: a?.accountName || a?.name || '', raw: a }))
+    .filter((a) => a.code)
+    .filter((a) => isBankLikeAccount(a.raw))
+    .sort((a, b) => a.code.localeCompare(b.code))
 
   const loadRecentPartyVouchers = useCallback(async (resolvedParty) => {
     if (!resolvedParty || (!resolvedParty.customerId && !resolvedParty.vendorId)) {
@@ -3108,8 +3133,8 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                         </select>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>A/C Code *</div>
                         <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.acCode || ''} onChange={e => setLF('acCode', e.target.value)}>
-                          <option value="">— Select —</option>
-                          {accounts.map(a => ({ id: a?._id, code: getAccountCodeValue(a), name: a?.accountName || a?.name || '' })).filter(a => a.code).sort((a, b) => a.code.localeCompare(b.code)).map(a => (
+                          <option value="">— Select Bank/Cash Account —</option>
+                          {voucherLineAccountOptions.map((a) => (
                             <option key={a.id || a.code} value={a.code}>{a.code}{a.name ? ` - ${a.name}` : ''}</option>
                           ))}
                         </select>
