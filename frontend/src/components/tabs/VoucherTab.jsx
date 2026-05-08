@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import AccountCombobox from '../AccountCombobox'
 import axios from 'axios'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -755,6 +756,11 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     else groups.push({ type, items: [item] })
     return groups
   }, [])
+
+  const partyComboGroups = partyGroupedOptions.map((g) => ({
+    label: g.type,
+    options: g.items.map((item) => ({ value: item.id, label: item.label })),
+  }))
 
   const findPartyOptionByCode = useCallback((code) => {
     const lookupValue = normalizeLookupValue(code)
@@ -2558,21 +2564,14 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                   <div style={metalTopInlineRow}>
                     <div style={metalTopField}>
                       <label style={classicLabel}>Party Account</label>
-                      <select
-                        style={formReadOnly ? classicReadInput : classicInput}
+                      <AccountCombobox
+                        groups={partyComboGroups}
                         value={selectedPartyId}
-                        onChange={e => handlePartySelect(e.target.value)}
+                        onChange={(val) => handlePartySelect(val)}
+                        placeholder="Type account name or code…"
+                        style={formReadOnly ? classicReadInput : classicInput}
                         disabled={formReadOnly}
-                      >
-                        <option value="">Select Account</option>
-                        {partyGroupedOptions.map((group) => (
-                          <optgroup key={group.type} label={`── ${group.type} ──`}>
-                            {group.items.map((item) => (
-                              <option key={item.id} value={item.id}>{item.label}</option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
+                      />
                     </div>
                   </div>
                 )}
@@ -2584,21 +2583,14 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                         {!isMetalVoucher && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                             <label style={classicLabel}>Party Account</label>
-                            <select
-                              style={formReadOnly ? classicReadInput : classicInput}
+                            <AccountCombobox
+                              groups={partyComboGroups}
                               value={selectedPartyId}
-                              onChange={e => handlePartySelect(e.target.value)}
+                              onChange={(val) => handlePartySelect(val)}
+                              placeholder="Type account name or code…"
+                              style={formReadOnly ? classicReadInput : classicInput}
                               disabled={formReadOnly}
-                            >
-                              <option value="">Select Account</option>
-                              {partyGroupedOptions.map((group) => (
-                                <optgroup key={group.type} label={`── ${group.type} ──`}>
-                                  {group.items.map((item) => (
-                                    <option key={item.id} value={item.id}>{item.label}</option>
-                                  ))}
-                                </optgroup>
-                              ))}
-                            </select>
+                            />
                           </div>
                         )}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>

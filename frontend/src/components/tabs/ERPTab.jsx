@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import AccountCombobox from '../AccountCombobox'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import ExcelJS from 'exceljs'
@@ -2225,6 +2226,21 @@ function ERPTab({ focusTab, onNavigateMain }) {
     seenEntryAccountKeys.add(key)
     return true
   })
+  const jvComboGroups = ACCOUNT_TYPE_ORDER
+    .map((type) => ({
+      label: type,
+      options: entryAccountOptions
+        .filter((a) => String(a?.accountType || '').trim() === type)
+        .map((a) => ({ value: String(a._id), label: `${a.accountCode || ''} - ${a.accountName || ''}` })),
+    }))
+    .concat([{
+      label: 'Other',
+      options: entryAccountOptions
+        .filter((a) => !ACCOUNT_TYPE_ORDER.includes(String(a?.accountType || '').trim()))
+        .map((a) => ({ value: String(a._id), label: `${a.accountCode || ''} - ${a.accountName || ''}` })),
+    }])
+    .filter((g) => g.options.length > 0)
+
   const baseCurrencyCode = String(currencies.find((currency) => currency.baseCurrency)?.code || 'USD').toUpperCase()
 
   useEffect(() => {
@@ -6374,43 +6390,23 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 </div>
                 <div>
                   <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#1D4ED8', textTransform: 'uppercase', marginBottom: '2px' }}>Debit Account</div>
-                  <select
+                  <AccountCombobox
+                    groups={jvComboGroups}
                     value={jvHeader.debitAccountId}
-                    onChange={(e) => {
-                      const chosen = entryAccountOptions.find((a) => String(a._id) === e.target.value)
-                      setJvHeader((p) => ({ ...p, debitAccountId: e.target.value, debitAccountInput: chosen ? accountLookupText(chosen) : '' }))
-                    }}
+                    onChange={(val, lbl) => setJvHeader((p) => ({ ...p, debitAccountId: val, debitAccountInput: lbl }))}
+                    placeholder="Type account name or code…"
                     style={{ ...cellSt, borderColor: jvHeader.debitAccountId ? '#93C5FD' : '#D1D5DB' }}
-                  >
-                    <option value="">Type account name or code...</option>
-                    {groupedSummaryAccounts.map((group) => (
-                      <optgroup key={group.type} label={`── ${group.type} ──`}>
-                        {group.accounts.map((a) => (
-                          <option key={a._id} value={a._id}>{a.accountCode} - {a.accountName}</option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
+                  />
                 </div>
                 <div>
                   <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#DC2626', textTransform: 'uppercase', marginBottom: '2px' }}>Credit Account</div>
-                  <select
+                  <AccountCombobox
+                    groups={jvComboGroups}
                     value={jvHeader.creditAccountId}
-                    onChange={(e) => {
-                      const chosen = entryAccountOptions.find((a) => String(a._id) === e.target.value)
-                      setJvHeader((p) => ({ ...p, creditAccountId: e.target.value, creditAccountInput: chosen ? accountLookupText(chosen) : '' }))
-                    }}
+                    onChange={(val, lbl) => setJvHeader((p) => ({ ...p, creditAccountId: val, creditAccountInput: lbl }))}
+                    placeholder="Type account name or code…"
                     style={{ ...cellSt, borderColor: jvHeader.creditAccountId ? '#FCA5A5' : '#D1D5DB' }}
-                  >
-                    <option value="">Type account name or code...</option>
-                    {groupedSummaryAccounts.map((group) => (
-                      <optgroup key={group.type} label={`── ${group.type} ──`}>
-                        {group.accounts.map((a) => (
-                          <option key={a._id} value={a._id}>{a.accountCode} - {a.accountName}</option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
+                  />
                 </div>
               </div>
 
