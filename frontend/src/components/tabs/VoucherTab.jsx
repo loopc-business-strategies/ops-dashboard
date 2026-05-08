@@ -734,6 +734,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       const name = String(account?.accountName || account?.name || '').trim()
       return {
         id: `account:${String(account?._id || code)}`,
+        accountId: String(account?._id || code),
         label: `${code}${name ? ` - ${name}` : ''}`,
         partyCode: code,
         partyName: name,
@@ -1475,7 +1476,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       valueDate: m.valueDate ? m.valueDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
       fixingType: normalizeVoucherFixingType(m.fixingType),
     }
-    const nextPartyId = resolvedParty?.partyId || ''
+    const nextPartyId = m.partyAccountId
+      ? `account:${String(m.partyAccountId)}`
+      : (resolvedParty?.partyId || findPartyOptionByCode(m.partyCode || '')?.id || '')
     const nextLineItems = (m.lineItems || []).map((line) => {
       const lineCurrency = String(line?.currCode || voucherCurrency || 'USD').trim().toUpperCase()
       const lineRateSource = line?.currRateSource || 'manual'
@@ -1702,6 +1705,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       voucherMeta: {
         partyCode: header.partyCode,
         partyName: header.partyName || resolvedParty?.partyName || '',
+        partyAccountId: selectedAccount?.accountId || '',
         salesman: header.salesman,
         vocNo: header.vocNo,
         docDate: header.docDate || null,

@@ -295,6 +295,12 @@ const getAccountSummaryScope = async (user) => {
 }
 
 const validateTransactionPayload = (payload) => {
+  const hasDirectPartyAccount = Boolean(
+    payload.partyAccountId
+    || payload.voucherMeta?.partyAccountId
+    || String(payload.voucherMeta?.partyCode || '').trim()
+  )
+
   if (!TRANSACTION_TYPES.includes(String(payload.type || ''))) {
     return 'Invalid transaction type'
   }
@@ -304,19 +310,19 @@ const validateTransactionPayload = (payload) => {
     return 'Amount must be greater than zero'
   }
 
-  if (payload.type === 'receipt' && !payload.customerId) {
+  if (payload.type === 'receipt' && !payload.customerId && !hasDirectPartyAccount) {
     return 'Customer is required for receipts'
   }
 
-  if (payload.type === 'sale' && !payload.customerId && !payload.vendorId) {
+  if (payload.type === 'sale' && !payload.customerId && !payload.vendorId && !hasDirectPartyAccount) {
     return 'Customer or vendor is required for sales'
   }
 
-  if (payload.type === 'purchase' && !payload.vendorId && !payload.customerId) {
+  if (payload.type === 'purchase' && !payload.vendorId && !payload.customerId && !hasDirectPartyAccount) {
     return 'Vendor or customer is required for purchases'
   }
 
-  if (payload.type === 'payment' && !payload.vendorId && !payload.customerId) {
+  if (payload.type === 'payment' && !payload.vendorId && !payload.customerId && !hasDirectPartyAccount) {
     return 'Vendor or customer is required for payments'
   }
 
@@ -2005,6 +2011,19 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
   let debitAccountId = tx.debitAccountId || mapping?.debitAccountId || null
   let creditAccountId = tx.creditAccountId || mapping?.creditAccountId || null
   const voucherSettlementAccountId = await resolveVoucherSettlementAccount(user, tx)
+  const directPartyAccountLookup = String(tx?.voucherMeta?.partyAccountId || tx?.voucherMeta?.partyCode || '').trim()
+  let directPartyAccount = null
+
+  if (directPartyAccountLookup) {
+    const looksLikeObjectId = /^[a-f\d]{24}$/i.test(directPartyAccountLookup)
+    directPartyAccount = looksLikeObjectId
+      ? await ChartOfAccount.findById(directPartyAccountLookup)
+      : null
+
+    if (!directPartyAccount) {
+      directPartyAccount = await ChartOfAccount.findOne({ accountCode: directPartyAccountLookup, isActive: true })
+    }
+  }
 
   if (transactionType === 'sale' || transactionType === 'receipt') {
     const customer = tx.customerId ? await Customer.findById(tx.customerId).populate('ledgerAccountId') : null
@@ -2018,6 +2037,11 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
       if (vendor?.ledgerAccountId) {
         debitAccountId = debitAccountId || vendor.ledgerAccountId._id
       }
+    }
+
+    if (directPartyAccount?._id) {
+      if (transactionType === 'sale') debitAccountId = debitAccountId || directPartyAccount._id
+      if (transactionType === 'receipt') creditAccountId = creditAccountId || directPartyAccount._id
     }
 
     const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank')
@@ -2043,6 +2067,11 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
       if (customer?.ledgerAccountId) {
         debitAccountId = debitAccountId || customer.ledgerAccountId._id
       }
+    }
+
+    if (directPartyAccount?._id) {
+      if (transactionType === 'purchase') creditAccountId = creditAccountId || directPartyAccount._id
+      if (transactionType === 'payment') debitAccountId = debitAccountId || directPartyAccount._id
     }
 
     const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank')
@@ -5027,6 +5056,7 @@ router.post('/transactions', protect, async (req, res) => {
       amount,
       customerId,
       vendorId,
+      voucherMeta,
     })
     if (validationMessage) {
       return res.status(400).json({ success: false, message: validationMessage })
@@ -5123,6 +5153,7 @@ router.put('/transactions/:id', protect, async (req, res) => {
       type: nextType,
       customerId: req.body.customerId !== undefined ? sanitizeOptionalRef(req.body.customerId) : tx.customerId,
       vendorId: req.body.vendorId !== undefined ? sanitizeOptionalRef(req.body.vendorId) : tx.vendorId,
+      voucherMeta: req.body.voucherMeta !== undefined ? req.body.voucherMeta : tx.voucherMeta,
     })
     if (validationMessage) {
       return res.status(400).json({ success: false, message: validationMessage })

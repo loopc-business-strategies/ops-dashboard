@@ -392,6 +392,186 @@ describe('ERP accounting transactions workflow', () => {
     expect(String(ledgers[0].creditAccountId)).toBe(String(payableAccount._id))
   })
 
+  test('supports direct chart account party selection through save, approve, and post for all four voucher types', async () => {
+    const financeUser = await createUser({ name: 'Direct Party Account Tester' })
+
+    await Currency.create({
+      code: 'USD',
+      name: 'US Dollar',
+      symbol: '$',
+      exchangeRate: 1,
+      baseCurrency: true,
+      isActive: true,
+    })
+
+    const receiptPartyAccount = await ChartOfAccount.create({
+      accountName: 'Direct Receipt Party',
+      accountCode: '1108',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const paymentPartyAccount = await ChartOfAccount.create({
+      accountName: 'Direct Payment Party',
+      accountCode: '2108',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+    const salePartyAccount = await ChartOfAccount.create({
+      accountName: 'Direct Sale Party',
+      accountCode: '1118',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const purchasePartyAccount = await ChartOfAccount.create({
+      accountName: 'Direct Purchase Party',
+      accountCode: '2118',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+    const saleInventoryAccount = await ChartOfAccount.create({
+      accountName: 'Direct Sale Inventory',
+      accountCode: '1318',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const purchaseInventoryAccount = await ChartOfAccount.create({
+      accountName: 'Direct Purchase Inventory',
+      accountCode: '1319',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+
+    const saleItem = await InventoryItem.create({
+      name: 'direct sale item',
+      sku: 'DIR-SALE-001',
+      category: 'recordType=product',
+      quantity: 25,
+      unit: 'grams',
+      unitCost: 40,
+      ledgerAccountId: saleInventoryAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+    const purchaseItem = await InventoryItem.create({
+      name: 'direct purchase item',
+      sku: 'DIR-PUR-001',
+      category: 'recordType=product',
+      quantity: 10,
+      unit: 'grams',
+      unitCost: 25,
+      ledgerAccountId: purchaseInventoryAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    const createApproveAndPost = async (payload) => {
+      const createRes = await request(app)
+        .post('/api/erp-accounting/transactions')
+        .set(authHeader(financeUser))
+        .send(payload)
+
+      expect(createRes.status).toBe(201)
+
+      const txId = createRes.body.transaction._id
+
+      const submitRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${txId}/submit`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Submit direct account voucher' })
+      expect(submitRes.status).toBe(200)
+
+      const approveRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${txId}/approve`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Approve direct account voucher' })
+      expect(approveRes.status).toBe(200)
+
+      const postRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${txId}/post`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Post direct account voucher' })
+      expect(postRes.status).toBe(200)
+
+      return txId
+    }
+
+    const receiptTxId = await createApproveAndPost({
+      type: 'receipt',
+      amount: 200,
+      description: 'Receipt with direct party account',
+      currency: 'USD',
+      voucherMeta: {
+        partyCode: receiptPartyAccount.accountCode,
+        partyName: receiptPartyAccount.accountName,
+        partyAccountId: receiptPartyAccount._id.toString(),
+        lineItems: [{ type: 'cash' }],
+      },
+    })
+
+    const paymentTxId = await createApproveAndPost({
+      type: 'payment',
+      amount: 180,
+      description: 'Payment with direct party account',
+      currency: 'USD',
+      voucherMeta: {
+        partyCode: paymentPartyAccount.accountCode,
+        partyName: paymentPartyAccount.accountName,
+        partyAccountId: paymentPartyAccount._id.toString(),
+        lineItems: [{ type: 'cash' }],
+      },
+    })
+
+    const saleTxId = await createApproveAndPost({
+      type: 'sale',
+      amount: 900,
+      description: 'Sale with direct party account',
+      currency: 'USD',
+      voucherMeta: {
+        partyCode: salePartyAccount.accountCode,
+        partyName: salePartyAccount.accountName,
+        partyAccountId: salePartyAccount._id.toString(),
+        lineItems: [
+          {
+            stockCode: saleItem.sku,
+            productType: saleItem.name,
+            grossWeight: 5,
+            amountLC: 900,
+          },
+        ],
+      },
+    })
+
+    const purchaseTxId = await createApproveAndPost({
+      type: 'purchase',
+      amount: 300,
+      description: 'Purchase with direct party account',
+      currency: 'USD',
+      voucherMeta: {
+        partyCode: purchasePartyAccount.accountCode,
+        partyName: purchasePartyAccount.accountName,
+        partyAccountId: purchasePartyAccount._id.toString(),
+        lineItems: [
+          {
+            stockCode: purchaseItem.sku,
+            productType: purchaseItem.name,
+            grossWeight: 2,
+            amountLC: 300,
+          },
+        ],
+      },
+    })
+
+    const receiptTx = await Transaction.findById(receiptTxId)
+    const paymentTx = await Transaction.findById(paymentTxId)
+    const saleTx = await Transaction.findById(saleTxId)
+    const purchaseTx = await Transaction.findById(purchaseTxId)
+
+    expect(String(receiptTx.creditAccountId)).toBe(String(receiptPartyAccount._id))
+    expect(String(paymentTx.debitAccountId)).toBe(String(paymentPartyAccount._id))
+    expect(String(saleTx.debitAccountId)).toBe(String(salePartyAccount._id))
+    expect(String(purchaseTx.creditAccountId)).toBe(String(purchasePartyAccount._id))
+  })
+
   test('auto-posts VAT split journals for sale and purchase vouchers from voucher line VAT amounts', async () => {
     const financeUser = await createUser({ name: 'VAT Poster' })
 
