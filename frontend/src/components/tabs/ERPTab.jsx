@@ -1220,6 +1220,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const [showForm, setShowForm] = useState(false)
   const [showCustomerForm, setShowCustomerForm] = useState(false)
   const [showLedgerForm, setShowLedgerForm] = useState(false)
+  const [jvModalOffset, setJvModalOffset] = useState({ x: 0, y: 0 })
+  const [jvModalDrag, setJvModalDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
   const [showCurrencyForm, setShowCurrencyForm] = useState(false)
   const [showMappingForm, setShowMappingForm] = useState(false)
   const [ledgerFilters, setLedgerFilters] = useState({ startDate: '', endDate: '', department: '', referenceType: '', accountId: '' })
@@ -1868,6 +1870,18 @@ function ERPTab({ focusTab, onNavigateMain }) {
     })
   }
 
+  const beginJvModalDrag = (event) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    setJvModalDrag({
+      active: true,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      startX: jvModalOffset.x,
+      startY: jvModalOffset.y,
+    })
+  }
+
   useEffect(() => {
     if (!showEnquiryModal) {
       setEnquiryModalOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
@@ -1899,6 +1913,38 @@ function ERPTab({ focusTab, onNavigateMain }) {
       window.removeEventListener('mouseup', handlePointerUp)
     }
   }, [showEnquiryModal, enquiryModalDrag])
+
+  useEffect(() => {
+    if (!showLedgerForm) {
+      setJvModalOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
+      setJvModalDrag((prev) => {
+        if (!prev.active && prev.pointerX === 0 && prev.pointerY === 0 && prev.startX === 0 && prev.startY === 0) return prev
+        return { active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 }
+      })
+      return undefined
+    }
+
+    if (!jvModalDrag.active) return undefined
+
+    const onMouseMove = (event) => {
+      setJvModalOffset({
+        x: jvModalDrag.startX + (event.clientX - jvModalDrag.pointerX),
+        y: jvModalDrag.startY + (event.clientY - jvModalDrag.pointerY),
+      })
+    }
+
+    const onMouseUp = () => {
+      setJvModalDrag((prev) => ({ ...prev, active: false }))
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [showLedgerForm, jvModalDrag])
 
   useEffect(() => {
     if (activeTab !== 'fixing-register') {
@@ -4860,6 +4906,19 @@ function ERPTab({ focusTab, onNavigateMain }) {
     setNextJvLineId(3)
   }
 
+  const closeJvModal = () => {
+    setShowLedgerForm(false)
+    resetJvForm()
+    setJvModalOffset({ x: 0, y: 0 })
+    setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+  }
+
+  const openJvModal = () => {
+    setJvModalOffset({ x: 0, y: 0 })
+    setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+    setShowLedgerForm(true)
+  }
+
   const handleSaveMultiLineJV = async () => {
     if (!jvHeader.debitAccountId || !jvHeader.creditAccountId) {
       setError('Please select both Debit Account and Credit Account')
@@ -4917,8 +4976,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           amount: entry.amount,
         })))
       }
-      resetJvForm()
-      setShowLedgerForm(false)
+      closeJvModal()
       await Promise.all([loadLedger(), loadDashboard()])
       showNotification(`✅ Journal Voucher saved — ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} posted`)
     } catch (e) {
@@ -6186,7 +6244,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
             <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Journal Voucher</h3>
             {canManageAccounts && (
               <button
-                onClick={() => { setShowLedgerForm(!showLedgerForm); if (showLedgerForm) resetJvForm() }}
+                onClick={() => { if (showLedgerForm) closeJvModal(); else openJvModal() }}
                 style={{
                   padding: '0.5rem 1rem',
                   background: C.s1,
@@ -6208,7 +6266,30 @@ function ERPTab({ focusTab, onNavigateMain }) {
             const cellSt = { padding: '0.28rem 0.4rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, borderRadius: '0.25rem', fontSize: '0.875rem', width: '100%', boxSizing: 'border-box' }
             const numCellSt = { ...cellSt, textAlign: 'right' }
             return (
-            <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '0.5rem', marginBottom: '1rem', overflow: 'hidden' }}>
+            <div
+              style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.42)', zIndex: 1700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+              onClick={closeJvModal}
+            >
+              <div
+                style={{ width: 'min(1840px, 98vw)', maxHeight: '92vh', transform: `translate(${jvModalOffset.x}px, ${jvModalOffset.y}px)`, userSelect: jvModalDrag.active ? 'none' : 'auto' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div
+                  onMouseDown={beginJvModalDrag}
+                  style={{ background: '#0F172A', color: '#fff', padding: '0.58rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderTopLeftRadius: '0.5rem', borderTopRightRadius: '0.5rem', cursor: jvModalDrag.active ? 'grabbing' : 'grab' }}
+                >
+                  <span style={{ fontWeight: '700', fontSize: '0.88rem' }}>Journal Voucher</span>
+                  <span style={{ color: '#94A3B8', fontSize: '0.72rem', marginLeft: '0.35rem' }}>drag</span>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={closeJvModal}
+                    style={{ marginLeft: 'auto', background: '#F97316', border: 'none', color: '#111827', borderRadius: '0.35rem', padding: '0.34rem 0.65rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.78rem' }}
+                  >
+                    X Close
+                  </button>
+                </div>
+            <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderTop: 'none', borderBottomLeftRadius: '0.5rem', borderBottomRightRadius: '0.5rem', marginBottom: '1rem', overflow: 'hidden auto', maxHeight: 'calc(92vh - 44px)' }}>
               {/* JV Header bar */}
               <div style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%)', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ color: '#fff', fontWeight: '800', fontSize: '0.95rem', letterSpacing: '0.04em' }}>📒 JOURNAL VOUCHER</span>
@@ -6347,8 +6428,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 >
                   {saving ? 'Saving...' : '💾 Save JV'}
                 </button>
-                <button type="button" onClick={() => { setShowLedgerForm(false); resetJvForm() }} style={{ padding: '0.38rem 0.8rem', background: '#fff', color: '#374151', border: '1px solid #D1D5DB', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.82rem' }}>Cancel</button>
+                <button type="button" onClick={closeJvModal} style={{ padding: '0.38rem 0.8rem', background: '#fff', color: '#374151', border: '1px solid #D1D5DB', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.82rem' }}>Cancel</button>
                 <span style={{ marginLeft: 'auto', fontSize: '0.74rem', color: '#94A3B8' }}>Press <kbd style={{ background: '#E5E7EB', padding: '0 0.3rem', borderRadius: '0.2rem', fontSize: '0.72rem' }}>Enter</kbd> on last row to add a new line</span>
+              </div>
+            </div>
               </div>
             </div>
             )
