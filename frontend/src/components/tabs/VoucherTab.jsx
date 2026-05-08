@@ -500,10 +500,8 @@ const isBankLikeAccount = (account) => {
   const category = String(account?.category || '').trim().toLowerCase()
   const code = getAccountCodeValue(account).toLowerCase()
   return name.includes('bank')
-    || name.includes('cash')
     || type.includes('bank')
     || category.includes('bank')
-    || category.includes('cash')
     || code.includes('bank')
 }
 
@@ -3133,7 +3131,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                         </select>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>A/C Code *</div>
                         <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.acCode || ''} onChange={e => setLF('acCode', e.target.value)}>
-                          <option value="">— Select Bank/Cash Account —</option>
+                          <option value="">— Select Bank Account —</option>
                           {voucherLineAccountOptions.map((a) => (
                             <option key={a.id || a.code} value={a.code}>{a.code}{a.name ? ` - ${a.name}` : ''}</option>
                           ))}
