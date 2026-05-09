@@ -2673,12 +2673,8 @@ router.get('/customers/:id/aging', protect, async (req, res) => {
 })
 
 router.post('/customers', protect, validateBody(customerCreateSchema), async (req, res) => {
-  const session = await mongoose.startSession()
-  session.startTransaction()
-
   try {
     if (!canManageCustomers(req.user)) {
-      await session.abortTransaction()
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
 
@@ -2696,7 +2692,6 @@ router.post('/customers', protect, validateBody(customerCreateSchema), async (re
     } = req.body
 
     if (!name) {
-      await session.abortTransaction()
       return res.status(400).json({ success: false, message: 'Customer name is required' })
     }
 
@@ -2707,10 +2702,10 @@ router.post('/customers', protect, validateBody(customerCreateSchema), async (re
         { accountCode: '1100' },
         { accountName: /accounts receivable|receivable/i },
       ],
-    }).sort({ accountCode: 1 }).session(session)
+    }).sort({ accountCode: 1 })
 
     const accountCode = await nextCustomerAccountCode()
-    const debtorAccount = await ChartOfAccount.create([{
+    const debtorAccount = await ChartOfAccount.create({
       accountName: `${name} (Debtor)`,
       accountCode,
       accountType: 'Asset',
@@ -2718,9 +2713,9 @@ router.post('/customers', protect, validateBody(customerCreateSchema), async (re
       currency: currency || 'USD',
       description: `Auto-created receivable account for customer ${name}`,
       createdBy: req.user._id,
-    }], { session })
+    })
 
-    const customer = await Customer.create([{
+    const customer = await Customer.create({
       name,
       phone,
       email,
@@ -2731,29 +2726,28 @@ router.post('/customers', protect, validateBody(customerCreateSchema), async (re
       paymentTermsDays: Number(paymentTermsDays || 0),
       currency: currency || 'USD',
       notes,
-      ledgerAccountId: debtorAccount[0]._id,
+      ledgerAccountId: debtorAccount._id,
       createdBy: req.user._id,
-    }], { session })
+    })
 
     const opening = Number(openingBalance || 0)
     if (opening > 0) {
-      let equityAccount = await ChartOfAccount.findOne({ accountType: 'Equity', isActive: true }).sort({ accountCode: 1 }).session(session)
+      let equityAccount = await ChartOfAccount.findOne({ accountType: 'Equity', isActive: true }).sort({ accountCode: 1 })
 
       if (!equityAccount) {
-        const created = await ChartOfAccount.create([{
+        equityAccount = await ChartOfAccount.create({
           accountName: 'Owner Equity',
           accountCode: '3000',
           accountType: 'Equity',
           currency: currency || 'USD',
           description: 'Default equity account for opening balances',
           createdBy: req.user._id,
-        }], { session })
-        equityAccount = created[0]
+        })
       }
 
-      await Ledger.create([{
+      await Ledger.create({
         date: new Date(),
-        debitAccountId: debtorAccount[0]._id,
+        debitAccountId: debtorAccount._id,
         creditAccountId: equityAccount._id,
         amount: opening,
         description: `Opening balance for customer ${name}`,
@@ -2761,16 +2755,12 @@ router.post('/customers', protect, validateBody(customerCreateSchema), async (re
         createdBy: req.user._id,
         department: req.user.department,
         currency: currency || 'USD',
-      }], { session })
+      })
     }
 
-    await session.commitTransaction()
-    res.status(201).json({ success: true, customer: customer[0] })
+    res.status(201).json({ success: true, customer })
   } catch (e) {
-    await session.abortTransaction()
     res.status(getTransactionWorkflowErrorStatus(e.message)).json({ success: false, message: e.message || 'Server error' })
-  } finally {
-    await session.endSession()
   }
 })
 
@@ -4277,12 +4267,8 @@ router.get('/vendors/alerts/overdue-queue', protect, async (req, res) => {
 })
 
 router.post('/vendors', protect, validateBody(vendorCreateSchema), async (req, res) => {
-  const session = await mongoose.startSession()
-  session.startTransaction()
-
   try {
     if (!canManageVendors(req.user)) {
-      await session.abortTransaction()
       return res.status(403).json({ success: false, message: 'Only Admin/Finance can create vendors' })
     }
 
@@ -4316,14 +4302,12 @@ router.post('/vendors', protect, validateBody(vendorCreateSchema), async (req, r
     } = req.body
     
     if (!name) {
-      await session.abortTransaction()
       return res.status(400).json({ success: false, message: 'Vendor name is required' })
     }
 
     const normalizedCode = String(vendorCode || '').trim().toUpperCase() || await nextVendorCode()
-    const duplicateCode = await Vendor.exists({ vendorCode: normalizedCode, deletedAt: null }).session(session)
+    const duplicateCode = await Vendor.exists({ vendorCode: normalizedCode, deletedAt: null })
     if (duplicateCode) {
-      await session.abortTransaction()
       return res.status(400).json({ success: false, message: 'Vendor code already exists' })
     }
 
@@ -4334,10 +4318,10 @@ router.post('/vendors', protect, validateBody(vendorCreateSchema), async (req, r
         { accountCode: '2000' },
         { accountName: /accounts payable|payable/i },
       ],
-    }).sort({ accountCode: 1 }).session(session)
+    }).sort({ accountCode: 1 })
 
     const accountCode = await nextVendorAccountCode()
-    const creditorAccount = await ChartOfAccount.create([{
+    const creditorAccount = await ChartOfAccount.create({
       accountName: `${name} (Creditor)`,
       accountCode,
       accountType: 'Liability',
@@ -4345,9 +4329,9 @@ router.post('/vendors', protect, validateBody(vendorCreateSchema), async (req, r
       currency: currency || 'USD',
       description: `Auto-created payable account for vendor ${name}`,
       createdBy: req.user._id,
-    }], { session })
+    })
 
-    const vendor = await Vendor.create([{
+    const vendor = await Vendor.create({
       vendorCode: normalizedCode,
       name,
       contactPerson: contactPerson || '',
@@ -4376,19 +4360,19 @@ router.post('/vendors', protect, validateBody(vendorCreateSchema), async (req, r
       iban: iban || '',
       swiftCode: swiftCode || '',
       currency: currency || 'USD',
-      ledgerAccountId: creditorAccount[0]._id,
+      ledgerAccountId: creditorAccount._id,
       createdBy: req.user._id,
       updatedBy: req.user._id,
-    }], { session })
+    })
 
     const opening = Number(openingBalance || 0)
     if (opening > 0) {
-      const inventoryAccount = await ChartOfAccount.findOne({ accountType: 'Asset', isActive: true }).sort({ accountCode: 1 }).session(session)
+      const inventoryAccount = await ChartOfAccount.findOne({ accountType: 'Asset', isActive: true }).sort({ accountCode: 1 })
       if (inventoryAccount) {
-        await Ledger.create([{
+        await Ledger.create({
           date: new Date(),
           debitAccountId: inventoryAccount._id,
-          creditAccountId: creditorAccount[0]._id,
+          creditAccountId: creditorAccount._id,
           amount: opening,
           description: `Opening balance for vendor ${name}`,
           referenceType: 'journal',
@@ -4396,17 +4380,13 @@ router.post('/vendors', protect, validateBody(vendorCreateSchema), async (req, r
           updatedBy: req.user._id,
           department: req.user.department,
           currency: currency || 'USD',
-        }], { session })
+        })
       }
     }
 
-    await session.commitTransaction()
-    res.status(201).json({ success: true, vendor: vendor[0] })
+    res.status(201).json({ success: true, vendor })
   } catch (e) {
-    await session.abortTransaction()
     res.status(500).json({ success: false, message: e.message || 'Server error' })
-  } finally {
-    await session.endSession()
   }
 })
 
