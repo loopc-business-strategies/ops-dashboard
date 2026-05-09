@@ -18,25 +18,6 @@ const TENANTS = {
   },
 }
 
-function getLegacyMongoUri() {
-  if (process.env.MONGO_URI) {
-    return process.env.MONGO_URI
-  }
-
-  const DB_USER = process.env.DB_USER
-  const DB_PASS = process.env.DB_PASS
-  const DB_CLUSTER = process.env.DB_CLUSTER
-  const DB_NAME = process.env.DB_NAME || 'ops-dashboard'
-  const DB_PARAMS = process.env.DB_PARAMS || 'retryWrites=true&w=majority'
-
-  if (!DB_USER || !DB_PASS || !DB_CLUSTER) {
-    return null
-  }
-
-  const encodedPass = encodeURIComponent(DB_PASS)
-  return `mongodb+srv://${DB_USER}:${encodedPass}@${DB_CLUSTER}/${DB_NAME}?${DB_PARAMS}`
-}
-
 function normalizeTenant(value) {
   const tenant = String(value || '').trim().toLowerCase()
   if (!tenant) return null
@@ -73,7 +54,7 @@ function getTenantUri(tenant) {
   if (!normalized) return null
   const cfg = TENANTS[normalized]
   const uri = process.env[cfg.envVar]
-  return uri || getLegacyMongoUri()
+  return uri || null
 }
 
 module.exports = {
@@ -81,7 +62,6 @@ module.exports = {
   TENANTS,
   normalizeTenant,
   getDefaultTenant,
-  getLegacyMongoUri,
   resolveTenantFromHost,
   getTenantUri,
 }

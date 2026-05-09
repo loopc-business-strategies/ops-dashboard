@@ -3,9 +3,9 @@ const User = require('./models/User')
 require('dotenv').config()
 
 async function listUsers() {
-  const mongoUri = process.env.MONGO_URI
+  const mongoUri = process.env.MONGO_URI_CG
   if (!mongoUri) {
-    console.error('Missing env var: MONGO_URI')
+    console.error('Missing env var: MONGO_URI_CG')
     process.exit(1)
   }
 

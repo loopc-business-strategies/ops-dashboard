@@ -21,7 +21,7 @@ const resolveSettlementPreference = (lineType) => {
 }
 
 async function main() {
-  const uri = process.env.MONGO_URI_CG || process.env.MONGODB_URI || process.env.MONGO_URI
+  const uri = process.env.MONGO_URI_CG
   if (!uri) throw new Error('Missing MONGO_URI_CG (or fallback URI)')
 
   const conn = await mongoose.createConnection(uri, {

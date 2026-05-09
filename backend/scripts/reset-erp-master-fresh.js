@@ -87,11 +87,11 @@ const mappings = [
 ]
 
 async function run() {
-  if (!process.env.MONGO_URI) {
-    throw new Error('Missing env var MONGO_URI')
+  if (!process.env.MONGO_URI_LOOPC) {
+    throw new Error('Missing env var MONGO_URI_LOOPC')
   }
 
-  await mongoose.connect(process.env.MONGO_URI)
+  await mongoose.connect(process.env.MONGO_URI_LOOPC)
 
   const actor = await User.findOne({ role: 'super_admin' }).sort({ createdAt: 1 })
   if (!actor) {

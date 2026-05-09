@@ -3,7 +3,8 @@ const mongoose = require("mongoose");
 
 async function checkVoucher5() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
+    if (!process.env.MONGO_URI_LOOPC) throw new Error('Missing MONGO_URI_LOOPC');
+    await mongoose.connect(process.env.MONGO_URI_LOOPC);
     
     const Transaction = require("./models/Transaction");
     const Ledger = require("./models/Ledger");

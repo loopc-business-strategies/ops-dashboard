@@ -18,7 +18,10 @@ const ChartOfAccount = mongoose.model('ChartOfAccount', ChartOfAccountSchema);
 
 async function run() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ops-dashboard');
+    const mongoUri = process.env.MONGO_URI_LOOPC;
+    if (!mongoUri) throw new Error('Missing MONGO_URI_LOOPC');
+    if (!mongoUri) throw new Error('Missing tenant Mongo URI (MONGO_URI_LOOPC/MONGO_URI_CG/MONGO_URI_MG).');
+    await mongoose.connect(mongoUri);
     const mapping = await AccountMapping.findOne({ mappingType: 'sale', isActive: true })
       .populate('debitAccountId')
       .populate('creditAccountId');

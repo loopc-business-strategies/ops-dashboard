@@ -7,7 +7,7 @@ const Customer = require('../models/Customer')
 const Vendor = require('../models/Vendor')
 const ChartOfAccount = require('../models/ChartOfAccount')
 
-const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI
+const MONGO_URI = process.env.MONGO_URI_LOOPC
 
 const isUnfixed = (tx) => {
   const raw = String(tx?.voucherMeta?.fixingType || tx?.metalFixStatus || '').trim().toLowerCase()
@@ -52,7 +52,7 @@ const resolveAccounts = async (tx) => {
 }
 
 async function run() {
-  if (!MONGO_URI) throw new Error('MONGO_URI/MONGODB_URI is not configured')
+  if (!MONGO_URI) throw new Error('MONGO_URI_LOOPC is not configured')
   await mongoose.connect(MONGO_URI)
 
   const candidates = await Transaction.find({

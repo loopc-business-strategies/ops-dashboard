@@ -8,11 +8,11 @@ const ChartOfAccount = require('../models/ChartOfAccount')
 const RESET_TYPES = ['sale', 'purchase', 'payment', 'receipt']
 
 async function resetErpStart() {
-  if (!process.env.MONGO_URI) {
-    throw new Error('Missing MONGO_URI in environment')
+  if (!process.env.MONGO_URI_LOOPC) {
+    throw new Error('Missing MONGO_URI_LOOPC in environment')
   }
 
-  await mongoose.connect(process.env.MONGO_URI)
+  await mongoose.connect(process.env.MONGO_URI_LOOPC)
 
   const txFilter = { type: { $in: RESET_TYPES } }
 

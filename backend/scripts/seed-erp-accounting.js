@@ -108,7 +108,8 @@ const ledgerSeed = [
 ]
 
 async function seed() {
-  await mongoose.connect(process.env.MONGO_URI)
+  if (!process.env.MONGO_URI_LOOPC) throw new Error('Missing MONGO_URI_LOOPC')
+  await mongoose.connect(process.env.MONGO_URI_LOOPC)
 
   const actor = await User.findOne({ role: 'super_admin' }).sort({ createdAt: 1 })
   if (!actor) {

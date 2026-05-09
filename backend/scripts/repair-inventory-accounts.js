@@ -3,7 +3,8 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 
 async function main() {
-  await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
+  if (!process.env.MONGO_URI_CG) throw new Error('Missing MONGO_URI_CG');
+  await mongoose.connect(process.env.MONGO_URI_CG);
   const ChartOfAccount = require('./models/ChartOfAccount');
   const InventoryItem = require('./models/InventoryItem');
   const Ledger = require('./models/Ledger');

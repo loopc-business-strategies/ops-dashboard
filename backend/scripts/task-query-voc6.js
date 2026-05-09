@@ -4,7 +4,8 @@ const Transaction = require("./models/Transaction");
 
 async function run() {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    if (!process.env.MONGO_URI_CG) throw new Error('Missing MONGO_URI_CG');
+    await mongoose.connect(process.env.MONGO_URI_CG);
     const tx = await Transaction.findOne({
       type: "sale",
       "voucherMeta.vocNo": "6",

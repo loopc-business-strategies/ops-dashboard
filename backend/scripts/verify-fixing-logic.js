@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 
 async function verifyFixingLogic() {
   try {
-    const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/sh-erp';
+      const mongoUri = process.env.MONGO_URI_LOOPC;
+      if (!mongoUri) throw new Error('Missing MONGO_URI_LOOPC');
     await mongoose.connect(mongoUri);
     
     // Register schemas

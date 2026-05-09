@@ -4,12 +4,12 @@ const User = require('./models/User')
 require('dotenv').config()
 
 async function reset() {
-  const mongoUri = process.env.MONGO_URI
+  const mongoUri = process.env.MONGO_URI_CG
   const adminName = process.env.ADMIN_USERNAME
   const targetPassword = process.env.TARGET_PASSWORD
 
   if (!mongoUri || !adminName || !targetPassword) {
-    console.error('Missing env vars. Required: MONGO_URI, ADMIN_USERNAME, TARGET_PASSWORD')
+    console.error('Missing env vars. Required: MONGO_URI_CG, ADMIN_USERNAME, TARGET_PASSWORD')
     process.exit(1)
   }
 

@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
 async function run() {
-  await mongoose.connect(process.env.MONGO_URI);
+  if (!process.env.MONGO_URI_CG) throw new Error('Missing MONGO_URI_CG');
+  await mongoose.connect(process.env.MONGO_URI_CG);
   const transactions = await mongoose.connection.db.collection('transactions').find({
     type: { $in: ['sale', 'purchase'] },
     status: 'posted',

@@ -9,8 +9,8 @@ dns.setServers((process.env.ATLAS_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').m
 const money = (n) => Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100
 
 async function main() {
-  const uri = process.env.MONGO_URI_CG || process.env.MONGODB_URI || process.env.MONGO_URI
-  if (!uri) throw new Error('Missing MONGO_URI_CG (or fallback URI)')
+  const uri = process.env.MONGO_URI_CG
+  if (!uri) throw new Error('Missing MONGO_URI_CG')
 
   const conn = await mongoose.createConnection(uri, {
     serverSelectionTimeoutMS: 15000,

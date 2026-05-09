@@ -28,7 +28,7 @@ const isDryRun = args.includes('--dry-run')
 const TENANT_URIS = {
   mg: process.env.MONGO_URI_MG,
   cg: process.env.MONGO_URI_CG,
-  loopc: process.env.MONGO_URI_LOOPC || process.env.MONGO_URI,
+  loopc: process.env.MONGO_URI_LOOPC,
 }
 
 async function backfillTenant(uri, tenantName) {

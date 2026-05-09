@@ -5,7 +5,7 @@ const mongoose = require('mongoose')
 dns.setServers(['8.8.8.8', '1.1.1.1'])
 
 async function main() {
-  const uri = process.env.MONGO_URI_CG || process.env.MONGODB_URI || process.env.MONGO_URI
+  const uri = process.env.MONGO_URI_CG
   if (!uri) throw new Error('Missing CG Mongo URI')
 
   const conn = await mongoose.createConnection(uri, { serverSelectionTimeoutMS: 15000 }).asPromise()

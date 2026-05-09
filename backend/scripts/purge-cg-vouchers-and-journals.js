@@ -9,7 +9,7 @@ const TARGET_LEDGER_TYPES = ['payment', 'receipt', 'sale', 'purchase', 'journal'
 
 async function main() {
   const apply = process.argv.includes('--apply')
-  const uri = process.env.MONGO_URI_CG || process.env.MONGODB_URI || process.env.MONGO_URI
+  const uri = process.env.MONGO_URI_CG
   if (!uri) throw new Error('Missing MONGO_URI_CG (or fallback URI)')
 
   const conn = await mongoose.createConnection(uri, {

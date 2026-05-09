@@ -6,7 +6,8 @@ const Ledger = require('./models/Ledger');
 
 async function run() {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
+        if (!process.env.MONGO_URI_CG) throw new Error('Missing MONGO_URI_CG');
+        await mongoose.connect(process.env.MONGO_URI_CG);
 
         const a1301 = await ChartOfAccount.findOne({ accountCode: '1301' });
         console.log('1301 ID:', a1301._id);

@@ -9,7 +9,8 @@ const TENANT_ID = 'cg';
 async function verifyAccountRemoval() {
   let conn;
   try {
-    const uri = process.env.MONGO_URI_CG || process.env.MONGODB_URI || process.env.MONGO_URI;
+    const uri = process.env.MONGO_URI_CG;
+    if (!uri) throw new Error('Missing MONGO_URI_CG');
     if (!uri) throw new Error('Missing MONGO_URI_CG (or fallback URI)');
 
     conn = await mongoose.createConnection(uri, {

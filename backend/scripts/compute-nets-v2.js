@@ -7,7 +7,8 @@ const Customer = require('./models/Customer');
 
 async function run() {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
+        if (!process.env.MONGO_URI_CG) throw new Error('Missing MONGO_URI_CG');
+        await mongoose.connect(process.env.MONGO_URI_CG);
 
         async function getMongoIdForCode(code) {
             const acc = await ChartOfAccount.findOne({ accountCode: code });

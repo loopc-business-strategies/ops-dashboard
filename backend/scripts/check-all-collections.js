@@ -9,8 +9,8 @@ const TENANT_ID = 'cg';
 async function checkAllCollections() {
   let conn;
   try {
-    const uri = process.env.MONGO_URI_CG || process.env.MONGODB_URI || process.env.MONGO_URI;
-    if (!uri) throw new Error('Missing MONGO_URI_CG (or fallback URI)');
+    const uri = process.env.MONGO_URI_CG;
+    if (!uri) throw new Error('Missing MONGO_URI_CG');
 
     conn = await mongoose.createConnection(uri, {
       serverSelectionTimeoutMS: 15000,

@@ -5,7 +5,8 @@ const Customer = require('./models/Customer');
 
 async function debug() {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
+        if (!process.env.MONGO_URI_CG) throw new Error('Missing MONGO_URI_CG');
+        await mongoose.connect(process.env.MONGO_URI_CG);
         
         const count = await Ledger.countDocuments({ isDeleted: { $ne: true } });
         console.log(`Total non-deleted ledger entries: ${count}`);

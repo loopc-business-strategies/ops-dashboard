@@ -10,8 +10,8 @@ async function removeAccount2301() {
   let conn;
   try {
     // Connect to MongoDB
-    const uri = process.env.MONGO_URI_CG || process.env.MONGODB_URI || process.env.MONGO_URI;
-    if (!uri) throw new Error('Missing MONGO_URI_CG (or fallback URI)');
+    const uri = process.env.MONGO_URI_CG;
+    if (!uri) throw new Error('Missing MONGO_URI_CG');
 
     conn = await mongoose.createConnection(uri, {
       serverSelectionTimeoutMS: 15000,
@@ -26,7 +26,7 @@ async function removeAccount2301() {
     // Find account 2301 (including soft-deleted)
     const account = await db.collection('chartofaccounts').findOne({ 
       tenantId: TENANT_ID, 
-      code: '2301'
+      accountCode: '2301'
     });
 
     if (!account) {
@@ -88,7 +88,7 @@ async function removeAccount2301() {
       // Verify deletion
       const verification = await db.collection('chartofaccounts').findOne({
         tenantId: TENANT_ID,
-        code: '2301',
+        accountCode: '2301',
         deleted: { $ne: true }
       });
       

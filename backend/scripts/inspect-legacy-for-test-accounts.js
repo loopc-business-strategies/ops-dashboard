@@ -2,8 +2,8 @@ require('dotenv').config()
 const mongoose = require('mongoose')
 
 async function run() {
-  const uri = process.env.MONGO_URI
-  if (!uri) throw new Error('MONGO_URI missing')
+  const uri = process.env.MONGO_URI_CG
+  if (!uri) throw new Error('MONGO_URI_CG missing')
 
   await mongoose.connect(uri)
   const db = mongoose.connection.getClient().db()

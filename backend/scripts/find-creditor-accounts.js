@@ -7,7 +7,8 @@ dns.setServers((process.env.ATLAS_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').m
 async function find() {
   let conn;
   try {
-    const uri = process.env.MONGO_URI_CG || process.env.MONGODB_URI || process.env.MONGO_URI;
+    const uri = process.env.MONGO_URI_CG;
+    if (!uri) throw new Error('Missing MONGO_URI_CG');
     conn = await mongoose.createConnection(uri, {
       serverSelectionTimeoutMS: 15000,
       connectTimeoutMS: 15000,

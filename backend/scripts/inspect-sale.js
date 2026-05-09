@@ -7,10 +7,10 @@ const ChartOfAccount = require("./models/ChartOfAccount");
 
 async function run() {
   try {
-    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
-    if (!mongoUri) {
-       throw new Error("MONGO_URI not found in environment");
-    }
+     const mongoUri = process.env.MONGO_URI_CG;
+     if (!mongoUri) {
+       throw new Error("MONGO_URI_CG not found in environment");
+     }
     await mongoose.connect(mongoUri);
     console.log("Connected to MongoDB.");
 
