@@ -2260,7 +2260,9 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
 
     if (directPartyAccount?._id) {
       if (transactionType === 'sale') debitAccountId = debitAccountId || directPartyAccount._id
-      if (transactionType === 'receipt') creditAccountId = creditAccountId || directPartyAccount._id
+      // For receipt vouchers, the selected party account must be credited
+      // even when a default mapping exists.
+      if (transactionType === 'receipt') creditAccountId = directPartyAccount._id
     }
 
     const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank')
@@ -2290,7 +2292,9 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
 
     if (directPartyAccount?._id) {
       if (transactionType === 'purchase') creditAccountId = creditAccountId || directPartyAccount._id
-      if (transactionType === 'payment') debitAccountId = debitAccountId || directPartyAccount._id
+      // For payment vouchers, the selected party account must be debited
+      // even when a default mapping exists.
+      if (transactionType === 'payment') debitAccountId = directPartyAccount._id
     }
 
     const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank')
