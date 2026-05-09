@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
 import { getTenantBranding, isLocalTenantHost, resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
+import BuildInfoBadge from '../components/BuildInfoBadge'
 
 function hexToRgb(hex) {
   const h = hex.replace('#', '')
@@ -156,6 +157,9 @@ function Login() {
 
       {/* ── RIGHT PANEL — plain white background, no card ── */}
       <div className="flex-1 flex flex-col items-start justify-center bg-white relative overflow-hidden" style={{ padding: '40px 52px' }}>
+        <div style={{ position: 'absolute', top: '16px', right: '20px', zIndex: 5 }}>
+          <BuildInfoBadge tone="light" className="hidden sm:inline-flex" />
+        </div>
 
         {/* Mobile-only logo (hidden on lg) */}
         <div className="lg:hidden mb-8 text-center">

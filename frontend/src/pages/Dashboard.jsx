@@ -22,6 +22,7 @@ import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage, LANGUAGES } from '../context/LanguageContext'
 import { getTenantBranding } from '../config/tenantBranding'
+import BuildInfoBadge from '../components/BuildInfoBadge'
 
 // Import tab content components
 import OverviewTab     from '../components/tabs/OverviewTab'
@@ -232,13 +233,6 @@ function Dashboard() {
   const perms = usePermissions()
   const navigate = useNavigate()
   const { t, isRTL, switchLanguage, langMeta } = useLanguage()
-  const buildMeta = typeof __APP_BUILD_META__ === 'object' && __APP_BUILD_META__
-    ? __APP_BUILD_META__
-    : { version: '0.0.0', sha: 'unknown', builtAt: '' }
-  const buildStamp = `v${buildMeta.version} · ${String(buildMeta.sha || 'unknown').slice(0, 7)}`
-  const buildTitle = buildMeta.builtAt
-    ? `Build ${buildStamp} · ${new Date(buildMeta.builtAt).toLocaleString('en-GB')}`
-    : `Build ${buildStamp}`
 
   const [activeTab,    setActiveTab]    = useState('overview')
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
@@ -510,13 +504,7 @@ function Dashboard() {
 
             {/* Right side of header */}
             <div className="flex items-center gap-3">
-              <span
-                className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
-                title={buildTitle}
-                style={{ background: 'rgba(15,23,42,0.3)', border: '1px solid rgba(255,255,255,0.16)', color: 'rgba(255,255,255,0.88)' }}
-              >
-                Build {buildStamp}
-              </span>
+              <BuildInfoBadge className="hidden md:inline-flex" />
 
               {/* Read-only badge */}
               {perms.isReadOnly && (

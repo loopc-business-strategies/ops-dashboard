@@ -24,6 +24,22 @@ const realtimeRoutes = require('./routes/realtime')
 const financeRoutes    = require('./routes/finance')
 const complianceRoutes = require('./routes/compliance')
 const trainingRoutes   = require('./routes/training')
+const backendPackage = require('./package.json')
+
+const resolveBackendSha = () => String(
+  process.env.BACKEND_BUILD_SHA
+  || process.env.RAILWAY_GIT_COMMIT_SHA
+  || process.env.GIT_COMMIT_SHA
+  || process.env.SOURCE_VERSION
+  || process.env.COMMIT_SHA
+  || 'unknown'
+).trim()
+
+const backendBuildMeta = {
+  version: String(backendPackage.version || '0.0.0'),
+  sha: resolveBackendSha(),
+  builtAt: String(process.env.BACKEND_BUILD_TIME || process.env.RAILWAY_DEPLOYMENT_TIMESTAMP || ''),
+}
 
 function createApp() {
   const app = express()
@@ -114,7 +130,13 @@ function createApp() {
   app.use('/api', bindTenantContext)
 
   app.get('/api/health', (req, res) => {
-    res.json({ success: true, message: 'Server is running!', time: new Date() })
+    res.json({
+      success: true,
+      message: 'Server is running!',
+      time: new Date(),
+      build: backendBuildMeta,
+      backend: backendBuildMeta,
+    })
   })
 
   app.use('/api/auth', authRoutes)
