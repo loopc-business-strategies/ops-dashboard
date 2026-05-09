@@ -5038,7 +5038,18 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const applyBankJvExchangeBalancing = (lines) => {
     if (jvMode !== 'bank_jv') return lines
 
-    const withoutFxAmounts = lines.map((line) => (isExchangeLine(line) ? { ...line, debit: '', credit: '' } : line))
+    const hasManualFxEntry = lines.some((line) => {
+      if (!isExchangeLine(line)) return false
+      const hasAmount = Number(line.debit || 0) > 0 || Number(line.credit || 0) > 0
+      return hasAmount && !line.autoFx
+    })
+    if (hasManualFxEntry) return lines
+
+    const withoutFxAmounts = lines.map((line) => (
+      isExchangeLine(line) && line.autoFx
+        ? { ...line, debit: '', credit: '' }
+        : line
+    ))
     const nonFxLines = withoutFxAmounts.filter((line) => String(line.accountId || '').trim() && !isExchangeLine(line))
     if (nonFxLines.length < 2) return withoutFxAmounts
 
@@ -5095,6 +5106,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
         accountInput: accountLookupText(targetAccount),
         debit: needsDebitFx ? String(fxAmount) : '',
         credit: needsDebitFx ? '' : String(fxAmount),
+        autoFx: true,
       }
     })
   }
@@ -5103,9 +5115,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
     setJvLines((prev) => {
       const withEdited = prev.map((line) => {
         if (line.id !== id) return line
-        if (field === 'debit') return { ...line, debit: value, credit: '' }
-        if (field === 'credit') return { ...line, credit: value, debit: '' }
-        return { ...line, [field]: value }
+        if (field === 'debit') return { ...line, debit: value, credit: '', autoFx: false }
+        if (field === 'credit') return { ...line, credit: value, debit: '', autoFx: false }
+        return { ...line, [field]: value, autoFx: false }
       })
 
       if (jvMode !== 'bank_jv' || !['debit', 'credit'].includes(field)) return withEdited
@@ -5115,6 +5127,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
       const sourceLine = withEdited.find((line) => line.id === id)
       if (!sourceLine?.accountId) return applyBankJvExchangeBalancing(withEdited)
+      if (isExchangeLine(sourceLine) && enteredAmount > 0) return withEdited
 
       const targetField = field === 'debit' ? 'credit' : 'debit'
       const targetLine = withEdited.find((line) => {
@@ -5138,8 +5151,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
       const withSyncedPair = withEdited.map((line) => {
         if (line.id !== targetLine.id) return line
         return targetField === 'debit'
-          ? { ...line, debit: String(convertedAmount), credit: '' }
-          : { ...line, credit: String(convertedAmount), debit: '' }
+          ? { ...line, debit: String(convertedAmount), credit: '', autoFx: false }
+          : { ...line, credit: String(convertedAmount), debit: '', autoFx: false }
       })
       return applyBankJvExchangeBalancing(withSyncedPair)
     })
@@ -5153,7 +5166,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       const withResolved = prev.map((line) => (
         line.id !== lineId
           ? line
-          : { ...line, accountId: resolvedId || '', accountInput: resolvedLabel || '' }
+          : { ...line, accountId: resolvedId || '', accountInput: resolvedLabel || '', autoFx: false }
       ))
       return applyBankJvExchangeBalancing(withResolved)
     })
@@ -5200,7 +5213,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
       if (debitValue > 0 && creditValue > 0) {
         lineIssuesById[line.id] = `Row ${index + 1}: Only one side allowed per row`
-      } else if (hasTyped && !hasAmount) {
+      } else if (hasTyped && !hasAmount && !(isBankJV && isExchangeLine(line))) {
         lineIssuesById[line.id] = `Row ${index + 1}: Enter debit or credit amount`
       } else if (hasAmount && !accountId) {
         lineIssuesById[line.id] = `Row ${index + 1}: Account is required`
