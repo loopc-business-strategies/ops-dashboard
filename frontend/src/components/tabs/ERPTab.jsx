@@ -1173,40 +1173,49 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   // ─── Multi-line Journal Voucher state ─────────────────────────────────────
   const emptyJvLine = (id) => ({ id, accountId: '', accountInput: '', description: '', debit: '', credit: '' })
-  const buildJvDocNo = () => {
+  const JV_MODE_META = {
+    journal: { label: 'Normal JV', badge: 'JOURNAL VOUCHER', prefix: 'Jv', referenceType: 'journal' },
+    bank_jv: { label: 'Bank JV', badge: 'BANK JOURNAL VOUCHER', prefix: 'BnkJV', referenceType: 'bank_jv' },
+  }
+  const resolveJvModeMeta = (mode = 'journal') => JV_MODE_META[mode] || JV_MODE_META.journal
+  const buildJvDocNo = (mode = 'journal') => {
+    const { prefix, referenceType } = resolveJvModeMeta(mode)
     const year = new Date().getFullYear()
     const maxExisting = ledger.reduce((max, entry) => {
-      if (String(entry?.referenceType || '').toLowerCase() !== 'journal') return max
+      if (String(entry?.referenceType || '').toLowerCase() !== String(referenceType || '').toLowerCase()) return max
       const head = String(entry?.description || '').split(' — ')[0].trim()
 
-      const formattedMatch = head.match(/^JV\/(\d{4})\/(\d+)$/i)
+      const formattedMatch = head.match(/^([A-Z]+)\/(\d{4})\/(\d+)$/i)
       if (formattedMatch) {
-        const y = Number(formattedMatch[1])
-        const n = Number(formattedMatch[2])
-        if (y === year && Number.isFinite(n) && n > max) return n
+        const formattedPrefix = String(formattedMatch[1] || '').toLowerCase()
+        const y = Number(formattedMatch[2])
+        const n = Number(formattedMatch[3])
+        if (formattedPrefix === String(prefix).toLowerCase() && y === year && Number.isFinite(n) && n > max) return n
       }
 
-      const legacyMatch = head.match(/^JV-(\d+)$/i)
+      const legacyMatch = head.match(/^([A-Z]+)-(\d+)$/i)
       if (legacyMatch) {
-        const n = Number(legacyMatch[1])
-        if (Number.isFinite(n) && n > max) return n
+        const legacyPrefix = String(legacyMatch[1] || '').toLowerCase()
+        const n = Number(legacyMatch[2])
+        if (legacyPrefix === String(prefix).toLowerCase() && Number.isFinite(n) && n > max) return n
       }
 
       return max
     }, 0)
     const next = maxExisting + 1
-    return `Jv/${year}/${String(next).padStart(4, '0')}`
+    return `${prefix}/${year}/${String(next).padStart(4, '0')}`
   }
-  const createJvHeader = (currencyCode = 'USD') => ({
-    docNo: buildJvDocNo(),
+  const createJvHeader = (currencyCode = 'USD', mode = 'journal') => ({
+    docNo: buildJvDocNo(mode),
     date: new Date().toISOString().slice(0, 10),
     narration: '',
     currency: currencyCode,
   })
   const [jvLines, setJvLines] = useState([emptyJvLine(1), emptyJvLine(2)])
-  const [jvHeader, setJvHeader] = useState(createJvHeader)
+  const [jvHeader, setJvHeader] = useState(() => createJvHeader('USD', 'journal'))
   const [nextJvLineId, setNextJvLineId] = useState(3)
-  const [jvMode] = useState('journal')
+  const [jvMode, setJvMode] = useState('journal')
+  const [ledgerVoucherTab, setLedgerVoucherTab] = useState('journal')
   const [jvEditEntryIds, setJvEditEntryIds] = useState([]) // IDs of entries being edited (empty = new JV)
   const [currencyForm, setCurrencyForm] = useState({ code: '', name: '', symbol: '', exchangeRate: 1, baseCurrency: false })
   const [usdConversion, setUsdConversion] = useState({ usdAmount: '1', targetCode: 'UZS' })
@@ -5057,9 +5066,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
   }
 
-  const resetJvForm = () => {
+  const resetJvForm = (mode = 'journal') => {
+    setJvMode(mode)
     setJvLines([emptyJvLine(1), emptyJvLine(2)])
-    setJvHeader(createJvHeader(baseCurrencyCode))
+    setJvHeader(createJvHeader(baseCurrencyCode, mode))
     setNextJvLineId(3)
     setJvEditEntryIds([])
   }
@@ -5068,8 +5078,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
     // Find all ledger entries belonging to the same JV document by docNo prefix in description
     const descParts = (entry.description || '').split(' — ')
     const docNo = descParts[0]
-    const relatedEntries = (docNo && docNo.startsWith('JV-'))
-      ? ledger.filter((e) => (e.description || '').startsWith(docNo))
+    const hasDocPrefix = /^(jv|bnkjv)[/-]/i.test(String(docNo || ''))
+    const relatedEntries = (docNo && hasDocPrefix)
+      ? ledger.filter((e) => {
+        const entryHead = String(e.description || '').split(' — ')[0].trim()
+        return entryHead === docNo
+      })
       : [entry]
 
     // Reconstruct JV lines by grouping debit and credit sides by account
@@ -5099,8 +5113,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
     ]
 
     const narration = relatedEntries[0].notes || ''
-    const headerDocNo = (docNo && docNo.startsWith('JV-')) ? docNo : `JV-EDIT-${entry._id.slice(-6)}`
+    const entryMode = String(entry?.referenceType || '').toLowerCase() === 'bank_jv' ? 'bank_jv' : 'journal'
+    const headerDocNo = (docNo && hasDocPrefix) ? docNo : `${resolveJvModeMeta(entryMode).prefix}-EDIT-${entry._id.slice(-6)}`
 
+    setJvMode(entryMode)
     setJvEditEntryIds(relatedEntries.map((e) => e._id))
     setJvLines(lines)
     setNextJvLineId(id)
@@ -5114,20 +5130,26 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   const closeJvModal = () => {
     setShowLedgerForm(false)
-    resetJvForm()
+    resetJvForm(ledgerVoucherTab)
     setJvModalOffset({ x: 0, y: 0 })
     setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
     setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
     setJvModalSize(JV_MODAL_DEFAULT_SIZE)
   }
 
-  const openJvModal = () => {
-    resetJvForm()
+  const openJvModal = (mode = ledgerVoucherTab) => {
+    resetJvForm(mode)
     setJvModalOffset({ x: 0, y: 0 })
     setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
     setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
     setJvModalSize(JV_MODAL_DEFAULT_SIZE)
     setShowLedgerForm(true)
+  }
+
+  const switchJvMode = (mode) => {
+    if (jvEditEntryIds.length > 0) return
+    setJvMode(mode)
+    setJvHeader((prev) => ({ ...prev, docNo: buildJvDocNo(mode) }))
   }
 
   const handleSaveMultiLineJV = async () => {
@@ -5188,47 +5210,30 @@ function ERPTab({ focusTab, onNavigateMain }) {
       return
     }
 
-    const isBankJV = false
+    const isBankJV = jvMode === 'bank_jv'
     const sharedDesc = [jvHeader.docNo, jvHeader.narration].filter(Boolean).join(' — ') || 'Manual JV'
 
     setSaving(true)
     try {
-      if (isBankJV && entries.length === 1) {
-        // Bank JV uses multipart formData (single entry only)
-        const formData = new FormData()
-        formData.append('date', jvHeader.date)
-        formData.append('debitAccountId', entries[0].debitAccountId)
-        formData.append('creditAccountId', entries[0].creditAccountId)
-        formData.append('amount', String(entries[0].amount))
-        formData.append('description', sharedDesc)
-        formData.append('referenceType', 'bank_jv')
-        formData.append('currency', baseCurrencyCode)
-        formData.append('txRefNo', ledgerForm.txRefNo || '')
-        formData.append('chequeNo', ledgerForm.chequeNo || '')
-        formData.append('bankRemarks', ledgerForm.bankRemarks || '')
-        formData.append('paymentType', ledgerForm.paymentType || 'bank')
-        if (ledgerForm.bankAttachment) formData.append('attachment', ledgerForm.bankAttachment)
-        await erpAccountingAPI.createBankJvEntry(token, formData)
-      } else {
-        // If editing an existing JV, permanently delete old entries first
-        if (jvEditEntryIds.length > 0) {
-          await Promise.all(jvEditEntryIds.map((id) => erpAccountingAPI.permanentDeleteLedgerEntry(token, id)))
-        }
-        await Promise.all(entries.map((entry) => erpAccountingAPI.createLedgerEntry(token, {
-          date: jvHeader.date,
-          description: entry.lineDesc ? `${sharedDesc} — ${entry.lineDesc}` : sharedDesc,
-          notes: jvHeader.narration || '',
-          referenceType: 'journal',
-          currency: jvHeader.currency || baseCurrencyCode,
-          debitAccountId: entry.debitAccountId,
-          creditAccountId: entry.creditAccountId,
-          amount: entry.amount,
-        })))
+      // If editing an existing JV, permanently delete old entries first
+      if (jvEditEntryIds.length > 0) {
+        await Promise.all(jvEditEntryIds.map((id) => erpAccountingAPI.permanentDeleteLedgerEntry(token, id)))
       }
+      await Promise.all(entries.map((entry) => erpAccountingAPI.createLedgerEntry(token, {
+        date: jvHeader.date,
+        description: entry.lineDesc ? `${sharedDesc} — ${entry.lineDesc}` : sharedDesc,
+        notes: jvHeader.narration || '',
+        referenceType: isBankJV ? 'bank_jv' : 'journal',
+        currency: jvHeader.currency || baseCurrencyCode,
+        debitAccountId: entry.debitAccountId,
+        creditAccountId: entry.creditAccountId,
+        amount: entry.amount,
+      })))
       const isEdit = jvEditEntryIds.length > 0
+      const voucherLabel = isBankJV ? 'Bank JV' : 'Journal Voucher'
       closeJvModal()
       await Promise.all([loadLedger(), loadDashboard()])
-      showNotification(isEdit ? `✅ Journal Voucher updated — ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} reposted` : `✅ Journal Voucher saved — ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} posted`)
+      showNotification(isEdit ? `✅ ${voucherLabel} updated — ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} reposted` : `✅ ${voucherLabel} saved — ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} posted`)
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to save Journal Voucher')
     } finally {
@@ -6492,9 +6497,33 @@ function ERPTab({ focusTab, onNavigateMain }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
             <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Journal Voucher</h3>
+            <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              {Object.entries(JV_MODE_META).map(([mode, meta]) => {
+                const active = ledgerVoucherTab === mode
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setLedgerVoucherTab(mode)}
+                    style={{
+                      padding: '0.45rem 0.8rem',
+                      borderRadius: '0.45rem',
+                      border: `1px solid ${active ? '#1E40AF' : '#CBD5E1'}`,
+                      background: active ? '#DBEAFE' : '#F8FAFC',
+                      color: active ? '#1E3A8A' : '#334155',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                    }}
+                  >
+                    {meta.label}
+                  </button>
+                )
+              })}
+            </div>
             {canManageAccounts && (
               <button
-                onClick={() => { if (!showLedgerForm) openJvModal() }}
+                onClick={() => { if (!showLedgerForm) openJvModal(ledgerVoucherTab) }}
                 disabled={showLedgerForm}
                 style={{
                   padding: '0.5rem 1rem',
@@ -6506,11 +6535,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   fontWeight: '600',
                 }}
               >
-                + New Journal Voucher
+                {ledgerVoucherTab === 'bank_jv' ? '+ New Bank JV' : '+ New Journal Voucher'}
               </button>
             )}
           </div>
           {showLedgerForm && (() => {
+            const jvModeMeta = resolveJvModeMeta(jvMode)
             const jvValidation = getJvValidation(jvLines)
             const jvTotalDebit = jvValidation.totalDebit
             const jvTotalCredit = jvValidation.totalCredit
@@ -6531,7 +6561,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   onMouseDown={beginJvModalDrag}
                   style={{ background: '#0F172A', color: '#fff', padding: '0.62rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderTopLeftRadius: '0.6rem', borderTopRightRadius: '0.6rem', cursor: jvModalDrag.active ? 'grabbing' : 'grab', userSelect: 'none' }}
                 >
-                  <span style={{ fontWeight: '700', fontSize: '0.88rem' }}>Journal Voucher</span>
+                  <span style={{ fontWeight: '700', fontSize: '0.88rem' }}>{jvModeMeta.label}</span>
                   <span style={{ color: '#94A3B8', fontSize: '0.72rem', marginLeft: '0.35rem' }}>drag window</span>
                   <button
                     type="button"
@@ -6545,15 +6575,42 @@ function ERPTab({ focusTab, onNavigateMain }) {
             <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderTop: 'none', borderBottomLeftRadius: '0.6rem', borderBottomRightRadius: '0.6rem', marginBottom: 0, overflow: 'hidden auto', flex: 1, minHeight: 0 }}>
               {/* JV Header bar */}
               <div style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%)', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ color: '#fff', fontWeight: '800', fontSize: '0.95rem', letterSpacing: '0.04em' }}>📒 {jvEditEntryIds.length > 0 ? 'EDIT JOURNAL VOUCHER' : 'JOURNAL VOUCHER'}</span>
+                <span style={{ color: '#fff', fontWeight: '800', fontSize: '0.95rem', letterSpacing: '0.04em' }}>📒 {jvEditEntryIds.length > 0 ? `EDIT ${jvModeMeta.badge}` : jvModeMeta.badge}</span>
                 <span style={{ marginLeft: 'auto', color: '#94A3B8', fontSize: '0.75rem' }}>Base: {baseCurrencyCode}</span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.45rem', padding: '0.55rem 1rem', background: '#E2E8F0', borderBottom: '1px solid #CBD5E1' }}>
+                {Object.entries(JV_MODE_META).map(([mode, meta]) => {
+                  const active = jvMode === mode
+                  return (
+                    <button
+                      key={`jv-mode-${mode}`}
+                      type="button"
+                      onClick={() => switchJvMode(mode)}
+                      disabled={jvEditEntryIds.length > 0}
+                      style={{
+                        padding: '0.35rem 0.7rem',
+                        borderRadius: '0.35rem',
+                        border: `1px solid ${active ? '#1D4ED8' : '#CBD5E1'}`,
+                        background: active ? '#DBEAFE' : '#F8FAFC',
+                        color: active ? '#1E3A8A' : '#334155',
+                        fontWeight: '700',
+                        cursor: jvEditEntryIds.length > 0 ? 'not-allowed' : 'pointer',
+                        opacity: jvEditEntryIds.length > 0 ? 0.65 : 1,
+                        fontSize: '0.78rem',
+                      }}
+                    >
+                      {meta.label}
+                    </button>
+                  )
+                })}
               </div>
 
               {/* Header fields */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem', padding: '0.65rem 1rem 0.5rem', alignItems: 'end', background: '#F1F5F9', borderBottom: '1px solid #CBD5E1' }}>
                 <div>
                   <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Doc No</div>
-                  <input value={jvHeader.docNo} onChange={(e) => setJvHeader((p) => ({ ...p, docNo: e.target.value }))} placeholder="JV-001" style={cellSt} />
+                  <input value={jvHeader.docNo} onChange={(e) => setJvHeader((p) => ({ ...p, docNo: e.target.value }))} placeholder={jvMode === 'bank_jv' ? 'BnkJV/2026/0001' : 'Jv/2026/0001'} style={cellSt} />
                 </div>
                 <div>
                   <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Date</div>
@@ -6766,6 +6823,20 @@ function ERPTab({ focusTab, onNavigateMain }) {
             </button>
           </div>
           <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
+            {(() => {
+              const visibleLedgerEntries = ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab)
+              const pagedLedgerEntries = [...visibleLedgerEntries]
+                .sort((a, b) => {
+                  if (sorting.ledger.by === 'date') {
+                    return sorting.ledger.asc ? new Date(a.date) - new Date(b.date) : new Date(b.date) - new Date(a.date)
+                  } else if (sorting.ledger.by === 'amount') {
+                    return sorting.ledger.asc ? a.amount - b.amount : b.amount - a.amount
+                  }
+                  return 0
+                })
+                .slice((pagination.ledger - 1) * ITEMS_PER_PAGE, pagination.ledger * ITEMS_PER_PAGE)
+
+              return (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
@@ -6778,16 +6849,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 </tr>
               </thead>
               <tbody>
-                {ledger
-                  .sort((a, b) => {
-                    if (sorting.ledger.by === 'date') {
-                      return sorting.ledger.asc ? new Date(a.date) - new Date(b.date) : new Date(b.date) - new Date(a.date)
-                    } else if (sorting.ledger.by === 'amount') {
-                      return sorting.ledger.asc ? a.amount - b.amount : b.amount - a.amount
-                    }
-                    return 0
-                  })
-                  .slice((pagination.ledger - 1) * ITEMS_PER_PAGE, pagination.ledger * ITEMS_PER_PAGE)
+                {pagedLedgerEntries
                   .map((entry) => (
                     <tr key={entry._id} style={{ borderBottom: `1px solid ${C.p2}`, background: entry.referenceType === 'bank_jv' ? '#F0F9FF' : 'transparent' }}>
                       <td style={{ padding: '0.75rem', color: C.t2 }}>{new Date(entry.date).toLocaleDateString()}</td>
@@ -6825,20 +6887,22 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   ))}
               </tbody>
             </table>
+              )
+            })()}
           </div>
 
           {/* Pagination for Ledger */}
-          {Math.ceil(ledger.length / ITEMS_PER_PAGE) > 1 && (
+          {Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE) > 1 && (
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
               <button onClick={() => setPagination({...pagination, ledger: Math.max(1, pagination.ledger - 1)})} disabled={pagination.ledger === 1} style={{padding: '0.4rem 0.8rem', background: pagination.ledger === 1 ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.ledger === 1 ? 'default' : 'pointer', borderRadius: '0.35rem'}}>← Prev</button>
-              {Array.from({length: Math.ceil(ledger.length / ITEMS_PER_PAGE)}, (_, i) => i + 1).map(p => (
+              {Array.from({length: Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE)}, (_, i) => i + 1).map(p => (
                 <button key={p} onClick={() => setPagination({...pagination, ledger: p})} style={{padding: '0.4rem 0.6rem', background: p === pagination.ledger ? C.s1 : '#E5E7EB', color: p === pagination.ledger ? '#fff' : C.ink, border: 'none', cursor: 'pointer', borderRadius: '0.35rem', fontWeight: p === pagination.ledger ? '600' : '400'}}>{p}</button>
               ))}
-              <button onClick={() => setPagination({...pagination, ledger: Math.min(Math.ceil(ledger.length / ITEMS_PER_PAGE), pagination.ledger + 1)})} disabled={pagination.ledger === Math.ceil(ledger.length / ITEMS_PER_PAGE)} style={{padding: '0.4rem 0.8rem', background: pagination.ledger === Math.ceil(ledger.length / ITEMS_PER_PAGE) ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.ledger === Math.ceil(ledger.length / ITEMS_PER_PAGE) ? 'default' : 'pointer', borderRadius: '0.35rem'}}>Next →</button>
+              <button onClick={() => setPagination({...pagination, ledger: Math.min(Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE), pagination.ledger + 1)})} disabled={pagination.ledger === Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE)} style={{padding: '0.4rem 0.8rem', background: pagination.ledger === Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE) ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.ledger === Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE) ? 'default' : 'pointer', borderRadius: '0.35rem'}}>Next →</button>
             </div>
           )}
 
-          {ledger.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No ledger entries yet.</p>}
+          {ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No {ledgerVoucherTab === 'bank_jv' ? 'Bank JV' : 'Journal Voucher'} entries yet.</p>}
         </div>
       )}
 
