@@ -1252,21 +1252,22 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   }, [modalDrag])
 
   // ─── next voucher number ─────────────────────────────────────────────────────
-  const nextVocNo = (list) => {
+  const nextVocNo = (list, voucherTypeOverride = voucherType, docDateOverride = header.docDate) => {
     const src = Array.isArray(list) ? list : vouchers
-    const currentYear = Number(getDocYear(header.docDate))
+    const normalizedType = String(voucherTypeOverride || voucherType || '').toLowerCase()
+    const currentYear = Number(getDocYear(docDateOverride))
     const nos = src
-      .map((v) => parseVoucherDocMeta(v?.voucherMeta?.vocNo, voucherType))
+      .map((v) => parseVoucherDocMeta(v?.voucherMeta?.vocNo, normalizedType))
       .filter(Boolean)
       .filter((meta) => meta.year === 0 || meta.year === currentYear)
       .map((meta) => meta.seq)
       .filter((n) => Number.isFinite(n) && n > 0)
     const next = nos.length ? Math.max(...nos) + 1 : 1
-    return buildVoucherDocNo(voucherType, header.docDate, next)
+    return buildVoucherDocNo(normalizedType, docDateOverride, next)
   }
 
   // ─── open create ────────────────────────────────────────────────────────────
-  const openCreate = (freshList) => {
+  const openCreate = (freshList, forcedType = voucherType) => {
     // If already filling a new form, ask before discarding
     if (mode === 'create' && !editingId) {
       const hasData = String(header.partyCode || '').trim() || lineItems.length > 0 || String(header.narration || '').trim()
@@ -1276,7 +1277,11 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       // Only update the back-reference when coming from a real saved voucher
       if (editingId) lastViewedIdRef.current = editingId
     }
-    const nextHeader = { ...emptyHeader(), vocNo: nextVocNo(freshList) }
+    const baseHeader = emptyHeader()
+    const nextHeader = {
+      ...baseHeader,
+      vocNo: nextVocNo(freshList, forcedType, baseHeader.docDate),
+    }
     setEditingId(null)
     setHeader(nextHeader)
     setSelectedPartyId('')
@@ -1309,11 +1314,11 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         openVoucher(txs[txs.length - 1])
       } else {
         // Pass txs directly so nextVocNo uses the fresh list, not stale state
-        openCreate(txs)
+        openCreate(txs, type)
       }
     } catch {
       // fallback: just open blank form
-      openCreate()
+      openCreate(undefined, type)
     }
   }
 
