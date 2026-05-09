@@ -1106,7 +1106,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const [activeTab, setActiveTab] = useState(focusTab || 'dashboard')
 
   useEffect(() => {
-    if (focusTab) setActiveTab(focusTab)
+    if (!focusTab) return
+    setActiveTab((prev) => (prev === focusTab ? prev : focusTab))
   }, [focusTab])
 
   const dashStorageKey = `erp_dash_${user?.name || 'default'}`
@@ -2003,8 +2004,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   useEffect(() => {
     if (activeTab !== 'fixing-register') {
-      setFixingRegPanelOffset({ x: 0, y: 0 })
-      setFixingRegPanelDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+      setFixingRegPanelOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
+      setFixingRegPanelDrag((prev) => {
+        if (!prev.active && prev.pointerX === 0 && prev.pointerY === 0 && prev.startX === 0 && prev.startY === 0) return prev
+        return { active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 }
+      })
       return undefined
     }
 
@@ -2242,8 +2246,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const baseCurrencyCode = String(currencies.find((currency) => currency.baseCurrency)?.code || 'USD').toUpperCase()
 
   useEffect(() => {
-    setLedgerForm((prev) => ({ ...prev, currency: baseCurrencyCode }))
-    setJvHeader((prev) => ({ ...prev, currency: prev.currency || baseCurrencyCode }))
+    setLedgerForm((prev) => (prev.currency === baseCurrencyCode ? prev : { ...prev, currency: baseCurrencyCode }))
+    setJvHeader((prev) => {
+      const nextCurrency = prev.currency || baseCurrencyCode
+      return prev.currency === nextCurrency ? prev : { ...prev, currency: nextCurrency }
+    })
   }, [baseCurrencyCode])
 
   const filteredGroupedSummaryAccounts = groupedSummaryAccounts
@@ -3185,11 +3192,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
   }, [])
 
   useEffect(() => {
+    if (!showInventoryMappingModal) return
     if (isSuperAdmin && inventoryStockCodeManualOverride) return
     const baseCode = buildAutoStockCode(inventoryMappingForm, inventoryStockCodeSettings)
     const nextCode = buildUniqueStockCode(baseCode, inventoryMappingProducts, editingProductId)
     setInventoryMappingForm((prev) => (prev.stockCode === nextCode ? prev : { ...prev, stockCode: nextCode }))
-  }, [inventoryMappingForm.mainStock, inventoryMappingForm.customMainStock, inventoryMappingForm.metalType, inventoryMappingProducts, editingProductId, inventoryStockCodeSettings, isSuperAdmin, inventoryStockCodeManualOverride])
+  }, [showInventoryMappingModal, inventoryMappingForm.mainStock, inventoryMappingForm.customMainStock, inventoryMappingForm.metalType, inventoryMappingProducts, editingProductId, inventoryStockCodeSettings, isSuperAdmin, inventoryStockCodeManualOverride])
 
   const buildInventoryPayloadFromForm = (form, includeOpeningQty = true) => {
     const mainStockValue = resolveMainStockValueFromForm(form)
@@ -3597,7 +3605,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   useEffect(() => {
     // Prevent stale error banners from one ERP section leaking into another.
-    setError('')
+    setError((prev) => (prev ? '' : prev))
   }, [activeTab])
 
   useEffect(() => {
@@ -3726,9 +3734,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   useEffect(() => {
     if (!fixingRegisterStockTypeOptions.length) return
+    const fallbackMetalType = fixingRegisterStockTypeOptions[0]?.value || ''
     const hasSelected = fixingRegisterStockTypeOptions.some((option) => option.value === fixingRegFilter.metalType)
     if (!hasSelected) {
-      setFixingRegFilter((prev) => ({ ...prev, metalType: fixingRegisterStockTypeOptions[0].value }))
+      setFixingRegFilter((prev) => (prev.metalType === fallbackMetalType ? prev : { ...prev, metalType: fallbackMetalType }))
     }
   }, [fixingRegisterStockTypeOptions, fixingRegFilter.metalType])
 

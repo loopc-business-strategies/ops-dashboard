@@ -665,7 +665,7 @@ const validateFxReferenceRateRequirement = ({ type, currency, voucherMeta, baseC
 }
 
 const ensureAccountByCode = async ({ user, code, name, accountType, currency = BASE_CURRENCY_CODE }) => {
-  let account = await ChartOfAccount.findOne({ accountCode: code, isActive: true })
+  let account = await ChartOfAccount.findOne({ accountCode: code })
   if (!account) {
     try {
       account = await ChartOfAccount.create({
@@ -678,12 +678,18 @@ const ensureAccountByCode = async ({ user, code, name, accountType, currency = B
       })
     } catch (err) {
       if (err?.code !== 11000) throw err
-      // Another request may have created it in parallel; only reuse active accounts.
-      account = await ChartOfAccount.findOne({ accountCode: code, isActive: true })
-      if (!account) {
-        throw new Error(`Account code ${code} already exists but is inactive`)
-      }
+      // Another request may have created it in parallel; reuse the existing row.
+      account = await ChartOfAccount.findOne({ accountCode: code })
     }
+  }
+
+  if (!account) {
+    throw new Error(`Unable to resolve account code ${code}`)
+  }
+
+  if (!account.isActive) {
+    account.isActive = true
+    await account.save()
   }
 
   return account
@@ -2063,6 +2069,47 @@ const nextInventoryAccountCode = async () => {
   return String(code)
 }
 
+const normalizeCurrencyCode = (value, fallback = BASE_CURRENCY_CODE) => {
+  const code = String(value || fallback || 'USD').trim().toUpperCase()
+  return code || String(fallback || BASE_CURRENCY_CODE || 'USD').trim().toUpperCase()
+}
+
+const findPreferredBankAccountByCurrency = async (currencyCode) => {
+  const normalizedCurrency = normalizeCurrencyCode(currencyCode)
+  const bankCandidates = await ChartOfAccount.find({
+    isActive: true,
+    accountType: 'Asset',
+    $or: [
+      { accountName: /bank|nbd/i },
+      { accountCode: /^101/ },
+    ],
+  }).sort({ accountCode: 1, createdAt: 1, _id: 1 })
+
+  if (!bankCandidates.length) return null
+
+  const preferredCodesByCurrency = {
+    USD: ['101001', '1010'],
+    AED: ['101002'],
+    SOMS: ['101003'],
+  }
+
+  const preferredCodes = preferredCodesByCurrency[normalizedCurrency] || []
+  for (const code of preferredCodes) {
+    const byCode = bankCandidates.find((row) => String(row.accountCode || '').trim() === code)
+    if (byCode) return byCode
+  }
+
+  const currencyMatches = bankCandidates.filter((row) => normalizeCurrencyCode(row.currency) === normalizedCurrency)
+  if (currencyMatches.length) {
+    // Prefer specific sub-ledgers (e.g. 101001) before generic parent banks (e.g. 1010).
+    const specific = currencyMatches.find((row) => String(row.accountCode || '').trim().length > 4)
+    if (specific) return specific
+    return currencyMatches[0]
+  }
+
+  return bankCandidates[0]
+}
+
 const ensureCashBankAccount = async (user, currency = 'USD', preference = 'any') => {
   const normalizedPreference = String(preference || 'any').toLowerCase()
   const isBankPreferred = normalizedPreference === 'bank'
@@ -2127,13 +2174,44 @@ const resolveVoucherSettlementAccount = async (user, tx) => {
   const preferredLine = lines.find((line) => String(line?.acCode || '').trim()) || lines[0]
   const accountCode = String(preferredLine?.acCode || '').trim()
   const settlementPreference = normalizeVoucherSettlementType(preferredLine?.type)
+  const settlementCurrency = normalizeCurrencyCode(
+    preferredLine?.currCode
+    || tx?.voucherMeta?.currCode
+    || tx?.currency
+    || BASE_CURRENCY_CODE
+  )
 
   if (accountCode) {
-    // Try Asset type first (bank/cash accounts are normally Assets)
-    let account = await ChartOfAccount.findOne({ isActive: true, accountType: 'Asset', accountCode })
-    // Fall back to any active account with this code
-    if (!account) account = await ChartOfAccount.findOne({ isActive: true, accountCode })
-    if (account) return account._id
+    const looksLikeObjectId = /^[a-f\d]{24}$/i.test(accountCode)
+    let account = null
+
+    if (looksLikeObjectId) {
+      account = await ChartOfAccount.findById(accountCode)
+    }
+
+    if (!account) {
+      const matches = await ChartOfAccount.find({ accountCode })
+        .sort({ isActive: -1, createdAt: 1, _id: 1 })
+
+      account =
+        matches.find((row) => row.isActive && row.accountType === 'Asset')
+        || matches.find((row) => row.isActive)
+        || matches.find((row) => row.accountType === 'Asset')
+        || matches[0]
+    }
+
+    if (account) {
+      if (!account.isActive) {
+        account.isActive = true
+        await account.save()
+      }
+      return account._id
+    }
+  }
+
+  if (settlementPreference === 'bank') {
+    const preferredBank = await findPreferredBankAccountByCurrency(settlementCurrency)
+    if (preferredBank) return preferredBank._id
   }
 
   const fallbackAccount = await ensureCashBankAccount(user, tx.currency || 'USD', settlementPreference)
@@ -2784,17 +2862,21 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     }
 
     const scopedIds = await getAccountSummaryScope(req.user)
-    const accountQuery = { accountCode, isActive: true }
+    const accountQuery = { accountCode }
     if (Array.isArray(scopedIds)) {
       accountQuery._id = { $in: scopedIds }
     }
 
-    const account = await ChartOfAccount.findOne(accountQuery)
-    if (!account) {
+    const accountMatches = await ChartOfAccount.find(accountQuery)
+      .sort({ isActive: -1, createdAt: 1, _id: 1 })
+
+    if (!accountMatches.length) {
       return res.status(404).json({ success: false, message: 'Account not found' })
     }
 
-    const relatedAccountIds = [account._id]
+    const account = accountMatches.find((row) => row.isActive) || accountMatches[0]
+
+    const relatedAccountIds = accountMatches.map((row) => row._id)
     if (account.accountCode === '1100') {
       const customerLedgerIds = await Customer.find({ isActive: true, ledgerAccountId: { $ne: null } }).distinct('ledgerAccountId')
       customerLedgerIds.forEach((id) => {
@@ -4245,11 +4327,21 @@ router.post('/vendors', protect, validateBody(vendorCreateSchema), async (req, r
       return res.status(400).json({ success: false, message: 'Vendor code already exists' })
     }
 
+    const payableParent = await ChartOfAccount.findOne({
+      accountType: 'Liability',
+      isActive: true,
+      $or: [
+        { accountCode: '2000' },
+        { accountName: /accounts payable|payable/i },
+      ],
+    }).sort({ accountCode: 1 }).session(session)
+
     const accountCode = await nextVendorAccountCode()
     const creditorAccount = await ChartOfAccount.create([{
       accountName: `${name} (Creditor)`,
       accountCode,
       accountType: 'Liability',
+      parentAccountId: payableParent?._id || null,
       currency: currency || 'USD',
       description: `Auto-created payable account for vendor ${name}`,
       createdBy: req.user._id,

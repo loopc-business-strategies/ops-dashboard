@@ -3146,7 +3146,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                       </div>
                     </>
                   ) : (
-                    <div style={{ border: '1px solid #C9CED6', borderRadius: '0.15rem', overflow: 'hidden', background: '#FFFFFF', fontSize: '0.78rem' }}>
+                    <div style={{ border: '1px solid #C9CED6', borderRadius: '0.15rem', overflow: 'visible', background: '#FFFFFF', fontSize: '0.78rem' }}>
                       {/* Row 1: Type | A/C Code | Curr | Rate */}
                       <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 96px 1.6fr 58px 1fr 60px 1fr', borderBottom: '1px solid #E5E7EB' }}>
                         <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Type</div>
