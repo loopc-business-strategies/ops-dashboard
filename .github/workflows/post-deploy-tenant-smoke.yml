@@ -1,9 +1,11 @@
 name: Post-Deploy Tenant Smoke
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       wait_seconds:
@@ -12,17 +14,25 @@ on:
         default: '180'
 
 concurrency:
-  group: post-deploy-tenant-smoke-${{ github.ref }}
+  group: post-deploy-tenant-smoke-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   smoke-tenants:
     name: Smoke mg/cg/loopc
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       SMOKE_BASE_DOMAIN: ${{ vars.SMOKE_BASE_DOMAIN || 'loopcstrategies.com' }}
       SMOKE_API_BASE: ${{ vars.SMOKE_API_BASE || 'https://api.loopcstrategies.com' }}
+      SMOKE_WAIT_SECONDS: ${{ vars.SMOKE_WAIT_SECONDS || '180' }}
 
     steps:
       - name: Checkout
@@ -35,9 +45,35 @@ jobs:
 
       - name: Wait for Vercel and Railway deployments
         run: |
-          WAIT_SECONDS="${{ github.event.inputs.wait_seconds || '180' }}"
+          WAIT_SECONDS="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.wait_seconds || env.SMOKE_WAIT_SECONDS }}"
           echo "Waiting ${WAIT_SECONDS}s for production deploy propagation..."
           sleep "${WAIT_SECONDS}"
 
       - name: Run tenant smoke checks
         run: npm run smoke:tenants
+
+      - name: Notify Slack on smoke failure
+        if: failure() && secrets.SMOKE_SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SMOKE_SLACK_WEBHOOK_URL }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BRANCH="${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}"
+          SHA="${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}"
+
+          curl -sS -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            --data "{\"text\":\"❌ Tenant smoke checks failed for ${GITHUB_REPOSITORY}\\nBranch: ${BRANCH}\\nSHA: ${SHA}\\nRun: ${RUN_URL}\"}"
+
+      - name: Notify Teams on smoke failure
+        if: failure() && secrets.SMOKE_TEAMS_WEBHOOK_URL != ''
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.SMOKE_TEAMS_WEBHOOK_URL }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BRANCH="${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}"
+          SHA="${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}"
+
+          curl -sS -X POST "$TEAMS_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            --data "{\"@type\":\"MessageCard\",\"@context\":\"http://schema.org/extensions\",\"summary\":\"Tenant smoke checks failed\",\"themeColor\":\"E74C3C\",\"title\":\"Tenant Smoke Failure\",\"text\":\"Repository: ${GITHUB_REPOSITORY}\\n\\nBranch: ${BRANCH}\\n\\nSHA: ${SHA}\\n\\nRun: ${RUN_URL}\"}"
