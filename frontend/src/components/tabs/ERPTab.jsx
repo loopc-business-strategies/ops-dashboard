@@ -5081,16 +5081,39 @@ function ERPTab({ focusTab, onNavigateMain }) {
     const activeLines = []
     let totalDebit = 0
     let totalCredit = 0
+    const isBankJV = jvMode === 'bank_jv'
 
     lines.forEach((line, index) => {
       const debit = Number(line.debit || 0)
       const credit = Number(line.credit || 0)
-      const debitValue = Number.isFinite(debit) && debit > 0 ? debit : 0
-      const creditValue = Number.isFinite(credit) && credit > 0 ? credit : 0
+      const debitRawValue = Number.isFinite(debit) && debit > 0 ? debit : 0
+      const creditRawValue = Number.isFinite(credit) && credit > 0 ? credit : 0
       const accountId = String(line.accountId || '').trim()
       const hasNarration = String(line.description || '').trim().length > 0
-      const hasAmount = debitValue > 0 || creditValue > 0
+      const hasAmount = debitRawValue > 0 || creditRawValue > 0
       const hasTyped = hasAmount || hasNarration || accountId
+
+      let debitValue = debitRawValue
+      let creditValue = creditRawValue
+      if (isBankJV && accountId) {
+        const accountCurrency = inferJvAccountCurrency(accountId)
+        if (debitRawValue > 0) {
+          const normalizedDebit = convertJvAmount(debitRawValue, accountCurrency, baseCurrencyCode)
+          if (!Number.isFinite(normalizedDebit) || normalizedDebit <= 0) {
+            lineIssuesById[line.id] = `Row ${index + 1}: Missing or invalid currency rate for ${accountCurrency}`
+          } else {
+            debitValue = normalizedDebit
+          }
+        }
+        if (creditRawValue > 0) {
+          const normalizedCredit = convertJvAmount(creditRawValue, accountCurrency, baseCurrencyCode)
+          if (!Number.isFinite(normalizedCredit) || normalizedCredit <= 0) {
+            lineIssuesById[line.id] = `Row ${index + 1}: Missing or invalid currency rate for ${accountCurrency}`
+          } else {
+            creditValue = normalizedCredit
+          }
+        }
+      }
 
       if (debitValue > 0 && creditValue > 0) {
         lineIssuesById[line.id] = `Row ${index + 1}: Only one side allowed per row`
