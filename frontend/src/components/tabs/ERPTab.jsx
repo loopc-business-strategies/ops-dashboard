@@ -5121,9 +5121,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
     setJvLines((prev) => {
       const withEdited = prev.map((line) => {
         if (line.id !== id) return line
-        if (field === 'debit') return { ...line, debit: value, credit: '', autoFx: false }
-        if (field === 'credit') return { ...line, credit: value, debit: '', autoFx: false }
-        return { ...line, [field]: value, autoFx: false }
+        if (field === 'debit') return { ...line, debit: value, credit: '', autoFx: false, autoSync: false }
+        if (field === 'credit') return { ...line, credit: value, debit: '', autoFx: false, autoSync: false }
+        return { ...line, [field]: value, autoFx: false, autoSync: false }
       })
 
       if (jvMode !== 'bank_jv' || !['debit', 'credit'].includes(field)) return withEdited
@@ -5145,7 +5145,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
       if (!targetLine) return applyBankJvExchangeBalancing(withEdited)
 
       const existingTargetValue = Number(targetLine[targetField] || 0)
-      if (Number.isFinite(existingTargetValue) && existingTargetValue > 0) {
+      const preserveManualTarget = Number.isFinite(existingTargetValue)
+        && existingTargetValue > 0
+        && !targetLine.autoSync
+      if (preserveManualTarget) {
         return applyBankJvExchangeBalancing(withEdited)
       }
 
@@ -5157,8 +5160,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
       const withSyncedPair = withEdited.map((line) => {
         if (line.id !== targetLine.id) return line
         return targetField === 'debit'
-          ? { ...line, debit: String(convertedAmount), credit: '', autoFx: false }
-          : { ...line, credit: String(convertedAmount), debit: '', autoFx: false }
+          ? { ...line, debit: String(convertedAmount), credit: '', autoFx: false, autoSync: true }
+          : { ...line, credit: String(convertedAmount), debit: '', autoFx: false, autoSync: true }
       })
       return applyBankJvExchangeBalancing(withSyncedPair)
     })
@@ -5172,7 +5175,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       const withResolved = prev.map((line) => (
         line.id !== lineId
           ? line
-          : { ...line, accountId: resolvedId || '', accountInput: resolvedLabel || '', autoFx: false }
+          : { ...line, accountId: resolvedId || '', accountInput: resolvedLabel || '', autoFx: false, autoSync: false }
       ))
       return applyBankJvExchangeBalancing(withResolved)
     })
