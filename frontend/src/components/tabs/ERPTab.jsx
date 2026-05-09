@@ -5030,6 +5030,75 @@ function ERPTab({ focusTab, onNavigateMain }) {
   }
 
   // ─── Multi-line Journal Voucher helpers ──────────────────────────────────────
+  const getJvAccountById = (accountId) => entryAccountOptions.find((item) => String(item?._id) === String(accountId || '')) || null
+  const getJvAccountCode = (accountId) => String(getJvAccountById(accountId)?.accountCode || '').trim().toUpperCase()
+  const isExchangeAccountCode = (code) => ['4190', '5190'].includes(String(code || '').trim().toUpperCase())
+  const isExchangeLine = (line) => isExchangeAccountCode(getJvAccountCode(line?.accountId))
+
+  const applyBankJvExchangeBalancing = (lines) => {
+    if (jvMode !== 'bank_jv') return lines
+
+    const withoutFxAmounts = lines.map((line) => (isExchangeLine(line) ? { ...line, debit: '', credit: '' } : line))
+    const nonFxLines = withoutFxAmounts.filter((line) => String(line.accountId || '').trim() && !isExchangeLine(line))
+    if (nonFxLines.length < 2) return withoutFxAmounts
+
+    let baseDebit = 0
+    let baseCredit = 0
+
+    for (const line of nonFxLines) {
+      const accountCurrency = inferJvAccountCurrency(line.accountId)
+      const debitRaw = Number(line.debit || 0)
+      const creditRaw = Number(line.credit || 0)
+      const debitValue = Number.isFinite(debitRaw) && debitRaw > 0 ? debitRaw : 0
+      const creditValue = Number.isFinite(creditRaw) && creditRaw > 0 ? creditRaw : 0
+
+      if (debitValue > 0) {
+        const normalizedDebit = convertJvAmount(debitValue, accountCurrency, baseCurrencyCode)
+        if (!Number.isFinite(normalizedDebit)) return withoutFxAmounts
+        baseDebit += normalizedDebit
+      }
+      if (creditValue > 0) {
+        const normalizedCredit = convertJvAmount(creditValue, accountCurrency, baseCurrencyCode)
+        if (!Number.isFinite(normalizedCredit)) return withoutFxAmounts
+        baseCredit += normalizedCredit
+      }
+    }
+
+    const difference = Number((baseDebit - baseCredit).toFixed(2))
+    if (Math.abs(difference) < 0.005) return withoutFxAmounts
+
+    const needsDebitFx = difference < 0
+    const targetCode = needsDebitFx ? '5190' : '4190'
+    const targetAccount = entryAccountOptions.find((item) => String(item?.accountCode || '').trim().toUpperCase() === targetCode)
+    if (!targetAccount?._id) return withoutFxAmounts
+
+    const targetLine = withoutFxAmounts.find((line) => getJvAccountCode(line.accountId) === targetCode)
+      || withoutFxAmounts.find((line) => isExchangeLine(line))
+      || withoutFxAmounts.find((line) => {
+        const hasAccount = String(line.accountId || '').trim().length > 0
+        const hasAmount = Number(line.debit || 0) > 0 || Number(line.credit || 0) > 0
+        const hasNarration = String(line.description || '').trim().length > 0
+        return !hasAccount && !hasAmount && !hasNarration
+      })
+
+    if (!targetLine) return withoutFxAmounts
+
+    const targetCurrency = inferJvAccountCurrency(targetAccount._id)
+    const fxAmount = convertJvAmount(Math.abs(difference), baseCurrencyCode, targetCurrency)
+    if (!Number.isFinite(fxAmount) || fxAmount <= 0) return withoutFxAmounts
+
+    return withoutFxAmounts.map((line) => {
+      if (line.id !== targetLine.id) return line
+      return {
+        ...line,
+        accountId: String(targetAccount._id),
+        accountInput: accountLookupText(targetAccount),
+        debit: needsDebitFx ? String(fxAmount) : '',
+        credit: needsDebitFx ? '' : String(fxAmount),
+      }
+    })
+  }
+
   const updateJvLine = (id, field, value) => {
     setJvLines((prev) => {
       const withEdited = prev.map((line) => {
@@ -5042,26 +5111,37 @@ function ERPTab({ focusTab, onNavigateMain }) {
       if (jvMode !== 'bank_jv' || !['debit', 'credit'].includes(field)) return withEdited
 
       const enteredAmount = Number(value || 0)
-      if (!Number.isFinite(enteredAmount) || enteredAmount <= 0) return withEdited
+      if (!Number.isFinite(enteredAmount) || enteredAmount <= 0) return applyBankJvExchangeBalancing(withEdited)
 
       const sourceLine = withEdited.find((line) => line.id === id)
-      if (!sourceLine?.accountId) return withEdited
+      if (!sourceLine?.accountId) return applyBankJvExchangeBalancing(withEdited)
 
       const targetField = field === 'debit' ? 'credit' : 'debit'
-      const targetLine = withEdited.find((line) => line.id !== id && String(line.accountId || '').trim())
-      if (!targetLine) return withEdited
+      const targetLine = withEdited.find((line) => {
+        if (line.id === id) return false
+        if (!String(line.accountId || '').trim()) return false
+        if (isExchangeLine(line)) return false
+        return true
+      })
+      if (!targetLine) return applyBankJvExchangeBalancing(withEdited)
+
+      const existingTargetValue = Number(targetLine[targetField] || 0)
+      if (Number.isFinite(existingTargetValue) && existingTargetValue > 0) {
+        return applyBankJvExchangeBalancing(withEdited)
+      }
 
       const sourceCurrency = inferJvAccountCurrency(sourceLine.accountId)
       const targetCurrency = inferJvAccountCurrency(targetLine.accountId)
       const convertedAmount = convertJvAmount(enteredAmount, sourceCurrency, targetCurrency)
-      if (!Number.isFinite(convertedAmount) || convertedAmount <= 0) return withEdited
+      if (!Number.isFinite(convertedAmount) || convertedAmount <= 0) return applyBankJvExchangeBalancing(withEdited)
 
-      return withEdited.map((line) => {
+      const withSyncedPair = withEdited.map((line) => {
         if (line.id !== targetLine.id) return line
         return targetField === 'debit'
           ? { ...line, debit: String(convertedAmount), credit: '' }
           : { ...line, credit: String(convertedAmount), debit: '' }
       })
+      return applyBankJvExchangeBalancing(withSyncedPair)
     })
   }
 
@@ -5069,11 +5149,14 @@ function ERPTab({ focusTab, onNavigateMain }) {
     const resolvedId = resolveAccountIdFromInput(value, entryAccountOptions)
     const account = resolvedId ? entryAccountOptions.find((a) => String(a._id) === String(resolvedId)) : null
     const resolvedLabel = account ? accountLookupText(account) : label
-    setJvLines((prev) => prev.map((line) => (
-      line.id !== lineId
-        ? line
-        : { ...line, accountId: resolvedId || '', accountInput: resolvedLabel || '' }
-    )))
+    setJvLines((prev) => {
+      const withResolved = prev.map((line) => (
+        line.id !== lineId
+          ? line
+          : { ...line, accountId: resolvedId || '', accountInput: resolvedLabel || '' }
+      ))
+      return applyBankJvExchangeBalancing(withResolved)
+    })
   }
 
   const getJvValidation = (lines) => {
