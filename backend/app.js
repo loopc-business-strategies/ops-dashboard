@@ -38,7 +38,7 @@ const resolveBackendSha = () => String(
 const backendBuildMeta = {
   version: String(backendPackage.version || '0.0.0'),
   sha: resolveBackendSha(),
-  builtAt: String(process.env.BACKEND_BUILD_TIME || process.env.RAILWAY_DEPLOYMENT_TIMESTAMP || ''),
+  builtAt: String(process.env.BACKEND_BUILD_TIME || process.env.RAILWAY_DEPLOYMENT_TIMESTAMP || new Date().toISOString()),
 }
 
 function createApp() {

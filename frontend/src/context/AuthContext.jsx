@@ -28,6 +28,15 @@ export function AuthProvider({ children }) {
   // On app load: restore session from server cookie
   useEffect(() => {
     let mounted = true
+    const currentPath = String(window.location.pathname || '').toLowerCase()
+    const shouldSkipSessionRestore = currentPath === '/login' || currentPath === '/setup'
+
+    if (shouldSkipSessionRestore) {
+      setIsLoading(false)
+      return () => {
+        mounted = false
+      }
+    }
 
     const restoreSession = async () => {
       try {

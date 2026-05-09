@@ -63,6 +63,8 @@ In Railway dashboard, go to **Variables** and add:
 | `AUTH_RATE_LIMIT_MAX` | `25` | `25` login attempts per window |
 | `CORS_ORIGINS` | (set in step 2.3) | See below |
 | `CLIENT_URL` | (set in step 2.3) | See below |
+| `BACKEND_BUILD_TIME` | (recommended: Railway deployment timestamp) | `2026-05-09T12:00:00Z` |
+| `RAILWAY_DEPLOYMENT_TIMESTAMP` | (optional fallback for build badge) | `2026-05-09T12:00:00Z` |
 
 ### 2.3 Set CORS and Frontend Origins
 
@@ -185,6 +187,25 @@ Once all domains are live:
 ---
 
 ## Step 6: Testing Plan
+
+### 6.0 Automated Tenant Smoke Test (recommended after every deploy)
+
+Run this from repo root after Vercel and Railway finish deploying:
+
+```
+npm run smoke:tenants
+```
+
+What it validates:
+- [ ] mg/cg/loopc login portals are reachable
+- [ ] `/api/health` returns success for each tenant header pair
+- [ ] `/api/auth/login` tenant routing works independently for mg/cg/loopc
+
+Optional custom targets:
+
+```
+SMOKE_BASE_DOMAIN=yourdomain.com SMOKE_API_BASE=https://api.yourdomain.com npm run smoke:tenants
+```
 
 ### 6.1 Verify SSL Certificates
 
