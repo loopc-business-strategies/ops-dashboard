@@ -1,0 +1,43 @@
+name: Post-Deploy Tenant Smoke
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      wait_seconds:
+        description: Seconds to wait before running smoke checks (for deploy propagation)
+        required: false
+        default: '180'
+
+concurrency:
+  group: post-deploy-tenant-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-tenants:
+    name: Smoke mg/cg/loopc
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SMOKE_BASE_DOMAIN: ${{ vars.SMOKE_BASE_DOMAIN || 'loopcstrategies.com' }}
+      SMOKE_API_BASE: ${{ vars.SMOKE_API_BASE || 'https://api.loopcstrategies.com' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Wait for Vercel and Railway deployments
+        run: |
+          WAIT_SECONDS="${{ github.event.inputs.wait_seconds || '180' }}"
+          echo "Waiting ${WAIT_SECONDS}s for production deploy propagation..."
+          sleep "${WAIT_SECONDS}"
+
+      - name: Run tenant smoke checks
+        run: npm run smoke:tenants
