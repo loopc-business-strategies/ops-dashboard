@@ -1,8 +1,38 @@
+import { execSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const frontendPackageJson = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf8')
+)
+
+const resolveBuildSha = () => {
+  if (process.env.VITE_BUILD_SHA) return String(process.env.VITE_BUILD_SHA).trim()
+  try {
+    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+  } catch {
+    return 'unknown'
+  }
+}
+
+const resolveBuildTime = () => {
+  if (process.env.VITE_BUILD_TIME) return String(process.env.VITE_BUILD_TIME).trim()
+  return new Date().toISOString()
+}
+
+const appBuildMeta = {
+  version: String(frontendPackageJson.version || '0.0.0'),
+  sha: resolveBuildSha(),
+  builtAt: resolveBuildTime(),
+}
+
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __APP_BUILD_META__: JSON.stringify(appBuildMeta),
+  },
   test: {
     environment: 'jsdom',
     globals: true,
