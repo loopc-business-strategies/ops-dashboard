@@ -2263,7 +2263,66 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }])
     .filter((g) => g.options.length > 0)
 
+  const isBankJvEligibleAccount = (account) => {
+    const code = String(account?.accountCode || '').trim().toUpperCase()
+    const name = String(account?.accountName || '').trim().toUpperCase()
+    const type = String(account?.accountType || '').trim().toUpperCase()
+    if (!code && !name) return false
+    if (code === '1000' || name.includes('CASH ON HAND')) return true
+    if (code === '4190' || name.includes('EXCHANGE GAIN')) return true
+    if (code === '5190' || name.includes('EXCHANGE LOSS')) return true
+    if (type.includes('BANK')) return true
+    if (name.includes('BANK')) return true
+    return /^101\d{0,3}$/.test(code)
+  }
+
+  const bankJvEntryAccountOptions = entryAccountOptions.filter(isBankJvEligibleAccount)
+  const bankJvComboGroups = ACCOUNT_TYPE_ORDER
+    .map((type) => ({
+      label: type,
+      options: bankJvEntryAccountOptions
+        .filter((a) => String(a?.accountType || '').trim() === type)
+        .map((a) => ({ value: String(a._id), label: `${a.accountCode || ''} - ${a.accountName || ''}` })),
+    }))
+    .concat([{
+      label: 'Other',
+      options: bankJvEntryAccountOptions
+        .filter((a) => !ACCOUNT_TYPE_ORDER.includes(String(a?.accountType || '').trim()))
+        .map((a) => ({ value: String(a._id), label: `${a.accountCode || ''} - ${a.accountName || ''}` })),
+    }])
+    .filter((g) => g.options.length > 0)
+
   const baseCurrencyCode = String(currencies.find((currency) => currency.baseCurrency)?.code || 'USD').toUpperCase()
+
+  const inferJvAccountCurrency = (accountId) => {
+    const account = entryAccountOptions.find((item) => String(item?._id) === String(accountId || ''))
+    if (!account) return baseCurrencyCode
+
+    const explicitCurrency = String(account.currency || account.currencyCode || '').trim().toUpperCase()
+    if (explicitCurrency) return explicitCurrency
+
+    const hint = `${String(account.accountCode || '').toUpperCase()} ${String(account.accountName || '').toUpperCase()}`
+    if (hint.includes('USD')) return 'USD'
+    if (hint.includes('UZS') || hint.includes('SOMS') || hint.includes('SOM')) return 'UZS'
+    return baseCurrencyCode
+  }
+
+  const convertJvAmount = (amount, fromCurrency, toCurrency) => {
+    const value = Number(amount || 0)
+    if (!Number.isFinite(value)) return null
+    const from = String(fromCurrency || baseCurrencyCode).toUpperCase()
+    const to = String(toCurrency || baseCurrencyCode).toUpperCase()
+    if (from === to) return value
+
+    const fromRate = Number(currencies.find((currency) => String(currency.code || '').toUpperCase() === from)?.exchangeRate || 0)
+    const toRate = Number(currencies.find((currency) => String(currency.code || '').toUpperCase() === to)?.exchangeRate || 0)
+
+    const valueInBase = from === baseCurrencyCode ? value : (fromRate > 0 ? value * fromRate : NaN)
+    if (!Number.isFinite(valueInBase)) return null
+    const converted = to === baseCurrencyCode ? valueInBase : (toRate > 0 ? valueInBase / toRate : NaN)
+    if (!Number.isFinite(converted)) return null
+    return Number(converted.toFixed(2))
+  }
 
   useEffect(() => {
     setLedgerForm((prev) => (prev.currency === baseCurrencyCode ? prev : { ...prev, currency: baseCurrencyCode }))
@@ -4972,7 +5031,38 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   // ─── Multi-line Journal Voucher helpers ──────────────────────────────────────
   const updateJvLine = (id, field, value) => {
-    setJvLines((prev) => prev.map((line) => line.id !== id ? line : { ...line, [field]: value }))
+    setJvLines((prev) => {
+      const withEdited = prev.map((line) => {
+        if (line.id !== id) return line
+        if (field === 'debit') return { ...line, debit: value, credit: '' }
+        if (field === 'credit') return { ...line, credit: value, debit: '' }
+        return { ...line, [field]: value }
+      })
+
+      if (jvMode !== 'bank_jv' || !['debit', 'credit'].includes(field)) return withEdited
+
+      const enteredAmount = Number(value || 0)
+      if (!Number.isFinite(enteredAmount) || enteredAmount <= 0) return withEdited
+
+      const sourceLine = withEdited.find((line) => line.id === id)
+      if (!sourceLine?.accountId) return withEdited
+
+      const targetField = field === 'debit' ? 'credit' : 'debit'
+      const targetLine = withEdited.find((line) => line.id !== id && String(line.accountId || '').trim())
+      if (!targetLine) return withEdited
+
+      const sourceCurrency = inferJvAccountCurrency(sourceLine.accountId)
+      const targetCurrency = inferJvAccountCurrency(targetLine.accountId)
+      const convertedAmount = convertJvAmount(enteredAmount, sourceCurrency, targetCurrency)
+      if (!Number.isFinite(convertedAmount) || convertedAmount <= 0) return withEdited
+
+      return withEdited.map((line) => {
+        if (line.id !== targetLine.id) return line
+        return targetField === 'debit'
+          ? { ...line, debit: String(convertedAmount), credit: '' }
+          : { ...line, credit: String(convertedAmount), debit: '' }
+      })
+    })
   }
 
   const resolveJvLineAccount = (lineId, value, label = '') => {
@@ -6652,7 +6742,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                             <td style={{ padding: '0.3rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem', userSelect: 'none' }}>{idx + 1}</td>
                             <td style={{ padding: '0.25rem 0.4rem', position: 'relative', zIndex: 20 }}>
                               <AccountCombobox
-                                groups={jvComboGroups}
+                                groups={jvMode === 'bank_jv' ? bankJvComboGroups : jvComboGroups}
                                 value={line.accountId || ''}
                                 onChange={(val, lbl) => resolveJvLineAccount(line.id, val, lbl)}
                                 onKeyDown={(e) => handleJvAccountKeyDown(e, idx)}
