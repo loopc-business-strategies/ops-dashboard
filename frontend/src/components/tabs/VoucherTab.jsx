@@ -56,7 +56,7 @@ const sectionBox = {
   border: `1px solid ${S.border}`,
   borderRadius: '0.5rem',
   marginBottom: '1rem',
-  overflow: 'hidden',
+  overflow: 'visible',
 }
 
 const sectionHeader = {
@@ -119,7 +119,7 @@ const classicPanel = {
   borderRadius: '0.25rem',
   background: '#FFFFFF',
   boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.88)',
-  overflow: 'hidden',
+  overflow: 'visible',
   alignSelf: 'start',
   height: 'fit-content',
 }
