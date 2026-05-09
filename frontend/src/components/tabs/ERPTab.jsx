@@ -1174,16 +1174,28 @@ function ERPTab({ focusTab, onNavigateMain }) {
   // ─── Multi-line Journal Voucher state ─────────────────────────────────────
   const emptyJvLine = (id) => ({ id, accountId: '', accountInput: '', description: '', debit: '', credit: '' })
   const buildJvDocNo = () => {
+    const year = new Date().getFullYear()
     const maxExisting = ledger.reduce((max, entry) => {
       if (String(entry?.referenceType || '').toLowerCase() !== 'journal') return max
-      const head = String(entry?.description || '').split(' — ')[0].trim().toUpperCase()
-      const match = head.match(/^JV-(\d+)$/)
-      if (!match) return max
-      const n = Number(match[1])
-      return Number.isFinite(n) && n > max ? n : max
+      const head = String(entry?.description || '').split(' — ')[0].trim()
+
+      const formattedMatch = head.match(/^JV\/(\d{4})\/(\d+)$/i)
+      if (formattedMatch) {
+        const y = Number(formattedMatch[1])
+        const n = Number(formattedMatch[2])
+        if (y === year && Number.isFinite(n) && n > max) return n
+      }
+
+      const legacyMatch = head.match(/^JV-(\d+)$/i)
+      if (legacyMatch) {
+        const n = Number(legacyMatch[1])
+        if (Number.isFinite(n) && n > max) return n
+      }
+
+      return max
     }, 0)
     const next = maxExisting + 1
-    return `JV-${String(next).padStart(2, '0')}`
+    return `Jv/${year}/${String(next).padStart(4, '0')}`
   }
   const createJvHeader = (currencyCode = 'USD') => ({
     docNo: buildJvDocNo(),

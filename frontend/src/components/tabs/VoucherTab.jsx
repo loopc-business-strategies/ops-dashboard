@@ -409,6 +409,50 @@ const emptyHeader = () => ({
   fixingType: 'fixing',
 })
 
+const DOC_PREFIX_BY_TYPE = {
+  payment: 'Pay',
+  receipt: 'Rec',
+  purchase: 'Pur',
+  sale: 'Sal',
+}
+
+const getDocYear = (dateValue) => {
+  const dt = new Date(dateValue || Date.now())
+  const year = Number.isFinite(dt.getTime()) ? dt.getFullYear() : new Date().getFullYear()
+  return String(year)
+}
+
+const parseVoucherDocMeta = (docNo, voucherType) => {
+  const raw = String(docNo || '').trim()
+  if (!raw) return null
+
+  const numericOnly = raw.match(/^(\d+)$/)
+  if (numericOnly) {
+    const seq = Number(numericOnly[1])
+    if (Number.isFinite(seq) && seq > 0) {
+      return { year: 0, seq, sortKey: seq }
+    }
+  }
+
+  const prefix = DOC_PREFIX_BY_TYPE[String(voucherType || '').toLowerCase()] || ''
+  if (!prefix) return null
+
+  const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const formatted = raw.match(new RegExp(`^${escapedPrefix}/(\\d{4})/(\\d+)$`, 'i'))
+  if (!formatted) return null
+
+  const year = Number(formatted[1])
+  const seq = Number(formatted[2])
+  if (!Number.isFinite(year) || !Number.isFinite(seq) || seq <= 0) return null
+  return { year, seq, sortKey: year * 100000 + seq }
+}
+
+const buildVoucherDocNo = (voucherType, docDate, sequence) => {
+  const prefix = DOC_PREFIX_BY_TYPE[String(voucherType || '').toLowerCase()] || 'Doc'
+  const year = getDocYear(docDate)
+  return `${prefix}/${year}/${String(sequence).padStart(4, '0')}`
+}
+
 const normalizeLookupValue = (value) => String(value || '').trim().toLowerCase()
 const normalizeLineType = (value) => (value === 'Transfer' ? 'TT' : (value || 'Cash'))
 const FIXED_AED_RATE = 3.674
@@ -668,10 +712,10 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const setHdr = (key, value) => setHeader((prev) => ({ ...prev, [key]: value }))
 
   const voucherConfigs = {
-    payment: { key: 'payment', label: 'Payment Voucher', short: t('paymentVoucher'), code: 'PAY', icon: '💳', partySelectLabel: 'Vendor', partyPlaceholder: 'Auto from vendor' },
-    receipt: { key: 'receipt', label: 'Receipt Voucher', short: t('receiptVoucher'), code: 'REC', icon: '🧾', partySelectLabel: 'Customer', partyPlaceholder: 'Auto from customer' },
-    purchase: { key: 'purchase', label: 'Metal Purchase Voucher', short: 'Metal Purchase', code: 'PUR', icon: '🟫', partySelectLabel: 'Vendor', partyPlaceholder: 'Auto from vendor' },
-    sale: { key: 'sale', label: 'Metal Sale Voucher', short: 'Metal Sale', code: 'SAL', icon: '🟨', partySelectLabel: 'Customer', partyPlaceholder: 'Auto from customer' },
+    payment: { key: 'payment', label: 'Payment Voucher', short: t('paymentVoucher'), code: 'PAY', docPrefix: 'Pay', icon: '💳', partySelectLabel: 'Vendor', partyPlaceholder: 'Auto from vendor' },
+    receipt: { key: 'receipt', label: 'Receipt Voucher', short: t('receiptVoucher'), code: 'REC', docPrefix: 'Rec', icon: '🧾', partySelectLabel: 'Customer', partyPlaceholder: 'Auto from customer' },
+    purchase: { key: 'purchase', label: 'Metal Purchase Voucher', short: 'Metal Purchase', code: 'PUR', docPrefix: 'Pur', icon: '🟫', partySelectLabel: 'Vendor', partyPlaceholder: 'Auto from vendor' },
+    sale: { key: 'sale', label: 'Metal Sale Voucher', short: 'Metal Sale', code: 'SAL', docPrefix: 'Sal', icon: '🟨', partySelectLabel: 'Customer', partyPlaceholder: 'Auto from customer' },
   }
 
   const voucherPartyMode = voucherType === 'receipt' || voucherType === 'sale'
@@ -1144,6 +1188,18 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         ? canCreatePurchase
         : canCreateSale
 
+  const sortVouchersByDocNo = useCallback((items, type) => {
+    const src = Array.isArray(items) ? [...items] : []
+    return src.sort((a, b) => {
+      const am = parseVoucherDocMeta(a?.voucherMeta?.vocNo, type)
+      const bm = parseVoucherDocMeta(b?.voucherMeta?.vocNo, type)
+      const ak = am?.sortKey ?? 0
+      const bk = bm?.sortKey ?? 0
+      if (ak !== bk) return ak - bk
+      return new Date(a?.date || 0).getTime() - new Date(b?.date || 0).getTime()
+    })
+  }, [])
+
   // ─── load vouchers ───────────────────────────────────────────────────────────
   const loadVouchers = useCallback(async () => {
     if (!canView) return
@@ -1153,15 +1209,17 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         ...cfg(),
         params: { type: voucherType, limit: 200 },
       })
-      const txs = (res.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo)
-        .sort((a, b) => (parseInt(a.voucherMeta?.vocNo) || 0) - (parseInt(b.voucherMeta?.vocNo) || 0))
+      const txs = sortVouchersByDocNo(
+        (res.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
+        voucherType
+      )
       setVouchers(txs)
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load vouchers')
     } finally {
       setLoadingList(false)
     }
-  }, [voucherType, canView])
+  }, [voucherType, canView, sortVouchersByDocNo])
 
   useEffect(() => { loadVouchers() }, [loadVouchers])
 
@@ -1196,8 +1254,15 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   // ─── next voucher number ─────────────────────────────────────────────────────
   const nextVocNo = (list) => {
     const src = Array.isArray(list) ? list : vouchers
-    const nos = src.map(v => parseInt(v.voucherMeta?.vocNo) || 0).filter(n => n > 0)
-    return nos.length ? String(Math.max(...nos) + 1) : '1'
+    const currentYear = Number(getDocYear(header.docDate))
+    const nos = src
+      .map((v) => parseVoucherDocMeta(v?.voucherMeta?.vocNo, voucherType))
+      .filter(Boolean)
+      .filter((meta) => meta.year === 0 || meta.year === currentYear)
+      .map((meta) => meta.seq)
+      .filter((n) => Number.isFinite(n) && n > 0)
+    const next = nos.length ? Math.max(...nos) + 1 : 1
+    return buildVoucherDocNo(voucherType, header.docDate, next)
   }
 
   // ─── open create ────────────────────────────────────────────────────────────
@@ -1234,8 +1299,10 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         ...cfg(),
         params: { type, limit: 200 },
       })
-      const txs = (res.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo)
-        .sort((a, b) => (parseInt(a.voucherMeta?.vocNo) || 0) - (parseInt(b.voucherMeta?.vocNo) || 0))
+      const txs = sortVouchersByDocNo(
+        (res.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
+        type
+      )
       setVouchers(txs)
       if (txs.length > 0) {
         // open the last (highest vocNo) voucher
@@ -1461,9 +1528,10 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         ...cfg(),
         params: { type: voucherType, limit: 200 },
       })
-      const remaining = (res.data.transactions || [])
-        .filter(t => t.voucherMeta && t.voucherMeta.vocNo)
-        .sort((a, b) => (parseInt(a.voucherMeta?.vocNo) || 0) - (parseInt(b.voucherMeta?.vocNo) || 0))
+      const remaining = sortVouchersByDocNo(
+        (res.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
+        voucherType
+      )
       setVouchers(remaining)
       if (remaining.length === 0) {
         // No vouchers left — open a blank new form
@@ -1816,9 +1884,10 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         ...cfg(),
         params: { type: voucherType, limit: 200 },
       })
-      const refreshed = (res2.data.transactions || [])
-        .filter(t => t.voucherMeta && t.voucherMeta.vocNo)
-        .sort((a, b) => (parseInt(a.voucherMeta?.vocNo) || 0) - (parseInt(b.voucherMeta?.vocNo) || 0))
+      const refreshed = sortVouchersByDocNo(
+        (res2.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
+        voucherType
+      )
       setVouchers(refreshed)
       // Open the voucher that was just saved/updated
       const toOpen = savedId
@@ -2313,7 +2382,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                 <thead>
                   <tr style={{ background: S.headerBg }}>
-                    {['Voc No', 'Doc Date', 'Value Date', 'Party Code', 'Party Name', ...((voucherType === 'purchase' || voucherType === 'sale') ? ['Fixing'] : []), 'Currency', 'Grand Total', 'Status', 'Actions'].map(h => (
+                    {['Doc No', 'Doc Date', 'Value Date', 'Party Code', 'Party Name', ...((voucherType === 'purchase' || voucherType === 'sale') ? ['Fixing'] : []), 'Currency', 'Grand Total', 'Status', 'Actions'].map(h => (
                       <th key={h} style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: '700', color: S.ink, borderBottom: `2px solid ${S.border}`, whiteSpace: 'nowrap' }}>
                         {h}
                       </th>
@@ -2728,7 +2797,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
                     <div style={{ ...classicPanel, flex: '0 1 430px', minWidth: '300px' }}>
                       <div style={classicRightGrid}>
-                        <label style={classicLabel}>Voc No :</label>
+                        <label style={classicLabel}>Doc No :</label>
                         <input
                           style={formReadOnly ? classicReadInput : classicInput}
                           value={header.vocNo}
@@ -2828,7 +2897,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                         <thead>
                           <tr style={{ background: S.headerBg }}>
-                            {['Voc No', 'Date', 'Type', 'Amount', 'Status'].map((headerCell) => (
+                            {['Doc No', 'Date', 'Type', 'Amount', 'Status'].map((headerCell) => (
                               <th key={headerCell} style={{ padding: '0.38rem 0.5rem', textAlign: headerCell === 'Amount' ? 'right' : 'left', borderBottom: `1px solid ${S.border}`, color: S.ink }}>{headerCell}</th>
                             ))}
                           </tr>
