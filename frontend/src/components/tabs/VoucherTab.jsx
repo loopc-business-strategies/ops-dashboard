@@ -1540,7 +1540,23 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     setSaving(true)
     clearError()
     try {
-      await axios.post(`${BASE}/transactions/${editingId}/${action}`, { comment: workflowNote }, cfg())
+      const requestAction = async (confirmVendorAdvance = false) => axios.post(
+        `${BASE}/transactions/${editingId}/${action}`,
+        { comment: workflowNote, ...(confirmVendorAdvance ? { confirmVendorAdvance: true } : {}) },
+        cfg()
+      )
+
+      try {
+        await requestAction(false)
+      } catch (e) {
+        const needsAdvanceConfirmation = action === 'post'
+          && e?.response?.status === 409
+          && e?.response?.data?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED'
+
+        if (!needsAdvanceConfirmation) throw e
+        if (!window.confirm(e.response?.data?.message || 'This payment will create a vendor advance. Continue?')) return
+        await requestAction(true)
+      }
       await loadVouchers()
       setWorkflowNote('')
       const actionLabel = action === 'submit'
@@ -1578,7 +1594,23 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     setSaving(true)
     clearError()
     try {
-      await axios.post(`${BASE}/transactions/${voucher._id}/${action}`, { comment }, cfg())
+      const requestAction = async (confirmVendorAdvance = false) => axios.post(
+        `${BASE}/transactions/${voucher._id}/${action}`,
+        { comment, ...(confirmVendorAdvance ? { confirmVendorAdvance: true } : {}) },
+        cfg()
+      )
+
+      try {
+        await requestAction(false)
+      } catch (e) {
+        const needsAdvanceConfirmation = action === 'post'
+          && e?.response?.status === 409
+          && e?.response?.data?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED'
+
+        if (!needsAdvanceConfirmation) throw e
+        if (!window.confirm(e.response?.data?.message || 'This payment will create a vendor advance. Continue?')) return
+        await requestAction(true)
+      }
       await loadVouchers()
       const actionLabel = action === 'submit'
         ? 'submitted'

@@ -2195,6 +2195,21 @@ function ERPTab({ focusTab, onNavigateMain }) {
     return [code, name, type].filter(Boolean).join(' - ')
   }
 
+  const resolveAccountEnquiryCodeInput = (input) => {
+    const cleanInput = String(input || '').trim()
+    if (!cleanInput) return ''
+
+    const exactAccount = summaryAccounts.find((account) => String(account?.accountCode || '').trim().toLowerCase() === cleanInput.toLowerCase())
+    if (exactAccount?.accountCode) return String(exactAccount.accountCode).trim()
+
+    const matchedLabel = summaryAccounts.find((account) => formatSummaryAccountLabel(account).toLowerCase() === cleanInput.toLowerCase())
+    if (matchedLabel?.accountCode) return String(matchedLabel.accountCode).trim()
+
+    const labelPrefixMatch = cleanInput.match(/^([^\s-][^-]*?)(?:\s*-\s*.*)?$/)
+    const candidateCode = String(labelPrefixMatch?.[1] || cleanInput).trim()
+    return candidateCode
+  }
+
   const groupedSummaryAccounts = summaryAccounts
     .slice()
     .sort((a, b) => {
@@ -3459,7 +3474,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   }
 
   const fetchAccountEnquiryByCode = async (accountCode, options = {}) => {
-    const cleanCode = String(accountCode || '').trim()
+    const cleanCode = resolveAccountEnquiryCodeInput(accountCode)
     const shouldOpenModal = Boolean(options.openModal)
     if (!cleanCode) {
       setError('Please enter account number')
@@ -9619,25 +9634,24 @@ function ERPTab({ focusTab, onNavigateMain }) {
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1.2rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   <label style={{ fontSize: '0.95rem', color: '#374151', fontWeight: '600' }}>Account Number</label>
-                  <select
+                  <input
+                    list="account-enquiry-options"
                     value={accountEnquiryCode}
                     onChange={(e) => {
                       setAccountEnquiryCode(e.target.value)
                       setEnquiryStatus({ type: '', message: '' })
                     }}
+                    placeholder="Type account code or pick from dropdown"
+                    autoComplete="off"
                     style={{ border: '1px solid #CBD5E0', padding: '0.6rem 0.8rem', fontSize: '0.95rem', width: '340px', borderRadius: '0.5rem', background: '#FFFFFF' }}
-                  >
-                    <option value="">Select account</option>
-                    {groupedSummaryAccounts.map((group) => (
-                      <optgroup key={group.type} label={group.type}>
-                        {group.accounts.map((account) => (
-                          <option key={account._id} value={account.accountCode}>
-                            {account.accountCode} - {account.accountName}
-                          </option>
-                        ))}
-                      </optgroup>
+                  />
+                  <datalist id="account-enquiry-options">
+                    {summaryAccounts.map((account) => (
+                      <option key={account._id} value={formatSummaryAccountLabel(account)}>
+                        {formatSummaryAccountLabel(account)}
+                      </option>
                     ))}
-                  </select>
+                  </datalist>
                   <button
                     onClick={() => fetchAccountEnquiryByCode(accountEnquiryCode)}
                     disabled={enquiryLoading}

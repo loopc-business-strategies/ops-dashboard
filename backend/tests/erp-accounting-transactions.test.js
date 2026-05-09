@@ -18,6 +18,7 @@ const Currency = require('../models/Currency')
 const { runWithTenantConnection } = require('../db/tenantModelProxy')
 const { registerAllOnConnection } = require('../db/tenantModelRegistry')
 const { connectTenant } = require('../db/tenantConnections')
+const { applyPartyAccountPriority } = require('../utils/transactionPartyAccounts')
 
 jest.setTimeout(120000)
 
@@ -582,6 +583,180 @@ describe('ERP accounting transactions workflow', () => {
     expect(String(paymentTx.debitAccountId)).toBe(String(paymentPartyAccount._id))
     expect(String(saleTx.debitAccountId)).toBe(String(salePartyAccount._id))
     expect(String(purchaseTx.creditAccountId)).toBe(String(purchasePartyAccount._id))
+  })
+
+  test('applies party account priority through the posted voucher path for receipt and payment vouchers', async () => {
+    const financeUser = await createUser({ name: 'Party Priority Tester' })
+
+    await Currency.create({
+      code: 'USD',
+      name: 'US Dollar',
+      symbol: '$',
+      exchangeRate: 1,
+      baseCurrency: true,
+      isActive: true,
+    })
+
+    const receiptPartyAccount = await ChartOfAccount.create({
+      accountName: 'Priority Receipt Party',
+      accountCode: '1128',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const paymentPartyAccount = await ChartOfAccount.create({
+      accountName: 'Priority Payment Party',
+      accountCode: '2128',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+    const bankAccount = await ChartOfAccount.create({
+      accountName: 'Priority Bank',
+      accountCode: '1008',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+
+    const postVoucher = async (type, partyAccount) => {
+      const createRes = await request(app)
+        .post('/api/erp-accounting/transactions')
+        .set(authHeader(financeUser))
+        .send({
+          type,
+          amount: 125,
+          description: `${type} party priority test`,
+          currency: 'USD',
+          voucherMeta: {
+            partyCode: partyAccount.accountCode,
+            partyName: partyAccount.accountName,
+            partyAccountId: partyAccount._id.toString(),
+            lineItems: [{ type: 'cash' }],
+          },
+        })
+
+      expect(createRes.status).toBe(201)
+
+      const txId = createRes.body.transaction._id
+      await request(app)
+        .post(`/api/erp-accounting/transactions/${txId}/submit`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Submit party priority voucher' })
+      await request(app)
+        .post(`/api/erp-accounting/transactions/${txId}/approve`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Approve party priority voucher' })
+      const postRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${txId}/post`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Post party priority voucher' })
+
+      expect(postRes.status).toBe(200)
+      return Transaction.findById(txId)
+    }
+
+    const receiptTx = await postVoucher('receipt', receiptPartyAccount)
+    const paymentTx = await postVoucher('payment', paymentPartyAccount)
+
+    expect(applyPartyAccountPriority({
+      transactionType: 'receipt',
+      debitAccountId: bankAccount._id.toString(),
+      creditAccountId: null,
+      directPartyAccountId: receiptPartyAccount._id.toString(),
+    })).toEqual({
+      debitAccountId: bankAccount._id.toString(),
+      creditAccountId: receiptPartyAccount._id.toString(),
+    })
+
+    expect(applyPartyAccountPriority({
+      transactionType: 'payment',
+      debitAccountId: null,
+      creditAccountId: bankAccount._id.toString(),
+      directPartyAccountId: paymentPartyAccount._id.toString(),
+    })).toEqual({
+      debitAccountId: paymentPartyAccount._id.toString(),
+      creditAccountId: bankAccount._id.toString(),
+    })
+
+    expect(String(receiptTx.creditAccountId)).toBe(String(receiptPartyAccount._id))
+    expect(String(paymentTx.debitAccountId)).toBe(String(paymentPartyAccount._id))
+  })
+
+  test('requires confirmation before posting a payment voucher that would create a vendor advance', async () => {
+    const financeUser = await createUser({ name: 'Vendor Advance Warning Tester' })
+
+    await Currency.create({
+      code: 'USD',
+      name: 'US Dollar',
+      symbol: '$',
+      exchangeRate: 1,
+      baseCurrency: true,
+      isActive: true,
+    })
+
+    const vendorPayableAccount = await ChartOfAccount.create({
+      accountName: 'Advance Warning Vendor',
+      accountCode: '2408',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+
+    const vendor = await Vendor.create({
+      name: 'Advance Warning Vendor',
+      vendorCode: 'VEN-2408',
+      ledgerAccountId: vendorPayableAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'payment',
+        amount: 300,
+        description: 'Payment that creates vendor advance',
+        currency: 'USD',
+        vendorId: vendor._id.toString(),
+        voucherMeta: {
+          partyCode: vendorPayableAccount.accountCode,
+          partyName: vendorPayableAccount.accountName,
+          partyAccountId: vendorPayableAccount._id.toString(),
+          lineItems: [{ type: 'cash' }],
+        },
+      })
+
+    expect(createRes.status).toBe(201)
+    const txId = createRes.body.transaction._id
+
+    await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/submit`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Submit advance warning voucher' })
+
+    await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/approve`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Approve advance warning voucher' })
+
+    const warningRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/post`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Post advance warning voucher' })
+
+    expect(warningRes.status).toBe(409)
+    expect(warningRes.body.code).toBe('VENDOR_ADVANCE_CONFIRMATION_REQUIRED')
+    expect(String(warningRes.body.message || '')).toMatch(/vendor advance/i)
+    expect(Number(warningRes.body.details?.paymentAmount || 0)).toBeCloseTo(300, 2)
+
+    const confirmRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/post`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Confirm vendor advance', confirmVendorAdvance: true })
+
+    expect(confirmRes.status).toBe(200)
+
+    const postedTx = await Transaction.findById(txId)
+    expect(postedTx.status).toBe('posted')
+    expect(String(postedTx.debitAccountId)).toBe(String(vendorPayableAccount._id))
   })
 
   test('auto-posts VAT split journals for sale and purchase vouchers from voucher line VAT amounts', async () => {

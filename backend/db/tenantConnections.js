@@ -1,5 +1,5 @@
 const mongoose = require('mongoose')
-const { getTenantUri, getLegacyMongoUri, normalizeTenant } = require('../config/tenants')
+const { getTenantUri, normalizeTenant } = require('../config/tenants')
 
 const tenantConnectionPromises = new Map()
 
@@ -7,8 +7,6 @@ function envBool(value, defaultValue = false) {
   if (value === undefined || value === null || value === '') return defaultValue
   return String(value).trim().toLowerCase() === 'true'
 }
-
-const ALLOW_TENANT_LEGACY_FALLBACK = envBool(process.env.ALLOW_TENANT_LEGACY_FALLBACK, false)
 
 async function connectTenant(tenant) {
   const normalized = normalizeTenant(tenant)
@@ -36,27 +34,10 @@ async function connectTenant(tenant) {
           .createConnection(uri, mongoOptions)
           .asPromise()
       } catch (err) {
-        if (!ALLOW_TENANT_LEGACY_FALLBACK) {
-          throw new Error(
-            `Tenant DB connection failed for "${normalized}" and legacy fallback is disabled. ` +
-            `Set ALLOW_TENANT_LEGACY_FALLBACK=true only as an emergency temporary override. ` +
-            `Original error: ${err.message}`
-          )
-        }
-
-        const legacyUri = getLegacyMongoUri()
-        const shouldRetryWithLegacy =
-          legacyUri &&
-          legacyUri !== uri &&
-          (String(err?.message || '').includes('querySrv') || String(err?.code || '').includes('ECONNREFUSED'))
-
-        if (!shouldRetryWithLegacy) {
-          throw err
-        }
-
-        return mongoose
-          .createConnection(legacyUri, mongoOptions)
-          .asPromise()
+        throw new Error(
+          `Tenant DB connection failed for "${normalized}". ` +
+          `Original error: ${err.message}`
+        )
       }
     })().catch((err) => {
       tenantConnectionPromises.delete(normalized)

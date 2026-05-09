@@ -18,6 +18,7 @@ const Transaction = require('../models/Transaction')
 const DirectDeal = require('../models/DirectDeal')
 const Employee = require('../models/Employee')
 const Customer = require('../models/Customer')
+const { applyPartyAccountPriority } = require('../utils/transactionPartyAccounts')
 
 const router = express.Router()
 
@@ -1281,6 +1282,14 @@ const getTransactionWorkflowErrorStatus = (message) => {
 }
 
 const respondWorkflowError = (res, err) => {
+  if (err?.status) {
+    return res.status(err.status).json({
+      success: false,
+      message: err.message || 'Server error',
+      ...(err.code ? { code: err.code } : {}),
+      ...(err.details ? { details: err.details } : {}),
+    })
+  }
   const message = err?.message || 'Server error'
   const status = getTransactionWorkflowErrorStatus(message)
   if (status === 500) {
@@ -1288,6 +1297,57 @@ const respondWorkflowError = (res, err) => {
     return res.status(500).json({ success: false, message: 'Server error' })
   }
   return res.status(status).json({ success: false, message })
+}
+
+const buildVendorAdvanceConfirmationError = ({ account, outstandingBefore, paymentAmount, projectedBalance, currencyCode }) => {
+  const payableOutstanding = Math.max(0, Number(-outstandingBefore || 0))
+  const paymentShortfall = Math.max(0, Number(paymentAmount || 0) - payableOutstanding)
+  const advanceAmount = Math.max(0, Number(projectedBalance || 0))
+  const err = new Error(
+    payableOutstanding > 0
+      ? `Current outstanding payable for ${account.accountCode} - ${account.accountName} is ${toMoney(payableOutstanding).toLocaleString()} ${currencyCode}. This payment is ${toMoney(paymentAmount).toLocaleString()} ${currencyCode}, so the shortfall of ${toMoney(paymentShortfall).toLocaleString()} ${currencyCode} will be posted as a vendor advance. Result after posting: ${toMoney(advanceAmount).toLocaleString()} ${currencyCode} Dr. Continue?`
+      : `No outstanding payable was found for ${account.accountCode} - ${account.accountName}. This full payment of ${toMoney(paymentAmount).toLocaleString()} ${currencyCode} will be posted as a vendor advance. Result after posting: ${toMoney(advanceAmount).toLocaleString()} ${currencyCode} Dr. Continue?`
+  )
+  err.status = 409
+  err.code = 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED'
+  err.details = {
+    accountCode: account.accountCode,
+    accountName: account.accountName,
+    outstandingBefore: toMoney(outstandingBefore),
+    paymentAmount: toMoney(paymentAmount),
+    projectedBalance: toMoney(projectedBalance),
+    payableOutstanding: toMoney(payableOutstanding),
+    paymentShortfall: toMoney(paymentShortfall),
+    advanceAmount: toMoney(advanceAmount),
+  }
+  return err
+}
+
+const ensurePaymentAdvanceConfirmed = async ({ tx, resolvedAccounts, confirmed }) => {
+  if (confirmed || String(tx?.type || '').toLowerCase() !== 'payment' || !resolvedAccounts?.debitAccountId) return
+
+  const debitAccount = await ChartOfAccount.findById(resolvedAccounts.debitAccountId)
+    .select('accountCode accountName accountType isActive')
+    .lean()
+
+  if (!debitAccount || String(debitAccount.accountType || '').toLowerCase() !== 'liability') return
+
+  const txCurrency = await Currency.findOne({ code: String(tx.currency || 'USD').toUpperCase(), isActive: true }).select('exchangeRate').lean()
+  const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
+  const exchangeRate = normalizeExchangeRateValue(tx.exchangeRate ?? txCurrency?.exchangeRate ?? 1)
+  const paymentAmount = normalizeMoneyValue(tx.amount, 'amount') * exchangeRate
+  const outstandingBefore = Number(await getOutstandingForAccount(resolvedAccounts.debitAccountId) || 0)
+  const projectedBalance = outstandingBefore + paymentAmount
+
+  if (projectedBalance > 0) {
+    throw buildVendorAdvanceConfirmationError({
+      account: debitAccount,
+      outstandingBefore,
+      paymentAmount,
+      projectedBalance,
+      currencyCode: String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase(),
+    })
+  }
 }
 
 const transactionUploadDir = path.resolve(process.env.TRANSACTION_UPLOAD_DIR || path.join(__dirname, '../uploads/transactions'))
@@ -1523,6 +1583,11 @@ const applyTransactionWorkflowAction = async (tx, user, action, options = {}) =>
 
     // ALWAYS resolve accounts - both UNFIXED and FIXED need them for reference
     const resolved = await resolveTransactionAccounts({ user, tx, mappingOverride: options.mappingOverride || {}, preparedVoucherImpact })
+    await ensurePaymentAdvanceConfirmed({
+      tx,
+      resolvedAccounts: resolved,
+      confirmed: Boolean(options?.mappingOverride?.confirmVendorAdvance),
+    })
     tx.debitAccountId = resolved.debitAccountId
     tx.creditAccountId = resolved.creditAccountId
 
@@ -2258,12 +2323,12 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
       }
     }
 
-    if (directPartyAccount?._id) {
-      if (transactionType === 'sale') debitAccountId = debitAccountId || directPartyAccount._id
-      // For receipt vouchers, the selected party account must be credited
-      // even when a default mapping exists.
-      if (transactionType === 'receipt') creditAccountId = directPartyAccount._id
-    }
+    ;({ debitAccountId, creditAccountId } = applyPartyAccountPriority({
+      transactionType,
+      debitAccountId,
+      creditAccountId,
+      directPartyAccountId: directPartyAccount?._id,
+    }))
 
     const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank')
     if (transactionType === 'receipt') debitAccountId = voucherSettlementAccountId || debitAccountId || bank._id
@@ -2290,12 +2355,12 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
       }
     }
 
-    if (directPartyAccount?._id) {
-      if (transactionType === 'purchase') creditAccountId = creditAccountId || directPartyAccount._id
-      // For payment vouchers, the selected party account must be debited
-      // even when a default mapping exists.
-      if (transactionType === 'payment') debitAccountId = directPartyAccount._id
-    }
+    ;({ debitAccountId, creditAccountId } = applyPartyAccountPriority({
+      transactionType,
+      debitAccountId,
+      creditAccountId,
+      directPartyAccountId: directPartyAccount?._id,
+    }))
 
     const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank')
     if (transactionType === 'payment') creditAccountId = voucherSettlementAccountId || creditAccountId || bank._id
