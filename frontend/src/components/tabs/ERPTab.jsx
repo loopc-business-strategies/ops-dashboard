@@ -5083,7 +5083,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
     const targetAccount = entryAccountOptions.find((item) => String(item?.accountCode || '').trim().toUpperCase() === targetCode)
     if (!targetAccount?._id) return withoutFxAmounts
 
-    const targetLine = withoutFxAmounts.find((line) => getJvAccountCode(line.accountId) === targetCode)
+    let workingLines = withoutFxAmounts
+    let targetLine = withoutFxAmounts.find((line) => getJvAccountCode(line.accountId) === targetCode)
       || withoutFxAmounts.find((line) => isExchangeLine(line))
       || withoutFxAmounts.find((line) => {
         const hasAccount = String(line.accountId || '').trim().length > 0
@@ -5092,13 +5093,18 @@ function ERPTab({ focusTab, onNavigateMain }) {
         return !hasAccount && !hasAmount && !hasNarration
       })
 
-    if (!targetLine) return withoutFxAmounts
+    // If user filled both bank rows and there is no free/FX row, auto-add one for instant balancing.
+    if (!targetLine) {
+      const nextId = Math.max(0, ...withoutFxAmounts.map((line) => Number(line.id || 0))) + 1
+      targetLine = { id: nextId, accountId: '', accountInput: '', description: '', debit: '', credit: '', autoFx: true }
+      workingLines = [...withoutFxAmounts, targetLine]
+    }
 
     const targetCurrency = inferJvAccountCurrency(targetAccount._id)
     const fxAmount = convertJvAmount(Math.abs(difference), baseCurrencyCode, targetCurrency)
-    if (!Number.isFinite(fxAmount) || fxAmount <= 0) return withoutFxAmounts
+    if (!Number.isFinite(fxAmount) || fxAmount <= 0) return workingLines
 
-    return withoutFxAmounts.map((line) => {
+    return workingLines.map((line) => {
       if (line.id !== targetLine.id) return line
       return {
         ...line,
