@@ -1,72 +1,65 @@
-require('dotenv').config()
-const mongoose = require('mongoose')
+require('dotenv').config();
+const dns = require('dns');
+const mongoose = require('mongoose');
 
-async function checkCGCurrentState() {
-  const mongoUri = process.env.MONGO_URI_CG
-  console.log(`\n=== CG Database Current State ===\n`)
-  
-  await mongoose.connect(mongoUri)
-  const db = mongoose.connection.getClient().db()
-  
-  // Check customers
-  const customersCol = db.collection('customers')
-  const customerCount = await customersCol.countDocuments()
-  console.log(`Customers: ${customerCount}`)
-  if (customerCount > 0) {
-    const customers = await customersCol.find({}).toArray()
-    customers.forEach(c => console.log(`  - ${c.name} (ID: ${c._id})`))
-  }
-  
-  // Check vendors
-  const vendorsCol = db.collection('vendors')
-  const vendorCount = await vendorsCol.countDocuments()
-  console.log(`\nVendors: ${vendorCount}`)
-  if (vendorCount > 0) {
-    const vendors = await vendorsCol.find({}).toArray()
-    vendors.forEach(v => console.log(`  - ${v.name} (Code: ${v.vendorCode}, ID: ${v._id})`))
-  }
-  
-  // Check for any test/ooo/mark records
-  console.log(`\nSearching for test/ooo/mark accounts...`)
-  
-  const allCollections = await db.listCollections().toArray()
-  let found = 0
-  
-  for (const col of allCollections) {
-    const collection = db.collection(col.name)
-    const query = {
-      $or: [
-        { name: { $regex: /test|ooo|mark/i } },
-        { customerName: { $regex: /test|ooo|mark/i } },
-        { supplierName: { $regex: /test|ooo|mark/i } },
-      ]
-    }
+dns.setServers((process.env.ATLAS_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map((s) => s.trim()).filter(Boolean));
+
+const TENANT_ID = 'cg';
+
+async function checkCGState() {
+  let conn;
+  try {
+    const uri = process.env.MONGO_URI_CG || process.env.MONGODB_URI || process.env.MONGO_URI;
+    if (!uri) throw new Error('Missing MONGO_URI_CG (or fallback URI)');
+
+    conn = await mongoose.createConnection(uri, {
+      serverSelectionTimeoutMS: 15000,
+      connectTimeoutMS: 15000,
+      socketTimeoutMS: 45000,
+    }).asPromise();
+
+    console.log('✓ Connected to MongoDB\n');
+    const db = conn.getClient().db();
+
+    // Get all collections in CG
+    const coaCount = await db.collection('chartofaccounts').countDocuments({ tenantId: TENANT_ID });
+    const custCount = await db.collection('customers').countDocuments({ tenantId: TENANT_ID });
+    const vendCount = await db.collection('vendors').countDocuments({ tenantId: TENANT_ID });
+    const txCount = await db.collection('transactions').countDocuments({ tenantId: TENANT_ID });
+    const ledCount = await db.collection('ledgers').countDocuments({ tenantId: TENANT_ID });
+
+    console.log('=== CG DATABASE STATE ===\n');
+    console.log(`Chart of Accounts (all, including deleted): ${coaCount}`);
+    console.log(`Customers (all, including deleted): ${custCount}`);
+    console.log(`Vendors (all, including deleted): ${vendCount}`);
+    console.log(`Transactions (all, including deleted): ${txCount}`);
+    console.log(`Ledger Entries (all, including deleted): ${ledCount}`);
+
+    // Get active accounts
+    const activeAccounts = await db.collection('chartofaccounts').find({
+      tenantId: TENANT_ID,
+      deleted: { $ne: true }
+    }).toArray();
+
+    console.log(`\nActive (not deleted) Accounts: ${activeAccounts.length}`);
     
-    try {
-      const count = await collection.countDocuments(query)
-      if (count > 0) {
-        console.log(`\n  Found ${count} in "${col.name}":`)
-        const docs = await collection.find(query).toArray()
-        docs.forEach(doc => {
-          const name = doc.name || doc.customerName || doc.supplierName || '(no name)'
-          console.log(`    - ${name} (Type: ${col.name})`)
-        })
-        found += count
+    if (activeAccounts.length > 0) {
+      console.log('\nActive Accounts List:');
+      activeAccounts.slice(0, 20).forEach(acc => {
+        console.log(`  ${acc.code} - ${acc.name}`);
+      });
+      if (activeAccounts.length > 20) {
+        console.log(`  ... and ${activeAccounts.length - 20} more`);
       }
-    } catch (error) {
-      // Skip
+    }
+
+  } catch (error) {
+    console.error('Error:', error.message);
+  } finally {
+    if (conn) {
+      await conn.close();
     }
   }
-  
-  if (found === 0) {
-    console.log(`  No test/ooo/mark records found`)
-  }
-  
-  await mongoose.disconnect()
-  console.log(`\n=== End of Report ===\n`)
 }
 
-checkCGCurrentState().catch(error => {
-  console.error('Error:', error.message)
-  process.exit(1)
-})
+checkCGState();
