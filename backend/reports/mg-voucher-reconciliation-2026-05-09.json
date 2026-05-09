@@ -1,0 +1,111 @@
+{
+  "tenant": "mg",
+  "timestamp": "2026-05-09T18:28:34.734Z",
+  "feBeCommitExpected": "46c2fc7",
+  "vouchers": [
+    {
+      "type": "payment",
+      "docNo": "Pay/2026/0001",
+      "amount": 20000,
+      "partyCode": "101001",
+      "ok": true,
+      "id": "69ff70cb2a2306793c3ff4ac",
+      "status": "posted",
+      "journalEntryId": "69ff7c7442e9b753defd6560",
+      "sourceByLedgerStatus": 200
+    },
+    {
+      "type": "payment",
+      "docNo": "Pay/2026/0002",
+      "amount": 23000,
+      "partyCode": "1303",
+      "ok": true,
+      "id": "69ff70d42a2306793c3ff4fe",
+      "status": "posted",
+      "journalEntryId": "69ff7c6942e9b753defd648f",
+      "sourceByLedgerStatus": 200
+    },
+    {
+      "type": "receipt",
+      "docNo": "Rec/2026/0001",
+      "amount": 20000,
+      "partyCode": "1301",
+      "ok": true,
+      "id": "69ff70dd2a2306793c3ff550",
+      "status": "posted",
+      "journalEntryId": "69ff7c8842e9b753defd6736",
+      "sourceByLedgerStatus": 200
+    },
+    {
+      "type": "receipt",
+      "docNo": "Rec/2026/0002",
+      "amount": 27000,
+      "partyCode": "1301",
+      "ok": true,
+      "id": "69ff70e62a2306793c3ff5a1",
+      "status": "posted",
+      "journalEntryId": "69ff7c7e42e9b753defd666b",
+      "sourceByLedgerStatus": 200
+    }
+  ],
+  "accounts": [
+    {
+      "accountCode": "101001",
+      "ok": true,
+      "netBalance": 20000,
+      "netDirection": "Debit",
+      "matchedVouchers": [
+        {
+          "sourceTransactionNumber": "Pay/2026/0001",
+          "sourceTransactionType": "payment",
+          "debitAmount": 20000,
+          "creditAmount": 0,
+          "signedAmount": 20000,
+          "date": "2026-05-09T00:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "accountCode": "1303",
+      "ok": true,
+      "netBalance": 23000,
+      "netDirection": "Debit",
+      "matchedVouchers": [
+        {
+          "sourceTransactionNumber": "Pay/2026/0002",
+          "sourceTransactionType": "payment",
+          "debitAmount": 23000,
+          "creditAmount": 0,
+          "signedAmount": 23000,
+          "date": "2026-05-09T00:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "accountCode": "1301",
+      "ok": true,
+      "netBalance": -47000,
+      "netDirection": "Credit",
+      "matchedVouchers": [
+        {
+          "sourceTransactionNumber": "Rec/2026/0001",
+          "sourceTransactionType": "receipt",
+          "debitAmount": 0,
+          "creditAmount": 20000,
+          "signedAmount": -20000,
+          "date": "2026-05-09T00:00:00.000Z"
+        },
+        {
+          "sourceTransactionNumber": "Rec/2026/0002",
+          "sourceTransactionType": "receipt",
+          "debitAmount": 0,
+          "creditAmount": 27000,
+          "signedAmount": -27000,
+          "date": "2026-05-09T00:00:00.000Z"
+        }
+      ]
+    }
+  ],
+  "ok": true,
+  "failureCount": 0
+}
