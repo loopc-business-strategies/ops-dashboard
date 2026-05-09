@@ -1259,6 +1259,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const [enquiryHistory, setEnquiryHistory] = useState([])
   const [metalUnit, setMetalUnit] = useState('gram')
   const [showEnquiryModal, setShowEnquiryModal] = useState(false)
+  const [showEnquiryLookupMenu, setShowEnquiryLookupMenu] = useState(false)
   const [accountSummaryView, setAccountSummaryView] = useState('position')
   const [enquiryModalOffset, setEnquiryModalOffset] = useState({ x: 0, y: 0 })
   const [enquiryModalDrag, setEnquiryModalDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
@@ -3485,6 +3486,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     try {
       if (shouldOpenModal) setShowEnquiryModal(true)
       setEnquiryLoading(true)
+      setShowEnquiryLookupMenu(false)
       setEnquiryStatus({ type: '', message: '' })
       const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode)
       setAccountEnquiryCode(cleanCode)
@@ -9634,26 +9636,57 @@ function ERPTab({ focusTab, onNavigateMain }) {
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1.2rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   <label style={{ fontSize: '0.95rem', color: '#374151', fontWeight: '600' }}>Account Number</label>
-                  <input
-                    list="account-enquiry-options"
-                    value={accountEnquiryCode}
-                    onChange={(e) => {
-                      setAccountEnquiryCode(e.target.value)
-                      setEnquiryStatus({ type: '', message: '' })
-                    }}
-                    placeholder="Type account code or pick from dropdown"
-                    autoComplete="off"
-                    style={{ border: '1px solid #CBD5E0', padding: '0.6rem 0.8rem', fontSize: '0.95rem', width: '340px', borderRadius: '0.5rem', background: '#FFFFFF' }}
-                  />
-                  <datalist id="account-enquiry-options">
-                    {summaryAccounts.map((account) => (
-                      <option key={account._id} value={formatSummaryAccountLabel(account)}>
-                        {formatSummaryAccountLabel(account)}
-                      </option>
-                    ))}
-                  </datalist>
+                  <div style={{ position: 'relative', width: '340px' }}>
+                    <input
+                      value={accountEnquiryCode}
+                      onChange={(e) => {
+                        setAccountEnquiryCode(e.target.value)
+                        setShowEnquiryLookupMenu(true)
+                        setEnquiryStatus({ type: '', message: '' })
+                      }}
+                      onFocus={() => setShowEnquiryLookupMenu(true)}
+                      onBlur={() => {
+                        window.setTimeout(() => setShowEnquiryLookupMenu(false), 120)
+                      }}
+                      placeholder="Type account code or pick from dropdown"
+                      autoComplete="off"
+                      style={{ border: '1px solid #CBD5E0', padding: '0.6rem 0.8rem', fontSize: '0.95rem', width: '100%', borderRadius: '0.5rem', background: '#FFFFFF' }}
+                    />
+                    {showEnquiryLookupMenu && filteredGroupedSummaryAccounts.length > 0 && (
+                      <div style={{ position: 'absolute', top: 'calc(100% + 0.35rem)', left: 0, right: 0, zIndex: 5, border: '1px solid #D6D3C4', borderRadius: '0.6rem', background: '#FFFFFF', maxHeight: '260px', overflowY: 'auto', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.12)' }}>
+                        {filteredGroupedSummaryAccounts.map((group) => (
+                          <div key={group.type}>
+                            <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: '0.45rem 0.75rem', background: '#F5F7F0', borderBottom: '1px solid #E5E7EB', color: '#3F4B2E', fontSize: '0.76rem', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                              {group.type}
+                            </div>
+                            {group.accounts.map((account) => (
+                              <button
+                                key={account._id}
+                                type="button"
+                                onMouseDown={(event) => {
+                                  event.preventDefault()
+                                  setShowEnquiryLookupMenu(false)
+                                  setAccountEnquiryCode(account.accountCode)
+                                  setEnquiryStatus({ type: '', message: '' })
+                                  fetchAccountEnquiryByCode(account.accountCode)
+                                }}
+                                style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.65rem 0.75rem', border: 'none', borderBottom: '1px solid #F3F4F6', background: '#FFFFFF', color: C.ink, cursor: 'pointer', textAlign: 'left' }}
+                              >
+                                <span style={{ fontWeight: '800', minWidth: '56px', color: '#111827' }}>{account.accountCode}</span>
+                                <span style={{ flex: 1, color: '#4B5563', fontSize: '0.86rem' }}>{account.accountName}</span>
+                                <span style={{ color: '#6B7280', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{account.accountType}</span>
+                              </button>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <button
-                    onClick={() => fetchAccountEnquiryByCode(accountEnquiryCode)}
+                    onClick={() => {
+                      setShowEnquiryLookupMenu(false)
+                      fetchAccountEnquiryByCode(accountEnquiryCode)
+                    }}
                     disabled={enquiryLoading}
                     style={{ padding: '0.6rem 1.2rem', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: enquiryLoading ? 'not-allowed' : 'pointer', fontWeight: '700', fontSize: '0.95rem', opacity: enquiryLoading ? 0.7 : 1 }}
                   >
