@@ -7,23 +7,24 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import erpAccountingAPI from '../../api/erp-accounting'
 import messagesAPI from '../../api/messages'
+import { ACCOUNT_TYPES } from '../../constants/accountTypes'
+import {
+  LEDGER_REFERENCE_TYPES,
+  LEDGER_DEPARTMENTS,
+  ENQUIRY_HISTORY_STORAGE_KEY,
+  ENQUIRY_DETAILS_PANEL_STORAGE_KEY,
+  ENQUIRY_STATEMENT_AUDIT_TOGGLE_STORAGE_KEY,
+  INVENTORY_STOCK_CODE_SETTINGS_STORAGE_KEY,
+  ACCOUNT_TYPE_ORDER,
+  METAL_UNIT_FACTORS,
+  ERP_DASH_ALL_WIDGETS,
+  ERP_DASH_DEFAULT,
+  sanitizeDashWidgets,
+} from './erpTabConstants'
 import { formatTransactionAuditEntry, formatTransactionCommentKind, getTransactionBulkSelectionLabel } from './transactionWorkflow'
 import ChartOfAccountsTree from './ChartOfAccountsTree'
 import VoucherTab from './VoucherTab'
 import DirectDealsTab from './DirectDealsTab'
-
-const LEDGER_REFERENCE_TYPES = ['journal', 'expense', 'invoice', 'payment', 'purchase', 'vendor_payment', 'inventory', 'payroll', 'bank_jv']
-const LEDGER_DEPARTMENTS = ['finance', 'sales', 'production', 'hr', 'operations', 'management']
-const ENQUIRY_HISTORY_STORAGE_KEY = 'erp-account-enquiry-history'
-const ENQUIRY_DETAILS_PANEL_STORAGE_KEY = 'erp-account-enquiry-details-panel'
-const ENQUIRY_STATEMENT_AUDIT_TOGGLE_STORAGE_KEY = 'erp-account-statement-audit-toggle'
-const INVENTORY_STOCK_CODE_SETTINGS_STORAGE_KEY = 'erp-inventory-stock-code-settings'
-const ACCOUNT_TYPE_ORDER = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
-const METAL_UNIT_FACTORS = {
-  gram: 1,
-  ounce: 31.1034768,
-  kg: 1000,
-}
 
 
 const createInventoryMappingForm = () => ({
@@ -249,28 +250,6 @@ const C = {
   t2: '#374151',
   t3: '#334155',
   danger: '#DC2626',
-}
-
-const ERP_DASH_ALL_WIDGETS = [
-  { id: 'margins',  label: 'Customer & Supplier Margins',  icon: '📊', color: '#e8f5ef', desc: 'Expense & cash flow by customer/supplier', cols: 2 },
-  { id: 'metals',   label: 'Current Metal Prices',          icon: '🥇', color: '#fef9c3', desc: 'Live gold, silver, platinum, palladium',    cols: 1 },
-  { id: 'bank',     label: 'Bank & Cash Balances',          icon: '🏦', color: '#dbeafe', desc: 'All account balances overview',             cols: 1, viewTab: 'bank' },
-  { id: 'cashflow', label: 'Cash Flow',                     icon: '💸', color: '#dcfce7', desc: 'Monthly inflow / outflow bar chart',        cols: 2 },
-  { id: 'expenses', label: 'Expenses',                      icon: '📋', color: '#fee2e2', desc: 'Expense breakdown by category',             cols: 1 },
-  { id: 'volume',   label: 'Total Volume Traded',           icon: '📦', color: '#e8f5ef', desc: 'Trade volume by metal type',                cols: 1 },
-  { id: 'apar',     label: 'Accounts Payable & Receivable', icon: '⚖️', color: '#fef3c7', desc: 'Live AP / AR with outstanding breakdown',   cols: 3, viewTab: 'apar' },
-  { id: 'fixing',   label: 'Fixing Position Summary',       icon: '📌', color: '#f0fdf4', desc: 'Open fixing positions by metal',            cols: 2, viewTab: 'fixing-register' },
-  { id: 'chat',     label: 'Chat',                          icon: '💬', color: '#eff6ff', desc: 'Recent team messages',                      cols: 1, viewTab: 'chat' },
-  { id: 'notif',    label: 'Notifications & Alerts',        icon: '🔔', color: '#fff7ed', desc: 'System alerts and reminders',               cols: 1, viewTab: 'notif' },
-]
-const ERP_DASH_DEFAULT = ['margins', 'metals', 'bank', 'cashflow', 'expenses', 'volume', 'apar', 'fixing', 'chat', 'notif']
-const ERP_DASH_VALID_IDS = new Set(ERP_DASH_ALL_WIDGETS.map(w => w.id))
-const sanitizeDashWidgets = (value) => {
-  const src = Array.isArray(value) ? value : ERP_DASH_DEFAULT
-  const seen = new Set()
-  const out = []
-  src.forEach((id) => { if (ERP_DASH_VALID_IDS.has(id) && !seen.has(id)) { seen.add(id); out.push(id) } })
-  return out.length ? out : [...ERP_DASH_DEFAULT]
 }
 
 // ── Tiny SVG bar chart ─────────────────────────────────────────
@@ -1195,12 +1174,16 @@ function ERPTab({ focusTab, onNavigateMain }) {
   // ─── Multi-line Journal Voucher state ─────────────────────────────────────
   const emptyJvLine = (id) => ({ id, accountId: '', accountInput: '', description: '', debit: '', credit: '' })
   const buildJvDocNo = () => {
-    const now = new Date()
-    const y = now.getFullYear()
-    const m = String(now.getMonth() + 1).padStart(2, '0')
-    const d = String(now.getDate()).padStart(2, '0')
-    const suffix = String(now.getTime()).slice(-4)
-    return `JV-${y}${m}${d}-${suffix}`
+    const maxExisting = ledger.reduce((max, entry) => {
+      if (String(entry?.referenceType || '').toLowerCase() !== 'journal') return max
+      const head = String(entry?.description || '').split(' — ')[0].trim().toUpperCase()
+      const match = head.match(/^JV-(\d+)$/)
+      if (!match) return max
+      const n = Number(match[1])
+      return Number.isFinite(n) && n > max ? n : max
+    }, 0)
+    const next = maxExisting + 1
+    return `JV-${String(next).padStart(2, '0')}`
   }
   const createJvHeader = (currencyCode = 'USD') => ({
     docNo: buildJvDocNo(),
@@ -7475,11 +7458,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
               <input type="date" value={reportFilters.endDate} onChange={(e) => setReportFilters((prev) => ({ ...prev, endDate: e.target.value, period: 'custom' }))} style={modalInputStyle} />
               <select value={reportFilters.accountType} onChange={(e) => setReportFilters((prev) => ({ ...prev, accountType: e.target.value }))} style={modalInputStyle}>
                 <option value="">All Account Types</option>
-                <option value="Asset">Asset</option>
-                <option value="Liability">Liability</option>
-                <option value="Income">Income</option>
-                <option value="Expense">Expense</option>
-                <option value="Equity">Equity</option>
+                {ACCOUNT_TYPES.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
               </select>
               <select value={reportFilters.sortBy} onChange={(e) => setReportFilters((prev) => ({ ...prev, sortBy: e.target.value }))} style={modalInputStyle}>
                 <option value="accountCode">Sort: Account Code</option>

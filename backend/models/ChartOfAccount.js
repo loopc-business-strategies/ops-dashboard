@@ -1,11 +1,12 @@
 const mongoose = require('mongoose')
 const { createTenantModel } = require('../db/tenantModelProxy')
+const { ACCOUNT_TYPES } = require('../constants/accountTypes')
 
 const chartOfAccountSchema = new mongoose.Schema(
   {
     accountName: { type: String, required: true, trim: true },
     accountCode: { type: String, required: true, trim: true },
-    accountType: { type: String, enum: ['Asset', 'Liability', 'Income', 'Expense', 'Equity'], required: true },
+    accountType: { type: String, enum: ACCOUNT_TYPES, required: true },
     parentAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
     currency: { type: String, default: 'USD' },
     isActive: { type: Boolean, default: true },

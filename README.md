@@ -44,6 +44,11 @@ SMOKE_WAIT_SECONDS=180
 - Automatic: after `CI` workflow completes successfully on `main`
 - Manual: `Actions` -> `Post-Deploy Tenant Smoke` -> `Run workflow`
 
+### Vercel API Safety (Preview vs Production)
+- Production hostnames (`mg`, `cg`, `loopc`, `app` under `loopcstrategies.com`) rewrite `/api/*` to production Railway API.
+- `*.vercel.app` preview deployments do not proxy to production API; they return `api-preview-disabled.json` by design to prevent accidental production writes.
+- If you need live preview API testing, configure a separate non-production backend and update rewrite policy accordingly.
+
 ### What the Smoke Check Verifies
 - `https://mg.<domain>/login` returns valid app shell
 - `https://cg.<domain>/login` returns valid app shell

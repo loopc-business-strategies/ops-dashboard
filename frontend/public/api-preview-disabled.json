@@ -1,0 +1,4 @@
+{
+  "success": false,
+  "message": "Preview deployment API proxy is disabled to protect production data. Configure a non-production API target for preview environments."
+}

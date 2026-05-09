@@ -499,10 +499,18 @@ describe('ERP accounting transactions workflow', () => {
         .send({ comment: 'Approve direct account voucher' })
       expect(approveRes.status).toBe(200)
 
-      const postRes = await request(app)
+      let postRes = await request(app)
         .post(`/api/erp-accounting/transactions/${txId}/post`)
         .set(authHeader(financeUser))
         .send({ comment: 'Post direct account voucher' })
+
+      if (postRes.status === 409 && postRes.body?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED') {
+        postRes = await request(app)
+          .post(`/api/erp-accounting/transactions/${txId}/post`)
+          .set(authHeader(financeUser))
+          .send({ comment: 'Post direct account voucher', confirmVendorAdvance: true })
+      }
+
       expect(postRes.status).toBe(200)
 
       return txId
@@ -644,10 +652,17 @@ describe('ERP accounting transactions workflow', () => {
         .post(`/api/erp-accounting/transactions/${txId}/approve`)
         .set(authHeader(financeUser))
         .send({ comment: 'Approve party priority voucher' })
-      const postRes = await request(app)
+      let postRes = await request(app)
         .post(`/api/erp-accounting/transactions/${txId}/post`)
         .set(authHeader(financeUser))
         .send({ comment: 'Post party priority voucher' })
+
+      if (postRes.status === 409 && postRes.body?.code === 'VENDOR_ADVANCE_CONFIRMATION_REQUIRED') {
+        postRes = await request(app)
+          .post(`/api/erp-accounting/transactions/${txId}/post`)
+          .set(authHeader(financeUser))
+          .send({ comment: 'Post party priority voucher', confirmVendorAdvance: true })
+      }
 
       expect(postRes.status).toBe(200)
       return Transaction.findById(txId)

@@ -61,8 +61,8 @@ In Railway dashboard, go to **Variables** and add:
 | `RATE_LIMIT_WINDOW_MS` | `900000` | `900000` (15 min) |
 | `RATE_LIMIT_MAX` | `400` | `400` requests per window |
 | `AUTH_RATE_LIMIT_MAX` | `25` | `25` login attempts per window |
-| `CORS_ORIGINS` | (set in step 2.3) | See below |
-| `CLIENT_URL` | (set in step 2.3) | See below |
+| `CLIENT_URLS` | (set in step 2.3) | Preferred comma-separated list of allowed frontend origins |
+| `CLIENT_URL` | (optional legacy fallback) | Single origin or same comma-separated list |
 | `BACKEND_BUILD_TIME` | (recommended: Railway deployment timestamp) | `2026-05-09T12:00:00Z` |
 | `RAILWAY_DEPLOYMENT_TIMESTAMP` | (optional fallback for build badge) | `2026-05-09T12:00:00Z` |
 
@@ -71,7 +71,7 @@ In Railway dashboard, go to **Variables** and add:
 After you have your Vercel domain, add:
 
 ```
-CLIENT_URL=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com,http://mg.localhost:5173,http://cg.localhost:5173,http://loopc.localhost:5173
+CLIENT_URLS=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com,http://mg.localhost:5173,http://cg.localhost:5173,http://loopc.localhost:5173
 ```
 
 ### 2.4 Deploy Backend
@@ -181,7 +181,7 @@ Once all domains are live:
 
 1. In Railway backend variables, update:
    ```
-   CLIENT_URL=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com,http://mg.localhost:5173,http://cg.localhost:5173,http://loopc.localhost:5173
+   CLIENT_URLS=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com,http://mg.localhost:5173,http://cg.localhost:5173,http://loopc.localhost:5173
    ```
 
 ---

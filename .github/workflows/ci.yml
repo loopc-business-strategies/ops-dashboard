@@ -33,11 +33,21 @@ jobs:
         run: npm run test:fast
 
   backend-integration-tests:
-    name: Backend Integration Tests
+    name: Backend Integration (${{ matrix.module }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       MONGOMS_DOWNLOAD_DIR: ~/.cache/mongodb-binaries
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - module: tenant-routing
+            script: test:integration:tenant-routing
+          - module: tenant-isolation
+            script: test:integration:tenant-isolation
+          - module: erp-accounting
+            script: test:integration:erp
 
     steps:
       - name: Checkout
@@ -62,7 +72,30 @@ jobs:
 
       - name: Run backend integration tests
         working-directory: backend
-        run: npm run test:integration
+        run: npm run ${{ matrix.script }}
+
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm test
 
   frontend-build:
     name: Frontend Build

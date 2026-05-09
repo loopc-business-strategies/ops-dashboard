@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import AccountCombobox from '../AccountCombobox'
 import axios from 'axios'
 import { useLanguage } from '../../context/LanguageContext'
+import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 
 const BASE = '/api/erp-accounting'
 const cfg = () => ({ withCredentials: true })
@@ -778,7 +779,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     .filter((a) => isBankLikeAccount(a.raw))
     .sort((a, b) => a.code.localeCompare(b.code))
 
-  const LINE_ACCOUNT_TYPE_ORDER = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
+  const LINE_ACCOUNT_TYPE_ORDER = ACCOUNT_TYPES
   const lineAccountComboGroups = (() => {
     const accountList = (Array.isArray(accounts) ? accounts : [])
       .map((a) => ({

@@ -1,0 +1,819 @@
+function registerReportRoutes(deps) {
+  const {
+    router,
+    protect,
+    Ledger,
+    ChartOfAccount,
+    AccountMapping,
+    Customer,
+    Vendor,
+    DirectDeal,
+    InventoryItem,
+    StockMovement,
+    MetalRate,
+    toMoney,
+    parseBool,
+    buildDateQuery,
+    buildPreviousPeriod,
+    buildProfitLossSummary,
+    buildBalanceSheetSummary,
+    getAgingForAccount,
+    getOutstandingForAccount,
+    buildDocumentExpiryBuckets,
+    evaluateVendorCompliance,
+    canAccessReports,
+  } = deps
+
+router.get('/reports/trial-balance', protect, async (req, res) => {
+  try {
+    if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const {
+      startDate,
+      endDate,
+      accountType,
+      includeZero = 'true',
+      sortBy = 'accountCode',
+      sortDir = 'asc',
+      minAbsolute = '0',
+    } = req.query
+    const query = { isDeleted: { $ne: true } }
+    const dateQuery = buildDateQuery(startDate, endDate)
+    if (dateQuery) query.date = dateQuery
+
+    const entries = await Ledger.find(query)
+      .populate('debitAccountId', 'accountName accountCode accountType')
+      .populate('creditAccountId', 'accountName accountCode accountType')
+
+    const accountTotals = new Map()
+    entries.forEach((entry) => {
+      const debitKey = entry.debitAccountId._id.toString()
+      const creditKey = entry.creditAccountId._id.toString()
+
+      if (!accountTotals.has(debitKey)) {
+        accountTotals.set(debitKey, { account: entry.debitAccountId, debit: 0, credit: 0 })
+      }
+      if (!accountTotals.has(creditKey)) {
+        accountTotals.set(creditKey, { account: entry.creditAccountId, debit: 0, credit: 0 })
+      }
+
+      accountTotals.get(debitKey).debit += entry.amount
+      accountTotals.get(creditKey).credit += entry.amount
+    })
+
+    let trialBalance = Array.from(accountTotals.values()).map((item) => ({
+      accountName: item.account.accountName,
+      accountCode: item.account.accountCode,
+      accountType: item.account.accountType,
+      debit: toMoney(item.debit),
+      credit: toMoney(item.credit),
+      net: toMoney(item.debit - item.credit),
+    }))
+
+    if (parseBool(includeZero, true)) {
+      const allAccountsQuery = { isActive: true }
+      if (accountType) allAccountsQuery.accountType = accountType
+      const allAccounts = await ChartOfAccount.find(allAccountsQuery).select('accountCode accountName accountType')
+      const existingCodes = new Set(trialBalance.map((row) => row.accountCode))
+      allAccounts.forEach((acc) => {
+        if (!existingCodes.has(acc.accountCode)) {
+          trialBalance.push({
+            accountName: acc.accountName,
+            accountCode: acc.accountCode,
+            accountType: acc.accountType,
+            debit: 0,
+            credit: 0,
+            net: 0,
+          })
+        }
+      })
+    }
+
+    if (accountType) {
+      trialBalance = trialBalance.filter((row) => row.accountType === accountType)
+    }
+
+    const minAbsoluteValue = Number(minAbsolute || 0)
+    if (minAbsoluteValue > 0) {
+      trialBalance = trialBalance.filter((row) => Math.abs(Number(row.net || 0)) >= minAbsoluteValue)
+    }
+
+    const sortMultiplier = String(sortDir).toLowerCase() === 'desc' ? -1 : 1
+    const sortable = ['accountCode', 'accountName', 'accountType', 'debit', 'credit', 'net'].includes(sortBy) ? sortBy : 'accountCode'
+    trialBalance.sort((a, b) => {
+      if (['debit', 'credit', 'net'].includes(sortable)) {
+        return (Number(a[sortable] || 0) - Number(b[sortable] || 0)) * sortMultiplier
+      }
+      return String(a[sortable] || '').localeCompare(String(b[sortable] || '')) * sortMultiplier
+    })
+
+    const totalDebit = trialBalance.reduce((sum, item) => sum + item.debit, 0)
+    const totalCredit = trialBalance.reduce((sum, item) => sum + item.credit, 0)
+    const byType = trialBalance.reduce((acc, row) => {
+      const key = row.accountType || 'Unknown'
+      if (!acc[key]) acc[key] = { debit: 0, credit: 0, net: 0 }
+      acc[key].debit += Number(row.debit || 0)
+      acc[key].credit += Number(row.credit || 0)
+      acc[key].net += Number(row.net || 0)
+      return acc
+    }, {})
+
+    res.json({
+      success: true,
+      period: { startDate: startDate || null, endDate: endDate || null },
+      trialBalance,
+      totalDebit: toMoney(totalDebit),
+      totalCredit: toMoney(totalCredit),
+      difference: toMoney(totalDebit - totalCredit),
+      balanced: Math.abs(totalDebit - totalCredit) < 0.01,
+      byType,
+      rowCount: trialBalance.length,
+      generatedAt: new Date(),
+    })
+  } catch {
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+router.get('/reports/ledger', protect, async (req, res) => {
+  try {
+    if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const { accountId, startDate, endDate } = req.query
+    if (!accountId) return res.status(400).json({ success: false, message: 'Account ID required' })
+
+    const query = {
+      $or: [{ debitAccountId: accountId }, { creditAccountId: accountId }],
+    }
+    if (startDate && endDate) {
+      query.date = { $gte: new Date(startDate), $lte: new Date(endDate) }
+    }
+
+    const entries = await Ledger.find(query)
+      .populate('debitAccountId', 'accountName accountCode')
+      .populate('creditAccountId', 'accountName accountCode')
+      .sort({ date: 1 })
+
+    let runningBalance = 0
+    const report = entries.map((entry) => {
+      const amount = entry.debitAccountId._id.toString() === accountId ? entry.amount : -entry.amount
+      runningBalance += amount
+      return {
+        entryId: entry._id,
+        date: entry.date,
+        referenceType: entry.referenceType,
+        description: entry.description,
+        currency: entry.currency,
+        amount: entry.amount,
+        debitAccount: entry.debitAccountId,
+        creditAccount: entry.creditAccountId,
+        debit: entry.debitAccountId._id.toString() === accountId ? entry.amount : 0,
+        credit: entry.creditAccountId._id.toString() === accountId ? entry.amount : 0,
+        runningBalance,
+      }
+    })
+
+    res.json({ success: true, report })
+  } catch {
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+router.get('/reports/profit-loss', protect, async (req, res) => {
+  try {
+    if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const { startDate, endDate, comparePrevious = 'false' } = req.query
+    const currentPeriod = await buildProfitLossSummary(startDate, endDate)
+
+    let previousPeriod = null
+    if (parseBool(comparePrevious, false) && startDate && endDate) {
+      const prevRange = buildPreviousPeriod(startDate, endDate)
+      if (prevRange) {
+        const prevSummary = await buildProfitLossSummary(prevRange.startDate, prevRange.endDate)
+        previousPeriod = {
+          startDate: prevRange.startDate,
+          endDate: prevRange.endDate,
+          totalIncome: prevSummary.totalIncome,
+          totalExpense: prevSummary.totalExpense,
+          netProfit: prevSummary.netProfit,
+        }
+      }
+    }
+
+    const netProfit = currentPeriod.netProfit
+    const prevNet = Number(previousPeriod?.netProfit || 0)
+    const varianceVsPrevious = previousPeriod ? toMoney(Number(netProfit) - prevNet) : null
+
+    const comparisonAnchor = endDate ? new Date(endDate) : new Date()
+    const monthlyComparison = []
+    for (let i = 5; i >= 0; i -= 1) {
+      const monthStart = new Date(comparisonAnchor.getFullYear(), comparisonAnchor.getMonth() - i, 1)
+      const monthEnd = new Date(comparisonAnchor.getFullYear(), comparisonAnchor.getMonth() - i + 1, 0)
+      const summary = await buildProfitLossSummary(monthStart, monthEnd)
+      monthlyComparison.push({
+        label: monthStart.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+        startDate: monthStart,
+        endDate: monthEnd,
+        totalIncome: summary.totalIncome,
+        totalExpense: summary.totalExpense,
+        netProfit: summary.netProfit,
+      })
+    }
+
+    const quarterlyComparison = []
+    const anchorQuarter = Math.floor(comparisonAnchor.getMonth() / 3)
+    for (let i = 3; i >= 0; i -= 1) {
+      const quarterIndex = anchorQuarter - i
+      const yearOffset = Math.floor(quarterIndex / 4)
+      const normalizedQuarter = ((quarterIndex % 4) + 4) % 4
+      const year = comparisonAnchor.getFullYear() + yearOffset
+      const quarterStart = new Date(year, normalizedQuarter * 3, 1)
+      const quarterEnd = new Date(year, normalizedQuarter * 3 + 3, 0)
+      const summary = await buildProfitLossSummary(quarterStart, quarterEnd)
+      quarterlyComparison.push({
+        label: `Q${normalizedQuarter + 1} ${year}`,
+        startDate: quarterStart,
+        endDate: quarterEnd,
+        totalIncome: summary.totalIncome,
+        totalExpense: summary.totalExpense,
+        netProfit: summary.netProfit,
+      })
+    }
+
+    res.json({
+      success: true,
+      period: { startDate: startDate || null, endDate: endDate || null },
+      totalIncome: currentPeriod.totalIncome,
+      totalExpense: currentPeriod.totalExpense,
+      netProfit,
+      incomeBreakdown: currentPeriod.incomeBreakdown,
+      expenseBreakdown: currentPeriod.expenseBreakdown,
+      topIncome: currentPeriod.topIncome,
+      topExpenses: currentPeriod.topExpenses,
+      grossMarginPct: currentPeriod.grossMarginPct,
+      previousPeriod,
+      varianceVsPrevious,
+      monthlyComparison,
+      quarterlyComparison,
+      generatedAt: new Date(),
+    })
+  } catch {
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+router.get('/reports/balance-sheet', protect, async (req, res) => {
+  try {
+    if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const { endDate } = req.query
+    const snapshot = await buildBalanceSheetSummary(endDate)
+    const anchorDate = endDate ? new Date(endDate) : new Date()
+    const monthlyComparison = []
+    for (let i = 5; i >= 0; i -= 1) {
+      const monthEnd = new Date(anchorDate.getFullYear(), anchorDate.getMonth() - i + 1, 0)
+      const summary = await buildBalanceSheetSummary(monthEnd)
+      monthlyComparison.push({
+        label: monthEnd.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+        endDate: monthEnd,
+        totalAssets: summary.totalAssets,
+        totalLiabilities: summary.totalLiabilities,
+        totalEquity: summary.totalEquity,
+        workingCapital: summary.workingCapital,
+      })
+    }
+
+    const quarterlyComparison = []
+    const anchorQuarter = Math.floor(anchorDate.getMonth() / 3)
+    for (let i = 3; i >= 0; i -= 1) {
+      const quarterIndex = anchorQuarter - i
+      const yearOffset = Math.floor(quarterIndex / 4)
+      const normalizedQuarter = ((quarterIndex % 4) + 4) % 4
+      const year = anchorDate.getFullYear() + yearOffset
+      const quarterEnd = new Date(year, normalizedQuarter * 3 + 3, 0)
+      const summary = await buildBalanceSheetSummary(quarterEnd)
+      quarterlyComparison.push({
+        label: `Q${normalizedQuarter + 1} ${year}`,
+        endDate: quarterEnd,
+        totalAssets: summary.totalAssets,
+        totalLiabilities: summary.totalLiabilities,
+        totalEquity: summary.totalEquity,
+        workingCapital: summary.workingCapital,
+      })
+    }
+
+    res.json({
+      success: true,
+      asOfDate: endDate || null,
+      assets: snapshot.assets,
+      liabilities: snapshot.liabilities,
+      equity: snapshot.equity,
+      totalAssets: snapshot.totalAssets,
+      totalLiabilities: snapshot.totalLiabilities,
+      totalEquity: snapshot.totalEquity,
+      liabilitiesPlusEquity: snapshot.liabilitiesPlusEquity,
+      difference: snapshot.difference,
+      currentAssets: snapshot.currentAssets,
+      currentLiabilities: snapshot.currentLiabilities,
+      workingCapital: snapshot.workingCapital,
+      currentRatio: snapshot.currentRatio,
+      balanced: snapshot.balanced,
+      monthlyComparison,
+      quarterlyComparison,
+      generatedAt: new Date(),
+    })
+  } catch {
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+router.get('/reports/day-book', protect, async (req, res) => {
+  try {
+    if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const { startDate, endDate, referenceType, minAmount = '0' } = req.query
+    const query = { isDeleted: { $ne: true } }
+    const dateQuery = buildDateQuery(startDate, endDate)
+    if (dateQuery) query.date = dateQuery
+    if (referenceType) query.referenceType = referenceType
+
+    let entries = await Ledger.find(query)
+      .populate('debitAccountId', 'accountCode accountName')
+      .populate('creditAccountId', 'accountCode accountName')
+      .sort({ date: 1, createdAt: 1 })
+
+    const min = Number(minAmount || 0)
+    if (min > 0) {
+      entries = entries.filter((entry) => Number(entry.amount || 0) >= min)
+    }
+
+    const totals = entries.reduce((acc, entry) => {
+      acc.debit += Number(entry.amount || 0)
+      acc.credit += Number(entry.amount || 0)
+      acc.count += 1
+      return acc
+    }, { debit: 0, credit: 0, count: 0 })
+
+    const summaryByType = entries.reduce((acc, entry) => {
+      const key = entry.referenceType || 'journal'
+      if (!acc[key]) acc[key] = { count: 0, amount: 0 }
+      acc[key].count += 1
+      acc[key].amount += Number(entry.amount || 0)
+      return acc
+    }, {})
+
+    res.json({
+      success: true,
+      period: { startDate: startDate || null, endDate: endDate || null },
+      entries,
+      totals: {
+        debit: toMoney(totals.debit),
+        credit: toMoney(totals.credit),
+        count: totals.count,
+      },
+      summaryByType,
+      generatedAt: new Date(),
+    })
+  } catch {
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+router.get('/reports/customer-outstanding', protect, async (req, res) => {
+  try {
+    if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const customers = await Customer.find({ isActive: true }).populate('ledgerAccountId', 'accountCode accountName')
+
+    const rows = await Promise.all(customers.map(async (customer) => {
+      const aging = await getAgingForAccount(customer.ledgerAccountId?._id)
+      return {
+        customerId: customer._id,
+        customerName: customer.name,
+        ledgerAccount: customer.ledgerAccountId,
+        outstanding: toMoney(aging.total),
+        aging,
+        creditLimit: toMoney(customer.creditLimit || 0),
+        limitExceeded: Number(aging.total || 0) > Number(customer.creditLimit || 0) && Number(customer.creditLimit || 0) > 0,
+      }
+    }))
+
+    const totals = rows.reduce((acc, row) => {
+      acc.outstanding += Number(row.outstanding || 0)
+      acc.bucket0to30 += Number(row.aging?.bucket0to30 || 0)
+      acc.bucket31to60 += Number(row.aging?.bucket31to60 || 0)
+      acc.bucket61to90 += Number(row.aging?.bucket61to90 || 0)
+      acc.bucket90Plus += Number(row.aging?.bucket90Plus || 0)
+      if (row.limitExceeded) acc.limitExceededCount += 1
+      return acc
+    }, { outstanding: 0, bucket0to30: 0, bucket31to60: 0, bucket61to90: 0, bucket90Plus: 0, limitExceededCount: 0 })
+
+    res.json({
+      success: true,
+      rows,
+      totals: {
+        outstanding: toMoney(totals.outstanding),
+        bucket0to30: toMoney(totals.bucket0to30),
+        bucket31to60: toMoney(totals.bucket31to60),
+        bucket61to90: toMoney(totals.bucket61to90),
+        bucket90Plus: toMoney(totals.bucket90Plus),
+        limitExceededCount: totals.limitExceededCount,
+      },
+      generatedAt: new Date(),
+    })
+  } catch {
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+router.get('/reports/vendor-outstanding', protect, async (req, res) => {
+  try {
+    if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const vendors = await Vendor.find({ isActive: true, deletedAt: null }).populate('ledgerAccountId', 'accountCode accountName')
+
+    const rows = await Promise.all(vendors.map(async (vendor) => {
+      const outstanding = await getOutstandingForAccount(vendor.ledgerAccountId?._id)
+      return {
+        vendorId: vendor._id,
+        vendorName: vendor.name,
+        ledgerAccount: vendor.ledgerAccountId,
+        outstanding: toMoney(Math.abs(outstanding)),
+        outstandingType: outstanding >= 0 ? 'Credit' : 'Debit',
+      }
+    }))
+
+    const totals = rows.reduce((acc, row) => {
+      acc.outstanding += Number(row.outstanding || 0)
+      if (row.outstandingType === 'Credit') acc.credit += Number(row.outstanding || 0)
+      if (row.outstandingType === 'Debit') acc.debit += Number(row.outstanding || 0)
+      return acc
+    }, { outstanding: 0, credit: 0, debit: 0 })
+
+    res.json({
+      success: true,
+      rows,
+      totals: {
+        outstanding: toMoney(totals.outstanding),
+        credit: toMoney(totals.credit),
+        debit: toMoney(totals.debit),
+      },
+      generatedAt: new Date(),
+    })
+  } catch {
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+router.get('/reports/forex-gain-loss', protect, async (req, res) => {
+  try {
+    if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const { startDate, endDate } = req.query
+    const query = { isDeleted: { $ne: true }, exchangeRate: { $ne: 1 } }
+    const dateQuery = buildDateQuery(startDate, endDate)
+    if (dateQuery) query.date = dateQuery
+
+    const entries = await Ledger.find(query)
+    const total = entries.reduce((sum, entry) => sum + Math.abs(Number(entry.amount || 0) * (Number(entry.exchangeRate || 1) - 1)), 0)
+
+    const byCurrency = entries.reduce((acc, entry) => {
+      const key = entry.currency || 'BASE'
+      if (!acc[key]) acc[key] = { count: 0, impact: 0 }
+      acc[key].count += 1
+      acc[key].impact += Math.abs(Number(entry.amount || 0) * (Number(entry.exchangeRate || 1) - 1))
+      return acc
+    }, {})
+
+    res.json({
+      success: true,
+      entriesCount: entries.length,
+      forexImpact: toMoney(total),
+      byCurrency,
+      generatedAt: new Date(),
+    })
+  } catch {
+    res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+router.get('/reports/dashboard', protect, async (req, res) => {
+  try {
+    if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+
+    const today = new Date()
+    const { startDate, endDate } = req.query
+    const periodStart = startDate ? new Date(startDate) : new Date(today.getFullYear(), today.getMonth(), 1)
+    const periodEnd = endDate ? new Date(endDate) : new Date(today.getFullYear(), today.getMonth() + 1, 0)
+    periodEnd.setHours(23, 59, 59, 999)
+
+    // --- Period ledger entries (for income / expense / cash-flow) ---
+    const periodLedger = await Ledger.find({
+      date: { $gte: periodStart, $lte: periodEnd },
+      isDeleted: { $ne: true },
+    })
+      .populate('debitAccountId', 'accountCode accountName accountType')
+      .populate('creditAccountId', 'accountCode accountName accountType')
+
+    let income = 0
+    let expenseTotal = 0
+    const expenseByAccount = {}
+    periodLedger.forEach((e) => {
+      const debitType = e.debitAccountId?.accountType
+      const creditType = e.creditAccountId?.accountType
+      if (creditType === 'Income') income += Number(e.amount || 0)
+      if (debitType === 'Expense') {
+        expenseTotal += Number(e.amount || 0)
+        const key = e.debitAccountId?.accountName || 'Other'
+        expenseByAccount[key] = (expenseByAccount[key] || 0) + Number(e.amount || 0)
+      }
+    })
+    const expenseBreakdown = Object.entries(expenseByAccount)
+      .map(([name, amount]) => ({ name, amount: toMoney(amount) }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 6)
+
+    // --- Cash flow: net movement in Asset accounts ---
+    let cashInflow = 0
+    let cashOutflow = 0
+    periodLedger.forEach((e) => {
+      const debitType = e.debitAccountId?.accountType
+      const creditType = e.creditAccountId?.accountType
+      if (debitType === 'Asset') cashInflow += Number(e.amount || 0)
+      if (creditType === 'Asset') cashOutflow += Number(e.amount || 0)
+    })
+
+    // Monthly cash-flow bar chart data (last 6 months)
+    const monthlyCashFlow = []
+    for (let i = 5; i >= 0; i -= 1) {
+      const ms = new Date(today.getFullYear(), today.getMonth() - i, 1)
+      const me = new Date(today.getFullYear(), today.getMonth() - i + 1, 0)
+      me.setHours(23, 59, 59, 999)
+      const mEntries = await Ledger.find({ date: { $gte: ms, $lte: me }, isDeleted: { $ne: true } })
+        .populate('debitAccountId', 'accountType')
+        .populate('creditAccountId', 'accountType')
+      let inc = 0; let exp = 0; let cfIn = 0; let cfOut = 0
+      mEntries.forEach((e) => {
+        if (e.creditAccountId?.accountType === 'Income') inc += Number(e.amount || 0)
+        if (e.debitAccountId?.accountType === 'Expense') exp += Number(e.amount || 0)
+        if (e.debitAccountId?.accountType === 'Asset') cfIn += Number(e.amount || 0)
+        if (e.creditAccountId?.accountType === 'Asset') cfOut += Number(e.amount || 0)
+      })
+      monthlyCashFlow.push({
+        month: ms.toLocaleString('en-US', { month: 'short', year: '2-digit' }),
+        income: toMoney(inc),
+        expense: toMoney(exp),
+        cashIn: toMoney(cfIn),
+        cashOut: toMoney(cfOut),
+        net: toMoney(cfIn - cfOut),
+      })
+    }
+
+    // --- Bank & Cash balances ---
+    const bankAccounts = await ChartOfAccount.find({
+      isActive: true,
+      accountType: 'Asset',
+      $or: [{ accountName: /cash|bank/i }, { accountCode: /^10/ }],
+    })
+    const cashBankBalances = await Promise.all(bankAccounts.map(async (account) => {
+      const balance = await getOutstandingForAccount(account._id)
+      return { accountCode: account.accountCode, accountName: account.accountName, balance: toMoney(balance) }
+    }))
+    const totalBankBalance = cashBankBalances.reduce((s, a) => s + Number(a.balance || 0), 0)
+    const bankRows = cashBankBalances.filter((a) => /bank/i.test(a.accountName))
+    const cashRows = cashBankBalances.filter((a) => /cash/i.test(a.accountName))
+
+    // --- Assets & Liabilities snapshot ---
+    const [assets, liabilities] = await Promise.all([
+      ChartOfAccount.find({ accountType: 'Asset' }).select('accountName accountCode'),
+      ChartOfAccount.find({ accountType: 'Liability' }).select('accountName accountCode'),
+    ])
+
+    // --- AP & AR (via customer / vendor ledger accounts) ---
+    const customers = await Customer.find({ isActive: true }).populate('ledgerAccountId', 'accountCode accountName')
+    const vendors = await Vendor.find({ isActive: true, deletedAt: null }).populate('ledgerAccountId', 'accountCode accountName')
+
+    const customerOutstanding = await Promise.all(customers.map(async (c) => {
+      const aging = await getAgingForAccount(c.ledgerAccountId?._id)
+      return { customerName: c.name, outstanding: toMoney(aging.total) }
+    }))
+    const vendorOutstanding = await Promise.all(vendors.map(async (v) => {
+      const out = await getOutstandingForAccount(v.ledgerAccountId?._id)
+      return { vendorName: v.name, outstanding: toMoney(Math.abs(out)) }
+    }))
+    const totalAR = customerOutstanding.reduce((s, r) => s + Number(r.outstanding || 0), 0)
+    const totalAP = vendorOutstanding.reduce((s, r) => s + Number(r.outstanding || 0), 0)
+
+    // --- Customer margin: expenses and cash-flow per customer (no profit/income) ---
+    const customerMargins = await Promise.all(customers.map(async (c) => {
+      if (!c.ledgerAccountId?._id) return null
+      const cLedger = await Ledger.find({
+        $or: [{ debitAccountId: c.ledgerAccountId._id }, { creditAccountId: c.ledgerAccountId._id }],
+        date: { $gte: periodStart, $lte: periodEnd },
+        isDeleted: { $ne: true },
+      }).populate('debitAccountId', 'accountType').populate('creditAccountId', 'accountType')
+      let custExpense = 0; let custCashIn = 0; let custCashOut = 0
+      cLedger.forEach((e) => {
+        if (e.debitAccountId?.accountType === 'Expense') custExpense += Number(e.amount || 0)
+        if (e.debitAccountId?.accountType === 'Asset') custCashIn += Number(e.amount || 0)
+        if (e.creditAccountId?.accountType === 'Asset') custCashOut += Number(e.amount || 0)
+      })
+      if (custExpense === 0 && custCashIn === 0 && custCashOut === 0) return null
+      return {
+        customerName: c.name,
+        expenses: toMoney(custExpense),
+        cashInflow: toMoney(custCashIn),
+        cashOutflow: toMoney(custCashOut),
+        netCashFlow: toMoney(custCashIn - custCashOut),
+      }
+    }))
+    const filteredCustomerMargins = customerMargins.filter(Boolean).slice(0, 10)
+
+    // --- Supplier margins via mapped purchase/sales accounts ---
+    const purchaseMappings = await AccountMapping.find({ isActive: true, mappingType: { $in: ['purchase', 'expense', 'vendor_payment'] } })
+      .populate('debitAccountId', 'accountCode accountName accountType')
+      .populate('creditAccountId', 'accountCode accountName accountType')
+    const supplierAccountIds = [...new Set(purchaseMappings.map((m) => String(m.debitAccountId?._id || '')))]
+    let supplierExpenseTotal = 0
+    let supplierCashOut = 0
+    if (supplierAccountIds.length) {
+      const suppEntries = await Ledger.find({
+        date: { $gte: periodStart, $lte: periodEnd },
+        isDeleted: { $ne: true },
+        $or: [
+          { debitAccountId: { $in: supplierAccountIds } },
+          { creditAccountId: { $in: supplierAccountIds } },
+        ],
+      }).populate('debitAccountId', 'accountType').populate('creditAccountId', 'accountType')
+      suppEntries.forEach((e) => {
+        if (e.debitAccountId?.accountType === 'Expense') supplierExpenseTotal += Number(e.amount || 0)
+        if (e.creditAccountId?.accountType === 'Asset') supplierCashOut += Number(e.amount || 0)
+      })
+    }
+
+    // --- Fixing positions from DirectDeal ---
+    const fixingDeals = await DirectDeal.find({
+      entryType: 'fixing',
+      isDeleted: { $ne: true },
+      docDate: { $gte: periodStart, $lte: periodEnd },
+    })
+    const fixingByMetal = {}
+    fixingDeals.forEach((deal) => {
+      deal.lineItems.forEach((line) => {
+        const metal = line.metal || 'XAU'
+        if (!fixingByMetal[metal]) fixingByMetal[metal] = { qty: 0, amount: 0 }
+        fixingByMetal[metal].qty += Number(line.eqOz || line.qty || 0)
+        fixingByMetal[metal].amount += Number(line.amount || 0)
+      })
+    })
+    const fixingPositions = Object.entries(fixingByMetal).map(([metal, data]) => ({
+      metal,
+      qty: toMoney(data.qty),
+      amount: toMoney(data.amount),
+    }))
+
+    // --- Volume traded from StockMovement + DirectDeal lines ---
+    const stockMoves = await StockMovement.find({
+      isDeleted: { $ne: true },
+      date: { $gte: periodStart, $lte: periodEnd },
+    })
+    const volumeByMetal = {}
+    stockMoves.forEach((m) => {
+      const metal = String(m.category || m.metal || 'Other').toUpperCase()
+      if (!volumeByMetal[metal]) volumeByMetal[metal] = { qty: 0, value: 0 }
+      volumeByMetal[metal].qty += Number(m.quantity || 0)
+      volumeByMetal[metal].value += Number(m.totalValue || m.unitCost * m.quantity || 0)
+    })
+    fixingDeals.forEach((deal) => {
+      deal.lineItems.forEach((line) => {
+        const metal = line.metal || 'XAU'
+        if (!volumeByMetal[metal]) volumeByMetal[metal] = { qty: 0, value: 0 }
+        volumeByMetal[metal].qty += Number(line.eqOz || line.qty || 0)
+        volumeByMetal[metal].value += Number(line.amount || 0)
+      })
+    })
+    const volumeTraded = Object.entries(volumeByMetal).map(([metal, data]) => ({
+      metal,
+      qty: toMoney(data.qty),
+      value: toMoney(data.value),
+    }))
+
+    // --- Metal rates (latest) ---
+    const latestRate = await MetalRate.findOne().sort({ updatedAt: -1 })
+    // Source of truth for dashboard metals: stock type records from Inventory (exclude product rows)
+    const stockTypeDocs = await InventoryItem.find({
+      isDeleted: { $ne: true },
+      $and: [
+        { category: /mainStock=/i },
+        { category: { $not: /recordType=product/i } },
+      ],
+    }).select('category unitCost currency updatedAt')
+
+    const stockPriceMap = {}
+    stockTypeDocs.forEach((doc) => {
+      const raw = String(doc.category || '')
+      const meta = {}
+      raw.split(';').forEach((pair) => {
+        const [key, ...rest] = pair.split('=')
+        if (!key || rest.length === 0) return
+        meta[String(key).trim()] = rest.join('=').trim()
+      })
+      const metal = String(meta.mainStock || meta.metalType || '').trim().toLowerCase()
+      if (!metal) return
+
+      const price = Number(doc.unitCost || 0)
+      if (!Number.isFinite(price) || price <= 0) return
+
+      const prev = stockPriceMap[metal]
+      if (!prev || new Date(doc.updatedAt || 0) > new Date(prev.updatedAt || 0)) {
+        stockPriceMap[metal] = {
+          price,
+          currency: String(doc.currency || meta.priceCurrency || 'USD').toUpperCase(),
+          unit: String(meta.priceUnit || 'OZ').toUpperCase(),
+          updatedAt: doc.updatedAt || null,
+        }
+      }
+    })
+
+    const latestStockUpdatedAt = Object.values(stockPriceMap)
+      .map((entry) => entry.updatedAt)
+      .filter(Boolean)
+      .sort((a, b) => new Date(b) - new Date(a))[0] || null
+
+    const metalRates = {
+      // Prefer inventory stock-type prices; fallback to legacy metal-rates for compatibility.
+      gold: stockPriceMap.gold?.price || (latestRate ? latestRate.goldPrice : 0),
+      silver: stockPriceMap.silver?.price || (latestRate ? latestRate.silverPrice : 0),
+      platinum: stockPriceMap.platinum?.price || 0,
+      palladium: stockPriceMap.palladium?.price || 0,
+      currency: stockPriceMap.gold?.currency || stockPriceMap.silver?.currency || (latestRate ? latestRate.priceCurrency : 'USD'),
+      updatedAt: latestStockUpdatedAt || (latestRate ? latestRate.updatedAt : null),
+      stockPrices: stockPriceMap,
+    }
+
+    // --- Vendor compliance / doc expiry ---
+    const vendorDocumentExpiry = buildDocumentExpiryBuckets(vendors, today)
+    const complianceRows = vendors.map((v) => evaluateVendorCompliance(v, today))
+    const vendorComplianceRisk = {
+      nonCompliant: complianceRows.filter((r) => !r.compliant).length,
+      averageScore: complianceRows.length > 0
+        ? toMoney(complianceRows.reduce((s, r) => s + Number(r.complianceScore || 0), 0) / complianceRows.length)
+        : 0,
+    }
+
+    // --- Low stock ---
+    const inventoryLowStock = await InventoryItem.find({
+      isDeleted: { $ne: true },
+      $expr: { $lt: ['$quantity', '$minThreshold'] },
+    }).select('name sku quantity minThreshold').limit(10)
+
+    res.json({
+      success: true,
+      period: { startDate: periodStart, endDate: periodEnd },
+      summary: {
+        monthIncome: toMoney(income),
+        monthExpense: toMoney(expenseTotal),
+        monthProfit: toMoney(income - expenseTotal),
+      },
+      metalRates,
+      bankBalances: bankRows,
+      cashBalances: cashRows,
+      allCashBankBalances: cashBankBalances,
+      totalBankBalance: toMoney(totalBankBalance),
+      cashFlow: {
+        inflow: toMoney(cashInflow),
+        outflow: toMoney(cashOutflow),
+        net: toMoney(cashInflow - cashOutflow),
+        monthly: monthlyCashFlow,
+      },
+      expenses: {
+        total: toMoney(expenseTotal),
+        breakdown: expenseBreakdown,
+      },
+      apAr: {
+        totalAR: toMoney(totalAR),
+        totalAP: toMoney(totalAP),
+        netPosition: toMoney(totalAR - totalAP),
+        arCount: customerOutstanding.filter((x) => x.outstanding > 0).length,
+        apCount: vendorOutstanding.filter((x) => x.outstanding > 0).length,
+        customerOutstanding: customerOutstanding.filter((x) => x.outstanding > 0).slice(0, 10),
+        vendorOutstanding: vendorOutstanding.filter((x) => x.outstanding > 0).slice(0, 10),
+      },
+      customerMargins: filteredCustomerMargins,
+      supplierMargins: {
+        expenses: toMoney(supplierExpenseTotal),
+        cashOutflow: toMoney(supplierCashOut),
+        mappingsCount: purchaseMappings.length,
+      },
+      fixingPositions,
+      volumeTraded,
+      assets: assets.slice(0, 5),
+      liabilities: liabilities.slice(0, 5),
+      vendorDocumentExpiry: vendorDocumentExpiry.buckets,
+      vendorComplianceRisk,
+      lowStockAlerts: inventoryLowStock,
+      generatedAt: new Date(),
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error', detail: err.message })
+  }
+})
+
+}
+
+module.exports = {
+  registerReportRoutes,
+}

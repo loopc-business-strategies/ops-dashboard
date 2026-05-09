@@ -47,6 +47,17 @@ async function bindTenantContext(req, res, next) {
 
     return runWithTenantConnection(connection, tenant, () => next())
   } catch (err) {
+    const jwtErrorNames = new Set(['TokenExpiredError', 'JsonWebTokenError', 'NotBeforeError'])
+    if (jwtErrorNames.has(String(err?.name || ''))) {
+      res.clearCookie('sessionToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/',
+      })
+      return next()
+    }
+
     return next(err)
   }
 }

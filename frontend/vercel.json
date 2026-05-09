@@ -1,6 +1,19 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://api.loopcstrategies.com/api/$1" },
+    {
+      "source": "/api/(.*)",
+      "has": [
+        { "type": "host", "value": "(mg|cg|loopc|app)\\.loopcstrategies\\.com" }
+      ],
+      "destination": "https://api.loopcstrategies.com/api/$1"
+    },
+    {
+      "source": "/api/(.*)",
+      "has": [
+        { "type": "host", "value": ".*\\.vercel\\.app" }
+      ],
+      "destination": "/api-preview-disabled.json"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
