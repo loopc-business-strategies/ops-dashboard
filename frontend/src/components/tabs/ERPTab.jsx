@@ -10253,7 +10253,6 @@ function ERPTab({ focusTab, onNavigateMain }) {
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Date</th>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Receipt No</th>
                             {showStatementAuditIds && <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Transaction ID</th>}
-                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Type</th>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Deal</th>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Fixing</th>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Offset Account</th>
@@ -10261,7 +10260,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                             <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Pure WT In Grams</th>
                           </tr>
                           <tr style={{ background: '#EEF1E8', borderBottom: '2px solid #CBD5E0' }}>
-                            <th colSpan={showStatementAuditIds ? 7 : 6} style={{ padding: 0, border: 0 }} />
+                            <th colSpan={showStatementAuditIds ? 6 : 5} style={{ padding: 0, border: 0 }} />
                             <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700', borderLeft: '1px solid #CBD5E0' }}>Debit</th>
                             <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Credit</th>
                             <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Balance</th>
@@ -10273,7 +10272,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                         <tbody>
                           {filteredStatementEntries.length === 0 ? (
                             <tr>
-                              <td colSpan={showStatementAuditIds ? 14 : 13} style={{ padding: '1rem', textAlign: 'center', color: '#6B7280', fontStyle: 'italic' }}>
+                              <td colSpan={showStatementAuditIds ? 13 : 12} style={{ padding: '1rem', textAlign: 'center', color: '#6B7280', fontStyle: 'italic' }}>
                                 No statement entries found for selected filters.
                               </td>
                             </tr>
@@ -10303,7 +10302,6 @@ function ERPTab({ focusTab, onNavigateMain }) {
                                   <td style={{ padding: '0.6rem', color: '#374151' }}>{formatStatementDate(entry.date)}</td>
                                   <td style={{ padding: '0.6rem', color: '#111827', fontFamily: 'monospace', fontSize: '0.8rem' }}>{receiptNo}</td>
                                   {showStatementAuditIds && <td style={{ padding: '0.6rem', color: '#475569', fontFamily: 'monospace', fontSize: '0.78rem' }}>{entry.sourceTransactionId || '-'}</td>}
-                                  <td style={{ padding: '0.6rem', color: '#374151' }}>{String(entry.referenceType || 'journal').toUpperCase()}</td>
                                   <td style={{ padding: '0.6rem', color: '#374151', textTransform: 'capitalize' }}>{entry.metalDealType || '-'}</td>
                                   <td style={{ padding: '0.6rem' }}>
                                     {(sourceType === 'sale' || sourceType === 'purchase') && (entry.metalFixStatus === 'fixed' || entry.metalFixStatus === 'unfixed') ? (
