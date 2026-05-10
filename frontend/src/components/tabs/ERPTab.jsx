@@ -1156,11 +1156,16 @@ function ERPTab({ focusTab, onNavigateMain }) {
   // Role-based permissions
   const {
     isSuperAdmin,
+    isSuperAdmin,
     isDepartmentHead,
+    isManagementRole,
     isFinance,
     isSalesRole,
+    isOperationsRole,
+    isHRRole,
     canViewAccounts,
     canManageAccounts,
+    canViewLedger,
     canViewCustomers,
     canManageCustomers,
     canViewBalanceEnquiry,
