@@ -605,7 +605,7 @@ const buildFxJournalRevaluationPreview = async (transaction) => {
         vocNo: voucherMeta?.vocNo || '',
         type: transaction?.type || '',
       },
-      counts: { journalCount: 0, updateCandidates: 0, unchangedCount: 0, skippedDirectionCount: 0 },
+      counts: { journalCount: 0, updateCandidates: 0, removeCandidates: 0, unchangedCount: 0, skippedDirectionCount: 0 },
       journals: [],
     }
   }
@@ -642,6 +642,9 @@ const buildFxJournalRevaluationPreview = async (transaction) => {
     const needsUpdate = directionMatches
       && rawCorrectedAmount >= FX_REVALUATION_EPSILON
       && Math.abs(deltaAmount) >= FX_REVALUATION_EPSILON
+    const needsRemoval = directionMatches
+      && rawCorrectedAmount < FX_REVALUATION_EPSILON
+      && currentAmount >= FX_REVALUATION_EPSILON
 
     return {
       journalId: String(journal._id),
@@ -653,7 +656,7 @@ const buildFxJournalRevaluationPreview = async (transaction) => {
       correctedAmount,
       deltaAmount,
       status: directionMatches
-        ? (needsUpdate ? 'update' : 'unchanged')
+        ? (needsUpdate ? 'update' : (needsRemoval ? 'remove' : 'unchanged'))
         : 'skipped_direction',
       debitAccount: journal.debitAccountId
         ? {
@@ -695,6 +698,7 @@ const buildFxJournalRevaluationPreview = async (transaction) => {
     counts: {
       journalCount: previewRows.length,
       updateCandidates: previewRows.filter((row) => row.status === 'update').length,
+      removeCandidates: previewRows.filter((row) => row.status === 'remove').length,
       unchangedCount: previewRows.filter((row) => row.status === 'unchanged').length,
       skippedDirectionCount: previewRows.filter((row) => row.status === 'skipped_direction').length,
     },
@@ -704,6 +708,7 @@ const buildFxJournalRevaluationPreview = async (transaction) => {
 
 const applyFxJournalRevaluation = async ({ transaction, user, preview }) => {
   let updatedCount = 0
+  let removedCount = 0
 
   for (const row of preview.journals) {
     if (row.status !== 'update') continue
@@ -722,12 +727,30 @@ const applyFxJournalRevaluation = async ({ transaction, user, preview }) => {
     updatedCount += 1
   }
 
-  if (updatedCount > 0) {
+  for (const row of preview.journals) {
+    if (row.status !== 'remove') continue
+
+    await Ledger.updateOne(
+      { _id: row.journalId, isDeleted: { $ne: true } },
+      {
+        $set: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          updatedAt: new Date(),
+          updatedBy: user._id,
+          notes: `FX journal removed after revaluation at reference rate ${preview.transaction.referenceRate}`,
+        },
+      },
+    )
+    removedCount += 1
+  }
+
+  if (updatedCount > 0 || removedCount > 0) {
     transaction.updatedBy = user._id
     appendTransactionAudit(transaction, user, 'revalue_fx_journal', {
       fromStatus: transaction.status,
       toStatus: transaction.status,
-      comment: `Revalued ${updatedCount} FX journal row(s) to ${preview.transaction.correctedAmount.toFixed(2)} using reference rate ${preview.transaction.referenceRate}`,
+      comment: `Revalued ${updatedCount} and removed ${removedCount} FX journal row(s) at reference rate ${preview.transaction.referenceRate}`,
     })
     await transaction.save()
   }
@@ -736,14 +759,19 @@ const applyFxJournalRevaluation = async ({ transaction, user, preview }) => {
     ...preview,
     message: updatedCount > 0
       ? `Revalued ${updatedCount} FX journal row(s).`
-      : preview.message,
+      : removedCount > 0
+        ? `Removed ${removedCount} stale FX journal row(s).`
+        : preview.message,
     counts: {
       ...preview.counts,
       updatedCount,
+      removedCount,
     },
     journals: preview.journals.map((row) => (
       row.status === 'update'
         ? { ...row, currentAmount: row.correctedAmount, deltaAmount: 0, status: 'updated' }
+        : row.status === 'remove'
+          ? { ...row, status: 'removed' }
         : row
     )),
   }

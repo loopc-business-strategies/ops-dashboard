@@ -1155,6 +1155,122 @@ describe('ERP accounting transactions workflow', () => {
     expect(paymentJournal).toBeFalsy()
   })
 
+  test('revalue-fx-journal removes stale tiny FX rows when corrected difference is below epsilon', async () => {
+    const financeUser = await createUser({ name: 'FX Revalue Tiny Row Tester', role: 'super_admin' })
+
+    const payableAccount = await ChartOfAccount.create({
+      accountName: 'Vendor Payable FX Revalue Tiny',
+      accountCode: '2105',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+    const bankAccount = await ChartOfAccount.create({
+      accountName: 'Bank FX Revalue Tiny',
+      accountCode: '1019',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const fxLossAccount = await ChartOfAccount.create({
+      accountName: 'Exchange Loss FX Revalue Tiny',
+      accountCode: '5199',
+      accountType: 'Expense',
+      createdBy: financeUser._id,
+    })
+
+    await Vendor.create({
+      name: 'FX Revalue Tiny Vendor',
+      ledgerAccountId: payableAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    await Currency.create({
+      code: 'USD',
+      name: 'US Dollar',
+      symbol: '$',
+      exchangeRate: 1,
+      baseCurrency: true,
+      isActive: true,
+    })
+
+    const referenceRate = 1 / 12100
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'payment',
+        amount: 16.52,
+        description: 'payment fx revalue tiny row check',
+        currency: 'UZS',
+        exchangeRate: referenceRate,
+        voucherMeta: {
+          referenceExchangeRate: referenceRate,
+          partyCode: '2105',
+          lineItems: [
+            { type: 'cash', currCode: 'UZS', currRate: referenceRate, amountFC: 100000, amountLC: 8.26 },
+            { type: 'cash', currCode: 'UZS', currRate: referenceRate, amountFC: 100000, amountLC: 8.26 },
+          ],
+        },
+      })
+    expect(createRes.status).toBe(201)
+
+    const txId = createRes.body.transaction._id
+
+    await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/submit`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Ready to post FX revalue tiny row tx' })
+      .expect(200)
+
+    await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/approve`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Approve FX revalue tiny row tx' })
+      .expect(200)
+
+    const firstPost = await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/post`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Post FX revalue tiny row tx' })
+
+    if (firstPost.status === 409) {
+      await request(app)
+        .post(`/api/erp-accounting/transactions/${txId}/post`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Post FX revalue tiny row tx', confirmVendorAdvance: true })
+        .expect(200)
+    } else {
+      expect(firstPost.status).toBe(200)
+    }
+
+    const staleJournal = await queryInTenant(() => Ledger.create({
+      date: new Date(),
+      debitAccountId: fxLossAccount._id,
+      creditAccountId: bankAccount._id,
+      amount: 0.01,
+      description: `Exchange loss adjustment for transaction ${txId}`,
+      referenceType: 'journal',
+      referenceId: txId,
+      currency: 'USD',
+      exchangeRate: 1,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+      department: financeUser.department,
+    }))
+
+    const revalueRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/revalue-fx-journal`)
+      .set(authHeader(financeUser))
+      .send({ apply: true })
+
+    expect(revalueRes.status).toBe(200)
+    expect(revalueRes.body.counts.removedCount).toBe(1)
+
+    const reloaded = await queryInTenant(() => Ledger.findById(staleJournal._id))
+    expect(reloaded).toBeTruthy()
+    expect(reloaded.isDeleted).toBe(true)
+  })
+
   test('rejects non-base receipt when reference rate is missing or zero', async () => {
     const financeUser = await createUser({ name: 'FX Guard Tester' })
     const receivableAccount = await ChartOfAccount.create({
