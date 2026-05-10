@@ -1,6 +1,7 @@
 {
   "name": "ops-dashboard-backend",
   "version": "1.0.0",
+  "packageManager": "npm@10.8.2",
   "main": "server.js",
   "engines": {
     "node": ">=20"

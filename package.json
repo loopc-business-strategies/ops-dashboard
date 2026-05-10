@@ -1,5 +1,6 @@
 {
   "name": "ops-dashboard-workspace",
+  "packageManager": "npm@10.8.2",
   "private": true,
   "scripts": {
     "dev": "node scripts/dev-orchestrator.js",
