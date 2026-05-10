@@ -1271,6 +1271,60 @@ describe('ERP accounting transactions workflow', () => {
     expect(reloaded.isDeleted).toBe(true)
   })
 
+  test('account enquiry keeps net balance invariant as opening + debit - credit', async () => {
+    const financeUser = await createUser({ name: 'Account Summary Invariant Tester' })
+
+    const targetAccount = await ChartOfAccount.create({
+      accountName: 'Account Summary Target',
+      accountCode: '1501',
+      accountType: 'Asset',
+      openingBalance: 100,
+      createdBy: financeUser._id,
+    })
+    const offsetAccount = await ChartOfAccount.create({
+      accountName: 'Account Summary Offset',
+      accountCode: '2501',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+
+    await Ledger.create({
+      date: new Date('2026-01-01T00:00:00.000Z'),
+      debitAccountId: targetAccount._id,
+      creditAccountId: offsetAccount._id,
+      amount: 250,
+      description: 'Invariant debit movement',
+      referenceType: 'journal',
+      createdBy: financeUser._id,
+      currency: 'USD',
+      exchangeRate: 1,
+    })
+
+    await Ledger.create({
+      date: new Date('2026-01-02T00:00:00.000Z'),
+      debitAccountId: offsetAccount._id,
+      creditAccountId: targetAccount._id,
+      amount: 50,
+      description: 'Invariant credit movement',
+      referenceType: 'journal',
+      createdBy: financeUser._id,
+      currency: 'USD',
+      exchangeRate: 1,
+    })
+
+    const enquiryRes = await request(app)
+      .get('/api/erp-accounting/accounts/enquiry')
+      .query({ accountCode: '1501' })
+      .set(authHeader(financeUser))
+
+    expect(enquiryRes.status).toBe(200)
+    const balances = enquiryRes.body?.enquiry?.balances || enquiryRes.body?.balances || {}
+    expect(Number(balances.debitTotal || 0)).toBeCloseTo(250, 2)
+    expect(Number(balances.creditTotal || 0)).toBeCloseTo(50, 2)
+    expect(Number(balances.netBalance || 0)).toBeCloseTo(300, 2)
+    expect(String(balances.netDirection || '')).toBe('Debit')
+  })
+
   test('rejects non-base receipt when reference rate is missing or zero', async () => {
     const financeUser = await createUser({ name: 'FX Guard Tester' })
     const receivableAccount = await ChartOfAccount.create({

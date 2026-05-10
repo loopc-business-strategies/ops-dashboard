@@ -32,6 +32,8 @@ const { registerReportRoutes } = require('./erp-accounting/reportRoutes')
 const { registerMappingsRoutes } = require('./erp-accounting/mappingsRoutes')
 const { registerCurrencyRoutes } = require('./erp-accounting/currencyRoutes')
 const { registerTransactionRoutes } = require('./erp-accounting/transactionRoutes')
+const { createFxRevaluationService } = require('../services/erpAccounting/fxRevaluationService')
+const { createTransactionPostingService } = require('../services/erpAccounting/transactionPostingService')
 
 const router = express.Router()
 
@@ -242,6 +244,26 @@ const parseNumber = (value, fallback = 0) => {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
 }
+
+const fxRevaluationService = createFxRevaluationService({
+  parseNumber,
+  toMoney,
+  Ledger,
+  FX_REVALUATION_EPSILON,
+  appendTransactionAudit,
+  Currency,
+  BASE_CURRENCY_CODE,
+})
+
+const resolveReferenceExchangeRate = fxRevaluationService.resolveReferenceExchangeRate
+const resolveVoucherFxLineBaseAmount = fxRevaluationService.resolveVoucherFxLineBaseAmount
+const resolvePrimaryVoucherFxLine = fxRevaluationService.resolvePrimaryVoucherFxLine
+const resolveVoucherFxMetrics = fxRevaluationService.resolveVoucherFxMetrics
+const buildFxJournalRevaluationPreview = fxRevaluationService.buildFxJournalRevaluationPreview
+const applyFxJournalRevaluation = fxRevaluationService.applyFxJournalRevaluation
+const validateFxReferenceRateRequirement = fxRevaluationService.validateFxReferenceRateRequirement
+
+let transactionPostingService = null
 
 const sanitizeOptionalRef = (value) => (value ? value : null)
 const normalizeMetalFixStatus = (value) => {
@@ -480,313 +502,6 @@ const validateTransactionPayload = (payload) => {
 
   if (payload.type === 'payment' && !payload.vendorId && !payload.customerId && !hasDirectPartyAccount) {
     return 'Vendor or customer is required for payments'
-  }
-
-  return ''
-}
-
-const resolveReferenceExchangeRate = (voucherMeta) => {
-  const lines = Array.isArray(voucherMeta?.lineItems) ? voucherMeta.lineItems : []
-  const lineReferenceRate = lines.reduce((acc, line) => {
-    if (acc > 0) return acc
-    const rate = Number(line?.referenceRate || 0)
-    return Number.isFinite(rate) && rate > 0 ? rate : 0
-  }, 0)
-
-  const rate = Number(
-    voucherMeta?.referenceExchangeRate
-    || voucherMeta?.invoiceExchangeRate
-    || lineReferenceRate
-    || 0
-  )
-  if (!Number.isFinite(rate) || rate <= 0) return null
-  return rate
-}
-
-const resolveVoucherFxLineForeignAmount = (line = {}) => {
-  const amount = Number(line.amountFC || line.amountFc || line.amtFc || line.headerAmt || 0)
-  return Number.isFinite(amount) && amount > 0 ? amount : 0
-}
-
-const resolveVoucherFxLineBaseAmount = (line = {}) => {
-  const foreignAmount = resolveVoucherFxLineForeignAmount(line)
-  const lineRate = Number(line?.currRate || 0)
-  if (foreignAmount > 0 && Number.isFinite(lineRate) && lineRate > 0) {
-    return foreignAmount * lineRate
-  }
-
-  const candidates = [line.amountLC, line.totalAmount, line.amountWithVAT, line.metalAmount]
-  for (const candidate of candidates) {
-    const amount = Number(candidate || 0)
-    if (Number.isFinite(amount) && amount > 0) return amount
-  }
-  return 0
-}
-
-const resolvePrimaryVoucherFxLine = (voucherMeta = {}) => {
-  const lines = Array.isArray(voucherMeta?.lineItems) ? voucherMeta.lineItems : []
-  if (!lines.length) return {}
-
-  return lines.find((line) => {
-    const hasCurrency = String(line?.currCode || '').trim().length > 0
-    const hasRate = Number(line?.currRate || 0) > 0
-    const hasForeign = resolveVoucherFxLineForeignAmount(line) > 0
-    const hasBase = resolveVoucherFxLineBaseAmount(line) > 0
-    return hasCurrency || hasRate || hasForeign || hasBase
-  }) || lines[0] || {}
-}
-
-const resolveVoucherFxMetrics = ({ voucherMeta = {}, txAmount = 0, fallbackRate = 0 }) => {
-  const lines = Array.isArray(voucherMeta?.lineItems) ? voucherMeta.lineItems : []
-  let totalForeignAmount = 0
-  let totalBaseAmount = 0
-  let weightedLineRateBase = 0
-  let weightedLineRateWeight = 0
-
-  lines.forEach((line) => {
-    const foreignAmount = resolveVoucherFxLineForeignAmount(line)
-    const baseAmount = resolveVoucherFxLineBaseAmount(line)
-    const lineRate = Number(line?.currRate || 0)
-
-    if (foreignAmount > 0) totalForeignAmount += foreignAmount
-    if (baseAmount > 0) totalBaseAmount += baseAmount
-
-    if (lineRate > 0 && foreignAmount > 0) {
-      weightedLineRateBase += foreignAmount * lineRate
-      weightedLineRateWeight += foreignAmount
-    }
-  })
-
-  const lineRateFromTotals = totalForeignAmount > 0 && totalBaseAmount > 0
-    ? totalBaseAmount / totalForeignAmount
-    : 0
-  const lineRateFromWeighted = weightedLineRateWeight > 0
-    ? weightedLineRateBase / weightedLineRateWeight
-    : 0
-  const normalizedFallbackRate = Number(fallbackRate || 0)
-
-  const lineRate = lineRateFromTotals > 0
-    ? lineRateFromTotals
-    : lineRateFromWeighted > 0
-      ? lineRateFromWeighted
-      : (Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0)
-
-  const actualForeignAmount = totalForeignAmount > 0
-    ? totalForeignAmount
-    : (lineRate > 0 ? Number(txAmount || 0) / lineRate : 0)
-
-  return {
-    lineRate,
-    totalForeignAmount,
-    totalBaseAmount,
-    actualForeignAmount,
-  }
-}
-
-const getFxJournalEntriesForTransaction = async (txId) => Ledger.find({
-  referenceId: txId,
-  referenceType: 'journal',
-  isDeleted: { $ne: true },
-  description: /Exchange (gain|loss) adjustment/i,
-})
-  .sort({ createdAt: 1, _id: 1 })
-  .populate('debitAccountId', 'accountCode accountName')
-  .populate('creditAccountId', 'accountCode accountName')
-
-const buildFxJournalRevaluationPreview = async (transaction) => {
-  const voucherMeta = transaction?.voucherMeta || {}
-  const referenceRate = parseNumber(resolveReferenceExchangeRate(voucherMeta), 0)
-  if (!(referenceRate > 0)) {
-    return {
-      ok: false,
-      message: 'Reference exchange rate is missing for this voucher.',
-      transaction: {
-        id: String(transaction?._id || ''),
-        vocNo: voucherMeta?.vocNo || '',
-        type: transaction?.type || '',
-      },
-      counts: { journalCount: 0, updateCandidates: 0, removeCandidates: 0, unchangedCount: 0, skippedDirectionCount: 0 },
-      journals: [],
-    }
-  }
-
-  const firstLine = resolvePrimaryVoucherFxLine(voucherMeta)
-  const txAmount = parseNumber(transaction?.amount, 0)
-  const fxMetrics = resolveVoucherFxMetrics({
-    voucherMeta,
-    txAmount,
-    fallbackRate: firstLine.currRate || transaction?.exchangeRate || 0,
-  })
-  const lineRate = parseNumber(fxMetrics.lineRate, 0)
-  const foreignAmount = parseNumber(fxMetrics.totalForeignAmount, 0)
-  const actualForeignAmount = parseNumber(fxMetrics.actualForeignAmount, 0)
-  const expectedForeignAmount = referenceRate > 0 ? txAmount / referenceRate : 0
-  const foreignDifference = actualForeignAmount - expectedForeignAmount
-  const rawCorrectedAmount = Math.abs(foreignDifference) * referenceRate
-  const correctedAmount = toMoney(rawCorrectedAmount)
-  const isGain = String(transaction?.type || '').toLowerCase() === 'payment' ? foreignDifference < 0 : foreignDifference > 0
-  const expectedDirection = isGain ? 'gain' : 'loss'
-
-  const journals = await getFxJournalEntriesForTransaction(transaction._id)
-  const previewRows = journals.map((journal) => {
-    const currentAmount = toMoney(parseNumber(journal.amount, 0))
-    const description = String(journal.description || '')
-    const descriptionLower = description.toLowerCase()
-    const journalDirection = descriptionLower.includes('exchange gain')
-      ? 'gain'
-      : descriptionLower.includes('exchange loss')
-        ? 'loss'
-        : 'unknown'
-    const directionMatches = journalDirection === expectedDirection
-    const deltaAmount = toMoney(correctedAmount - currentAmount)
-    const needsUpdate = directionMatches
-      && rawCorrectedAmount >= FX_REVALUATION_EPSILON
-      && Math.abs(deltaAmount) >= FX_REVALUATION_EPSILON
-    const needsRemoval = directionMatches
-      && rawCorrectedAmount < FX_REVALUATION_EPSILON
-      && currentAmount >= FX_REVALUATION_EPSILON
-
-    return {
-      journalId: String(journal._id),
-      description,
-      journalDirection,
-      expectedDirection,
-      directionMatches,
-      currentAmount,
-      correctedAmount,
-      deltaAmount,
-      status: directionMatches
-        ? (needsUpdate ? 'update' : (needsRemoval ? 'remove' : 'unchanged'))
-        : 'skipped_direction',
-      debitAccount: journal.debitAccountId
-        ? {
-            id: String(journal.debitAccountId._id || journal.debitAccountId),
-            code: journal.debitAccountId.accountCode || '',
-            name: journal.debitAccountId.accountName || '',
-          }
-        : null,
-      creditAccount: journal.creditAccountId
-        ? {
-            id: String(journal.creditAccountId._id || journal.creditAccountId),
-            code: journal.creditAccountId.accountCode || '',
-            name: journal.creditAccountId.accountName || '',
-          }
-        : null,
-    }
-  })
-
-  return {
-    ok: true,
-    message: rawCorrectedAmount >= FX_REVALUATION_EPSILON
-      ? 'FX journal revaluation preview generated.'
-      : 'No FX difference remains after reference-rate valuation.',
-    transaction: {
-      id: String(transaction._id),
-      vocNo: voucherMeta?.vocNo || '',
-      type: transaction.type,
-      status: transaction.status,
-      currency: transaction.currency,
-      amount: txAmount,
-      lineRate,
-      referenceRate,
-      actualForeignAmount,
-      expectedForeignAmount,
-      foreignDifference,
-      correctedAmount,
-      expectedDirection,
-    },
-    counts: {
-      journalCount: previewRows.length,
-      updateCandidates: previewRows.filter((row) => row.status === 'update').length,
-      removeCandidates: previewRows.filter((row) => row.status === 'remove').length,
-      unchangedCount: previewRows.filter((row) => row.status === 'unchanged').length,
-      skippedDirectionCount: previewRows.filter((row) => row.status === 'skipped_direction').length,
-    },
-    journals: previewRows,
-  }
-}
-
-const applyFxJournalRevaluation = async ({ transaction, user, preview }) => {
-  let updatedCount = 0
-  let removedCount = 0
-
-  for (const row of preview.journals) {
-    if (row.status !== 'update') continue
-
-    await Ledger.updateOne(
-      { _id: row.journalId, isDeleted: { $ne: true } },
-      {
-        $set: {
-          amount: row.correctedAmount,
-          updatedAt: new Date(),
-          updatedBy: user._id,
-          notes: `FX journal revalued using reference rate ${preview.transaction.referenceRate}`,
-        },
-      },
-    )
-    updatedCount += 1
-  }
-
-  for (const row of preview.journals) {
-    if (row.status !== 'remove') continue
-
-    await Ledger.updateOne(
-      { _id: row.journalId, isDeleted: { $ne: true } },
-      {
-        $set: {
-          isDeleted: true,
-          deletedAt: new Date(),
-          updatedAt: new Date(),
-          updatedBy: user._id,
-          notes: `FX journal removed after revaluation at reference rate ${preview.transaction.referenceRate}`,
-        },
-      },
-    )
-    removedCount += 1
-  }
-
-  if (updatedCount > 0 || removedCount > 0) {
-    transaction.updatedBy = user._id
-    appendTransactionAudit(transaction, user, 'revalue_fx_journal', {
-      fromStatus: transaction.status,
-      toStatus: transaction.status,
-      comment: `Revalued ${updatedCount} and removed ${removedCount} FX journal row(s) at reference rate ${preview.transaction.referenceRate}`,
-    })
-    await transaction.save()
-  }
-
-  return {
-    ...preview,
-    message: updatedCount > 0
-      ? `Revalued ${updatedCount} FX journal row(s).`
-      : removedCount > 0
-        ? `Removed ${removedCount} stale FX journal row(s).`
-        : preview.message,
-    counts: {
-      ...preview.counts,
-      updatedCount,
-      removedCount,
-    },
-    journals: preview.journals.map((row) => (
-      row.status === 'update'
-        ? { ...row, currentAmount: row.correctedAmount, deltaAmount: 0, status: 'updated' }
-        : row.status === 'remove'
-          ? { ...row, status: 'removed' }
-        : row
-    )),
-  }
-}
-
-const validateFxReferenceRateRequirement = ({ type, currency, voucherMeta, baseCurrencyCode }) => {
-  const normalizedType = String(type || '').trim().toLowerCase()
-  if (!['receipt', 'payment'].includes(normalizedType)) return ''
-
-  const txCurrency = String(currency || baseCurrencyCode || 'USD').trim().toUpperCase()
-  const baseCode = String(baseCurrencyCode || BASE_CURRENCY_CODE || 'USD').trim().toUpperCase()
-  if (!txCurrency || txCurrency === baseCode) return ''
-
-  if (!resolveReferenceExchangeRate(voucherMeta)) {
-    return `Reference exchange rate is required for ${normalizedType} transactions in ${txCurrency}.`
   }
 
   return ''
@@ -1627,154 +1342,13 @@ const applyTransactionWorkflowAction = async (tx, user, action, options = {}) =>
   }
 
   if (action === 'post') {
-    if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can post transactions')
-    if (tx.status !== 'approved') throw new Error('Transaction must be approved before posting')
-
-    const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
-    const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
-    const fxValidationMessage = validateFxReferenceRateRequirement({
-      type: tx.type,
-      currency: tx.currency,
-      voucherMeta: tx.voucherMeta,
-      baseCurrencyCode,
-    })
-    if (fxValidationMessage) throw new Error(fxValidationMessage)
-
-    if (tx.type === 'sale' && tx.customerId) {
-      const customer = await Customer.findById(tx.customerId)
-      if (customer && Number(customer.creditLimit || 0) > 0 && customer.ledgerAccountId) {
-        const currentOutstanding = await getOutstandingForAccount(customer.ledgerAccountId)
-        const projected = Number(currentOutstanding || 0) + Number(tx.amount || 0)
-        if (projected > Number(customer.creditLimit || 0)) {
-          throw new Error(`Credit limit exceeded for customer ${customer.name}`)
-        }
-      }
-    }
-
-    const preparedVoucherImpact = await prepareVoucherInventoryImpact({ user, tx })
-    
-    // Determine if this is an UNFIXED transaction (stock-only, no value posting)
-    const transactionType = String(tx?.type || '').toLowerCase()
-    const fixingType = String(tx?.voucherMeta?.fixingType || tx?.metalFixStatus || 'fixed').toLowerCase()
-    const isUnfixed = ['sale', 'purchase'].includes(transactionType) && 
-                      ['unfixed', 'non-fixing', 'nonfixing', 'non_fixing'].includes(fixingType)
-
-    // ALWAYS resolve accounts - both UNFIXED and FIXED need them for reference
-    const resolved = await resolveTransactionAccounts({ user, tx, mappingOverride: options.mappingOverride || {}, preparedVoucherImpact })
-    await ensurePaymentAdvanceConfirmed({
+    return transactionPostingService.executePostWorkflowAction({
       tx,
-      resolvedAccounts: resolved,
-      confirmed: Boolean(options?.mappingOverride?.confirmVendorAdvance),
+      user,
+      note,
+      fromStatus,
+      options,
     })
-    tx.debitAccountId = resolved.debitAccountId
-    tx.creditAccountId = resolved.creditAccountId
-
-    // For FIXED transactions: create regular value ledger entry.
-    // For UNFIXED transactions: create a zero-value ledger entry so it appears in statement with Fix/Unfix label.
-    let ledgerEntry = null
-    // Keep posting idempotent: collapse duplicate main ledger rows from failed retry attempts.
-    const existingMainEntries = await Ledger.find({
-      referenceType: tx.type,
-      referenceId: tx._id,
-      isDeleted: { $ne: true },
-    })
-      .sort({ createdAt: 1, _id: 1 })
-
-    if (existingMainEntries.length > 1) {
-      const keepEntry = existingMainEntries[existingMainEntries.length - 1]
-      const staleIds = existingMainEntries
-        .slice(0, -1)
-        .map((entry) => entry._id)
-
-      if (staleIds.length) {
-        await Ledger.updateMany(
-          { _id: { $in: staleIds } },
-          { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
-        )
-      }
-
-      tx.journalEntryId = keepEntry._id
-    }
-
-    if (tx.journalEntryId) {
-      ledgerEntry = await Ledger.findOne({ _id: tx.journalEntryId, isDeleted: { $ne: true } })
-    }
-    if (!ledgerEntry) {
-      ledgerEntry = await Ledger.findOne({
-        referenceType: tx.type,
-        referenceId: tx._id,
-        isDeleted: { $ne: true },
-      }).sort({ createdAt: -1, _id: -1 })
-    }
-    if (!ledgerEntry) {
-      if (!isUnfixed) {
-        ledgerEntry = await createLedgerFromTransaction({
-          user,
-          transaction: tx,
-          referenceType: tx.type,
-        })
-      } else {
-        // For UNFIXED: only the premium amount impacts the ledger (not the base metal value)
-        const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-        const unfixedPremiumAmount = lines.reduce((sum, line) => {
-          const premiumVal = Number(line.premiumValue || 0)
-          if (!premiumVal) return sum
-          const purity = Number(line.purity || 0)
-          const purityRatio = purity > 1.2 ? purity / 1000 : purity
-          const grossWeight = Number(line.grossWeight || 0)
-          const storedPureWeight = Number(line.pureWeight || 0)
-          const pureWeight = storedPureWeight > 0 ? storedPureWeight : (grossWeight * purityRatio)
-          const rateType = String(line.rateType || 'OZ').trim().toUpperCase()
-          const weightInOz = pureWeight / 31.1034768
-          const rateQty = rateType === 'GRAM' ? pureWeight : rateType === 'KG' ? pureWeight / 1000 : weightInOz
-          return sum + (premiumVal * rateQty)
-        }, 0)
-
-        const roundedPremiumImpact = Number(unfixedPremiumAmount.toFixed(2))
-        const isDiscountImpact = roundedPremiumImpact < 0
-        const postingAmount = Math.abs(roundedPremiumImpact)
-        const debitAccountId = isDiscountImpact ? resolved.creditAccountId : resolved.debitAccountId
-        const creditAccountId = isDiscountImpact ? resolved.debitAccountId : resolved.creditAccountId
-
-        ledgerEntry = await Ledger.create({
-          date: tx.voucherMeta?.valueDate || tx.date || new Date(),
-          debitAccountId,
-          creditAccountId,
-          amount: postingAmount,
-          description: tx.description || `Unfixed ${tx.type} voucher`,
-          referenceType: tx.type,
-          referenceId: tx._id,
-          createdBy: user._id,
-          department: user.department || tx.department || '',
-          currency: tx.currency || 'USD',
-          exchangeRate: tx.exchangeRate || 1,
-          notes: isDiscountImpact
-            ? 'Unfixed voucher - discount-only ledger entry (customer credit impact).'
-            : 'Unfixed voucher - premium-only ledger entry (customer debit impact).',
-        })
-      }
-    }
-
-    // Remove stale COGS rows from failed posting attempts before re-applying inventory impact.
-    await Ledger.updateMany(
-      { referenceType: 'cogs', referenceId: tx._id, isDeleted: { $ne: true } },
-      { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
-    )
-
-    tx.journalEntryId = ledgerEntry._id
-
-    await applyVoucherVatImpact({ user, tx, resolvedAccounts: resolved })
-
-    // Apply inventory impact: UNFIXED posts stock only, FIXED skips stock
-    await applyVoucherInventoryImpact({ user, tx, preparedImpact: preparedVoucherImpact })
-
-    tx.status = 'posted'
-    tx.postedBy = user._id
-    tx.updatedBy = user._id
-    appendTransactionComment(tx, user, note, 'posting_note')
-    appendTransactionAudit(tx, user, 'post', { fromStatus, toStatus: 'posted', comment: note })
-    await tx.save()
-    return { transaction: tx, ledgerEntry }
   }
 
   throw new Error('Unsupported transaction action')
@@ -2733,6 +2307,25 @@ const getAgingForAccount = async (accountId, asOfDate = new Date()) => {
 
   return buckets
 }
+
+transactionPostingService = createTransactionPostingService({
+  isSuperAdmin,
+  isFinance,
+  Currency,
+  BASE_CURRENCY_CODE,
+  validateFxReferenceRateRequirement,
+  Customer,
+  getOutstandingForAccount,
+  prepareVoucherInventoryImpact,
+  resolveTransactionAccounts,
+  ensurePaymentAdvanceConfirmed,
+  Ledger,
+  createLedgerFromTransaction,
+  applyVoucherVatImpact,
+  applyVoucherInventoryImpact,
+  appendTransactionComment,
+  appendTransactionAudit,
+})
 
 // ==========================================
 // CUSTOMERS ENDPOINTS

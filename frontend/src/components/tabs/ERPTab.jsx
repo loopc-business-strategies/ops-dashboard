@@ -25,6 +25,18 @@ import { formatTransactionAuditEntry, formatTransactionCommentKind, getTransacti
 import ChartOfAccountsTree from './ChartOfAccountsTree'
 import VoucherTab from './VoucherTab'
 import DirectDealsTab from './DirectDealsTab'
+import { useERPTabStateAdapter } from './erp/useERPTabStateAdapter'
+import {
+  ERPDashboardTabContainer,
+  ERPAccountsTabContainer,
+  ERPEnquiryTabContainer,
+  ERPVouchersTabContainer,
+} from './erp/ERPTabContainers'
+import ERPInventoryTab from './erp/tabs/ERPInventoryTab'
+import ERPVendorsTab from './erp/tabs/ERPVendorsTab'
+import ERPLedgerTab from './erp/tabs/ERPLedgerTab'
+import ERPTransactionsTab from './erp/tabs/ERPTransactionsTab'
+import ERPReportsTab from './erp/tabs/ERPReportsTab'
 
 
 const createInventoryMappingForm = () => ({
@@ -1082,12 +1094,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const { t } = useLanguage()
   const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
   const TRANSACTION_ACTION_LABELS = getTransactionActionLabels(t)
-  const [activeTab, setActiveTab] = useState(focusTab || 'dashboard')
-
-  useEffect(() => {
-    if (!focusTab) return
-    setActiveTab((prev) => (prev === focusTab ? prev : focusTab))
-  }, [focusTab])
+  const { activeTab, setActiveTab } = useERPTabStateAdapter(focusTab)
 
   const dashStorageKey = `erp_dash_${user?.name || 'default'}`
   const [dashWidgets, setDashWidgets] = useState(() => {
@@ -5917,7 +5924,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       })()}
 
       {/* DASHBOARD TAB */}
-      {activeTab === 'dashboard' && (
+      <ERPDashboardTabContainer activeTab={activeTab}>
         <div>
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -6106,10 +6113,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
             </div>
           )}
         </div>
-      )}
+      </ERPDashboardTabContainer>
 
       {/* CHART OF ACCOUNTS TAB */}
-      {activeTab === 'accounts' && (
+      <ERPAccountsTabContainer activeTab={activeTab}>
         <div>
           <div style={{ marginBottom: '1.25rem' }}>
             <h3 style={{ color: C.ink, fontSize: '1.25rem', fontWeight: '700', margin: 0 }}>Chart of Accounts</h3>
@@ -6119,7 +6126,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           </div>
           <ChartOfAccountsTree canManageAccounts={canManageAccounts} onOpenSummary={handleOpenAccountSummaryFromTree} />
         </div>
-      )}
+      </ERPAccountsTabContainer>
 
       {/* LEDGER TAB */}
       {activeTab === 'customers' && (
@@ -6743,420 +6750,60 @@ function ERPTab({ focusTab, onNavigateMain }) {
               </div>
             )
           })()}
-        </div>
-      )}
-
-      {/* LEDGER TAB */}
-      {activeTab === 'ledger' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
-            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Journal Voucher</h3>
-            <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              {Object.entries(JV_MODE_META).map(([mode, meta]) => {
-                const active = ledgerVoucherTab === mode
-                return (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setLedgerVoucherTab(mode)}
-                    style={{
-                      padding: '0.45rem 0.8rem',
-                      borderRadius: '0.45rem',
-                      border: `1px solid ${active ? '#1E40AF' : '#CBD5E1'}`,
-                      background: active ? '#DBEAFE' : '#F8FAFC',
-                      color: active ? '#1E3A8A' : '#334155',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      fontSize: '0.8rem',
-                    }}
-                  >
-                    {meta.label}
-                  </button>
-                )
-              })}
-            </div>
-            {canManageAccounts && (
-              <button
-                onClick={() => { if (!showLedgerForm) openJvModal(ledgerVoucherTab) }}
-                disabled={showLedgerForm}
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: showLedgerForm ? '#9CA3AF' : C.s1,
-                  color: C.t1,
-                  border: 'none',
-                  borderRadius: '0.375rem',
-                  cursor: showLedgerForm ? 'not-allowed' : 'pointer',
-                  fontWeight: '600',
-                }}
-              >
-                {ledgerVoucherTab === 'bank_jv' ? '+ New Bank JV' : '+ New Journal Voucher'}
-              </button>
-            )}
-          </div>
-          {showLedgerForm && (() => {
-            const jvModeMeta = resolveJvModeMeta(jvMode)
-            const jvValidation = getJvValidation(jvLines)
-            const jvTotalDebit = jvValidation.totalDebit
-            const jvTotalCredit = jvValidation.totalCredit
-            const jvDifference = jvValidation.difference
-            const jvIsBalanced = jvValidation.isBalanced
-            const cellSt = { padding: '0.28rem 0.4rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, borderRadius: '0.25rem', fontSize: '0.875rem', width: '100%', boxSizing: 'border-box' }
-            const numCellSt = { ...cellSt, textAlign: 'right' }
-            return (
-            <div
-              style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.62)', zIndex: 1700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
-              onClick={closeJvModal}
-            >
-              <div
-                style={{ width: `min(${jvModalSize.width}px, 92vw)`, height: `min(${jvModalSize.height}px, 90vh)`, transform: `translate(${jvModalOffset.x}px, ${jvModalOffset.y}px)`, userSelect: (jvModalDrag.active || jvModalResize.active) ? 'none' : 'auto', boxShadow: '0 28px 55px rgba(2, 6, 23, 0.45)', borderRadius: '0.6rem', position: 'relative', display: 'flex', flexDirection: 'column' }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div
-                  onMouseDown={beginJvModalDrag}
-                  style={{ background: '#0F172A', color: '#fff', padding: '0.62rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderTopLeftRadius: '0.6rem', borderTopRightRadius: '0.6rem', cursor: jvModalDrag.active ? 'grabbing' : 'grab', userSelect: 'none' }}
-                >
-                  <span style={{ fontWeight: '700', fontSize: '0.88rem' }}>{jvModeMeta.label}</span>
-                  <span style={{ color: '#94A3B8', fontSize: '0.72rem', marginLeft: '0.35rem' }}>drag window</span>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={closeJvModal}
-                    style={{ marginLeft: 'auto', background: '#F97316', border: 'none', color: '#111827', borderRadius: '0.35rem', padding: '0.34rem 0.65rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.78rem' }}
-                  >
-                    X Close
-                  </button>
-                </div>
-            <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderTop: 'none', borderBottomLeftRadius: '0.6rem', borderBottomRightRadius: '0.6rem', marginBottom: 0, overflow: 'hidden auto', flex: 1, minHeight: 0 }}>
-              {/* JV Header bar */}
-              <div style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%)', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ color: '#fff', fontWeight: '800', fontSize: '0.95rem', letterSpacing: '0.04em' }}>📒 {jvEditEntryIds.length > 0 ? `EDIT ${jvModeMeta.badge}` : jvModeMeta.badge}</span>
-                <span style={{ marginLeft: 'auto', color: '#94A3B8', fontSize: '0.75rem' }}>Base: {baseCurrencyCode}</span>
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.45rem', padding: '0.55rem 1rem', background: '#E2E8F0', borderBottom: '1px solid #CBD5E1' }}>
-                {Object.entries(JV_MODE_META).map(([mode, meta]) => {
-                  const active = jvMode === mode
-                  return (
-                    <button
-                      key={`jv-mode-${mode}`}
-                      type="button"
-                      onClick={() => switchJvMode(mode)}
-                      disabled={jvEditEntryIds.length > 0}
-                      style={{
-                        padding: '0.35rem 0.7rem',
-                        borderRadius: '0.35rem',
-                        border: `1px solid ${active ? '#1D4ED8' : '#CBD5E1'}`,
-                        background: active ? '#DBEAFE' : '#F8FAFC',
-                        color: active ? '#1E3A8A' : '#334155',
-                        fontWeight: '700',
-                        cursor: jvEditEntryIds.length > 0 ? 'not-allowed' : 'pointer',
-                        opacity: jvEditEntryIds.length > 0 ? 0.65 : 1,
-                        fontSize: '0.78rem',
-                      }}
-                    >
-                      {meta.label}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Header fields */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem', padding: '0.65rem 1rem 0.5rem', alignItems: 'end', background: '#F1F5F9', borderBottom: '1px solid #CBD5E1' }}>
-                <div>
-                  <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Doc No</div>
-                  <input value={jvHeader.docNo} onChange={(e) => setJvHeader((p) => ({ ...p, docNo: e.target.value }))} placeholder={jvMode === 'bank_jv' ? 'BnkJV/2026/0001' : 'Jv/2026/0001'} style={cellSt} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Date</div>
-                  <input type="date" value={jvHeader.date} onChange={(e) => setJvHeader((p) => ({ ...p, date: e.target.value }))} style={cellSt} />
-                </div>
-                <div style={{ gridColumn: 'span 2' }}>
-                  <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Narration</div>
-                  <input value={jvHeader.narration} onChange={(e) => setJvHeader((p) => ({ ...p, narration: e.target.value }))} placeholder="Narration / description..." style={cellSt} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Currency</div>
-                  <select value={jvHeader.currency || baseCurrencyCode} onChange={(e) => setJvHeader((p) => ({ ...p, currency: e.target.value }))} style={cellSt}>
-                    {currencies.map((currency) => (
-                      <option key={currency._id || currency.code} value={currency.code}>{currency.code} - {currency.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Lines table */}
-              <div style={{ padding: '0 0 0 0', overflow: 'visible', position: 'relative', zIndex: 5 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                  <thead>
-                    <tr style={{ background: '#1E3A5F', color: '#fff' }}>
-                      <th style={{ padding: '0.45rem 0.5rem', textAlign: 'center', width: '36px', fontWeight: '600', fontSize: '0.75rem' }}>#</th>
-                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'left', minWidth: '240px', fontWeight: '600', fontSize: '0.75rem' }}>Account</th>
-                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'left', fontWeight: '600', fontSize: '0.75rem' }}>Description (optional)</th>
-                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', width: '160px', fontWeight: '600', fontSize: '0.75rem', color: '#93C5FD' }}>Debit ({baseCurrencyCode})</th>
-                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', width: '160px', fontWeight: '600', fontSize: '0.75rem', color: '#FCA5A5' }}>Credit ({baseCurrencyCode})</th>
-                      <th style={{ padding: '0.45rem 0.4rem', width: '36px' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {jvLines.map((line, idx) => {
-                      const lineIssue = jvValidation.lineIssuesById[line.id] || ''
-                      return (
-                        <Fragment key={`line-wrap-${line.id}`}>
-                          <tr key={`line-${line.id}`} style={{ background: idx % 2 === 0 ? '#fff' : '#F8FAFC', borderBottom: lineIssue ? 'none' : '1px solid #E5E7EB' }}>
-                            <td style={{ padding: '0.3rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem', userSelect: 'none' }}>{idx + 1}</td>
-                            <td style={{ padding: '0.25rem 0.4rem', position: 'relative', zIndex: 20 }}>
-                              <AccountCombobox
-                                groups={jvMode === 'bank_jv' ? bankJvComboGroups : jvComboGroups}
-                                value={line.accountId || ''}
-                                onChange={(val, lbl) => resolveJvLineAccount(line.id, val, lbl)}
-                                onKeyDown={(e) => handleJvAccountKeyDown(e, idx)}
-                                placeholder="Type account code or name..."
-                                style={{ ...cellSt, minWidth: '220px', borderColor: lineIssue && !line.accountId ? '#FCA5A5' : '#D1D5DB' }}
-                              />
-                            </td>
-                            <td style={{ padding: '0.25rem 0.4rem' }}>
-                              <input
-                                value={line.description}
-                                onChange={(e) => updateJvLine(line.id, 'description', e.target.value)}
-                                onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
-                                placeholder="Line description..."
-                                style={{ ...cellSt, minWidth: '180px' }}
-                              />
-                            </td>
-                            <td style={{ padding: '0.25rem 0.4rem' }}>
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={line.debit}
-                                onChange={(e) => updateJvLine(line.id, 'debit', e.target.value)}
-                                onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
-                                placeholder="0.00"
-                                style={{ ...numCellSt, color: '#1D4ED8', fontWeight: line.debit ? '700' : '400', borderColor: (lineIssue && Number(line.debit || 0) > 0 && Number(line.credit || 0) > 0) ? '#FCA5A5' : '#D1D5DB' }}
-                              />
-                            </td>
-                            <td style={{ padding: '0.25rem 0.4rem' }}>
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={line.credit}
-                                onChange={(e) => updateJvLine(line.id, 'credit', e.target.value)}
-                                onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
-                                placeholder="0.00"
-                                style={{ ...numCellSt, color: '#DC2626', fontWeight: line.credit ? '700' : '400', borderColor: (lineIssue && Number(line.debit || 0) > 0 && Number(line.credit || 0) > 0) ? '#FCA5A5' : '#D1D5DB' }}
-                              />
-                            </td>
-                            <td style={{ padding: '0.25rem 0.3rem', textAlign: 'center' }}>
-                              {jvLines.length > 2 && (
-                                <button type="button" onClick={() => removeJvLine(line.id)} title="Remove row" style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1, padding: '0 0.1rem' }}>×</button>
-                              )}
-                            </td>
-                          </tr>
-                          {lineIssue && (
-                            <tr key={`line-issue-${line.id}`} style={{ background: '#FEF2F2', borderBottom: '1px solid #FECACA' }}>
-                              <td></td>
-                              <td colSpan={5} style={{ padding: '0.2rem 0.5rem 0.35rem', color: '#B91C1C', fontSize: '0.74rem', fontWeight: '600' }}>
-                                {lineIssue}
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      )
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ background: '#F1F5F9', borderTop: '2px solid #CBD5E1' }}>
-                      <td colSpan={3} style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '700', fontSize: '0.82rem', color: C.ink }}>TOTAL</td>
-                      <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#1D4ED8' }}>{jvTotalDebit > 0 ? jvTotalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
-                      <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#DC2626' }}>{jvTotalCredit > 0 ? jvTotalCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* Balance status */}
-              {(jvTotalDebit > 0 || jvTotalCredit > 0 || jvValidation.hasLineIssues) && (
-                <div style={{ margin: '0.5rem 1rem 0', padding: '0.4rem 0.75rem', borderRadius: '0.375rem', background: jvIsBalanced ? '#DCFCE7' : '#FEF2F2', border: `1px solid ${jvIsBalanced ? '#86EFAC' : '#FECACA'}`, color: jvIsBalanced ? '#166534' : '#991B1B', fontSize: '0.82rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  {jvValidation.hasLineIssues
-                    ? Object.values(jvValidation.lineIssuesById)[0]
-                    : jvIsBalanced
-                    ? `✓ Balanced — Total = ${jvTotalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${baseCurrencyCode}`
-                    : `⚠ Debit and Credit totals are not balanced (diff: ${Math.abs(jvDifference).toFixed(2)})`}
-                </div>
-              )}
-
-              <div style={{ margin: '0.5rem 1rem 0', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(140px, 1fr))', gap: '0.45rem' }}>
-                <div style={{ border: '1px solid #BFDBFE', background: '#EFF6FF', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
-                  <div style={{ color: '#1D4ED8', fontSize: '0.72rem', fontWeight: '700' }}>Total Debit</div>
-                  <div style={{ color: '#1E3A8A', fontWeight: '800' }}>{jvTotalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                </div>
-                <div style={{ border: '1px solid #FECACA', background: '#FEF2F2', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
-                  <div style={{ color: '#DC2626', fontSize: '0.72rem', fontWeight: '700' }}>Total Credit</div>
-                  <div style={{ color: '#991B1B', fontWeight: '800' }}>{jvTotalCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                </div>
-                <div style={{ border: `1px solid ${jvIsBalanced ? '#86EFAC' : '#FDE68A'}`, background: jvIsBalanced ? '#ECFDF5' : '#FFFBEB', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
-                  <div style={{ color: jvIsBalanced ? '#166534' : '#92400E', fontSize: '0.72rem', fontWeight: '700' }}>Difference</div>
-                  <div style={{ color: jvIsBalanced ? '#166534' : '#B45309', fontWeight: '800' }}>{Math.abs(jvDifference).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                </div>
-              </div>
-
-              {/* Action row */}
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', padding: '0.65rem 1rem', background: '#F8FAFC', borderTop: '1px solid #E2E8F0', flexWrap: 'wrap' }}>
-                <button type="button" onClick={addJvLine} style={{ padding: '0.38rem 0.8rem', background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>+ Add Row</button>
-                <button
-                  type="button"
-                  onClick={handleSaveMultiLineJV}
-                  disabled={saving || !jvValidation.canSave}
-                  style={{ padding: '0.38rem 1.2rem', background: jvValidation.canSave ? '#16A34A' : '#9CA3AF', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: jvValidation.canSave ? 'pointer' : 'not-allowed', fontWeight: '700', fontSize: '0.85rem' }}
-                >
-                  {saving ? 'Saving...' : jvEditEntryIds.length > 0 ? '💾 Update JV' : '💾 Save JV'}
-                </button>
-                <button type="button" onClick={closeJvModal} style={{ padding: '0.38rem 0.8rem', background: '#fff', color: '#374151', border: '1px solid #D1D5DB', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.82rem' }}>Cancel</button>
-                <span style={{ marginLeft: 'auto', fontSize: '0.74rem', color: '#94A3B8' }}>Press <kbd style={{ background: '#E5E7EB', padding: '0 0.3rem', borderRadius: '0.2rem', fontSize: '0.72rem' }}>Enter</kbd> on last row to add a new line</span>
-              </div>
-            </div>
-                <div
-                  onMouseDown={beginJvModalResize}
-                  title="Resize"
-                  style={{ position: 'absolute', right: '6px', bottom: '6px', width: '16px', height: '16px', cursor: 'nwse-resize', background: 'linear-gradient(135deg, transparent 50%, #64748B 50%)', borderBottomRightRadius: '0.35rem' }}
-                />
-              </div>
-            </div>
-            )
-          })()}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-            <input
-              type="date"
-              value={ledgerFilters.startDate}
-              onChange={(e) => setLedgerFilters((prev) => ({ ...prev, startDate: e.target.value }))}
-              style={modalInputStyle}
-            />
-            <input
-              type="date"
-              value={ledgerFilters.endDate}
-              onChange={(e) => setLedgerFilters((prev) => ({ ...prev, endDate: e.target.value }))}
-              style={modalInputStyle}
-            />
-            <select
-              value={ledgerFilters.department}
-              onChange={(e) => setLedgerFilters((prev) => ({ ...prev, department: e.target.value }))}
-              style={modalInputStyle}
-            >
-              <option value="">All Departments</option>
-              {LEDGER_DEPARTMENTS.map((department) => (
-                <option key={department} value={department}>{department}</option>
-              ))}
-            </select>
-            <select
-              value={ledgerFilters.referenceType}
-              onChange={(e) => setLedgerFilters((prev) => ({ ...prev, referenceType: e.target.value }))}
-              style={modalInputStyle}
-            >
-              <option value="">All Types</option>
-              {LEDGER_REFERENCE_TYPES.map((referenceType) => (
-                <option key={referenceType} value={referenceType}>{referenceType}</option>
-              ))}
-            </select>
-            <select
-              value={ledgerFilters.accountId}
-              onChange={(e) => setLedgerFilters((prev) => ({ ...prev, accountId: e.target.value }))}
-              style={modalInputStyle}
-            >
-              <option value="">All Accounts</option>
-              {accounts.map((account) => (
-                <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
-              ))}
-            </select>
-            <button
-              onClick={() => setLedgerFilters({ startDate: '', endDate: '', department: '', referenceType: '', accountId: '' })}
-              style={{ padding: '0.65rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', height: 'fit-content' }}
-            >
-              Reset Filters
-            </button>
-          </div>
-          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
-            {(() => {
-              const visibleLedgerEntries = ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab)
-              const pagedLedgerEntries = [...visibleLedgerEntries]
-                .sort((a, b) => {
-                  if (sorting.ledger.by === 'date') {
-                    return sorting.ledger.asc ? new Date(a.date) - new Date(b.date) : new Date(b.date) - new Date(a.date)
-                  } else if (sorting.ledger.by === 'amount') {
-                    return sorting.ledger.asc ? a.amount - b.amount : b.amount - a.amount
-                  }
-                  return 0
-                })
-                .slice((pagination.ledger - 1) * ITEMS_PER_PAGE, pagination.ledger * ITEMS_PER_PAGE)
-
-              return (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                  <th onClick={() => setSorting({...sorting, ledger: {by: 'date', asc: !sorting.ledger.asc}})} style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.ledger.by === 'date' ? C.p2 : 'transparent' }}>Date {sorting.ledger.by === 'date' && (sorting.ledger.asc ? '▲' : '▼')}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Debit Account</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Credit Account</th>
-                  <th onClick={() => setSorting({...sorting, ledger: {by: 'amount', asc: !sorting.ledger.asc}})} style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.ledger.by === 'amount' ? C.p2 : 'transparent' }}>Amount {sorting.ledger.by === 'amount' && (sorting.ledger.asc ? '▲' : '▼')}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Type</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', color: C.t1, fontWeight: '600' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedLedgerEntries
-                  .map((entry) => (
-                    <tr key={entry._id} style={{ borderBottom: `1px solid ${C.p2}`, background: entry.referenceType === 'bank_jv' ? '#F0F9FF' : 'transparent' }}>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>{new Date(entry.date).toLocaleDateString()}</td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>{entry.debitAccountId?.accountCode}</td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>{entry.creditAccountId?.accountCode}</td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>{entry.amount?.toLocaleString()}</td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>
-                        {entry.referenceType === 'bank_jv' ? (
-                          <div>
-                            <span style={{ background: '#DBEAFE', color: '#1E40AF', padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '700' }}>🏦 Bank JV</span>
-                            {entry.autoTxNo && <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '0.15rem' }}>{entry.autoTxNo}</div>}
-                            {entry.chequeNo && <div style={{ fontSize: '0.7rem', color: '#64748B' }}>Chq: {entry.chequeNo}</div>}
-                            <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.3rem', borderRadius: '0.25rem', background: entry.bankReconciled ? '#DCFCE7' : '#FEF3C7', color: entry.bankReconciled ? '#166534' : '#92400E', fontWeight: '600' }}>
-                              {entry.bankReconciled ? '✓ Reconciled' : '⏳ Unreconciled'}
-                            </span>
-                          </div>
-                        ) : entry.referenceType}
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                          <button onClick={() => entry.referenceType === 'journal' ? handleEditJv(entry) : handleEditLedger(entry)} title="Edit" style={{ padding: '0.35rem 0.5rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
-                          {entry.referenceType === 'bank_jv' && (
-                            <button onClick={() => handleReconcileLedger(entry)} title={entry.bankReconciled ? 'Unreconcile' : 'Reconcile'} style={{ padding: '0.35rem 0.5rem', background: entry.bankReconciled ? '#92400E' : '#15803D', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>
-                              {entry.bankReconciled ? 'Unreconcile' : 'Reconcile'}
-                            </button>
-                          )}
-                          {entry.attachmentUrl && (
-                            <a href={`${(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')}${entry.attachmentUrl}`} target="_blank" rel="noreferrer" style={{ padding: '0.35rem 0.5rem', background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'none' }}>Slip</a>
-                          )}
-                          <button onClick={() => handleReverseLedger(entry)} title="Reverse" style={{ padding: '0.35rem 0.5rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Reverse</button>
-                          <button onClick={() => handlePermanentDeleteLedger(entry)} title="Delete" style={{ padding: '0.35rem 0.5rem', background: '#7F1D1D', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Delete</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-              )
-            })()}
-          </div>
-
-          {/* Pagination for Ledger */}
-          {Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE) > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-              <button onClick={() => setPagination({...pagination, ledger: Math.max(1, pagination.ledger - 1)})} disabled={pagination.ledger === 1} style={{padding: '0.4rem 0.8rem', background: pagination.ledger === 1 ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.ledger === 1 ? 'default' : 'pointer', borderRadius: '0.35rem'}}>← Prev</button>
-              {Array.from({length: Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE)}, (_, i) => i + 1).map(p => (
-                <button key={p} onClick={() => setPagination({...pagination, ledger: p})} style={{padding: '0.4rem 0.6rem', background: p === pagination.ledger ? C.s1 : '#E5E7EB', color: p === pagination.ledger ? '#fff' : C.ink, border: 'none', cursor: 'pointer', borderRadius: '0.35rem', fontWeight: p === pagination.ledger ? '600' : '400'}}>{p}</button>
-              ))}
-              <button onClick={() => setPagination({...pagination, ledger: Math.min(Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE), pagination.ledger + 1)})} disabled={pagination.ledger === Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE)} style={{padding: '0.4rem 0.8rem', background: pagination.ledger === Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE) ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.ledger === Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE) ? 'default' : 'pointer', borderRadius: '0.35rem'}}>Next →</button>
-            </div>
-          )}
-
-          {ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No {ledgerVoucherTab === 'bank_jv' ? 'Bank JV' : 'Journal Voucher'} entries yet.</p>}
+      <ERPLedgerTab
+        activeTab={activeTab}
+        C={C}
+        canManageAccounts={canManageAccounts}
+        showLedgerForm={showLedgerForm}
+        openJvModal={openJvModal}
+        ledgerVoucherTab={ledgerVoucherTab}
+        setLedgerVoucherTab={setLedgerVoucherTab}
+        JV_MODE_META={JV_MODE_META}
+        resolveJvModeMeta={resolveJvModeMeta}
+        jvMode={jvMode}
+        getJvValidation={getJvValidation}
+        jvLines={jvLines}
+        baseCurrencyCode={baseCurrencyCode}
+        closeJvModal={closeJvModal}
+        jvModalSize={jvModalSize}
+        jvModalOffset={jvModalOffset}
+        jvModalDrag={jvModalDrag}
+        jvModalResize={jvModalResize}
+        beginJvModalDrag={beginJvModalDrag}
+        switchJvMode={switchJvMode}
+        jvEditEntryIds={jvEditEntryIds}
+        currencies={currencies}
+        jvHeader={jvHeader}
+        setJvHeader={setJvHeader}
+        bankJvComboGroups={bankJvComboGroups}
+        jvComboGroups={jvComboGroups}
+        resolveJvLineAccount={resolveJvLineAccount}
+        handleJvAccountKeyDown={handleJvAccountKeyDown}
+        updateJvLine={updateJvLine}
+        handleJvLineKeyDown={handleJvLineKeyDown}
+        removeJvLine={removeJvLine}
+        addJvLine={addJvLine}
+        handleSaveMultiLineJV={handleSaveMultiLineJV}
+        saving={saving}
+        beginJvModalResize={beginJvModalResize}
+        ledgerFilters={ledgerFilters}
+        setLedgerFilters={setLedgerFilters}
+        modalInputStyle={modalInputStyle}
+        LEDGER_DEPARTMENTS={LEDGER_DEPARTMENTS}
+        LEDGER_REFERENCE_TYPES={LEDGER_REFERENCE_TYPES}
+        accounts={accounts}
+        sorting={sorting}
+        setSorting={setSorting}
+        pagination={pagination}
+        setPagination={setPagination}
+        ITEMS_PER_PAGE={ITEMS_PER_PAGE}
+        ledger={ledger}
+        handleEditJv={handleEditJv}
+        handleEditLedger={handleEditLedger}
+        handleReconcileLedger={handleReconcileLedger}
+        handleReverseLedger={handleReverseLedger}
+        handlePermanentDeleteLedger={handlePermanentDeleteLedger}
+      />
         </div>
       )}
 
@@ -7338,7 +6985,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       )}
 
       {/* ACCOUNT SUMMARY TAB */}
-      {activeTab === 'enquiry' && (
+      <ERPEnquiryTabContainer activeTab={activeTab}>
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
             <div>
@@ -7464,1713 +7111,212 @@ function ERPTab({ focusTab, onNavigateMain }) {
             </>
           )}
         </div>
-      )}
+      </ERPEnquiryTabContainer>
 
-      {/* TRANSACTIONS TAB */}
-      {activeTab === 'transactions' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
-            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Transactions</h3>
-            {selectedTransactionId && (
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ color: C.inkSoft, fontSize: '0.84rem', fontWeight: '700' }}>Linked transaction highlighted</span>
-                <button onClick={() => setSelectedTransactionId('')} style={{ padding: '0.35rem 0.6rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer' }}>Clear</button>
-              </div>
-            )}
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem', fontWeight: '700' }}>TOTAL</p>
-              <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.totalCount || 0).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.82rem' }}>Amount {Number(transactionSummary.totalAmount || 0).toLocaleString()}</p>
-            </div>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, color: '#92400E', fontSize: '0.78rem', fontWeight: '700' }}>DRAFT</p>
-              <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.draft || 0).toLocaleString()}</p>
-            </div>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, color: '#1D4ED8', fontSize: '0.78rem', fontWeight: '700' }}>SUBMITTED</p>
-              <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.submitted || 0).toLocaleString()}</p>
-            </div>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, color: '#166534', fontSize: '0.78rem', fontWeight: '700' }}>APPROVED</p>
-              <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.approved || 0).toLocaleString()}</p>
-            </div>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, color: '#065F46', fontSize: '0.78rem', fontWeight: '700' }}>POSTED</p>
-              <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.posted || 0).toLocaleString()}</p>
-            </div>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, color: '#9D174D', fontSize: '0.78rem', fontWeight: '700' }}>RETURNED</p>
-              <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.returned || 0).toLocaleString()}</p>
-            </div>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, color: '#B91C1C', fontSize: '0.78rem', fontWeight: '700' }}>REJECTED</p>
-              <p style={{ margin: '0.35rem 0 0', color: C.ink, fontSize: '1.2rem', fontWeight: '800' }}>{Number(transactionSummary.rejected || 0).toLocaleString()}</p>
-            </div>
-          </div>
-          <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.5rem' }}>
-              <input placeholder="Search description/type/currency" value={transactionFilters.search} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, search: e.target.value }))} style={modalInputStyle} />
-              <select value={transactionFilters.status} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, status: e.target.value, page: 1 }))} style={modalInputStyle}>
-                <option value="">All statuses</option>
-                <option value="draft">Draft</option>
-                <option value="submitted">Submitted</option>
-                <option value="approved">Approved</option>
-                <option value="posted">Posted</option>
-                <option value="returned">Returned</option>
-                <option value="rejected">Rejected</option>
-              </select>
-              <select value={transactionFilters.type} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, type: e.target.value, page: 1 }))} style={modalInputStyle}>
-                <option value="">All types</option>
-                {availableTransactionTypes.map((type) => <option key={type} value={type}>{TRANSACTION_TYPE_LABELS[type]}</option>)}
-              </select>
-              <input type="date" value={transactionFilters.startDate} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, startDate: e.target.value }))} style={modalInputStyle} />
-              <input type="date" value={transactionFilters.endDate} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, endDate: e.target.value }))} style={modalInputStyle} />
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button type="button" onClick={() => loadTransactions({ page: 1 })} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Apply Filters</button>
-              <button type="button" onClick={() => { const resetFilters = { search: '', status: '', type: '', startDate: '', endDate: '' }; setTransactionFilters(resetFilters); loadTransactions({ page: 1, ...resetFilters }) }} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer', fontWeight: '700' }}>Reset</button>
-              <button type="button" onClick={handleExportTransactionsCsv} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontWeight: '700' }}>Export CSV</button>
-              <button type="button" onClick={handleExportTransactionsXlsx} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', cursor: 'pointer', fontWeight: '700' }}>Export XLSX</button>
-              <button type="button" onClick={handleExportTransactionsPdf} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #EF4444', background: '#FEF2F2', color: '#991B1B', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
-            </div>
-          </div>
-          <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.65rem' }}>
-              <div>
-                <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>Bulk workflow actions</p>
-                <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.84rem' }}>{getTransactionBulkSelectionLabel(selectedTransactionIds)}</p>
-              </div>
-              <button type="button" onClick={() => setSelectedTransactionIds([])} style={{ padding: '0.4rem 0.7rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer', fontWeight: '700' }}>Clear Selection</button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) minmax(260px, 2fr)', gap: '0.75rem', alignItems: 'start' }}>
-              <textarea value={transactionWorkflowNote} onChange={(e) => setTransactionWorkflowNote(e.target.value)} rows={3} placeholder="Workflow note for submit / approve / post actions" style={{ ...modalInputStyle, marginBottom: 0, resize: 'vertical' }} />
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button type="button" disabled={!selectedTransactionIds.length || saving} onClick={() => handleBulkTransactionAction('submit')} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F59E0B', color: '#111827', cursor: 'pointer', fontWeight: '700' }}>Bulk Submit</button>
-                {(isSuperAdmin || isFinance) && <button type="button" disabled={!selectedTransactionIds.length || saving} onClick={() => handleBulkTransactionAction('approve')} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#0EA5E9', color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Bulk Approve</button>}
-                {(isSuperAdmin || isFinance) && <button type="button" disabled={!selectedTransactionIds.length || saving} onClick={() => handleBulkTransactionAction('post')} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Bulk Post</button>}
-              </div>
-            </div>
-          </div>
-          <form onSubmit={handleCreateTransaction} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-              <div>
-                <p style={{ margin: 0, color: C.ink, fontWeight: '700' }}>{isTransactionEditMode ? 'Edit transaction draft' : 'Create a new transaction draft'}</p>
-                <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.84rem' }}>Capture source transaction details, optional mapping, and account overrides in one place.</p>
-              </div>
-              {isTransactionEditMode && <button type="button" onClick={resetTransactionComposer} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer', fontWeight: '700' }}>Cancel edit</button>}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem' }}>
-              <select value={transactionForm.type} onChange={(e) => setTransactionForm((prev) => ({ ...prev, type: e.target.value }))} style={modalInputStyle}>
-                {availableTransactionTypes.map((type) => <option key={type} value={type}>{TRANSACTION_TYPE_LABELS[type]}</option>)}
-              </select>
-              {['sale', 'purchase'].includes(String(transactionForm.type || '').toLowerCase()) && (
-                <select value={transactionForm.metalFixStatus} onChange={(e) => setTransactionForm((prev) => ({ ...prev, metalFixStatus: e.target.value }))} style={modalInputStyle}>
-                  <option value="fixed">Fixing (Fixed)</option>
-                  <option value="unfixed">Non-Fixing (Unfixed)</option>
-                </select>
-              )}
-              <input type="number" step="0.01" placeholder="Amount" value={transactionForm.amount} onChange={(e) => setTransactionForm((prev) => ({ ...prev, amount: e.target.value }))} style={modalInputStyle} />
-              <input type="date" value={transactionForm.date} onChange={(e) => setTransactionForm((prev) => ({ ...prev, date: e.target.value }))} style={modalInputStyle} />
-              <select value={transactionForm.currency} onChange={(e) => setTransactionForm((prev) => ({ ...prev, currency: e.target.value }))} style={modalInputStyle}>
-                {(currencies.length ? currencies : [{ code: 'USD' }]).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
-              </select>
-              <input type="number" step="0.0001" min="0" placeholder="Exchange Rate" value={transactionForm.exchangeRate} onChange={(e) => setTransactionForm((prev) => ({ ...prev, exchangeRate: e.target.value }))} style={modalInputStyle} />
-              <select value={transactionForm.customerId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, customerId: e.target.value }))} style={modalInputStyle}>
-                <option value="">Customer (for Sales/Receipt)</option>
-                {customers.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-              </select>
-              <select value={transactionForm.vendorId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, vendorId: e.target.value }))} style={modalInputStyle}>
-                <option value="">Vendor (for Purchase/Payment)</option>
-                {vendors.map((v) => <option key={v._id} value={v._id}>{v.name}</option>)}
-              </select>
-              <select value={transactionForm.inventoryItemId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, inventoryItemId: e.target.value }))} style={modalInputStyle}>
-                <option value="">Inventory Item (optional)</option>
-                {inventoryProducts.map((p) => <option key={p._id} value={p._id}>{p.sku || p.name}</option>)}
-              </select>
-              <select value={transactionForm.mappingId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, mappingId: e.target.value }))} style={modalInputStyle}>
-                <option value="">Account Mapping (optional)</option>
-                {mappings.map((m) => <option key={m._id} value={m._id}>{m.mappingType}</option>)}
-              </select>
-              <select value={transactionForm.debitAccountId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, debitAccountId: e.target.value }))} style={modalInputStyle}>
-                <option value="">Debit Account Override</option>
-                {accounts.map((account) => <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>)}
-              </select>
-              <select value={transactionForm.creditAccountId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, creditAccountId: e.target.value }))} style={modalInputStyle}>
-                <option value="">Credit Account Override</option>
-                {accounts.map((account) => <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>)}
-              </select>
-              <input placeholder="Description" value={transactionForm.description} onChange={(e) => setTransactionForm((prev) => ({ ...prev, description: e.target.value }))} style={modalInputStyle} />
-            </div>
-            <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer' }}>{saving ? 'Saving...' : isTransactionEditMode ? 'Save Changes' : 'Create Transaction (Draft)'}</button>
-          </form>
+      <ERPTransactionsTab
+        activeTab={activeTab}
+        C={C}
+        emptyCardStyle={emptyCardStyle}
+        transactionSummary={transactionSummary}
+        selectedTransactionId={selectedTransactionId}
+        setSelectedTransactionId={setSelectedTransactionId}
+        transactionFilters={transactionFilters}
+        setTransactionFilters={setTransactionFilters}
+        modalInputStyle={modalInputStyle}
+        availableTransactionTypes={availableTransactionTypes}
+        TRANSACTION_TYPE_LABELS={TRANSACTION_TYPE_LABELS}
+        loadTransactions={loadTransactions}
+        handleExportTransactionsCsv={handleExportTransactionsCsv}
+        handleExportTransactionsXlsx={handleExportTransactionsXlsx}
+        handleExportTransactionsPdf={handleExportTransactionsPdf}
+        getTransactionBulkSelectionLabel={getTransactionBulkSelectionLabel}
+        selectedTransactionIds={selectedTransactionIds}
+        setSelectedTransactionIds={setSelectedTransactionIds}
+        transactionWorkflowNote={transactionWorkflowNote}
+        setTransactionWorkflowNote={setTransactionWorkflowNote}
+        saving={saving}
+        handleBulkTransactionAction={handleBulkTransactionAction}
+        isSuperAdmin={isSuperAdmin}
+        isFinance={isFinance}
+        handleCreateTransaction={handleCreateTransaction}
+        isTransactionEditMode={isTransactionEditMode}
+        resetTransactionComposer={resetTransactionComposer}
+        transactionForm={transactionForm}
+        setTransactionForm={setTransactionForm}
+        currencies={currencies}
+        customers={customers}
+        vendors={vendors}
+        inventoryProducts={inventoryProducts}
+        mappings={mappings}
+        accounts={accounts}
+        selectedTransaction={selectedTransaction}
+        TRANSACTION_STATUS_STYLES={TRANSACTION_STATUS_STYLES}
+        resolveTransactionAttachmentUrl={resolveTransactionAttachmentUrl}
+        transactionAttachmentInputKey={transactionAttachmentInputKey}
+        handleUploadTransactionAttachment={handleUploadTransactionAttachment}
+        handleDeleteTransactionAttachment={handleDeleteTransactionAttachment}
+        handleTransactionAction={handleTransactionAction}
+        transactionCommentDraft={transactionCommentDraft}
+        setTransactionCommentDraft={setTransactionCommentDraft}
+        handleAddTransactionComment={handleAddTransactionComment}
+        formatTransactionCommentKind={formatTransactionCommentKind}
+        formatTransactionAuditEntry={formatTransactionAuditEntry}
+        TRANSACTION_ACTION_LABELS={TRANSACTION_ACTION_LABELS}
+        transactions={transactions}
+        toggleVisibleTransactionSelection={toggleVisibleTransactionSelection}
+        allVisibleTransactionsSelected={allVisibleTransactionsSelected}
+        toggleTransactionSelection={toggleTransactionSelection}
+        populateTransactionForm={populateTransactionForm}
+        handleDeleteTransaction={handleDeleteTransaction}
+        transactionMeta={transactionMeta}
+        transactionPageCount={transactionPageCount}
+        loading={loading}
+      />
 
-          {selectedTransaction && (
-            <div style={{ background: '#F9FAFB', border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <div>
-                  <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>{TRANSACTION_TYPE_LABELS[selectedTransaction.type] || selectedTransaction.type}</p>
-                  <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.85rem' }}>{selectedTransaction.description || 'No description provided'}</p>
-                </div>
-                <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: '800', ...(TRANSACTION_STATUS_STYLES[selectedTransaction.status] || { background: '#E5E7EB', color: C.ink }) }}>{selectedTransaction.status}</span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginTop: '0.9rem' }}>
-                <div style={emptyCardStyle}><strong>Amount:</strong> {selectedTransaction.currency} {Number(selectedTransaction.amount || 0).toLocaleString()}</div>
-                <div style={emptyCardStyle}><strong>Date:</strong> {selectedTransaction.date ? new Date(selectedTransaction.date).toLocaleDateString() : '-'}</div>
-                <div style={emptyCardStyle}><strong>Customer:</strong> {selectedTransaction.customerId?.name || '-'}</div>
-                <div style={emptyCardStyle}><strong>Vendor:</strong> {selectedTransaction.vendorId?.name || '-'}</div>
-                <div style={emptyCardStyle}><strong>Debit:</strong> {selectedTransaction.debitAccountId ? `${selectedTransaction.debitAccountId.accountCode} - ${selectedTransaction.debitAccountId.accountName}` : '-'}</div>
-                <div style={emptyCardStyle}><strong>Credit:</strong> {selectedTransaction.creditAccountId ? `${selectedTransaction.creditAccountId.accountCode} - ${selectedTransaction.creditAccountId.accountName}` : '-'}</div>
-              </div>
-              <div style={{ background: '#fff', border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', marginTop: '0.9rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.65rem' }}>
-                  <div>
-                    <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>Attachments</p>
-                    <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.82rem' }}>Upload supporting receipts, invoices, approvals, or backup documents.</p>
-                  </div>
-                  <label style={{ padding: '0.5rem 0.85rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1D4ED8', borderRadius: '0.35rem', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: '700' }}>
-                    Upload document
-                    <input
-                      key={transactionAttachmentInputKey}
-                      type="file"
-                      disabled={saving}
-                      onChange={(e) => handleUploadTransactionAttachment(e.target.files?.[0])}
-                      style={{ display: 'none' }}
-                    />
-                  </label>
-                </div>
-                <div style={{ display: 'grid', gap: '0.55rem' }}>
-                  {(selectedTransaction.attachments || []).map((attachment) => (
-                    <div key={attachment._id || attachment.fileName} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '0.45rem', padding: '0.65rem', display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <div>
-                        <a href={resolveTransactionAttachmentUrl(attachment)} target="_blank" rel="noreferrer" style={{ color: '#1D4ED8', fontWeight: '700', textDecoration: 'none' }}>{attachment.originalName}</a>
-                        <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.78rem' }}>
-                          {(attachment.uploadedBy?.name || 'User')} · {attachment.uploadedAt ? new Date(attachment.uploadedAt).toLocaleString() : ''} · {Number(attachment.size || 0).toLocaleString()} bytes
-                        </p>
-                      </div>
-                      <button type="button" disabled={saving} onClick={() => handleDeleteTransactionAttachment(attachment._id)} style={{ padding: '0.35rem 0.65rem', border: 'none', borderRadius: '0.35rem', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer', fontWeight: '700' }}>Remove</button>
-                    </div>
-                  ))}
-                  {!(selectedTransaction.attachments || []).length && <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>No documents uploaded yet.</p>}
-                </div>
-              </div>
-              <div style={{ background: '#fff', border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', marginTop: '0.9rem' }}>
-                <p style={{ margin: '0 0 0.5rem', color: C.ink, fontWeight: '800' }}>Single transaction workflow</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) minmax(260px, 1.4fr)', gap: '0.75rem', alignItems: 'start' }}>
-                  <textarea value={transactionWorkflowNote} onChange={(e) => setTransactionWorkflowNote(e.target.value)} rows={3} placeholder="Workflow note or mandatory return/rejection reason" style={{ ...modalInputStyle, marginBottom: 0, resize: 'vertical' }} />
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {['draft', 'returned', 'rejected'].includes(selectedTransaction.status) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('submit', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F59E0B', color: '#111827', cursor: 'pointer', fontWeight: '700' }}>Submit</button>}
-                    {selectedTransaction.status === 'submitted' && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('approve', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#0EA5E9', color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Approve</button>}
-                    {['submitted', 'approved'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('return', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#F472B6', color: '#831843', cursor: 'pointer', fontWeight: '700' }}>Return for Edit</button>}
-                    {['submitted', 'approved', 'returned'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('reject', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer', fontWeight: '700' }}>Reject</button>}
-                    {['submitted', 'approved'].includes(selectedTransaction.status) && (isSuperAdmin || isFinance) && <button type="button" disabled={saving} onClick={() => handleTransactionAction('post', selectedTransaction._id)} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Post</button>}
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1.2fr) minmax(280px, 1fr)', gap: '0.85rem', marginTop: '0.9rem' }}>
-                <div style={{ background: '#fff', border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem' }}>
-                  <p style={{ margin: '0 0 0.5rem', color: C.ink, fontWeight: '800' }}>Comments</p>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.65rem', flexWrap: 'wrap' }}>
-                    <textarea value={transactionCommentDraft} onChange={(e) => setTransactionCommentDraft(e.target.value)} rows={3} placeholder="Add transaction comment, reviewer note, or posting note" style={{ ...modalInputStyle, marginBottom: 0, resize: 'vertical', flex: '1 1 240px' }} />
-                    <button type="button" disabled={saving} onClick={handleAddTransactionComment} style={{ padding: '0.5rem 0.85rem', border: 'none', background: C.s1, color: '#fff', borderRadius: '0.35rem', cursor: 'pointer', fontWeight: '700', alignSelf: 'start' }}>Add Comment</button>
-                  </div>
-                  <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '0.55rem' }}>
-                    {(selectedTransaction.comments || []).map((comment) => (
-                      <div key={`${comment._id || comment.createdAt}-${comment.message}`} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '0.45rem', padding: '0.65rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
-                          <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>{comment.createdBy?.name || 'User'}</span>
-                          <span style={{ color: C.inkSoft, fontSize: '0.76rem' }}>{comment.createdAt ? new Date(comment.createdAt).toLocaleString() : ''}</span>
-                        </div>
-                        <p style={{ margin: '0 0 0.2rem', color: '#047857', fontSize: '0.76rem', fontWeight: '700', textTransform: 'uppercase' }}>{formatTransactionCommentKind(comment.kind)}</p>
-                        <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>{comment.message}</p>
-                      </div>
-                    ))}
-                    {!(selectedTransaction.comments || []).length && <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>No comments yet.</p>}
-                  </div>
-                </div>
-                <div style={{ background: '#fff', border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem' }}>
-                  <p style={{ margin: '0 0 0.5rem', color: C.ink, fontWeight: '800' }}>Approval Audit Trail</p>
-                  <div style={{ maxHeight: '280px', overflowY: 'auto', display: 'grid', gap: '0.55rem' }}>
-                    {(selectedTransaction.auditTrail || []).slice().reverse().map((entry) => {
-                      const auditEntry = formatTransactionAuditEntry(entry, TRANSACTION_ACTION_LABELS)
-                      return (
-                      <div key={`${entry._id || entry.createdAt}-${entry.action}`} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '0.45rem', padding: '0.65rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
-                          <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>{auditEntry.title}</span>
-                          <span style={{ color: C.inkSoft, fontSize: '0.76rem' }}>{entry.createdAt ? new Date(entry.createdAt).toLocaleString() : ''}</span>
-                        </div>
-                        <p style={{ margin: '0 0 0.2rem', color: C.inkSoft, fontSize: '0.8rem' }}>Actor: {auditEntry.actorName}</p>
-                        <p style={{ margin: '0 0 0.2rem', color: C.inkSoft, fontSize: '0.8rem' }}>Status: {auditEntry.statusText}</p>
-                        {auditEntry.comment && <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>{auditEntry.comment}</p>}
-                      </div>
-                    )})}
-                    {!(selectedTransaction.auditTrail || []).length && <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>No workflow history yet.</p>}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                  <th style={{ padding: '0.65rem', textAlign: 'center' }}>
-                    <input type="checkbox" checked={allVisibleTransactionsSelected} onChange={toggleVisibleTransactionSelection} />
-                  </th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Date</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Type</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Party</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'right' }}>Amount</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Status</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Description</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((tx) => (
-                  <tr id={`erp-transaction-row-${tx._id}`} key={tx._id} onClick={() => setSelectedTransactionId(tx._id)} style={{ borderBottom: `1px solid ${C.p2}`, background: selectedTransactionId === tx._id ? '#ECFDF5' : 'transparent', outline: selectedTransactionId === tx._id ? '2px solid #10B981' : 'none', outlineOffset: '-2px', cursor: 'pointer' }}>
-                    <td style={{ padding: '0.65rem', textAlign: 'center' }}>
-                      <input type="checkbox" checked={selectedTransactionIds.includes(tx._id)} onChange={(e) => { e.stopPropagation(); toggleTransactionSelection(tx._id) }} onClick={(e) => e.stopPropagation()} />
-                    </td>
-                    <td style={{ padding: '0.65rem' }}>{new Date(tx.date).toLocaleDateString()}</td>
-                    <td style={{ padding: '0.65rem', textTransform: 'capitalize', fontWeight: '700' }}>{TRANSACTION_TYPE_LABELS[tx.type] || tx.type}</td>
-                    <td style={{ padding: '0.65rem' }}>{tx.customerId?.name || tx.vendorId?.name || tx.inventoryItemId?.sku || '-'}</td>
-                    <td style={{ padding: '0.65rem', textAlign: 'right' }}>{tx.currency} {Number(tx.amount || 0).toLocaleString()}</td>
-                    <td style={{ padding: '0.65rem', textTransform: 'capitalize', fontWeight: '600' }}><span style={{ padding: '0.25rem 0.5rem', borderRadius: '999px', ...(TRANSACTION_STATUS_STYLES[tx.status] || { background: '#E5E7EB', color: C.ink }) }}>{tx.status}</span></td>
-                    <td style={{ padding: '0.65rem', maxWidth: '260px', color: C.inkSoft }}>{tx.description || '-'}</td>
-                    <td style={{ padding: '0.65rem' }}>
-                      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                        {tx.status !== 'posted' && <button onClick={(e) => { e.stopPropagation(); populateTransactionForm(tx) }} style={{ padding: '0.3rem 0.5rem', border: '1px solid #D1D5DB', borderRadius: '0.3rem', background: '#fff', color: C.ink, cursor: 'pointer' }}>Edit</button>}
-                        {['draft', 'returned', 'rejected'].includes(tx.status) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('submit', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#F59E0B', color: '#111827', cursor: 'pointer' }}>Submit</button>}
-                        {tx.status === 'submitted' && (isSuperAdmin || isFinance) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('approve', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#0EA5E9', color: '#fff', cursor: 'pointer' }}>Approve</button>}
-                        {['submitted', 'approved'].includes(tx.status) && (isSuperAdmin || isFinance) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('return', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#FBCFE8', color: '#9D174D', cursor: 'pointer' }}>Return</button>}
-                        {['submitted', 'approved', 'returned'].includes(tx.status) && (isSuperAdmin || isFinance) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('reject', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer' }}>Reject</button>}
-                        {['submitted', 'approved'].includes(tx.status) && (isSuperAdmin || isFinance) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('post', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: C.s1, color: '#fff', cursor: 'pointer' }}>Post</button>}
-                        {tx.status !== 'posted' && <button onClick={(e) => { e.stopPropagation(); handleDeleteTransaction(tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer' }}>Delete</button>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {!transactions.length && (
-                  <tr>
-                    <td colSpan={8} style={{ padding: '1rem', textAlign: 'center', color: C.inkSoft }}>No transactions match the current filters.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.85rem' }}>
-            <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>Showing page {transactionMeta.page} of {transactionPageCount} · {Number(transactionMeta.total || 0).toLocaleString()} total transactions</p>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button type="button" disabled={transactionMeta.page <= 1 || loading} onClick={() => loadTransactions({ page: Math.max(1, transactionMeta.page - 1) })} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer' }}>Previous</button>
-              <button type="button" disabled={transactionMeta.page >= transactionPageCount || loading} onClick={() => loadTransactions({ page: Math.min(transactionPageCount, transactionMeta.page + 1) })} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer' }}>Next</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* REPORTS TAB */}
-      {activeTab === 'reports' && (
-        <div>
-          <h3 style={{ marginBottom: '1rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Reports (Advanced ERP)</h3>
-
-          <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.6rem', padding: '1rem', marginBottom: '1rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
-              <select value={reportFilters.period} onChange={(e) => setReportFilters((prev) => ({ ...prev, period: e.target.value }))} style={modalInputStyle}>
-                <option value="today">Today</option>
-                <option value="month">This Month</option>
-                <option value="ytd">Year To Date</option>
-                <option value="custom">Custom Range</option>
-              </select>
-              <input type="date" value={reportFilters.startDate} onChange={(e) => setReportFilters((prev) => ({ ...prev, startDate: e.target.value, period: 'custom' }))} style={modalInputStyle} />
-              <input type="date" value={reportFilters.endDate} onChange={(e) => setReportFilters((prev) => ({ ...prev, endDate: e.target.value, period: 'custom' }))} style={modalInputStyle} />
-              <select value={reportFilters.accountType} onChange={(e) => setReportFilters((prev) => ({ ...prev, accountType: e.target.value }))} style={modalInputStyle}>
-                <option value="">All Account Types</option>
-                {ACCOUNT_TYPES.map((type) => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-              <select value={reportFilters.sortBy} onChange={(e) => setReportFilters((prev) => ({ ...prev, sortBy: e.target.value }))} style={modalInputStyle}>
-                <option value="accountCode">Sort: Account Code</option>
-                <option value="accountName">Sort: Account Name</option>
-                <option value="debit">Sort: Debit</option>
-                <option value="credit">Sort: Credit</option>
-                <option value="net">Sort: Net</option>
-              </select>
-              <select value={reportFilters.sortDir} onChange={(e) => setReportFilters((prev) => ({ ...prev, sortDir: e.target.value }))} style={modalInputStyle}>
-                <option value="asc">Ascending</option>
-                <option value="desc">Descending</option>
-              </select>
-              <select value={reportFilters.referenceType} onChange={(e) => setReportFilters((prev) => ({ ...prev, referenceType: e.target.value }))} style={modalInputStyle}>
-                <option value="">All Day Book Types</option>
-                {LEDGER_REFERENCE_TYPES.map((type) => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-              <input type="number" placeholder="Day Book Min Amount" value={reportFilters.minAmount} onChange={(e) => setReportFilters((prev) => ({ ...prev, minAmount: e.target.value }))} style={modalInputStyle} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: C.ink, fontSize: '0.86rem', fontWeight: '600' }}>
-                  <input type="checkbox" checked={reportFilters.includeZeroAccounts} onChange={(e) => setReportFilters((prev) => ({ ...prev, includeZeroAccounts: e.target.checked }))} />
-                  Include zero-balance accounts
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: C.ink, fontSize: '0.86rem', fontWeight: '600' }}>
-                  <input type="checkbox" checked={reportFilters.comparePrevious} onChange={(e) => setReportFilters((prev) => ({ ...prev, comparePrevious: e.target.checked }))} />
-                  Compare with previous period
-                </label>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button onClick={handleExportReportCsv} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46', fontWeight: '700', cursor: 'pointer' }}>Export CSV</button>
-                <button onClick={handleExportReportXlsx} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', fontWeight: '700', cursor: 'pointer' }}>Export XLSX</button>
-                <button onClick={handleExportReportPdf} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #EF4444', background: '#FEF2F2', color: '#991B1B', fontWeight: '700', cursor: 'pointer' }}>Export PDF</button>
-                <button onClick={handlePrintCurrentReport} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #60A5FA', background: '#EFF6FF', color: '#1E40AF', fontWeight: '700', cursor: 'pointer' }}>Print</button>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.8rem', marginBottom: '1rem' }}>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, fontWeight: '700' }}>Trial Balance</p>
-              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Debit: {Number(reports.trialBalance?.totalDebit || 0).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Credit: {Number(reports.trialBalance?.totalCredit || 0).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', color: reports.trialBalance?.balanced ? C.s1 : C.danger, fontWeight: '700', fontSize: '0.82rem' }}>{reports.trialBalance?.balanced ? 'Balanced' : 'Difference Found'}</p>
-            </div>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, fontWeight: '700' }}>Profit & Loss</p>
-              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Income: {Number(reports.profitLoss?.totalIncome || 0).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Expense: {Number(reports.profitLoss?.totalExpense || 0).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', fontWeight: '700', color: Number(reports.profitLoss?.netProfit || 0) >= 0 ? C.s1 : C.danger, fontSize: '0.82rem' }}>Net: {Number(reports.profitLoss?.netProfit || 0).toLocaleString()}</p>
-            </div>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, fontWeight: '700' }}>Balance Sheet</p>
-              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Assets: {Math.abs(Number(reports.balanceSheet?.totalAssets || 0)).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>L+E: {Math.abs(Number(reports.balanceSheet?.liabilitiesPlusEquity || 0)).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem' }}>Current Ratio: {reports.balanceSheet?.currentRatio ?? '-'}</p>
-            </div>
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
-              <p style={{ margin: 0, fontWeight: '700' }}>Forex Impact</p>
-              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Entries: {Number(reports.forex?.entriesCount || 0).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>Impact: {Number(reports.forex?.forexImpact || 0).toLocaleString()}</p>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-            {[
-              ['summary', 'Summary'],
-              ['trial', 'Trial Balance'],
-              ['pnl', 'Profit & Loss'],
-              ['balanceSheet', 'Balance Sheet'],
-              ['dayBook', 'Day Book'],
-              ['outstanding', 'Outstanding'],
-              ['forex', 'Forex'],
-              ['ledger', 'Ledger Drilldown'],
-            ].map(([id, label]) => (
-              <button
-                key={id}
-                onClick={() => setReportView(id)}
-                style={{
-                  padding: '0.45rem 0.75rem',
-                  borderRadius: '0.35rem',
-                  border: reportView === id ? 'none' : '1px solid #D1D5DB',
-                  background: reportView === id ? C.s1 : '#FFFFFF',
-                  color: reportView === id ? '#fff' : C.ink,
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {(reportView === 'summary' || reportView === 'trial') && (
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem', marginBottom: '1rem' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '999px', color: '#1E3A8A', fontWeight: '700', fontSize: '0.82rem', padding: '0.45rem 0.75rem', marginBottom: '0.7rem' }}>
-                <span>Active Period</span>
-                <span style={{ color: '#1D4ED8' }}>{getReportPeriodLabel()}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-                <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>Trial Balance Detailed</p>
-                <input placeholder="Search account code/name" value={reportFilters.search} onChange={(e) => setReportFilters((prev) => ({ ...prev, search: e.target.value }))} style={{ ...modalInputStyle, marginBottom: 0, width: '260px' }} />
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                      <th style={{ padding: '0.6rem', textAlign: 'left' }}>Code</th>
-                      <th style={{ padding: '0.6rem', textAlign: 'left' }}>Name</th>
-                      <th style={{ padding: '0.6rem', textAlign: 'left' }}>Type</th>
-                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>Debit</th>
-                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>Credit</th>
-                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>Net</th>
-                      <th style={{ padding: '0.6rem', textAlign: 'left' }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(reports.trialBalance?.trialBalance || [])
-                      .filter((row) => {
-                        const q = String(reportFilters.search || '').toLowerCase().trim()
-                        if (!q) return true
-                        return String(row.accountCode || '').toLowerCase().includes(q) || String(row.accountName || '').toLowerCase().includes(q)
-                      })
-                      .slice(0, 500)
-                      .map((row) => (
-                        <tr key={`${row.accountCode}-${row.accountType}`} style={{ borderBottom: `1px solid ${C.p2}` }}>
-                          <td style={{ padding: '0.6rem', fontWeight: '700' }}>{row.accountCode}</td>
-                          <td style={{ padding: '0.6rem' }}>{row.accountName}</td>
-                          <td style={{ padding: '0.6rem' }}>{row.accountType}</td>
-                          <td style={{ padding: '0.6rem', textAlign: 'right' }}>{Number(row.debit || 0).toLocaleString()}</td>
-                          <td style={{ padding: '0.6rem', textAlign: 'right' }}>{Number(row.credit || 0).toLocaleString()}</td>
-                          <td style={{ padding: '0.6rem', textAlign: 'right', color: Number(row.net || 0) >= 0 ? C.s1 : C.danger, fontWeight: '700' }}>
-                            {formatDirectionalBalance(row.net)}
-                          </td>
-                          <td style={{ padding: '0.6rem' }}>
-                            <button onClick={() => handleTrialAccountDrilldown(row.accountCode)} style={{ padding: '0.3rem 0.5rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', color: '#0C4A6E', background: '#E0F2FE', cursor: 'pointer' }}>
-                              Ledger
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {reportView === 'pnl' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div style={{ gridColumn: '1 / -1', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '999px', color: '#1E3A8A', fontWeight: '700', fontSize: '0.82rem', padding: '0.45rem 0.75rem' }}>
-                <span>Active Period</span>
-                <span style={{ color: '#1D4ED8' }}>{getReportPeriodLabel()}</span>
-              </div>
-              <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Income Breakdown</p>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
-                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.55rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Account</th><th style={{ padding: '0.55rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Action</th></tr></thead>
-                    <tbody>
-                      {(reports.profitLoss?.incomeBreakdown || []).map((row) => (
-                        <tr key={`inc-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{Number(row.amount || 0).toLocaleString()}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Expense Breakdown</p>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
-                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.55rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Account</th><th style={{ padding: '0.55rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.55rem', textAlign: 'left' }}>Action</th></tr></thead>
-                    <tbody>
-                      {(reports.profitLoss?.expenseBreakdown || []).map((row) => (
-                        <tr key={`exp-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.55rem' }}>{row.accountCode}</td><td style={{ padding: '0.55rem' }}>{row.accountName}</td><td style={{ padding: '0.55rem', textAlign: 'right' }}>{Number(row.amount || 0).toLocaleString()}</td><td style={{ padding: '0.55rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div style={{ marginTop: '0.75rem', borderTop: `1px solid ${C.p2}`, paddingTop: '0.6rem' }}>
-                  <p style={{ margin: '0.2rem 0', fontWeight: '700' }}>Total Income: {Number(reports.profitLoss?.totalIncome || 0).toLocaleString()}</p>
-                  <p style={{ margin: '0.2rem 0', fontWeight: '700' }}>Total Expense: {Number(reports.profitLoss?.totalExpense || 0).toLocaleString()}</p>
-                  <p style={{ margin: '0.2rem 0', fontWeight: '800', color: Number(reports.profitLoss?.netProfit || 0) >= 0 ? C.s1 : C.danger }}>Net Profit: {Number(reports.profitLoss?.netProfit || 0).toLocaleString()}</p>
-                  {reports.profitLoss?.previousPeriod && <p style={{ margin: '0.2rem 0', fontWeight: '600', color: C.inkSoft }}>Variance vs previous: {Number(reports.profitLoss?.varianceVsPrevious || 0).toLocaleString()}</p>}
-                </div>
-              </div>
-              <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.6rem' }}>Monthly Comparison</p>
-                <div style={{ overflowX: 'auto', marginBottom: '0.9rem' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Month</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Income</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Expense</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Net Profit</th></tr></thead>
-                    <tbody>{(reports.profitLoss?.monthlyComparison || []).map((row) => <tr key={row.label} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.label}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalIncome)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalExpense)}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.netProfit)}</td></tr>)}</tbody>
-                  </table>
-                </div>
-                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.6rem' }}>Quarterly Comparison</p>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Quarter</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Income</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Expense</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Net Profit</th></tr></thead>
-                    <tbody>{(reports.profitLoss?.quarterlyComparison || []).map((row) => <tr key={row.label} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.label}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalIncome)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalExpense)}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.netProfit)}</td></tr>)}</tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {reportView === 'balanceSheet' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-              <div style={{ gridColumn: '1 / -1', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '999px', color: '#1E3A8A', fontWeight: '700', fontSize: '0.82rem', padding: '0.45rem 0.75rem' }}>
-                <span>Active Period</span>
-                <span style={{ color: '#1D4ED8' }}>{getReportPeriodLabel()}</span>
-              </div>
-              {[['Assets', reports.balanceSheet?.assets || []], ['Liabilities', reports.balanceSheet?.liabilities || []], ['Equity', reports.balanceSheet?.equity || []]].map(([title, rows]) => (
-                <div key={title} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                  <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>{title}</p>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                      <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Code</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Name</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Balance</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Action</th></tr></thead>
-                      <tbody>
-                        {rows.map((row) => (
-                          <tr key={`${title}-${row.accountCode}`} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.accountCode}</td><td style={{ padding: '0.5rem' }}>{row.accountName}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatDirectionalBalance(row.balance, { preferredDirection: title === 'Assets' ? 'debit' : 'credit' })}</td><td style={{ padding: '0.5rem' }}><button onClick={() => handleReportAccountDrilldown(row.accountId, row.accountCode)} style={{ padding: '0.28rem 0.48rem', borderRadius: '0.3rem', border: '1px solid #0EA5E9', background: '#EFF6FF', color: '#1E40AF', cursor: 'pointer' }}>Vouchers</button></td></tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-              <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Assets: {Math.abs(Number(reports.balanceSheet?.totalAssets || 0)).toLocaleString()}</p>
-                <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Liabilities + Equity: {Math.abs(Number(reports.balanceSheet?.liabilitiesPlusEquity || 0)).toLocaleString()}</p>
-                <p style={{ margin: '0.15rem 0', color: Math.abs(Number(reports.balanceSheet?.difference || 0)) < 0.01 ? C.s1 : C.danger, fontWeight: '800' }}>Difference: {Number(reports.balanceSheet?.difference || 0).toLocaleString()}</p>
-                <p style={{ margin: '0.15rem 0' }}>Working Capital: {Number(reports.balanceSheet?.workingCapital || 0).toLocaleString()}</p>
-                <p style={{ margin: '0.15rem 0' }}>Current Ratio: {reports.balanceSheet?.currentRatio ?? '-'}</p>
-              </div>
-              <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.6rem' }}>Monthly Comparison</p>
-                <div style={{ overflowX: 'auto', marginBottom: '0.9rem' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Month</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Assets</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Liabilities</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Equity</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Working Capital</th></tr></thead>
-                    <tbody>{(reports.balanceSheet?.monthlyComparison || []).map((row) => <tr key={row.label} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.label}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoneyAbs(row.totalAssets)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoneyAbs(row.totalLiabilities)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoneyAbs(row.totalEquity)}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.workingCapital)}</td></tr>)}</tbody>
-                  </table>
-                </div>
-                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.6rem' }}>Quarterly Comparison</p>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Quarter</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Assets</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Liabilities</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Equity</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Working Capital</th></tr></thead>
-                    <tbody>{(reports.balanceSheet?.quarterlyComparison || []).map((row) => <tr key={row.label} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.label}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoneyAbs(row.totalAssets)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoneyAbs(row.totalLiabilities)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoneyAbs(row.totalEquity)}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.workingCapital)}</td></tr>)}</tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {reportView === 'dayBook' && (
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-              <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Day Book Entries</p>
-              <p style={{ margin: '0 0 0.5rem', color: C.inkSoft, fontSize: '0.84rem' }}>
-                Total Entries: {reports.dayBook?.totals?.count || 0} | Debit: {Number(reports.dayBook?.totals?.debit || 0).toLocaleString()} | Credit: {Number(reports.dayBook?.totals?.credit || 0).toLocaleString()}
-              </p>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                      <th style={{ padding: '0.5rem', textAlign: 'left' }}>Date</th>
-                      <th style={{ padding: '0.5rem', textAlign: 'left' }}>Type</th>
-                      <th style={{ padding: '0.5rem', textAlign: 'left' }}>Description</th>
-                      <th style={{ padding: '0.5rem', textAlign: 'left' }}>Debit A/C</th>
-                      <th style={{ padding: '0.5rem', textAlign: 'left' }}>Credit A/C</th>
-                      <th style={{ padding: '0.5rem', textAlign: 'right' }}>Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(reports.dayBook?.entries || []).slice(0, 600).map((entry) => (
-                      <tr key={entry._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
-                        <td style={{ padding: '0.5rem' }}>{new Date(entry.date).toLocaleString()}</td>
-                        <td style={{ padding: '0.5rem', textTransform: 'capitalize' }}>{entry.referenceType}</td>
-                        <td style={{ padding: '0.5rem' }}>{entry.description || '-'}</td>
-                        <td style={{ padding: '0.5rem' }}>{entry.debitAccountId?.accountCode} - {entry.debitAccountId?.accountName}</td>
-                        <td style={{ padding: '0.5rem' }}>{entry.creditAccountId?.accountCode} - {entry.creditAccountId?.accountName}</td>
-                        <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{Number(entry.amount || 0).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {reportView === 'outstanding' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
-              <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.45rem' }}>Customer Outstanding</p>
-                <p style={{ margin: '0 0 0.45rem', color: C.inkSoft, fontSize: '0.84rem' }}>Total: {Number(reports.customerOutstanding?.totals?.outstanding || 0).toLocaleString()} | Limit Exceeded: {reports.customerOutstanding?.totals?.limitExceededCount || 0}</p>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Customer</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Ledger</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Outstanding</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>0-30</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>31-60</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>61-90</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>90+</th><th style={{ padding: '0.5rem', textAlign: 'center' }}>Limit</th></tr></thead>
-                    <tbody>
-                      {(reports.customerOutstanding?.rows || []).map((row) => (
-                        <tr key={row.customerId} style={{ borderBottom: `1px solid ${C.p2}` }}>
-                          <td style={{ padding: '0.5rem' }}>{row.customerName}</td>
-                          <td style={{ padding: '0.5rem' }}>{row.ledgerAccount?.accountCode || '-'}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{Number(row.outstanding || 0).toLocaleString()}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.aging?.bucket0to30 || 0).toLocaleString()}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.aging?.bucket31to60 || 0).toLocaleString()}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.aging?.bucket61to90 || 0).toLocaleString()}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.aging?.bucket90Plus || 0).toLocaleString()}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'center', color: row.limitExceeded ? C.danger : C.s1, fontWeight: '700' }}>{row.limitExceeded ? 'Exceeded' : 'OK'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.45rem' }}>Vendor Outstanding</p>
-                <p style={{ margin: '0 0 0.45rem', color: C.inkSoft, fontSize: '0.84rem' }}>Total: {Number(reports.vendorOutstanding?.totals?.outstanding || 0).toLocaleString()} | Credit: {Number(reports.vendorOutstanding?.totals?.credit || 0).toLocaleString()}</p>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                    <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Vendor</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Ledger</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Outstanding</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Type</th></tr></thead>
-                    <tbody>
-                      {(reports.vendorOutstanding?.rows || []).map((row) => (
-                        <tr key={row.vendorId} style={{ borderBottom: `1px solid ${C.p2}` }}>
-                          <td style={{ padding: '0.5rem' }}>{row.vendorName}</td>
-                          <td style={{ padding: '0.5rem' }}>{row.ledgerAccount?.accountCode || '-'}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{Number(row.outstanding || 0).toLocaleString()}</td>
-                          <td style={{ padding: '0.5rem' }}>{row.outstandingType || '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {reportView === 'forex' && (
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-              <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Forex Gain/Loss Analysis</p>
-              <p style={{ margin: '0 0 0.6rem', color: C.inkSoft, fontSize: '0.84rem' }}>Entries: {reports.forex?.entriesCount || 0} | Total Impact: {Number(reports.forex?.forexImpact || 0).toLocaleString()}</p>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
-                  <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Currency</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Entries</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Impact</th></tr></thead>
-                  <tbody>
-                    {Object.entries(reports.forex?.byCurrency || {}).map(([currency, row]) => (
-                      <tr key={currency} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{currency}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.count || 0).toLocaleString()}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{Number(row.impact || 0).toLocaleString()}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {reportView === 'ledger' && (
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.6rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <select
-                  value={selectedReportAccountId}
-                  onChange={(e) => {
-                    const account = accounts.find((acc) => acc._id === e.target.value)
-                    setSelectedReportAccountId(e.target.value)
-                    setSelectedReportAccountCode(account?.accountCode || '')
-                    loadLedgerReport(e.target.value)
-                  }}
-                  style={{ ...modalInputStyle, marginBottom: 0 }}
-                >
-                  <option value="">Select Account For Ledger Drilldown</option>
-                  {accounts.map((account) => (
-                    <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
-                  ))}
-                </select>
-                {selectedReportAccountCode && <span style={{ color: C.inkSoft, fontWeight: '700', fontSize: '0.84rem' }}>Account: {selectedReportAccountCode}</span>}
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                  <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Voucher</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Date</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Type</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Description</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Debit A/C</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Credit A/C</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Running</th></tr></thead>
-                  <tbody>
-                    {ledgerReportRows.map((row, i) => (
-                      <tr key={`${row.date}-${i}`} style={{ borderBottom: `1px solid ${C.p2}` }}>
-                        <td style={{ padding: '0.5rem', fontWeight: '700' }}>{String(row.entryId || '').slice(-6).toUpperCase()}</td>
-                        <td style={{ padding: '0.5rem' }}>{new Date(row.date).toLocaleString()}</td>
-                        <td style={{ padding: '0.5rem', textTransform: 'capitalize' }}>{row.referenceType}</td>
-                        <td style={{ padding: '0.5rem' }}>{row.description || '-'}</td>
-                        <td style={{ padding: '0.5rem' }}>{row.debitAccount?.accountCode || '-'}</td>
-                        <td style={{ padding: '0.5rem' }}>{row.creditAccount?.accountCode || '-'}</td>
-                        <td style={{ padding: '0.5rem', textAlign: 'right' }}>{Number(row.amount || 0).toLocaleString()}</td>
-                        <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700', color: Number(row.runningBalance || 0) >= 0 ? C.s1 : C.danger }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', flexWrap: 'wrap' }}>
-                            <span>{Number(row.runningBalance || 0).toLocaleString()}</span>
-                            <button onClick={() => handleOpenVoucherSource(row.entryId)} style={{ padding: '0.25rem 0.45rem', borderRadius: '0.3rem', border: '1px solid #D1D5DB', background: '#F9FAFB', color: C.ink, cursor: 'pointer', fontSize: '0.74rem', fontWeight: '700' }}>Source</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {loading && <p style={{ color: C.inkSoft, marginTop: '0.8rem' }}>Loading report data...</p>}
-
-          {voucherSource && (
-            <div style={modalBackdropStyle} onClick={() => !voucherSourceLoading && setVoucherSource(null)}>
-              <div style={{ ...modalCardStyle, width: 'min(760px, 100%)' }} onClick={(e) => e.stopPropagation()}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
-                  <div>
-                    <h4 style={{ margin: 0, color: C.ink }}>Voucher Source Drilldown</h4>
-                    <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.85rem' }}>Trace journal entry back to source transaction or manual voucher.</p>
-                  </div>
-                  <button onClick={() => setVoucherSource(null)} style={{ padding: '0.45rem 0.75rem', border: '1px solid #D1D5DB', background: '#fff', borderRadius: '0.35rem', cursor: 'pointer' }}>Close</button>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
-                  <div style={emptyCardStyle}>
-                    <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>Ledger Voucher</p>
-                    <p style={{ margin: '0.35rem 0 0' }}>Type: {voucherSource.ledgerEntry?.referenceType || '-'}</p>
-                    <p style={{ margin: '0.2rem 0 0' }}>Date: {voucherSource.ledgerEntry?.date ? new Date(voucherSource.ledgerEntry.date).toLocaleString() : '-'}</p>
-                    <p style={{ margin: '0.2rem 0 0' }}>Debit: {voucherSource.ledgerEntry?.debitAccountId?.accountCode || '-'} - {voucherSource.ledgerEntry?.debitAccountId?.accountName || ''}</p>
-                    <p style={{ margin: '0.2rem 0 0' }}>Credit: {voucherSource.ledgerEntry?.creditAccountId?.accountCode || '-'} - {voucherSource.ledgerEntry?.creditAccountId?.accountName || ''}</p>
-                    <p style={{ margin: '0.2rem 0 0', fontWeight: '700' }}>Amount: {formatMoney(voucherSource.ledgerEntry?.amount)}</p>
-                  </div>
-
-                  <div style={emptyCardStyle}>
-                    <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>Source Record</p>
-                    {voucherSource.sourceTransaction ? (
-                      <>
-                        <p style={{ margin: '0.35rem 0 0' }}>Status: {voucherSource.sourceTransaction.status}</p>
-                        <p style={{ margin: '0.2rem 0 0' }}>Type: {voucherSource.sourceTransaction.type}</p>
-                        <p style={{ margin: '0.2rem 0 0' }}>Amount: {formatMoney(voucherSource.sourceTransaction.amount)} {voucherSource.sourceTransaction.currency || 'USD'}</p>
-                        <p style={{ margin: '0.2rem 0 0' }}>Customer: {voucherSource.sourceTransaction.customerId?.name || '-'}</p>
-                        <p style={{ margin: '0.2rem 0 0' }}>Vendor: {voucherSource.sourceTransaction.vendorId?.name || '-'}</p>
-                        <p style={{ margin: '0.2rem 0 0' }}>Inventory: {voucherSource.sourceTransaction.inventoryItemId?.sku || voucherSource.sourceTransaction.inventoryItemId?.name || '-'}</p>
-                        <p style={{ margin: '0.2rem 0 0' }}>Mapping: {voucherSource.sourceTransaction.mappingId?.mappingType || '-'}</p>
-                      </>
-                    ) : (
-                      <p style={{ margin: '0.35rem 0 0' }}>No transaction record linked. This appears to be a manual journal or system-only voucher.</p>
-                    )}
-                  </div>
-                </div>
-
-                {voucherSource.sourceTransaction && (
-                  <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '0.5rem', padding: '0.85rem' }}>
-                    <p style={{ margin: 0, fontWeight: '700', color: C.ink, marginBottom: '0.45rem' }}>Narration</p>
-                    <p style={{ margin: 0, color: C.inkSoft }}>{voucherSource.sourceTransaction.description || 'No description available.'}</p>
-                  </div>
-                )}
-
-                {voucherSource.sourceTransaction && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-                    <button onClick={() => handleJumpToTransaction(voucherSource.sourceTransaction._id)} style={{ padding: '0.5rem 0.85rem', border: 'none', background: C.s1, color: '#fff', borderRadius: '0.35rem', cursor: 'pointer', fontWeight: '700' }}>Open In Transactions</button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
+      <ERPReportsTab
+        activeTab={activeTab}
+        C={C}
+        modalInputStyle={modalInputStyle}
+        reportFilters={reportFilters}
+        setReportFilters={setReportFilters}
+        ACCOUNT_TYPES={ACCOUNT_TYPES}
+        LEDGER_REFERENCE_TYPES={LEDGER_REFERENCE_TYPES}
+        handleExportReportCsv={handleExportReportCsv}
+        handleExportReportXlsx={handleExportReportXlsx}
+        handleExportReportPdf={handleExportReportPdf}
+        handlePrintCurrentReport={handlePrintCurrentReport}
+        emptyCardStyle={emptyCardStyle}
+        reports={reports}
+        reportView={reportView}
+        setReportView={setReportView}
+        getReportPeriodLabel={getReportPeriodLabel}
+        formatDirectionalBalance={formatDirectionalBalance}
+        handleTrialAccountDrilldown={handleTrialAccountDrilldown}
+        formatMoney={formatMoney}
+        handleReportAccountDrilldown={handleReportAccountDrilldown}
+        formatMoneyAbs={formatMoneyAbs}
+        selectedReportAccountId={selectedReportAccountId}
+        setSelectedReportAccountId={setSelectedReportAccountId}
+        accounts={accounts}
+        setSelectedReportAccountCode={setSelectedReportAccountCode}
+        loadLedgerReport={loadLedgerReport}
+        selectedReportAccountCode={selectedReportAccountCode}
+        ledgerReportRows={ledgerReportRows}
+        loading={loading}
+        voucherSource={voucherSource}
+        setVoucherSource={setVoucherSource}
+        modalBackdropStyle={modalBackdropStyle}
+        modalCardStyle={modalCardStyle}
+        voucherSourceLoading={voucherSourceLoading}
+        handleOpenVoucherSource={handleOpenVoucherSource}
+        handleJumpToTransaction={handleJumpToTransaction}
+      />
       {/* VENDORS TAB */}
-      {activeTab === 'vendors' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Vendors Management</h3>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button
-                onClick={handleVendorFilterSearch}
-                style={{ padding: '0.5rem 0.85rem', background: '#E0F2FE', color: '#075985', border: '1px solid #7DD3FC', borderRadius: '0.4rem', cursor: 'pointer', fontWeight: '600' }}
-              >
-                Refresh List
-              </button>
-              <button
-                onClick={() => {
-                  setEditingVendorId('')
-                  setShowVendorForm((prev) => !prev)
-                }}
-                disabled={!canManageVendors}
-                style={{ padding: '0.5rem 0.85rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: canManageVendors ? 'pointer' : 'not-allowed', opacity: canManageVendors ? 1 : 0.55, fontWeight: '600' }}
-              >
-                + Add Vendor
-              </button>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #059669', borderRadius: '0.5rem', padding: '0.85rem' }}>
-              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Total Vendors</p>
-              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.totalVendors}</p>
-            </div>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #0284C7', borderRadius: '0.5rem', padding: '0.85rem' }}>
-              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Total Outstanding</p>
-              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{Number(vendorSummary.totalOutstanding || 0).toLocaleString()}</p>
-            </div>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #D97706', borderRadius: '0.5rem', padding: '0.85rem' }}>
-              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Over Limit</p>
-              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.overLimit}</p>
-            </div>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #DC2626', borderRadius: '0.5rem', padding: '0.85rem' }}>
-              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Blacklisted</p>
-              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.blacklisted}</p>
-            </div>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #8B5CF6', borderRadius: '0.5rem', padding: '0.85rem' }}>
-              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>In Review</p>
-              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.review || 0}</p>
-            </div>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #D97706', borderRadius: '0.5rem', padding: '0.85rem' }}>
-              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Non-Compliant</p>
-              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.nonCompliant || 0}</p>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', marginBottom: '1rem' }}>
-            <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.45rem', padding: '0.55rem' }}>
-              <p style={{ margin: 0, color: '#991B1B', fontSize: '0.76rem' }}>Overdue Dues</p>
-              <p style={{ margin: '0.2rem 0 0', color: '#7F1D1D', fontWeight: '700' }}>{vendorPaymentCalendar.alerts?.overdue || 0}</p>
-            </div>
-            <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: '0.45rem', padding: '0.55rem' }}>
-              <p style={{ margin: 0, color: '#92400E', fontSize: '0.76rem' }}>Due Soon (7d)</p>
-              <p style={{ margin: '0.2rem 0 0', color: '#78350F', fontWeight: '700' }}>{vendorPaymentCalendar.alerts?.due_soon || 0}</p>
-            </div>
-            <div style={{ background: '#EFF6FF', border: '1px solid #93C5FD', borderRadius: '0.45rem', padding: '0.55rem' }}>
-              <p style={{ margin: 0, color: '#1D4ED8', fontSize: '0.76rem' }}>Upcoming</p>
-              <p style={{ margin: '0.2rem 0 0', color: '#1E3A8A', fontWeight: '700' }}>{vendorPaymentCalendar.alerts?.upcoming || 0}</p>
-            </div>
-            <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem' }}>
-              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.76rem' }}>Total Due Amount</p>
-              <p style={{ margin: '0.2rem 0 0', color: C.ink, fontWeight: '700' }}>{Number(vendorPaymentCalendar.alerts?.totalDue || 0).toLocaleString()}</p>
-            </div>
-            <div style={{ background: '#EFF6FF', border: '1px solid #93C5FD', borderRadius: '0.45rem', padding: '0.55rem' }}>
-              <p style={{ margin: 0, color: '#1D4ED8', fontSize: '0.76rem' }}>Doc Warning 30d</p>
-              <p style={{ margin: '0.2rem 0 0', color: '#1E3A8A', fontWeight: '700' }}>{vendorComplianceSummary.expiryBuckets?.warning30 || 0}</p>
-            </div>
-            <div style={{ background: '#EEF2FF', border: '1px solid #A5B4FC', borderRadius: '0.45rem', padding: '0.55rem' }}>
-              <p style={{ margin: 0, color: '#3730A3', fontSize: '0.76rem' }}>Doc Warning 60d</p>
-              <p style={{ margin: '0.2rem 0 0', color: '#312E81', fontWeight: '700' }}>{vendorComplianceSummary.expiryBuckets?.warning60 || 0}</p>
-            </div>
-            <div style={{ background: '#F5F3FF', border: '1px solid #C4B5FD', borderRadius: '0.45rem', padding: '0.55rem' }}>
-              <p style={{ margin: 0, color: '#5B21B6', fontSize: '0.76rem' }}>Doc Warning 90d</p>
-              <p style={{ margin: '0.2rem 0 0', color: '#4C1D95', fontWeight: '700' }}>{vendorComplianceSummary.expiryBuckets?.warning90 || 0}</p>
-            </div>
-            <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.45rem', padding: '0.55rem' }}>
-              <p style={{ margin: 0, color: '#991B1B', fontSize: '0.76rem' }}>Doc Expired</p>
-              <p style={{ margin: '0.2rem 0 0', color: '#7F1D1D', fontWeight: '700' }}>{vendorComplianceSummary.expiryBuckets?.expired || 0}</p>
-            </div>
-            <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: '0.45rem', padding: '0.55rem' }}>
-              <p style={{ margin: 0, color: '#92400E', fontSize: '0.76rem' }}>Overdue Queue</p>
-              <p style={{ margin: '0.2rem 0 0', color: '#78350F', fontWeight: '700' }}>{vendorOverdueQueue.summary?.total || 0} alerts</p>
-            </div>
-          </div>
-
-          <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.45rem' }}>
-              <p style={{ margin: 0, color: C.ink, fontWeight: '700', fontSize: '0.9rem' }}>Overdue Email Queue Payload</p>
-              <button onClick={loadVendorOverdueQueue} style={{ padding: '0.3rem 0.6rem', borderRadius: '0.35rem', border: '1px solid #7DD3FC', background: '#E0F2FE', color: '#075985', cursor: 'pointer', fontSize: '0.74rem', fontWeight: '600' }}>Refresh Queue</button>
-            </div>
-            <p style={{ margin: '0 0 0.4rem', color: C.inkSoft, fontSize: '0.78rem' }}>
-              Total: {vendorOverdueQueue.summary?.total || 0} | With Recipient: {vendorOverdueQueue.summary?.withRecipient || 0} | Critical: {vendorOverdueQueue.summary?.critical || 0} | Amount Due: {Number(vendorOverdueQueue.summary?.totalAmountDue || 0).toLocaleString()}
-            </p>
-            <div style={{ maxHeight: '130px', overflowY: 'auto', border: `1px solid ${C.p2}`, borderRadius: '0.45rem' }}>
-              {(vendorOverdueQueue.queue || []).slice(0, 12).map((row) => (
-                <div key={row.queueId} style={{ padding: '0.45rem', borderBottom: `1px solid ${C.p2}` }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.35rem', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.74rem', fontWeight: '700', color: C.ink }}>{row.subject}</span>
-                    <span style={{ fontSize: '0.7rem', color: row.priority === 'high' ? '#991B1B' : '#92400E', fontWeight: '700' }}>{row.priority}</span>
-                  </div>
-                  <div style={{ fontSize: '0.71rem', color: C.inkSoft, marginTop: '0.15rem' }}>To: {(row.to || []).join(', ') || 'No recipient email'}</div>
-                  <div style={{ fontSize: '0.71rem', color: C.inkSoft, marginTop: '0.1rem' }}>{row.preview}</div>
-                </div>
-              ))}
-              {(!vendorOverdueQueue.queue || !vendorOverdueQueue.queue.length) && <p style={{ margin: '0.55rem', color: C.inkSoft, fontSize: '0.75rem' }}>No overdue queue payloads right now.</p>}
-            </div>
-          </div>
-
-          <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', marginBottom: '1rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem' }}>
-              <input
-                placeholder="Search name, code, contact, phone"
-                value={vendorFilters.search}
-                onChange={(e) => setVendorFilters((prev) => ({ ...prev, search: e.target.value }))}
-                style={modalInputStyle}
-              />
-              <select value={vendorFilters.status} onChange={(e) => setVendorFilters((prev) => ({ ...prev, status: e.target.value }))} style={modalInputStyle}>
-                <option value="">All Status</option>
-                <option value="active">Active</option>
-                <option value="on_hold">On Hold</option>
-                <option value="blacklisted">Blacklisted</option>
-              </select>
-              <select value={vendorFilters.approvalStatus} onChange={(e) => setVendorFilters((prev) => ({ ...prev, approvalStatus: e.target.value }))} style={modalInputStyle}>
-                <option value="">All Workflow</option>
-                <option value="draft">Draft</option>
-                <option value="review">Review</option>
-                <option value="approved">Approved</option>
-                <option value="blacklisted">Blacklisted</option>
-              </select>
-              <select value={vendorFilters.riskLevel} onChange={(e) => setVendorFilters((prev) => ({ ...prev, riskLevel: e.target.value }))} style={modalInputStyle}>
-                <option value="">All Risk</option>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-              <input
-                placeholder="Category"
-                value={vendorFilters.category}
-                onChange={(e) => setVendorFilters((prev) => ({ ...prev, category: e.target.value }))}
-                style={modalInputStyle}
-              />
-            </div>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.25rem', color: C.inkSoft, fontSize: '0.82rem' }}>
-              <input type="checkbox" checked={vendorFilters.includeInactive} onChange={(e) => setVendorFilters((prev) => ({ ...prev, includeInactive: e.target.checked }))} />
-              Include inactive vendors
-            </label>
-          </div>
-
-          {showVendorForm && (
-            <form onSubmit={handleCreateVendor} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
-              <p style={{ marginTop: 0, marginBottom: '0.6rem', color: C.ink, fontWeight: '700' }}>{editingVendorId ? 'Update Vendor Profile' : 'Create Vendor Profile'}</p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.5rem' }}>
-                <input placeholder="Vendor Code" value={vendorForm.vendorCode} onChange={(e) => setVendorForm((prev) => ({ ...prev, vendorCode: e.target.value.toUpperCase() }))} style={modalInputStyle} disabled={!canManageVendors} />
-                <input placeholder="Vendor Name" value={vendorForm.name} onChange={(e) => setVendorForm((prev) => ({ ...prev, name: e.target.value }))} style={modalInputStyle} />
-                <input placeholder="Contact Person" value={vendorForm.contactPerson} onChange={(e) => setVendorForm((prev) => ({ ...prev, contactPerson: e.target.value }))} style={modalInputStyle} />
-                <input placeholder="Phone" value={vendorForm.phone} onChange={(e) => setVendorForm((prev) => ({ ...prev, phone: e.target.value }))} style={modalInputStyle} />
-                <input placeholder="Email" value={vendorForm.email} onChange={(e) => setVendorForm((prev) => ({ ...prev, email: e.target.value }))} style={modalInputStyle} />
-                <input placeholder="Address" value={vendorForm.address} onChange={(e) => setVendorForm((prev) => ({ ...prev, address: e.target.value }))} style={modalInputStyle} />
-                <input placeholder="City" value={vendorForm.city} onChange={(e) => setVendorForm((prev) => ({ ...prev, city: e.target.value }))} style={modalInputStyle} />
-                <input placeholder="Country" value={vendorForm.country} onChange={(e) => setVendorForm((prev) => ({ ...prev, country: e.target.value }))} style={modalInputStyle} />
-                <input placeholder="Postal Code" value={vendorForm.postalCode} onChange={(e) => setVendorForm((prev) => ({ ...prev, postalCode: e.target.value }))} style={modalInputStyle} />
-                <input placeholder="GST/VAT" value={vendorForm.gstVat} onChange={(e) => setVendorForm((prev) => ({ ...prev, gstVat: e.target.value }))} style={modalInputStyle} />
-                <input placeholder="Tax Registration" value={vendorForm.taxRegistrationNo} onChange={(e) => setVendorForm((prev) => ({ ...prev, taxRegistrationNo: e.target.value }))} style={modalInputStyle} />
-                <input type="number" step="0.01" placeholder="Opening Balance" value={vendorForm.openingBalance} onChange={(e) => setVendorForm((prev) => ({ ...prev, openingBalance: e.target.value }))} style={modalInputStyle} disabled={!canManageVendors} />
-                <input type="number" placeholder="Payment Terms (days)" value={vendorForm.paymentTermsDays} onChange={(e) => setVendorForm((prev) => ({ ...prev, paymentTermsDays: e.target.value }))} style={modalInputStyle} />
-                <input type="number" step="0.01" placeholder="Credit Limit" value={vendorForm.creditLimit} onChange={(e) => setVendorForm((prev) => ({ ...prev, creditLimit: e.target.value }))} style={modalInputStyle} disabled={!canManageVendors} />
-                <input placeholder="Category" value={vendorForm.category} onChange={(e) => setVendorForm((prev) => ({ ...prev, category: e.target.value }))} style={modalInputStyle} />
-                <select value={vendorForm.rating} onChange={(e) => setVendorForm((prev) => ({ ...prev, rating: e.target.value }))} style={modalInputStyle}>
-                  <option value="1">1 Star</option>
-                  <option value="2">2 Stars</option>
-                  <option value="3">3 Stars</option>
-                  <option value="4">4 Stars</option>
-                  <option value="5">5 Stars</option>
-                </select>
-                <select value={vendorForm.riskLevel} onChange={(e) => setVendorForm((prev) => ({ ...prev, riskLevel: e.target.value }))} style={modalInputStyle}>
-                  <option value="low">Risk Low</option>
-                  <option value="medium">Risk Medium</option>
-                  <option value="high">Risk High</option>
-                </select>
-                <select value={vendorForm.status} onChange={(e) => setVendorForm((prev) => ({ ...prev, status: e.target.value }))} style={modalInputStyle}>
-                  <option value="active">Status Active</option>
-                  <option value="on_hold">Status On Hold</option>
-                  <option value="blacklisted">Status Blacklisted</option>
-                </select>
-                <input placeholder="Preferred Currency" value={vendorForm.preferredCurrency} onChange={(e) => setVendorForm((prev) => ({ ...prev, preferredCurrency: e.target.value.toUpperCase() }))} style={modalInputStyle} />
-                <input placeholder="Base Currency" value={vendorForm.currency} onChange={(e) => setVendorForm((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))} style={modalInputStyle} disabled={!canManageVendors} />
-                <input placeholder="Bank Name" value={vendorForm.bankName} onChange={(e) => setVendorForm((prev) => ({ ...prev, bankName: e.target.value }))} style={modalInputStyle} disabled={!canManageVendors} />
-                <input placeholder="Bank Account Number" value={vendorForm.bankAccountNumber} onChange={(e) => setVendorForm((prev) => ({ ...prev, bankAccountNumber: e.target.value }))} style={modalInputStyle} disabled={!canManageVendors} />
-                <input placeholder="IBAN" value={vendorForm.iban} onChange={(e) => setVendorForm((prev) => ({ ...prev, iban: e.target.value }))} style={modalInputStyle} disabled={!canManageVendors} />
-                <input placeholder="SWIFT" value={vendorForm.swiftCode} onChange={(e) => setVendorForm((prev) => ({ ...prev, swiftCode: e.target.value }))} style={modalInputStyle} disabled={!canManageVendors} />
-                <input placeholder="Tags (comma separated)" value={vendorForm.tags} onChange={(e) => setVendorForm((prev) => ({ ...prev, tags: e.target.value }))} style={modalInputStyle} />
-                <input placeholder="Notes" value={vendorForm.notes} onChange={(e) => setVendorForm((prev) => ({ ...prev, notes: e.target.value }))} style={modalInputStyle} />
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button type="submit" disabled={saving || (!canManageVendors && !editingVendorId)} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.4rem', cursor: 'pointer' }}>{saving ? 'Saving...' : editingVendorId ? 'Update Vendor' : 'Create Vendor'}</button>
-                <button type="button" onClick={() => { setShowVendorForm(false); setEditingVendorId('') }} style={{ padding: '0.5rem 1rem', background: '#fff', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.4rem', cursor: 'pointer' }}>Cancel</button>
-              </div>
-            </form>
-          )}
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: '1rem' }}>
-            <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Code</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Vendor</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Contact</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Status</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'right' }}>Outstanding</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'center' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {vendors.map((v) => (
-                    <tr key={v._id} style={{ borderBottom: `1px solid ${C.p2}`, background: selectedVendorId === v._id ? '#ECFEFF' : 'transparent' }}>
-                      <td style={{ padding: '0.6rem' }}>{v.vendorCode || '-'}</td>
-                      <td style={{ padding: '0.6rem', minWidth: '170px' }}>
-                        <div style={{ fontWeight: '700', color: C.ink }}>{v.name}</div>
-                        <div style={{ color: C.inkSoft, fontSize: '0.74rem' }}>{v.category || 'general'} | Risk {v.riskLevel || 'medium'}</div>
-                      </td>
-                      <td style={{ padding: '0.6rem' }}>{v.contactPerson || v.phone || '-'}</td>
-                      <td style={{ padding: '0.6rem' }}>
-                        <span style={{ padding: '0.15rem 0.5rem', borderRadius: '999px', background: v.status === 'blacklisted' ? '#FEE2E2' : v.status === 'on_hold' ? '#FEF3C7' : '#DCFCE7', color: v.status === 'blacklisted' ? '#991B1B' : v.status === 'on_hold' ? '#92400E' : '#166534', fontWeight: '700', fontSize: '0.72rem' }}>{v.status || 'active'}</span>
-                      </td>
-                      <td style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '700', color: v.isOverLimit ? '#DC2626' : C.ink }}>{Number(v.outstanding || 0).toLocaleString()}</td>
-                      <td style={{ padding: '0.6rem', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                          <button onClick={() => handleVendorSelect(v._id)} style={{ padding: '0.25rem 0.55rem', background: '#E0F2FE', border: '1px solid #7DD3FC', borderRadius: '0.3rem', color: '#075985', cursor: 'pointer', fontSize: '0.75rem' }}>View</button>
-                          {vendorPermissions.canUpdateOperational && <button onClick={() => handleEditVendor(v)} style={{ padding: '0.25rem 0.55rem', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: '0.3rem', color: '#065F46', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>}
-                          {vendorPermissions.canManage && <button onClick={() => handleDeleteVendor(v)} style={{ padding: '0.25rem 0.55rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.3rem', color: '#991B1B', cursor: 'pointer', fontSize: '0.75rem' }}>Deactivate</button>}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {vendors.length === 0 && <p style={{ color: C.inkSoft, margin: '0.8rem', textAlign: 'center' }}>No vendors found for current filters.</p>}
-            </div>
-
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem' }}>
-              <h4 style={{ marginTop: 0, marginBottom: '0.6rem', color: C.ink, fontWeight: '700' }}>Vendor Details</h4>
-              {!selectedVendorDetails?.vendor ? (
-                <div style={emptyCardStyle}>Select a vendor to view profile, financial metrics, and recent activity.</div>
-              ) : (
-                <div>
-                  <div style={{ marginBottom: '0.75rem' }}>
-                    <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>{selectedVendorDetails.vendor.name}</p>
-                    <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>{selectedVendorDetails.vendor.vendorCode || '-'} | {selectedVendorDetails.vendor.contactPerson || 'No contact'} | {selectedVendorDetails.vendor.phone || '-'}</p>
-                  </div>
-
-                  <div style={{ marginBottom: '0.8rem', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem', background: '#F8FAFC' }}>
-                    <p style={{ margin: '0 0 0.4rem', color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>Approval Workflow</p>
-                    <p style={{ margin: '0 0 0.35rem', color: C.inkSoft, fontSize: '0.76rem' }}>Current: <span style={{ fontWeight: '700', color: C.ink }}>{selectedVendorDetails.vendor.approvalStatus || 'draft'}</span></p>
-                    <input
-                      placeholder="Reason for transition"
-                      value={vendorWorkflowReason}
-                      onChange={(e) => setVendorWorkflowReason(e.target.value)}
-                      style={{ ...modalInputStyle, marginBottom: '0.45rem' }}
-                    />
-                    <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                      <button onClick={() => handleVendorWorkflowStatus('draft')} disabled={saving || !vendorPermissions.canUpdateOperational} style={{ padding: '0.25rem 0.55rem', borderRadius: '0.3rem', border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', cursor: 'pointer', fontSize: '0.74rem' }}>Draft</button>
-                      <button onClick={() => handleVendorWorkflowStatus('review')} disabled={saving || !vendorPermissions.canUpdateOperational} style={{ padding: '0.25rem 0.55rem', borderRadius: '0.3rem', border: '1px solid #FDE68A', background: '#FFFBEB', color: '#92400E', cursor: 'pointer', fontSize: '0.74rem' }}>Review</button>
-                      <button onClick={() => handleVendorWorkflowStatus('approved')} disabled={saving || !vendorPermissions.canManage} style={{ padding: '0.25rem 0.55rem', borderRadius: '0.3rem', border: '1px solid #6EE7B7', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontSize: '0.74rem' }}>Approve</button>
-                      <button onClick={() => handleVendorWorkflowStatus('blacklisted')} disabled={saving || !vendorPermissions.canManage} style={{ padding: '0.25rem 0.55rem', borderRadius: '0.3rem', border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#991B1B', cursor: 'pointer', fontSize: '0.74rem' }}>Blacklist</button>
-                    </div>
-                    <div style={{ marginTop: '0.45rem', maxHeight: '84px', overflowY: 'auto', borderTop: `1px solid ${C.p2}`, paddingTop: '0.45rem' }}>
-                      {(selectedVendorDetails.vendor.approvalHistory || []).slice().reverse().slice(0, 5).map((h, idx) => (
-                        <p key={`${h.changedAt || idx}-${idx}`} style={{ margin: '0 0 0.3rem', color: C.inkSoft, fontSize: '0.72rem' }}>
-                          <strong style={{ color: C.ink }}>{h.status}</strong> {h.reason ? `- ${h.reason}` : ''} ({new Date(h.changedAt).toLocaleString()})
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: '0.8rem', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem', background: '#F8FAFC' }}>
-                    <p style={{ margin: '0 0 0.35rem', color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>Required Document Compliance</p>
-                    <p style={{ margin: '0 0 0.35rem', color: C.inkSoft, fontSize: '0.76rem' }}>
-                      Category: <strong style={{ color: C.ink }}>{selectedVendorDetails.vendor.compliance?.category || selectedVendorDetails.vendor.category || 'general'}</strong>
-                      {' | '}
-                      Score: <strong style={{ color: C.ink }}>{Number(selectedVendorDetails.vendor.compliance?.complianceScore || 0).toLocaleString()}%</strong>
-                      {' | '}
-                      Status: <strong style={{ color: selectedVendorDetails.vendor.compliance?.compliant ? '#065F46' : '#991B1B' }}>{selectedVendorDetails.vendor.compliance?.compliant ? 'Compliant' : 'At Risk'}</strong>
-                    </p>
-                    <p style={{ margin: '0 0 0.25rem', color: C.inkSoft, fontSize: '0.74rem' }}>
-                      Missing Required: {(selectedVendorDetails.vendor.compliance?.missingDocuments || []).join(', ') || 'None'}
-                    </p>
-                    <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.74rem' }}>
-                      Expired Required: {(selectedVendorDetails.vendor.compliance?.expiredRequiredDocuments || []).join(', ') || 'None'}
-                    </p>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                    <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem' }}>
-                      <p style={{ margin: 0, color: C.t3, fontSize: '0.75rem' }}>Outstanding</p>
-                      <p style={{ margin: '0.2rem 0 0', color: C.ink, fontWeight: '700' }}>{Number(selectedVendorDetails.vendor.outstanding || 0).toLocaleString()}</p>
-                    </div>
-                    <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem' }}>
-                      <p style={{ margin: 0, color: C.t3, fontSize: '0.75rem' }}>Credit Utilization</p>
-                      <p style={{ margin: '0.2rem 0 0', color: selectedVendorDetails.vendor.isOverLimit ? '#DC2626' : C.ink, fontWeight: '700' }}>{Number(selectedVendorDetails.vendor.utilizationPercent || 0).toLocaleString()}%</p>
-                    </div>
-                    <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem' }}>
-                      <p style={{ margin: 0, color: C.t3, fontSize: '0.75rem' }}>Posted Purchases</p>
-                      <p style={{ margin: '0.2rem 0 0', color: C.ink, fontWeight: '700' }}>{selectedVendorDetails.vendor.purchaseCount || 0}</p>
-                    </div>
-                    <div style={{ background: '#F8FAFC', border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.55rem' }}>
-                      <p style={{ margin: 0, color: C.t3, fontSize: '0.75rem' }}>Posted Payments</p>
-                      <p style={{ margin: '0.2rem 0 0', color: C.ink, fontWeight: '700' }}>{selectedVendorDetails.vendor.paymentCount || 0}</p>
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: '0.6rem' }}>
-                    <p style={{ margin: '0 0 0.35rem', color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>Recent Transactions</p>
-                    <div style={{ maxHeight: '150px', overflowY: 'auto', border: `1px solid ${C.p2}`, borderRadius: '0.45rem' }}>
-                      {(selectedVendorDetails.recentTransactions || []).map((tx) => (
-                        <div key={tx._id} style={{ padding: '0.5rem', borderBottom: `1px solid ${C.p2}` }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.4rem' }}>
-                            <span style={{ color: C.ink, fontWeight: '600', fontSize: '0.77rem', textTransform: 'capitalize' }}>{tx.type} ({tx.status})</span>
-                            <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.77rem' }}>{Number(tx.amount || 0).toLocaleString()} {tx.currency || 'USD'}</span>
-                          </div>
-                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{new Date(tx.date).toLocaleString()}</div>
-                        </div>
-                      ))}
-                      {(!selectedVendorDetails.recentTransactions || !selectedVendorDetails.recentTransactions.length) && <p style={{ margin: '0.55rem', color: C.inkSoft, fontSize: '0.75rem' }}>No recent transactions.</p>}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p style={{ margin: '0 0 0.35rem', color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>Recent Ledger Activity</p>
-                    <div style={{ maxHeight: '150px', overflowY: 'auto', border: `1px solid ${C.p2}`, borderRadius: '0.45rem' }}>
-                      {(selectedVendorDetails.recentLedgerEntries || []).map((entry) => (
-                        <div key={entry._id} style={{ padding: '0.5rem', borderBottom: `1px solid ${C.p2}` }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.4rem' }}>
-                            <span style={{ color: C.ink, fontWeight: '600', fontSize: '0.77rem', textTransform: 'capitalize' }}>{entry.referenceType}</span>
-                            <span style={{ color: C.ink, fontWeight: '700', fontSize: '0.77rem' }}>{Number(entry.amount || 0).toLocaleString()} {entry.currency || 'USD'}</span>
-                          </div>
-                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{new Date(entry.date).toLocaleString()}</div>
-                        </div>
-                      ))}
-                      {(!selectedVendorDetails.recentLedgerEntries || !selectedVendorDetails.recentLedgerEntries.length) && <p style={{ margin: '0.55rem', color: C.inkSoft, fontSize: '0.75rem' }}>No recent ledger activity.</p>}
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: '0.75rem' }}>
-                    <p style={{ margin: '0 0 0.35rem', color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>Document Vault</p>
-                    <form onSubmit={handleAddVendorDocument} style={{ border: `1px solid ${C.p2}`, borderRadius: '0.45rem', padding: '0.5rem', marginBottom: '0.45rem', background: '#F8FAFC' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem' }}>
-                        <select value={vendorDocumentForm.docType} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, docType: e.target.value }))} style={modalInputStyle}>
-                          <option value="contract">Contract</option>
-                          <option value="trade_license">Trade License</option>
-                          <option value="vat_certificate">VAT Certificate</option>
-                          <option value="bank_proof">Bank Proof</option>
-                          <option value="other">Other</option>
-                        </select>
-                        <input placeholder="Title" value={vendorDocumentForm.title} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, title: e.target.value }))} style={modalInputStyle} />
-                        <input placeholder="Document No" value={vendorDocumentForm.documentNo} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, documentNo: e.target.value }))} style={modalInputStyle} />
-                        <input placeholder="File URL" value={vendorDocumentForm.fileUrl} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, fileUrl: e.target.value }))} style={modalInputStyle} />
-                        <input type="date" value={vendorDocumentForm.issueDate} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, issueDate: e.target.value }))} style={modalInputStyle} />
-                        <input type="date" value={vendorDocumentForm.expiryDate} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, expiryDate: e.target.value }))} style={modalInputStyle} />
-                      </div>
-                      <button type="submit" disabled={saving || !vendorPermissions.canUpdateOperational} style={{ padding: '0.3rem 0.6rem', borderRadius: '0.32rem', border: '1px solid #6EE7B7', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontSize: '0.74rem' }}>Add Document</button>
-                    </form>
-                    <div style={{ maxHeight: '140px', overflowY: 'auto', border: `1px solid ${C.p2}`, borderRadius: '0.45rem' }}>
-                      {(selectedVendorDetails.vendor.documents || []).map((doc) => (
-                        <div key={doc._id} style={{ padding: '0.45rem', borderBottom: `1px solid ${C.p2}` }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.35rem' }}>
-                            <span style={{ color: C.ink, fontWeight: '600', fontSize: '0.74rem' }}>{doc.docType} - {doc.title}</span>
-                            {vendorPermissions.canUpdateOperational && <button onClick={() => handleDeleteVendorDocument(doc._id)} style={{ padding: '0.2rem 0.45rem', borderRadius: '0.28rem', border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#991B1B', cursor: 'pointer', fontSize: '0.7rem' }}>Delete</button>}
-                          </div>
-                          <div style={{ color: C.inkSoft, fontSize: '0.71rem' }}>{doc.documentNo || '-'} {doc.expiryDate ? `| Exp: ${new Date(doc.expiryDate).toLocaleDateString()}` : ''}</div>
-                        </div>
-                      ))}
-                      {(!selectedVendorDetails.vendor.documents || !selectedVendorDetails.vendor.documents.length) && <p style={{ margin: '0.55rem', color: C.inkSoft, fontSize: '0.75rem' }}>No documents uploaded.</p>}
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: '0.75rem' }}>
-                    <p style={{ margin: '0 0 0.35rem', color: C.ink, fontWeight: '700', fontSize: '0.82rem' }}>Payment Calendar & Due Alerts</p>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(70px, 1fr))', gap: '0.35rem', marginBottom: '0.45rem' }}>
-                      <div style={{ border: `1px solid ${C.p2}`, borderRadius: '0.35rem', padding: '0.35rem', background: '#FEF2F2' }}><p style={{ margin: 0, fontSize: '0.68rem', color: C.inkSoft }}>Overdue</p><p style={{ margin: '0.15rem 0 0', fontWeight: '700', color: '#991B1B', fontSize: '0.82rem' }}>{selectedVendorDetails.paymentAlerts?.overdue || 0}</p></div>
-                      <div style={{ border: `1px solid ${C.p2}`, borderRadius: '0.35rem', padding: '0.35rem', background: '#FFFBEB' }}><p style={{ margin: 0, fontSize: '0.68rem', color: C.inkSoft }}>Due Soon</p><p style={{ margin: '0.15rem 0 0', fontWeight: '700', color: '#92400E', fontSize: '0.82rem' }}>{selectedVendorDetails.paymentAlerts?.due_soon || 0}</p></div>
-                      <div style={{ border: `1px solid ${C.p2}`, borderRadius: '0.35rem', padding: '0.35rem', background: '#EFF6FF' }}><p style={{ margin: 0, fontSize: '0.68rem', color: C.inkSoft }}>Upcoming</p><p style={{ margin: '0.15rem 0 0', fontWeight: '700', color: '#1D4ED8', fontSize: '0.82rem' }}>{selectedVendorDetails.paymentAlerts?.upcoming || 0}</p></div>
-                      <div style={{ border: `1px solid ${C.p2}`, borderRadius: '0.35rem', padding: '0.35rem', background: '#F8FAFC' }}><p style={{ margin: 0, fontSize: '0.68rem', color: C.inkSoft }}>Later</p><p style={{ margin: '0.15rem 0 0', fontWeight: '700', color: C.ink, fontSize: '0.82rem' }}>{selectedVendorDetails.paymentAlerts?.later || 0}</p></div>
-                    </div>
-                    <div style={{ maxHeight: '130px', overflowY: 'auto', border: `1px solid ${C.p2}`, borderRadius: '0.45rem' }}>
-                      {(selectedVendorDetails.paymentCalendar || []).map((due) => (
-                        <div key={`${due.purchaseTransactionId}-${due.dueDate}`} style={{ padding: '0.45rem', borderBottom: `1px solid ${C.p2}` }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.35rem' }}>
-                            <span style={{ fontSize: '0.74rem', fontWeight: '600', color: C.ink }}>{Number(due.remaining || 0).toLocaleString()} {due.currency || 'USD'}</span>
-                            <span style={{ fontSize: '0.71rem', color: due.alertLevel === 'overdue' ? '#991B1B' : due.alertLevel === 'due_soon' ? '#92400E' : C.inkSoft }}>{due.alertLevel} ({due.daysToDue}d)</span>
-                          </div>
-                          <div style={{ fontSize: '0.71rem', color: C.inkSoft }}>Due {new Date(due.dueDate).toLocaleDateString()}</div>
-                        </div>
-                      ))}
-                      {(!selectedVendorDetails.paymentCalendar || !selectedVendorDetails.paymentCalendar.length) && <p style={{ margin: '0.55rem', color: C.inkSoft, fontSize: '0.75rem' }}>No pending due amounts in horizon.</p>}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
+      <ERPVendorsTab
+        activeTab={activeTab}
+        C={C}
+        modalInputStyle={modalInputStyle}
+        emptyCardStyle={emptyCardStyle}
+        saving={saving}
+        canManageVendors={canManageVendors}
+        vendorSummary={vendorSummary}
+        vendorPaymentCalendar={vendorPaymentCalendar}
+        vendorComplianceSummary={vendorComplianceSummary}
+        vendorOverdueQueue={vendorOverdueQueue}
+        vendorFilters={vendorFilters}
+        showVendorForm={showVendorForm}
+        editingVendorId={editingVendorId}
+        vendorForm={vendorForm}
+        vendors={vendors}
+        selectedVendorId={selectedVendorId}
+        selectedVendorDetails={selectedVendorDetails}
+        vendorPermissions={vendorPermissions}
+        vendorWorkflowReason={vendorWorkflowReason}
+        vendorDocumentForm={vendorDocumentForm}
+        handleVendorFilterSearch={handleVendorFilterSearch}
+        setEditingVendorId={setEditingVendorId}
+        setShowVendorForm={setShowVendorForm}
+        loadVendorOverdueQueue={loadVendorOverdueQueue}
+        setVendorFilters={setVendorFilters}
+        handleCreateVendor={handleCreateVendor}
+        setVendorForm={setVendorForm}
+        handleVendorSelect={handleVendorSelect}
+        handleEditVendor={handleEditVendor}
+        handleDeleteVendor={handleDeleteVendor}
+        setVendorWorkflowReason={setVendorWorkflowReason}
+        handleVendorWorkflowStatus={handleVendorWorkflowStatus}
+        handleAddVendorDocument={handleAddVendorDocument}
+        setVendorDocumentForm={setVendorDocumentForm}
+        handleDeleteVendorDocument={handleDeleteVendorDocument}
+      />
       {/* INVENTORY TAB */}
-      {activeTab === 'inventory' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-            <div>
-              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Inventory Workspace</h3>
-              <p style={{ margin: '0.35rem 0 0', color: C.inkSoft, fontSize: '0.84rem' }}>Rebuilt inventory area with separate cards for stock types, products, and reporting.</p>
-            </div>
-            <button type="button" onClick={loadInventory} style={{ padding: '0.55rem 0.95rem', background: '#E2E8F0', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}>Refresh Inventory</button>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', alignItems: 'start' }}>
-            <div style={{ background: '#FCFFFC', border: '1px solid #CDE7D4', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 8px 18px rgba(5, 150, 105, 0.06)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: '800', color: '#14532D', fontSize: '1rem' }}>Stock Type Creation</p>
-                  <p style={{ margin: '0.35rem 0 0', color: '#3F5F48', fontSize: '0.8rem', lineHeight: 1.5 }}>Create the master stock types that define metal, material type, purity, and stock-code mapping.</p>
-                </div>
-                <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#DCFCE7', color: '#166534', fontWeight: '800', fontSize: '0.74rem' }}>{inventoryMappingProducts.length}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingProductId('')
-                  setInventoryMappingForm(createInventoryMappingForm())
-                  setInventoryStockCodeManualOverride(false)
-                  setInventoryModalOffset({ x: 0, y: 0 })
-                  setShowInventoryMappingModal(true)
-                }}
-                style={{ marginTop: '0.85rem', width: '100%', padding: '0.7rem 0.95rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '700' }}
-              >
-                + Create Stock Type
-              </button>
-              <div style={{ marginTop: '0.85rem', display: 'grid', gap: '0.55rem' }}>
-                {inventoryMappingProducts.slice(0, 4).map((item) => {
-                  const meta = decodeInventoryCategoryMeta(item.category)
-                  return (
-                    <div key={item._id} style={{ border: '1px solid #DCFCE7', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center' }}>
-                        <span style={{ fontWeight: '700', color: C.ink }}>{titleCaseWords(meta.mainStock || meta.metalType || item.name)}</span>
-                        {Number(item.unitCost || 0) > 0 && <span style={{ fontSize: '0.72rem', fontWeight: '700', color: '#166534', background: '#DCFCE7', padding: '0.15rem 0.4rem', borderRadius: '0.25rem' }}>{Number(item.unitCost).toLocaleString()} {item.currency || 'USD'}/{meta.priceUnit || 'OZ'}</span>}
-                      </div>
-                      <div style={{ marginTop: '0.2rem', color: C.inkSoft, fontSize: '0.75rem' }}>Main Stock Mapping</div>
-                      <div style={{ marginTop: '0.45rem', display: 'flex', gap: '0.35rem' }}>
-                        <button onClick={() => handleEditProduct(item)} style={{ padding: '0.28rem 0.55rem', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: '0.3rem', color: '#065F46', cursor: 'pointer', fontSize: '0.72rem' }}>Edit</button>
-                        {(isSuperAdmin || isFinance) && <button onClick={() => handleDeleteProduct(item)} style={{ padding: '0.28rem 0.55rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.3rem', color: '#991B1B', cursor: 'pointer', fontSize: '0.72rem' }}>Delete</button>}
-                      </div>
-                    </div>
-                  )
-                })}
-                {!inventoryMappingProducts.length && <div style={{ border: '1px dashed #BBF7D0', borderRadius: '0.5rem', padding: '0.75rem', color: '#166534', fontSize: '0.8rem' }}>No stock types yet. Create your first stock type to define mapping rules.</div>}
-              </div>
-            </div>
-
-            <div style={{ background: '#FFFDF8', border: '1px solid #F2DFC1', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 8px 18px rgba(180, 83, 9, 0.06)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: '800', color: '#92400E', fontSize: '1rem' }}>Product Creation</p>
-                  <p style={{ margin: '0.35rem 0 0', color: '#7C5A12', fontSize: '0.8rem', lineHeight: 1.5 }}>Create products with Product Category, Name, Description, Weight, Gross Weight, Purity, Tax Type, VAT %, and Purity Weight.</p>
-                </div>
-                <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#FEF3C7', color: '#92400E', fontWeight: '800', fontSize: '0.74rem' }}>{inventoryCatalogProducts.length}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingInventoryProductId('')
-                  setInventoryProductModalOffset({ x: 0, y: 0 })
-                  setShowInventoryProductModal(true)
-                }}
-                style={{ marginTop: '0.85rem', width: '100%', padding: '0.7rem 0.95rem', background: '#B45309', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '700' }}
-              >
-                + Create Product
-              </button>
-              <div style={{ marginTop: '0.85rem', display: 'grid', gap: '0.55rem' }}>
-                {Object.entries(inventoryProductsByMetal).slice(0, 4).map(([metal, entries]) => (
-                  <div key={metal} style={{ border: '1px solid #FDE68A', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}>
-                    <div style={{ fontWeight: '800', color: '#92400E', fontSize: '0.78rem', marginBottom: '0.35rem' }}>{metal}</div>
-                    <div style={{ display: 'grid', gap: '0.4rem' }}>
-                      {entries.slice(0, 3).map(({ item, meta }) => (
-                        <div key={item._id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', borderTop: '1px solid #FEF3C7', paddingTop: '0.35rem' }}>
-                          <div>
-                            <div style={{ fontWeight: '700', color: C.ink, fontSize: '0.76rem' }}>{item.name}</div>
-                            <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>Category {meta.productCategory || metal} | Wt {Number(meta.weight || item.quantity || 0).toLocaleString()} g | Purity {meta.productPurity || meta.purity || '-'} | Tax {meta.taxType || '-'} | VAT {formatVatPercent(meta.vatPercent)} | Pure Wt {Number(meta.purityWeight || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</div>
-                          </div>
-                          <div style={{ display: 'grid', justifyItems: 'end', gap: '0.35rem' }}>
-                            <div style={{ color: '#92400E', fontWeight: '700', fontSize: '0.74rem', maxWidth: '220px', textAlign: 'right' }}>{meta.productDescription || '-'}</div>
-                            <div style={{ display: 'flex', gap: '0.35rem' }}>
-                              <button type="button" onClick={() => handleEditInventoryCatalogProduct(item, meta)} style={{ padding: '0.24rem 0.55rem', background: '#ECFDF5', border: '1px solid #6EE7B7', borderRadius: '0.3rem', color: '#065F46', cursor: 'pointer', fontSize: '0.72rem', fontWeight: '700' }}>Edit</button>
-                              {(isSuperAdmin || isFinance) && <button type="button" onClick={() => handleDeleteInventoryCatalogProduct(item)} style={{ padding: '0.24rem 0.55rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.3rem', color: '#991B1B', cursor: 'pointer', fontSize: '0.72rem', fontWeight: '700' }}>Delete</button>}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                {!inventoryCatalogProducts.length && <div style={{ border: '1px dashed #FCD34D', borderRadius: '0.5rem', padding: '0.75rem', color: '#92400E', fontSize: '0.8rem' }}>No inventory products created yet. Use a stock type to start adding products.</div>}
-              </div>
-            </div>
-
-            <div style={{ background: '#FBFCFF', border: '1px solid #D9E6FB', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 8px 18px rgba(29, 78, 216, 0.05)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: '800', color: '#1D4ED8', fontSize: '1rem' }}>Inventory Report</p>
-                  <p style={{ margin: '0.35rem 0 0', color: '#4B5E8B', fontSize: '0.8rem', lineHeight: 1.5 }}>Live snapshot of stock left by product and metal, including quantity on hand, inventory value, and low-stock exposure.</p>
-                </div>
-                <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#DBEAFE', color: '#1D4ED8', fontWeight: '800', fontSize: '0.74rem' }}>{inventoryReportProducts.length}</span>
-              </div>
-              <div style={{ marginTop: '0.85rem', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.55rem' }}>
-                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Stock Types</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryMappingProducts.length}</p></div>
-                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Products</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryCatalogProducts.length}</p></div>
-                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Stock Left</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalQuantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p></div>
-                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Inventory Value</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p></div>
-              </div>
-              <div style={{ marginTop: '0.7rem', border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.65rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.45rem' }}>
-                  <span style={{ fontWeight: '700', color: C.ink, fontSize: '0.8rem' }}>Stock Left By Metal</span>
-                  <span style={{ color: inventoryLowStockCount > 0 ? '#B45309' : '#1D4ED8', fontWeight: '700', fontSize: '0.75rem' }}>Low Stock: {inventoryLowStockCount}</span>
-                </div>
-                <div style={{ display: 'grid', gap: '0.45rem' }}>
-                  {inventoryMetalBreakdown.map((row) => (
-                    <div key={row.metal} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', paddingBottom: '0.45rem', borderBottom: '1px solid #EFF6FF' }}>
-                      <div>
-                        <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem' }}>{row.metal}</div>
-                        <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{row.productCount} product{row.productCount === 1 ? '' : 's'} | Stock Left {row.totalQty.toLocaleString(undefined, { maximumFractionDigits: 2 })} | Low Stock {row.lowStockCount}</div>
-                      </div>
-                      <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem', textAlign: 'right' }}>{row.totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                    </div>
-                  ))}
-                  {!inventoryMetalBreakdown.length && <div style={{ color: C.inkSoft, fontSize: '0.8rem' }}>No metal/product breakdown available yet.</div>}
-                </div>
-              </div>
-              <div style={{ marginTop: '0.7rem', border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.65rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.45rem' }}>
-                  <span style={{ fontWeight: '700', color: C.ink, fontSize: '0.8rem' }}>Top Inventory Items</span>
-                  <span style={{ color: '#1D4ED8', fontWeight: '700', fontSize: '0.75rem' }}>Showing highest value items</span>
-                </div>
-                <div style={{ display: 'grid', gap: '0.45rem' }}>
-                  {inventoryTopProducts.map((row) => {
-                    const { item, productMeta } = row
-                    return (
-                      <div key={item._id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', paddingBottom: '0.4rem', borderBottom: '1px solid #EFF6FF' }}>
-                        <div>
-                          <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem' }}>{item.name}</div>
-                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{row.metal} | Category {row.categoryName} | Stock Left {row.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })} {row.stockUnit} | Stock Value {row.stockValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                          <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>Gross Wt {row.weight.toLocaleString(undefined, { maximumFractionDigits: 4 })} g | Purity {row.purity || '-'} | Tax {productMeta.taxType || '-'} | VAT {formatVatPercent(productMeta.vatPercent)} | Pure Wt {row.purityWeight.toLocaleString(undefined, { maximumFractionDigits: 4 })}</div>
-                        </div>
-                        <div style={{ color: C.ink, fontWeight: '700', fontSize: '0.78rem', textAlign: 'right' }}>
-                          <div>{row.stockValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                          <div style={{ color: row.quantity <= 0 ? '#B91C1C' : row.isLowStock ? '#B45309' : C.inkSoft, fontSize: '0.7rem' }}>{row.quantity <= 0 ? 'Zero Stock' : row.isLowStock ? 'Low Stock' : 'In Stock'}</div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                  {!inventoryTopProducts.length && <div style={{ color: C.inkSoft, fontSize: '0.8rem' }}>No inventory movements or product records yet.</div>}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {legacyInventoryProducts.length > 0 && (
-            <p style={{ marginTop: '0.8rem', color: '#92400E', fontSize: '0.8rem' }}>
-              Legacy inventory records still exist outside the new stock-type/product structure: {legacyInventoryProducts.length}
-            </p>
-          )}
-
-          {/* All Inventory Items Table */}
-          {inventoryReportProducts.length > 0 && (
-            <div style={{ marginTop: '1.25rem', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: '800', color: C.ink, fontSize: '1rem' }}>All Inventory Items</p>
-                  <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Live stock on hand — quantities updated automatically when sale/purchase vouchers are posted.</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <select
-                    value={inventoryVatFilter}
-                    onChange={(e) => setInventoryVatFilter(e.target.value)}
-                    style={{ padding: '0.35rem 0.55rem', border: '1px solid #CBD5E1', borderRadius: '0.4rem', fontSize: '0.78rem', color: C.ink, background: '#FFFFFF' }}
-                  >
-                    <option value="all">VAT: All</option>
-                    <option value="with-vat">VAT: &gt; 0%</option>
-                    <option value="zero-or-blank">VAT: 0% / Blank</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setInventoryVatSortDir((prev) => (prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'none'))}
-                    style={{ padding: '0.35rem 0.55rem', border: '1px solid #CBD5E1', borderRadius: '0.4rem', fontSize: '0.78rem', color: C.ink, background: '#FFFFFF', cursor: 'pointer', fontWeight: '600' }}
-                  >
-                    VAT Sort: {inventoryVatSortDir === 'none' ? 'None' : inventoryVatSortDir === 'asc' ? 'Low-High' : 'High-Low'}
-                  </button>
-                  <span style={{ padding: '0.3rem 0.6rem', background: '#DBEAFE', color: '#1D4ED8', borderRadius: '999px', fontWeight: '700', fontSize: '0.74rem' }}>{sortedInventoryTableRows.length} items</span>
-                </div>
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                  <thead>
-                    <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0' }}>
-                      {['SKU', 'Name', 'Category', 'Tax Type', 'VAT %', 'Qty On Hand', 'Unit', 'Unit Cost', 'Selling Price', 'Total Value', 'Min Stock', 'Status'].map(col => {
-                        const isVatCol = col === 'VAT %'
-                        const vatSortIndicator = inventoryVatSortDir === 'none' ? '' : inventoryVatSortDir === 'asc' ? ' ▲' : ' ▼'
-                        return (
-                          <th
-                            key={col}
-                            onClick={isVatCol ? () => setInventoryVatSortDir((prev) => (prev === 'none' ? 'asc' : prev === 'asc' ? 'desc' : 'none')) : undefined}
-                            title={isVatCol ? 'Click to sort VAT %' : undefined}
-                            style={{
-                              padding: '0.55rem 0.7rem',
-                              textAlign: col === 'VAT %' || col === 'Qty On Hand' || col === 'Unit Cost' || col === 'Selling Price' || col === 'Total Value' ? 'right' : 'left',
-                              color: '#374151',
-                              fontWeight: '700',
-                              whiteSpace: 'nowrap',
-                              cursor: isVatCol ? 'pointer' : 'default',
-                              userSelect: isVatCol ? 'none' : 'auto',
-                            }}
-                          >
-                            {isVatCol ? `${col}${vatSortIndicator}` : col}
-                          </th>
-                        )
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedInventoryTableRows.map(({ item, categoryMeta, productMeta }) => {
-                      const displayQty = Math.max(0, Number(item.quantity || 0))
-                      const lowStock = Number(item.minThreshold || 0) > 0 && displayQty <= Number(item.minThreshold || 0)
-                      const totalValue = displayQty * Number(item.unitCost || 0)
-                      return (
-                        <tr key={item._id} style={{ borderBottom: '1px solid #F1F5F9', background: lowStock ? '#FFF7ED' : undefined }}>
-                          <td style={{ padding: '0.5rem 0.7rem', color: '#6B7280', fontFamily: 'monospace' }}>{item.sku || '—'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', fontWeight: '600', color: C.ink }}>{item.name}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{item.category ? (categoryMeta.mainStock || item.category).slice(0, 30) : '—'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{productMeta.taxType || '—'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft, fontSize: '0.78rem' }}>{formatVatPercent(productMeta.vatPercent)}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: lowStock ? '#B45309' : '#065F46' }}>{displayQty.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft }}>{item.unit || 'pcs'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(item.unitCost || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(item.sellingPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: '#1D4ED8' }}>{totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>{Number(item.minThreshold || 0) || '—'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem' }}>
-                            {lowStock
-                              ? <span style={{ background: '#FEF3C7', color: '#B45309', borderRadius: '999px', padding: '0.2rem 0.55rem', fontSize: '0.72rem', fontWeight: '700' }}>Low Stock</span>
-                              : <span style={{ background: '#DCFCE7', color: '#166534', borderRadius: '999px', padding: '0.2rem 0.55rem', fontSize: '0.72rem', fontWeight: '700' }}>OK</span>
-                            }
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Stock Movements from Vouchers */}
-          <div style={{ marginTop: '1.25rem', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '0.7rem', padding: '1rem', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <div>
-                <p style={{ margin: 0, fontWeight: '800', color: C.ink, fontSize: '1rem' }}>Stock Movement History</p>
-                <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Every inventory change from posted sale/purchase vouchers — full audit trail.</p>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input
-                  placeholder="Search item or reason..."
-                  value={stockMovementsFilter}
-                  onChange={e => setStockMovementsFilter(e.target.value)}
-                  style={{ padding: '0.4rem 0.7rem', border: '1px solid #D1D5DB', borderRadius: '0.4rem', fontSize: '0.82rem', minWidth: '180px' }}
-                />
-                <button type="button" onClick={loadStockLedger} style={{ padding: '0.4rem 0.8rem', background: '#E2E8F0', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.4rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem' }}>
-                  {stockMovementsLoading ? 'Loading…' : 'Refresh'}
-                </button>
-                <span style={{ padding: '0.3rem 0.6rem', background: '#F1F5F9', color: '#475569', borderRadius: '999px', fontWeight: '700', fontSize: '0.74rem' }}>{stockMovements.length} entries</span>
-              </div>
-            </div>
-            {stockMovementsLoading
-              ? <div style={{ textAlign: 'center', padding: '1.5rem', color: C.inkSoft }}>Loading stock movements…</div>
-              : stockMovements.length === 0
-                ? (
-                  <div style={{ border: '1px dashed #CBD5E0', borderRadius: '0.5rem', padding: '1.5rem', textAlign: 'center' }}>
-                    <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.85rem' }}>No stock movements yet.</p>
-                    <p style={{ margin: '0.4rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Post a sale or purchase voucher with a product linked to an inventory item to see movements here.</p>
-                  </div>
-                )
-                : (() => {
-                  const filtered = stockMovementsFilter.trim()
-                    ? stockMovements.filter(m =>
-                        String(m.itemName || '').toLowerCase().includes(stockMovementsFilter.toLowerCase()) ||
-                        String(m.reason || '').toLowerCase().includes(stockMovementsFilter.toLowerCase()) ||
-                        String(m.actorName || '').toLowerCase().includes(stockMovementsFilter.toLowerCase())
-                      )
-                    : stockMovements
-                  return (
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                        <thead>
-                          <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0' }}>
-                            {['Date', 'Item', 'Change', 'Before', 'After', 'Reason (Voucher)', 'By'].map(col => (
-                              <th key={col} style={{ padding: '0.55rem 0.7rem', textAlign: col === 'Change' || col === 'Before' || col === 'After' ? 'right' : 'left', color: '#374151', fontWeight: '700', whiteSpace: 'nowrap' }}>{col}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filtered.slice(0, 200).map((m, i) => {
-                            const isIn = Number(m.change || 0) > 0
-                            return (
-                              <tr key={m._id || i} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                                <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, whiteSpace: 'nowrap' }}>
-                                  {m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '—'}
-                                </td>
-                                <td style={{ padding: '0.5rem 0.7rem', fontWeight: '600', color: C.ink }}>{m.itemName}</td>
-                                <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: isIn ? '#166534' : '#B91C1C' }}>
-                                  {isIn ? '+' : ''}{Number(m.change || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}
-                                </td>
-                                <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>{Number(m.quantityBefore || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
-                                <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '600', color: C.ink }}>{Number(m.quantityAfter || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
-                                <td style={{ padding: '0.5rem 0.7rem' }}>
-                                  <span style={{ background: isIn ? '#DCFCE7' : '#FEE2E2', color: isIn ? '#166534' : '#991B1B', borderRadius: '0.3rem', padding: '0.18rem 0.45rem', fontSize: '0.78rem', fontWeight: '600' }}>
-                                    {m.reason || '—'}
-                                  </span>
-                                </td>
-                                <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft, fontSize: '0.78rem' }}>{m.actorName || '—'}</td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                      {filtered.length > 200 && <p style={{ textAlign: 'center', color: C.inkSoft, fontSize: '0.8rem', marginTop: '0.5rem' }}>Showing 200 of {filtered.length} entries</p>}
-                    </div>
-                  )
-                })()
-            }
-          </div>
-
-          {showInventoryProductModal && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', zIndex: 1210, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={(e) => { if (e.target === e.currentTarget) resetInventoryProductForm() }}>
-              <form onSubmit={handleCreateInventoryCatalogProduct} style={{ width: 'min(1100px, 96vw)', background: '#FFFFFF', border: '1px solid #CBD5E0', borderRadius: '0.5rem', padding: 0, boxShadow: '0 20px 42px rgba(0,0,0,0.35)', overflow: 'hidden', transform: `translate(${inventoryProductModalOffset.x}px, ${inventoryProductModalOffset.y}px)`, userSelect: inventoryProductModalDragging ? 'none' : 'auto' }}>
-                <div style={{ height: 0, overflow: 'hidden' }} />
-                <div
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', backgroundColor: '#3F4B2E', color: '#FFFFFF', padding: '1rem', cursor: inventoryProductModalDragging ? 'grabbing' : 'grab' }}
-                  onMouseDown={handleInventoryProductModalDragStart}
-                >
-                  <div>
-                    <p style={{ margin: 0, color: '#FFFFFF', fontWeight: '800', fontSize: '1.08rem' }}>{editingInventoryProductId ? 'Edit Product' : 'Product Creation'}</p>
-                    <p style={{ margin: '0.25rem 0 0', color: 'rgba(255,255,255,0.88)', fontSize: '0.84rem' }}>Enter Product Category, Name, Description, Weight, Gross Weight, Purity, Tax Type, VAT %, and auto-calculated Purity Weight.</p>
-                  </div>
-                  <button type="button" onClick={resetInventoryProductForm} style={{ border: 'none', background: 'transparent', color: '#FFFFFF', cursor: 'pointer', fontSize: '1.45rem', lineHeight: 1 }}>✕</button>
-                </div>
-                <div style={{ padding: '1.2rem 1.5rem', background: '#F3F4F6' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.65rem' }}>
-                    <select value={inventoryProductForm.stockTypeId} onChange={(e) => {
-                      const option = inventoryStockTypeOptions.find((item) => item.id === e.target.value)
-                      setInventoryProductForm((prev) => ({ ...prev, stockTypeId: e.target.value, categoryName: option?.mainStock || '', purity: prev.purity || option?.purity || '' }))
-                    }} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }}>
-                      <option value="">Product Category</option>
-                      {inventoryStockTypeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-                    </select>
-                    <input placeholder="Product Name" value={inventoryProductForm.name} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, name: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
-                    <input placeholder="Description" value={inventoryProductForm.description} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, description: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
-                    <input type="number" step="0.0001" placeholder="Weight" value={inventoryProductForm.weight} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, weight: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
-                    <input type="number" step="0.0001" placeholder="Gross Weight" value={inventoryProductForm.grossWeight} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, grossWeight: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
-                    <input placeholder="Purity" value={inventoryProductForm.purity} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, purity: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }} />
-                    <select value={inventoryProductForm.taxType} onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, taxType: e.target.value }))} style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }}>
-                      <option value="VAT">VAT</option>
-                      <option value="GST">GST</option>
-                      <option value="Sales Tax">Sales Tax</option>
-                      <option value="None">None</option>
-                    </select>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="VAT %"
-                      value={inventoryProductForm.vatPercent}
-                      onChange={(e) => setInventoryProductForm((prev) => ({ ...prev, vatPercent: e.target.value }))}
-                      style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#FFFFFF', borderRadius: '0.45rem' }}
-                    />
-                    <input value={inventoryProductPurityWeight ? inventoryProductPurityWeight.toLocaleString(undefined, { maximumFractionDigits: 4 }) : ''} readOnly placeholder="Purity Weight" style={{ ...modalInputStyle, border: '1px solid #CBD5E0', background: '#EEF2F7', color: C.inkSoft, borderRadius: '0.45rem' }} />
-                  </div>
-                </div>
-                <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-                  <button type="button" onClick={resetInventoryProductForm} style={{ padding: '0.6rem 1.2rem', background: '#E5E7EB', color: '#111827', border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '600' }}>Cancel</button>
-                  <button type="button" disabled={saving} onClick={(e) => handleCreateInventoryCatalogProduct({ preventDefault: () => e.preventDefault() })} style={{ padding: '0.6rem 1.2rem', backgroundColor: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '700', opacity: saving ? 0.75 : 1 }}>{saving ? 'Saving...' : editingInventoryProductId ? 'Update Product' : 'Create Product'}</button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {showInventoryMappingModal && (
-            <div
-              style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
-              onClick={(e) => { if (e.target === e.currentTarget) resetInventoryMappingForm() }}
-            >
-              <form
-                onSubmit={handleCreateProduct}
-                style={{
-                  width: 'min(980px, 98vw)',
-                  maxHeight: '88vh',
-                  overflowY: 'auto',
-                  background: '#E3DEDE',
-                  border: '1px solid #987973',
-                  borderRadius: '0.62rem',
-                  padding: '0.38rem',
-                  boxShadow: '0 14px 26px rgba(0, 0, 0, 0.22)',
-                  transform: `translate(${inventoryModalOffset.x}px, ${inventoryModalOffset.y}px)`,
-                  userSelect: inventoryModalDragging ? 'none' : 'auto',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    marginBottom: '0.35rem',
-                    padding: '0.3rem 0.55rem',
-                    borderRadius: '0.34rem 0.34rem 0 0',
-                    border: '1px solid #A5857F',
-                    background: '#B69A95',
-                    cursor: inventoryModalDragging ? 'grabbing' : 'grab',
-                  }}
-                  onMouseDown={handleInventoryModalDragStart}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                    <p style={{ margin: 0, fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.01em', fontSize: '0.97rem' }}>{editingProductId ? 'Stock Type Creation' : 'Stock Type Creation'}</p>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.38rem' }}>
-                    <button type="button" onClick={resetInventoryMappingForm} style={{ width: '1.08rem', height: '1.08rem', borderRadius: '999px', border: '1px solid rgba(255,255,255,0.82)', background: 'rgba(255,255,255,0.14)', color: '#fff', cursor: 'pointer', fontSize: '0.65rem', lineHeight: 1 }}>x</button>
-                  </div>
-                </div>
-
-                <div style={{ border: '1px solid #A5857F', borderRadius: '0 0 0.36rem 0.36rem', background: '#F3F0F0', padding: '0.45rem' }}>
-                  <div style={{ border: '1px solid #B39792', borderRadius: '0.2rem', background: '#F0ECEC', padding: '0.34rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.22rem', marginBottom: '0.3rem' }}>
-                      {[['details','Details'],['pricing','Pricing'],['stockenquiry','Stock Enquiry']].map(([key, label]) => (
-                        <span key={key} onClick={() => setStockTypeModalTab(key)} style={{ fontSize: '0.68rem', fontWeight: '700', cursor: 'pointer', color: stockTypeModalTab === key ? '#724B46' : '#9B817C', padding: '0.14rem 0.34rem', border: `1px solid ${stockTypeModalTab === key ? '#B99E98' : '#CDB9B5'}`, borderBottom: stockTypeModalTab === key ? 'none' : '1px solid #B99E98', borderRadius: '0.22rem 0.22rem 0 0', background: stockTypeModalTab === key ? '#F8F5F4' : '#EEE8E7', userSelect: 'none' }}>{label}</span>
-                      ))}
-                    </div>
-
-                    <div style={{ border: '1px solid #B99E98', background: '#FCFBFB', padding: '0.48rem' }}>
-                      {stockTypeModalTab === 'pricing' && (
-                        <div style={{ border: '1px solid #C7AEAA', background: '#F5F1F1', padding: '0.42rem', maxWidth: '360px' }}>
-                            <p style={{ margin: '0 0 0.35rem', fontSize: '0.72rem', color: '#6F4B45', fontWeight: '700' }}>Current Price</p>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '0.28rem', alignItems: 'center', marginBottom: '0.28rem' }}>
-                              <label style={{ fontSize: '0.74rem', color: '#6F4B45', fontWeight: '700' }}>Price :</label>
-                              <input
-                                type="number" step="0.01"
-                                placeholder="Enter price"
-                                value={inventoryMappingForm.currentPrice}
-                                onChange={e => setInventoryMappingForm(prev => ({ ...prev, currentPrice: e.target.value }))}
-                                style={{ ...modalInputStyle, borderColor: '#C0A5A0', background: '#FFFFFF', fontSize: '0.78rem', borderRadius: '0.12rem', padding: '0.1rem 0.3rem', minHeight: '1.62rem' }}
-                              />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '0.28rem', alignItems: 'center', marginBottom: '0.28rem' }}>
-                              <label style={{ fontSize: '0.74rem', color: '#6F4B45', fontWeight: '700' }}>Unit :</label>
-                              <select value={inventoryMappingForm.priceUnit} onChange={e => setInventoryMappingForm(prev => ({ ...prev, priceUnit: e.target.value }))} style={{ ...modalInputStyle, borderColor: '#C0A5A0', background: '#FFFFFF', fontSize: '0.78rem', borderRadius: '0.12rem', padding: '0.1rem 0.3rem', minHeight: '1.62rem' }}>
-                                <option value="OZ">Per OZ (Troy)</option>
-                                <option value="GRAM">Per Gram</option>
-                                <option value="KG">Per KG</option>
-                              </select>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '0.28rem', alignItems: 'center' }}>
-                              <label style={{ fontSize: '0.74rem', color: '#6F4B45', fontWeight: '700' }}>Currency :</label>
-                              <select value={inventoryMappingForm.priceCurrency} onChange={e => setInventoryMappingForm(prev => ({ ...prev, priceCurrency: e.target.value }))} style={{ ...modalInputStyle, borderColor: '#C0A5A0', background: '#FFFFFF', fontSize: '0.78rem', borderRadius: '0.12rem', padding: '0.1rem 0.3rem', minHeight: '1.62rem' }}>
-                                <option value="USD">USD</option>
-                                <option value="AED">AED</option>
-                                <option value="EUR">EUR</option>
-                                <option value="GBP">GBP</option>
-                              </select>
-                            </div>
-                        </div>
-                      )}
-                      {stockTypeModalTab !== 'pricing' && <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(250px, 0.9fr)', gap: '0.45rem' }}>
-                      <div style={{ border: '1px solid #C7AEAA', background: '#F5F1F1', padding: '0.42rem' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '86px 1fr', gap: '0.28rem', alignItems: 'center' }}>
-                          <label style={{ fontSize: '0.74rem', color: '#6F4B45', fontWeight: '700' }}>Mtl Type :</label>
-                          <input
-                            placeholder="e.g. Gold, Silver, Platinum"
-                            value={inventoryMappingForm.mainStock}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              setInventoryMappingForm((prev) => ({ ...prev, mainStock: val, metalType: val.trim().toLowerCase() }))
-                            }}
-                            style={{ ...modalInputStyle, borderColor: '#C0A5A0', background: '#FFFFFF', fontSize: '0.78rem', borderRadius: '0.12rem', padding: '0.1rem 0.3rem', minHeight: '1.62rem' }}
-                          />
-                        </div>
-                      </div>
-
-                      <div style={{ border: '1px solid #C7AEAA', background: '#F8F4F4', padding: '0.42rem' }}>
-                        <p style={{ margin: 0, fontSize: '0.72rem', color: '#6F4B45', fontWeight: '700' }}>Stock Information</p>
-                        <div style={{ marginTop: '0.35rem', display: 'grid', gridTemplateColumns: '96px 1fr', gap: '0.24rem', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.7rem', color: '#7A5A53', fontWeight: '700' }}>Description :</span>
-                          <span style={{ fontSize: '0.7rem', color: '#2F2624', border: '1px solid #C9B2AE', background: '#FFFFFF', padding: '0.2rem 0.34rem' }}>{titleCaseWords(resolveMainStockValueFromForm(inventoryMappingForm) || '-')}</span>
-                          <span style={{ fontSize: '0.7rem', color: '#7A5A53', fontWeight: '700' }}>Details :</span>
-                          <span style={{ fontSize: '0.7rem', color: '#2F2624', border: '1px solid #C9B2AE', background: '#FFFFFF', padding: '0.2rem 0.34rem' }}>{`mainStock=${resolveMainStockValueFromForm(inventoryMappingForm) || '-'};metalType=${inventoryMappingForm.metalType || '-'}`}</span>
-                        </div>
-                      </div>
-                    </div>}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.46rem', justifyContent: 'flex-end' }}>
-                  <button type="button" onClick={resetInventoryMappingForm} style={{ padding: '0.38rem 0.8rem', background: '#ECE7E6', color: '#473A37', border: '1px solid #B99E98', borderRadius: '0.2rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.74rem' }}>Cancel</button>
-                  <button type="submit" disabled={saving} style={{ padding: '0.38rem 0.8rem', background: '#8A5C54', color: '#fff', border: '1px solid #744742', borderRadius: '0.2rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.74rem' }}>{saving ? 'Saving...' : editingProductId ? 'Save Stock Type' : 'Create Stock Type'}</button>
-                </div>
-              </form>
-            </div>
-          )}
-        </div>
-      )}
+      <ERPInventoryTab
+        activeTab={activeTab}
+        C={C}
+        modalInputStyle={modalInputStyle}
+        isSuperAdmin={isSuperAdmin}
+        isFinance={isFinance}
+        saving={saving}
+        loadInventory={loadInventory}
+        inventoryMappingProducts={inventoryMappingProducts}
+        inventoryCatalogProducts={inventoryCatalogProducts}
+        inventoryProductsByMetal={inventoryProductsByMetal}
+        inventoryReportProducts={inventoryReportProducts}
+        inventoryTotalQuantity={inventoryTotalQuantity}
+        inventoryTotalValue={inventoryTotalValue}
+        inventoryLowStockCount={inventoryLowStockCount}
+        inventoryMetalBreakdown={inventoryMetalBreakdown}
+        inventoryTopProducts={inventoryTopProducts}
+        legacyInventoryProducts={legacyInventoryProducts}
+        inventoryVatFilter={inventoryVatFilter}
+        inventoryVatSortDir={inventoryVatSortDir}
+        sortedInventoryTableRows={sortedInventoryTableRows}
+        stockMovements={stockMovements}
+        stockMovementsLoading={stockMovementsLoading}
+        stockMovementsFilter={stockMovementsFilter}
+        showInventoryProductModal={showInventoryProductModal}
+        showInventoryMappingModal={showInventoryMappingModal}
+        editingProductId={editingProductId}
+        editingInventoryProductId={editingInventoryProductId}
+        stockTypeModalTab={stockTypeModalTab}
+        inventoryModalOffset={inventoryModalOffset}
+        inventoryModalDragging={inventoryModalDragging}
+        inventoryProductModalOffset={inventoryProductModalOffset}
+        inventoryProductModalDragging={inventoryProductModalDragging}
+        inventoryMappingForm={inventoryMappingForm}
+        inventoryProductForm={inventoryProductForm}
+        inventoryStockTypeOptions={inventoryStockTypeOptions}
+        inventoryProductPurityWeight={inventoryProductPurityWeight}
+        setEditingProductId={setEditingProductId}
+        setInventoryMappingForm={setInventoryMappingForm}
+        setInventoryStockCodeManualOverride={setInventoryStockCodeManualOverride}
+        setInventoryModalOffset={setInventoryModalOffset}
+        setShowInventoryMappingModal={setShowInventoryMappingModal}
+        setEditingInventoryProductId={setEditingInventoryProductId}
+        setInventoryProductModalOffset={setInventoryProductModalOffset}
+        setShowInventoryProductModal={setShowInventoryProductModal}
+        setInventoryVatFilter={setInventoryVatFilter}
+        setInventoryVatSortDir={setInventoryVatSortDir}
+        setStockMovementsFilter={setStockMovementsFilter}
+        setInventoryProductForm={setInventoryProductForm}
+        setStockTypeModalTab={setStockTypeModalTab}
+        createInventoryMappingForm={createInventoryMappingForm}
+        decodeInventoryCategoryMeta={decodeInventoryCategoryMeta}
+        titleCaseWords={titleCaseWords}
+        formatVatPercent={formatVatPercent}
+        resolveMainStockValueFromForm={resolveMainStockValueFromForm}
+        handleEditProduct={handleEditProduct}
+        handleDeleteProduct={handleDeleteProduct}
+        handleEditInventoryCatalogProduct={handleEditInventoryCatalogProduct}
+        handleDeleteInventoryCatalogProduct={handleDeleteInventoryCatalogProduct}
+        loadStockLedger={loadStockLedger}
+        resetInventoryProductForm={resetInventoryProductForm}
+        handleCreateInventoryCatalogProduct={handleCreateInventoryCatalogProduct}
+        handleInventoryProductModalDragStart={handleInventoryProductModalDragStart}
+        resetInventoryMappingForm={resetInventoryMappingForm}
+        handleCreateProduct={handleCreateProduct}
+        handleInventoryModalDragStart={handleInventoryModalDragStart}
+      />
 
       {/* SETTINGS TAB */}
       {activeTab === 'settings' && (
@@ -9864,7 +8010,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       )}
 
       {/* VOUCHERS TAB */}
-      {activeTab === 'vouchers' && (
+      <ERPVouchersTabContainer activeTab={activeTab}>
         <VoucherTab
           token={token}
           user={user}
@@ -9873,7 +8019,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           vendors={vendors}
           currencies={currencies}
         />
-      )}
+      </ERPVouchersTabContainer>
 
       {/* DIRECT DEALS TAB */}
       {activeTab === 'direct-deals' && (
