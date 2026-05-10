@@ -4158,8 +4158,8 @@ const buildProfitLossSummary = async (startDate, endDate) => {
   const expenseBreakdownMap = new Map()
 
   entries.forEach((entry) => {
+    const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
     if (entry.creditAccountId?.accountType === 'Income') {
-      const amount = Number(entry.amount || 0)
       totalIncome += amount
       const key = entry.creditAccountId._id.toString()
       if (!incomeBreakdownMap.has(key)) {
@@ -4173,7 +4173,6 @@ const buildProfitLossSummary = async (startDate, endDate) => {
       incomeBreakdownMap.get(key).amount += amount
     }
     if (entry.debitAccountId?.accountType === 'Expense') {
-      const amount = Number(entry.amount || 0)
       totalExpense += amount
       const key = entry.debitAccountId._id.toString()
       if (!expenseBreakdownMap.has(key)) {
@@ -4220,8 +4219,9 @@ const buildBalanceSheetSummary = async (endDate) => {
   entries.forEach((entry) => {
     const debitKey = entry.debitAccountId?.toString()
     const creditKey = entry.creditAccountId?.toString()
-    if (debitKey) balanceByAccount.set(debitKey, Number(balanceByAccount.get(debitKey) || 0) + Number(entry.amount || 0))
-    if (creditKey) balanceByAccount.set(creditKey, Number(balanceByAccount.get(creditKey) || 0) - Number(entry.amount || 0))
+    const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
+    if (debitKey) balanceByAccount.set(debitKey, Number(balanceByAccount.get(debitKey) || 0) + amount)
+    if (creditKey) balanceByAccount.set(creditKey, Number(balanceByAccount.get(creditKey) || 0) - amount)
   })
 
   const assets = []
@@ -4229,7 +4229,7 @@ const buildBalanceSheetSummary = async (endDate) => {
   const equity = []
 
   accounts.forEach((account) => {
-    const bal = Number(balanceByAccount.get(account._id.toString()) || 0)
+    const bal = Number(account.openingBalance || 0) + Number(balanceByAccount.get(account._id.toString()) || 0)
     const row = {
       accountId: account._id,
       accountCode: account.accountCode,

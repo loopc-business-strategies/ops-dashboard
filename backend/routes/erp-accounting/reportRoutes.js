@@ -40,24 +40,66 @@ router.get('/reports/trial-balance', protect, async (req, res) => {
     const dateQuery = buildDateQuery(startDate, endDate)
     if (dateQuery) query.date = dateQuery
 
+    const accountDocs = await ChartOfAccount.find({ isActive: true }).select('accountCode accountName accountType openingBalance')
+    const accountById = new Map(accountDocs.map((acc) => [String(acc._id), acc]))
+
     const entries = await Ledger.find(query)
       .populate('debitAccountId', 'accountName accountCode accountType')
       .populate('creditAccountId', 'accountName accountCode accountType')
 
     const accountTotals = new Map()
+
+    // Seed opening balances from account master so accounts without period movement still show their true balance.
+    accountDocs.forEach((acc) => {
+      accountTotals.set(String(acc._id), {
+        account: acc,
+        debit: 0,
+        credit: 0,
+        openingNet: Number(acc.openingBalance || 0),
+      })
+    })
+
+    // When a start date is provided, include brought-forward movement prior to the period.
+    if (startDate) {
+      const broughtForwardEntries = await Ledger.find({
+        isDeleted: { $ne: true },
+        date: { $lt: new Date(startDate) },
+      }).select('debitAccountId creditAccountId amount exchangeRate')
+
+      broughtForwardEntries.forEach((entry) => {
+        const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
+        const debitKey = String(entry.debitAccountId || '')
+        const creditKey = String(entry.creditAccountId || '')
+
+        if (debitKey && accountById.has(debitKey)) {
+          if (!accountTotals.has(debitKey)) {
+            accountTotals.set(debitKey, { account: accountById.get(debitKey), debit: 0, credit: 0, openingNet: 0 })
+          }
+          accountTotals.get(debitKey).openingNet += amount
+        }
+
+        if (creditKey && accountById.has(creditKey)) {
+          if (!accountTotals.has(creditKey)) {
+            accountTotals.set(creditKey, { account: accountById.get(creditKey), debit: 0, credit: 0, openingNet: 0 })
+          }
+          accountTotals.get(creditKey).openingNet -= amount
+        }
+      })
+    }
     entries.forEach((entry) => {
       const debitKey = entry.debitAccountId._id.toString()
       const creditKey = entry.creditAccountId._id.toString()
+      const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
 
       if (!accountTotals.has(debitKey)) {
-        accountTotals.set(debitKey, { account: entry.debitAccountId, debit: 0, credit: 0 })
+        accountTotals.set(debitKey, { account: entry.debitAccountId, debit: 0, credit: 0, openingNet: 0 })
       }
       if (!accountTotals.has(creditKey)) {
-        accountTotals.set(creditKey, { account: entry.creditAccountId, debit: 0, credit: 0 })
+        accountTotals.set(creditKey, { account: entry.creditAccountId, debit: 0, credit: 0, openingNet: 0 })
       }
 
-      accountTotals.get(debitKey).debit += entry.amount
-      accountTotals.get(creditKey).credit += entry.amount
+      accountTotals.get(debitKey).debit += amount
+      accountTotals.get(creditKey).credit += amount
     })
 
     let trialBalance = Array.from(accountTotals.values()).map((item) => ({
@@ -66,23 +108,24 @@ router.get('/reports/trial-balance', protect, async (req, res) => {
       accountType: item.account.accountType,
       debit: toMoney(item.debit),
       credit: toMoney(item.credit),
-      net: toMoney(item.debit - item.credit),
+      net: toMoney(Number(item.openingNet || 0) + item.debit - item.credit),
     }))
 
     if (parseBool(includeZero, true)) {
       const allAccountsQuery = { isActive: true }
       if (accountType) allAccountsQuery.accountType = accountType
-      const allAccounts = await ChartOfAccount.find(allAccountsQuery).select('accountCode accountName accountType')
+      const allAccounts = await ChartOfAccount.find(allAccountsQuery).select('accountCode accountName accountType openingBalance')
       const existingCodes = new Set(trialBalance.map((row) => row.accountCode))
       allAccounts.forEach((acc) => {
         if (!existingCodes.has(acc.accountCode)) {
+          const opening = Number(acc.openingBalance || 0)
           trialBalance.push({
             accountName: acc.accountName,
             accountCode: acc.accountCode,
             accountType: acc.accountType,
             debit: 0,
             credit: 0,
-            net: 0,
+            net: toMoney(opening),
           })
         }
       })
@@ -344,8 +387,9 @@ router.get('/reports/day-book', protect, async (req, res) => {
     }
 
     const totals = entries.reduce((acc, entry) => {
-      acc.debit += Number(entry.amount || 0)
-      acc.credit += Number(entry.amount || 0)
+      const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
+      acc.debit += amount
+      acc.credit += amount
       acc.count += 1
       return acc
     }, { debit: 0, credit: 0, count: 0 })
@@ -354,7 +398,7 @@ router.get('/reports/day-book', protect, async (req, res) => {
       const key = entry.referenceType || 'journal'
       if (!acc[key]) acc[key] = { count: 0, amount: 0 }
       acc[key].count += 1
-      acc[key].amount += Number(entry.amount || 0)
+      acc[key].amount += Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
       return acc
     }, {})
 
