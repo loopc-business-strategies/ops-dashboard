@@ -1156,7 +1156,6 @@ function ERPTab({ focusTab, onNavigateMain }) {
   // Role-based permissions
   const {
     isSuperAdmin,
-    isSuperAdmin,
     isDepartmentHead,
     isManagementRole,
     isFinance,
