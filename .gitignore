@@ -20,5 +20,9 @@ backend/reports/
 # Optional coverage output
 coverage/
 
+# Generated endpoint mapping artifacts (local analysis output)
+PROJECT-ENDPOINT-ROWMAP.csv
+PROJECT-ENDPOINT-ROWMAP.md
+
 .vercel
 .env*.local
