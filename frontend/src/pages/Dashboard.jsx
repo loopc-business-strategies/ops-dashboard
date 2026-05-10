@@ -16,7 +16,7 @@
 //   Operations     → placeholder (to be built)
 //   Training       → placeholder (to be built)
 
-import { Component, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Component, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
