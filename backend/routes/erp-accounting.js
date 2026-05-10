@@ -486,14 +486,95 @@ const validateTransactionPayload = (payload) => {
 }
 
 const resolveReferenceExchangeRate = (voucherMeta) => {
+  const lines = Array.isArray(voucherMeta?.lineItems) ? voucherMeta.lineItems : []
+  const lineReferenceRate = lines.reduce((acc, line) => {
+    if (acc > 0) return acc
+    const rate = Number(line?.referenceRate || 0)
+    return Number.isFinite(rate) && rate > 0 ? rate : 0
+  }, 0)
+
   const rate = Number(
     voucherMeta?.referenceExchangeRate
     || voucherMeta?.invoiceExchangeRate
-    || voucherMeta?.lineItems?.[0]?.referenceRate
+    || lineReferenceRate
     || 0
   )
   if (!Number.isFinite(rate) || rate <= 0) return null
   return rate
+}
+
+const resolveVoucherFxLineForeignAmount = (line = {}) => {
+  const amount = Number(line.amountFC || line.amountFc || line.amtFc || line.headerAmt || 0)
+  return Number.isFinite(amount) && amount > 0 ? amount : 0
+}
+
+const resolveVoucherFxLineBaseAmount = (line = {}) => {
+  const candidates = [line.amountLC, line.totalAmount, line.amountWithVAT, line.metalAmount]
+  for (const candidate of candidates) {
+    const amount = Number(candidate || 0)
+    if (Number.isFinite(amount) && amount > 0) return amount
+  }
+  return 0
+}
+
+const resolvePrimaryVoucherFxLine = (voucherMeta = {}) => {
+  const lines = Array.isArray(voucherMeta?.lineItems) ? voucherMeta.lineItems : []
+  if (!lines.length) return {}
+
+  return lines.find((line) => {
+    const hasCurrency = String(line?.currCode || '').trim().length > 0
+    const hasRate = Number(line?.currRate || 0) > 0
+    const hasForeign = resolveVoucherFxLineForeignAmount(line) > 0
+    const hasBase = resolveVoucherFxLineBaseAmount(line) > 0
+    return hasCurrency || hasRate || hasForeign || hasBase
+  }) || lines[0] || {}
+}
+
+const resolveVoucherFxMetrics = ({ voucherMeta = {}, txAmount = 0, fallbackRate = 0 }) => {
+  const lines = Array.isArray(voucherMeta?.lineItems) ? voucherMeta.lineItems : []
+  let totalForeignAmount = 0
+  let totalBaseAmount = 0
+  let weightedLineRateBase = 0
+  let weightedLineRateWeight = 0
+
+  lines.forEach((line) => {
+    const foreignAmount = resolveVoucherFxLineForeignAmount(line)
+    const baseAmount = resolveVoucherFxLineBaseAmount(line)
+    const lineRate = Number(line?.currRate || 0)
+
+    if (foreignAmount > 0) totalForeignAmount += foreignAmount
+    if (baseAmount > 0) totalBaseAmount += baseAmount
+
+    if (lineRate > 0 && foreignAmount > 0) {
+      weightedLineRateBase += foreignAmount * lineRate
+      weightedLineRateWeight += foreignAmount
+    }
+  })
+
+  const lineRateFromTotals = totalForeignAmount > 0 && totalBaseAmount > 0
+    ? totalBaseAmount / totalForeignAmount
+    : 0
+  const lineRateFromWeighted = weightedLineRateWeight > 0
+    ? weightedLineRateBase / weightedLineRateWeight
+    : 0
+  const normalizedFallbackRate = Number(fallbackRate || 0)
+
+  const lineRate = lineRateFromTotals > 0
+    ? lineRateFromTotals
+    : lineRateFromWeighted > 0
+      ? lineRateFromWeighted
+      : (Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0)
+
+  const actualForeignAmount = totalForeignAmount > 0
+    ? totalForeignAmount
+    : (lineRate > 0 ? Number(txAmount || 0) / lineRate : 0)
+
+  return {
+    lineRate,
+    totalForeignAmount,
+    totalBaseAmount,
+    actualForeignAmount,
+  }
 }
 
 const getFxJournalEntriesForTransaction = async (txId) => Ledger.find({
@@ -523,18 +604,16 @@ const buildFxJournalRevaluationPreview = async (transaction) => {
     }
   }
 
-  const firstLine = Array.isArray(voucherMeta.lineItems) ? (voucherMeta.lineItems[0] || {}) : {}
-  const lineRate = parseNumber(firstLine.currRate || transaction?.exchangeRate || 0, 0)
+  const firstLine = resolvePrimaryVoucherFxLine(voucherMeta)
   const txAmount = parseNumber(transaction?.amount, 0)
-  const foreignAmount = parseNumber(
-    firstLine.amountFC
-      || firstLine.amountFc
-      || firstLine.amtFc
-      || firstLine.headerAmt
-      || 0,
-    0,
-  )
-  const actualForeignAmount = foreignAmount > 0 ? foreignAmount : (lineRate > 0 ? txAmount / lineRate : 0)
+  const fxMetrics = resolveVoucherFxMetrics({
+    voucherMeta,
+    txAmount,
+    fallbackRate: firstLine.currRate || transaction?.exchangeRate || 0,
+  })
+  const lineRate = parseNumber(fxMetrics.lineRate, 0)
+  const foreignAmount = parseNumber(fxMetrics.totalForeignAmount, 0)
+  const actualForeignAmount = parseNumber(fxMetrics.actualForeignAmount, 0)
   const expectedForeignAmount = referenceRate > 0 ? txAmount / referenceRate : 0
   const foreignDifference = actualForeignAmount - expectedForeignAmount
   const correctedAmount = toMoney(Math.abs(foreignDifference) * referenceRate)
@@ -2411,9 +2490,10 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
 
   // Post exchange difference only when a reference rate is provided on payment/receipt.
   const type = String(transaction.type || '').toLowerCase()
-  const voucherLine = transaction?.voucherMeta?.lineItems?.[0] || {}
+  const voucherMeta = transaction?.voucherMeta || {}
+  const voucherLine = resolvePrimaryVoucherFxLine(voucherMeta)
   const voucherCurrencyCode = String(
-    transaction?.voucherMeta?.currCode
+    voucherMeta?.currCode
     || voucherLine?.currCode
     || currencyCode
     || 'USD'
@@ -2438,27 +2518,21 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
     }
 
     const referenceRate = Number(
-      voucherLine?.referenceRate
-      || transaction?.voucherMeta?.referenceExchangeRate
-      || transaction?.voucherMeta?.invoiceExchangeRate
+      resolveReferenceExchangeRate(voucherMeta)
       || masterRate  // auto: use currency master rate as reference
       || 0
     )
 
     if (Number.isFinite(referenceRate) && referenceRate > 0) {
-      const foreignAmount = Number(
-        voucherLine?.amountFC
-        || voucherLine?.amountFc
-        || voucherLine?.amtFc
-        || voucherLine?.headerAmt
-        || 0
-      )
-
-      // Use the line item's own exchange rate for FC↔base conversion.
-      // If the line has its own currRate use it; otherwise fall back to the
-      // transaction's rate or the currency master rate (already fetched above).
-      const lineRate = Number(voucherLine?.currRate || exchangeRate || masterRate || 1)
       const txAmount = Number(transaction.amount || 0)
+      const fxMetrics = resolveVoucherFxMetrics({
+        voucherMeta,
+        txAmount,
+        fallbackRate: Number(voucherLine?.currRate || exchangeRate || masterRate || 1),
+      })
+
+      const foreignAmount = Number(fxMetrics.totalForeignAmount || 0)
+      const lineRate = Number(fxMetrics.lineRate || exchangeRate || masterRate || 1)
 
       // FC-based gain/loss model:
       //   expectedFC = how many FC units were expected at the original (reference) rate
@@ -2466,7 +2540,7 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
       //   For receipt: actualFC > expectedFC → gain (received more FC than expected)
       //   For payment: actualFC < expectedFC → gain (paid less FC than expected)
       const expectedFC = txAmount / referenceRate
-      const actualFC = foreignAmount > 0 ? foreignAmount : (txAmount / lineRate)
+      const actualFC = Number(fxMetrics.actualForeignAmount || (txAmount / lineRate))
       const fcDiff = actualFC - expectedFC
       // Convert the FC difference using the original obligation/reference rate,
       // not settlement rate, to keep gain/loss valuation consistent.

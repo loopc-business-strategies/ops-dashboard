@@ -989,6 +989,91 @@ describe('ERP accounting transactions workflow', () => {
     expect(paymentCreditAccount.accountType).toBe('Income')
   })
 
+  test('does not post FX journal for multi-line receipt/payment when aggregated foreign amounts match reference rate', async () => {
+    const financeUser = await createUser({ name: 'FX Multi Line Tester' })
+    const receivableAccount = await ChartOfAccount.create({
+      accountName: 'Customer Receivable FX Multi Line',
+      accountCode: '1104',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const customer = await Customer.create({
+      name: 'FX Multi Line Counterparty',
+      ledgerAccountId: receivableAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    await Currency.create({
+      code: 'USD',
+      name: 'US Dollar',
+      symbol: '$',
+      exchangeRate: 1,
+      baseCurrency: true,
+      isActive: true,
+    })
+
+    const createAndPost = async (type) => {
+      const createRes = await request(app)
+        .post('/api/erp-accounting/transactions')
+        .set(authHeader(financeUser))
+        .send({
+          type,
+          amount: 240,
+          description: `${type} fx multi-line check`,
+          currency: 'EUR',
+          exchangeRate: 1.2,
+          customerId: customer._id.toString(),
+          voucherMeta: {
+            referenceExchangeRate: 1.2,
+            lineItems: [
+              { type: 'cash', currCode: 'EUR', currRate: 1.2, amountFC: 100 },
+              { type: 'cash', currCode: 'EUR', currRate: 1.2, amountFC: 100 },
+            ],
+          },
+        })
+
+      expect(createRes.status).toBe(201)
+
+      const submitRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Ready to post' })
+      expect(submitRes.status).toBe(200)
+
+      const approveRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/approve`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Approve FX multi-line transaction' })
+      expect(approveRes.status).toBe(200)
+
+      const postRes = await request(app)
+        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
+        .set(authHeader(financeUser))
+        .send({ comment: 'Post FX multi-line transaction' })
+      expect(postRes.status).toBe(200)
+
+      return createRes.body.transaction._id
+    }
+
+    const receiptTxId = await createAndPost('receipt')
+    const paymentTxId = await createAndPost('payment')
+
+    const receiptJournal = await queryInTenant(() => Ledger.findOne({
+      referenceId: receiptTxId,
+      referenceType: 'journal',
+      isDeleted: { $ne: true },
+    }))
+    expect(receiptJournal).toBeFalsy()
+
+    const paymentJournal = await queryInTenant(() => Ledger.findOne({
+      referenceId: paymentTxId,
+      referenceType: 'journal',
+      isDeleted: { $ne: true },
+    }))
+    expect(paymentJournal).toBeFalsy()
+  })
+
   test('rejects non-base receipt when reference rate is missing or zero', async () => {
     const financeUser = await createUser({ name: 'FX Guard Tester' })
     const receivableAccount = await ChartOfAccount.create({
