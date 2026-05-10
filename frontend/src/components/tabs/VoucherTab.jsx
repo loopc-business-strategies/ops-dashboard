@@ -1924,10 +1924,6 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
   const buildReceiptPaymentDefaultLine = (baseLine) => {
     const rate = parseFloat(header.currRate) || 1
-    const currentTarget = parseFloat(currentVoucher?.amount) || 0
-    const usedAmount = lineItems.reduce((sum, line) => sum + getLineNetAmount(line), 0)
-    const remaining = currentTarget > 0 ? Math.max(currentTarget - usedAmount, 0) : 0
-
     return {
       ...baseLine,
       currCode: header.currCode || 'USD',
@@ -1935,9 +1931,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       currRateSource: header.currRateSource || 'currency_table',
       vatType: baseLine.vatType || 'VAT',
       narration: header.narration || '',
-      amountFC: remaining > 0 ? remaining.toFixed(2) : '',
-      amountLC: remaining > 0 ? remaining.toFixed(2) : '',
-      amountWithVAT: remaining > 0 ? remaining.toFixed(2) : '',
+      amountFC: '',
+      amountLC: '',
+      amountWithVAT: '',
     }
   }
 
