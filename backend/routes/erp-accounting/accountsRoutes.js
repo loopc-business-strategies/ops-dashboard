@@ -116,7 +116,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
 
     const debitTotal = Number(debitAgg[0]?.total || 0)
     const creditTotal = Number(creditAgg[0]?.total || 0)
-    const netBalance = debitTotal - creditTotal
+    const openingBalance = Number(account.openingBalance || 0)
+    const netBalance = openingBalance + debitTotal - creditTotal
     const netDirection = netBalance > 0 ? 'Debit' : netBalance < 0 ? 'Credit' : 'Flat'
     const isUnfixedFixingType = (value) => {
       const normalized = String(value || '').trim().toLowerCase()
