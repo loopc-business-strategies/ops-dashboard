@@ -4,7 +4,13 @@ const jwt = require('jsonwebtoken')
 const { MongoMemoryServer } = require('mongodb-memory-server')
 
 const createApp = require('../app')
+const ChartOfAccount = require('../models/ChartOfAccount')
+const Customer = require('../models/Customer')
+const DirectDeal = require('../models/DirectDeal')
+const InventoryItem = require('../models/InventoryItem')
+const Ledger = require('../models/Ledger')
 const User = require('../models/User')
+const Vendor = require('../models/Vendor')
 
 let mongo
 let app
@@ -44,6 +50,12 @@ beforeAll(async () => {
 })
 
 afterEach(async () => {
+  await Ledger.deleteMany({})
+  await DirectDeal.deleteMany({})
+  await InventoryItem.deleteMany({})
+  await Vendor.deleteMany({})
+  await Customer.deleteMany({})
+  await ChartOfAccount.deleteMany({})
   await User.deleteMany({})
 })
 
@@ -137,6 +149,154 @@ describe('ERP accounting API contracts', () => {
   "page": 1,
   "success": true,
   "total": 0,
+}
+`)
+  })
+
+  test('customer creation contract remains stable', async () => {
+    const financeUser = await createUser()
+
+    const res = await request(app)
+      .post('/api/erp-accounting/customers')
+      .set(authHeader(financeUser))
+      .send({
+        name: 'Contract Customer',
+        currency: 'USD',
+        openingBalance: 0,
+      })
+
+    expect(res.status).toBe(201)
+
+    const normalized = {
+      success: res.body.success,
+      name: String(res.body?.customer?.name || ''),
+      currency: String(res.body?.customer?.currency || ''),
+      hasLedgerAccountId: Boolean(res.body?.customer?.ledgerAccountId),
+    }
+
+    expect(normalized).toMatchInlineSnapshot(`
+{
+  "currency": "USD",
+  "hasLedgerAccountId": true,
+  "name": "Contract Customer",
+  "success": true,
+}
+`)
+  })
+
+  test('vendor creation contract remains stable', async () => {
+    const financeUser = await createUser()
+
+    const res = await request(app)
+      .post('/api/erp-accounting/vendors')
+      .set(authHeader(financeUser))
+      .send({
+        name: 'Contract Vendor',
+        currency: 'USD',
+        category: 'general',
+      })
+
+    expect(res.status).toBe(201)
+
+    const normalized = {
+      success: res.body.success,
+      name: String(res.body?.vendor?.name || ''),
+      vendorCodePrefix: String(res.body?.vendor?.vendorCode || '').slice(0, 3),
+      hasLedgerAccountId: Boolean(res.body?.vendor?.ledgerAccountId),
+      approvalStatus: String(res.body?.vendor?.approvalStatus || ''),
+    }
+
+    expect(normalized).toMatchInlineSnapshot(`
+{
+  "approvalStatus": "draft",
+  "hasLedgerAccountId": true,
+  "name": "Contract Vendor",
+  "success": true,
+  "vendorCodePrefix": "VEN",
+}
+`)
+  })
+
+  test('inventory product creation contract remains stable', async () => {
+    const financeUser = await createUser()
+
+    const res = await request(app)
+      .post('/api/erp-accounting/inventory/products')
+      .set(authHeader(financeUser))
+      .send({
+        name: 'Contract Inventory Item',
+        category: 'raw-material',
+        unit: 'pcs',
+        currency: 'USD',
+      })
+
+    expect(res.status).toBe(201)
+
+    const normalized = {
+      success: res.body.success,
+      name: String(res.body?.product?.name || ''),
+      category: String(res.body?.product?.category || ''),
+      hasLedgerAccountId: Boolean(res.body?.product?.ledgerAccountId),
+    }
+
+    expect(normalized).toMatchInlineSnapshot(`
+{
+  "category": "raw-material",
+  "hasLedgerAccountId": true,
+  "name": "Contract Inventory Item",
+  "success": true,
+}
+`)
+  })
+
+  test('direct deal creation auto-generates doc numbers', async () => {
+    const financeUser = await createUser()
+
+    const customerRes = await request(app)
+      .post('/api/erp-accounting/customers')
+      .set(authHeader(financeUser))
+      .send({
+        name: 'Direct Deal Customer',
+        currency: 'USD',
+      })
+
+    expect(customerRes.status).toBe(201)
+
+    const res = await request(app)
+      .post('/api/erp-accounting/direct-deals')
+      .set(authHeader(financeUser))
+      .send({
+        entryType: 'fixing',
+        currency: 'USD',
+        status: 'draft',
+        lineItems: [{
+          customerId: customerRes.body.customer._id,
+          customerName: 'Direct Deal Customer',
+          direction: 'buy',
+          metal: 'XAU',
+          qty: 1,
+          price: 2300,
+          stockCode: 'GOLD',
+        }],
+      })
+
+    expect(res.status).toBe(201)
+
+    const normalized = {
+      success: res.body.success,
+      docNoPattern: /^ORD\/\d{4}\/\d{6}$/.test(String(res.body?.deal?.docNo || '')),
+      status: String(res.body?.deal?.status || ''),
+      totalQty: Number(res.body?.deal?.totalQty || 0),
+      totalAmount: Number(res.body?.deal?.totalAmount || 0),
+    }
+
+    expect(normalized).toMatchInlineSnapshot(`
+{
+  "docNoPattern": true,
+  "status": "draft",
+  "success": true,
+  "totalAmount": 2300,
+  "totalQty": 1,
 }
 `)
   })

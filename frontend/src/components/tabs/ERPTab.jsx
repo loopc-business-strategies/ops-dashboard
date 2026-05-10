@@ -25,6 +25,7 @@ import { formatTransactionAuditEntry, formatTransactionCommentKind, getTransacti
 import ChartOfAccountsTree from './ChartOfAccountsTree'
 import VoucherTab from './VoucherTab'
 import DirectDealsTab from './DirectDealsTab'
+import { DonutChart, MiniBarChart } from './erp/ERPTabCharts'
 import { useERPTabStateAdapter } from './erp/useERPTabStateAdapter'
 import {
   ERPDashboardTabContainer,
@@ -32,153 +33,30 @@ import {
   ERPEnquiryTabContainer,
   ERPVouchersTabContainer,
 } from './erp/ERPTabContainers'
+import {
+  DEFAULT_INVENTORY_STOCK_CODE_SETTINGS,
+  accountLookupText,
+  buildAutoStockCode,
+  buildUniqueStockCode,
+  createInventoryMappingForm,
+  createInventoryProductForm,
+  createTransactionForm,
+  decodeInventoryCategoryMeta,
+  decodeInventoryCategoryPairs,
+  encodeInventoryCategoryMeta,
+  formatVatPercent,
+  getTransactionActionLabels,
+  getTransactionTypeLabels,
+  resolveAccountIdFromInput,
+  resolveMainStockValueFromForm,
+  resolveTransactionAttachmentUrl,
+  titleCaseWords,
+} from './erp/erpTabUtils'
 import ERPInventoryTab from './erp/tabs/ERPInventoryTab'
 import ERPVendorsTab from './erp/tabs/ERPVendorsTab'
 import ERPLedgerTab from './erp/tabs/ERPLedgerTab'
 import ERPTransactionsTab from './erp/tabs/ERPTransactionsTab'
 import ERPReportsTab from './erp/tabs/ERPReportsTab'
-
-
-const createInventoryMappingForm = () => ({
-  mainStock: 'gold',
-  customMainStock: '',
-  metalType: 'gold',
-  stockCode: '',
-  unit: 'grams',
-  currency: 'USD',
-  currentPrice: '',
-  priceUnit: 'OZ',
-  priceCurrency: 'USD',
-})
-
-const createInventoryProductForm = () => ({
-  stockTypeId: '',
-  categoryName: '',
-  name: '',
-  description: '',
-  weight: '',
-  grossWeight: '',
-  purity: '',
-  taxType: 'VAT',
-  vatPercent: '',
-})
-
-const DEFAULT_INVENTORY_STOCK_CODE_SETTINGS = {
-  format: 'metal-purity',
-  prefix: 'RM',
-}
-
-const resolveMainStockValueFromForm = (form) => {
-  if (form.mainStock === 'custom') {
-    return String(form.customMainStock || '').trim().toLowerCase()
-  }
-  return String(form.mainStock || '').trim().toLowerCase()
-}
-
-const getMainStockPrefix = (mainStockValue, metalTypeValue) => {
-  const normalizedMain = String(mainStockValue || '').trim().toLowerCase()
-  const normalizedMetal = String(metalTypeValue || '').trim().toLowerCase()
-  if (normalizedMain === 'gold' || normalizedMetal === 'gold') return 'GOLD'
-  if (normalizedMain === 'silver' || normalizedMetal === 'silver') return 'SILV'
-  if (normalizedMain === 'platinum' || normalizedMetal === 'platinum') return 'PLAT'
-
-  const fallback = (normalizedMain || normalizedMetal || 'STK').replace(/[^a-z0-9]/gi, '').toUpperCase()
-  return (fallback || 'STK').slice(0, 4)
-}
-
-const buildAutoStockCode = (form, settings = DEFAULT_INVENTORY_STOCK_CODE_SETTINGS) => {
-  const mainStockValue = resolveMainStockValueFromForm(form)
-  const prefix = getMainStockPrefix(mainStockValue, form.metalType)
-  const baseCode = prefix
-
-  if (settings?.format !== 'prefix-metal-purity') {
-    return baseCode
-  }
-
-  const normalizedPrefix = String(settings?.prefix || '')
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '')
-
-  if (!normalizedPrefix) return baseCode
-  return `${normalizedPrefix}-${baseCode}`
-}
-
-const buildUniqueStockCode = (baseCode, products = [], editingId = '') => {
-  const normalizedBase = String(baseCode || '').trim().toUpperCase()
-  if (!normalizedBase) return ''
-
-  const existing = new Set(
-    products
-      .filter((item) => String(item._id || '') !== String(editingId || ''))
-      .map((item) => String(item.sku || '').trim().toUpperCase())
-      .filter(Boolean)
-  )
-
-  if (!existing.has(normalizedBase)) return normalizedBase
-  let index = 2
-  while (existing.has(`${normalizedBase}-${index}`)) {
-    index += 1
-  }
-  return `${normalizedBase}-${index}`
-}
-
-const encodeInventoryCategoryMeta = (meta) => {
-  const parts = {
-    mainStock: String(meta.mainStock || '').trim().toLowerCase(),
-    metalType: String(meta.metalType || '').trim().toLowerCase(),
-  }
-  if (meta.priceUnit) parts.priceUnit = String(meta.priceUnit).trim().toUpperCase()
-  if (meta.priceCurrency) parts.priceCurrency = String(meta.priceCurrency).trim().toUpperCase()
-  return Object.entries(parts).map(([k, v]) => `${k}=${v}`).join(';')
-}
-
-const decodeInventoryCategoryMeta = (category) => {
-  const raw = String(category || '')
-  const meta = {}
-  raw.split(';').forEach((pair) => {
-    const [key, ...rest] = pair.split('=')
-    if (!key || rest.length === 0) return
-    meta[key.trim()] = rest.join('=').trim()
-  })
-  return {
-    mainStock: String(meta.mainStock || '').toLowerCase(),
-    itemType: String(meta.itemType || '').toLowerCase(),
-    metalType: String(meta.metalType || '').toLowerCase(),
-    purity: String(meta.purity || ''),
-  }
-}
-
-const decodeInventoryCategoryPairs = (category) => {
-  const raw = String(category || '')
-  const meta = {}
-  raw.split(';').forEach((pair) => {
-    const [key, ...rest] = pair.split('=')
-    if (!key || rest.length === 0) return
-    meta[key.trim()] = rest.join('=').trim()
-  })
-  return meta
-}
-
-const formatVatPercent = (value) => {
-  if (value === undefined || value === null || String(value).trim() === '') return '-'
-  const numeric = Number(value)
-  if (!Number.isFinite(numeric)) return '-'
-  return `${Number(numeric.toFixed(2)).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`
-}
-
-const titleCaseWords = (value) => String(value || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()).trim()
-
-function getTransactionTypeLabels(t) {
-  return {
-    expense: t('expense'),
-    sale: t('salesInvoice'),
-    purchase: t('purchase'),
-    receipt: t('receipt'),
-    payment: t('payment'),
-    payroll: t('payroll'),
-  }
-}
 
 const TRANSACTION_STATUS_STYLES = {
   draft: { background: '#FEF3C7', color: '#92400E' },
@@ -189,67 +67,6 @@ const TRANSACTION_STATUS_STYLES = {
   rejected: { background: '#FEE2E2', color: '#B91C1C' },
 }
 
-function getTransactionActionLabels(t) {
-  return {
-    create: t('created'),
-    update: t('updated'),
-    delete: t('deleted'),
-    submit: t('submitted'),
-    approve: t('approved'),
-    post: t('posted'),
-    return: t('returnedForEdit'),
-    reject: t('rejected'),
-    comment: t('commented'),
-    upload_attachment: t('attachmentUploaded'),
-    delete_attachment: t('attachmentDeleted'),
-  }
-}
-
-const resolveTransactionAttachmentUrl = (attachment) => {
-  if (!attachment) return '#'
-  if (attachment.url) return attachment.url
-  if (attachment.relativePath) return `${import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || ''}${attachment.relativePath}`
-  return '#'
-}
-
-const createTransactionForm = () => ({
-  type: 'expense',
-  metalFixStatus: 'fixed',
-  amount: '',
-  date: new Date().toISOString().slice(0, 10),
-  currency: 'USD',
-  exchangeRate: '1',
-  description: '',
-  customerId: '',
-  vendorId: '',
-  inventoryItemId: '',
-  mappingId: '',
-  debitAccountId: '',
-  creditAccountId: '',
-})
-
-const accountLookupText = (account) => {
-  const code = String(account?.accountCode || '').trim()
-  const name = String(account?.accountName || '').trim()
-  return [code, name].filter(Boolean).join(' - ')
-}
-
-const resolveAccountIdFromInput = (inputValue, accountOptions = []) => {
-  const value = String(inputValue || '').trim()
-  if (!value) return ''
-
-  const byId = accountOptions.find((account) => String(account?._id || '') === value)
-  if (byId) return String(byId._id)
-
-  const normalized = value.toLowerCase()
-  const exactCode = accountOptions.find((account) => String(account?.accountCode || '').trim().toLowerCase() === normalized)
-  if (exactCode) return String(exactCode._id)
-
-  const exactLabel = accountOptions.find((account) => accountLookupText(account).toLowerCase() === normalized)
-  if (exactLabel) return String(exactLabel._id)
-
-  return ''
-}
 
 const C = {
   p1: '#FFFFFF',
@@ -262,91 +79,6 @@ const C = {
   t2: '#374151',
   t3: '#334155',
   danger: '#DC2626',
-}
-
-// ── Tiny SVG bar chart ─────────────────────────────────────────
-function MiniBarChart({ data = [], valueKey = 'value', labelKey = 'label', color = '#059669', height = 56 }) {
-  const [hovered, setHovered] = useState(null)
-  const max = Math.max(...data.map(d => Number(d[valueKey] || 0)), 1)
-  return (
-    <div style={{ position: 'relative' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: `${height}px` }}>
-        {data.map((d, i) => {
-          const pct = Math.max((Number(d[valueKey] || 0) / max) * 100, 2)
-          return (
-            <div
-              key={i}
-              style={{ flex: 1, borderRadius: '2px 2px 0 0', background: hovered === i ? '#0EA5E9' : color, height: `${pct}%`, cursor: 'pointer', transition: 'background 0.15s' }}
-              onMouseEnter={() => setHovered(i)}
-              onMouseLeave={() => setHovered(null)}
-              title={`${d[labelKey]}: ${Number(d[valueKey] || 0).toLocaleString()}`}
-            />
-          )
-        })}
-      </div>
-      {hovered !== null && data[hovered] && (
-        <div style={{ position: 'absolute', top: -28, left: '50%', transform: 'translateX(-50%)', background: '#111827', color: '#fff', fontSize: '0.68rem', padding: '2px 7px', borderRadius: '4px', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
-          {data[hovered][labelKey]}: {Number(data[hovered][valueKey] || 0).toLocaleString()}
-        </div>
-      )}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '3px' }}>
-        {data.map((d, i) => <span key={i} style={{ flex: 1, textAlign: 'center', fontSize: '0.62rem', color: '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d[labelKey]}</span>)}
-      </div>
-    </div>
-  )
-}
-
-// ── Tiny SVG donut chart ───────────────────────────────────────
-function DonutChart({ segments = [], total = 0, label = '' }) {
-  const [hovered, setHovered] = useState(null)
-  const r = 28; const cx = 36; const cy = 36; const stroke = 14
-  let cumAngle = -90
-  const arcs = segments.map((seg, i) => {
-    const pct = total > 0 ? Number(seg.value) / total : 0
-    const angle = pct * 360
-    const startAngle = cumAngle
-    cumAngle += angle
-    const toRad = (deg) => (deg * Math.PI) / 180
-    const x1 = cx + r * Math.cos(toRad(startAngle))
-    const y1 = cy + r * Math.sin(toRad(startAngle))
-    const x2 = cx + r * Math.cos(toRad(startAngle + angle))
-    const y2 = cy + r * Math.sin(toRad(startAngle + angle))
-    const large = angle > 180 ? 1 : 0
-    return { ...seg, i, x1, y1, x2, y2, large, angle, pct }
-  })
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-      <svg width="72" height="72" viewBox="0 0 72 72" style={{ flexShrink: 0 }}>
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#E8F5EF" strokeWidth={stroke} />
-        {arcs.map((arc) => arc.angle < 0.5 ? null : (
-          <path
-            key={arc.i}
-            d={`M ${arc.x1} ${arc.y1} A ${r} ${r} 0 ${arc.large} 1 ${arc.x2} ${arc.y2}`}
-            fill="none"
-            stroke={arc.color}
-            strokeWidth={hovered === arc.i ? stroke + 2 : stroke}
-            onMouseEnter={() => setHovered(arc.i)}
-            onMouseLeave={() => setHovered(null)}
-            style={{ cursor: 'pointer', transition: 'stroke-width 0.15s' }}
-          />
-        ))}
-        <text x={cx} y={cy + 4} textAnchor="middle" fontSize="10" fontWeight="600" fill="#111">{label}</text>
-      </svg>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-        {arcs.map((arc) => (
-          <div
-            key={arc.i}
-            onMouseEnter={() => setHovered(arc.i)}
-            onMouseLeave={() => setHovered(null)}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.72rem', color: hovered === arc.i ? '#111' : '#6B7280', cursor: 'default', fontWeight: hovered === arc.i ? '600' : '400' }}
-          >
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: arc.color, flexShrink: 0, display: 'inline-block' }} />
-            {arc.label} {(arc.pct * 100).toFixed(0)}%
-          </div>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 function fmtMoney(val, currency = '') {
