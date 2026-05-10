@@ -3,7 +3,9 @@ function registerTransactionRoutes(deps) {
     router,
     protect,
     validateBody,
+    validateBodyStrict,
     transactionCreateSchema,
+    transactionPatchSchema,
     transactionUpload,
     TRANSACTION_STATUSES,
     Transaction,
@@ -36,6 +38,8 @@ function registerTransactionRoutes(deps) {
     BASE_CURRENCY_CODE,
     applyPartyAccountPriority,
   } = deps
+
+const strictBody = validateBodyStrict || validateBody
 
 router.get('/transactions', protect, async (req, res) => {
   try {
@@ -198,7 +202,7 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
   }
 })
 
-router.put('/transactions/:id', protect, async (req, res) => {
+router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), async (req, res) => {
   try {
     if (!canAccessTransactions(req.user)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })

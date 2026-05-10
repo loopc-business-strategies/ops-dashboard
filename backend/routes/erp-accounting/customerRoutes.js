@@ -3,6 +3,7 @@ function registerCustomerRoutes(deps) {
     router,
     protect,
     validateBody,
+    validateBodyStrict,
     validateParams,
     customerCreateSchema,
     customerPatchSchema,
@@ -18,6 +19,8 @@ function registerCustomerRoutes(deps) {
     toMoney,
     getTransactionWorkflowErrorStatus,
   } = deps
+
+  const strictBody = validateBodyStrict || validateBody
 
   router.get('/customers', protect, async (req, res) => {
     try {
@@ -188,7 +191,7 @@ function registerCustomerRoutes(deps) {
     }
   })
 
-  router.put('/customers/:id', protect, validateParams(idParam), validateBody(customerPatchSchema), async (req, res) => {
+  router.put('/customers/:id', protect, validateParams(idParam), strictBody(customerPatchSchema), async (req, res) => {
     try {
       if (!canManageCustomers(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const updates = {}

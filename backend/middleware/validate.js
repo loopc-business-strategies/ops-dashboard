@@ -5,10 +5,11 @@ const buildError = (error) => {
   return details || 'Invalid request payload.'
 }
 
-const validateBody = (schema) => (req, res, next) => {
+const validateBody = (schema, options = {}) => (req, res, next) => {
   const { error, value } = schema.validate(req.body, {
     abortEarly: false,
     stripUnknown: true,
+    ...options,
   })
 
   if (error) {
@@ -18,6 +19,8 @@ const validateBody = (schema) => (req, res, next) => {
   req.body = value
   return next()
 }
+
+const validateBodyStrict = (schema) => validateBody(schema, { stripUnknown: false })
 
 const validateQuery = (schema) => (req, res, next) => {
   const { error, value } = schema.validate(req.query, {
@@ -50,6 +53,7 @@ const validateParams = (schema) => (req, res, next) => {
 module.exports = {
   Joi,
   validateBody,
+  validateBodyStrict,
   validateQuery,
   validateParams,
 }

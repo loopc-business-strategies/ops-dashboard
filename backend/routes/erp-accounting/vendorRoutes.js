@@ -3,6 +3,7 @@ function registerVendorRoutes(deps) {
     router,
     protect,
     validateBody,
+    validateBodyStrict,
     validateParams,
     vendorCreateSchema,
     vendorPatchSchema,
@@ -24,6 +25,8 @@ function registerVendorRoutes(deps) {
     nextVendorAccountCode,
     toMoney,
   } = deps
+
+  const strictBody = validateBodyStrict || validateBody
 
   router.get('/vendors', protect, async (req, res) => {
     try {
@@ -381,7 +384,7 @@ function registerVendorRoutes(deps) {
     }
   })
 
-  router.put('/vendors/:id', protect, validateParams(idParam), validateBody(vendorPatchSchema), async (req, res) => {
+  router.put('/vendors/:id', protect, validateParams(idParam), strictBody(vendorPatchSchema), async (req, res) => {
     try {
       if (!canUpdateVendorOperational(req.user)) {
         return res.status(403).json({ success: false, message: 'Only Admin/Finance/Operations can update vendors' })

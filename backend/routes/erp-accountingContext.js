@@ -2,7 +2,7 @@ const fs = require('fs')
 const path = require('path')
 const multer = require('multer')
 const { protect } = require('../middleware/auth')
-const { Joi, validateBody, validateParams } = require('../middleware/validate')
+const { Joi, validateBody, validateBodyStrict, validateParams } = require('../middleware/validate')
 const Ledger = require('../models/Ledger')
 const ChartOfAccount = require('../models/ChartOfAccount')
 const AccountMapping = require('../models/AccountMapping')
@@ -39,6 +39,32 @@ const { registerDirectDealsRoutes } = require('./erp-accounting/directDealsRoute
 const { registerAttachmentRoutes } = require('./erp-accounting/attachmentRoutes')
 const { createFxRevaluationService } = require('../services/erpAccounting/fxRevaluationService')
 const { createTransactionPostingService } = require('../services/erpAccounting/transactionPostingService')
+const {
+  isSuperAdmin,
+  isDepartmentHead,
+  isFinance,
+  isSales,
+  isOperations,
+  isProduction,
+  isHR,
+  roleName,
+  canViewAccounts,
+  canManageAccounts,
+  canViewMappings,
+  canManageMappings,
+  canViewAccountSummary,
+  canViewLedger,
+  canCreateTransaction,
+  canCreateTransactionFor,
+  canAccessReports,
+  canAccessVendors,
+  canManageVendors,
+  canUpdateVendorOperational,
+  canAccessInventory,
+  canAccessTransactions,
+  canAccessDirectDeals,
+  canManageDirectDeals,
+} = require('../services/erpAccounting/accessPolicy')
 
 
 // ─── Joi Schemas ────────────────────────────────────────────────────────────
@@ -114,7 +140,19 @@ const customerCreateSchema = Joi.object({
   notes:            Joi.string().trim().allow('').max(2000).optional(),
 })
 
-const customerPatchSchema = Joi.object({}).unknown(true)
+const customerPatchSchema = Joi.object({
+  name: Joi.string().trim().min(1).max(200).optional(),
+  phone: Joi.string().trim().allow('').max(30).optional(),
+  email: Joi.string().email({ tlds: { allow: false } }).allow('').optional(),
+  address: Joi.string().trim().allow('').max(300).optional(),
+  gstVat: Joi.string().trim().allow('').max(60).optional(),
+  creditLimit: Joi.number().min(0).optional(),
+  paymentTermsDays: Joi.number().integer().min(0).optional(),
+  currency: Joi.string().trim().allow('').max(10).optional(),
+  notes: Joi.string().trim().allow('').max(2000).optional(),
+  isActive: Joi.boolean().optional(),
+  ledgerAccountId: Joi.string().hex().length(24).allow('', null).optional(),
+}).min(1)
 
 const vendorCreateSchema = Joi.object({
   vendorCode:         Joi.string().trim().allow('').max(30).optional(),
@@ -145,7 +183,54 @@ const vendorCreateSchema = Joi.object({
   currency:           Joi.string().trim().allow('').max(10).optional(),
 })
 
-const vendorPatchSchema = Joi.object({}).unknown(true)
+const vendorPatchSchema = Joi.object({
+  vendorCode: Joi.string().trim().allow('').max(30).optional(),
+  name: Joi.string().trim().min(1).max(200).optional(),
+  contactPerson: Joi.string().trim().allow('').max(120).optional(),
+  phone: Joi.string().trim().allow('').max(30).optional(),
+  email: Joi.string().email({ tlds: { allow: false } }).allow('').optional(),
+  address: Joi.string().trim().allow('').max(300).optional(),
+  city: Joi.string().trim().allow('').max(80).optional(),
+  country: Joi.string().trim().allow('').max(80).optional(),
+  postalCode: Joi.string().trim().allow('').max(20).optional(),
+  gstVat: Joi.string().trim().allow('').max(60).optional(),
+  taxRegistrationNo: Joi.string().trim().allow('').max(60).optional(),
+  paymentTermsDays: Joi.number().integer().min(0).optional(),
+  creditLimit: Joi.number().min(0).optional(),
+  category: Joi.string().trim().allow('').max(80).optional(),
+  rating: Joi.number().integer().min(1).max(5).optional(),
+  riskLevel: Joi.string().valid('low', 'medium', 'high', 'Low', 'Medium', 'High').optional(),
+  status: Joi.string().trim().allow('').max(30).optional(),
+  notes: Joi.string().trim().allow('').max(2000).optional(),
+  tags: Joi.alternatives().try(
+    Joi.array().items(Joi.string().trim().max(50)).max(20),
+    Joi.string().allow('').max(500)
+  ).optional(),
+  preferredCurrency: Joi.string().trim().allow('').max(10).optional(),
+  bankName: Joi.string().trim().allow('').max(120).optional(),
+  bankAccountNumber: Joi.string().trim().allow('').max(60).optional(),
+  iban: Joi.string().trim().allow('').max(34).optional(),
+  swiftCode: Joi.string().trim().allow('').max(20).optional(),
+  currency: Joi.string().trim().allow('').max(10).optional(),
+  isActive: Joi.boolean().optional(),
+}).min(1)
+
+const transactionPatchSchema = Joi.object({
+  type: Joi.string().valid(...TX_TYPES).optional(),
+  amount: Joi.number().optional(),
+  date: Joi.string().allow('', null).optional(),
+  description: Joi.string().trim().allow('').max(1000).optional(),
+  currency: Joi.string().trim().allow('').max(10).optional(),
+  exchangeRate: Joi.number().positive().optional(),
+  customerId: Joi.string().hex().length(24).allow('', null).optional(),
+  vendorId: Joi.string().hex().length(24).allow('', null).optional(),
+  inventoryItemId: Joi.string().hex().length(24).allow('', null).optional(),
+  mappingId: Joi.string().hex().length(24).allow('', null).optional(),
+  debitAccountId: Joi.string().hex().length(24).allow('', null).optional(),
+  creditAccountId: Joi.string().hex().length(24).allow('', null).optional(),
+  voucherMeta: Joi.object().optional(),
+  metalFixStatus: Joi.string().trim().allow('').max(30).optional(),
+}).min(1)
 
 const transactionCreateSchema = Joi.object({
   type:              Joi.string().valid(...TX_TYPES).required(),
@@ -185,51 +270,6 @@ const hardDeleteSchema = Joi.object({
 // ==========================================
 // ROLE-BASED ACCESS CONTROL
 // ==========================================
-const isSuperAdmin = (user) => user?.role === 'super_admin'
-const isDepartmentHead = (user) => user?.role === 'department_head'
-const isFinance = (user) => user?.role === 'super_admin' || (user?.role === 'department_head' && (user?.department || '').toLowerCase() === 'finance')
-const isSales = (user) => user?.role === 'super_admin' || user?.role === 'management' || (user?.role === 'department_head' && (user?.department || '').toLowerCase() === 'sales')
-const isOperations = (user) => user?.role === 'super_admin' || (user?.role === 'department_head' && (user?.department || '').toLowerCase() === 'operations')
-const isProduction = (user) => user?.role === 'super_admin' || (user?.role === 'department_head' && (user?.department || '').toLowerCase() === 'production')
-const isHR = (user) => user?.role === 'super_admin' || (user?.role === 'department_head' && (user?.department || '').toLowerCase() === 'hr')
-const roleName = (user) => {
-  if (isSuperAdmin(user)) return 'admin'
-  if (isFinance(user)) return 'finance'
-  if (isSales(user)) return 'sales'
-  if (isOperations(user) || isProduction(user)) return 'operations'
-  if (isHR(user)) return 'hr'
-  return 'none'
-}
-
-// Chart of Accounts & Mappings (Finance only)
-const canViewAccounts = (user) => isSuperAdmin(user) || isFinance(user)
-const canManageAccounts = (user) => isSuperAdmin(user) || isFinance(user)
-const canViewMappings = (user) => isSuperAdmin(user) || isFinance(user)
-const canManageMappings = (user) => isSuperAdmin(user) || isFinance(user)
-const canViewAccountSummary = (user) => isSuperAdmin(user) || isFinance(user) || isDepartmentHead(user)
-
-// Ledger (Finance and Department-level transaction posting)
-const canViewLedger = (user) => isSuperAdmin(user) || isFinance(user)
-const canCreateTransaction = (user) => {
-  // Manual journal entry access: Admin + Finance only
-  return isSuperAdmin(user) || isFinance(user)
-}
-const canCreateTransactionFor = (user, transactionType) => {
-  if (isSuperAdmin(user) || isFinance(user)) return true
-  if (isSales(user) && ['sale', 'receipt'].includes(transactionType)) return true
-  if ((isOperations(user) || isProduction(user)) && ['purchase', 'expense'].includes(transactionType)) return true
-  if (isHR(user) && ['payroll'].includes(transactionType)) return true
-  return false
-}
-
-const canAccessReports = (user) => isSuperAdmin(user) || isFinance(user)
-const canAccessVendors = (user) => isSuperAdmin(user) || isFinance(user) || isOperations(user)
-const canManageVendors = (user) => isSuperAdmin(user) || isFinance(user)
-const canUpdateVendorOperational = (user) => isSuperAdmin(user) || isFinance(user) || isOperations(user)
-const canAccessInventory = (user) => isSuperAdmin(user) || isFinance(user) || isOperations(user) || isProduction(user)
-const canAccessTransactions = (user) => isSuperAdmin(user) || isFinance(user) || isSales(user) || isOperations(user) || isProduction(user) || isHR(user)
-const canAccessDirectDeals = (user) => isSuperAdmin(user) || isFinance(user) || isSales(user)
-const canManageDirectDeals = (user) => isSuperAdmin(user) || isFinance(user) || isSales(user)
 
 const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
 const TRANSACTION_STATUSES = ['draft', 'submitted', 'approved', 'posted', 'returned', 'rejected']
@@ -2337,6 +2377,7 @@ function registerErpAccountingRoutes(router) {
     router,
     protect,
     validateBody,
+    validateBodyStrict,
     validateParams,
     customerCreateSchema,
     customerPatchSchema,
@@ -2454,6 +2495,7 @@ function registerErpAccountingRoutes(router) {
     router,
     protect,
     validateBody,
+    validateBodyStrict,
     validateParams,
     vendorCreateSchema,
     vendorPatchSchema,
@@ -2517,7 +2559,9 @@ function registerErpAccountingRoutes(router) {
     router,
     protect,
     validateBody,
+    validateBodyStrict,
     transactionCreateSchema,
+    transactionPatchSchema,
     transactionUpload,
     TRANSACTION_STATUSES,
     Transaction,

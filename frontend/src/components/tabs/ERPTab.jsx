@@ -24,6 +24,7 @@ import VoucherTab from './VoucherTab'
 import DirectDealsTab from './DirectDealsTab'
 import { DonutChart, MiniBarChart } from './erp/ERPTabCharts'
 import { useERPTabStateAdapter } from './erp/useERPTabStateAdapter'
+import { deriveErpAccessPolicy } from './erp/accessPolicy'
 import {
   ERPDashboardTabContainer,
   ERPAccountsTabContainer,
@@ -1153,31 +1154,27 @@ function ERPTab({ focusTab, onNavigateMain }) {
   }
 
   // Role-based permissions
-  const isSuperAdmin = user?.role === 'super_admin'
-  const isDepartmentHead = user?.role === 'department_head'
-  const isManagementRole = user?.role === 'management'
-  const dept = (user?.department || '').toLowerCase()
-  const isFinance = isSuperAdmin || (isDepartmentHead && dept === 'finance')
-  const isSalesRole = isSuperAdmin || isManagementRole || (isDepartmentHead && dept === 'sales')
-  const isOperationsRole = isSuperAdmin || (isDepartmentHead && ['operations', 'production'].includes(dept))
-  const isHRRole = isSuperAdmin || (isDepartmentHead && dept === 'hr')
-  const canViewAccounts = isSuperAdmin || isFinance
-  const canManageAccounts = isSuperAdmin || isFinance
-  const canViewLedger = isSuperAdmin || isFinance
-  const canViewCustomers = isSuperAdmin || isFinance || isSalesRole || user?.role === 'management'
-  const canManageCustomers = isSuperAdmin || isFinance || isSalesRole
-  const canViewBalanceEnquiry = isSuperAdmin || isFinance || isDepartmentHead
-  const canUpdateMetalRates = isDepartmentHead && dept === 'finance'
-  const canExportAccountSummary = isSuperAdmin
-  const canAccessTransactions = isSuperAdmin || isFinance || isSalesRole || isOperationsRole || isHRRole
-  const canAccessReports = isSuperAdmin || isFinance
-  const canAccessVendors = isSuperAdmin || isFinance || isOperationsRole
-  const canManageVendors = isSuperAdmin || isFinance
-  const canUpdateVendorOperational = canAccessVendors
-  const canAccessInventory = isSuperAdmin || isFinance || isOperationsRole
-  const canAccessVouchers = isSuperAdmin || isFinance || isSalesRole || isManagementRole
-  const canAccessDirectDeals = isSuperAdmin || isFinance || isSalesRole || isManagementRole
-  const canAccessERP = canViewAccounts || canAccessTransactions || canAccessInventory || canViewCustomers
+  const {
+    isSuperAdmin,
+    isDepartmentHead,
+    isFinance,
+    isSalesRole,
+    canManageAccounts,
+    canViewCustomers,
+    canManageCustomers,
+    canViewBalanceEnquiry,
+    canUpdateMetalRates,
+    canExportAccountSummary,
+    canAccessTransactions,
+    canAccessReports,
+    canAccessVendors,
+    canManageVendors,
+    canUpdateVendorOperational,
+    canAccessInventory,
+    canAccessVouchers,
+    canAccessDirectDeals,
+    canAccessERP,
+  } = deriveErpAccessPolicy(user)
   const selectedUsdConversionCurrency = currencies.find((currency) => currency.code === usdConversion.targetCode) || null
   const selectedUsdConversionRate = Number(selectedUsdConversionCurrency?.exchangeRate || 0)
   const usdAmountValue = Number(usdConversion.usdAmount || 0)
