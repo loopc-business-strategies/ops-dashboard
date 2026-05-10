@@ -3827,6 +3827,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   }
 
   const formatMoney = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
+  const formatMoneyAbs = (value) => Math.abs(Number(value || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })
   const normalizeBalanceDirection = (direction) => {
     const raw = String(direction || '').trim().toLowerCase()
     if (raw === 'debit' || raw === 'dr') return 'Dr'
@@ -4722,8 +4723,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
       body = `
         ${head}
         <div class="summary">
-          <div class="card"><div class="card-label">Assets</div><div class="card-value">${formatMoney(reports.balanceSheet?.totalAssets)}</div></div>
-          <div class="card"><div class="card-label">Liabilities + Equity</div><div class="card-value">${formatMoney(reports.balanceSheet?.liabilitiesPlusEquity)}</div></div>
+          <div class="card"><div class="card-label">Assets</div><div class="card-value">${formatMoneyAbs(reports.balanceSheet?.totalAssets)}</div></div>
+          <div class="card"><div class="card-label">Liabilities + Equity</div><div class="card-value">${formatMoneyAbs(reports.balanceSheet?.liabilitiesPlusEquity)}</div></div>
           <div class="card"><div class="card-label">Working Capital</div><div class="card-value">${formatMoney(reports.balanceSheet?.workingCapital)}</div></div>
         </div>
         ${section('Assets', reports.balanceSheet?.assets || [])}
@@ -7810,8 +7811,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
             </div>
             <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
               <p style={{ margin: 0, fontWeight: '700' }}>Balance Sheet</p>
-              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Assets: {Number(reports.balanceSheet?.totalAssets || 0).toLocaleString()}</p>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>L+E: {Number(reports.balanceSheet?.liabilitiesPlusEquity || 0).toLocaleString()}</p>
+              <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>Assets: {Math.abs(Number(reports.balanceSheet?.totalAssets || 0)).toLocaleString()}</p>
+              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>L+E: {Math.abs(Number(reports.balanceSheet?.liabilitiesPlusEquity || 0)).toLocaleString()}</p>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem' }}>Current Ratio: {reports.balanceSheet?.currentRatio ?? '-'}</p>
             </div>
             <div style={{ ...emptyCardStyle, borderStyle: 'solid' }}>
@@ -7971,8 +7972,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 </div>
               ))}
               <div style={{ gridColumn: '1 / -1', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-                <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Assets: {Number(reports.balanceSheet?.totalAssets || 0).toLocaleString()}</p>
-                <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Liabilities + Equity: {Number(reports.balanceSheet?.liabilitiesPlusEquity || 0).toLocaleString()}</p>
+                <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Assets: {Math.abs(Number(reports.balanceSheet?.totalAssets || 0)).toLocaleString()}</p>
+                <p style={{ margin: '0.15rem 0', fontWeight: '700' }}>Liabilities + Equity: {Math.abs(Number(reports.balanceSheet?.liabilitiesPlusEquity || 0)).toLocaleString()}</p>
                 <p style={{ margin: '0.15rem 0', color: Math.abs(Number(reports.balanceSheet?.difference || 0)) < 0.01 ? C.s1 : C.danger, fontWeight: '800' }}>Difference: {Number(reports.balanceSheet?.difference || 0).toLocaleString()}</p>
                 <p style={{ margin: '0.15rem 0' }}>Working Capital: {Number(reports.balanceSheet?.workingCapital || 0).toLocaleString()}</p>
                 <p style={{ margin: '0.15rem 0' }}>Current Ratio: {reports.balanceSheet?.currentRatio ?? '-'}</p>
@@ -7982,14 +7983,14 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 <div style={{ overflowX: 'auto', marginBottom: '0.9rem' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                     <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Month</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Assets</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Liabilities</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Equity</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Working Capital</th></tr></thead>
-                    <tbody>{(reports.balanceSheet?.monthlyComparison || []).map((row) => <tr key={row.label} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.label}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalAssets)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalLiabilities)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalEquity)}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.workingCapital)}</td></tr>)}</tbody>
+                    <tbody>{(reports.balanceSheet?.monthlyComparison || []).map((row) => <tr key={row.label} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.label}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoneyAbs(row.totalAssets)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoneyAbs(row.totalLiabilities)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoneyAbs(row.totalEquity)}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.workingCapital)}</td></tr>)}</tbody>
                   </table>
                 </div>
                 <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.6rem' }}>Quarterly Comparison</p>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                     <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Quarter</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Assets</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Liabilities</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Equity</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Working Capital</th></tr></thead>
-                    <tbody>{(reports.balanceSheet?.quarterlyComparison || []).map((row) => <tr key={row.label} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.label}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalAssets)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalLiabilities)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoney(row.totalEquity)}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.workingCapital)}</td></tr>)}</tbody>
+                    <tbody>{(reports.balanceSheet?.quarterlyComparison || []).map((row) => <tr key={row.label} style={{ borderBottom: `1px solid ${C.p2}` }}><td style={{ padding: '0.5rem' }}>{row.label}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoneyAbs(row.totalAssets)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoneyAbs(row.totalLiabilities)}</td><td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatMoneyAbs(row.totalEquity)}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '700' }}>{formatMoney(row.workingCapital)}</td></tr>)}</tbody>
                   </table>
                 </div>
               </div>
