@@ -97,313 +97,313 @@ Legend:
 
 ### Auth
 
-| Method | Endpoint | Permission Summary |
-|---|---|---|
-| POST | /api/auth/setup | Public setup (initial bootstrap) |
-| POST | /api/auth/login | Public login |
-| GET | /api/auth/me | Authenticated |
-| POST | /api/auth/logout | Authenticated |
-| POST | /api/auth/refresh | Authenticated |
-| GET | /api/auth/users | SA only |
-| POST | /api/auth/users | SA only |
-| PUT | /api/auth/users/:id/role | SA only |
-| PUT | /api/auth/users/:id/permissions | SA only |
-| PUT | /api/auth/users/:id/toggle | SA only |
-| DELETE | /api/auth/users/:id | SA only |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
+|---|---|---|---|
+| POST | /api/auth/setup | Public setup (initial bootstrap) | public handler |
+| POST | /api/auth/login | Public login | public handler |
+| GET | /api/auth/me | Authenticated | protect |
+| POST | /api/auth/logout | Authenticated | protect |
+| POST | /api/auth/refresh | Authenticated | protect |
+| GET | /api/auth/users | SA only | protect + restrictTo('super_admin') |
+| POST | /api/auth/users | SA only | protect + restrictTo('super_admin') |
+| PUT | /api/auth/users/:id/role | SA only | protect + restrictTo('super_admin') |
+| PUT | /api/auth/users/:id/permissions | SA only | protect + restrictTo('super_admin') |
+| PUT | /api/auth/users/:id/toggle | SA only | protect + restrictTo('super_admin') |
+| DELETE | /api/auth/users/:id | SA only | protect + restrictTo('super_admin') |
 
 ### Employees
 
-| Method | Endpoint | Permission Summary |
-|---|---|---|
-| GET | /api/hr/employees | Authenticated, scoped by role/department |
-| POST | /api/hr/employees | SA or HR DH |
-| PUT | /api/hr/employees/:id | SA or HR DH with scope checks |
-| DELETE | /api/hr/employees/:id | SA or HR DH with scope checks |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
+|---|---|---|---|
+| GET | /api/hr/employees | Authenticated, scoped by role/department | protect + buildEmployeeReadFilter |
+| POST | /api/hr/employees | SA or HR DH | protect + canManageEmployees |
+| PUT | /api/hr/employees/:id | SA or HR DH with scope checks | protect + canManageEmployees |
+| DELETE | /api/hr/employees/:id | SA or HR DH with scope checks | protect + canManageEmployees |
 
 ### Tasks
 
-| Method | Endpoint | Permission Summary |
-|---|---|---|
-| GET | /api/tasks | Authenticated, role-scoped visibility |
-| POST | /api/tasks | Any non-read-only role (not MGMT/EXT) |
-| PUT | /api/tasks/:id | SA; DH same dept; DU assigned/creator; MGMT/EXT denied |
-| POST | /api/tasks/:id/comments | Can view task and not read-only role |
-| DELETE | /api/tasks/:id | SA; DH same dept; DU creator only |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
+|---|---|---|---|
+| GET | /api/tasks | Authenticated, role-scoped visibility | protect + buildTaskReadFilter |
+| POST | /api/tasks | Any non-read-only role (not MGMT/EXT) | protect + canCreateTask |
+| PUT | /api/tasks/:id | SA; DH same dept; DU assigned/creator; MGMT/EXT denied | protect + canViewTask + canMutateTask |
+| POST | /api/tasks/:id/comments | Can view task and not read-only role | protect + canViewTask + isReadOnlyRole |
+| DELETE | /api/tasks/:id | SA; DH same dept; DU creator only | protect + canDeleteTask |
 
 ### Attendance
 
-| Method | Endpoint | Permission Summary |
-|---|---|---|
-| GET | /api/attendance/records | Authenticated, scoped by role |
-| GET | /api/attendance/summary | Authenticated, scoped by role |
-| GET | /api/attendance/me | Authenticated |
-| POST | /api/attendance/records | Authenticated (role validations apply) |
-| GET | /api/attendance/leave | Authenticated, scoped by role |
-| POST | /api/attendance/leave | Authenticated except MGMT blocked |
-| PUT | /api/attendance/leave/:id/decision | SA and DH workflow |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
+|---|---|---|---|
+| GET | /api/attendance/records | Authenticated, scoped by role | protect + role/dept scoping |
+| GET | /api/attendance/summary | Authenticated, scoped by role | protect + role/dept scoping |
+| GET | /api/attendance/me | Authenticated | protect + role/dept scoping |
+| POST | /api/attendance/records | Authenticated (role validations apply) | protect + canManageAttendance/canTouchDepartment |
+| GET | /api/attendance/leave | Authenticated, scoped by role | protect + role/dept scoping |
+| POST | /api/attendance/leave | Authenticated except MGMT blocked | protect + role checks + canTouchDepartment |
+| PUT | /api/attendance/leave/:id/decision | SA and DH workflow | protect + canReviewLeave |
 
 ### Messages And Realtime
 
-| Method | Endpoint | Permission Summary |
-|---|---|---|
-| GET | /api/messages/latest | Authenticated, scope-filtered by role/message visibility |
-| POST | /api/messages | Authenticated |
-| GET | /api/realtime/events | Authenticated |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
+|---|---|---|---|
+| GET | /api/messages/latest | Authenticated, scope-filtered by role/message visibility | protect + buildMessageScope |
+| POST | /api/messages | Authenticated | protect + buildMessageScope |
+| GET | /api/realtime/events | Authenticated | protect (SSE stream) |
 
 ### Department State
 
-| Method | Endpoint | Permission Summary |
-|---|---|---|
-| GET | /api/department-state/:module | Authenticated |
-| PUT | /api/department-state/:module | Authenticated |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
+|---|---|---|---|
+| GET | /api/department-state/:module | Authenticated | protect |
+| PUT | /api/department-state/:module | Authenticated | protect |
 
 ### CRM
 
-| Method | Endpoint | Permission Summary |
-|---|---|---|
-| GET | /api/crm/dashboard | salesOnly helper (sales role set) |
-| GET | /api/crm/templates/contacts | salesOnly |
-| GET | /api/crm/templates/companies | salesOnly |
-| GET | /api/crm/templates/deals | salesOnly |
-| GET | /api/crm/contacts/export | salesOnly |
-| POST | /api/crm/contacts/import | salesOnly |
-| GET | /api/crm/contacts | salesOnly |
-| POST | /api/crm/contacts | salesOnly |
-| PUT | /api/crm/contacts/:id | salesOnly |
-| DELETE | /api/crm/contacts/:id | SA only |
-| POST | /api/crm/contacts/:id/notes | salesOnly |
-| POST | /api/crm/contacts/:id/documents | salesOnly |
-| DELETE | /api/crm/contacts/:id/documents/:docId | salesOnly |
-| GET | /api/crm/companies/export | salesOnly |
-| POST | /api/crm/companies/import | salesOnly |
-| GET | /api/crm/companies | salesOnly |
-| POST | /api/crm/companies | salesOnly |
-| PUT | /api/crm/companies/:id | salesOnly |
-| DELETE | /api/crm/companies/:id | SA only |
-| GET | /api/crm/leads | salesOnly |
-| POST | /api/crm/leads | salesOnly |
-| PUT | /api/crm/leads/:id | salesOnly |
-| POST | /api/crm/leads/:id/stage | salesOnly |
-| DELETE | /api/crm/leads/:id | SA only |
-| GET | /api/crm/deals/export | salesOnly |
-| POST | /api/crm/deals/import | salesOnly |
-| GET | /api/crm/deals | salesOnly |
-| POST | /api/crm/deals | salesOnly |
-| PUT | /api/crm/deals/:id | salesOnly |
-| POST | /api/crm/deals/:id/close | salesOnly |
-| DELETE | /api/crm/deals/:id | SA only |
-| GET | /api/crm/activities | salesOnly |
-| POST | /api/crm/activities | salesOnly |
-| PUT | /api/crm/activities/:id | salesOnly |
-| DELETE | /api/crm/activities/:id | salesOnly |
-| PATCH | /api/crm/activities/:id/followup-done | salesOnly |
-| GET | /api/crm/followups | salesOnly |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
+|---|---|---|---|
+| GET | /api/crm/dashboard | salesOnly helper (sales role set) | salesOnly |
+| GET | /api/crm/templates/contacts | salesOnly | salesOnly |
+| GET | /api/crm/templates/companies | salesOnly | salesOnly |
+| GET | /api/crm/templates/deals | salesOnly | salesOnly |
+| GET | /api/crm/contacts/export | salesOnly | salesOnly |
+| POST | /api/crm/contacts/import | salesOnly | salesOnly |
+| GET | /api/crm/contacts | salesOnly | salesOnly |
+| POST | /api/crm/contacts | salesOnly | salesOnly |
+| PUT | /api/crm/contacts/:id | salesOnly | salesOnly |
+| DELETE | /api/crm/contacts/:id | SA only | salesOnly + canDelete |
+| POST | /api/crm/contacts/:id/notes | salesOnly | salesOnly |
+| POST | /api/crm/contacts/:id/documents | salesOnly | salesOnly |
+| DELETE | /api/crm/contacts/:id/documents/:docId | salesOnly | salesOnly |
+| GET | /api/crm/companies/export | salesOnly | salesOnly |
+| POST | /api/crm/companies/import | salesOnly | salesOnly |
+| GET | /api/crm/companies | salesOnly | salesOnly |
+| POST | /api/crm/companies | salesOnly | salesOnly |
+| PUT | /api/crm/companies/:id | salesOnly | salesOnly |
+| DELETE | /api/crm/companies/:id | SA only | salesOnly + canDelete |
+| GET | /api/crm/leads | salesOnly | salesOnly |
+| POST | /api/crm/leads | salesOnly | salesOnly |
+| PUT | /api/crm/leads/:id | salesOnly | salesOnly |
+| POST | /api/crm/leads/:id/stage | salesOnly | salesOnly |
+| DELETE | /api/crm/leads/:id | SA only | salesOnly + canDelete |
+| GET | /api/crm/deals/export | salesOnly | salesOnly |
+| POST | /api/crm/deals/import | salesOnly | salesOnly |
+| GET | /api/crm/deals | salesOnly | salesOnly |
+| POST | /api/crm/deals | salesOnly | salesOnly |
+| PUT | /api/crm/deals/:id | salesOnly | salesOnly |
+| POST | /api/crm/deals/:id/close | salesOnly | salesOnly |
+| DELETE | /api/crm/deals/:id | SA only | salesOnly + canDelete |
+| GET | /api/crm/activities | salesOnly | salesOnly |
+| POST | /api/crm/activities | salesOnly | salesOnly |
+| PUT | /api/crm/activities/:id | salesOnly | salesOnly |
+| DELETE | /api/crm/activities/:id | salesOnly | salesOnly |
+| PATCH | /api/crm/activities/:id/followup-done | salesOnly | salesOnly |
+| GET | /api/crm/followups | salesOnly | salesOnly |
 
 ### ERP Operational
 
-| Method | Endpoint | Permission Summary |
-|---|---|---|
-| GET | /api/erp/inventory | Authenticated; cost visibility scoped by helper |
-| POST | /api/erp/inventory | Scoped create rules in route helper |
-| PUT | /api/erp/inventory/:id | Scoped update rules |
-| DELETE | /api/erp/inventory/:id | Scoped delete rules |
-| GET | /api/erp/inventory/movements | Authenticated |
-| GET | /api/erp/procurement/suppliers | Authenticated |
-| POST | /api/erp/procurement/suppliers | Scoped write rules |
-| PUT | /api/erp/procurement/suppliers/:id | Scoped write rules |
-| DELETE | /api/erp/procurement/suppliers/:id | Scoped delete rules |
-| GET | /api/erp/procurement/purchase-orders | Authenticated |
-| POST | /api/erp/procurement/purchase-orders | canCreatePO helper |
-| PUT | /api/erp/procurement/purchase-orders/:id | Scoped PO workflow rules |
-| DELETE | /api/erp/procurement/purchase-orders/:id | canCreatePO helper |
-| GET | /api/erp/production/work-orders | Authenticated |
-| POST | /api/erp/production/work-orders | Scoped production write rules |
-| PUT | /api/erp/production/work-orders/:id | Scoped production write rules |
-| DELETE | /api/erp/production/work-orders/:id | Scoped production delete rules |
-| GET | /api/erp/finance/records | Authenticated |
-| POST | /api/erp/finance/records | Scoped finance write rules |
-| PUT | /api/erp/finance/records/:id | Scoped finance write rules |
-| DELETE | /api/erp/finance/records/:id | Scoped finance delete rules |
-| GET | /api/erp/procurement/documents | Authenticated |
-| POST | /api/erp/procurement/documents | canUploadProcDocs helper |
-| DELETE | /api/erp/procurement/documents/:id | Scoped delete rules |
-| GET | /api/erp/alerts/expiry | Authenticated |
-| PUT | /api/erp/alerts/expiry/:id/resolve | Scoped write rules |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
+|---|---|---|---|
+| GET | /api/erp/inventory | Authenticated; cost visibility scoped by helper | protect + canViewInventoryCosts |
+| POST | /api/erp/inventory | Scoped create rules in route helper | protect + canEditInventory |
+| PUT | /api/erp/inventory/:id | Scoped update rules | protect + canEditInventory |
+| DELETE | /api/erp/inventory/:id | Scoped delete rules | protect + canEditInventory |
+| GET | /api/erp/inventory/movements | Authenticated | protect + canViewInventoryCosts |
+| GET | /api/erp/procurement/suppliers | Authenticated | protect + canManageSuppliers |
+| POST | /api/erp/procurement/suppliers | Scoped write rules | protect + canManageSuppliers |
+| PUT | /api/erp/procurement/suppliers/:id | Scoped write rules | protect + canManageSuppliers |
+| DELETE | /api/erp/procurement/suppliers/:id | Scoped delete rules | protect + canManageSuppliers |
+| GET | /api/erp/procurement/purchase-orders | Authenticated | protect + route-specific helper |
+| POST | /api/erp/procurement/purchase-orders | canCreatePO helper | protect + canCreatePO |
+| PUT | /api/erp/procurement/purchase-orders/:id | Scoped PO workflow rules | protect + canCreatePO/canApprovePOBudget |
+| DELETE | /api/erp/procurement/purchase-orders/:id | canCreatePO helper | protect + canCreatePO |
+| GET | /api/erp/production/work-orders | Authenticated | protect + canManageProduction |
+| POST | /api/erp/production/work-orders | Scoped production write rules | protect + canManageProduction |
+| PUT | /api/erp/production/work-orders/:id | Scoped production write rules | protect + canManageProduction |
+| DELETE | /api/erp/production/work-orders/:id | Scoped production delete rules | protect + canManageProduction |
+| GET | /api/erp/finance/records | Authenticated | protect + canManageFinance |
+| POST | /api/erp/finance/records | Scoped finance write rules | protect + canManageFinance |
+| PUT | /api/erp/finance/records/:id | Scoped finance write rules | protect + canManageFinance |
+| DELETE | /api/erp/finance/records/:id | Scoped finance delete rules | protect + canManageFinance |
+| GET | /api/erp/procurement/documents | Authenticated | protect + canUploadProcDocs/canCreatePO |
+| POST | /api/erp/procurement/documents | canUploadProcDocs helper | protect + canUploadProcDocs |
+| DELETE | /api/erp/procurement/documents/:id | Scoped delete rules | protect + canUploadProcDocs/canCreatePO |
+| GET | /api/erp/alerts/expiry | Authenticated | protect + canManageSuppliers |
+| PUT | /api/erp/alerts/expiry/:id/resolve | Scoped write rules | protect + canManageSuppliers |
 
 ### Finance
 
-| Method | Endpoint | Permission Summary |
-|---|---|---|
-| GET | /api/finance/invoices | Authenticated |
-| POST | /api/finance/invoices | SA or finance/hr DH |
-| PUT | /api/finance/invoices/:id | SA or finance/hr DH |
-| DELETE | /api/finance/invoices/:id | SA only |
-| GET | /api/finance/expenses | Authenticated |
-| POST | /api/finance/expenses | SA or finance/hr DH |
-| PUT | /api/finance/expenses/:id | SA or finance/hr DH |
-| DELETE | /api/finance/expenses/:id | SA only |
-| GET | /api/finance/payroll | Authenticated |
-| POST | /api/finance/payroll | SA or finance/hr DH |
-| PUT | /api/finance/payroll/:id | SA or finance/hr DH |
-| DELETE | /api/finance/payroll/:id | SA only |
-| GET | /api/finance/budgets | Authenticated |
-| POST | /api/finance/budgets | SA or finance/hr DH |
-| PUT | /api/finance/budgets/:id | SA or finance/hr DH |
-| DELETE | /api/finance/budgets/:id | SA only |
-| GET | /api/finance/taxes | Authenticated |
-| POST | /api/finance/taxes | SA or finance/hr DH |
-| PUT | /api/finance/taxes/:id | SA or finance/hr DH |
-| DELETE | /api/finance/taxes/:id | SA only |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
+|---|---|---|---|
+| GET | /api/finance/invoices | Authenticated | protect |
+| POST | /api/finance/invoices | SA or finance/hr DH | protect + canWrite |
+| PUT | /api/finance/invoices/:id | SA or finance/hr DH | protect + canWrite |
+| DELETE | /api/finance/invoices/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/finance/expenses | Authenticated | protect |
+| POST | /api/finance/expenses | SA or finance/hr DH | protect + canWrite |
+| PUT | /api/finance/expenses/:id | SA or finance/hr DH | protect + canWrite |
+| DELETE | /api/finance/expenses/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/finance/payroll | Authenticated | protect |
+| POST | /api/finance/payroll | SA or finance/hr DH | protect + canWrite |
+| PUT | /api/finance/payroll/:id | SA or finance/hr DH | protect + canWrite |
+| DELETE | /api/finance/payroll/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/finance/budgets | Authenticated | protect |
+| POST | /api/finance/budgets | SA or finance/hr DH | protect + canWrite |
+| PUT | /api/finance/budgets/:id | SA or finance/hr DH | protect + canWrite |
+| DELETE | /api/finance/budgets/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/finance/taxes | Authenticated | protect |
+| POST | /api/finance/taxes | SA or finance/hr DH | protect + canWrite |
+| PUT | /api/finance/taxes/:id | SA or finance/hr DH | protect + canWrite |
+| DELETE | /api/finance/taxes/:id | SA only | protect + req.user.role==='super_admin' |
 
 ### Compliance
 
-| Method | Endpoint | Permission Summary |
-|---|---|---|
-| GET | /api/compliance/eligibility | Authenticated |
-| POST | /api/compliance/eligibility | SA or government/compliance/finance DH |
-| PUT | /api/compliance/eligibility/:id | SA or government/compliance/finance DH |
-| DELETE | /api/compliance/eligibility/:id | SA only |
-| GET | /api/compliance/approvals | Authenticated |
-| POST | /api/compliance/approvals | SA or government/compliance/finance DH |
-| PUT | /api/compliance/approvals/:id | SA or government/compliance/finance DH |
-| DELETE | /api/compliance/approvals/:id | SA only |
-| GET | /api/compliance/docs | Authenticated |
-| POST | /api/compliance/docs | SA or government/compliance/finance DH |
-| PUT | /api/compliance/docs/:id | SA or government/compliance/finance DH |
-| DELETE | /api/compliance/docs/:id | SA only |
-| GET | /api/compliance/updates | Authenticated |
-| POST | /api/compliance/updates | SA or government/compliance/finance DH |
-| PUT | /api/compliance/updates/:id | SA or government/compliance/finance DH |
-| DELETE | /api/compliance/updates/:id | SA only |
-| GET | /api/compliance/agreements | Authenticated |
-| POST | /api/compliance/agreements | SA or government/compliance/finance DH |
-| PUT | /api/compliance/agreements/:id | SA or government/compliance/finance DH |
-| DELETE | /api/compliance/agreements/:id | SA only |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
+|---|---|---|---|
+| GET | /api/compliance/eligibility | Authenticated | protect |
+| POST | /api/compliance/eligibility | SA or government/compliance/finance DH | protect + canWrite |
+| PUT | /api/compliance/eligibility/:id | SA or government/compliance/finance DH | protect + canWrite |
+| DELETE | /api/compliance/eligibility/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/compliance/approvals | Authenticated | protect |
+| POST | /api/compliance/approvals | SA or government/compliance/finance DH | protect + canWrite |
+| PUT | /api/compliance/approvals/:id | SA or government/compliance/finance DH | protect + canWrite |
+| DELETE | /api/compliance/approvals/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/compliance/docs | Authenticated | protect |
+| POST | /api/compliance/docs | SA or government/compliance/finance DH | protect + canWrite |
+| PUT | /api/compliance/docs/:id | SA or government/compliance/finance DH | protect + canWrite |
+| DELETE | /api/compliance/docs/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/compliance/updates | Authenticated | protect |
+| POST | /api/compliance/updates | SA or government/compliance/finance DH | protect + canWrite |
+| PUT | /api/compliance/updates/:id | SA or government/compliance/finance DH | protect + canWrite |
+| DELETE | /api/compliance/updates/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/compliance/agreements | Authenticated | protect |
+| POST | /api/compliance/agreements | SA or government/compliance/finance DH | protect + canWrite |
+| PUT | /api/compliance/agreements/:id | SA or government/compliance/finance DH | protect + canWrite |
+| DELETE | /api/compliance/agreements/:id | SA only | protect + req.user.role==='super_admin' |
 
 ### Training
 
-| Method | Endpoint | Permission Summary |
-|---|---|---|
-| GET | /api/training/sessions | Authenticated |
-| POST | /api/training/sessions | SA or any DH |
-| PUT | /api/training/sessions/:id | SA or any DH |
-| DELETE | /api/training/sessions/:id | SA only |
-| GET | /api/training/batches | Authenticated |
-| POST | /api/training/batches | SA or any DH |
-| PUT | /api/training/batches/:id | SA or any DH |
-| DELETE | /api/training/batches/:id | SA only |
-| GET | /api/training/attendance | Authenticated |
-| POST | /api/training/attendance | SA or any DH |
-| PUT | /api/training/attendance/:id | SA or any DH |
-| DELETE | /api/training/attendance/:id | SA only |
-| GET | /api/training/resources | Authenticated |
-| POST | /api/training/resources | SA or any DH |
-| PUT | /api/training/resources/:id | SA or any DH |
-| DELETE | /api/training/resources/:id | SA only |
-| GET | /api/training/assessments | Authenticated |
-| POST | /api/training/assessments | SA or any DH |
-| PUT | /api/training/assessments/:id | SA or any DH |
-| DELETE | /api/training/assessments/:id | SA only |
-| GET | /api/training/certs | Authenticated |
-| POST | /api/training/certs | SA or any DH |
-| PUT | /api/training/certs/:id | SA or any DH |
-| DELETE | /api/training/certs/:id | SA only |
-| GET | /api/training/feedback | Authenticated |
-| POST | /api/training/feedback | SA or any DH |
-| PUT | /api/training/feedback/:id | SA or any DH |
-| DELETE | /api/training/feedback/:id | SA only |
-| GET | /api/training/trainees | Authenticated |
-| POST | /api/training/trainees | SA or any DH |
-| PUT | /api/training/trainees/:id | SA or any DH |
-| DELETE | /api/training/trainees/:id | SA only |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
+|---|---|---|---|
+| GET | /api/training/sessions | Authenticated | protect |
+| POST | /api/training/sessions | SA or any DH | protect + canWrite |
+| PUT | /api/training/sessions/:id | SA or any DH | protect + canWrite |
+| DELETE | /api/training/sessions/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/training/batches | Authenticated | protect |
+| POST | /api/training/batches | SA or any DH | protect + canWrite |
+| PUT | /api/training/batches/:id | SA or any DH | protect + canWrite |
+| DELETE | /api/training/batches/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/training/attendance | Authenticated | protect |
+| POST | /api/training/attendance | SA or any DH | protect + canWrite |
+| PUT | /api/training/attendance/:id | SA or any DH | protect + canWrite |
+| DELETE | /api/training/attendance/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/training/resources | Authenticated | protect |
+| POST | /api/training/resources | SA or any DH | protect + canWrite |
+| PUT | /api/training/resources/:id | SA or any DH | protect + canWrite |
+| DELETE | /api/training/resources/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/training/assessments | Authenticated | protect |
+| POST | /api/training/assessments | SA or any DH | protect + canWrite |
+| PUT | /api/training/assessments/:id | SA or any DH | protect + canWrite |
+| DELETE | /api/training/assessments/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/training/certs | Authenticated | protect |
+| POST | /api/training/certs | SA or any DH | protect + canWrite |
+| PUT | /api/training/certs/:id | SA or any DH | protect + canWrite |
+| DELETE | /api/training/certs/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/training/feedback | Authenticated | protect |
+| POST | /api/training/feedback | SA or any DH | protect + canWrite |
+| PUT | /api/training/feedback/:id | SA or any DH | protect + canWrite |
+| DELETE | /api/training/feedback/:id | SA only | protect + req.user.role==='super_admin' |
+| GET | /api/training/trainees | Authenticated | protect |
+| POST | /api/training/trainees | SA or any DH | protect + canWrite |
+| PUT | /api/training/trainees/:id | SA or any DH | protect + canWrite |
+| DELETE | /api/training/trainees/:id | SA only | protect + req.user.role==='super_admin' |
 
 ### ERP Accounting
 
-| Method | Endpoint | Permission Summary |
-|---|---|---|
-| GET | /api/erp-accounting/accounts | SA or Finance DH |
-| GET | /api/erp-accounting/accounts/enquiry | SA, Finance DH, Department Head summary access |
-| GET | /api/erp-accounting/accounts/:id | SA or Finance DH |
-| POST | /api/erp-accounting/accounts | SA or Finance DH |
-| POST | /api/erp-accounting/accounts/bulk-seed | SA only |
-| PUT | /api/erp-accounting/accounts/:id | SA or Finance DH |
-| DELETE | /api/erp-accounting/accounts/:id | SA or Finance DH |
-| POST | /api/erp-accounting/accounts/hard-delete-by-code | SA only |
-| GET | /api/erp-accounting/ledger | SA or Finance DH |
-| POST | /api/erp-accounting/ledger | SA or Finance DH |
-| PUT | /api/erp-accounting/ledger/:id | SA or Finance DH |
-| DELETE | /api/erp-accounting/ledger/:id | SA or Finance DH |
-| DELETE | /api/erp-accounting/ledger/:id/permanent | SA only |
-| PUT | /api/erp-accounting/ledger/:id/reconcile | SA or Finance DH |
-| GET | /api/erp-accounting/mappings | SA or Finance DH |
-| POST | /api/erp-accounting/mappings | SA or Finance DH |
-| PUT | /api/erp-accounting/mappings/:id | SA or Finance DH |
-| DELETE | /api/erp-accounting/mappings/:id | SA or Finance DH |
-| GET | /api/erp-accounting/currencies | SA or Finance DH |
-| POST | /api/erp-accounting/currencies/seed-defaults | SA or Finance DH |
-| GET | /api/erp-accounting/report-branding | SA or Finance DH |
-| PUT | /api/erp-accounting/report-branding | SA or Finance DH |
-| GET | /api/erp-accounting/metal-rates | SA or Finance DH |
-| PUT | /api/erp-accounting/metal-rates | SA or Finance DH |
-| POST | /api/erp-accounting/currencies | SA or Finance DH |
-| PUT | /api/erp-accounting/currencies/:id | SA or Finance DH |
-| DELETE | /api/erp-accounting/currencies/:id | SA or Finance DH |
-| GET | /api/erp-accounting/customers | SA, Finance DH, Sales DH |
-| GET | /api/erp-accounting/customers/:id/aging | SA, Finance DH, Sales DH |
-| POST | /api/erp-accounting/customers | SA, Finance DH, Sales DH |
-| PUT | /api/erp-accounting/customers/:id | SA, Finance DH, Sales DH |
-| DELETE | /api/erp-accounting/customers/:id | SA, Finance DH, Sales DH |
-| GET | /api/erp-accounting/vendors | SA, Finance DH, Operations DH |
-| GET | /api/erp-accounting/vendors/compliance-summary | SA, Finance DH, Operations DH |
-| GET | /api/erp-accounting/vendors/alerts/overdue-queue | SA, Finance DH, Operations DH |
-| POST | /api/erp-accounting/vendors | SA or Finance DH |
-| PUT | /api/erp-accounting/vendors/:id | SA, Finance DH, Operations DH |
-| GET | /api/erp-accounting/vendors/:id/details | SA, Finance DH, Operations DH |
-| POST | /api/erp-accounting/vendors/:id/workflow | SA, Finance DH, Operations DH (approval/blacklist stricter finance/admin) |
-| GET | /api/erp-accounting/vendors/:id/documents | SA, Finance DH, Operations DH |
-| POST | /api/erp-accounting/vendors/:id/documents | SA, Finance DH, Operations DH |
-| PUT | /api/erp-accounting/vendors/:id/documents/:documentId | SA, Finance DH, Operations DH |
-| DELETE | /api/erp-accounting/vendors/:id/documents/:documentId | SA, Finance DH, Operations DH |
-| GET | /api/erp-accounting/vendors/payment-calendar | SA, Finance DH, Operations DH |
-| DELETE | /api/erp-accounting/vendors/:id | SA or Finance DH |
-| GET | /api/erp-accounting/inventory/products | SA, Finance DH, Operations DH, Production DH |
-| POST | /api/erp-accounting/inventory/products | SA or Finance DH |
-| POST | /api/erp-accounting/inventory/stock-in | SA, Finance DH, Operations DH, Production DH |
-| POST | /api/erp-accounting/inventory/stock-out | SA, Finance DH, Operations DH, Production DH |
-| PUT | /api/erp-accounting/inventory/products/:id | SA, Finance DH, Operations DH, Production DH |
-| DELETE | /api/erp-accounting/inventory/products/:id | SA or Finance DH |
-| GET | /api/erp-accounting/inventory/stock-ledger | SA, Finance DH, Operations DH, Production DH |
-| DELETE | /api/erp-accounting/inventory/stock-ledger | SA only |
-| GET | /api/erp-accounting/direct-deals | SA, Finance DH, Sales DH |
-| POST | /api/erp-accounting/direct-deals | SA, Finance DH, Sales DH |
-| PUT | /api/erp-accounting/direct-deals/:id | SA, Finance DH, Sales DH (confirmed lock rules apply) |
-| DELETE | /api/erp-accounting/direct-deals/:id | SA, Finance DH, Sales DH (confirmed lock rules apply) |
-| GET | /api/erp-accounting/reports/trial-balance | SA or Finance DH |
-| GET | /api/erp-accounting/reports/ledger | SA or Finance DH |
-| GET | /api/erp-accounting/reports/profit-loss | SA or Finance DH |
-| GET | /api/erp-accounting/reports/balance-sheet | SA or Finance DH |
-| GET | /api/erp-accounting/reports/day-book | SA or Finance DH |
-| GET | /api/erp-accounting/reports/customer-outstanding | SA or Finance DH |
-| GET | /api/erp-accounting/reports/vendor-outstanding | SA or Finance DH |
-| GET | /api/erp-accounting/reports/forex-gain-loss | SA or Finance DH |
-| GET | /api/erp-accounting/reports/dashboard | SA or Finance DH |
-| GET | /api/erp-accounting/transactions | Transaction access helper (finance/admin scoped) |
-| POST | /api/erp-accounting/transactions | Transaction create helper |
-| PUT | /api/erp-accounting/transactions/:id | Transaction manage helper |
-| POST | /api/erp-accounting/transactions/:id/void | Transaction manage helper |
-| DELETE | /api/erp-accounting/transactions/:id | Transaction manage helper |
-| POST | /api/erp-accounting/transactions/:id/submit | Transaction workflow helper |
-| POST | /api/erp-accounting/transactions/:id/approve | Transaction workflow helper |
-| POST | /api/erp-accounting/transactions/:id/post | Transaction workflow helper |
-| POST | /api/erp-accounting/transactions/:id/revalue-fx-journal | Transaction workflow helper |
-| POST | /api/erp-accounting/transactions/:id/comments | Transaction access helper |
-| POST | /api/erp-accounting/transactions/:id/attachments | Transaction access helper |
-| DELETE | /api/erp-accounting/transactions/:id/attachments/:attachmentId | Transaction manage helper |
-| POST | /api/erp-accounting/transactions/:id/return | Transaction workflow helper |
-| POST | /api/erp-accounting/transactions/:id/reject | Transaction workflow helper |
-| POST | /api/erp-accounting/transactions/bulk-action | Transaction manage helper |
-| GET | /api/erp-accounting/transactions/source-by-ledger/:ledgerId | Transaction access helper |
-| GET | /api/erp-accounting/attachments/download/:type/:filename | Authenticated + record-level access checks |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
+|---|---|---|---|
+| GET | /api/erp-accounting/accounts | SA or Finance DH | protect + canViewAccounts |
+| GET | /api/erp-accounting/accounts/enquiry | SA, Finance DH, Department Head summary access | protect + canViewAccountSummary |
+| GET | /api/erp-accounting/accounts/:id | SA or Finance DH | protect + canViewAccounts |
+| POST | /api/erp-accounting/accounts | SA or Finance DH | protect + canManageAccounts |
+| POST | /api/erp-accounting/accounts/bulk-seed | SA only | protect + isSuperAdmin |
+| PUT | /api/erp-accounting/accounts/:id | SA or Finance DH | protect + canManageAccounts |
+| DELETE | /api/erp-accounting/accounts/:id | SA or Finance DH | protect + canManageAccounts |
+| POST | /api/erp-accounting/accounts/hard-delete-by-code | SA only | protect + isSuperAdmin |
+| GET | /api/erp-accounting/ledger | SA or Finance DH | protect + canViewLedger |
+| POST | /api/erp-accounting/ledger | SA or Finance DH | protect + canManageAccounts |
+| PUT | /api/erp-accounting/ledger/:id | SA or Finance DH | protect + canManageAccounts |
+| DELETE | /api/erp-accounting/ledger/:id | SA or Finance DH | protect + canManageAccounts |
+| DELETE | /api/erp-accounting/ledger/:id/permanent | SA only | protect + isSuperAdmin |
+| PUT | /api/erp-accounting/ledger/:id/reconcile | SA or Finance DH | protect + canManageAccounts |
+| GET | /api/erp-accounting/mappings | SA or Finance DH | protect + canViewMappings |
+| POST | /api/erp-accounting/mappings | SA or Finance DH | protect + canManageMappings |
+| PUT | /api/erp-accounting/mappings/:id | SA or Finance DH | protect + canManageMappings |
+| DELETE | /api/erp-accounting/mappings/:id | SA or Finance DH | protect + canManageMappings |
+| GET | /api/erp-accounting/currencies | SA or Finance DH | protect + canViewAccounts |
+| POST | /api/erp-accounting/currencies/seed-defaults | SA or Finance DH | protect + canManageAccounts |
+| GET | /api/erp-accounting/report-branding | SA or Finance DH | protect + canViewAccounts |
+| PUT | /api/erp-accounting/report-branding | SA or Finance DH | protect + canManageAccounts |
+| GET | /api/erp-accounting/metal-rates | SA or Finance DH | protect + canViewAccounts |
+| PUT | /api/erp-accounting/metal-rates | SA or Finance DH | protect + canManageAccounts |
+| POST | /api/erp-accounting/currencies | SA or Finance DH | protect + canManageAccounts |
+| PUT | /api/erp-accounting/currencies/:id | SA or Finance DH | protect + canManageAccounts |
+| DELETE | /api/erp-accounting/currencies/:id | SA or Finance DH | protect + canManageAccounts |
+| GET | /api/erp-accounting/customers | SA, Finance DH, Sales DH | protect + canViewCustomers |
+| GET | /api/erp-accounting/customers/:id/aging | SA, Finance DH, Sales DH | protect + canViewCustomers |
+| POST | /api/erp-accounting/customers | SA, Finance DH, Sales DH | protect + canManageCustomers |
+| PUT | /api/erp-accounting/customers/:id | SA, Finance DH, Sales DH | protect + canManageCustomers |
+| DELETE | /api/erp-accounting/customers/:id | SA, Finance DH, Sales DH | protect + canManageCustomers |
+| GET | /api/erp-accounting/vendors | SA, Finance DH, Operations DH | protect + canAccessVendors |
+| GET | /api/erp-accounting/vendors/compliance-summary | SA, Finance DH, Operations DH | protect + canAccessVendors |
+| GET | /api/erp-accounting/vendors/alerts/overdue-queue | SA, Finance DH, Operations DH | protect + canAccessVendors |
+| POST | /api/erp-accounting/vendors | SA or Finance DH | protect + isSuperAdmin/isFinance |
+| PUT | /api/erp-accounting/vendors/:id | SA, Finance DH, Operations DH | protect + canUpdateVendorOperational |
+| GET | /api/erp-accounting/vendors/:id/details | SA, Finance DH, Operations DH | protect + canAccessVendors |
+| POST | /api/erp-accounting/vendors/:id/workflow | SA, Finance DH, Operations DH (approval/blacklist stricter finance/admin) | protect + canUpdateVendorOperational |
+| GET | /api/erp-accounting/vendors/:id/documents | SA, Finance DH, Operations DH | protect + canAccessVendors |
+| POST | /api/erp-accounting/vendors/:id/documents | SA, Finance DH, Operations DH | protect + canUpdateVendorOperational |
+| PUT | /api/erp-accounting/vendors/:id/documents/:documentId | SA, Finance DH, Operations DH | protect + canUpdateVendorOperational |
+| DELETE | /api/erp-accounting/vendors/:id/documents/:documentId | SA, Finance DH, Operations DH | protect + canUpdateVendorOperational |
+| GET | /api/erp-accounting/vendors/payment-calendar | SA, Finance DH, Operations DH | protect + canAccessVendors |
+| DELETE | /api/erp-accounting/vendors/:id | SA or Finance DH | protect + isSuperAdmin/isFinance |
+| GET | /api/erp-accounting/inventory/products | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory |
+| POST | /api/erp-accounting/inventory/products | SA or Finance DH | protect + canAccessInventory |
+| POST | /api/erp-accounting/inventory/stock-in | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory |
+| POST | /api/erp-accounting/inventory/stock-out | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory |
+| PUT | /api/erp-accounting/inventory/products/:id | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory |
+| DELETE | /api/erp-accounting/inventory/products/:id | SA or Finance DH | protect + isSuperAdmin/isFinance |
+| GET | /api/erp-accounting/inventory/stock-ledger | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory |
+| DELETE | /api/erp-accounting/inventory/stock-ledger | SA only | protect + isSuperAdmin |
+| GET | /api/erp-accounting/direct-deals | SA, Finance DH, Sales DH | protect + canAccessDirectDeals |
+| POST | /api/erp-accounting/direct-deals | SA, Finance DH, Sales DH | protect + canManageDirectDeals |
+| PUT | /api/erp-accounting/direct-deals/:id | SA, Finance DH, Sales DH (confirmed lock rules apply) | protect + canManageDirectDeals |
+| DELETE | /api/erp-accounting/direct-deals/:id | SA, Finance DH, Sales DH (confirmed lock rules apply) | protect + canManageDirectDeals |
+| GET | /api/erp-accounting/reports/trial-balance | SA or Finance DH | protect + canAccessReports |
+| GET | /api/erp-accounting/reports/ledger | SA or Finance DH | protect + canAccessReports |
+| GET | /api/erp-accounting/reports/profit-loss | SA or Finance DH | protect + canAccessReports |
+| GET | /api/erp-accounting/reports/balance-sheet | SA or Finance DH | protect + canAccessReports |
+| GET | /api/erp-accounting/reports/day-book | SA or Finance DH | protect + canAccessReports |
+| GET | /api/erp-accounting/reports/customer-outstanding | SA or Finance DH | protect + canAccessReports |
+| GET | /api/erp-accounting/reports/vendor-outstanding | SA or Finance DH | protect + canAccessReports |
+| GET | /api/erp-accounting/reports/forex-gain-loss | SA or Finance DH | protect + canAccessReports |
+| GET | /api/erp-accounting/reports/dashboard | SA or Finance DH | protect + canAccessReports |
+| GET | /api/erp-accounting/transactions | Transaction access helper (finance/admin scoped) | protect + canAccessTransactions |
+| POST | /api/erp-accounting/transactions | Transaction create helper | protect + canCreateTransactionFor |
+| PUT | /api/erp-accounting/transactions/:id | Transaction manage helper | protect + canCreateTransactionFor |
+| POST | /api/erp-accounting/transactions/:id/void | Transaction manage helper | protect + canCreateTransactionFor |
+| DELETE | /api/erp-accounting/transactions/:id | Transaction manage helper | protect + canCreateTransactionFor |
+| POST | /api/erp-accounting/transactions/:id/submit | Transaction workflow helper | protect + applyTransactionWorkflowAction |
+| POST | /api/erp-accounting/transactions/:id/approve | Transaction workflow helper | protect + applyTransactionWorkflowAction |
+| POST | /api/erp-accounting/transactions/:id/post | Transaction workflow helper | protect + applyTransactionWorkflowAction |
+| POST | /api/erp-accounting/transactions/:id/revalue-fx-journal | Transaction workflow helper | protect + build/applyFxJournalRevaluation |
+| POST | /api/erp-accounting/transactions/:id/comments | Transaction access helper | protect + canAccessTransactions + appendTransactionComment |
+| POST | /api/erp-accounting/transactions/:id/attachments | Transaction access helper | protect + validateAttachmentContent |
+| DELETE | /api/erp-accounting/transactions/:id/attachments/:attachmentId | Transaction manage helper | protect + canCreateTransactionFor |
+| POST | /api/erp-accounting/transactions/:id/return | Transaction workflow helper | protect + applyTransactionWorkflowAction |
+| POST | /api/erp-accounting/transactions/:id/reject | Transaction workflow helper | protect + applyTransactionWorkflowAction |
+| POST | /api/erp-accounting/transactions/bulk-action | Transaction manage helper | protect + canCreateTransactionFor |
+| GET | /api/erp-accounting/transactions/source-by-ledger/:ledgerId | Transaction access helper | protect + canAccessTransactions |
+| GET | /api/erp-accounting/attachments/download/:type/:filename | Authenticated + record-level access checks | protect + record-level access checks |
 
 ## 5) Permission Rule References
 
