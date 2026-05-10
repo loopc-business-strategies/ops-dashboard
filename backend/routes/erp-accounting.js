@@ -4227,6 +4227,14 @@ const buildBalanceSheetSummary = async (endDate) => {
   const assets = []
   const liabilities = []
   const equity = []
+  let incomeSignedTotal = 0
+  let expenseSignedTotal = 0
+
+  const normalizeBalanceByType = (accountType, signedBalance) => {
+    if (accountType === 'Asset') return signedBalance
+    if (accountType === 'Liability' || accountType === 'Equity') return -signedBalance
+    return signedBalance
+  }
 
   accounts.forEach((account) => {
     const bal = Number(account.openingBalance || 0) + Number(balanceByAccount.get(account._id.toString()) || 0)
@@ -4234,13 +4242,27 @@ const buildBalanceSheetSummary = async (endDate) => {
       accountId: account._id,
       accountCode: account.accountCode,
       accountName: account.accountName,
-      balance: toMoney(Math.abs(bal)),
+      balance: toMoney(normalizeBalanceByType(account.accountType, bal)),
       signedBalance: toMoney(bal),
     }
     if (account.accountType === 'Asset') assets.push(row)
     if (account.accountType === 'Liability') liabilities.push(row)
     if (account.accountType === 'Equity') equity.push(row)
+    if (account.accountType === 'Income') incomeSignedTotal += bal
+    if (account.accountType === 'Expense') expenseSignedTotal += bal
   })
+
+  // Include current-period earnings so the balance sheet remains aligned when P&L accounts are not year-end closed.
+  const retainedEarnings = toMoney(-(Number(incomeSignedTotal) + Number(expenseSignedTotal)))
+  if (Math.abs(retainedEarnings) >= 0.01) {
+    equity.push({
+      accountId: null,
+      accountCode: 'RETAINED',
+      accountName: 'Current Period Earnings',
+      balance: retainedEarnings,
+      signedBalance: toMoney(-retainedEarnings),
+    })
+  }
 
   const totalAssets = toMoney(assets.reduce((s, x) => s + Number(x.balance || 0), 0))
   const totalLiabilities = toMoney(liabilities.reduce((s, x) => s + Number(x.balance || 0), 0))
