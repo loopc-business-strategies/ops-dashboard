@@ -314,6 +314,20 @@ function Dashboard() {
     return () => document.removeEventListener('mousedown', handler)
   }, [langMenuOpen])
 
+  // Sync active tab from URL search params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const tabParam = params.get('tab')
+    if (tabParam) {
+      if (tabParam.startsWith('erp-')) {
+        setActiveTab('erp')
+        setErpSubTab(tabParam.replace('erp-', ''))
+      } else {
+        setActiveTab(tabParam)
+      }
+    }
+  }, [])
+
   const handleShellMouseMove = (e) => {
     const x = e.clientX
 
