@@ -20,6 +20,7 @@ const User    = require('../models/User')
 const { protect, restrictTo } = require('../middleware/auth')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
 const { normalizeTenant, getDefaultTenant, resolveTenantFromHost } = require('../config/tenants')
+const { setCsrfCookie, clearCsrfCookie, generateCsrfToken } = require('../middleware/csrf')
 
 const router = express.Router()
 
@@ -99,6 +100,7 @@ const sendToken = (user, status, res, company) => {
   const tenant = normalizeTenant(company) || getDefaultTenant()
   const token = createToken(user._id, tenant)
   res.cookie('sessionToken', token, cookieOptions)
+  setCsrfCookie(res)
   user.password = undefined // never send password
   res.status(status).json({
     success: true,
@@ -209,6 +211,9 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
 // GET /api/auth/me — get my profile
 // ==========================================
 router.get('/me', protect, (req, res) => {
+  if (!req.cookies?.csrfToken) {
+    setCsrfCookie(res, generateCsrfToken())
+  }
   res.json({
     success: true,
     user: {
@@ -236,6 +241,7 @@ router.get('/me', protect, (req, res) => {
 
 router.post('/logout', protect, (req, res) => {
   res.clearCookie('sessionToken', { ...cookieOptions, maxAge: undefined })
+  clearCsrfCookie(res)
   res.json({ success: true, message: 'Logged out.' })
 })
 
@@ -257,6 +263,7 @@ router.post('/refresh', protect, async (req, res) => {
     // Issue a fresh token — effectively sliding the expiry window
     const token = createToken(user._id, req.tenant)
     res.cookie('sessionToken', token, cookieOptions)
+    setCsrfCookie(res)
     res.json({ success: true, message: 'Session refreshed.' })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })

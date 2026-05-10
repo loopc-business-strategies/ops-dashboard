@@ -10,6 +10,7 @@ const cookieParser = require('cookie-parser')
 const sanitizeMiddleware = require('./middleware/sanitize')
 const { requestLoggerMiddleware } = require('./middleware/logger')
 const { bindTenantContext } = require('./middleware/tenantContext')
+const { enforceCsrfProtection } = require('./middleware/csrf')
 
 const authRoutes = require('./routes/auth')
 const employeeRoutes = require('./routes/employees')
@@ -111,7 +112,7 @@ function createApp() {
       callback(new Error(`CORS: origin not allowed — ${origin}`))
     },
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant', 'x-company'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant', 'x-company', 'x-csrf-token', 'x-xsrf-token'],
   }))
   app.use(cookieParser())
   app.use(express.json({ limit: REQUEST_BODY_LIMIT }))
@@ -127,6 +128,7 @@ function createApp() {
   app.use('/api', apiLimiter)
   app.use('/api/auth/login', authLimiter)
   app.use('/api/auth/setup', authLimiter)
+  app.use('/api', enforceCsrfProtection)
   app.use('/api', bindTenantContext)
 
   app.get('/api/health', (req, res) => {
