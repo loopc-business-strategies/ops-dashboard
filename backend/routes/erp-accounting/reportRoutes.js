@@ -223,14 +223,15 @@ router.get('/reports/ledger', protect, async (req, res) => {
 router.get('/reports/profit-loss', protect, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const { startDate, endDate, comparePrevious = 'false' } = req.query
-    const currentPeriod = await buildProfitLossSummary(startDate, endDate)
+    const { startDate, endDate, comparePrevious = 'false', includeZero = 'false' } = req.query
+    const includeZeroRows = parseBool(includeZero, false)
+    const currentPeriod = await buildProfitLossSummary(startDate, endDate, includeZeroRows)
 
     let previousPeriod = null
     if (parseBool(comparePrevious, false) && startDate && endDate) {
       const prevRange = buildPreviousPeriod(startDate, endDate)
       if (prevRange) {
-        const prevSummary = await buildProfitLossSummary(prevRange.startDate, prevRange.endDate)
+        const prevSummary = await buildProfitLossSummary(prevRange.startDate, prevRange.endDate, includeZeroRows)
         previousPeriod = {
           startDate: prevRange.startDate,
           endDate: prevRange.endDate,
@@ -250,7 +251,7 @@ router.get('/reports/profit-loss', protect, async (req, res) => {
     for (let i = 5; i >= 0; i -= 1) {
       const monthStart = new Date(comparisonAnchor.getFullYear(), comparisonAnchor.getMonth() - i, 1)
       const monthEnd = new Date(comparisonAnchor.getFullYear(), comparisonAnchor.getMonth() - i + 1, 0)
-      const summary = await buildProfitLossSummary(monthStart, monthEnd)
+      const summary = await buildProfitLossSummary(monthStart, monthEnd, false)
       monthlyComparison.push({
         label: monthStart.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
         startDate: monthStart,
@@ -270,7 +271,7 @@ router.get('/reports/profit-loss', protect, async (req, res) => {
       const year = comparisonAnchor.getFullYear() + yearOffset
       const quarterStart = new Date(year, normalizedQuarter * 3, 1)
       const quarterEnd = new Date(year, normalizedQuarter * 3 + 3, 0)
-      const summary = await buildProfitLossSummary(quarterStart, quarterEnd)
+      const summary = await buildProfitLossSummary(quarterStart, quarterEnd, false)
       quarterlyComparison.push({
         label: `Q${normalizedQuarter + 1} ${year}`,
         startDate: quarterStart,

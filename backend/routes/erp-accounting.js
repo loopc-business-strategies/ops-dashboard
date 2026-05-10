@@ -4143,7 +4143,7 @@ const buildPreviousPeriod = (startDate, endDate) => {
   return { startDate: prevStart, endDate: prevEnd }
 }
 
-const buildProfitLossSummary = async (startDate, endDate) => {
+const buildProfitLossSummary = async (startDate, endDate, includeZero = false) => {
   const query = { isDeleted: { $ne: true } }
   const dateQuery = buildDateQuery(startDate, endDate)
   if (dateQuery) query.date = dateQuery
@@ -4156,6 +4156,25 @@ const buildProfitLossSummary = async (startDate, endDate) => {
   let totalExpense = 0
   const incomeBreakdownMap = new Map()
   const expenseBreakdownMap = new Map()
+
+  if (includeZero) {
+    const pnlAccounts = await ChartOfAccount.find({
+      isActive: true,
+      accountType: { $in: ['Income', 'Expense'] },
+    }).select('accountCode accountName accountType')
+
+    pnlAccounts.forEach((account) => {
+      const key = account._id.toString()
+      const baseRow = {
+        accountId: key,
+        accountCode: account.accountCode,
+        accountName: account.accountName,
+        amount: 0,
+      }
+      if (account.accountType === 'Income') incomeBreakdownMap.set(key, baseRow)
+      if (account.accountType === 'Expense') expenseBreakdownMap.set(key, baseRow)
+    })
+  }
 
   entries.forEach((entry) => {
     const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)

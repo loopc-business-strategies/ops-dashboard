@@ -2731,6 +2731,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
         }),
         erpAccountingAPI.getProfitLossReport(token, {
           ...commonRange,
+          includeZero: reportFilters.includeZeroAccounts,
           comparePrevious: reportFilters.comparePrevious,
         }),
         erpAccountingAPI.getBalanceSheetReport(token, {
