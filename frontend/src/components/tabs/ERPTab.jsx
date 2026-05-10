@@ -7887,6 +7887,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
           {(reportView === 'summary' || reportView === 'trial') && (
             <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '999px', color: '#1E3A8A', fontWeight: '700', fontSize: '0.82rem', padding: '0.45rem 0.75rem', marginBottom: '0.7rem' }}>
+                <span>Active Period</span>
+                <span style={{ color: '#1D4ED8' }}>{getReportPeriodLabel()}</span>
+              </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
                 <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>Trial Balance Detailed</p>
                 <input placeholder="Search account code/name" value={reportFilters.search} onChange={(e) => setReportFilters((prev) => ({ ...prev, search: e.target.value }))} style={{ ...modalInputStyle, marginBottom: 0, width: '260px' }} />
@@ -7994,6 +7998,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
           {reportView === 'balanceSheet' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+              <div style={{ gridColumn: '1 / -1', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '999px', color: '#1E3A8A', fontWeight: '700', fontSize: '0.82rem', padding: '0.45rem 0.75rem' }}>
+                <span>Active Period</span>
+                <span style={{ color: '#1D4ED8' }}>{getReportPeriodLabel()}</span>
+              </div>
               {[['Assets', reports.balanceSheet?.assets || []], ['Liabilities', reports.balanceSheet?.liabilities || []], ['Equity', reports.balanceSheet?.equity || []]].map(([title, rows]) => (
                 <div key={title} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
                   <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>{title}</p>
