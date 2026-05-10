@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig } from 'vite'
+import { createLogger, defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const frontendPackageJson = JSON.parse(
@@ -28,8 +28,16 @@ const appBuildMeta = {
   builtAt: resolveBuildTime(),
 }
 
+const viteLogger = createLogger()
+const viteWarn = viteLogger.warn
+viteLogger.warn = (msg, options) => {
+  if (typeof msg === 'string' && msg.includes('[PLUGIN_TIMINGS] Warning')) return
+  viteWarn(msg, options)
+}
+
 export default defineConfig({
   plugins: [react()],
+  customLogger: viteLogger,
   define: {
     __APP_BUILD_META__: JSON.stringify(appBuildMeta),
   },
