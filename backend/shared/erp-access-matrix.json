@@ -1,0 +1,41 @@
+{
+  "predicates": {
+    "isSuperAdmin": { "roles": ["super_admin"] },
+    "isDepartmentHead": { "roles": ["department_head"] },
+    "isManagementRole": { "roles": ["management"] },
+    "isFinance": { "roles": ["super_admin"], "departmentHead": ["finance"] },
+    "isSalesRole": { "roles": ["super_admin", "management"], "departmentHead": ["sales"] },
+    "isOperationsRole": { "roles": ["super_admin"], "departmentHead": ["operations", "production"] },
+    "isHRRole": { "roles": ["super_admin"], "departmentHead": ["hr"] }
+  },
+  "permissions": {
+    "canViewAccounts": { "roles": ["super_admin"], "departmentHead": ["finance"] },
+    "canManageAccounts": { "roles": ["super_admin"], "departmentHead": ["finance"] },
+    "canViewMappings": { "roles": ["super_admin"], "departmentHead": ["finance"] },
+    "canManageMappings": { "roles": ["super_admin"], "departmentHead": ["finance"] },
+    "canViewAccountSummary": { "roles": ["super_admin"], "departmentHead": ["*"] },
+    "canViewLedger": { "roles": ["super_admin"], "departmentHead": ["finance"] },
+    "canCreateTransaction": { "roles": ["super_admin"], "departmentHead": ["finance"] },
+    "canAccessTransactions": { "roles": ["super_admin", "management"], "departmentHead": ["finance", "sales", "operations", "production", "hr"] },
+    "canAccessReports": { "roles": ["super_admin"], "departmentHead": ["finance"] },
+    "canAccessVendors": { "roles": ["super_admin"], "departmentHead": ["finance", "operations"] },
+    "canManageVendors": { "roles": ["super_admin"], "departmentHead": ["finance"] },
+    "canUpdateVendorOperational": { "roles": ["super_admin"], "departmentHead": ["finance", "operations"] },
+    "canAccessInventory": { "roles": ["super_admin"], "departmentHead": ["finance", "operations", "production"] },
+    "canAccessVouchers": { "roles": ["super_admin", "management"], "departmentHead": ["finance", "sales"] },
+    "canAccessDirectDeals": { "roles": ["super_admin", "management"], "departmentHead": ["finance", "sales"] },
+    "canManageDirectDeals": { "roles": ["super_admin", "management"], "departmentHead": ["finance", "sales"] },
+    "canViewCustomers": { "roles": ["super_admin", "management"], "departmentHead": ["finance", "sales"] },
+    "canManageCustomers": { "roles": ["super_admin", "management"], "departmentHead": ["finance", "sales"] },
+    "canUpdateMetalRates": { "roles": [], "departmentHead": ["finance"] },
+    "canExportAccountSummary": { "roles": ["super_admin"], "departmentHead": [] }
+  },
+  "transactionTypes": {
+    "sale": { "roles": ["super_admin", "management"], "departmentHead": ["finance", "sales"] },
+    "receipt": { "roles": ["super_admin", "management"], "departmentHead": ["finance", "sales"] },
+    "purchase": { "roles": ["super_admin"], "departmentHead": ["finance", "operations", "production"] },
+    "expense": { "roles": ["super_admin"], "departmentHead": ["finance", "operations", "production"] },
+    "payroll": { "roles": ["super_admin"], "departmentHead": ["finance", "hr"] },
+    "payment": { "roles": ["super_admin"], "departmentHead": ["finance"] }
+  }
+}

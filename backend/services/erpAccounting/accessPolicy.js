@@ -1,4 +1,23 @@
-const accessMatrix = require('../../../shared/erp-access-matrix.json')
+const fs = require('fs')
+const path = require('path')
+
+function loadAccessMatrix() {
+  const candidates = [
+    process.env.ERP_ACCESS_MATRIX_PATH,
+    path.resolve(__dirname, '../../../shared/erp-access-matrix.json'),
+    path.resolve(__dirname, '../../shared/erp-access-matrix.json'),
+  ].filter(Boolean)
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return require(candidate)
+    }
+  }
+
+  throw new Error(`Unable to locate ERP access matrix JSON. Tried: ${candidates.join(', ')}`)
+}
+
+const accessMatrix = loadAccessMatrix()
 
 function getRole(user) {
   return String(user?.role || '').toLowerCase()
