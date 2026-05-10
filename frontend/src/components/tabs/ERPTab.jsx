@@ -10256,13 +10256,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Type</th>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Deal</th>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Fixing</th>
-                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Description</th>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Offset Account</th>
                             <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Amount In USD</th>
                             <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Pure WT In Grams</th>
                           </tr>
                           <tr style={{ background: '#EEF1E8', borderBottom: '2px solid #CBD5E0' }}>
-                            <th colSpan={showStatementAuditIds ? 8 : 7} style={{ padding: 0, border: 0 }} />
+                            <th colSpan={showStatementAuditIds ? 7 : 6} style={{ padding: 0, border: 0 }} />
                             <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700', borderLeft: '1px solid #CBD5E0' }}>Debit</th>
                             <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Credit</th>
                             <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Balance</th>
@@ -10274,7 +10273,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                         <tbody>
                           {filteredStatementEntries.length === 0 ? (
                             <tr>
-                              <td colSpan={showStatementAuditIds ? 15 : 14} style={{ padding: '1rem', textAlign: 'center', color: '#6B7280', fontStyle: 'italic' }}>
+                              <td colSpan={showStatementAuditIds ? 14 : 13} style={{ padding: '1rem', textAlign: 'center', color: '#6B7280', fontStyle: 'italic' }}>
                                 No statement entries found for selected filters.
                               </td>
                             </tr>
@@ -10282,7 +10281,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
                             (() => {
                               let runningPureWeight = Number(accountEnquiryData?.metals?.goldBalance || 0)
                               return filteredStatementEntries.map((entry, index) => {
-                              const receiptNo = entry.sourceTransactionNumber || entry.sourceTransactionId || entry.referenceId || entry._id || '-'
+                              const parsedDocNo = (() => {
+                                const text = `${String(entry.description || '')} ${String(entry.notes || '')}`
+                                const match = text.match(/\b((?:BnkJV|JV|Jv)[/-]\d{4}[/-]\d{1,6})\b/i)
+                                return match?.[1] || ''
+                              })()
+                              const receiptNo = entry.sourceTransactionNumber || parsedDocNo || entry.sourceTransactionId || entry.referenceId || entry._id || '-'
                               // Account enquiry statement amounts are already in base currency from API.
                               const debitUsd = Number(entry.debitAmount || 0)
                               const creditUsd = Number(entry.creditAmount || 0)
@@ -10308,7 +10312,6 @@ function ERPTab({ focusTab, onNavigateMain }) {
                                       </span>
                                     ) : '-'}
                                   </td>
-                                  <td style={{ padding: '0.6rem', color: '#374151' }}>{entry.description || '-'}</td>
                                   <td style={{ padding: '0.6rem', color: '#374151' }}>
                                     {entry.offsetAccountCode ? `${entry.offsetAccountCode}${entry.offsetAccountName ? ` - ${entry.offsetAccountName}` : ''}` : '-'}
                                   </td>
