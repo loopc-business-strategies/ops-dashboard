@@ -1297,7 +1297,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   })
   const [reportView, setReportView] = useState('summary')
   const [reportFilters, setReportFilters] = useState({
-    period: 'month',
+    period: 'ytd',
     startDate: '',
     endDate: '',
     accountType: '',
@@ -3829,6 +3829,39 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
   const formatMoney = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
   const formatMoneyAbs = (value) => Math.abs(Number(value || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })
+  const getReportPeriodLabel = () => {
+    const now = new Date()
+    const formatDate = (value) => {
+      if (!value) return ''
+      const d = new Date(value)
+      if (Number.isNaN(d.getTime())) return String(value)
+      return d.toLocaleDateString()
+    }
+
+    if (reportFilters.period === 'today') {
+      const today = now.toISOString().slice(0, 10)
+      return `Today (${formatDate(today)})`
+    }
+
+    if (reportFilters.period === 'month') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      return `This Month (${formatDate(start)} - ${formatDate(end)})`
+    }
+
+    if (reportFilters.period === 'ytd') {
+      const start = new Date(now.getFullYear(), 0, 1)
+      return `Year To Date (${formatDate(start)} - ${formatDate(now)})`
+    }
+
+    if (reportFilters.period === 'custom') {
+      const start = reportFilters.startDate || '-'
+      const end = reportFilters.endDate || '-'
+      return `Custom Range (${formatDate(start)} - ${formatDate(end)})`
+    }
+
+    return 'Period: Not set'
+  }
   const normalizeBalanceDirection = (direction) => {
     const raw = String(direction || '').trim().toLowerCase()
     if (raw === 'debit' || raw === 'dr') return 'Dr'
@@ -7904,6 +7937,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
           {reportView === 'pnl' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div style={{ gridColumn: '1 / -1', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '999px', color: '#1E3A8A', fontWeight: '700', fontSize: '0.82rem', padding: '0.45rem 0.75rem' }}>
+                <span>Active Period</span>
+                <span style={{ color: '#1D4ED8' }}>{getReportPeriodLabel()}</span>
+              </div>
               <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
                 <p style={{ margin: 0, fontWeight: '700', marginBottom: '0.5rem' }}>Income Breakdown</p>
                 <div style={{ overflowX: 'auto' }}>
