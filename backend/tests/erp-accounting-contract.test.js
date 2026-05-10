@@ -153,6 +153,45 @@ describe('ERP accounting API contracts', () => {
 `)
   })
 
+  test('ledger endpoint filters by journal reference type', async () => {
+    const financeUser = await createUser()
+    const cash = await ChartOfAccount.create({
+      accountName: 'Cash',
+      accountCode: '1100',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const revenue = await ChartOfAccount.create({
+      accountName: 'Sales',
+      accountCode: '4100',
+      accountType: 'Income',
+      createdBy: financeUser._id,
+    })
+    await Ledger.create({
+      debitAccountId: cash._id,
+      creditAccountId: revenue._id,
+      amount: 100,
+      referenceType: 'sale',
+      createdBy: financeUser._id,
+    })
+    await Ledger.create({
+      debitAccountId: cash._id,
+      creditAccountId: revenue._id,
+      amount: 50,
+      referenceType: 'journal',
+      createdBy: financeUser._id,
+    })
+
+    const res = await request(app)
+      .get('/api/erp-accounting/ledger?referenceType=journal&limit=500')
+      .set(authHeader(financeUser))
+
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(res.body.count).toBe(1)
+    expect(res.body.entries[0].referenceType).toBe('journal')
+  })
+
   test('customer creation contract remains stable', async () => {
     const financeUser = await createUser()
 

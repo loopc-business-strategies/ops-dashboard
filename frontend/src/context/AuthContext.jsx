@@ -5,7 +5,7 @@
 //   Any component can call: login(), logout()
 //   This avoids passing user data as props through every component.
 
-import { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect } from 'react'
 import axios from 'axios'
 import authAPI from '../api/auth'
 import { resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'

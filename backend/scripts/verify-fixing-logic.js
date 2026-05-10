@@ -69,13 +69,13 @@ async function verifyFixingLogic() {
       
       console.log(`\nExpected for ${isUnfixed ? 'UNFIXED' : 'FIXED'}:`);
       if (isUnfixed) {
-        console.log('  � Stock Movements: YES (should have entries)');
-        console.log('  � Ledger Entries: NO (should be 0)');
+        console.log('  - Stock Movements: YES (should have entries)');
+        console.log('  - Ledger Entries: NO (should be 0)');
         const isCorrect = ledgerEntries.length === 0 && stockMovements.length > 0;
         console.log(`  ${isCorrect ? '? CORRECT' : '? INCORRECT'}`);
       } else {
-        console.log('  � Stock Movements: NO (should be 0)');
-        console.log('  � Ledger Entries: YES (should have entries)');
+        console.log('  - Stock Movements: NO (should be 0)');
+        console.log('  - Ledger Entries: YES (should have entries)');
         const isCorrect = ledgerEntries.length > 0 && stockMovements.length === 0;
         console.log(`  ${isCorrect ? '? CORRECT' : '? INCORRECT'}`);
       }

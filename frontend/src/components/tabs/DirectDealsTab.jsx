@@ -1,10 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 import erpAccountingAPI from '../../api/erp-accounting'
-import ExcelJS from 'exceljs'
-import Papa from 'papaparse'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
 import { useLanguage } from '../../context/LanguageContext'
+
+const loadExcel = async () => {
+  const mod = await import('exceljs')
+  return mod.default || mod
+}
+
+const loadPapa = async () => {
+  const mod = await import('papaparse')
+  return mod.default || mod
+}
+
+const loadPdfTools = async () => {
+  const [{ default: jsPDF }, autoTableMod] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ])
+  return { jsPDF, autoTable: autoTableMod.default || autoTableMod }
+}
 
 const COLORS = {
   ink: '#111827',
@@ -509,6 +523,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
       Notes: line.notes || '',
     }))
 
+    const ExcelJS = await loadExcel()
     const wb = new ExcelJS.Workbook()
     addJsonSheet(wb, 'Deal Summary', headerRows)
     addJsonSheet(wb, 'Line Items', lineRows)
@@ -516,7 +531,8 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     triggerDownload(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `direct-deal-${deal.docNo || deal._id}.xlsx`)
   }
 
-  const exportDealToPdf = (deal) => {
+  const exportDealToPdf = async (deal) => {
+    const { jsPDF, autoTable } = await loadPdfTools()
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
     pdf.setFontSize(14)
     pdf.text('Direct Deal Voucher', 40, 36)
@@ -582,6 +598,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
       let rows = []
 
       if (extension === '.csv') {
+        const Papa = await loadPapa()
         const csvText = await file.text()
         const parsed = Papa.parse(csvText, {
           header: true,
@@ -602,6 +619,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
         }
         rows = parsed.data || []
       } else {
+        const ExcelJS = await loadExcel()
         const data = await file.arrayBuffer()
         const workbook = new ExcelJS.Workbook()
         await workbook.xlsx.load(data)
@@ -718,6 +736,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
       { Rule: 'CustomerCode', Value: 'Recommended to match code from Customer Reference sheet' },
     ]
 
+    const ExcelJS = await loadExcel()
     const wb = new ExcelJS.Workbook()
     addJsonSheet(wb, 'Import Template', sampleRows)
     addJsonSheet(wb, 'Instructions', instructionsRows)

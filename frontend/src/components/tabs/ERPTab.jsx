@@ -1,8 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import AccountCombobox from '../AccountCombobox'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
-import ExcelJS from 'exceljs'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import erpAccountingAPI from '../../api/erp-accounting'
@@ -57,6 +54,19 @@ import ERPVendorsTab from './erp/tabs/ERPVendorsTab'
 import ERPLedgerTab from './erp/tabs/ERPLedgerTab'
 import ERPTransactionsTab from './erp/tabs/ERPTransactionsTab'
 import ERPReportsTab from './erp/tabs/ERPReportsTab'
+
+const loadExcel = async () => {
+  const mod = await import('exceljs')
+  return mod.default || mod
+}
+
+const loadPdfTools = async () => {
+  const [{ default: jsPDF }, autoTableMod] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ])
+  return { jsPDF, autoTable: autoTableMod.default || autoTableMod }
+}
 
 const TRANSACTION_STATUS_STYLES = {
   draft: { background: '#FEF3C7', color: '#92400E' },
@@ -2088,8 +2098,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
     if (!canViewLedger) return
     setLoading(true)
     try {
+      const ledgerQuery = {
+        limit: 500,
+        ...ledgerFilters,
+        referenceType: ledgerFilters.referenceType || ledgerVoucherTab,
+      }
       const [ledgerData, accountData, currencyData, mappingData] = await Promise.all([
-        erpAccountingAPI.getLedger(token, { limit: 100, ...ledgerFilters }),
+        erpAccountingAPI.getLedger(token, ledgerQuery),
         erpAccountingAPI.getAccounts(token),
         erpAccountingAPI.getCurrencies(token),
         erpAccountingAPI.getMappings(token),
@@ -3503,6 +3518,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     ledgerFilters.department,
     ledgerFilters.referenceType,
     ledgerFilters.accountId,
+    ledgerVoucherTab,
     reportFilters.period,
     reportFilters.startDate,
     reportFilters.endDate,
@@ -4223,6 +4239,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   }
 
   const downloadXlsx = async (rows, fileName, sheetName = 'Report') => {
+    const ExcelJS = await loadExcel()
     const workbook = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet(sheetName)
     ;(rows || []).forEach((row) => {
@@ -4298,7 +4315,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     showNotification('✅ Transactions XLSX exported')
   }
 
-  const handleExportTransactionsPdf = () => {
+  const handleExportTransactionsPdf = async () => {
     const scope = selectedTransactionIds.length
       ? transactions.filter((tx) => selectedTransactionIds.includes(tx._id))
       : transactions
@@ -4308,6 +4325,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       return
     }
 
+    const { jsPDF, autoTable } = await loadPdfTools()
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(16)
@@ -4529,6 +4547,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       return
     }
 
+    const { jsPDF, autoTable } = await loadPdfTools()
     const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
     const titleMap = {
       summary: 'ERP Financial Summary',
