@@ -6501,6 +6501,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
               </div>
             )
           })()}
+        </div>
+      )}
+
       <ERPLedgerTab
         activeTab={activeTab}
         C={C}
@@ -6555,8 +6558,6 @@ function ERPTab({ focusTab, onNavigateMain }) {
         handleReverseLedger={handleReverseLedger}
         handlePermanentDeleteLedger={handlePermanentDeleteLedger}
       />
-        </div>
-      )}
 
       {/* ACCOUNT MAPPINGS TAB */}
       {activeTab === 'mappings' && (
