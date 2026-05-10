@@ -97,313 +97,313 @@ Legend:
 
 ### Auth
 
-| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
-|---|---|---|---|
-| POST | /api/auth/setup | Public setup (initial bootstrap) | public handler |
-| POST | /api/auth/login | Public login | public handler |
-| GET | /api/auth/me | Authenticated | protect |
-| POST | /api/auth/logout | Authenticated | protect |
-| POST | /api/auth/refresh | Authenticated | protect |
-| GET | /api/auth/users | SA only | protect + restrictTo('super_admin') |
-| POST | /api/auth/users | SA only | protect + restrictTo('super_admin') |
-| PUT | /api/auth/users/:id/role | SA only | protect + restrictTo('super_admin') |
-| PUT | /api/auth/users/:id/permissions | SA only | protect + restrictTo('super_admin') |
-| PUT | /api/auth/users/:id/toggle | SA only | protect + restrictTo('super_admin') |
-| DELETE | /api/auth/users/:id | SA only | protect + restrictTo('super_admin') |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) | Source Ref(s) |
+|---|---|---|---|---|
+| POST | /api/auth/setup | Public setup (initial bootstrap) | public handler | N/A |
+| POST | /api/auth/login | Public login | public handler | N/A |
+| GET | /api/auth/me | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/auth/logout | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/auth/refresh | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| GET | /api/auth/users | SA only | protect + restrictTo('super_admin') | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:74 |
+| POST | /api/auth/users | SA only | protect + restrictTo('super_admin') | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:74 |
+| PUT | /api/auth/users/:id/role | SA only | protect + restrictTo('super_admin') | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:74 |
+| PUT | /api/auth/users/:id/permissions | SA only | protect + restrictTo('super_admin') | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:74 |
+| PUT | /api/auth/users/:id/toggle | SA only | protect + restrictTo('super_admin') | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:74 |
+| DELETE | /api/auth/users/:id | SA only | protect + restrictTo('super_admin') | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:74 |
 
 ### Employees
 
-| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
-|---|---|---|---|
-| GET | /api/hr/employees | Authenticated, scoped by role/department | protect + buildEmployeeReadFilter |
-| POST | /api/hr/employees | SA or HR DH | protect + canManageEmployees |
-| PUT | /api/hr/employees/:id | SA or HR DH with scope checks | protect + canManageEmployees |
-| DELETE | /api/hr/employees/:id | SA or HR DH with scope checks | protect + canManageEmployees |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) | Source Ref(s) |
+|---|---|---|---|---|
+| GET | /api/hr/employees | Authenticated, scoped by role/department | protect + buildEmployeeReadFilter | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/employees.js:50 |
+| POST | /api/hr/employees | SA or HR DH | protect + canManageEmployees | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/employees.js:44 |
+| PUT | /api/hr/employees/:id | SA or HR DH with scope checks | protect + canManageEmployees | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/employees.js:44 |
+| DELETE | /api/hr/employees/:id | SA or HR DH with scope checks | protect + canManageEmployees | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/employees.js:44 |
 
 ### Tasks
 
-| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
-|---|---|---|---|
-| GET | /api/tasks | Authenticated, role-scoped visibility | protect + buildTaskReadFilter |
-| POST | /api/tasks | Any non-read-only role (not MGMT/EXT) | protect + canCreateTask |
-| PUT | /api/tasks/:id | SA; DH same dept; DU assigned/creator; MGMT/EXT denied | protect + canViewTask + canMutateTask |
-| POST | /api/tasks/:id/comments | Can view task and not read-only role | protect + canViewTask + isReadOnlyRole |
-| DELETE | /api/tasks/:id | SA; DH same dept; DU creator only | protect + canDeleteTask |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) | Source Ref(s) |
+|---|---|---|---|---|
+| GET | /api/tasks | Authenticated, role-scoped visibility | protect + buildTaskReadFilter | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/tasks.js:153 |
+| POST | /api/tasks | Any non-read-only role (not MGMT/EXT) | protect + canCreateTask | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/tasks.js:70 |
+| PUT | /api/tasks/:id | SA; DH same dept; DU assigned/creator; MGMT/EXT denied | protect + canViewTask + canMutateTask | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/tasks.js:129; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/tasks.js:79 |
+| POST | /api/tasks/:id/comments | Can view task and not read-only role | protect + canViewTask + isReadOnlyRole | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/tasks.js:129; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/tasks.js:68 |
+| DELETE | /api/tasks/:id | SA; DH same dept; DU creator only | protect + canDeleteTask | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/tasks.js:92 |
 
 ### Attendance
 
-| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
-|---|---|---|---|
-| GET | /api/attendance/records | Authenticated, scoped by role | protect + role/dept scoping |
-| GET | /api/attendance/summary | Authenticated, scoped by role | protect + role/dept scoping |
-| GET | /api/attendance/me | Authenticated | protect + role/dept scoping |
-| POST | /api/attendance/records | Authenticated (role validations apply) | protect + canManageAttendance/canTouchDepartment |
-| GET | /api/attendance/leave | Authenticated, scoped by role | protect + role/dept scoping |
-| POST | /api/attendance/leave | Authenticated except MGMT blocked | protect + role checks + canTouchDepartment |
-| PUT | /api/attendance/leave/:id/decision | SA and DH workflow | protect + canReviewLeave |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) | Source Ref(s) |
+|---|---|---|---|---|
+| GET | /api/attendance/records | Authenticated, scoped by role | protect + role/dept scoping | backend/routes/attendance.js:55 |
+| GET | /api/attendance/summary | Authenticated, scoped by role | protect + role/dept scoping | backend/routes/attendance.js:55 |
+| GET | /api/attendance/me | Authenticated | protect + role/dept scoping | backend/routes/attendance.js:55 |
+| POST | /api/attendance/records | Authenticated (role validations apply) | protect + canManageAttendance/canTouchDepartment | backend/routes/attendance.js:50; backend/routes/attendance.js:62 |
+| GET | /api/attendance/leave | Authenticated, scoped by role | protect + role/dept scoping | backend/routes/attendance.js:55 |
+| POST | /api/attendance/leave | Authenticated except MGMT blocked | protect + role checks + canTouchDepartment | backend/routes/attendance.js:62 |
+| PUT | /api/attendance/leave/:id/decision | SA and DH workflow | protect + canReviewLeave | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/attendance.js:51 |
 
 ### Messages And Realtime
 
-| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
-|---|---|---|---|
-| GET | /api/messages/latest | Authenticated, scope-filtered by role/message visibility | protect + buildMessageScope |
-| POST | /api/messages | Authenticated | protect + buildMessageScope |
-| GET | /api/realtime/events | Authenticated | protect (SSE stream) |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) | Source Ref(s) |
+|---|---|---|---|---|
+| GET | /api/messages/latest | Authenticated, scope-filtered by role/message visibility | protect + buildMessageScope | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/messages.js:28 |
+| POST | /api/messages | Authenticated | protect + buildMessageScope | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/messages.js:28 |
+| GET | /api/realtime/events | Authenticated | protect (SSE stream) | backend/routes/realtime.js:7 |
 
 ### Department State
 
-| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
-|---|---|---|---|
-| GET | /api/department-state/:module | Authenticated | protect |
-| PUT | /api/department-state/:module | Authenticated | protect |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) | Source Ref(s) |
+|---|---|---|---|---|
+| GET | /api/department-state/:module | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| PUT | /api/department-state/:module | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
 
 ### CRM
 
-| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
-|---|---|---|---|
-| GET | /api/crm/dashboard | salesOnly helper (sales role set) | salesOnly |
-| GET | /api/crm/templates/contacts | salesOnly | salesOnly |
-| GET | /api/crm/templates/companies | salesOnly | salesOnly |
-| GET | /api/crm/templates/deals | salesOnly | salesOnly |
-| GET | /api/crm/contacts/export | salesOnly | salesOnly |
-| POST | /api/crm/contacts/import | salesOnly | salesOnly |
-| GET | /api/crm/contacts | salesOnly | salesOnly |
-| POST | /api/crm/contacts | salesOnly | salesOnly |
-| PUT | /api/crm/contacts/:id | salesOnly | salesOnly |
-| DELETE | /api/crm/contacts/:id | SA only | salesOnly + canDelete |
-| POST | /api/crm/contacts/:id/notes | salesOnly | salesOnly |
-| POST | /api/crm/contacts/:id/documents | salesOnly | salesOnly |
-| DELETE | /api/crm/contacts/:id/documents/:docId | salesOnly | salesOnly |
-| GET | /api/crm/companies/export | salesOnly | salesOnly |
-| POST | /api/crm/companies/import | salesOnly | salesOnly |
-| GET | /api/crm/companies | salesOnly | salesOnly |
-| POST | /api/crm/companies | salesOnly | salesOnly |
-| PUT | /api/crm/companies/:id | salesOnly | salesOnly |
-| DELETE | /api/crm/companies/:id | SA only | salesOnly + canDelete |
-| GET | /api/crm/leads | salesOnly | salesOnly |
-| POST | /api/crm/leads | salesOnly | salesOnly |
-| PUT | /api/crm/leads/:id | salesOnly | salesOnly |
-| POST | /api/crm/leads/:id/stage | salesOnly | salesOnly |
-| DELETE | /api/crm/leads/:id | SA only | salesOnly + canDelete |
-| GET | /api/crm/deals/export | salesOnly | salesOnly |
-| POST | /api/crm/deals/import | salesOnly | salesOnly |
-| GET | /api/crm/deals | salesOnly | salesOnly |
-| POST | /api/crm/deals | salesOnly | salesOnly |
-| PUT | /api/crm/deals/:id | salesOnly | salesOnly |
-| POST | /api/crm/deals/:id/close | salesOnly | salesOnly |
-| DELETE | /api/crm/deals/:id | SA only | salesOnly + canDelete |
-| GET | /api/crm/activities | salesOnly | salesOnly |
-| POST | /api/crm/activities | salesOnly | salesOnly |
-| PUT | /api/crm/activities/:id | salesOnly | salesOnly |
-| DELETE | /api/crm/activities/:id | salesOnly | salesOnly |
-| PATCH | /api/crm/activities/:id/followup-done | salesOnly | salesOnly |
-| GET | /api/crm/followups | salesOnly | salesOnly |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) | Source Ref(s) |
+|---|---|---|---|---|
+| GET | /api/crm/dashboard | salesOnly helper (sales role set) | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| GET | /api/crm/templates/contacts | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| GET | /api/crm/templates/companies | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| GET | /api/crm/templates/deals | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| GET | /api/crm/contacts/export | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| POST | /api/crm/contacts/import | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| GET | /api/crm/contacts | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| POST | /api/crm/contacts | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| PUT | /api/crm/contacts/:id | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| DELETE | /api/crm/contacts/:id | SA only | salesOnly + canDelete | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:476 |
+| POST | /api/crm/contacts/:id/notes | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| POST | /api/crm/contacts/:id/documents | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| DELETE | /api/crm/contacts/:id/documents/:docId | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| GET | /api/crm/companies/export | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| POST | /api/crm/companies/import | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| GET | /api/crm/companies | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| POST | /api/crm/companies | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| PUT | /api/crm/companies/:id | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| DELETE | /api/crm/companies/:id | SA only | salesOnly + canDelete | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:476 |
+| GET | /api/crm/leads | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| POST | /api/crm/leads | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| PUT | /api/crm/leads/:id | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| POST | /api/crm/leads/:id/stage | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| DELETE | /api/crm/leads/:id | SA only | salesOnly + canDelete | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:476 |
+| GET | /api/crm/deals/export | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| POST | /api/crm/deals/import | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| GET | /api/crm/deals | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| POST | /api/crm/deals | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| PUT | /api/crm/deals/:id | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| POST | /api/crm/deals/:id/close | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| DELETE | /api/crm/deals/:id | SA only | salesOnly + canDelete | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:476 |
+| GET | /api/crm/activities | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| POST | /api/crm/activities | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| PUT | /api/crm/activities/:id | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| DELETE | /api/crm/activities/:id | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| PATCH | /api/crm/activities/:id/followup-done | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
+| GET | /api/crm/followups | salesOnly | salesOnly | c:/Users/nandh/Desktop/ops-dashboard/backend/routes/crm.js:478 |
 
 ### ERP Operational
 
-| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
-|---|---|---|---|
-| GET | /api/erp/inventory | Authenticated; cost visibility scoped by helper | protect + canViewInventoryCosts |
-| POST | /api/erp/inventory | Scoped create rules in route helper | protect + canEditInventory |
-| PUT | /api/erp/inventory/:id | Scoped update rules | protect + canEditInventory |
-| DELETE | /api/erp/inventory/:id | Scoped delete rules | protect + canEditInventory |
-| GET | /api/erp/inventory/movements | Authenticated | protect + canViewInventoryCosts |
-| GET | /api/erp/procurement/suppliers | Authenticated | protect + canManageSuppliers |
-| POST | /api/erp/procurement/suppliers | Scoped write rules | protect + canManageSuppliers |
-| PUT | /api/erp/procurement/suppliers/:id | Scoped write rules | protect + canManageSuppliers |
-| DELETE | /api/erp/procurement/suppliers/:id | Scoped delete rules | protect + canManageSuppliers |
-| GET | /api/erp/procurement/purchase-orders | Authenticated | protect + route-specific helper |
-| POST | /api/erp/procurement/purchase-orders | canCreatePO helper | protect + canCreatePO |
-| PUT | /api/erp/procurement/purchase-orders/:id | Scoped PO workflow rules | protect + canCreatePO/canApprovePOBudget |
-| DELETE | /api/erp/procurement/purchase-orders/:id | canCreatePO helper | protect + canCreatePO |
-| GET | /api/erp/production/work-orders | Authenticated | protect + canManageProduction |
-| POST | /api/erp/production/work-orders | Scoped production write rules | protect + canManageProduction |
-| PUT | /api/erp/production/work-orders/:id | Scoped production write rules | protect + canManageProduction |
-| DELETE | /api/erp/production/work-orders/:id | Scoped production delete rules | protect + canManageProduction |
-| GET | /api/erp/finance/records | Authenticated | protect + canManageFinance |
-| POST | /api/erp/finance/records | Scoped finance write rules | protect + canManageFinance |
-| PUT | /api/erp/finance/records/:id | Scoped finance write rules | protect + canManageFinance |
-| DELETE | /api/erp/finance/records/:id | Scoped finance delete rules | protect + canManageFinance |
-| GET | /api/erp/procurement/documents | Authenticated | protect + canUploadProcDocs/canCreatePO |
-| POST | /api/erp/procurement/documents | canUploadProcDocs helper | protect + canUploadProcDocs |
-| DELETE | /api/erp/procurement/documents/:id | Scoped delete rules | protect + canUploadProcDocs/canCreatePO |
-| GET | /api/erp/alerts/expiry | Authenticated | protect + canManageSuppliers |
-| PUT | /api/erp/alerts/expiry/:id/resolve | Scoped write rules | protect + canManageSuppliers |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) | Source Ref(s) |
+|---|---|---|---|---|
+| GET | /api/erp/inventory | Authenticated; cost visibility scoped by helper | protect + canViewInventoryCosts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:106 |
+| POST | /api/erp/inventory | Scoped create rules in route helper | protect + canEditInventory | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:105 |
+| PUT | /api/erp/inventory/:id | Scoped update rules | protect + canEditInventory | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:105 |
+| DELETE | /api/erp/inventory/:id | Scoped delete rules | protect + canEditInventory | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:105 |
+| GET | /api/erp/inventory/movements | Authenticated | protect + canViewInventoryCosts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:106 |
+| GET | /api/erp/procurement/suppliers | Authenticated | protect + canManageSuppliers | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:108 |
+| POST | /api/erp/procurement/suppliers | Scoped write rules | protect + canManageSuppliers | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:108 |
+| PUT | /api/erp/procurement/suppliers/:id | Scoped write rules | protect + canManageSuppliers | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:108 |
+| DELETE | /api/erp/procurement/suppliers/:id | Scoped delete rules | protect + canManageSuppliers | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:108 |
+| GET | /api/erp/procurement/purchase-orders | Authenticated | protect + route-specific helper | backend/routes/erp.js:101 |
+| POST | /api/erp/procurement/purchase-orders | canCreatePO helper | protect + canCreatePO | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:109 |
+| PUT | /api/erp/procurement/purchase-orders/:id | Scoped PO workflow rules | protect + canCreatePO/canApprovePOBudget | backend/routes/erp.js:109; backend/routes/erp.js:110 |
+| DELETE | /api/erp/procurement/purchase-orders/:id | canCreatePO helper | protect + canCreatePO | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:109 |
+| GET | /api/erp/production/work-orders | Authenticated | protect + canManageProduction | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:112 |
+| POST | /api/erp/production/work-orders | Scoped production write rules | protect + canManageProduction | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:112 |
+| PUT | /api/erp/production/work-orders/:id | Scoped production write rules | protect + canManageProduction | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:112 |
+| DELETE | /api/erp/production/work-orders/:id | Scoped production delete rules | protect + canManageProduction | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:112 |
+| GET | /api/erp/finance/records | Authenticated | protect + canManageFinance | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:113 |
+| POST | /api/erp/finance/records | Scoped finance write rules | protect + canManageFinance | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:113 |
+| PUT | /api/erp/finance/records/:id | Scoped finance write rules | protect + canManageFinance | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:113 |
+| DELETE | /api/erp/finance/records/:id | Scoped finance delete rules | protect + canManageFinance | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:113 |
+| GET | /api/erp/procurement/documents | Authenticated | protect + canUploadProcDocs/canCreatePO | backend/routes/erp.js:114; backend/routes/erp.js:109 |
+| POST | /api/erp/procurement/documents | canUploadProcDocs helper | protect + canUploadProcDocs | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:114 |
+| DELETE | /api/erp/procurement/documents/:id | Scoped delete rules | protect + canUploadProcDocs/canCreatePO | backend/routes/erp.js:114; backend/routes/erp.js:109 |
+| GET | /api/erp/alerts/expiry | Authenticated | protect + canManageSuppliers | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:108 |
+| PUT | /api/erp/alerts/expiry/:id/resolve | Scoped write rules | protect + canManageSuppliers | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp.js:108 |
 
 ### Finance
 
-| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
-|---|---|---|---|
-| GET | /api/finance/invoices | Authenticated | protect |
-| POST | /api/finance/invoices | SA or finance/hr DH | protect + canWrite |
-| PUT | /api/finance/invoices/:id | SA or finance/hr DH | protect + canWrite |
-| DELETE | /api/finance/invoices/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/finance/expenses | Authenticated | protect |
-| POST | /api/finance/expenses | SA or finance/hr DH | protect + canWrite |
-| PUT | /api/finance/expenses/:id | SA or finance/hr DH | protect + canWrite |
-| DELETE | /api/finance/expenses/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/finance/payroll | Authenticated | protect |
-| POST | /api/finance/payroll | SA or finance/hr DH | protect + canWrite |
-| PUT | /api/finance/payroll/:id | SA or finance/hr DH | protect + canWrite |
-| DELETE | /api/finance/payroll/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/finance/budgets | Authenticated | protect |
-| POST | /api/finance/budgets | SA or finance/hr DH | protect + canWrite |
-| PUT | /api/finance/budgets/:id | SA or finance/hr DH | protect + canWrite |
-| DELETE | /api/finance/budgets/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/finance/taxes | Authenticated | protect |
-| POST | /api/finance/taxes | SA or finance/hr DH | protect + canWrite |
-| PUT | /api/finance/taxes/:id | SA or finance/hr DH | protect + canWrite |
-| DELETE | /api/finance/taxes/:id | SA only | protect + req.user.role==='super_admin' |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) | Source Ref(s) |
+|---|---|---|---|---|
+| GET | /api/finance/invoices | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/finance/invoices | SA or finance/hr DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/finance/invoices/:id | SA or finance/hr DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/finance/invoices/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/finance/expenses | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/finance/expenses | SA or finance/hr DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/finance/expenses/:id | SA or finance/hr DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/finance/expenses/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/finance/payroll | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/finance/payroll | SA or finance/hr DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/finance/payroll/:id | SA or finance/hr DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/finance/payroll/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/finance/budgets | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/finance/budgets | SA or finance/hr DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/finance/budgets/:id | SA or finance/hr DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/finance/budgets/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/finance/taxes | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/finance/taxes | SA or finance/hr DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/finance/taxes/:id | SA or finance/hr DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/finance/taxes/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
 
 ### Compliance
 
-| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
-|---|---|---|---|
-| GET | /api/compliance/eligibility | Authenticated | protect |
-| POST | /api/compliance/eligibility | SA or government/compliance/finance DH | protect + canWrite |
-| PUT | /api/compliance/eligibility/:id | SA or government/compliance/finance DH | protect + canWrite |
-| DELETE | /api/compliance/eligibility/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/compliance/approvals | Authenticated | protect |
-| POST | /api/compliance/approvals | SA or government/compliance/finance DH | protect + canWrite |
-| PUT | /api/compliance/approvals/:id | SA or government/compliance/finance DH | protect + canWrite |
-| DELETE | /api/compliance/approvals/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/compliance/docs | Authenticated | protect |
-| POST | /api/compliance/docs | SA or government/compliance/finance DH | protect + canWrite |
-| PUT | /api/compliance/docs/:id | SA or government/compliance/finance DH | protect + canWrite |
-| DELETE | /api/compliance/docs/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/compliance/updates | Authenticated | protect |
-| POST | /api/compliance/updates | SA or government/compliance/finance DH | protect + canWrite |
-| PUT | /api/compliance/updates/:id | SA or government/compliance/finance DH | protect + canWrite |
-| DELETE | /api/compliance/updates/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/compliance/agreements | Authenticated | protect |
-| POST | /api/compliance/agreements | SA or government/compliance/finance DH | protect + canWrite |
-| PUT | /api/compliance/agreements/:id | SA or government/compliance/finance DH | protect + canWrite |
-| DELETE | /api/compliance/agreements/:id | SA only | protect + req.user.role==='super_admin' |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) | Source Ref(s) |
+|---|---|---|---|---|
+| GET | /api/compliance/eligibility | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/compliance/eligibility | SA or government/compliance/finance DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/compliance/eligibility/:id | SA or government/compliance/finance DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/compliance/eligibility/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/compliance/approvals | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/compliance/approvals | SA or government/compliance/finance DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/compliance/approvals/:id | SA or government/compliance/finance DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/compliance/approvals/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/compliance/docs | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/compliance/docs | SA or government/compliance/finance DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/compliance/docs/:id | SA or government/compliance/finance DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/compliance/docs/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/compliance/updates | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/compliance/updates | SA or government/compliance/finance DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/compliance/updates/:id | SA or government/compliance/finance DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/compliance/updates/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/compliance/agreements | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/compliance/agreements | SA or government/compliance/finance DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/compliance/agreements/:id | SA or government/compliance/finance DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/compliance/agreements/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
 
 ### Training
 
-| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
-|---|---|---|---|
-| GET | /api/training/sessions | Authenticated | protect |
-| POST | /api/training/sessions | SA or any DH | protect + canWrite |
-| PUT | /api/training/sessions/:id | SA or any DH | protect + canWrite |
-| DELETE | /api/training/sessions/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/training/batches | Authenticated | protect |
-| POST | /api/training/batches | SA or any DH | protect + canWrite |
-| PUT | /api/training/batches/:id | SA or any DH | protect + canWrite |
-| DELETE | /api/training/batches/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/training/attendance | Authenticated | protect |
-| POST | /api/training/attendance | SA or any DH | protect + canWrite |
-| PUT | /api/training/attendance/:id | SA or any DH | protect + canWrite |
-| DELETE | /api/training/attendance/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/training/resources | Authenticated | protect |
-| POST | /api/training/resources | SA or any DH | protect + canWrite |
-| PUT | /api/training/resources/:id | SA or any DH | protect + canWrite |
-| DELETE | /api/training/resources/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/training/assessments | Authenticated | protect |
-| POST | /api/training/assessments | SA or any DH | protect + canWrite |
-| PUT | /api/training/assessments/:id | SA or any DH | protect + canWrite |
-| DELETE | /api/training/assessments/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/training/certs | Authenticated | protect |
-| POST | /api/training/certs | SA or any DH | protect + canWrite |
-| PUT | /api/training/certs/:id | SA or any DH | protect + canWrite |
-| DELETE | /api/training/certs/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/training/feedback | Authenticated | protect |
-| POST | /api/training/feedback | SA or any DH | protect + canWrite |
-| PUT | /api/training/feedback/:id | SA or any DH | protect + canWrite |
-| DELETE | /api/training/feedback/:id | SA only | protect + req.user.role==='super_admin' |
-| GET | /api/training/trainees | Authenticated | protect |
-| POST | /api/training/trainees | SA or any DH | protect + canWrite |
-| PUT | /api/training/trainees/:id | SA or any DH | protect + canWrite |
-| DELETE | /api/training/trainees/:id | SA only | protect + req.user.role==='super_admin' |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) | Source Ref(s) |
+|---|---|---|---|---|
+| GET | /api/training/sessions | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/training/sessions | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/training/sessions/:id | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/training/sessions/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/training/batches | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/training/batches | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/training/batches/:id | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/training/batches/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/training/attendance | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/training/attendance | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/training/attendance/:id | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/training/attendance/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/training/resources | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/training/resources | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/training/resources/:id | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/training/resources/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/training/assessments | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/training/assessments | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/training/assessments/:id | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/training/assessments/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/training/certs | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/training/certs | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/training/certs/:id | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/training/certs/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/training/feedback | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/training/feedback | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/training/feedback/:id | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/training/feedback/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
+| GET | /api/training/trainees | Authenticated | protect | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24 |
+| POST | /api/training/trainees | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| PUT | /api/training/trainees/:id | SA or any DH | protect + canWrite | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/compliance.js:15 |
+| DELETE | /api/training/trainees/:id | SA only | protect + req.user.role==='super_admin' | backend/routes/finance.js:132; backend/routes/compliance.js:120; backend/routes/training.js:142 |
 
 ### ERP Accounting
 
-| Method | Endpoint | Permission Summary | Enforcing Helper(s) |
-|---|---|---|---|
-| GET | /api/erp-accounting/accounts | SA or Finance DH | protect + canViewAccounts |
-| GET | /api/erp-accounting/accounts/enquiry | SA, Finance DH, Department Head summary access | protect + canViewAccountSummary |
-| GET | /api/erp-accounting/accounts/:id | SA or Finance DH | protect + canViewAccounts |
-| POST | /api/erp-accounting/accounts | SA or Finance DH | protect + canManageAccounts |
-| POST | /api/erp-accounting/accounts/bulk-seed | SA only | protect + isSuperAdmin |
-| PUT | /api/erp-accounting/accounts/:id | SA or Finance DH | protect + canManageAccounts |
-| DELETE | /api/erp-accounting/accounts/:id | SA or Finance DH | protect + canManageAccounts |
-| POST | /api/erp-accounting/accounts/hard-delete-by-code | SA only | protect + isSuperAdmin |
-| GET | /api/erp-accounting/ledger | SA or Finance DH | protect + canViewLedger |
-| POST | /api/erp-accounting/ledger | SA or Finance DH | protect + canManageAccounts |
-| PUT | /api/erp-accounting/ledger/:id | SA or Finance DH | protect + canManageAccounts |
-| DELETE | /api/erp-accounting/ledger/:id | SA or Finance DH | protect + canManageAccounts |
-| DELETE | /api/erp-accounting/ledger/:id/permanent | SA only | protect + isSuperAdmin |
-| PUT | /api/erp-accounting/ledger/:id/reconcile | SA or Finance DH | protect + canManageAccounts |
-| GET | /api/erp-accounting/mappings | SA or Finance DH | protect + canViewMappings |
-| POST | /api/erp-accounting/mappings | SA or Finance DH | protect + canManageMappings |
-| PUT | /api/erp-accounting/mappings/:id | SA or Finance DH | protect + canManageMappings |
-| DELETE | /api/erp-accounting/mappings/:id | SA or Finance DH | protect + canManageMappings |
-| GET | /api/erp-accounting/currencies | SA or Finance DH | protect + canViewAccounts |
-| POST | /api/erp-accounting/currencies/seed-defaults | SA or Finance DH | protect + canManageAccounts |
-| GET | /api/erp-accounting/report-branding | SA or Finance DH | protect + canViewAccounts |
-| PUT | /api/erp-accounting/report-branding | SA or Finance DH | protect + canManageAccounts |
-| GET | /api/erp-accounting/metal-rates | SA or Finance DH | protect + canViewAccounts |
-| PUT | /api/erp-accounting/metal-rates | SA or Finance DH | protect + canManageAccounts |
-| POST | /api/erp-accounting/currencies | SA or Finance DH | protect + canManageAccounts |
-| PUT | /api/erp-accounting/currencies/:id | SA or Finance DH | protect + canManageAccounts |
-| DELETE | /api/erp-accounting/currencies/:id | SA or Finance DH | protect + canManageAccounts |
-| GET | /api/erp-accounting/customers | SA, Finance DH, Sales DH | protect + canViewCustomers |
-| GET | /api/erp-accounting/customers/:id/aging | SA, Finance DH, Sales DH | protect + canViewCustomers |
-| POST | /api/erp-accounting/customers | SA, Finance DH, Sales DH | protect + canManageCustomers |
-| PUT | /api/erp-accounting/customers/:id | SA, Finance DH, Sales DH | protect + canManageCustomers |
-| DELETE | /api/erp-accounting/customers/:id | SA, Finance DH, Sales DH | protect + canManageCustomers |
-| GET | /api/erp-accounting/vendors | SA, Finance DH, Operations DH | protect + canAccessVendors |
-| GET | /api/erp-accounting/vendors/compliance-summary | SA, Finance DH, Operations DH | protect + canAccessVendors |
-| GET | /api/erp-accounting/vendors/alerts/overdue-queue | SA, Finance DH, Operations DH | protect + canAccessVendors |
-| POST | /api/erp-accounting/vendors | SA or Finance DH | protect + isSuperAdmin/isFinance |
-| PUT | /api/erp-accounting/vendors/:id | SA, Finance DH, Operations DH | protect + canUpdateVendorOperational |
-| GET | /api/erp-accounting/vendors/:id/details | SA, Finance DH, Operations DH | protect + canAccessVendors |
-| POST | /api/erp-accounting/vendors/:id/workflow | SA, Finance DH, Operations DH (approval/blacklist stricter finance/admin) | protect + canUpdateVendorOperational |
-| GET | /api/erp-accounting/vendors/:id/documents | SA, Finance DH, Operations DH | protect + canAccessVendors |
-| POST | /api/erp-accounting/vendors/:id/documents | SA, Finance DH, Operations DH | protect + canUpdateVendorOperational |
-| PUT | /api/erp-accounting/vendors/:id/documents/:documentId | SA, Finance DH, Operations DH | protect + canUpdateVendorOperational |
-| DELETE | /api/erp-accounting/vendors/:id/documents/:documentId | SA, Finance DH, Operations DH | protect + canUpdateVendorOperational |
-| GET | /api/erp-accounting/vendors/payment-calendar | SA, Finance DH, Operations DH | protect + canAccessVendors |
-| DELETE | /api/erp-accounting/vendors/:id | SA or Finance DH | protect + isSuperAdmin/isFinance |
-| GET | /api/erp-accounting/inventory/products | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory |
-| POST | /api/erp-accounting/inventory/products | SA or Finance DH | protect + canAccessInventory |
-| POST | /api/erp-accounting/inventory/stock-in | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory |
-| POST | /api/erp-accounting/inventory/stock-out | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory |
-| PUT | /api/erp-accounting/inventory/products/:id | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory |
-| DELETE | /api/erp-accounting/inventory/products/:id | SA or Finance DH | protect + isSuperAdmin/isFinance |
-| GET | /api/erp-accounting/inventory/stock-ledger | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory |
-| DELETE | /api/erp-accounting/inventory/stock-ledger | SA only | protect + isSuperAdmin |
-| GET | /api/erp-accounting/direct-deals | SA, Finance DH, Sales DH | protect + canAccessDirectDeals |
-| POST | /api/erp-accounting/direct-deals | SA, Finance DH, Sales DH | protect + canManageDirectDeals |
-| PUT | /api/erp-accounting/direct-deals/:id | SA, Finance DH, Sales DH (confirmed lock rules apply) | protect + canManageDirectDeals |
-| DELETE | /api/erp-accounting/direct-deals/:id | SA, Finance DH, Sales DH (confirmed lock rules apply) | protect + canManageDirectDeals |
-| GET | /api/erp-accounting/reports/trial-balance | SA or Finance DH | protect + canAccessReports |
-| GET | /api/erp-accounting/reports/ledger | SA or Finance DH | protect + canAccessReports |
-| GET | /api/erp-accounting/reports/profit-loss | SA or Finance DH | protect + canAccessReports |
-| GET | /api/erp-accounting/reports/balance-sheet | SA or Finance DH | protect + canAccessReports |
-| GET | /api/erp-accounting/reports/day-book | SA or Finance DH | protect + canAccessReports |
-| GET | /api/erp-accounting/reports/customer-outstanding | SA or Finance DH | protect + canAccessReports |
-| GET | /api/erp-accounting/reports/vendor-outstanding | SA or Finance DH | protect + canAccessReports |
-| GET | /api/erp-accounting/reports/forex-gain-loss | SA or Finance DH | protect + canAccessReports |
-| GET | /api/erp-accounting/reports/dashboard | SA or Finance DH | protect + canAccessReports |
-| GET | /api/erp-accounting/transactions | Transaction access helper (finance/admin scoped) | protect + canAccessTransactions |
-| POST | /api/erp-accounting/transactions | Transaction create helper | protect + canCreateTransactionFor |
-| PUT | /api/erp-accounting/transactions/:id | Transaction manage helper | protect + canCreateTransactionFor |
-| POST | /api/erp-accounting/transactions/:id/void | Transaction manage helper | protect + canCreateTransactionFor |
-| DELETE | /api/erp-accounting/transactions/:id | Transaction manage helper | protect + canCreateTransactionFor |
-| POST | /api/erp-accounting/transactions/:id/submit | Transaction workflow helper | protect + applyTransactionWorkflowAction |
-| POST | /api/erp-accounting/transactions/:id/approve | Transaction workflow helper | protect + applyTransactionWorkflowAction |
-| POST | /api/erp-accounting/transactions/:id/post | Transaction workflow helper | protect + applyTransactionWorkflowAction |
-| POST | /api/erp-accounting/transactions/:id/revalue-fx-journal | Transaction workflow helper | protect + build/applyFxJournalRevaluation |
-| POST | /api/erp-accounting/transactions/:id/comments | Transaction access helper | protect + canAccessTransactions + appendTransactionComment |
-| POST | /api/erp-accounting/transactions/:id/attachments | Transaction access helper | protect + validateAttachmentContent |
-| DELETE | /api/erp-accounting/transactions/:id/attachments/:attachmentId | Transaction manage helper | protect + canCreateTransactionFor |
-| POST | /api/erp-accounting/transactions/:id/return | Transaction workflow helper | protect + applyTransactionWorkflowAction |
-| POST | /api/erp-accounting/transactions/:id/reject | Transaction workflow helper | protect + applyTransactionWorkflowAction |
-| POST | /api/erp-accounting/transactions/bulk-action | Transaction manage helper | protect + canCreateTransactionFor |
-| GET | /api/erp-accounting/transactions/source-by-ledger/:ledgerId | Transaction access helper | protect + canAccessTransactions |
-| GET | /api/erp-accounting/attachments/download/:type/:filename | Authenticated + record-level access checks | protect + record-level access checks |
+| Method | Endpoint | Permission Summary | Enforcing Helper(s) | Source Ref(s) |
+|---|---|---|---|---|
+| GET | /api/erp-accounting/accounts | SA or Finance DH | protect + canViewAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:207 |
+| GET | /api/erp-accounting/accounts/enquiry | SA, Finance DH, Department Head summary access | protect + canViewAccountSummary | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:211 |
+| GET | /api/erp-accounting/accounts/:id | SA or Finance DH | protect + canViewAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:207 |
+| POST | /api/erp-accounting/accounts | SA or Finance DH | protect + canManageAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:208 |
+| POST | /api/erp-accounting/accounts/bulk-seed | SA only | protect + isSuperAdmin | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:190 |
+| PUT | /api/erp-accounting/accounts/:id | SA or Finance DH | protect + canManageAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:208 |
+| DELETE | /api/erp-accounting/accounts/:id | SA or Finance DH | protect + canManageAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:208 |
+| POST | /api/erp-accounting/accounts/hard-delete-by-code | SA only | protect + isSuperAdmin | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:190 |
+| GET | /api/erp-accounting/ledger | SA or Finance DH | protect + canViewLedger | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:214 |
+| POST | /api/erp-accounting/ledger | SA or Finance DH | protect + canManageAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:208 |
+| PUT | /api/erp-accounting/ledger/:id | SA or Finance DH | protect + canManageAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:208 |
+| DELETE | /api/erp-accounting/ledger/:id | SA or Finance DH | protect + canManageAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:208 |
+| DELETE | /api/erp-accounting/ledger/:id/permanent | SA only | protect + isSuperAdmin | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:190 |
+| PUT | /api/erp-accounting/ledger/:id/reconcile | SA or Finance DH | protect + canManageAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:208 |
+| GET | /api/erp-accounting/mappings | SA or Finance DH | protect + canViewMappings | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:209 |
+| POST | /api/erp-accounting/mappings | SA or Finance DH | protect + canManageMappings | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:210 |
+| PUT | /api/erp-accounting/mappings/:id | SA or Finance DH | protect + canManageMappings | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:210 |
+| DELETE | /api/erp-accounting/mappings/:id | SA or Finance DH | protect + canManageMappings | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:210 |
+| GET | /api/erp-accounting/currencies | SA or Finance DH | protect + canViewAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:207 |
+| POST | /api/erp-accounting/currencies/seed-defaults | SA or Finance DH | protect + canManageAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:208 |
+| GET | /api/erp-accounting/report-branding | SA or Finance DH | protect + canViewAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:207 |
+| PUT | /api/erp-accounting/report-branding | SA or Finance DH | protect + canManageAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:208 |
+| GET | /api/erp-accounting/metal-rates | SA or Finance DH | protect + canViewAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:207 |
+| PUT | /api/erp-accounting/metal-rates | SA or Finance DH | protect + canManageAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:208 |
+| POST | /api/erp-accounting/currencies | SA or Finance DH | protect + canManageAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:208 |
+| PUT | /api/erp-accounting/currencies/:id | SA or Finance DH | protect + canManageAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:208 |
+| DELETE | /api/erp-accounting/currencies/:id | SA or Finance DH | protect + canManageAccounts | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:208 |
+| GET | /api/erp-accounting/customers | SA, Finance DH, Sales DH | protect + canViewCustomers | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:1364 |
+| GET | /api/erp-accounting/customers/:id/aging | SA, Finance DH, Sales DH | protect + canViewCustomers | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:1364 |
+| POST | /api/erp-accounting/customers | SA, Finance DH, Sales DH | protect + canManageCustomers | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:1365 |
+| PUT | /api/erp-accounting/customers/:id | SA, Finance DH, Sales DH | protect + canManageCustomers | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:1365 |
+| DELETE | /api/erp-accounting/customers/:id | SA, Finance DH, Sales DH | protect + canManageCustomers | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:1365 |
+| GET | /api/erp-accounting/vendors | SA, Finance DH, Operations DH | protect + canAccessVendors | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:228 |
+| GET | /api/erp-accounting/vendors/compliance-summary | SA, Finance DH, Operations DH | protect + canAccessVendors | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:228 |
+| GET | /api/erp-accounting/vendors/alerts/overdue-queue | SA, Finance DH, Operations DH | protect + canAccessVendors | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:228 |
+| POST | /api/erp-accounting/vendors | SA or Finance DH | protect + isSuperAdmin/isFinance | backend/routes/erp-accounting.js:190; backend/routes/erp-accounting.js:192 |
+| PUT | /api/erp-accounting/vendors/:id | SA, Finance DH, Operations DH | protect + canUpdateVendorOperational | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:230 |
+| GET | /api/erp-accounting/vendors/:id/details | SA, Finance DH, Operations DH | protect + canAccessVendors | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:228 |
+| POST | /api/erp-accounting/vendors/:id/workflow | SA, Finance DH, Operations DH (approval/blacklist stricter finance/admin) | protect + canUpdateVendorOperational | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:230 |
+| GET | /api/erp-accounting/vendors/:id/documents | SA, Finance DH, Operations DH | protect + canAccessVendors | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:228 |
+| POST | /api/erp-accounting/vendors/:id/documents | SA, Finance DH, Operations DH | protect + canUpdateVendorOperational | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:230 |
+| PUT | /api/erp-accounting/vendors/:id/documents/:documentId | SA, Finance DH, Operations DH | protect + canUpdateVendorOperational | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:230 |
+| DELETE | /api/erp-accounting/vendors/:id/documents/:documentId | SA, Finance DH, Operations DH | protect + canUpdateVendorOperational | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:230 |
+| GET | /api/erp-accounting/vendors/payment-calendar | SA, Finance DH, Operations DH | protect + canAccessVendors | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:228 |
+| DELETE | /api/erp-accounting/vendors/:id | SA or Finance DH | protect + isSuperAdmin/isFinance | backend/routes/erp-accounting.js:190; backend/routes/erp-accounting.js:192 |
+| GET | /api/erp-accounting/inventory/products | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:231 |
+| POST | /api/erp-accounting/inventory/products | SA or Finance DH | protect + canAccessInventory | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:231 |
+| POST | /api/erp-accounting/inventory/stock-in | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:231 |
+| POST | /api/erp-accounting/inventory/stock-out | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:231 |
+| PUT | /api/erp-accounting/inventory/products/:id | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:231 |
+| DELETE | /api/erp-accounting/inventory/products/:id | SA or Finance DH | protect + isSuperAdmin/isFinance | backend/routes/erp-accounting.js:190; backend/routes/erp-accounting.js:192 |
+| GET | /api/erp-accounting/inventory/stock-ledger | SA, Finance DH, Operations DH, Production DH | protect + canAccessInventory | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:231 |
+| DELETE | /api/erp-accounting/inventory/stock-ledger | SA only | protect + isSuperAdmin | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:190 |
+| GET | /api/erp-accounting/direct-deals | SA, Finance DH, Sales DH | protect + canAccessDirectDeals | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:233 |
+| POST | /api/erp-accounting/direct-deals | SA, Finance DH, Sales DH | protect + canManageDirectDeals | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:234 |
+| PUT | /api/erp-accounting/direct-deals/:id | SA, Finance DH, Sales DH (confirmed lock rules apply) | protect + canManageDirectDeals | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:234 |
+| DELETE | /api/erp-accounting/direct-deals/:id | SA, Finance DH, Sales DH (confirmed lock rules apply) | protect + canManageDirectDeals | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:234 |
+| GET | /api/erp-accounting/reports/trial-balance | SA or Finance DH | protect + canAccessReports | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:227 |
+| GET | /api/erp-accounting/reports/ledger | SA or Finance DH | protect + canAccessReports | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:227 |
+| GET | /api/erp-accounting/reports/profit-loss | SA or Finance DH | protect + canAccessReports | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:227 |
+| GET | /api/erp-accounting/reports/balance-sheet | SA or Finance DH | protect + canAccessReports | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:227 |
+| GET | /api/erp-accounting/reports/day-book | SA or Finance DH | protect + canAccessReports | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:227 |
+| GET | /api/erp-accounting/reports/customer-outstanding | SA or Finance DH | protect + canAccessReports | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:227 |
+| GET | /api/erp-accounting/reports/vendor-outstanding | SA or Finance DH | protect + canAccessReports | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:227 |
+| GET | /api/erp-accounting/reports/forex-gain-loss | SA or Finance DH | protect + canAccessReports | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:227 |
+| GET | /api/erp-accounting/reports/dashboard | SA or Finance DH | protect + canAccessReports | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:227 |
+| GET | /api/erp-accounting/transactions | Transaction access helper (finance/admin scoped) | protect + canAccessTransactions | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:232 |
+| POST | /api/erp-accounting/transactions | Transaction create helper | protect + canCreateTransactionFor | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:219 |
+| PUT | /api/erp-accounting/transactions/:id | Transaction manage helper | protect + canCreateTransactionFor | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:219 |
+| POST | /api/erp-accounting/transactions/:id/void | Transaction manage helper | protect + canCreateTransactionFor | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:219 |
+| DELETE | /api/erp-accounting/transactions/:id | Transaction manage helper | protect + canCreateTransactionFor | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:219 |
+| POST | /api/erp-accounting/transactions/:id/submit | Transaction workflow helper | protect + applyTransactionWorkflowAction | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:1300 |
+| POST | /api/erp-accounting/transactions/:id/approve | Transaction workflow helper | protect + applyTransactionWorkflowAction | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:1300 |
+| POST | /api/erp-accounting/transactions/:id/post | Transaction workflow helper | protect + applyTransactionWorkflowAction | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:1300 |
+| POST | /api/erp-accounting/transactions/:id/revalue-fx-journal | Transaction workflow helper | protect + build/applyFxJournalRevaluation | backend/routes/erp-accounting.js:889; backend/routes/erp-accounting.js:992 |
+| POST | /api/erp-accounting/transactions/:id/comments | Transaction access helper | protect + canAccessTransactions + appendTransactionComment | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:232 |
+| POST | /api/erp-accounting/transactions/:id/attachments | Transaction access helper | protect + validateAttachmentContent | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:1241 |
+| DELETE | /api/erp-accounting/transactions/:id/attachments/:attachmentId | Transaction manage helper | protect + canCreateTransactionFor | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:219 |
+| POST | /api/erp-accounting/transactions/:id/return | Transaction workflow helper | protect + applyTransactionWorkflowAction | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:1300 |
+| POST | /api/erp-accounting/transactions/:id/reject | Transaction workflow helper | protect + applyTransactionWorkflowAction | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:1300 |
+| POST | /api/erp-accounting/transactions/bulk-action | Transaction manage helper | protect + canCreateTransactionFor | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:219 |
+| GET | /api/erp-accounting/transactions/source-by-ledger/:ledgerId | Transaction access helper | protect + canAccessTransactions | c:/Users/nandh/Desktop/ops-dashboard/backend/middleware/auth.js:24; c:/Users/nandh/Desktop/ops-dashboard/backend/routes/erp-accounting.js:232 |
+| GET | /api/erp-accounting/attachments/download/:type/:filename | Authenticated + record-level access checks | protect + record-level access checks | backend/routes/erp-accounting/attachmentRoutes.js:10 |
 
 ## 5) Permission Rule References
 
