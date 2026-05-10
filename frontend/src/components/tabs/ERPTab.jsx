@@ -1159,6 +1159,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     isDepartmentHead,
     isFinance,
     isSalesRole,
+    canViewAccounts,
     canManageAccounts,
     canViewCustomers,
     canManageCustomers,
