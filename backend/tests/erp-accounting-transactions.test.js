@@ -1074,6 +1074,87 @@ describe('ERP accounting transactions workflow', () => {
     expect(paymentJournal).toBeFalsy()
   })
 
+  test('does not post FX journal for rounded multi-line payment totals when FC and line rates match reference rate', async () => {
+    const financeUser = await createUser({ name: 'FX Rounded Multi Line Tester' })
+    const payableAccount = await ChartOfAccount.create({
+      accountName: 'Vendor Payable FX Rounded Multi Line',
+      accountCode: '2104',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+    const vendor = await Vendor.create({
+      name: 'FX Rounded Multi Line Vendor',
+      ledgerAccountId: payableAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    await Currency.create({
+      code: 'USD',
+      name: 'US Dollar',
+      symbol: '$',
+      exchangeRate: 1,
+      baseCurrency: true,
+      isActive: true,
+    })
+
+    const referenceRate = 0.00008264462809917356 // 1 / 12100
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'payment',
+        amount: 16.52,
+        description: 'payment fx rounded multi-line check',
+        currency: 'UZS',
+        exchangeRate: referenceRate,
+        vendorId: vendor._id.toString(),
+        voucherMeta: {
+          referenceExchangeRate: referenceRate,
+          lineItems: [
+            { type: 'cash', currCode: 'UZS', currRate: referenceRate, amountFC: 100000, amountLC: 8.26 },
+            { type: 'cash', currCode: 'UZS', currRate: referenceRate, amountFC: 100000, amountLC: 8.26 },
+          ],
+        },
+      })
+
+    expect(createRes.status).toBe(201)
+
+    const submitRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/submit`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Ready to post rounded FX multi-line transaction' })
+    expect(submitRes.status).toBe(200)
+
+    const approveRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/approve`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Approve rounded FX multi-line transaction' })
+    expect(approveRes.status).toBe(200)
+
+    const initialPostRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Post rounded FX multi-line transaction' })
+    const postRes = initialPostRes.status === 409
+      ? await request(app)
+        .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
+        .set(authHeader(financeUser))
+        .send({
+          comment: 'Post rounded FX multi-line transaction',
+          confirmVendorAdvance: true,
+        })
+      : initialPostRes
+    expect(postRes.status).toBe(200)
+
+    const paymentJournal = await queryInTenant(() => Ledger.findOne({
+      referenceId: createRes.body.transaction._id,
+      referenceType: 'journal',
+      isDeleted: { $ne: true },
+    }))
+    expect(paymentJournal).toBeFalsy()
+  })
+
   test('rejects non-base receipt when reference rate is missing or zero', async () => {
     const financeUser = await createUser({ name: 'FX Guard Tester' })
     const receivableAccount = await ChartOfAccount.create({

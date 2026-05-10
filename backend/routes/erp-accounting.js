@@ -509,6 +509,12 @@ const resolveVoucherFxLineForeignAmount = (line = {}) => {
 }
 
 const resolveVoucherFxLineBaseAmount = (line = {}) => {
+  const foreignAmount = resolveVoucherFxLineForeignAmount(line)
+  const lineRate = Number(line?.currRate || 0)
+  if (foreignAmount > 0 && Number.isFinite(lineRate) && lineRate > 0) {
+    return foreignAmount * lineRate
+  }
+
   const candidates = [line.amountLC, line.totalAmount, line.amountWithVAT, line.metalAmount]
   for (const candidate of candidates) {
     const amount = Number(candidate || 0)
@@ -616,7 +622,8 @@ const buildFxJournalRevaluationPreview = async (transaction) => {
   const actualForeignAmount = parseNumber(fxMetrics.actualForeignAmount, 0)
   const expectedForeignAmount = referenceRate > 0 ? txAmount / referenceRate : 0
   const foreignDifference = actualForeignAmount - expectedForeignAmount
-  const correctedAmount = toMoney(Math.abs(foreignDifference) * referenceRate)
+  const rawCorrectedAmount = Math.abs(foreignDifference) * referenceRate
+  const correctedAmount = toMoney(rawCorrectedAmount)
   const isGain = String(transaction?.type || '').toLowerCase() === 'payment' ? foreignDifference < 0 : foreignDifference > 0
   const expectedDirection = isGain ? 'gain' : 'loss'
 
@@ -633,7 +640,7 @@ const buildFxJournalRevaluationPreview = async (transaction) => {
     const directionMatches = journalDirection === expectedDirection
     const deltaAmount = toMoney(correctedAmount - currentAmount)
     const needsUpdate = directionMatches
-      && correctedAmount >= FX_REVALUATION_EPSILON
+      && rawCorrectedAmount >= FX_REVALUATION_EPSILON
       && Math.abs(deltaAmount) >= FX_REVALUATION_EPSILON
 
     return {
@@ -667,7 +674,7 @@ const buildFxJournalRevaluationPreview = async (transaction) => {
 
   return {
     ok: true,
-    message: correctedAmount >= FX_REVALUATION_EPSILON
+    message: rawCorrectedAmount >= FX_REVALUATION_EPSILON
       ? 'FX journal revaluation preview generated.'
       : 'No FX difference remains after reference-rate valuation.',
     transaction: {
@@ -2544,9 +2551,10 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
       const fcDiff = actualFC - expectedFC
       // Convert the FC difference using the original obligation/reference rate,
       // not settlement rate, to keep gain/loss valuation consistent.
-      const diffInBase = toMoney(Math.abs(fcDiff) * referenceRate)
+      const rawDiffInBase = Math.abs(fcDiff) * referenceRate
 
-      if (diffInBase >= 0.01) {
+      if (rawDiffInBase >= FX_REVALUATION_EPSILON) {
+        const diffInBase = toMoney(rawDiffInBase)
         const isGain = type === 'payment' ? fcDiff < 0 : fcDiff > 0
         const accounts = await resolveExchangeAdjustmentAccounts({ user, isGain })
 

@@ -1608,16 +1608,17 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const xagBalance = accountEnquiryData ? Number(accountEnquiryData.metals?.silverBalance || 0) : 0
   const goldPriceUSD = accountEnquiryData ? Number(accountEnquiryData.metals?.goldPrice || 0) : 0
   const silverPriceUSD = accountEnquiryData ? Number(accountEnquiryData.metals?.silverPrice || 0) : 0
-  const totalFunds = accountEnquiryData ? Number(accountEnquiryData.balances?.absoluteNetBalance || 0) : 0
+  const totalFunds = accountEnquiryData ? Number(accountEnquiryData.balances?.netBalance || 0) : 0
   
   // Derived calculations
   const xauCurrentValue = xauBalance * goldPriceUSD
-  const modalRevaluation = xauCurrentValue  // P&L mirrors position
+  const xagCurrentValue = xagBalance * silverPriceUSD
+  const modalRevaluation = xauCurrentValue + xagCurrentValue
   const modalTotalFunds = totalFunds
   const modalNetEquity = modalTotalFunds + modalRevaluation
-  const modalMarginAmt = -(Math.abs(xauBalance) * goldPriceUSD * 0.02)  // 2% margin on position
-  const modalExcess = modalNetEquity - Math.abs(modalMarginAmt)
-  const modalMarginPct = Math.abs(modalMarginAmt) !== 0 ? (modalNetEquity / Math.abs(modalMarginAmt)) * 100 : 0
+  const modalMarginAmt = Math.abs(modalRevaluation) * 0.02
+  const modalExcess = modalNetEquity - modalMarginAmt
+  const modalMarginPct = modalMarginAmt !== 0 ? (modalNetEquity / modalMarginAmt) * 100 : 0
   const breakEvenPrice = Math.abs(xauBalance) !== 0 ? totalFunds / Math.abs(xauBalance) : 0
   const modalStatementCurrency = 'USD'  // Trading platform uses USD
   const formatStatementValue = (value, digits = 2) => {
