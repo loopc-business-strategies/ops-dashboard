@@ -222,8 +222,11 @@ router.put('/ledger/:id/reconcile', protect, async (req, res) => {
     )
 
     res.json({ success: true, bankReconciled: nextReconciled })
-  } catch {
-    res.status(500).json({ success: false, message: 'Server error' })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error?.message || 'Server error',
+    })
   }
 })
 
