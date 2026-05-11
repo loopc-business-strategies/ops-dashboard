@@ -315,6 +315,10 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       if (code === '1000' || code === '1010' || /cash|bank/.test(name)) score -= 4
       return score
     }
+    const isTargetAccount = (accountLike) => {
+      const accountId = String(accountLike?._id || accountLike || '')
+      return targetAccountIds.some((id) => String(id) === accountId)
+    }
     const extractLedgerDocumentRef = (entry = {}) => {
       const text = `${String(entry.description || '')} ${String(entry.notes || '')}`
       const match = text.match(/\b((?:Pay|Receipt|Rec|BnkJV|JV|Jv)[/-]\d{4}[/-]\d{1,6})\b/i)
@@ -476,28 +480,26 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         if (!docRef) return
         const debitAccount = entry.debitAccountId || null
         const creditAccount = entry.creditAccountId || null
-        const debitId = String(debitAccount?._id || debitAccount || '')
-        const creditId = String(creditAccount?._id || creditAccount || '')
-        const involvesTargetOnDebit = targetAccountIds.some((id) => String(id) === debitId)
-        const involvesTargetOnCredit = targetAccountIds.some((id) => String(id) === creditId)
-        if (!involvesTargetOnDebit && !involvesTargetOnCredit) return
-
-        const counterparty = involvesTargetOnDebit ? creditAccount : debitAccount
-        if (!counterparty) return
-        const counterpartyCode = String(counterparty.accountCode || '').trim()
-        const counterpartyName = String(counterparty.accountName || '').trim()
         const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
-        const key = `${docRef}:${counterpartyCode}:${counterpartyName}`
+        const candidateAccounts = [debitAccount, creditAccount]
 
-        const existing = docCounterpartyCandidates.get(key) || {
-          docRef,
-          accountCode: counterpartyCode,
-          accountName: counterpartyName,
-          score: scoreCounterpartyAccount({ accountCode: counterpartyCode, accountName: counterpartyName }),
-          amountWeight: 0,
-        }
-        existing.amountWeight += Math.abs(amount)
-        docCounterpartyCandidates.set(key, existing)
+        candidateAccounts.forEach((candidateAccount) => {
+          if (!candidateAccount || isTargetAccount(candidateAccount)) return
+          const counterpartyCode = String(candidateAccount.accountCode || '').trim()
+          const counterpartyName = String(candidateAccount.accountName || '').trim()
+          if (!counterpartyCode && !counterpartyName) return
+
+          const key = `${docRef}:${counterpartyCode}:${counterpartyName}`
+          const existing = docCounterpartyCandidates.get(key) || {
+            docRef,
+            accountCode: counterpartyCode,
+            accountName: counterpartyName,
+            score: scoreCounterpartyAccount({ accountCode: counterpartyCode, accountName: counterpartyName }),
+            amountWeight: 0,
+          }
+          existing.amountWeight += Math.abs(amount)
+          docCounterpartyCandidates.set(key, existing)
+        })
       })
 
       const groupedByDocRef = new Map()
