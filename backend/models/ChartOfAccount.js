@@ -19,9 +19,12 @@ const chartOfAccountSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+// Query performance indexes
 chartOfAccountSchema.index({ accountCode: 1 }, { unique: true })
-chartOfAccountSchema.index({ accountType: 1 })
-chartOfAccountSchema.index({ isActive: 1 })
+chartOfAccountSchema.index({ accountType: 1, isActive: 1 })
+chartOfAccountSchema.index({ parentAccountId: 1, isActive: 1 })
+chartOfAccountSchema.index({ department: 1, isActive: 1 })
+chartOfAccountSchema.index({ createdAt: -1 })
 
 // No USD lock — currency is set by the account creation logic.
 

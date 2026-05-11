@@ -31,10 +31,15 @@ const ledgerSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+// Query performance indexes
 ledgerSchema.index({ date: 1, debitAccountId: 1, creditAccountId: 1 })
 ledgerSchema.index({ referenceType: 1, referenceId: 1 })
-ledgerSchema.index({ debitAccountId: 1, date: 1 })
-ledgerSchema.index({ creditAccountId: 1, date: 1 })
+ledgerSchema.index({ debitAccountId: 1, date: -1 })
+ledgerSchema.index({ creditAccountId: 1, date: -1 })
+ledgerSchema.index({ isDeleted: 1, date: -1 })
+ledgerSchema.index({ department: 1, date: -1 })
+ledgerSchema.index({ bankReconciled: 1, referenceType: 1 })
+ledgerSchema.index({ createdAt: -1 })
 
 // No USD lock — currency and exchangeRate are set by the posting logic.
 

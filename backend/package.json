@@ -19,6 +19,7 @@
     "smoke:erp": "node scripts/smoke-erp-api.js",
     "test": "jest --runInBand",
     "test:fast": "jest --runInBand tests/permissions.test.js",
+    "test:pagination": "jest --runInBand tests/pagination-edge-cases.test.js",
     "test:integration": "npm run test:integration:tenant-routing && npm run test:integration:tenant-isolation && npm run test:integration:erp",
     "test:integration:tenant-routing": "jest --runInBand --testTimeout=120000 tests/tenant-routing-auth.test.js",
     "test:integration:tenant-isolation": "jest --runInBand --testTimeout=120000 tests/tenant-db-isolation.test.js",
@@ -39,6 +40,7 @@
     "mongoose": "^8.0.3",
     "morgan": "^1.10.0",
     "multer": "^2.1.1",
+    "socket.io": "^4.8.3",
     "xss": "^1.0.14"
   },
   "devDependencies": {
