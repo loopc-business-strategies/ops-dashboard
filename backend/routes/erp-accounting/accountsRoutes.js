@@ -405,28 +405,25 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         if (!refId) return
         const debitAccount = entry.debitAccountId || null
         const creditAccount = entry.creditAccountId || null
-        const debitId = String(debitAccount?._id || debitAccount || '')
-        const creditId = String(creditAccount?._id || creditAccount || '')
-        const involvesTargetOnDebit = targetAccountIds.some((id) => String(id) === debitId)
-        const involvesTargetOnCredit = targetAccountIds.some((id) => String(id) === creditId)
-        if (!involvesTargetOnDebit && !involvesTargetOnCredit) return
-
-        const counterparty = involvesTargetOnDebit ? creditAccount : debitAccount
-        if (!counterparty) return
-        const counterpartyCode = String(counterparty.accountCode || '').trim()
-        const counterpartyName = String(counterparty.accountName || '').trim()
         const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
-        const key = `${refId}:${counterpartyCode}:${counterpartyName}`
 
-        const existing = refCounterpartyCandidates.get(key) || {
-          refId,
-          accountCode: counterpartyCode,
-          accountName: counterpartyName,
-          score: scoreCounterpartyAccount({ accountCode: counterpartyCode, accountName: counterpartyName }),
-          amountWeight: 0,
-        }
-        existing.amountWeight += Math.abs(amount)
-        refCounterpartyCandidates.set(key, existing)
+        ;[debitAccount, creditAccount].forEach((candidateAccount) => {
+          if (!candidateAccount || isTargetAccount(candidateAccount)) return
+          const counterpartyCode = String(candidateAccount.accountCode || '').trim()
+          const counterpartyName = String(candidateAccount.accountName || '').trim()
+          if (!counterpartyCode && !counterpartyName) return
+
+          const key = `${refId}:${counterpartyCode}:${counterpartyName}`
+          const existing = refCounterpartyCandidates.get(key) || {
+            refId,
+            accountCode: counterpartyCode,
+            accountName: counterpartyName,
+            score: scoreCounterpartyAccount({ accountCode: counterpartyCode, accountName: counterpartyName }),
+            amountWeight: 0,
+          }
+          existing.amountWeight += Math.abs(amount)
+          refCounterpartyCandidates.set(key, existing)
+        })
       })
 
       const groupedByReference = new Map()
