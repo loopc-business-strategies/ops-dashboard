@@ -568,9 +568,11 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         const partyAccountById = new Map(partyLedgerAccounts.map((row) => [String(row._id), row]))
 
         linkedDocTransactions.forEach((tx) => {
-          const docRefRaw = String(tx?.voucherMeta?.vocNo || tx?.voucherMeta?.refNo || '').trim()
-          const docRef = normalizeDocRef(docRefRaw)
-          if (!docRef) return
+          const docRefs = [
+            normalizeDocRef(String(tx?.voucherMeta?.vocNo || '').trim()),
+            normalizeDocRef(String(tx?.voucherMeta?.refNo || '').trim()),
+          ].filter(Boolean)
+          if (docRefs.length === 0) return
 
           const customerLedgerId = tx.customerId ? customerLedgerById.get(String(tx.customerId)) : ''
           const vendorLedgerId = tx.vendorId ? vendorLedgerById.get(String(tx.vendorId)) : ''
@@ -578,9 +580,12 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
           const preferredAccount = preferredLedgerId ? partyAccountById.get(String(preferredLedgerId)) : null
           if (!preferredAccount) return
 
-          documentDisplayOffsetByRef.set(docRef, {
+          const resolved = {
             accountCode: String(preferredAccount.accountCode || ''),
             accountName: String(preferredAccount.accountName || ''),
+          }
+          docRefs.forEach((ref) => {
+            documentDisplayOffsetByRef.set(ref, resolved)
           })
         })
       }
