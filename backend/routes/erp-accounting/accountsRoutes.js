@@ -319,6 +319,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const accountId = String(accountLike?._id || accountLike || '')
       return targetAccountIds.some((id) => String(id) === accountId)
     }
+    const normalizeDocRef = (value) => String(value || '').trim().toLowerCase()
     const extractLedgerDocumentRef = (entry = {}) => {
       const text = `${String(entry.description || '')} ${String(entry.notes || '')}`
       const match = text.match(/\b((?:Pay|Receipt|Rec|BnkJV|JV|Jv)[/-]\d{4}[/-]\d{1,6})\b/i)
@@ -516,11 +517,75 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         })
         const best = candidates[0]
         if (best?.accountCode || best?.accountName) {
-          documentDisplayOffsetByRef.set(docRef, {
+          documentDisplayOffsetByRef.set(normalizeDocRef(docRef), {
             accountCode: best.accountCode,
             accountName: best.accountName,
           })
         }
+      }
+
+      const paymentReceiptDocRefs = statementDocRefs
+        .map((ref) => String(ref || '').trim())
+        .filter((ref) => /^(pay|receipt|rec)[/-]/i.test(ref))
+
+      if (paymentReceiptDocRefs.length > 0) {
+        const linkedDocTransactions = await Transaction.find({
+          isDeleted: { $ne: true },
+          $or: [
+            { 'voucherMeta.vocNo': { $in: paymentReceiptDocRefs } },
+            { 'voucherMeta.refNo': { $in: paymentReceiptDocRefs } },
+          ],
+        })
+          .select('_id customerId vendorId voucherMeta.vocNo voucherMeta.refNo')
+          .lean()
+
+        const customerIds = Array.from(new Set(
+          linkedDocTransactions
+            .map((tx) => String(tx.customerId || '').trim())
+            .filter(Boolean)
+        ))
+        const vendorIds = Array.from(new Set(
+          linkedDocTransactions
+            .map((tx) => String(tx.vendorId || '').trim())
+            .filter(Boolean)
+        ))
+
+        const [docCustomers, docVendors] = await Promise.all([
+          customerIds.length > 0
+            ? Customer.find({ _id: { $in: customerIds } }).select('_id ledgerAccountId').lean()
+            : Promise.resolve([]),
+          vendorIds.length > 0
+            ? Vendor.find({ _id: { $in: vendorIds } }).select('_id ledgerAccountId').lean()
+            : Promise.resolve([]),
+        ])
+
+        const customerLedgerById = new Map(docCustomers.map((row) => [String(row._id), row.ledgerAccountId ? String(row.ledgerAccountId) : '']))
+        const vendorLedgerById = new Map(docVendors.map((row) => [String(row._id), row.ledgerAccountId ? String(row.ledgerAccountId) : '']))
+
+        const partyLedgerIds = Array.from(new Set(
+          [...customerLedgerById.values(), ...vendorLedgerById.values()].filter(Boolean)
+        ))
+        const partyLedgerAccounts = partyLedgerIds.length > 0
+          ? await ChartOfAccount.find({ _id: { $in: partyLedgerIds } }).select('_id accountCode accountName').lean()
+          : []
+        const partyAccountById = new Map(partyLedgerAccounts.map((row) => [String(row._id), row]))
+
+        linkedDocTransactions.forEach((tx) => {
+          const docRefRaw = String(tx?.voucherMeta?.vocNo || tx?.voucherMeta?.refNo || '').trim()
+          const docRef = normalizeDocRef(docRefRaw)
+          if (!docRef) return
+
+          const customerLedgerId = tx.customerId ? customerLedgerById.get(String(tx.customerId)) : ''
+          const vendorLedgerId = tx.vendorId ? vendorLedgerById.get(String(tx.vendorId)) : ''
+          const preferredLedgerId = customerLedgerId || vendorLedgerId
+          const preferredAccount = preferredLedgerId ? partyAccountById.get(String(preferredLedgerId)) : null
+          if (!preferredAccount) return
+
+          documentDisplayOffsetByRef.set(docRef, {
+            accountCode: String(preferredAccount.accountCode || ''),
+            accountName: String(preferredAccount.accountName || ''),
+          })
+        })
       }
     }
 
@@ -573,7 +638,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const effectiveRowType = linkedTxType || referenceType
       const txDisplayOffset = linkedTx?.id ? transactionDisplayOffsetById.get(String(linkedTx.id)) : null
       const refDisplayOffset = entry.referenceId ? referenceDisplayOffsetById.get(String(entry.referenceId)) : null
-      const docDisplayOffset = documentDisplayOffsetByRef.get(extractLedgerDocumentRef(entry)) || null
+      const docDisplayOffset = documentDisplayOffsetByRef.get(normalizeDocRef(extractLedgerDocumentRef(entry))) || null
       const preferredDisplayOffset = txDisplayOffset || refDisplayOffset || docDisplayOffset || null
       const effectiveOffsetCode = (effectiveRowType === 'payment' || effectiveRowType === 'receipt') && preferredDisplayOffset
         ? String(preferredDisplayOffset.accountCode || defaultOffsetCode)
