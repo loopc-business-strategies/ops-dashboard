@@ -382,7 +382,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
   const muted = '#6B7280'
   const ink = '#111827'
 
-  const METAL_COLORS = { Gold: '#F59E0B', Silver: '#9CA3AF', Platinum: '#6366F1', Palladium: '#EC4899' }
+  const METAL_COLORS = { Gold: '#F59E0B', Silver: '#9CA3AF', Platinum: '#6366F1' }
   const VOL_COLORS = ['#F59E0B', '#9CA3AF', '#6366F1', '#EC4899', '#059669']
 
   // Inline sparkline helper
@@ -422,16 +422,13 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       const g = Number(rates?.gold || 0)
       const s = Number(rates?.silver || 0)
       const pt = Number(rates?.platinum || rates?.stockPrices?.platinum?.price || 0)
-      const pd = Number(rates?.palladium || rates?.stockPrices?.palladium?.price || 0)
       const gCur = rates?.stockPrices?.gold?.currency || rates?.currency || 'USD'
       const sCur = rates?.stockPrices?.silver?.currency || rates?.currency || 'USD'
       const ptCur = rates?.stockPrices?.platinum?.currency || rates?.currency || 'USD'
-      const pdCur = rates?.stockPrices?.palladium?.currency || rates?.currency || 'USD'
       const METALS_DEF = [
-        { n: 'Gold',      sym: 'XAU', color: '#F59E0B', price: g,  cur: gCur,  prev: g > 0 ? g * 0.9973 : 0,  spark: [g * 0.97 || 2290, g * 0.975 || 2310, g * 0.972 || 2280, g * 0.978 || 2315, g * 0.976 || 2300, g * 0.982 || 2330, g || 2341] },
-        { n: 'Silver',    sym: 'XAG', color: '#9CA3AF', price: s,  cur: sCur,  prev: s > 0 ? s * 0.9961 : 0,  spark: [s * 0.97 || 27.1, s * 0.975 || 27.3, s * 0.972 || 27.0, s * 0.978 || 27.5, s * 0.976 || 27.6, s * 0.982 || 27.8, s || 27.85] },
-        { n: 'Platinum',  sym: 'XPT', color: '#6366F1', price: pt, cur: ptCur, prev: pt > 0 ? pt * 0.9969 : 0, spark: [pt * 0.97 || 970, pt * 0.975 || 965, pt * 0.972 || 960, pt * 0.978 || 958, pt * 0.976 || 962, pt * 0.982 || 959, pt || 956] },
-        { n: 'Palladium', sym: 'XPD', color: '#EC4899', price: pd, cur: pdCur, prev: pd > 0 ? pd * 0.9940 : 0, spark: [pd * 0.97 || 1030, pd * 0.975 || 1020, pd * 0.972 || 1015, pd * 0.978 || 1010, pd * 0.976 || 1012, pd * 0.982 || 1008, pd || 1002] },
+        { n: 'Gold',     sym: 'XAU', color: '#F59E0B', price: g,  cur: gCur,  prev: g > 0 ? g * 0.9973 : 0,  spark: [g * 0.97 || 2290, g * 0.975 || 2310, g * 0.972 || 2280, g * 0.978 || 2315, g * 0.976 || 2300, g * 0.982 || 2330, g || 2341] },
+        { n: 'Silver',   sym: 'XAG', color: '#9CA3AF', price: s,  cur: sCur,  prev: s > 0 ? s * 0.9961 : 0,  spark: [s * 0.97 || 27.1, s * 0.975 || 27.3, s * 0.972 || 27.0, s * 0.978 || 27.5, s * 0.976 || 27.6, s * 0.982 || 27.8, s || 27.85] },
+        { n: 'Platinum', sym: 'XPT', color: '#6366F1', price: pt, cur: ptCur, prev: pt > 0 ? pt * 0.9969 : 0, spark: [pt * 0.97 || 970, pt * 0.975 || 965, pt * 0.972 || 960, pt * 0.978 || 958, pt * 0.976 || 962, pt * 0.982 || 959, pt || 956] },
       ]
       return (
         <div style={widgetContainerStyle}>
@@ -658,7 +655,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
 
     case 'fixing': {
       const positions = dashboard?.fixingPositions || []
-      const METALS_DEF = ['Gold', 'Silver', 'Platinum', 'Palladium']
+      const METALS_DEF = ['Gold', 'Silver', 'Platinum']
       const totalAmt = positions.reduce((s, p) => s + Number(p.amount || 0), 0)
       const byMetal = METALS_DEF.map(m => {
         const p = positions.find(p => p.metal === m)
@@ -1298,7 +1295,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       if (normalized === 'xau' || normalized === 'gold') return 'XAU'
       if (normalized === 'xag' || normalized === 'silver') return 'XAG'
       if (normalized === 'xpt' || normalized === 'platinum') return 'XPT'
-      if (normalized === 'xpd' || normalized === 'palladium') return 'XPD'
+      if (normalized === 'xpd' || normalized === 'palladium') return null
       return String(rawValue || '').trim().toUpperCase()
     }
 
@@ -1351,7 +1348,6 @@ function ERPTab({ focusTab, onNavigateMain }) {
       { id: 'metal-gold', value: 'XAU::fallback-gold', metalCode: 'XAU', label: 'Gold (XAU)' },
       { id: 'metal-silver', value: 'XAG::fallback-silver', metalCode: 'XAG', label: 'Silver (XAG)' },
       { id: 'metal-platinum', value: 'XPT::fallback-platinum', metalCode: 'XPT', label: 'Platinum (XPT)' },
-      { id: 'metal-palladium', value: 'XPD::fallback-palladium', metalCode: 'XPD', label: 'Palladium (XPD)' },
       { id: 'metal-other', value: 'OTHER::fallback-other', metalCode: 'OTHER', label: 'Other Metals' },
     ]
   }, [inventoryCatalogProducts, inventoryMappingProducts])
