@@ -54,7 +54,6 @@ export default function ERPTransactionsTab({
   populateTransactionForm,
   handleDeleteTransaction,
   transactionMeta,
-  transactionPageCount,
   loading,
 }) {
   return (
@@ -105,7 +104,7 @@ export default function ERPTransactionsTab({
           <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.5rem' }}>
               <input placeholder="Search description/type/currency" value={transactionFilters.search} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, search: e.target.value }))} style={modalInputStyle} />
-              <select value={transactionFilters.status} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, status: e.target.value, page: 1 }))} style={modalInputStyle}>
+              <select value={transactionFilters.status} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, status: e.target.value }))} style={modalInputStyle}>
                 <option value="">All statuses</option>
                 <option value="draft">Draft</option>
                 <option value="submitted">Submitted</option>
@@ -114,7 +113,7 @@ export default function ERPTransactionsTab({
                 <option value="returned">Returned</option>
                 <option value="rejected">Rejected</option>
               </select>
-              <select value={transactionFilters.type} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, type: e.target.value, page: 1 }))} style={modalInputStyle}>
+              <select value={transactionFilters.type} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, type: e.target.value }))} style={modalInputStyle}>
                 <option value="">All types</option>
                 {availableTransactionTypes.map((type) => <option key={type} value={type}>{TRANSACTION_TYPE_LABELS[type]}</option>)}
               </select>
@@ -122,8 +121,8 @@ export default function ERPTransactionsTab({
               <input type="date" value={transactionFilters.endDate} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, endDate: e.target.value }))} style={modalInputStyle} />
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button type="button" onClick={() => loadTransactions({ page: 1 })} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Apply Filters</button>
-              <button type="button" onClick={() => { const resetFilters = { search: '', status: '', type: '', startDate: '', endDate: '' }; setTransactionFilters(resetFilters); loadTransactions({ page: 1, ...resetFilters }) }} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer', fontWeight: '700' }}>Reset</button>
+              <button type="button" onClick={() => loadTransactions({ cursor: null, cursorHistory: [] })} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Apply Filters</button>
+              <button type="button" onClick={() => { const resetFilters = { search: '', status: '', type: '', startDate: '', endDate: '' }; setTransactionFilters(resetFilters); loadTransactions({ cursor: null, cursorHistory: [], ...resetFilters }) }} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer', fontWeight: '700' }}>Reset</button>
               <button type="button" onClick={handleExportTransactionsCsv} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #10B981', background: '#ECFDF5', color: '#065F46', cursor: 'pointer', fontWeight: '700' }}>Export CSV</button>
               <button type="button" onClick={handleExportTransactionsXlsx} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #047857', background: '#ECFDF5', color: '#064E3B', cursor: 'pointer', fontWeight: '700' }}>Export XLSX</button>
               <button type="button" onClick={handleExportTransactionsPdf} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #EF4444', background: '#FEF2F2', color: '#991B1B', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
@@ -355,10 +354,31 @@ export default function ERPTransactionsTab({
             </table>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.85rem' }}>
-            <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>Showing page {transactionMeta.page} of {transactionPageCount} · {Number(transactionMeta.total || 0).toLocaleString()} total transactions</p>
+            <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>Showing {Number(transactions.length || 0).toLocaleString()} entries · {Number(transactionMeta.total || 0).toLocaleString()} total transactions</p>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button type="button" disabled={transactionMeta.page <= 1 || loading} onClick={() => loadTransactions({ page: Math.max(1, transactionMeta.page - 1) })} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer' }}>Previous</button>
-              <button type="button" disabled={transactionMeta.page >= transactionPageCount || loading} onClick={() => loadTransactions({ page: Math.min(transactionPageCount, transactionMeta.page + 1) })} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer' }}>Next</button>
+              <button
+                type="button"
+                disabled={!transactionMeta.cursorHistory?.length || loading}
+                onClick={() => {
+                  const history = Array.isArray(transactionMeta.cursorHistory) ? [...transactionMeta.cursorHistory] : []
+                  const previousCursor = history.pop() || null
+                  loadTransactions({ cursor: previousCursor, cursorHistory: history })
+                }}
+                style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer' }}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={!transactionMeta.hasMore || !transactionMeta.nextCursor || loading}
+                onClick={() => {
+                  const history = [...(transactionMeta.cursorHistory || []), transactionMeta.cursor || null]
+                  loadTransactions({ cursor: transactionMeta.nextCursor, cursorHistory: history })
+                }}
+                style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer' }}
+              >
+                Next
+              </button>
             </div>
           </div>
         </div>

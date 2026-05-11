@@ -45,10 +45,9 @@ export default function ERPLedgerTab({
   accounts,
   sorting,
   setSorting,
-  pagination,
-  setPagination,
-  ITEMS_PER_PAGE,
   ledger,
+  ledgerMeta,
+  loadLedger,
   handleEditJv,
   handleEditLedger,
   handleReconcileLedger,
@@ -399,7 +398,6 @@ export default function ERPLedgerTab({
                   }
                   return 0
                 })
-                .slice((pagination.ledger - 1) * ITEMS_PER_PAGE, pagination.ledger * ITEMS_PER_PAGE)
 
               return (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
@@ -469,16 +467,36 @@ export default function ERPLedgerTab({
             })()}
           </div>
 
-          {/* Pagination for Ledger */}
-          {Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE) > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-              <button onClick={() => setPagination({...pagination, ledger: Math.max(1, pagination.ledger - 1)})} disabled={pagination.ledger === 1} style={{padding: '0.4rem 0.8rem', background: pagination.ledger === 1 ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.ledger === 1 ? 'default' : 'pointer', borderRadius: '0.35rem'}}>← Prev</button>
-              {Array.from({length: Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE)}, (_, i) => i + 1).map(p => (
-                <button key={p} onClick={() => setPagination({...pagination, ledger: p})} style={{padding: '0.4rem 0.6rem', background: p === pagination.ledger ? C.s1 : '#E5E7EB', color: p === pagination.ledger ? '#fff' : C.ink, border: 'none', cursor: 'pointer', borderRadius: '0.35rem', fontWeight: p === pagination.ledger ? '600' : '400'}}>{p}</button>
-              ))}
-              <button onClick={() => setPagination({...pagination, ledger: Math.min(Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE), pagination.ledger + 1)})} disabled={pagination.ledger === Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE)} style={{padding: '0.4rem 0.8rem', background: pagination.ledger === Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE) ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.ledger === Math.ceil(ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length / ITEMS_PER_PAGE) ? 'default' : 'pointer', borderRadius: '0.35rem'}}>Next →</button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.85rem' }}>
+            <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>
+              Showing {Number(ledger.length || 0).toLocaleString()} entries
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                type="button"
+                disabled={!ledgerMeta.cursorHistory?.length}
+                onClick={() => {
+                  const history = Array.isArray(ledgerMeta.cursorHistory) ? [...ledgerMeta.cursorHistory] : []
+                  const previousCursor = history.pop() || null
+                  loadLedger({ cursor: previousCursor, cursorHistory: history })
+                }}
+                style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer' }}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={!ledgerMeta.hasMore || !ledgerMeta.nextCursor}
+                onClick={() => {
+                  const history = [...(ledgerMeta.cursorHistory || []), ledgerMeta.cursor || null]
+                  loadLedger({ cursor: ledgerMeta.nextCursor, cursorHistory: history })
+                }}
+                style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, cursor: 'pointer' }}
+              >
+                Next
+              </button>
             </div>
-          )}
+          </div>
 
           {ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No {ledgerVoucherTab === 'bank_jv' ? 'Bank JV' : 'Journal Voucher'} entries yet.</p>}
         </div>

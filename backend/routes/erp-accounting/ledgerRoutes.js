@@ -15,13 +15,36 @@ function registerLedgerRoutes(deps) {
     BASE_CURRENCY_CODE,
   } = deps
 
+const decodeCursor = (cursor) => {
+  if (!cursor) return null
+  try {
+    const parsed = JSON.parse(Buffer.from(String(cursor), 'base64').toString('utf8'))
+    if (!parsed?.date || !parsed?.id) return null
+    return { date: new Date(parsed.date), id: String(parsed.id) }
+  } catch {
+    return null
+  }
+}
+
+const encodeCursor = (doc) => {
+  if (!doc?._id || !doc?.date) return null
+  return Buffer.from(JSON.stringify({ date: doc.date, id: String(doc._id) })).toString('base64')
+}
+
+const emitRealtime = (req, cb) => {
+  const realtimeServer = req.app.get('realtimeServer')
+  if (!realtimeServer || typeof cb !== 'function') return
+  try { cb(realtimeServer) } catch {}
+}
+
 router.get('/ledger', protect, async (req, res) => {
   try {
     if (!canViewLedger(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const TenantLedger = await Ledger.getTenantModel(req.tenant)
-    const { startDate, endDate, accountId, department, referenceType, limit = 500 } = req.query
-    const safeLimit = Math.min(500, Math.max(1, Number(limit) || 500))
+    const { startDate, endDate, accountId, department, referenceType, limit = 100, page } = req.query
+    const safeLimit = Math.min(500, Math.max(1, Number(limit) || 100))
     const query = { isDeleted: { $ne: true } }
+
     if (startDate || endDate) {
       query.date = {}
       if (startDate) query.date.$gte = new Date(startDate)
@@ -36,13 +59,69 @@ router.get('/ledger', protect, async (req, res) => {
     if (referenceType) {
       query.referenceType = referenceType
     }
-    const entries = await TenantLedger.find(query)
+
+    const useOffset = page && !req.query.cursor
+    if (useOffset) {
+      const safePage = Math.max(1, Number(page) || 1)
+      const skip = (safePage - 1) * safeLimit
+      const [entries, total] = await Promise.all([
+        TenantLedger.find(query)
+          .populate('debitAccountId', 'accountName accountCode')
+          .populate('creditAccountId', 'accountName accountCode')
+          .populate('createdBy', 'name')
+          .sort({ date: -1, _id: -1 })
+          .skip(skip)
+          .limit(safeLimit),
+        TenantLedger.countDocuments(query),
+      ])
+
+      return res.json({
+        success: true,
+        count: entries.length,
+        limit: safeLimit,
+        page: safePage,
+        total,
+        entries,
+        hasMore: skip + entries.length < total,
+        nextCursor: entries.length ? encodeCursor(entries[entries.length - 1]) : null,
+        cursor: null,
+      })
+    }
+
+    const cursor = decodeCursor(req.query.cursor)
+    if (cursor) {
+      const operator = '$lt'
+      query.$and = [
+        ...(query.$and || []),
+        {
+          $or: [
+            { date: { [operator]: cursor.date } },
+            { date: cursor.date, _id: { [operator]: cursor.id } },
+          ],
+        },
+      ]
+    }
+
+    const rows = await TenantLedger.find(query)
       .populate('debitAccountId', 'accountName accountCode')
       .populate('creditAccountId', 'accountName accountCode')
       .populate('createdBy', 'name')
-      .sort({ date: -1 })
-      .limit(safeLimit)
-    res.json({ success: true, count: entries.length, limit: safeLimit, entries })
+      .sort({ date: -1, _id: -1 })
+      .limit(safeLimit + 1)
+
+    const hasMore = rows.length > safeLimit
+    const entries = hasMore ? rows.slice(0, safeLimit) : rows
+    const nextCursor = hasMore ? encodeCursor(entries[entries.length - 1]) : null
+
+    res.json({
+      success: true,
+      count: entries.length,
+      limit: safeLimit,
+      entries,
+      hasMore,
+      nextCursor,
+      cursor: req.query.cursor || null,
+    })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -104,6 +183,21 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
         attachmentName,
       }),
     })
+
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      realtimeServer.broadcastLedgerEntry(String(debitAccountId), entry)
+      realtimeServer.broadcastLedgerEntry(String(creditAccountId), entry)
+      if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
+        realtimeServer.broadcastLedgerUpdate(tenantKey, {
+          action: 'created',
+          entryId: String(entry._id),
+          referenceType: entry.referenceType,
+          amount: Number(entry.amount || 0),
+        })
+      }
+    })
+
     res.status(201).json({ success: true, entry })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message || 'Server error' })
@@ -140,6 +234,17 @@ router.put('/ledger/:id', protect, async (req, res) => {
       updates.exchangeRate = 1
     }
     const updated = await TenantLedger.findByIdAndUpdate(req.params.id, updates, { new: true })
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
+        realtimeServer.broadcastLedgerUpdate(tenantKey, {
+          action: 'updated',
+          entryId: String(updated?._id || req.params.id),
+          referenceType: updated?.referenceType,
+          amount: Number(updated?.amount || 0),
+        })
+      }
+    })
     res.json({ success: true, entry: updated })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
@@ -168,6 +273,17 @@ router.delete('/ledger/:id', protect, async (req, res) => {
       currency: entry.currency,
       createdBy: req.user._id,
       department: req.user.department,
+    })
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
+        realtimeServer.broadcastLedgerUpdate(tenantKey, {
+          action: 'reversed',
+          entryId: String(entry._id),
+          reversalEntryId: String(reversalEntry._id),
+          referenceType: entry.referenceType,
+        })
+      }
     })
     res.json({ success: true, message: 'Entry reversed', reversalEntry })
   } catch {
@@ -200,6 +316,17 @@ router.delete('/ledger/:id/permanent', protect, async (req, res) => {
     entry.updatedBy = req.user._id
     await entry.save()
 
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
+        realtimeServer.broadcastLedgerUpdate(tenantKey, {
+          action: 'deleted',
+          entryId: String(entry._id),
+          referenceType: entry.referenceType,
+        })
+      }
+    })
+
     res.json({ success: true, message: 'Entry deleted permanently' })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
@@ -220,6 +347,18 @@ router.put('/ledger/:id/reconcile', protect, async (req, res) => {
       { _id: entry._id },
       { $set: { bankReconciled: nextReconciled, updatedBy: req.user._id } }
     )
+
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
+        realtimeServer.broadcastLedgerUpdate(tenantKey, {
+          action: 'reconciled',
+          entryId: String(entry._id),
+          bankReconciled: nextReconciled,
+          referenceType: entry.referenceType,
+        })
+      }
+    })
 
     res.json({ success: true, bankReconciled: nextReconciled })
   } catch (error) {

@@ -41,6 +41,28 @@ function registerTransactionRoutes(deps) {
 
 const strictBody = validateBodyStrict || validateBody
 
+const decodeCursor = (cursor) => {
+  if (!cursor) return null
+  try {
+    const parsed = JSON.parse(Buffer.from(String(cursor), 'base64').toString('utf8'))
+    if (!parsed?.createdAt || !parsed?.id) return null
+    return { createdAt: new Date(parsed.createdAt), id: String(parsed.id) }
+  } catch {
+    return null
+  }
+}
+
+const encodeCursor = (doc) => {
+  if (!doc?._id || !doc?.createdAt) return null
+  return Buffer.from(JSON.stringify({ createdAt: doc.createdAt, id: String(doc._id) })).toString('base64')
+}
+
+const emitRealtime = (req, cb) => {
+  const realtimeServer = req.app.get('realtimeServer')
+  if (!realtimeServer || typeof cb !== 'function') return
+  try { cb(realtimeServer) } catch {}
+}
+
 router.get('/transactions', protect, async (req, res) => {
   try {
     if (!canAccessTransactions(req.user)) {
@@ -48,6 +70,7 @@ router.get('/transactions', protect, async (req, res) => {
     }
 
     const { page, limit, skip } = parsePagination(req.query, 50, 200)
+    const cursor = decodeCursor(req.query.cursor)
     const query = { isDeleted: { $ne: true } }
     const allowedTypes = getRoleTransactionTypes(req.user)
 
@@ -87,14 +110,47 @@ router.get('/transactions', protect, async (req, res) => {
       }
     }
 
-    const [transactions, total, summaryRows] = await Promise.all([
-      populateTransactionQuery(Transaction.find(query))
-        .sort({ createdAt: -1 })
+    const summaryQuery = { ...query }
+
+    let listQuery = { ...query }
+    if (cursor) {
+      listQuery = {
+        ...listQuery,
+        $and: [
+          ...(listQuery.$and || []),
+          {
+            $or: [
+              { createdAt: { $lt: cursor.createdAt } },
+              { createdAt: cursor.createdAt, _id: { $lt: cursor.id } },
+            ],
+          },
+        ],
+      }
+    }
+
+    let transactions
+    if (cursor) {
+      transactions = await populateTransactionQuery(Transaction.find(listQuery))
+        .sort({ createdAt: -1, _id: -1 })
+        .limit(limit + 1)
+    } else {
+      transactions = await populateTransactionQuery(Transaction.find(listQuery))
+        .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
-        .limit(limit),
-      Transaction.countDocuments(query),
+        .limit(limit + 1)
+    }
+
+    const hasMore = transactions.length > limit
+    const rows = hasMore ? transactions.slice(0, limit) : transactions
+    const nextCursor = hasMore ? encodeCursor(rows[rows.length - 1]) : null
+
+    const blockedQuery = query.type && query.type.$in && query.type.$in.length === 0
+    const metricsMatch = blockedQuery ? { _id: null } : summaryQuery
+
+    const [total, summaryRows] = await Promise.all([
+      Transaction.countDocuments(metricsMatch),
       Transaction.aggregate([
-        { $match: query },
+        { $match: metricsMatch },
         {
           $group: {
             _id: null,
@@ -122,7 +178,17 @@ router.get('/transactions', protect, async (req, res) => {
       rejected: 0,
     }
 
-    res.json({ success: true, transactions, total, page, limit, summary })
+    res.json({
+      success: true,
+      transactions: rows,
+      total,
+      page,
+      limit,
+      summary,
+      hasMore,
+      nextCursor,
+      cursor: req.query.cursor || null,
+    })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -191,6 +257,18 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
 
     appendTransactionAudit(tx, req.user, 'create', { fromStatus: '', toStatus: 'draft', comment: description })
     await tx.save()
+
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
+        realtimeServer.broadcastTransactionUpdate(tenantKey, {
+          action: 'created',
+          transactionId: String(tx._id),
+          status: tx.status,
+          type: tx.type,
+        })
+      }
+    })
 
     res.status(201).json({ success: true, transaction: tx })
   } catch (e) {
@@ -286,6 +364,19 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
     tx.updatedBy = req.user._id
     appendTransactionAudit(tx, req.user, 'update', { fromStatus: tx.status, toStatus: tx.status, comment: req.body.description || '' })
     await tx.save()
+
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
+        realtimeServer.broadcastTransactionUpdate(tenantKey, {
+          action: 'updated',
+          transactionId: String(tx._id),
+          status: tx.status,
+          type: tx.type,
+        })
+      }
+    })
+
     res.json({ success: true, transaction: tx })
   } catch (e) {
     if (/Invalid|exceeds allowed maximum/i.test(e?.message || '')) {
@@ -327,6 +418,25 @@ router.post('/transactions/:id/void', protect, async (req, res) => {
     appendTransactionAudit(tx, req.user, 'void', { fromStatus: tx.status, toStatus: 'voided', comment: req.body?.reason || 'Voided by user' })
     await tx.save()
 
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
+        realtimeServer.broadcastTransactionUpdate(tenantKey, {
+          action: 'voided',
+          transactionId: String(tx._id),
+          status: 'voided',
+          type: tx.type,
+        })
+      }
+      if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
+        realtimeServer.broadcastLedgerUpdate(tenantKey, {
+          action: 'voided_from_transaction',
+          transactionId: String(tx._id),
+          ledgerEntryId: String(tx.journalEntryId || ''),
+        })
+      }
+    })
+
     res.json({ success: true, message: 'Transaction voided and ledger entries removed' })
   } catch (e) {
     console.error('Void transaction error:', e)
@@ -350,6 +460,19 @@ router.delete('/transactions/:id', protect, async (req, res) => {
     tx.updatedBy = req.user._id
     appendTransactionAudit(tx, req.user, 'delete', { fromStatus: tx.status, toStatus: tx.status })
     await tx.save()
+
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
+        realtimeServer.broadcastTransactionUpdate(tenantKey, {
+          action: 'deleted',
+          transactionId: String(tx._id),
+          status: tx.status,
+          type: tx.type,
+        })
+      }
+    })
+
     res.json({ success: true, message: 'Transaction deleted (soft)', transaction: tx })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
@@ -365,6 +488,17 @@ router.post('/transactions/:id/submit', protect, async (req, res) => {
     }
     const result = await applyTransactionWorkflowAction(tx, req.user, 'submit', { comment: req.body?.comment })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
+        realtimeServer.broadcastTransactionUpdate(tenantKey, {
+          action: 'submitted',
+          transactionId: String(result.transaction._id),
+          status: result.transaction.status,
+          type: result.transaction.type,
+        })
+      }
+    })
     res.json({ success: true, transaction: populated })
   } catch (e) {
     respondWorkflowError(res, e)
@@ -377,6 +511,17 @@ router.post('/transactions/:id/approve', protect, async (req, res) => {
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
     const result = await applyTransactionWorkflowAction(tx, req.user, 'approve', { comment: req.body?.comment })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
+        realtimeServer.broadcastTransactionUpdate(tenantKey, {
+          action: 'approved',
+          transactionId: String(result.transaction._id),
+          status: result.transaction.status,
+          type: result.transaction.type,
+        })
+      }
+    })
     res.json({ success: true, transaction: populated })
   } catch (e) {
     respondWorkflowError(res, e)
@@ -389,6 +534,26 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
     const result = await applyTransactionWorkflowAction(tx, req.user, 'post', { comment: req.body?.comment, mappingOverride: req.body || {} })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
+        realtimeServer.broadcastTransactionUpdate(tenantKey, {
+          action: 'posted',
+          transactionId: String(result.transaction._id),
+          status: result.transaction.status,
+          type: result.transaction.type,
+          ledgerEntryId: String(result.ledgerEntry?._id || result.transaction.journalEntryId || ''),
+        })
+      }
+      if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
+        realtimeServer.broadcastLedgerUpdate(tenantKey, {
+          action: 'created_from_transaction',
+          transactionId: String(result.transaction._id),
+          ledgerEntryId: String(result.ledgerEntry?._id || result.transaction.journalEntryId || ''),
+          referenceType: result.ledgerEntry?.referenceType || result.transaction.type,
+        })
+      }
+    })
     res.json({ success: true, transaction: populated, ledgerEntry: result.ledgerEntry })
   } catch (e) {
     respondWorkflowError(res, e)
@@ -515,6 +680,17 @@ router.post('/transactions/:id/return', protect, async (req, res) => {
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
     const result = await applyTransactionWorkflowAction(tx, req.user, 'return', { comment: req.body?.comment })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
+        realtimeServer.broadcastTransactionUpdate(tenantKey, {
+          action: 'returned',
+          transactionId: String(result.transaction._id),
+          status: result.transaction.status,
+          type: result.transaction.type,
+        })
+      }
+    })
     res.json({ success: true, transaction: populated })
   } catch (e) {
     respondWorkflowError(res, e)
@@ -527,6 +703,17 @@ router.post('/transactions/:id/reject', protect, async (req, res) => {
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
     const result = await applyTransactionWorkflowAction(tx, req.user, 'reject', { comment: req.body?.comment })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
+        realtimeServer.broadcastTransactionUpdate(tenantKey, {
+          action: 'rejected',
+          transactionId: String(result.transaction._id),
+          status: result.transaction.status,
+          type: result.transaction.type,
+        })
+      }
+    })
     res.json({ success: true, transaction: populated })
   } catch (e) {
     respondWorkflowError(res, e)
@@ -563,6 +750,23 @@ router.post('/transactions/bulk-action', protect, async (req, res) => {
     }
 
     const refreshed = await populateTransactionQuery(Transaction.find({ _id: { $in: results.successIds } }))
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastTransactionUpdate === 'function' && results.successIds.length) {
+        realtimeServer.broadcastTransactionUpdate(tenantKey, {
+          action: `bulk_${action}`,
+          transactionIds: results.successIds,
+          successCount: results.successIds.length,
+          failureCount: results.failed.length,
+        })
+      }
+      if (action === 'post' && typeof realtimeServer.broadcastLedgerUpdate === 'function' && results.successIds.length) {
+        realtimeServer.broadcastLedgerUpdate(tenantKey, {
+          action: 'bulk_posted_from_transaction',
+          transactionIds: results.successIds,
+        })
+      }
+    })
     res.json({ success: true, action, processed: transactions.length, successCount: results.successIds.length, failureCount: results.failed.length, transactions: refreshed, ...results })
   } catch (e) {
     console.error('Bulk transaction action error:', e)

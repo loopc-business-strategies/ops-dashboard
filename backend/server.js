@@ -41,8 +41,10 @@ const dnsServers = process.env.DNS_SERVERS
 dns.setServers(dnsServers)
 // ─────────────────────────────────────────────────────────────────────────────
 
+const http = require('http')
 const mongoose = require('mongoose')
 const createApp = require('./app')
+const RealtimeServer = require('./realtime/RealtimeServer')
 const { getDefaultTenant, getTenantUri } = require('./config/tenants')
 
 const app = createApp()
@@ -93,9 +95,15 @@ async function startServer() {
   try {
     await mongoose.connect(mongoUri)
     console.log('✅ Connected to MongoDB')
-    app.listen(PORT, () => {
+
+    const httpServer = http.createServer(app)
+    const realtimeServer = new RealtimeServer(httpServer)
+    app.set('realtimeServer', realtimeServer)
+
+    httpServer.listen(PORT, () => {
       console.log(`✅ Server running at http://localhost:${PORT}`)
       console.log(`   Health check: http://localhost:${PORT}/api/health`)
+      console.log('✅ Realtime Socket.IO enabled')
     })
   } catch (err) {
     console.warn(`⚠️  MongoDB connect failed (${mongoUri.split('@')[1]?.split('/')[0] || 'unknown'}): ${err.message}`)

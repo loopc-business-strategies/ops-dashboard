@@ -55,6 +55,7 @@ import ERPVendorsTab from './erp/tabs/ERPVendorsTab'
 import ERPLedgerTab from './erp/tabs/ERPLedgerTab'
 import ERPTransactionsTab from './erp/tabs/ERPTransactionsTab'
 import ERPReportsTab from './erp/tabs/ERPReportsTab'
+import { startERPRealtimeFeeds } from '../../utils/realtimeSocket'
 
 const loadExcel = async () => {
   const mod = await import('exceljs')
@@ -522,10 +523,17 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       const trendDirection = netDelta > 0 ? 'up' : netDelta < 0 ? 'down' : 'flat'
       const trendColor = trendDirection === 'up' ? '#059669' : trendDirection === 'down' ? '#DC2626' : muted
       const trendArrow = trendDirection === 'up' ? '↑' : trendDirection === 'down' ? '↓' : '→'
+      const quality = cf?.quality || {}
+      const activity = cf?.activity || {}
       const summaryItems = [
         { label: 'Inflow',  val: cf?.inflow,  bg: '#DCFCE7', vc: '#059669' },
         { label: 'Outflow', val: cf?.outflow, bg: '#FEE2E2', vc: '#DC2626' },
         { label: 'Net',     val: cf?.net,     bg: '#E8F5EF', vc: Number(cf?.net || 0) >= 0 ? '#059669' : '#DC2626' },
+      ]
+      const activityItems = [
+        { key: 'operating', label: 'Operating', val: Number(activity?.operating?.net || 0) },
+        { key: 'investing', label: 'Investing', val: Number(activity?.investing?.net || 0) },
+        { key: 'financing', label: 'Financing', val: Number(activity?.financing?.net || 0) },
       ]
       return (
         <div style={widgetContainerStyle}>
@@ -570,6 +578,22 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
               {trendArrow} Cashflow trend delta: {fmtMoney(netDelta)} (vs prev month)
             </p>
           )}
+          <div style={{ marginTop: '0.45rem', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.4rem' }}>
+            {activityItems.map((item) => {
+              const isPos = item.val >= 0
+              return (
+                <div key={item.key} style={{ border: '1px solid #E5E7EB', borderRadius: '0.35rem', padding: '0.35rem 0.4rem' }}>
+                  <p style={{ margin: 0, fontSize: '0.64rem', color: muted }}>{item.label}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.72rem', fontWeight: '700', color: isPos ? '#059669' : '#DC2626' }}>
+                    {fmtMoney(item.val)}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+          <p style={{ margin: '0.45rem 0 0', fontSize: '0.7rem', color: muted, textAlign: 'right' }}>
+            Runway: {quality?.runwayMonths == null ? '—' : `${Number(quality.runwayMonths).toFixed(1)} mo`} | Coverage: {quality?.operatingCoverage == null ? '—' : `${Number(quality.operatingCoverage).toFixed(2)}x`}
+          </p>
         </div>
       )
     }
@@ -1088,7 +1112,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const [editingTransactionId, setEditingTransactionId] = useState('')
   const [transactionFilters, setTransactionFilters] = useState({ search: '', status: '', type: '', startDate: '', endDate: '' })
   const [transactionSummary, setTransactionSummary] = useState({ totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
-  const [transactionMeta, setTransactionMeta] = useState({ page: 1, limit: 25, total: 0 })
+  const [ledgerMeta, setLedgerMeta] = useState({ cursor: null, nextCursor: null, hasMore: false, cursorHistory: [] })
+  const [transactionMeta, setTransactionMeta] = useState({ page: 1, limit: 25, total: 0, cursor: null, nextCursor: null, hasMore: false, cursorHistory: [] })
   const [selectedTransactionIds, setSelectedTransactionIds] = useState([])
   const [transactionWorkflowNote, setTransactionWorkflowNote] = useState('')
   const [transactionCommentDraft, setTransactionCommentDraft] = useState('')
@@ -2110,14 +2135,18 @@ function ERPTab({ focusTab, onNavigateMain }) {
     })
     .filter((group) => group.accounts.length > 0)
 
-  const loadLedger = async () => {
+  const loadLedger = async (options = {}) => {
     if (!canViewLedger) return
     setLoading(true)
     try {
+      const hasCursorOverride = Object.prototype.hasOwnProperty.call(options, 'cursor')
+      const cursor = hasCursorOverride ? options.cursor : null
+      const cursorHistory = Array.isArray(options.cursorHistory) ? options.cursorHistory : (cursor ? ledgerMeta.cursorHistory || [] : [])
       const ledgerQuery = {
-        limit: 500,
+        limit: 100,
         ...ledgerFilters,
         referenceType: ledgerFilters.referenceType || ledgerVoucherTab,
+        ...(cursor ? { cursor } : {}),
       }
       const [ledgerData, accountData, currencyData, mappingData] = await Promise.all([
         erpAccountingAPI.getLedger(token, ledgerQuery),
@@ -2126,6 +2155,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
         erpAccountingAPI.getMappings(token),
       ])
       setLedger(ledgerData.entries || [])
+      setLedgerMeta({
+        cursor: ledgerData.cursor || cursor || null,
+        nextCursor: ledgerData.nextCursor || null,
+        hasMore: Boolean(ledgerData.hasMore),
+        cursorHistory,
+      })
       setAccounts(accountData.accounts || [])
       setCurrencies(currencyData.currencies || [])
       setMappings(mappingData.mappings || [])
@@ -2260,15 +2295,26 @@ function ERPTab({ focusTab, onNavigateMain }) {
     if (!canAccessTransactions) return
     setLoading(true)
     try {
+      const hasCursorOverride = Object.prototype.hasOwnProperty.call(overrides, 'cursor')
+      const cursor = hasCursorOverride ? overrides.cursor : null
+      const cursorHistory = Array.isArray(overrides.cursorHistory)
+        ? overrides.cursorHistory
+        : (cursor ? transactionMeta.cursorHistory || [] : [])
+
       const params = {
-        page: overrides.page || transactionMeta.page,
         limit: overrides.limit || transactionMeta.limit,
+        ...(cursor ? { cursor } : {}),
         ...((overrides.search ?? transactionFilters.search) ? { search: overrides.search ?? transactionFilters.search } : {}),
         ...((overrides.status ?? transactionFilters.status) ? { status: overrides.status ?? transactionFilters.status } : {}),
         ...((overrides.type ?? transactionFilters.type) ? { type: overrides.type ?? transactionFilters.type } : {}),
         ...((overrides.startDate ?? transactionFilters.startDate) ? { startDate: overrides.startDate ?? transactionFilters.startDate } : {}),
         ...((overrides.endDate ?? transactionFilters.endDate) ? { endDate: overrides.endDate ?? transactionFilters.endDate } : {}),
       }
+
+      if (!hasCursorOverride && overrides.page) {
+        params.page = overrides.page
+      }
+
       const [data, customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
         erpAccountingAPI.getTransactions(token, params),
         canViewCustomers ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
@@ -2281,7 +2327,16 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
       setTransactions(data.transactions || [])
       setTransactionSummary(data.summary || { totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
-      setTransactionMeta((prev) => ({ ...prev, page: data.page || params.page || prev.page, limit: data.limit || params.limit || prev.limit, total: data.total || 0 }))
+      setTransactionMeta((prev) => ({
+        ...prev,
+        page: data.page || params.page || prev.page,
+        limit: data.limit || params.limit || prev.limit,
+        total: Number(data.total || 0),
+        cursor: data.cursor || cursor || null,
+        nextCursor: data.nextCursor || null,
+        hasMore: Boolean(data.hasMore),
+        cursorHistory,
+      }))
       if (customerData) setCustomers(customerData.customers || [])
       if (vendorData) setVendors(vendorData.vendors || [])
       if (inventoryData) setInventoryProducts(inventoryData.products || [])
@@ -2593,7 +2648,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
 
       resetTransactionComposer()
       setSelectedTransactionId(response.transaction?._id || '')
-      await loadTransactions({ page: 1 })
+      await loadTransactions({ cursor: null, cursorHistory: [] })
       showNotification(isTransactionEditMode ? '✅ Transaction updated' : '✅ Transaction created as draft')
     } catch (e) {
       setError(e.response?.data?.message || `Failed to ${isTransactionEditMode ? 'update' : 'create'} transaction`)
@@ -3548,6 +3603,29 @@ function ERPTab({ focusTab, onNavigateMain }) {
     reportFilters.minAmount,
     selectedReportAccountId,
   ])
+
+  useEffect(() => {
+    if (!token || !canAccessERP) return undefined
+
+    const stopRealtime = startERPRealtimeFeeds({
+      token,
+      tenant: user?.tenant,
+      onLedgerUpdate: () => {
+        if (activeTab === 'ledger') {
+          loadLedger({ cursor: null, cursorHistory: [] })
+        }
+      },
+      onTransactionUpdate: () => {
+        if (activeTab === 'transactions') {
+          loadTransactions({ cursor: null, cursorHistory: [] })
+        }
+      },
+    })
+
+    return () => {
+      stopRealtime()
+    }
+  }, [token, user?.tenant, canAccessERP, activeTab])
 
   // Re-load dashboard when date range changes
   useEffect(() => {
@@ -6568,6 +6646,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
         setPagination={setPagination}
         ITEMS_PER_PAGE={ITEMS_PER_PAGE}
         ledger={ledger}
+        ledgerMeta={ledgerMeta}
+        loadLedger={loadLedger}
         handleEditJv={handleEditJv}
         handleEditLedger={handleEditLedger}
         handleReconcileLedger={handleReconcileLedger}

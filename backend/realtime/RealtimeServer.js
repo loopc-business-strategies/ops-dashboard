@@ -78,6 +78,11 @@ class RealtimeServer {
     this.io.of('/ledger').on('connection', (socket) => {
       console.log(`[Ledger] User ${socket.userId} connected`)
 
+      socket.on('subscribe:tenant', (tenant) => {
+        socket.join(`ledger:tenant:${tenant}`)
+        socket.emit('subscribed', { namespace: '/ledger', tenant })
+      })
+
       // Subscribe to account ledger updates
       socket.on('subscribe:account', (accountId) => {
         socket.join(`ledger:account:${accountId}`)
@@ -89,6 +94,22 @@ class RealtimeServer {
 
       socket.on('disconnect', () => {
         console.log(`[Ledger] User ${socket.userId} disconnected`)
+      })
+    })
+
+    /**
+     * Transactions namespace: broadcast transaction workflow updates
+     */
+    this.io.of('/transactions').on('connection', (socket) => {
+      console.log(`[Transactions] User ${socket.userId} connected`)
+
+      socket.on('subscribe:tenant', (tenant) => {
+        socket.join(`transactions:tenant:${tenant}`)
+        socket.emit('subscribed', { namespace: '/transactions', tenant })
+      })
+
+      socket.on('disconnect', () => {
+        console.log(`[Transactions] User ${socket.userId} disconnected`)
       })
     })
 
@@ -130,6 +151,30 @@ class RealtimeServer {
   }
 
   /**
+   * Broadcast tenant-wide ledger updates
+   * @param {String} tenant - Tenant key
+   * @param {Object} payload - Update payload
+   */
+  broadcastLedgerUpdate(tenant, payload = {}) {
+    this.io.of('/ledger').to(`ledger:tenant:${tenant}`).emit('ledger:update', {
+      timestamp: new Date(),
+      ...payload,
+    })
+  }
+
+  /**
+   * Broadcast tenant-wide transaction updates
+   * @param {String} tenant - Tenant key
+   * @param {Object} payload - Update payload
+   */
+  broadcastTransactionUpdate(tenant, payload = {}) {
+    this.io.of('/transactions').to(`transactions:tenant:${tenant}`).emit('transaction:update', {
+      timestamp: new Date(),
+      ...payload,
+    })
+  }
+
+  /**
    * Broadcast report generation progress
    * @param {String} reportId - Report identifier
    * @param {String} status - 'pending' | 'processing' | 'completed' | 'failed'
@@ -161,12 +206,14 @@ class RealtimeServer {
    * Get connection count for monitoring
    */
   getConnectionStats() {
+    const namespaceCount = (namespace) => Object.keys(this.io.of(namespace).sockets || {}).length
     return {
-      total: Object.keys(this.io.of('/dashboard').sockets.sockets).length,
-      dashboard: Object.keys(this.io.of('/dashboard').sockets.sockets).length,
-      reports: Object.keys(this.io.of('/reports').sockets.sockets).length,
-      ledger: Object.keys(this.io.of('/ledger').sockets.sockets).length,
-      notifications: Object.keys(this.io.of('/notifications').sockets.sockets).length,
+      total: namespaceCount('/dashboard') + namespaceCount('/reports') + namespaceCount('/ledger') + namespaceCount('/transactions') + namespaceCount('/notifications'),
+      dashboard: namespaceCount('/dashboard'),
+      reports: namespaceCount('/reports'),
+      ledger: namespaceCount('/ledger'),
+      transactions: namespaceCount('/transactions'),
+      notifications: namespaceCount('/notifications'),
     }
   }
 }
