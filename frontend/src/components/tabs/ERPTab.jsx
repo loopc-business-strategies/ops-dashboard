@@ -1448,6 +1448,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
   ]
   const statementReferenceTypes = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
   const statementDepartments = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean))).sort()
+  const isCashOnHandEnquiry = String(accountEnquiryData?.account?.accountCode || '').trim() === '1000'
+  const strictCashStatementTypes = new Set(['payment', 'receipt', 'sale', 'purchase'])
   const resolveFixStatus = (entry) => {
     const explicit = String(entry?.metalFixStatus || '').trim().toLowerCase()
     if (explicit === 'fixed' || explicit === 'unfixed') return explicit
@@ -1457,6 +1459,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
     return 'unknown'
   }
   const filteredStatementEntries = rawStatementEntries.filter((entry) => {
+    if (isCashOnHandEnquiry) {
+      const sourceType = String(entry?.sourceTransactionType || '').toLowerCase().trim()
+      const referenceType = String(entry?.referenceType || '').toLowerCase().trim()
+      const effectiveType = sourceType || referenceType
+      if (!strictCashStatementTypes.has(effectiveType)) return false
+    }
     const entryDate = entry.date ? new Date(entry.date) : null
     if (statementFilters.startDate) {
       const start = new Date(statementFilters.startDate)

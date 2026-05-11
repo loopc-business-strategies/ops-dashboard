@@ -276,6 +276,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     const transactionByLedgerId = new Map()
     const transactionById = new Map()
     const directDealById = new Map()
+    const transactionDisplayOffsetById = new Map()
     linkedTransactions.forEach((tx) => {
       const lineTxNo = Array.isArray(tx.voucherMeta?.lineItems)
         ? String(tx.voucherMeta.lineItems.find((line) => String(line?.vatNumber || '').trim())?.vatNumber || '').trim()
@@ -301,6 +302,80 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       if (tx.journalEntryId) transactionByLedgerId.set(String(tx.journalEntryId), txRef)
       transactionById.set(String(tx._id), txRef)
     })
+
+    const scoreCounterpartyAccount = (candidate = {}) => {
+      const code = String(candidate.accountCode || '').trim()
+      const name = String(candidate.accountName || '').toLowerCase().trim()
+      let score = 0
+      if (/receivable|payable|creditor|debtor|customer|vendor/.test(name)) score += 8
+      if (code === '1100' || code === '2100') score += 8
+      if (/exchange\s*gain|exchange\s*loss|forex|fx\s*gain|fx\s*loss/.test(name)) score -= 10
+      if (code === '1000' || code === '1010' || /cash|bank/.test(name)) score -= 4
+      return score
+    }
+
+    if (linkedTransactions.length > 0) {
+      const txIds = linkedTransactions.map((tx) => tx._id).filter(Boolean)
+      const txLedgerEntries = await Ledger.find({
+        isDeleted: { $ne: true },
+        referenceId: { $in: txIds },
+      })
+        .populate('debitAccountId', 'accountCode accountName')
+        .populate('creditAccountId', 'accountCode accountName')
+        .select('referenceId debitAccountId creditAccountId amount exchangeRate')
+        .lean()
+
+      const txCounterpartyCandidates = new Map()
+      txLedgerEntries.forEach((entry) => {
+        const txId = String(entry.referenceId || '')
+        if (!txId) return
+        const debitAccount = entry.debitAccountId || null
+        const creditAccount = entry.creditAccountId || null
+        const debitId = String(debitAccount?._id || debitAccount || '')
+        const creditId = String(creditAccount?._id || creditAccount || '')
+        const involvesTargetOnDebit = targetAccountIds.some((id) => String(id) === debitId)
+        const involvesTargetOnCredit = targetAccountIds.some((id) => String(id) === creditId)
+        if (!involvesTargetOnDebit && !involvesTargetOnCredit) return
+
+        const counterparty = involvesTargetOnDebit ? creditAccount : debitAccount
+        if (!counterparty) return
+        const counterpartyCode = String(counterparty.accountCode || '').trim()
+        const counterpartyName = String(counterparty.accountName || '').trim()
+        const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
+        const key = `${txId}:${counterpartyCode}:${counterpartyName}`
+
+        const existing = txCounterpartyCandidates.get(key) || {
+          txId,
+          accountCode: counterpartyCode,
+          accountName: counterpartyName,
+          score: scoreCounterpartyAccount({ accountCode: counterpartyCode, accountName: counterpartyName }),
+          amountWeight: 0,
+        }
+        existing.amountWeight += Math.abs(amount)
+        txCounterpartyCandidates.set(key, existing)
+      })
+
+      const groupedByTx = new Map()
+      for (const candidate of txCounterpartyCandidates.values()) {
+        const arr = groupedByTx.get(candidate.txId) || []
+        arr.push(candidate)
+        groupedByTx.set(candidate.txId, arr)
+      }
+
+      for (const [txId, candidates] of groupedByTx.entries()) {
+        candidates.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score
+          return b.amountWeight - a.amountWeight
+        })
+        const best = candidates[0]
+        if (best?.accountCode || best?.accountName) {
+          transactionDisplayOffsetById.set(txId, {
+            accountCode: best.accountCode,
+            accountName: best.accountName,
+          })
+        }
+      }
+    }
 
     const directDealIds = ledgerEntries
       .filter((entry) => String(entry.referenceType || '').toLowerCase() === 'direct_deal' && entry.referenceId)
@@ -344,6 +419,16 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
           }
         }
       }
+      const defaultOffsetCode = isDebitEntry ? (entry.creditAccountId?.accountCode || '') : (entry.debitAccountId?.accountCode || '')
+      const defaultOffsetName = isDebitEntry ? (entry.creditAccountId?.accountName || '') : (entry.debitAccountId?.accountName || '')
+      const linkedTxType = String(linkedTx?.transactionType || '').toLowerCase().trim()
+      const txDisplayOffset = linkedTx?.id ? transactionDisplayOffsetById.get(String(linkedTx.id)) : null
+      const effectiveOffsetCode = (linkedTxType === 'payment' || linkedTxType === 'receipt') && txDisplayOffset
+        ? String(txDisplayOffset.accountCode || defaultOffsetCode)
+        : defaultOffsetCode
+      const effectiveOffsetName = (linkedTxType === 'payment' || linkedTxType === 'receipt') && txDisplayOffset
+        ? String(txDisplayOffset.accountName || defaultOffsetName)
+        : defaultOffsetName
       const row = {
         _id: entry._id,
         date: entry.date,
@@ -358,8 +443,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         runningBalance,
         currentValue: Number(runningBalance || 0),
         limitValue: Number(account.openingBalance || 0),
-        offsetAccountCode: isDebitEntry ? (entry.creditAccountId?.accountCode || '') : (entry.debitAccountId?.accountCode || ''),
-        offsetAccountName: isDebitEntry ? (entry.creditAccountId?.accountName || '') : (entry.debitAccountId?.accountName || ''),
+        offsetAccountCode: effectiveOffsetCode,
+        offsetAccountName: effectiveOffsetName,
         createdBy: entry.createdBy?.name || '',
         sourceTransactionId: linkedTx?.id || '',
         sourceTransactionNumber: linkedTx?.number || '',
