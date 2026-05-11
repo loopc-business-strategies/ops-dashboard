@@ -211,13 +211,17 @@ router.put('/ledger/:id/reconcile', protect, async (req, res) => {
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const TenantLedger = await Ledger.getTenantModel(req.tenant)
-    const entry = await TenantLedger.findById(req.params.id)
+    const entry = await TenantLedger.findById(req.params.id).select('referenceType bankReconciled')
     if (!entry) return res.status(404).json({ success: false, message: 'Ledger entry not found' })
     if (entry.referenceType !== 'bank_jv') return res.status(400).json({ success: false, message: 'Only Bank JV entries can be reconciled' })
-    entry.bankReconciled = !entry.bankReconciled
-    entry.updatedBy = req.user._id
-    await entry.save()
-    res.json({ success: true, bankReconciled: entry.bankReconciled })
+
+    const nextReconciled = !Boolean(entry.bankReconciled)
+    await TenantLedger.updateOne(
+      { _id: entry._id },
+      { $set: { bankReconciled: nextReconciled, updatedBy: req.user._id } }
+    )
+
+    res.json({ success: true, bankReconciled: nextReconciled })
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
