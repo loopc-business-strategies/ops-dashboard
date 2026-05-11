@@ -533,7 +533,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
             { 'voucherMeta.refNo': { $in: paymentReceiptDocRefs } },
           ],
         })
-          .select('_id customerId vendorId voucherMeta.vocNo voucherMeta.refNo')
+          .select('_id customerId vendorId voucherMeta.vocNo voucherMeta.refNo voucherMeta.partyAccountId voucherMeta.partyCode')
           .lean()
 
         const customerIds = Array.from(new Set(
@@ -567,6 +567,32 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
           : []
         const partyAccountById = new Map(partyLedgerAccounts.map((row) => [String(row._id), row]))
 
+        const directPartyLookups = Array.from(new Set(
+          linkedDocTransactions
+            .map((tx) => String(tx?.voucherMeta?.partyAccountId || tx?.voucherMeta?.partyCode || '').trim())
+            .filter(Boolean)
+        ))
+        const directPartyObjectIds = directPartyLookups
+          .filter((value) => mongoose.Types.ObjectId.isValid(value))
+          .map((value) => new mongoose.Types.ObjectId(value))
+        const directPartyCodes = directPartyLookups.filter((value) => !mongoose.Types.ObjectId.isValid(value))
+        const directPartyAccounts = directPartyLookups.length > 0
+          ? await ChartOfAccount.find({
+            isActive: true,
+            $or: [
+              ...(directPartyObjectIds.length > 0 ? [{ _id: { $in: directPartyObjectIds } }] : []),
+              ...(directPartyCodes.length > 0 ? [{ accountCode: { $in: directPartyCodes } }] : []),
+            ],
+          }).select('_id accountCode accountName').lean()
+          : []
+        const directPartyAccountByLookup = new Map()
+        directPartyAccounts.forEach((account) => {
+          const id = String(account._id || '').trim()
+          const code = String(account.accountCode || '').trim()
+          if (id) directPartyAccountByLookup.set(id, account)
+          if (code) directPartyAccountByLookup.set(code, account)
+        })
+
         linkedDocTransactions.forEach((tx) => {
           const docRefs = [
             normalizeDocRef(String(tx?.voucherMeta?.vocNo || '').trim()),
@@ -577,8 +603,10 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
           const customerLedgerId = tx.customerId ? customerLedgerById.get(String(tx.customerId)) : ''
           const vendorLedgerId = tx.vendorId ? vendorLedgerById.get(String(tx.vendorId)) : ''
           const preferredLedgerId = customerLedgerId || vendorLedgerId
-          const preferredAccount = preferredLedgerId ? partyAccountById.get(String(preferredLedgerId)) : null
-          if (!preferredAccount) return
+          const directPartyLookup = String(tx?.voucherMeta?.partyAccountId || tx?.voucherMeta?.partyCode || '').trim()
+          const preferredAccount = (preferredLedgerId ? partyAccountById.get(String(preferredLedgerId)) : null)
+            || (directPartyLookup ? directPartyAccountByLookup.get(directPartyLookup) : null)
+          if (!preferredAccount || isTargetAccount(preferredAccount)) return
 
           const resolved = {
             accountCode: String(preferredAccount.accountCode || ''),
