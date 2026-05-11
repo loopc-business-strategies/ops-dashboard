@@ -675,13 +675,41 @@ router.get('/reports/dashboard', protect, async (req, res) => {
       .slice(0, 6)
 
     // --- Cash flow: net movement in Asset accounts ---
+    // Activity buckets are inferred from the counter-account type on each cash movement.
+    const activityFlow = {
+      operating: { inflow: 0, outflow: 0, net: 0, count: 0 },
+      investing: { inflow: 0, outflow: 0, net: 0, count: 0 },
+      financing: { inflow: 0, outflow: 0, net: 0, count: 0 },
+      other: { inflow: 0, outflow: 0, net: 0, count: 0 },
+    }
+    const resolveCashflowActivity = (counterType) => {
+      if (counterType === 'Income' || counterType === 'Expense') return 'operating'
+      if (counterType === 'Liability' || counterType === 'Equity') return 'financing'
+      if (counterType === 'Asset') return 'investing'
+      return 'other'
+    }
+
     let cashInflow = 0
     let cashOutflow = 0
     periodLedger.forEach((e) => {
       const debitType = e.debitAccountId?.accountType
       const creditType = e.creditAccountId?.accountType
-      if (debitType === 'Asset') cashInflow += Number(e.amount || 0)
-      if (creditType === 'Asset') cashOutflow += Number(e.amount || 0)
+      const amount = Number(e.amount || 0) * Number(e.exchangeRate || 1)
+
+      if (debitType === 'Asset') {
+        cashInflow += amount
+        const bucket = resolveCashflowActivity(creditType)
+        activityFlow[bucket].inflow += amount
+        activityFlow[bucket].net += amount
+        activityFlow[bucket].count += 1
+      }
+      if (creditType === 'Asset') {
+        cashOutflow += amount
+        const bucket = resolveCashflowActivity(debitType)
+        activityFlow[bucket].outflow += amount
+        activityFlow[bucket].net -= amount
+        activityFlow[bucket].count += 1
+      }
     })
 
     // Monthly cash-flow bar chart data (last 6 months)
@@ -695,10 +723,11 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         .populate('creditAccountId', 'accountType')
       let inc = 0; let exp = 0; let cfIn = 0; let cfOut = 0
       mEntries.forEach((e) => {
-        if (e.creditAccountId?.accountType === 'Income') inc += Number(e.amount || 0)
-        if (e.debitAccountId?.accountType === 'Expense') exp += Number(e.amount || 0)
-        if (e.debitAccountId?.accountType === 'Asset') cfIn += Number(e.amount || 0)
-        if (e.creditAccountId?.accountType === 'Asset') cfOut += Number(e.amount || 0)
+        const amount = Number(e.amount || 0) * Number(e.exchangeRate || 1)
+        if (e.creditAccountId?.accountType === 'Income') inc += amount
+        if (e.debitAccountId?.accountType === 'Expense') exp += amount
+        if (e.debitAccountId?.accountType === 'Asset') cfIn += amount
+        if (e.creditAccountId?.accountType === 'Asset') cfOut += amount
       })
       monthlyCashFlow.push({
         month: ms.toLocaleString('en-US', { month: 'short', year: '2-digit' }),
@@ -726,6 +755,43 @@ router.get('/reports/dashboard', protect, async (req, res) => {
     const totalBankBalance = cashBankBalances.reduce((s, a) => s + Number(a.balance || 0), 0)
     const bankRows = cashBankBalances.filter((a) => /bank/i.test(a.accountName))
     const cashRows = cashBankBalances.filter((a) => /cash/i.test(a.accountName))
+
+    const monthlyOutflows = monthlyCashFlow.map((m) => Number(m.outflow || m.cashOut || 0))
+    const monthlyInflows = monthlyCashFlow.map((m) => Number(m.inflow || m.cashIn || 0))
+    const monthlyNets = monthlyCashFlow.map((m) => Number(m.net || 0))
+    const last3Outflows = monthlyOutflows.slice(-3)
+    const last3Inflows = monthlyInflows.slice(-3)
+    const last3Nets = monthlyNets.slice(-3)
+    const avgOutflow3m = last3Outflows.length ? (last3Outflows.reduce((s, n) => s + n, 0) / last3Outflows.length) : 0
+    const avgInflow3m = last3Inflows.length ? (last3Inflows.reduce((s, n) => s + n, 0) / last3Inflows.length) : 0
+    const rolling3MonthNet = last3Nets.reduce((s, n) => s + n, 0)
+
+    const latestNet = monthlyNets.length ? monthlyNets[monthlyNets.length - 1] : 0
+    const prevNet = monthlyNets.length > 1 ? monthlyNets[monthlyNets.length - 2] : 0
+    const trendDelta = latestNet - prevNet
+    const trendDirection = trendDelta > 0 ? 'up' : trendDelta < 0 ? 'down' : 'flat'
+
+    const meanNet = monthlyNets.length ? (monthlyNets.reduce((s, n) => s + n, 0) / monthlyNets.length) : 0
+    const variance = monthlyNets.length
+      ? (monthlyNets.reduce((s, n) => s + ((n - meanNet) ** 2), 0) / monthlyNets.length)
+      : 0
+    const netVolatility = Math.sqrt(variance)
+
+    const operating = activityFlow.operating
+    const operatingCoverage = operating.outflow > 0 ? (operating.inflow / operating.outflow) : null
+    const runwayMonths = avgOutflow3m > 0 ? (totalBankBalance / avgOutflow3m) : null
+
+    const activityRounded = Object.fromEntries(
+      Object.entries(activityFlow).map(([key, row]) => [
+        key,
+        {
+          inflow: toMoney(row.inflow),
+          outflow: toMoney(row.outflow),
+          net: toMoney(row.net),
+          count: row.count,
+        },
+      ])
+    )
 
     // --- Assets & Liabilities snapshot ---
     const [assets, liabilities] = await Promise.all([
@@ -929,6 +995,17 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         outflow: toMoney(cashOutflow),
         net: toMoney(cashInflow - cashOutflow),
         monthly: monthlyCashFlow,
+        activity: activityRounded,
+        quality: {
+          avgInflow3m: toMoney(avgInflow3m),
+          avgOutflow3m: toMoney(avgOutflow3m),
+          rolling3MonthNet: toMoney(rolling3MonthNet),
+          trendDelta: toMoney(trendDelta),
+          trendDirection,
+          netVolatility: toMoney(netVolatility),
+          operatingCoverage: operatingCoverage === null ? null : toMoney(operatingCoverage),
+          runwayMonths: runwayMonths === null ? null : toMoney(runwayMonths),
+        },
       },
       expenses: {
         total: toMoney(expenseTotal),
