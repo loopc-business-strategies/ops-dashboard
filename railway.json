@@ -1,0 +1,11 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "deploy": {
+    "buildCommand": "cd backend && npm install --omit=dev",
+    "startCommand": "cd backend && node server.js",
+    "healthcheckPath": "/api/health",
+    "healthcheckTimeout": 120,
+    "restartPolicyType": "on_failure",
+    "restartPolicyMaxRetries": 5
+  }
+}
