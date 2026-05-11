@@ -435,6 +435,13 @@ export default function ERPReportsTab({
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                   <thead><tr style={{ borderBottom: `1px solid ${C.p2}` }}><th style={{ padding: '0.5rem', textAlign: 'left' }}>Voucher</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Date</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Type</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Description</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Debit A/C</th><th style={{ padding: '0.5rem', textAlign: 'left' }}>Credit A/C</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Amount</th><th style={{ padding: '0.5rem', textAlign: 'right' }}>Running</th></tr></thead>
                   <tbody>
+                    {!selectedReportAccountId && (
+                      <tr>
+                        <td colSpan={8} style={{ padding: '0.75rem', textAlign: 'center', color: C.inkSoft }}>
+                          Select an account to view drilldown.
+                        </td>
+                      </tr>
+                    )}
                     {ledgerReportRows.map((row, i) => (
                       <tr key={`${row.date}-${i}`} style={{ borderBottom: `1px solid ${C.p2}` }}>
                         <td style={{ padding: '0.5rem', fontWeight: '700' }}>{String(row.entryId || '').slice(-6).toUpperCase()}</td>
