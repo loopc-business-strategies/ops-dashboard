@@ -277,6 +277,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     const transactionById = new Map()
     const directDealById = new Map()
     const transactionDisplayOffsetById = new Map()
+    const referenceDisplayOffsetById = new Map()
     linkedTransactions.forEach((tx) => {
       const lineTxNo = Array.isArray(tx.voucherMeta?.lineItems)
         ? String(tx.voucherMeta.lineItems.find((line) => String(line?.vatNumber || '').trim())?.vatNumber || '').trim()
@@ -377,6 +378,68 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       }
     }
 
+    if (referenceIds.length > 0) {
+      const referencedLedgerEntries = await Ledger.find({
+        isDeleted: { $ne: true },
+        referenceId: { $in: referenceIds },
+      })
+        .populate('debitAccountId', 'accountCode accountName')
+        .populate('creditAccountId', 'accountCode accountName')
+        .select('referenceId debitAccountId creditAccountId amount exchangeRate')
+        .lean()
+
+      const refCounterpartyCandidates = new Map()
+      referencedLedgerEntries.forEach((entry) => {
+        const refId = String(entry.referenceId || '')
+        if (!refId) return
+        const debitAccount = entry.debitAccountId || null
+        const creditAccount = entry.creditAccountId || null
+        const debitId = String(debitAccount?._id || debitAccount || '')
+        const creditId = String(creditAccount?._id || creditAccount || '')
+        const involvesTargetOnDebit = targetAccountIds.some((id) => String(id) === debitId)
+        const involvesTargetOnCredit = targetAccountIds.some((id) => String(id) === creditId)
+        if (!involvesTargetOnDebit && !involvesTargetOnCredit) return
+
+        const counterparty = involvesTargetOnDebit ? creditAccount : debitAccount
+        if (!counterparty) return
+        const counterpartyCode = String(counterparty.accountCode || '').trim()
+        const counterpartyName = String(counterparty.accountName || '').trim()
+        const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
+        const key = `${refId}:${counterpartyCode}:${counterpartyName}`
+
+        const existing = refCounterpartyCandidates.get(key) || {
+          refId,
+          accountCode: counterpartyCode,
+          accountName: counterpartyName,
+          score: scoreCounterpartyAccount({ accountCode: counterpartyCode, accountName: counterpartyName }),
+          amountWeight: 0,
+        }
+        existing.amountWeight += Math.abs(amount)
+        refCounterpartyCandidates.set(key, existing)
+      })
+
+      const groupedByReference = new Map()
+      for (const candidate of refCounterpartyCandidates.values()) {
+        const arr = groupedByReference.get(candidate.refId) || []
+        arr.push(candidate)
+        groupedByReference.set(candidate.refId, arr)
+      }
+
+      for (const [refId, candidates] of groupedByReference.entries()) {
+        candidates.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score
+          return b.amountWeight - a.amountWeight
+        })
+        const best = candidates[0]
+        if (best?.accountCode || best?.accountName) {
+          referenceDisplayOffsetById.set(refId, {
+            accountCode: best.accountCode,
+            accountName: best.accountName,
+          })
+        }
+      }
+    }
+
     const directDealIds = ledgerEntries
       .filter((entry) => String(entry.referenceType || '').toLowerCase() === 'direct_deal' && entry.referenceId)
       .map((entry) => String(entry.referenceId))
@@ -422,12 +485,16 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const defaultOffsetCode = isDebitEntry ? (entry.creditAccountId?.accountCode || '') : (entry.debitAccountId?.accountCode || '')
       const defaultOffsetName = isDebitEntry ? (entry.creditAccountId?.accountName || '') : (entry.debitAccountId?.accountName || '')
       const linkedTxType = String(linkedTx?.transactionType || '').toLowerCase().trim()
+      const referenceType = String(entry.referenceType || '').toLowerCase().trim()
+      const effectiveRowType = linkedTxType || referenceType
       const txDisplayOffset = linkedTx?.id ? transactionDisplayOffsetById.get(String(linkedTx.id)) : null
-      const effectiveOffsetCode = (linkedTxType === 'payment' || linkedTxType === 'receipt') && txDisplayOffset
-        ? String(txDisplayOffset.accountCode || defaultOffsetCode)
+      const refDisplayOffset = entry.referenceId ? referenceDisplayOffsetById.get(String(entry.referenceId)) : null
+      const preferredDisplayOffset = txDisplayOffset || refDisplayOffset || null
+      const effectiveOffsetCode = (effectiveRowType === 'payment' || effectiveRowType === 'receipt') && preferredDisplayOffset
+        ? String(preferredDisplayOffset.accountCode || defaultOffsetCode)
         : defaultOffsetCode
-      const effectiveOffsetName = (linkedTxType === 'payment' || linkedTxType === 'receipt') && txDisplayOffset
-        ? String(txDisplayOffset.accountName || defaultOffsetName)
+      const effectiveOffsetName = (effectiveRowType === 'payment' || effectiveRowType === 'receipt') && preferredDisplayOffset
+        ? String(preferredDisplayOffset.accountName || defaultOffsetName)
         : defaultOffsetName
       const row = {
         _id: entry._id,
