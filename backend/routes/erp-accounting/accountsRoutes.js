@@ -278,6 +278,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     const directDealById = new Map()
     const transactionDisplayOffsetById = new Map()
     const referenceDisplayOffsetById = new Map()
+    const documentDisplayOffsetByRef = new Map()
     linkedTransactions.forEach((tx) => {
       const lineTxNo = Array.isArray(tx.voucherMeta?.lineItems)
         ? String(tx.voucherMeta.lineItems.find((line) => String(line?.vatNumber || '').trim())?.vatNumber || '').trim()
@@ -313,6 +314,11 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       if (/exchange\s*gain|exchange\s*loss|forex|fx\s*gain|fx\s*loss/.test(name)) score -= 10
       if (code === '1000' || code === '1010' || /cash|bank/.test(name)) score -= 4
       return score
+    }
+    const extractLedgerDocumentRef = (entry = {}) => {
+      const text = `${String(entry.description || '')} ${String(entry.notes || '')}`
+      const match = text.match(/\b((?:Pay|Receipt|Rec|BnkJV|JV|Jv)[/-]\d{4}[/-]\d{1,6})\b/i)
+      return String(match?.[1] || '').trim()
     }
 
     if (linkedTransactions.length > 0) {
@@ -440,6 +446,82 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       }
     }
 
+    const statementDocRefs = Array.from(new Set(
+      ledgerEntries
+        .map((entry) => extractLedgerDocumentRef(entry))
+        .filter(Boolean)
+    ))
+
+    if (statementDocRefs.length > 0) {
+      const docRefQuery = {
+        isDeleted: { $ne: true },
+        $or: statementDocRefs.flatMap((docRef) => {
+          const escaped = docRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          return [
+            { description: { $regex: escaped, $options: 'i' } },
+            { notes: { $regex: escaped, $options: 'i' } },
+          ]
+        }),
+      }
+
+      const documentMatchedLedgerEntries = await Ledger.find(docRefQuery)
+        .populate('debitAccountId', 'accountCode accountName')
+        .populate('creditAccountId', 'accountCode accountName')
+        .select('description notes debitAccountId creditAccountId amount exchangeRate')
+        .lean()
+
+      const docCounterpartyCandidates = new Map()
+      documentMatchedLedgerEntries.forEach((entry) => {
+        const docRef = extractLedgerDocumentRef(entry)
+        if (!docRef) return
+        const debitAccount = entry.debitAccountId || null
+        const creditAccount = entry.creditAccountId || null
+        const debitId = String(debitAccount?._id || debitAccount || '')
+        const creditId = String(creditAccount?._id || creditAccount || '')
+        const involvesTargetOnDebit = targetAccountIds.some((id) => String(id) === debitId)
+        const involvesTargetOnCredit = targetAccountIds.some((id) => String(id) === creditId)
+        if (!involvesTargetOnDebit && !involvesTargetOnCredit) return
+
+        const counterparty = involvesTargetOnDebit ? creditAccount : debitAccount
+        if (!counterparty) return
+        const counterpartyCode = String(counterparty.accountCode || '').trim()
+        const counterpartyName = String(counterparty.accountName || '').trim()
+        const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
+        const key = `${docRef}:${counterpartyCode}:${counterpartyName}`
+
+        const existing = docCounterpartyCandidates.get(key) || {
+          docRef,
+          accountCode: counterpartyCode,
+          accountName: counterpartyName,
+          score: scoreCounterpartyAccount({ accountCode: counterpartyCode, accountName: counterpartyName }),
+          amountWeight: 0,
+        }
+        existing.amountWeight += Math.abs(amount)
+        docCounterpartyCandidates.set(key, existing)
+      })
+
+      const groupedByDocRef = new Map()
+      for (const candidate of docCounterpartyCandidates.values()) {
+        const arr = groupedByDocRef.get(candidate.docRef) || []
+        arr.push(candidate)
+        groupedByDocRef.set(candidate.docRef, arr)
+      }
+
+      for (const [docRef, candidates] of groupedByDocRef.entries()) {
+        candidates.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score
+          return b.amountWeight - a.amountWeight
+        })
+        const best = candidates[0]
+        if (best?.accountCode || best?.accountName) {
+          documentDisplayOffsetByRef.set(docRef, {
+            accountCode: best.accountCode,
+            accountName: best.accountName,
+          })
+        }
+      }
+    }
+
     const directDealIds = ledgerEntries
       .filter((entry) => String(entry.referenceType || '').toLowerCase() === 'direct_deal' && entry.referenceId)
       .map((entry) => String(entry.referenceId))
@@ -489,7 +571,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const effectiveRowType = linkedTxType || referenceType
       const txDisplayOffset = linkedTx?.id ? transactionDisplayOffsetById.get(String(linkedTx.id)) : null
       const refDisplayOffset = entry.referenceId ? referenceDisplayOffsetById.get(String(entry.referenceId)) : null
-      const preferredDisplayOffset = txDisplayOffset || refDisplayOffset || null
+      const docDisplayOffset = documentDisplayOffsetByRef.get(extractLedgerDocumentRef(entry)) || null
+      const preferredDisplayOffset = txDisplayOffset || refDisplayOffset || docDisplayOffset || null
       const effectiveOffsetCode = (effectiveRowType === 'payment' || effectiveRowType === 'receipt') && preferredDisplayOffset
         ? String(preferredDisplayOffset.accountCode || defaultOffsetCode)
         : defaultOffsetCode
