@@ -452,6 +452,13 @@ export default function ERPReportsTab({
                         </td>
                       </tr>
                     ))}
+                    {selectedReportAccountId && ledgerReportRows.length === 0 && (
+                      <tr>
+                        <td colSpan={8} style={{ padding: '0.75rem', textAlign: 'center', color: C.inkSoft }}>
+                          No entries for selected account/date range.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
