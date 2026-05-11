@@ -209,62 +209,22 @@ router.delete('/ledger/:id/permanent', protect, async (req, res) => {
 // Bank JV reconciliation toggle
 router.put('/ledger/:id/reconcile', protect, async (req, res) => {
   try {
-    console.log('[RECONCILE] Starting reconciliation for entry:', req.params.id)
-    console.log('[RECONCILE] User:', req.user._id, 'Tenant:', req.tenant)
-    
-    if (!canCreateTransaction(req.user)) {
-      console.log('[RECONCILE] Permission denied for user:', req.user._id)
-      return res.status(403).json({ success: false, message: 'Forbidden' })
-    }
-    
-    console.log('[RECONCILE] Getting tenant model for:', req.tenant)
+    if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const TenantLedger = await Ledger.getTenantModel(req.tenant)
-    console.log('[RECONCILE] Tenant model obtained, fetching entry...')
-    
     const entry = await TenantLedger.findById(req.params.id).select('referenceType bankReconciled')
-    console.log('[RECONCILE] Entry fetched:', { id: entry?._id, refType: entry?.referenceType, reconciled: entry?.bankReconciled })
-    
-    if (!entry) {
-      console.log('[RECONCILE] Entry not found:', req.params.id)
-      return res.status(404).json({ success: false, message: 'Ledger entry not found' })
-    }
-    
-    if (entry.referenceType !== 'bank_jv') {
-      console.log('[RECONCILE] Invalid entry type:', entry.referenceType)
-      return res.status(400).json({ success: false, message: 'Only Bank JV entries can be reconciled' })
-    }
+    if (!entry) return res.status(404).json({ success: false, message: 'Ledger entry not found' })
+    if (entry.referenceType !== 'bank_jv') return res.status(400).json({ success: false, message: 'Only Bank JV entries can be reconciled' })
 
     const nextReconciled = !Boolean(entry.bankReconciled)
-    console.log('[RECONCILE] Toggling reconciliation:', entry.bankReconciled, '->', nextReconciled)
-    console.log('[RECONCILE] Performing updateOne with:', { _id: entry._id, bankReconciled: nextReconciled, updatedBy: req.user._id })
-    
-    const updateResult = await TenantLedger.updateOne(
+    await TenantLedger.updateOne(
       { _id: entry._id },
       { $set: { bankReconciled: nextReconciled, updatedBy: req.user._id } }
     )
-    console.log('[RECONCILE] UpdateOne result:', { matched: updateResult.matchedCount, modified: updateResult.modifiedCount })
 
-    console.log('[RECONCILE] SUCCESS - Entry reconciled')
     res.json({ success: true, bankReconciled: nextReconciled })
   } catch (error) {
-    console.error('[RECONCILE] ERROR:', error.message)
-    console.error('[RECONCILE] STACK:', error.stack)
-    console.error('[RECONCILE] Full Error:', JSON.stringify(error, null, 2))
-    
-    // Always expose error details for debugging
-    const errorDetails = {
-      success: false,
-      message: error?.message || 'Unknown server error',
-      errorType: error?.constructor?.name || 'Error',
-      stack: error?.stack,
-      path: req.path,
-      method: req.method,
-      params: req.params,
-      timestamp: new Date().toISOString(),
-    }
-    
-    console.error('[RECONCILE] RESPONSE:', JSON.stringify(errorDetails, null, 2))
-    res.status(500).json(errorDetails)
+    console.error('[reconcile] error:', error.message, error.stack)
+    res.status(500).json({ success: false, message: error?.message || 'Server error' })
   }
 })
 
