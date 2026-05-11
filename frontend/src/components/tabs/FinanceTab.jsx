@@ -1181,7 +1181,6 @@ function TaxCompliance({ finRole, can, canEdit, onToast, taxes, setTaxes, financ
           </div>
         </Modal>
       )}
-      </ModalShell>
     </div>
   )
 }
