@@ -1,12 +1,14 @@
 // FILE: src/components/tabs/FinanceTab.jsx
 // Finance & Accounts — 11 sub-tabs, 8 finance roles, full role-based access
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, Fragment } from 'react'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import financeAPI from '../../api/finance'
 import erpAccountingAPI from '../../api/erp-accounting'
+import AccountCombobox from '../AccountCombobox'
+import { Modal } from '../ui-components'
 
 // ─── Design tokens ────────────────────────────────────────────
 const C = {
@@ -879,17 +881,19 @@ function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, se
         </Card>
       )}
 
-      <ModalShell open={budgetModal} title={editId ? 'Edit Budget' : 'Add Budget'} onClose={() => setBudgetModal(false)}>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-          <div><ML>Department</ML><input value={bf.dept} onChange={e=>setBf(p=>({...p,dept:e.target.value}))} style={iStyle} placeholder="Department" /></div>
-          <div><ML>Annual Budget ($)</ML><input type="number" value={bf.annual} onChange={e=>setBf(p=>({...p,annual:e.target.value}))} style={iStyle} /></div>
-          <div><ML>Spent to Date ($)</ML><input type="number" value={bf.spent} onChange={e=>setBf(p=>({...p,spent:e.target.value}))} style={iStyle} /></div>
-        </div>
-        <div style={{ display:'flex', gap:8, marginTop:8 }}>
-          <button style={{ ...B.ghost, flex:1 }} onClick={() => setBudgetModal(false)}>Cancel</button>
-          <button style={{ ...B.pri, flex:1 }} onClick={saveBudget}>{editId ? 'Save Changes' : 'Add Budget'}</button>
-        </div>
-      </ModalShell>
+      {budgetModal && (
+        <Modal title={editId ? 'Edit Budget' : 'Add Budget'} onClose={() => setBudgetModal(false)}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <div><ML>Department</ML><input value={bf.dept} onChange={e=>setBf(p=>({...p,dept:e.target.value}))} style={iStyle} placeholder="Department" /></div>
+            <div><ML>Annual Budget ($)</ML><input type="number" value={bf.annual} onChange={e=>setBf(p=>({...p,annual:e.target.value}))} style={iStyle} /></div>
+            <div><ML>Spent to Date ($)</ML><input type="number" value={bf.spent} onChange={e=>setBf(p=>({...p,spent:e.target.value}))} style={iStyle} /></div>
+          </div>
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <button style={{ ...B.ghost, flex:1 }} onClick={() => setBudgetModal(false)}>Cancel</button>
+            <button style={{ ...B.pri, flex:1 }} onClick={saveBudget}>{editId ? 'Save Changes' : 'Add Budget'}</button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -1161,19 +1165,22 @@ function TaxCompliance({ finRole, can, canEdit, onToast, taxes, setTaxes, financ
         ))}
       </DataTable>
 
-      <ModalShell open={taxModal} title={editId ? 'Edit Tax Entry' : 'Add Tax Entry'} onClose={() => setTaxModal(false)}>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-          <div><ML>Tax Type</ML><input value={tf.type} onChange={e=>setTf(p=>({...p,type:e.target.value}))} style={iStyle} /></div>
-          <div><ML>Period</ML><input value={tf.period} onChange={e=>setTf(p=>({...p,period:e.target.value}))} style={iStyle} placeholder="Q2 2026" /></div>
-          <div><ML>Amount ($)</ML><input type="number" value={tf.amount} onChange={e=>setTf(p=>({...p,amount:e.target.value}))} style={iStyle} /></div>
-          <div><ML>Due Date</ML><input value={tf.due} onChange={e=>setTf(p=>({...p,due:e.target.value}))} style={iStyle} placeholder="Apr 30, 2026" /></div>
-          <div><ML>Filed Date</ML><input value={tf.filed} onChange={e=>setTf(p=>({...p,filed:e.target.value}))} style={iStyle} placeholder="—" /></div>
-          <div><ML>Status</ML><select value={tf.status} onChange={e=>setTf(p=>({...p,status:e.target.value}))} style={iStyle}><option>Pending</option><option>Due Soon</option><option>Filed</option></select></div>
-        </div>
-        <div style={{ display:'flex', gap:8, marginTop:8 }}>
-          <button style={{ ...B.ghost, flex:1 }} onClick={() => setTaxModal(false)}>Cancel</button>
-          <button style={{ ...B.pri, flex:1 }} onClick={saveTax}>{editId ? 'Save Changes' : 'Add Entry'}</button>
-        </div>
+      {taxModal && (
+        <Modal title={editId ? 'Edit Tax Entry' : 'Add Tax Entry'} onClose={() => setTaxModal(false)}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <div><ML>Tax Type</ML><input value={tf.type} onChange={e=>setTf(p=>({...p,type:e.target.value}))} style={iStyle} /></div>
+            <div><ML>Period</ML><input value={tf.period} onChange={e=>setTf(p=>({...p,period:e.target.value}))} style={iStyle} placeholder="Q2 2026" /></div>
+            <div><ML>Amount ($)</ML><input type="number" value={tf.amount} onChange={e=>setTf(p=>({...p,amount:e.target.value}))} style={iStyle} /></div>
+            <div><ML>Due Date</ML><input value={tf.due} onChange={e=>setTf(p=>({...p,due:e.target.value}))} style={iStyle} placeholder="Apr 30, 2026" /></div>
+            <div><ML>Filed Date</ML><input value={tf.filed} onChange={e=>setTf(p=>({...p,filed:e.target.value}))} style={iStyle} placeholder="—" /></div>
+            <div><ML>Status</ML><select value={tf.status} onChange={e=>setTf(p=>({...p,status:e.target.value}))} style={iStyle}><option>Pending</option><option>Due Soon</option><option>Filed</option></select></div>
+          </div>
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <button style={{ ...B.ghost, flex:1 }} onClick={() => setTaxModal(false)}>Cancel</button>
+            <button style={{ ...B.pri, flex:1 }} onClick={saveTax}>{editId ? 'Save Changes' : 'Add Entry'}</button>
+          </div>
+        </Modal>
+      )}
       </ModalShell>
     </div>
   )
@@ -1377,20 +1384,22 @@ function GeneralLedger({ finRole, can, canEdit, onToast, token }) {
       </Card>
 
       {/* Edit Modal */}
-      <ModalShell open={editModal} title={editEntry ? 'Edit Ledger Entry' : 'New Ledger Entry'} onClose={() => setEditModal(false)}>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-          <div><ML>Date</ML><input type="date" value={formData.date} onChange={e=>setFormData(p=>({...p,date:e.target.value}))} style={iStyle} /></div>
-          <div><ML>Amount ($)</ML><input type="number" value={formData.amount} onChange={e=>setFormData(p=>({...p,amount:e.target.value}))} style={iStyle} /></div>
-          <div><ML>Debit Account</ML><input value={formData.debitAccount} onChange={e=>setFormData(p=>({...p,debitAccount:e.target.value}))} style={iStyle} placeholder="e.g. Cash" /></div>
-          <div><ML>Credit Account</ML><input value={formData.creditAccount} onChange={e=>setFormData(p=>({...p,creditAccount:e.target.value}))} style={iStyle} placeholder="e.g. Revenue" /></div>
-        </div>
-        <ML>Description</ML>
-        <textarea value={formData.description} onChange={e=>setFormData(p=>({...p,description:e.target.value}))} style={{ ...iStyle, resize:'vertical', minHeight:65 }} placeholder="Transaction description..." />
-        <div style={{ display:'flex', gap:8, marginTop:8 }}>
-          <button style={{ ...B.ghost, flex:1 }} onClick={() => setEditModal(false)}>Cancel</button>
-          <button style={{ ...B.pri, flex:1 }} onClick={saveEntry}>{editEntry ? 'Save Changes' : 'Create Entry'}</button>
-        </div>
-      </ModalShell>
+      {editModal && (
+        <Modal title={editEntry ? 'Edit Ledger Entry' : 'New Ledger Entry'} onClose={() => setEditModal(false)}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <div><ML>Date</ML><input type="date" value={formData.date} onChange={e=>setFormData(p=>({...p,date:e.target.value}))} style={iStyle} /></div>
+            <div><ML>Amount ($)</ML><input type="number" value={formData.amount} onChange={e=>setFormData(p=>({...p,amount:e.target.value}))} style={iStyle} /></div>
+            <div><ML>Debit Account</ML><input value={formData.debitAccount} onChange={e=>setFormData(p=>({...p,debitAccount:e.target.value}))} style={iStyle} placeholder="e.g. Cash" /></div>
+            <div><ML>Credit Account</ML><input value={formData.creditAccount} onChange={e=>setFormData(p=>({...p,creditAccount:e.target.value}))} style={iStyle} placeholder="e.g. Revenue" /></div>
+          </div>
+          <ML>Description</ML>
+          <textarea value={formData.description} onChange={e=>setFormData(p=>({...p,description:e.target.value}))} style={{ ...iStyle, resize:'vertical', minHeight:65 }} placeholder="Transaction description..." />
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <button style={{ ...B.ghost, flex:1 }} onClick={() => setEditModal(false)}>Cancel</button>
+            <button style={{ ...B.pri, flex:1 }} onClick={saveEntry}>{editEntry ? 'Save Changes' : 'Create Entry'}</button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

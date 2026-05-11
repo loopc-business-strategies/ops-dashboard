@@ -435,7 +435,20 @@ export default function ERPLedgerTab({
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                          <button onClick={() => entry.referenceType === 'journal' ? handleEditJv(entry) : handleEditLedger(entry)} title="Edit" style={{ padding: '0.35rem 0.5rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
+                          <button
+                            onClick={() => {
+                              const entryType = String(entry.referenceType || '').toLowerCase()
+                              if (entryType === 'journal' || entryType === 'bank_jv') {
+                                handleEditJv(entry)
+                                return
+                              }
+                              handleEditLedger(entry)
+                            }}
+                            title="Edit"
+                            style={{ padding: '0.35rem 0.5rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}
+                          >
+                            Edit
+                          </button>
                           {entry.referenceType === 'bank_jv' && (
                             <button onClick={() => handleReconcileLedger(entry)} title={entry.bankReconciled ? 'Unreconcile' : 'Reconcile'} style={{ padding: '0.35rem 0.5rem', background: entry.bankReconciled ? '#92400E' : '#15803D', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>
                               {entry.bankReconciled ? 'Unreconcile' : 'Reconcile'}
