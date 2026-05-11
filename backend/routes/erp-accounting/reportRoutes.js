@@ -508,26 +508,107 @@ router.get('/reports/forex-gain-loss', protect, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { startDate, endDate } = req.query
-    const query = { isDeleted: { $ne: true }, exchangeRate: { $ne: 1 } }
+    const query = { isDeleted: { $ne: true } }
     const dateQuery = buildDateQuery(startDate, endDate)
     if (dateQuery) query.date = dateQuery
 
-    const entries = await Ledger.find(query)
-    const total = entries.reduce((sum, entry) => sum + Math.abs(Number(entry.amount || 0) * (Number(entry.exchangeRate || 1) - 1)), 0)
+    // FX report should reflect realized FX postings, not only rows with exchangeRate != 1.
+    // Pull dedicated FX accounts and summarize ledger lines that hit those accounts.
+    const fxAccounts = await ChartOfAccount.find({
+      isActive: true,
+      $or: [
+        { accountCode: { $in: ['4190', '5190'] } },
+        { accountName: /exchange gain|exchange loss|fx gain|fx loss/i },
+      ],
+    }).select('_id accountCode accountName')
 
+    const gainAccountIds = new Set(
+      fxAccounts
+        .filter((acc) => String(acc.accountCode || '').trim() === '4190' || /exchange gain|fx gain/i.test(String(acc.accountName || '')))
+        .map((acc) => String(acc._id))
+    )
+    const lossAccountIds = new Set(
+      fxAccounts
+        .filter((acc) => String(acc.accountCode || '').trim() === '5190' || /exchange loss|fx loss/i.test(String(acc.accountName || '')))
+        .map((acc) => String(acc._id))
+    )
+
+    if (gainAccountIds.size === 0 && lossAccountIds.size === 0) {
+      return res.json({
+        success: true,
+        entriesCount: 0,
+        forexImpact: 0,
+        exchangeGainTotal: 0,
+        exchangeLossTotal: 0,
+        netFxImpact: 0,
+        byCurrency: {},
+        generatedAt: new Date(),
+      })
+    }
+
+    const fxAccountIds = Array.from(new Set([...gainAccountIds, ...lossAccountIds]))
+    query.$or = [
+      { debitAccountId: { $in: fxAccountIds } },
+      { creditAccountId: { $in: fxAccountIds } },
+    ]
+
+    const entries = await Ledger.find(query).select('debitAccountId creditAccountId amount exchangeRate currency')
+
+    let netImpact = 0
+    let gainTotal = 0
+    let lossTotal = 0
     const byCurrency = entries.reduce((acc, entry) => {
-      const key = entry.currency || 'BASE'
+      const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
+      if (!Number.isFinite(amount) || amount === 0) return acc
+
+      const debitId = String(entry.debitAccountId || '')
+      const creditId = String(entry.creditAccountId || '')
+      const key = String(entry.currency || 'BASE')
+
+      // Net effect convention: gains increase net, losses decrease net.
+      let impact = 0
+      if (gainAccountIds.has(creditId)) {
+        impact += amount
+        gainTotal += amount
+      }
+      if (gainAccountIds.has(debitId)) {
+        impact -= amount
+        gainTotal -= amount
+      }
+      if (lossAccountIds.has(debitId)) {
+        impact -= amount
+        lossTotal += amount
+      }
+      if (lossAccountIds.has(creditId)) {
+        impact += amount
+        lossTotal -= amount
+      }
+
       if (!acc[key]) acc[key] = { count: 0, impact: 0 }
       acc[key].count += 1
-      acc[key].impact += Math.abs(Number(entry.amount || 0) * (Number(entry.exchangeRate || 1) - 1))
+      acc[key].impact += impact
+      netImpact += impact
       return acc
     }, {})
+
+    const byCurrencyRounded = Object.fromEntries(
+      Object.entries(byCurrency).map(([currency, row]) => [
+        currency,
+        {
+          count: row.count,
+          impact: toMoney(row.impact),
+        },
+      ])
+    )
 
     res.json({
       success: true,
       entriesCount: entries.length,
-      forexImpact: toMoney(total),
-      byCurrency,
+      forexImpact: toMoney(netImpact),
+      exchangeGainTotal: toMoney(gainTotal),
+      exchangeLossTotal: toMoney(lossTotal),
+      netFxImpact: toMoney(netImpact),
+      byCurrency: byCurrencyRounded,
       generatedAt: new Date(),
     })
   } catch {
