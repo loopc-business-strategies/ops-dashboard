@@ -250,12 +250,21 @@ router.put('/ledger/:id/reconcile', protect, async (req, res) => {
     console.error('[RECONCILE] ERROR:', error.message)
     console.error('[RECONCILE] STACK:', error.stack)
     console.error('[RECONCILE] Full Error:', JSON.stringify(error, null, 2))
-    res.status(500).json({
+    
+    // Always expose error details for debugging
+    const errorDetails = {
       success: false,
-      message: error?.message || 'Server error',
-      stack: process.env.NODE_ENV === 'development' ? error?.stack : undefined,
-      errorType: error?.constructor?.name,
-    })
+      message: error?.message || 'Unknown server error',
+      errorType: error?.constructor?.name || 'Error',
+      stack: error?.stack,
+      path: req.path,
+      method: req.method,
+      params: req.params,
+      timestamp: new Date().toISOString(),
+    }
+    
+    console.error('[RECONCILE] RESPONSE:', JSON.stringify(errorDetails, null, 2))
+    res.status(500).json(errorDetails)
   }
 })
 
