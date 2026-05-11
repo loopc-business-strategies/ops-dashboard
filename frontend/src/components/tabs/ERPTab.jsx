@@ -512,7 +512,9 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
     case 'cashflow': {
       const cf = dashboard?.cashFlow
       const monthly = cf?.monthly || []
-      const mx = Math.max(...monthly.map(m => Math.max(Number(m.inflow || 0), Number(m.outflow || 0))), 1)
+      const getInflow = (row) => Number(row?.inflow ?? row?.cashIn ?? 0)
+      const getOutflow = (row) => Number(row?.outflow ?? row?.cashOut ?? 0)
+      const mx = Math.max(...monthly.map((m) => Math.max(getInflow(m), getOutflow(m))), 1)
       const summaryItems = [
         { label: 'Inflow',  val: cf?.inflow,  bg: '#DCFCE7', vc: '#059669' },
         { label: 'Outflow', val: cf?.outflow, bg: '#FEE2E2', vc: '#DC2626' },
@@ -531,8 +533,8 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
               </div>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: '5px', height: '72px', marginBottom: '0.6rem' }}>
                 {monthly.map((m, i) => {
-                  const inH = Math.max((Number(m.inflow || 0) / mx) * 60, 2)
-                  const outH = Math.max((Number(m.outflow || 0) / mx) * 60, 2)
+                  const inH = Math.max((getInflow(m) / mx) * 60, 2)
+                  const outH = Math.max((getOutflow(m) / mx) * 60, 2)
                   const netH = Math.max((Math.abs(Number(m.net || 0)) / mx) * 60, 2)
                   return (
                     <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>

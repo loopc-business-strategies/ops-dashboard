@@ -704,6 +704,9 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         month: ms.toLocaleString('en-US', { month: 'short', year: '2-digit' }),
         income: toMoney(inc),
         expense: toMoney(exp),
+        // Keep both key styles for frontend compatibility.
+        inflow: toMoney(cfIn),
+        outflow: toMoney(cfOut),
         cashIn: toMoney(cfIn),
         cashOut: toMoney(cfOut),
         net: toMoney(cfIn - cfOut),
