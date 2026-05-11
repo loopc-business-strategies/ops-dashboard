@@ -1,3 +1,10 @@
+/* Sidebar divider for group separation */
+.sidebar-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 10px 0 8px 0;
+  width: 100%;
+}
 /* ─────────────────────────────────────────────────────
    GLOBAL DESIGN SYSTEM — MongoDB Atlas Style
    Imported by index.css

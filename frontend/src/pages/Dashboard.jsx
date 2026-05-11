@@ -353,6 +353,7 @@ function Dashboard() {
   // Find current tab label
   const currentTab = navItems.find(n => n.id === activeTab)
 
+
   return (
     <div className="h-screen overflow-hidden" style={{ background: 'var(--bg-base)', display: 'flex', flexDirection: 'row', minHeight: '100vh' }} onMouseMove={handleShellMouseMove}>
 
@@ -400,6 +401,9 @@ function Dashboard() {
               onClick={() => setActiveTab(item.id)} />
           ))}
 
+          {/* Divider before Admin */}
+          {adminItems.length > 0 && <div className="sidebar-divider" />}
+
           {/* Admin section */}
           {adminItems.length > 0 && (
             <>
@@ -416,6 +420,9 @@ function Dashboard() {
             </>
           )}
 
+          {/* Divider before Departments */}
+          {deptItems.length > 0 && <div className="sidebar-divider" />}
+
           {/* Departments */}
           {deptItems.length > 0 && (
             <>
@@ -431,6 +438,9 @@ function Dashboard() {
               ))}
             </>
           )}
+
+          {/* Divider before ERP */}
+          {erpItems.length > 0 && <div className="sidebar-divider" />}
 
           {/* ERP */}
           {erpItems.length > 0 && (
