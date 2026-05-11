@@ -515,6 +515,13 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       const getInflow = (row) => Number(row?.inflow ?? row?.cashIn ?? 0)
       const getOutflow = (row) => Number(row?.outflow ?? row?.cashOut ?? 0)
       const mx = Math.max(...monthly.map((m) => Math.max(getInflow(m), getOutflow(m))), 1)
+      const currentNet = Number(monthly[monthly.length - 1]?.net || 0)
+      const previousNet = Number(monthly[monthly.length - 2]?.net || 0)
+      const netDelta = currentNet - previousNet
+      const hasTrendDelta = monthly.length >= 2
+      const trendDirection = netDelta > 0 ? 'up' : netDelta < 0 ? 'down' : 'flat'
+      const trendColor = trendDirection === 'up' ? '#059669' : trendDirection === 'down' ? '#DC2626' : muted
+      const trendArrow = trendDirection === 'up' ? '↑' : trendDirection === 'down' ? '↓' : '→'
       const summaryItems = [
         { label: 'Inflow',  val: cf?.inflow,  bg: '#DCFCE7', vc: '#059669' },
         { label: 'Outflow', val: cf?.outflow, bg: '#FEE2E2', vc: '#DC2626' },
@@ -558,6 +565,11 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
               </div>
             ))}
           </div>
+          {hasTrendDelta && (
+            <p style={{ margin: '0.55rem 0 0', fontSize: '0.72rem', color: trendColor, fontWeight: '600', textAlign: 'right' }}>
+              {trendArrow} Cashflow trend delta: {fmtMoney(netDelta)} (vs prev month)
+            </p>
+          )}
         </div>
       )
     }
