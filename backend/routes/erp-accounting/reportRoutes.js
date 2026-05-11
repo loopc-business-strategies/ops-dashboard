@@ -186,30 +186,52 @@ router.get('/reports/ledger', protect, async (req, res) => {
     const query = {
       $or: [{ debitAccountId: accountId }, { creditAccountId: accountId }],
     }
-    if (startDate && endDate) {
-      query.date = { $gte: new Date(startDate), $lte: new Date(endDate) }
+    if (startDate || endDate) {
+      query.date = {}
+      if (startDate) {
+        query.date.$gte = new Date(startDate)
+      }
+      if (endDate) {
+        const inclusiveEnd = new Date(endDate)
+        inclusiveEnd.setHours(23, 59, 59, 999)
+        query.date.$lte = inclusiveEnd
+      }
     }
 
     const entries = await Ledger.find(query)
       .populate('debitAccountId', 'accountName accountCode')
       .populate('creditAccountId', 'accountName accountCode')
-      .sort({ date: 1 })
+      .sort({ date: 1, createdAt: 1 })
 
+    const targetAccountId = String(accountId)
     let runningBalance = 0
     const report = entries.map((entry) => {
-      const amount = entry.debitAccountId._id.toString() === accountId ? entry.amount : -entry.amount
+      const debitId = String(entry?.debitAccountId?._id || entry?.debitAccountId || '')
+      const creditId = String(entry?.creditAccountId?._id || entry?.creditAccountId || '')
+      const lineAmount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
+
+      // If target account is on debit side, running moves positive; credit side moves negative.
+      const amount = debitId === targetAccountId ? lineAmount : (creditId === targetAccountId ? -lineAmount : 0)
       runningBalance += amount
+
+      const debitAccount = entry?.debitAccountId && typeof entry.debitAccountId === 'object'
+        ? entry.debitAccountId
+        : { accountCode: '', accountName: '' }
+      const creditAccount = entry?.creditAccountId && typeof entry.creditAccountId === 'object'
+        ? entry.creditAccountId
+        : { accountCode: '', accountName: '' }
+
       return {
         entryId: entry._id,
         date: entry.date,
         referenceType: entry.referenceType,
         description: entry.description,
         currency: entry.currency,
-        amount: entry.amount,
-        debitAccount: entry.debitAccountId,
-        creditAccount: entry.creditAccountId,
-        debit: entry.debitAccountId._id.toString() === accountId ? entry.amount : 0,
-        credit: entry.creditAccountId._id.toString() === accountId ? entry.amount : 0,
+        amount: toMoney(lineAmount),
+        debitAccount,
+        creditAccount,
+        debit: debitId === targetAccountId ? toMoney(lineAmount) : 0,
+        credit: creditId === targetAccountId ? toMoney(lineAmount) : 0,
         runningBalance,
       }
     })
