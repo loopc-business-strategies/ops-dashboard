@@ -167,8 +167,21 @@ function createApp() {
   })
 
   app.use((err, req, res, next) => {
-    console.error('Unhandled error:', err)
-    res.status(500).json({ success: false, message: 'Something went wrong.' })
+    console.error('[GLOBAL_ERROR] Message:', err?.message)
+    console.error('[GLOBAL_ERROR] Stack:', err?.stack)
+    console.error('[GLOBAL_ERROR] Type:', err?.constructor?.name)
+    console.error('[GLOBAL_ERROR] Full Error:', JSON.stringify(err, null, 2))
+    
+    res.status(500).json({
+      success: false,
+      message: err?.message || 'Something went wrong.',
+      errorType: err?.constructor?.name,
+      path: req.path,
+      method: req.method,
+      timestamp: new Date().toISOString(),
+      // Only include stack in non-production
+      ...(process.env.NODE_ENV !== 'production' && { stack: err?.stack }),
+    })
   })
 
   return app
