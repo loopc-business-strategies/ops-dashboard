@@ -51,6 +51,10 @@ export function AuthProvider({ children }) {
         localStorage.setItem('tenantCompany', nextTenant)
         axios.defaults.headers.common['x-tenant'] = nextTenant
         axios.defaults.headers.common['x-company'] = nextTenant
+        // Restore CSRF token for cross-domain use
+        if (data.csrfToken) {
+          axios.defaults.headers.common['x-csrf-token'] = data.csrfToken
+        }
         // Keep compatibility for existing token checks in tabs.
         setToken('cookie-session')
       } catch {
@@ -85,6 +89,10 @@ export function AuthProvider({ children }) {
     localStorage.setItem('tenantCompany', nextTenant)
     axios.defaults.headers.common['x-tenant'] = nextTenant
     axios.defaults.headers.common['x-company'] = nextTenant
+    // Store CSRF token from auth response for cross-domain use
+    if (data.csrfToken) {
+      axios.defaults.headers.common['x-csrf-token'] = data.csrfToken
+    }
     setToken('cookie-session')
     return data
   }

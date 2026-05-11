@@ -100,10 +100,14 @@ const sendToken = (user, status, res, company) => {
   const tenant = normalizeTenant(company) || getDefaultTenant()
   const token = createToken(user._id, tenant)
   res.cookie('sessionToken', token, cookieOptions)
-  setCsrfCookie(res)
+  const csrfToken = generateCsrfToken()
+  setCsrfCookie(res, csrfToken)
+  // Also send CSRF token in response body so cross-domain frontends can store and use it
+  res.setHeader('X-CSRF-Token', csrfToken)
   user.password = undefined // never send password
   res.status(status).json({
     success: true,
+    csrfToken,
     user: {
       id:             user._id,
       name:           user.name,
@@ -211,11 +215,13 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
 // GET /api/auth/me — get my profile
 // ==========================================
 router.get('/me', protect, (req, res) => {
-  if (!req.cookies?.csrfToken) {
-    setCsrfCookie(res, generateCsrfToken())
-  }
+  // Always issue/refresh CSRF token so cross-domain frontends can store it
+  const csrfToken = generateCsrfToken()
+  setCsrfCookie(res, csrfToken)
+  res.setHeader('X-CSRF-Token', csrfToken)
   res.json({
     success: true,
+    csrfToken,
     user: {
       id:             req.user._id,
       name:           req.user.name,
