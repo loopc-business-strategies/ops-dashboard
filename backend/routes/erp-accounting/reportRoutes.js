@@ -184,6 +184,7 @@ router.get('/reports/ledger', protect, async (req, res) => {
     if (!accountId) return res.status(400).json({ success: false, message: 'Account ID required' })
 
     const query = {
+      isDeleted: { $ne: true },
       $or: [{ debitAccountId: accountId }, { creditAccountId: accountId }],
     }
     if (startDate || endDate) {
