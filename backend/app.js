@@ -26,6 +26,7 @@ const realtimeRoutes = require('./routes/realtime')
 const financeRoutes    = require('./routes/finance')
 const complianceRoutes = require('./routes/compliance')
 const trainingRoutes   = require('./routes/training')
+const cleanupRoutes    = require('./routes/cleanupRoutes')
 const backendPackage = require('./package.json')
 
 const resolveBackendSha = () => String(
@@ -155,6 +156,7 @@ function createApp() {
   app.use('/api/finance',    financeRoutes)
   app.use('/api/compliance', complianceRoutes)
   app.use('/api/training',   trainingRoutes)
+  app.use('/api/admin', cleanupRoutes)
 
   if (process.env.NODE_ENV === 'production') {
     const frontendDistPath = path.join(__dirname, '../frontend/dist')
