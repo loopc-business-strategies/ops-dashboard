@@ -1,28 +1,19 @@
 /**
  * Cleanup endpoint for deleting bad exchange entries
  * POST /api/admin/cleanup/exchange-entries
- * 
- * This endpoint deletes exchange entries that were incorrectly posted to Cash account 1000
- * and moves them to AR/AP per Option B routing
  */
 
 const express = require('express')
+const mongoose = require('mongoose')
 const router = express.Router()
 
-// Cleanup endpoint
 router.post('/cleanup/exchange-entries', async (req, res) => {
   try {
-    // Get database connection from request
-    const db = req.app.locals.db
-    if (!db) {
-      return res.status(500).json({ 
-        error: 'Database connection not available',
-        ok: false 
-      })
-    }
+    const Ledger = mongoose.model('Ledger')
+    const ChartOfAccount = mongoose.model('ChartOfAccount')
 
     // Find cash account 1000
-    const cash = await db.collection('chartofaccounts').findOne({ 
+    const cash = await ChartOfAccount.findOne({ 
       accountCode: '1000'
     })
 
@@ -36,7 +27,7 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
     console.log(`[Cleanup] Found Cash account: ${cash.accountName}`)
 
     // Find bad entries posted to cash
-    const badEntries = await db.collection('ledgers').find({
+    const badEntries = await Ledger.find({
       referenceType: 'journal',
       isDeleted: { $ne: true },
       description: /Exchange (gain|loss) adjustment/i,
@@ -44,7 +35,7 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
         { debitAccountId: cash._id },
         { creditAccountId: cash._id }
       ]
-    }).toArray()
+    })
 
     console.log(`[Cleanup] Found ${badEntries.length} bad entries`)
 
@@ -68,7 +59,7 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
     console.log('[Cleanup] Entries to delete:', toDelete)
 
     // Delete entries
-    const result = await db.collection('ledgers').updateMany(
+    const result = await Ledger.updateMany(
       {
         _id: { $in: badEntries.map(e => e._id) }
       },
@@ -92,7 +83,7 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
     })
 
   } catch (error) {
-    console.error('[Cleanup Error]', error)
+    console.error('[Cleanup Error]', error.message)
     res.status(500).json({
       ok: false,
       error: error.message
