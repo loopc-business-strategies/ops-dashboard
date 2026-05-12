@@ -505,7 +505,7 @@ router.get('/reports/vendor-outstanding', protect, async (req, res) => {
         vendorName: vendor.name,
         ledgerAccount: vendor.ledgerAccountId,
         outstanding: toMoney(Math.abs(outstanding)),
-        outstandingType: outstanding >= 0 ? 'Credit' : 'Debit',
+        outstandingType: outstanding >= 0 ? 'Debit' : 'Credit',
       }
     }))
 
