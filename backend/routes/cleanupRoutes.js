@@ -9,15 +9,27 @@ const router = express.Router()
 
 router.post('/cleanup/exchange-entries', async (req, res) => {
   try {
-    const Ledger = mongoose.model('Ledger')
-    const ChartOfAccount = mongoose.model('ChartOfAccount')
+    // Get database connection
+    const connection = mongoose.connection
+    
+    if (!connection || !connection.db) {
+      console.error('[Cleanup] No database connection')
+      return res.status(500).json({ 
+        error: 'No database connection available',
+        ok: false 
+      })
+    }
 
-    // Find cash account 1000
-    const cash = await ChartOfAccount.findOne({ 
+    const db = connection.db
+
+    // Find cash account 1000 using raw collection
+    const accountCollection = db.collection('chartofaccounts')
+    const cash = await accountCollection.findOne({ 
       accountCode: '1000'
     })
 
     if (!cash) {
+      console.error('[Cleanup] Cash account 1000 not found')
       return res.status(404).json({ 
         error: 'Cash account 1000 not found',
         ok: false 
@@ -27,7 +39,8 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
     console.log(`[Cleanup] Found Cash account: ${cash.accountName}`)
 
     // Find bad entries posted to cash
-    const badEntries = await Ledger.find({
+    const ledgerCollection = db.collection('ledgers')
+    const badEntries = await ledgerCollection.find({
       referenceType: 'journal',
       isDeleted: { $ne: true },
       description: /Exchange (gain|loss) adjustment/i,
@@ -35,7 +48,7 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
         { debitAccountId: cash._id },
         { creditAccountId: cash._id }
       ]
-    })
+    }).toArray()
 
     console.log(`[Cleanup] Found ${badEntries.length} bad entries`)
 
@@ -53,13 +66,13 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
       id: e._id.toString(),
       description: e.description,
       amount: e.amount,
-      date: e.date?.toISOString().split('T')[0]
+      date: e.date ? e.date.toISOString().split('T')[0] : 'unknown'
     }))
 
     console.log('[Cleanup] Entries to delete:', toDelete)
 
     // Delete entries
-    const result = await Ledger.updateMany(
+    const result = await ledgerCollection.updateMany(
       {
         _id: { $in: badEntries.map(e => e._id) }
       },
@@ -83,7 +96,7 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
     })
 
   } catch (error) {
-    console.error('[Cleanup Error]', error.message)
+    console.error('[Cleanup Error]', error.message, error.stack)
     res.status(500).json({
       ok: false,
       error: error.message
