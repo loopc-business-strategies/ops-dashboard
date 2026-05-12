@@ -553,7 +553,7 @@ function Dashboard() {
 
         {/* Top header bar */}
         <header className="topbar sticky top-0 z-30 flex-shrink-0">
-          <div className="flex items-center justify-between gap-10">
+          <div className="flex w-full items-center justify-between gap-10">
             <div className="flex items-center gap-3">
               {/* Hamburger */}
               <button onClick={() => setSidebarOpen(!sidebarOpen)}
