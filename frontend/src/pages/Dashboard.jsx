@@ -234,7 +234,6 @@ function Dashboard({
   const [selectedMetal, setSelectedMetal] = useState('gold')
   const [metalRates, setMetalRates] = useState({ gold: 0, silver: 0, platinum: 0 })
   const [showMetalDropdown, setShowMetalDropdown] = useState(false)
-  const [showNotifications, setShowNotifications] = useState(false)
   const [latestMetalRates, setLatestMetalRates] = useState({
     goldPrice: null,
     silverPrice: null,
@@ -289,7 +288,6 @@ function Dashboard({
   useEffect(() => {
     const handleClickOutside = () => {
       setShowMetalDropdown(false)
-      setShowNotifications(false)
     }
     document.addEventListener('click', handleClickOutside)
     return () => document.removeEventListener('click', handleClickOutside)
@@ -425,12 +423,6 @@ function Dashboard({
   const headerMetalRatesUpdatedAt = latestMetalRates?.updatedAt || metalRatesUpdatedAt || null
 
   const handleLogout = () => { logout(); navigate('/login') }
-
-  const notifications = [
-    { id: 1, title: 'New Invoice Generated', time: '2 min ago' },
-    { id: 2, title: 'Server Backup Completed', time: '15 min ago' },
-    { id: 3, title: 'Gold Price Updated', time: '30 min ago' },
-  ]
 
   const metalOptions = [
     { key: 'gold', label: 'Gold', color: '#FACC15' },
@@ -912,52 +904,6 @@ function Dashboard({
                     )}
                   </div>
 
-                  {/* NOTIFICATION BELL */}
-                  <div className="relative" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => setShowNotifications(prev => !prev)}
-                      className="relative p-2 text-gray-400 hover:text-white transition-colors cursor-pointer bg-transparent border-none"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                      </svg>
-                      {notifications.filter(n => !n.read).length > 0 && (
-                        <span className="absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full w-4 h-4 text-[10px] font-bold flex items-center justify-center">
-                          {notifications.filter(n => !n.read).length}
-                        </span>
-                      )}
-                    </button>
-                    {showNotifications && (
-                      <div className="absolute top-[110%] right-0 bg-white border border-gray-200 rounded-xl w-80 z-[9999] shadow-xl overflow-hidden">
-                        <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100">
-                          <span className="font-bold text-sm text-gray-900">Notifications</span>
-                          <button
-                            onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
-                            className="text-xs text-gray-500 hover:text-gray-700 bg-transparent border-none cursor-pointer"
-                          >Mark all read</button>
-                        </div>
-                        {notifications.map(n => (
-                          <div key={n.id}
-                            onClick={() => setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x))}
-                            className={`flex gap-2.5 items-start px-4 py-3 border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${n.read ? 'bg-white' : 'bg-green-50'}`}
-                          >
-                            <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${n.read ? 'bg-transparent' : n.dotColor}`} />
-                            <div>
-                              <p className="font-semibold text-xs text-gray-900">{n.title}</p>
-                              <p className="text-[11px] text-gray-500 mt-0.5">{n.msg}</p>
-                              <p className="text-[10px] text-gray-400 mt-0.5">{n.time}</p>
-                            </div>
-                          </div>
-                        ))}
-                        <div className="px-4 py-2.5 text-center border-t border-gray-100">
-                          <button className="text-xs text-blue-500 hover:text-blue-600 bg-transparent border-none cursor-pointer font-medium">
-                            View all notifications
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </>
               )}
             </div>
