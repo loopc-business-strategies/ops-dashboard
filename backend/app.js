@@ -120,6 +120,18 @@ function createApp() {
   app.use(express.json({ limit: REQUEST_BODY_LIMIT }))
   app.use(express.urlencoded({ extended: true, limit: REQUEST_BODY_LIMIT }))
   
+  // ─── Health Check (No Auth, No Rate Limit, No CSRF) ──────────────────────
+  // Must be BEFORE all middleware to avoid blocking on auth/rate-limit issues
+  app.get('/api/health', (req, res) => {
+    res.json({
+      success: true,
+      message: 'Server is running!',
+      time: new Date(),
+      build: backendBuildMeta,
+      backend: backendBuildMeta,
+    })
+  })
+  
   // ─── Security & Logging Middleware ─────────────────────────────────────────
   app.use(sanitizeMiddleware)        // Validate inputs (reject dangerous keys)
   app.use(requestLoggerMiddleware)   // Log all requests & responses
@@ -132,16 +144,6 @@ function createApp() {
   app.use('/api/auth/setup', authLimiter)
   app.use('/api', enforceCsrfProtection)
   app.use('/api', bindTenantContext)
-
-  app.get('/api/health', (req, res) => {
-    res.json({
-      success: true,
-      message: 'Server is running!',
-      time: new Date(),
-      build: backendBuildMeta,
-      backend: backendBuildMeta,
-    })
-  })
 
   app.use('/api/auth', authRoutes)
   app.use('/api/hr/employees', employeeRoutes)

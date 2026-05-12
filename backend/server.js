@@ -16,11 +16,21 @@ require('dotenv').config() // load .env variables FIRST
   if (process.env.NODE_ENV === 'production' && !process.env.SERVER_BASE_URL) {
     missing.push('SERVER_BASE_URL (required in production for attachment links)')
   }
-  // Require all tenant URIs so each tenant always uses its dedicated Atlas cluster.
+  
+  // Check if at least one tenant URI is available; warn if none
+  const hasAnyTenantUri = process.env.MONGO_URI_MG || process.env.MONGO_URI_CG || process.env.MONGO_URI_LOOPC
   const hasAllTenantUris = process.env.MONGO_URI_MG && process.env.MONGO_URI_CG && process.env.MONGO_URI_LOOPC
-  if (!hasAllTenantUris) {
-    missing.push('MONGO_URI_MG / MONGO_URI_CG / MONGO_URI_LOOPC')
+  
+  if (!hasAnyTenantUri) {
+    missing.push('At least one of: MONGO_URI_MG / MONGO_URI_CG / MONGO_URI_LOOPC')
+  } else if (!hasAllTenantUris) {
+    const available = []
+    if (process.env.MONGO_URI_MG) available.push('MG')
+    if (process.env.MONGO_URI_CG) available.push('CG')
+    if (process.env.MONGO_URI_LOOPC) available.push('Loopc')
+    console.warn(`[startup] WARNING — only some tenants configured: ${available.join(', ')} (missing: ${['MG', 'CG', 'Loopc'].filter(t => !available.includes(t)).join(', ')})`)
   }
+  
   if (missing.length) {
     console.error('[startup] FATAL — missing required environment variables:')
     missing.forEach(k => console.error(`  • ${k}`))
