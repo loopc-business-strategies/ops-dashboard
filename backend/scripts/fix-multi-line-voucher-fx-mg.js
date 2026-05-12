@@ -1,41 +1,24 @@
 #!/usr/bin/env node
-/**
- * FILE: fix-multi-line-voucher-fx-mg.js
- * WHAT THIS DOES:
- *   Fixes vouchers in mg tenant that have multiple line items with incorrect exchange gain/loss.
- *   The issue: when a second line item was added, the system aggregated all line items' foreign amounts,
- *   causing incorrect FX gain/loss calculation.
- *   This script:
- *   1. Finds all posted payment/receipt vouchers with multiple line items
- *   2. Identifies those with incorrectly calculated exchange gain/loss
- *   3. Removes the incorrect FX journals
- *   4. Re-posts the voucher with the corrected FX calculation (primary line item only)
- */
-
 require('dotenv').config()
-const mongoose = require('mongoose')
-const path = require('path')
 
-// Models
+const dns = require('dns')
+const mongoose = require('mongoose')
+
 const Transaction = require('../models/Transaction')
 const Ledger = require('../models/Ledger')
 const Currency = require('../models/Currency')
 const ChartOfAccount = require('../models/ChartOfAccount')
 const AccountMapping = require('../models/AccountMapping')
-
-const { getTenantUri, normalizeTenant } = require('../config/tenants')
+const { getTenantUri } = require('../config/tenants')
 
 const TENANT = 'mg'
+const FX_REVALUATION_EPSILON = 0.01
 
-// Helper functions (from erp-accountingContext.js)
 const toMoney = (value) => Number(Number(value || 0).toFixed(2))
-
 const parseNumber = (value, fallback = 0) => {
-  const parsed = Number(value || fallback)
+  const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
 }
-
-const FX_REVALUATION_EPSILON = 0.01 // minimum FX difference to create journal entry
 
 const resolveVoucherFxLineForeignAmount = (line = {}) => {
   const amount = Number(line.amountFC || line.amountFc || line.amtFc || line.headerAmt || 0)
@@ -54,6 +37,7 @@ const resolveVoucherFxLineBaseAmount = (line = {}) => {
     const amount = Number(candidate || 0)
     if (Number.isFinite(amount) && amount > 0) return amount
   }
+
   return 0
 }
 
@@ -84,14 +68,82 @@ const resolveReferenceExchangeRate = (voucherMeta) => {
     || lineReferenceRate
     || 0
   )
-  if (!Number.isFinite(rate) || rate <= 0) return null
-  return rate
+
+  return Number.isFinite(rate) && rate > 0 ? rate : 0
+}
+
+const resolveVoucherFxMetrics = ({ voucherMeta = {}, fallbackRate = 0, referenceRate = 0 }) => {
+  const lines = Array.isArray(voucherMeta?.lineItems) ? voucherMeta.lineItems : []
+  const normalizedFallbackRate = Number(fallbackRate || 0)
+  const normalizedReferenceRate = Number(referenceRate || 0)
+
+  let totalForeignAmount = 0
+  let totalBaseAmount = 0
+  let totalExpectedForeignAmount = 0
+  let totalActualForeignAmount = 0
+  let hasUsableLine = false
+
+  lines.forEach((line) => {
+    const foreignAmount = resolveVoucherFxLineForeignAmount(line)
+    const baseAmount = resolveVoucherFxLineBaseAmount(line)
+    const lineRateRaw = Number(line?.currRate || 0)
+    const lineRate = lineRateRaw > 0
+      ? lineRateRaw
+      : (foreignAmount > 0 && baseAmount > 0
+        ? (baseAmount / foreignAmount)
+        : (Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0))
+
+    const lineActualForeign = foreignAmount > 0
+      ? foreignAmount
+      : (lineRate > 0 && baseAmount > 0 ? (baseAmount / lineRate) : 0)
+    const lineExpectedForeign = normalizedReferenceRate > 0 && baseAmount > 0
+      ? (baseAmount / normalizedReferenceRate)
+      : 0
+
+    const lineHasData = (foreignAmount > 0 || baseAmount > 0 || lineRate > 0)
+    if (!lineHasData) return
+
+    hasUsableLine = true
+    if (foreignAmount > 0) totalForeignAmount += foreignAmount
+    if (baseAmount > 0) totalBaseAmount += baseAmount
+    totalActualForeignAmount += lineActualForeign
+    totalExpectedForeignAmount += lineExpectedForeign
+  })
+
+  if (!hasUsableLine) {
+    return {
+      lineRate: normalizedFallbackRate,
+      totalForeignAmount: 0,
+      totalBaseAmount: 0,
+      actualForeignAmount: 0,
+      expectedForeignAmount: 0,
+      fcDifference: 0,
+    }
+  }
+
+  const aggregateLineRate = totalActualForeignAmount > 0 && totalBaseAmount > 0
+    ? (totalBaseAmount / totalActualForeignAmount)
+    : (Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0)
+
+  return {
+    lineRate: aggregateLineRate,
+    totalForeignAmount,
+    totalBaseAmount,
+    actualForeignAmount: totalActualForeignAmount,
+    expectedForeignAmount: totalExpectedForeignAmount,
+    fcDifference: totalActualForeignAmount - totalExpectedForeignAmount,
+  }
 }
 
 async function connectDb() {
+  const dnsServers = process.env.DNS_SERVERS
+    ? process.env.DNS_SERVERS.split(',').map((s) => s.trim()).filter(Boolean)
+    : ['8.8.8.8', '8.8.4.4']
+  dns.setServers(dnsServers)
+
   const uri = getTenantUri(TENANT)
   if (!uri) throw new Error(`No MongoDB URI for tenant: ${TENANT}`)
-  
+
   await mongoose.connect(uri, {
     autoIndex: true,
     serverSelectionTimeoutMS: 10000,
@@ -100,168 +152,208 @@ async function connectDb() {
     maxPoolSize: 10,
     retryWrites: true,
   })
-  
-  console.log(`✅ Connected to ${TENANT} database`)
+
+  console.log(`Connected to ${TENANT} database`)
 }
 
-async function findMultiLineVouchers() {
-  // Find payment/receipt vouchers with multiple line items that have FX journals
-  const vouchersWithMultiLines = await Transaction.aggregate([
-    {
-      $match: {
-        type: { $in: ['payment', 'receipt'] },
-        status: 'posted',
-        isDeleted: { $ne: true },
-      },
-    },
-    {
-      $project: {
-        _id: 1,
-        type: 1,
-        voucherMeta: 1,
-        lineItemCount: {
-          $size: {
-            $ifNull: ['$voucherMeta.lineItems', []],
-          },
-        },
-      },
-    },
-    {
-      $match: {
-        lineItemCount: { $gt: 1 },
-      },
-    },
+async function resolveExchangeAccounts(isGain) {
+  const mappingType = isGain ? 'exchange_gain' : 'exchange_loss'
+  const mapping = await AccountMapping.findOne({ mappingType, isActive: true })
+    .select('debitAccountId creditAccountId')
+    .lean()
+
+  if (!mapping?.debitAccountId || !mapping?.creditAccountId) return null
+
+  const [debitAccount, creditAccount] = await Promise.all([
+    ChartOfAccount.findOne({ _id: mapping.debitAccountId, isActive: true }).select('_id').lean(),
+    ChartOfAccount.findOne({ _id: mapping.creditAccountId, isActive: true }).select('_id').lean(),
   ])
 
-  console.log(`Found ${vouchersWithMultiLines.length} vouchers with multiple line items`)
-  return vouchersWithMultiLines.map(v => v._id)
+  if (!debitAccount || !creditAccount) return null
+  return {
+    debitAccountId: mapping.debitAccountId,
+    creditAccountId: mapping.creditAccountId,
+  }
 }
 
-async function checkAndFixVoucher(txId) {
-  const tx = await Transaction.findById(txId).lean()
-  if (!tx) return { status: 'not_found' }
+async function softDeleteJournals(journals, actorId) {
+  if (!journals.length) return 0
+  const ids = journals.map((j) => j._id)
+  const res = await Ledger.updateMany(
+    { _id: { $in: ids } },
+    {
+      $set: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        updatedBy: actorId || null,
+        updatedAt: new Date(),
+      },
+    }
+  )
+  return Number(res.modifiedCount || 0)
+}
 
+async function reconcileVoucher(tx, baseCurrencyCode) {
   const voucherMeta = tx.voucherMeta || {}
-  const lineItems = Array.isArray(voucherMeta.lineItems) ? voucherMeta.lineItems : []
-  
-  if (lineItems.length <= 1) {
-    return { status: 'skipped_single_line', txId }
-  }
+  const voucherLine = resolvePrimaryVoucherFxLine(voucherMeta)
+  const currencyCode = String(tx.currency || 'USD').toUpperCase()
+  const lineCurrCode = String(voucherLine?.currCode || currencyCode || 'USD').toUpperCase()
 
-  // Check if this voucher has FX journals
-  const fxJournals = await Ledger.find({
-    referenceId: txId,
-    referenceType: 'journal',
-    isDeleted: { $ne: true },
-    description: /Exchange (gain|loss) adjustment/i,
-  }).lean()
-
-  if (!fxJournals.length) {
-    return { status: 'no_fx_journals', txId, lineCount: lineItems.length }
-  }
-
-  // Get the primary line item
-  const primaryLine = resolvePrimaryVoucherFxLine(voucherMeta)
-  const referenceRate = resolveReferenceExchangeRate(voucherMeta)
-
-  if (!referenceRate || referenceRate <= 0) {
-    return { status: 'no_reference_rate', txId, lineCount: lineItems.length, fxJournalCount: fxJournals.length }
-  }
-
-  // Calculate what the correct FX should be based on PRIMARY line only
-  const foreignAmount = resolveVoucherFxLineForeignAmount(primaryLine)
-  const lineRate = Number(primaryLine?.currRate || tx.exchangeRate || 1)
-  const expectedForeignAmount = Number(tx.amount || 0) / referenceRate
-  const actualForeignAmount = foreignAmount > 0 ? foreignAmount : Number(tx.amount || 0) / lineRate
-
-  const fcDiff = actualForeignAmount - expectedForeignAmount
-  const rawDiffInBase = Math.abs(fcDiff) * referenceRate
-
-  // If the difference is below epsilon, there shouldn't be any FX journals
-  if (rawDiffInBase < FX_REVALUATION_EPSILON) {
-    return {
-      status: 'fx_should_be_removed',
-      txId,
-      lineCount: lineItems.length,
-      fxJournalCount: fxJournals.length,
-      rawDiffInBase: toMoney(rawDiffInBase),
-      action: 'will_remove_fx_journals',
+  const txCurrency = await Currency.findOne({ code: currencyCode, isActive: true }).lean()
+  let masterRate = 0
+  if (lineCurrCode !== String(baseCurrencyCode || 'USD').toUpperCase()) {
+    if (lineCurrCode === currencyCode) {
+      masterRate = Number(txCurrency?.exchangeRate || 0)
+    } else {
+      const lineCurrency = await Currency.findOne({ code: lineCurrCode, isActive: true }).lean()
+      masterRate = Number(lineCurrency?.exchangeRate || 0)
     }
   }
 
-  return {
-    status: 'ok',
-    txId,
-    lineCount: lineItems.length,
-    fxJournalCount: fxJournals.length,
-    correctedDiffInBase: toMoney(rawDiffInBase),
-  }
-}
+  const referenceRate = Number(resolveReferenceExchangeRate(voucherMeta) || masterRate || 0)
+  const existing = await Ledger.find({
+    referenceId: tx._id,
+    referenceType: 'journal',
+    isDeleted: { $ne: true },
+    description: /Exchange (gain|loss) adjustment/i,
+  }).sort({ createdAt: 1, _id: 1 })
 
-async function removeIncorrectFxJournals(txId) {
-  const result = await Ledger.updateMany(
-    {
-      referenceId: txId,
-      referenceType: 'journal',
-      isDeleted: { $ne: true },
-      description: /Exchange (gain|loss) adjustment/i,
-    },
-    { $set: { isDeleted: true, updatedAt: new Date() } }
-  )
-  return result
+  if (!(Number.isFinite(referenceRate) && referenceRate > 0)) {
+    const removed = await softDeleteJournals(existing, tx.updatedBy || tx.postedBy || tx.createdBy)
+    return { status: 'no_reference_rate', removed }
+  }
+
+  const fallbackRate = Number(voucherLine?.currRate || tx.exchangeRate || masterRate || 1)
+  const fxMetrics = resolveVoucherFxMetrics({
+    voucherMeta,
+    fallbackRate,
+    referenceRate,
+  })
+
+  const fcDiff = Number(fxMetrics.fcDifference || 0)
+  const rawDiffInBase = Math.abs(fcDiff) * referenceRate
+
+  if (rawDiffInBase < FX_REVALUATION_EPSILON) {
+    const removed = await softDeleteJournals(existing, tx.updatedBy || tx.postedBy || tx.createdBy)
+    return { status: 'no_fx_required', removed }
+  }
+
+  const txType = String(tx.type || '').toLowerCase()
+  const expectedDirection = txType === 'payment'
+    ? (fcDiff < 0 ? 'gain' : 'loss')
+    : (fcDiff > 0 ? 'gain' : 'loss')
+  const expectedAmount = toMoney(rawDiffInBase)
+  const actorId = tx.updatedBy || tx.postedBy || tx.createdBy
+
+  const matching = existing.find((j) => {
+    const d = String(j.description || '').toLowerCase()
+    return expectedDirection === 'gain' ? d.includes('exchange gain') : d.includes('exchange loss')
+  })
+
+  const extras = matching ? existing.filter((j) => String(j._id) !== String(matching._id)) : existing
+  let removedExtra = 0
+  if (extras.length) {
+    removedExtra = await softDeleteJournals(extras, actorId)
+  }
+
+  if (matching) {
+    const needsAmountUpdate = Math.abs(Number(matching.amount || 0) - expectedAmount) >= FX_REVALUATION_EPSILON
+    const targetDescription = `Exchange ${expectedDirection} adjustment for transaction ${tx._id}`
+    const needsDescriptionUpdate = String(matching.description || '') !== targetDescription
+
+    if (needsAmountUpdate || needsDescriptionUpdate) {
+      await Ledger.updateOne(
+        { _id: matching._id },
+        {
+          $set: {
+            amount: expectedAmount,
+            description: targetDescription,
+            updatedBy: actorId || null,
+            updatedAt: new Date(),
+          },
+        }
+      )
+      return { status: 'updated_existing', removedExtra }
+    }
+
+    return { status: 'already_correct', removedExtra }
+  }
+
+  const accounts = await resolveExchangeAccounts(expectedDirection === 'gain')
+  if (!accounts) {
+    return { status: 'missing_mapping', removedExtra }
+  }
+
+  await Ledger.create({
+    date: tx.date || new Date(),
+    debitAccountId: accounts.debitAccountId,
+    creditAccountId: accounts.creditAccountId,
+    amount: expectedAmount,
+    description: `Exchange ${expectedDirection} adjustment for transaction ${tx._id}`,
+    referenceType: 'journal',
+    referenceId: tx._id,
+    createdBy: actorId,
+    updatedBy: actorId,
+    department: '',
+    currency: baseCurrencyCode,
+    exchangeRate: 1,
+  })
+
+  return { status: 'created_missing', removedExtra }
 }
 
 async function main() {
   try {
     await connectDb()
 
-    console.log(`\n📋 Scanning ${TENANT} for multi-line vouchers with FX issues...\n`)
+    const base = await Currency.findOne({ baseCurrency: true, isActive: true }).lean()
+    const baseCurrencyCode = String(base?.code || 'USD').toUpperCase()
 
-    const txIds = await findMultiLineVouchers()
-    const results = []
-    let removedCount = 0
+    const vouchers = await Transaction.find({
+      type: { $in: ['payment', 'receipt'] },
+      status: 'posted',
+      isDeleted: { $ne: true },
+    })
+      .select('_id type status amount currency exchangeRate date createdBy updatedBy postedBy voucherMeta')
+      .lean()
 
-    for (const txId of txIds) {
-      const check = await checkAndFixVoucher(txId)
-      results.push(check)
+    console.log(`Scanning ${vouchers.length} posted payment/receipt vouchers in ${TENANT}`)
 
-      if (check.status === 'fx_should_be_removed') {
-        await removeIncorrectFxJournals(txId)
-        removedCount++
-        console.log(`✅ Removed incorrect FX journals from ${txId}`)
+    const stats = {
+      total: vouchers.length,
+      payments: vouchers.filter((v) => v.type === 'payment').length,
+      receipts: vouchers.filter((v) => v.type === 'receipt').length,
+      already_correct: 0,
+      updated_existing: 0,
+      created_missing: 0,
+      no_fx_required: 0,
+      no_reference_rate: 0,
+      missing_mapping: 0,
+      removed_total: 0,
+    }
+
+    for (const tx of vouchers) {
+      const result = await reconcileVoucher(tx, baseCurrencyCode)
+      if (Object.prototype.hasOwnProperty.call(stats, result.status)) {
+        stats[result.status] += 1
       }
+      stats.removed_total += Number(result.removed || result.removedExtra || 0)
     }
 
-    // Summary
-    console.log(`\n${'='.repeat(70)}`)
-    console.log(`📊 SUMMARY FOR TENANT: ${TENANT}`)
-    console.log(`${'='.repeat(70)}\n`)
-
-    const summary = {
-      total: results.length,
-      no_fx_journals: results.filter(r => r.status === 'no_fx_journals').length,
-      fx_should_be_removed: results.filter(r => r.status === 'fx_should_be_removed').length,
-      no_reference_rate: results.filter(r => r.status === 'no_reference_rate').length,
-      ok: results.filter(r => r.status === 'ok').length,
-      removed_fx_journal_count: removedCount,
-    }
-
-    console.log(`Total multi-line vouchers checked: ${summary.total}`)
-    console.log(`  - With correct FX journals: ${summary.ok}`)
-    console.log(`  - With removed FX journals: ${summary.removed_fx_journal_count}`)
-    console.log(`  - With no FX journals: ${summary.no_fx_journals}`)
-    console.log(`  - With no reference rate: ${summary.no_reference_rate}`)
-
-    if (summary.removed_fx_journal_count > 0) {
-      console.log(`\n✅ Fixed ${summary.removed_fx_journal_count} vouchers by removing incorrect FX journals`)
-      console.log(`\n⚠️  NOTE: These vouchers will recalculate FX gain/loss correctly on next posting/revaluation.`)
-    } else {
-      console.log(`\n✅ No multi-line vouchers with incorrect FX journals found in ${TENANT}`)
-    }
-
-    console.log(`\n✅ Script completed successfully\n`)
+    console.log('\n===== MG Payment/Receipt Voucher FX Reconciliation =====')
+    console.log(`Total scanned: ${stats.total}`)
+    console.log(`Payment vouchers: ${stats.payments}`)
+    console.log(`Receipt vouchers: ${stats.receipts}`)
+    console.log(`Already correct: ${stats.already_correct}`)
+    console.log(`Updated existing FX journals: ${stats.updated_existing}`)
+    console.log(`Created missing FX journals: ${stats.created_missing}`)
+    console.log(`No FX required (removed old): ${stats.no_fx_required}`)
+    console.log(`No reference rate (removed old): ${stats.no_reference_rate}`)
+    console.log(`Missing mapping (manual review): ${stats.missing_mapping}`)
+    console.log(`Total FX journals removed: ${stats.removed_total}`)
+    console.log('===============================================\n')
   } catch (error) {
-    console.error('❌ Error:', error.message)
+    console.error('Error:', error.message)
     process.exit(1)
   } finally {
     await mongoose.disconnect()
