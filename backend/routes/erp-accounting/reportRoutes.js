@@ -394,7 +394,12 @@ router.get('/reports/day-book', protect, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { startDate, endDate, referenceType, minAmount = '0' } = req.query
-    const query = { isDeleted: { $ne: true } }
+    const query = {
+      isDeleted: { $ne: true },
+      amount: { $gt: 0 },
+      debitAccountId: { $ne: null },
+      creditAccountId: { $ne: null },
+    }
     const dateQuery = buildDateQuery(startDate, endDate)
     if (dateQuery) query.date = dateQuery
     if (referenceType) query.referenceType = referenceType
