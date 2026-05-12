@@ -1456,7 +1456,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     'receipt',
     'sale',
     'purchase',
-    'journal',
+    // DO NOT include 'journal' - exchange adjustments should NOT appear in Cash statement
+    // They post to P&L accounts (4190/5190), not to Cash (1000)
+    // 'journal',  // REMOVED
     'jv',
     'bank_jv',
     'bank-jv',
