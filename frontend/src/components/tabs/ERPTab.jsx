@@ -1449,7 +1449,16 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const statementReferenceTypes = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
   const statementDepartments = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean))).sort()
   const isCashOnHandEnquiry = String(accountEnquiryData?.account?.accountCode || '').trim() === '1000'
-  const strictCashStatementTypes = new Set(['payment', 'receipt', 'sale', 'purchase'])
+  const strictCashStatementTypes = new Set([
+    'payment',
+    'receipt',
+    'sale',
+    'purchase',
+    'journal',
+    'jv',
+    'bank_jv',
+    'bank-jv',
+  ])
   const resolveFixStatus = (entry) => {
     const explicit = String(entry?.metalFixStatus || '').trim().toLowerCase()
     if (explicit === 'fixed' || explicit === 'unfixed') return explicit
