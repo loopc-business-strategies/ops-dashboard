@@ -2481,6 +2481,7 @@ function registerErpAccountingRoutes(router) {
     Currency,
     ReportBranding,
     MetalRate,
+    InventoryItem,
     canViewAccounts,
     canManageAccounts,
     ensureDefaultCurrencyMaster,

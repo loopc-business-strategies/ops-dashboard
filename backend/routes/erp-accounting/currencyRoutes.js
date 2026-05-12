@@ -10,6 +10,7 @@ function registerCurrencyRoutes(deps) {
     Currency,
     ReportBranding,
     MetalRate,
+    InventoryItem,
     canViewAccounts,
     canManageAccounts,
     ensureDefaultCurrencyMaster,
@@ -22,6 +23,57 @@ function registerCurrencyRoutes(deps) {
     DEFAULT_METAL_RATES,
     BASE_CURRENCY_CODE,
   } = deps
+
+  const parseCategoryMeta = (category) => {
+    const meta = {}
+    String(category || '').split(';').forEach((pair) => {
+      const [key, ...rest] = String(pair).split('=')
+      if (!key || rest.length === 0) return
+      meta[String(key).trim()] = rest.join('=').trim()
+    })
+    return meta
+  }
+
+  const resolveInventoryMetalRates = async () => {
+    const stockTypeDocs = await InventoryItem.find({
+      isDeleted: { $ne: true },
+      $and: [
+        { category: /mainStock=/i },
+        { category: { $not: /recordType=product/i } },
+      ],
+    }).select('category unitCost currency updatedAt')
+
+    const stockPriceMap = {}
+
+    stockTypeDocs.forEach((doc) => {
+      const meta = parseCategoryMeta(doc.category)
+      const metal = String(meta.mainStock || meta.metalType || '').trim().toLowerCase()
+      if (!metal) return
+
+      const price = Number(doc.unitCost || 0)
+      if (!Number.isFinite(price) || price <= 0) return
+
+      const prev = stockPriceMap[metal]
+      if (!prev || new Date(doc.updatedAt || 0) > new Date(prev.updatedAt || 0)) {
+        stockPriceMap[metal] = {
+          price,
+          currency: String(doc.currency || meta.priceCurrency || 'USD').toUpperCase(),
+          unit: String(meta.priceUnit || 'OZ').toUpperCase(),
+          updatedAt: doc.updatedAt || null,
+        }
+      }
+    })
+
+    const latestStockUpdatedAt = Object.values(stockPriceMap)
+      .map((entry) => entry.updatedAt)
+      .filter(Boolean)
+      .sort((a, b) => new Date(b) - new Date(a))[0] || null
+
+    return {
+      stockPriceMap,
+      latestStockUpdatedAt,
+    }
+  }
 
   router.get('/currencies', protect, async (req, res) => {
     try {
@@ -123,25 +175,20 @@ function registerCurrencyRoutes(deps) {
       if (!canViewAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
       const latest = await getLatestMetalRate()
-      if (!latest) {
-        return res.json({
-          success: true,
-          rates: {
-            ...DEFAULT_METAL_RATES,
-            updatedAt: null,
-          },
-          canUpdate: canManageAccounts(req.user),
-        })
+      const { stockPriceMap, latestStockUpdatedAt } = await resolveInventoryMetalRates()
+
+      const rates = {
+        goldPrice: stockPriceMap.gold?.price || (latest ? Number(latest.goldPrice || 0) : Number(DEFAULT_METAL_RATES.goldPrice || 0)),
+        silverPrice: stockPriceMap.silver?.price || (latest ? Number(latest.silverPrice || 0) : Number(DEFAULT_METAL_RATES.silverPrice || 0)),
+        platinumPrice: stockPriceMap.platinum?.price || 0,
+        priceCurrency: stockPriceMap.gold?.currency || stockPriceMap.silver?.currency || (latest ? latest.priceCurrency : DEFAULT_METAL_RATES.priceCurrency || 'USD'),
+        priceUnit: stockPriceMap.gold?.unit || stockPriceMap.silver?.unit || stockPriceMap.platinum?.unit || 'OZ',
+        updatedAt: latestStockUpdatedAt || (latest ? latest.updatedAt : null),
       }
 
       res.json({
         success: true,
-        rates: {
-          goldPrice: Number(latest.goldPrice || 0),
-          silverPrice: Number(latest.silverPrice || 0),
-          priceCurrency: latest.priceCurrency || 'USD',
-          updatedAt: latest.updatedAt,
-        },
+        rates,
         canUpdate: canManageAccounts(req.user),
       })
     } catch {
