@@ -61,48 +61,31 @@ function createFxRevaluationService(deps) {
   }
 
   const resolveVoucherFxMetrics = ({ voucherMeta = {}, txAmount = 0, fallbackRate = 0 }) => {
-    const lines = Array.isArray(voucherMeta?.lineItems) ? voucherMeta.lineItems : []
-    let totalForeignAmount = 0
-    let totalBaseAmount = 0
-    let weightedLineRateBase = 0
-    let weightedLineRateWeight = 0
+    // FIX: Only use the PRIMARY (first) line item with currency info for FX calculations.
+    // This prevents incorrect exchange gain/loss when multiple line items are added.
+    const primaryLine = resolvePrimaryVoucherFxLine(voucherMeta)
+    
+    const foreignAmount = resolveVoucherFxLineForeignAmount(primaryLine)
+    const baseAmount = resolveVoucherFxLineBaseAmount(primaryLine)
+    const lineRate = Number(primaryLine?.currRate || 0)
 
-    lines.forEach((line) => {
-      const foreignAmount = resolveVoucherFxLineForeignAmount(line)
-      const baseAmount = resolveVoucherFxLineBaseAmount(line)
-      const lineRate = Number(line?.currRate || 0)
-
-      if (foreignAmount > 0) totalForeignAmount += foreignAmount
-      if (baseAmount > 0) totalBaseAmount += baseAmount
-
-      if (lineRate > 0 && foreignAmount > 0) {
-        weightedLineRateBase += foreignAmount * lineRate
-        weightedLineRateWeight += foreignAmount
-      }
-    })
-
-    const lineRateFromTotals = totalForeignAmount > 0 && totalBaseAmount > 0
-      ? totalBaseAmount / totalForeignAmount
-      : 0
-    const lineRateFromWeighted = weightedLineRateWeight > 0
-      ? weightedLineRateBase / weightedLineRateWeight
-      : 0
     const normalizedFallbackRate = Number(fallbackRate || 0)
 
-    const lineRate = lineRateFromTotals > 0
-      ? lineRateFromTotals
-      : lineRateFromWeighted > 0
-        ? lineRateFromWeighted
-        : (Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0)
+    // Calculate effective rate from primary line only
+    const effectiveLineRate = lineRate > 0
+      ? lineRate
+      : (foreignAmount > 0 && baseAmount > 0
+        ? baseAmount / foreignAmount
+        : (Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0))
 
-    const actualForeignAmount = totalForeignAmount > 0
-      ? totalForeignAmount
-      : (lineRate > 0 ? Number(txAmount || 0) / lineRate : 0)
+    const actualForeignAmount = foreignAmount > 0
+      ? foreignAmount
+      : (effectiveLineRate > 0 ? Number(txAmount || 0) / effectiveLineRate : 0)
 
     return {
-      lineRate,
-      totalForeignAmount,
-      totalBaseAmount,
+      lineRate: effectiveLineRate,
+      totalForeignAmount: foreignAmount,
+      totalBaseAmount: baseAmount,
       actualForeignAmount,
     }
   }
