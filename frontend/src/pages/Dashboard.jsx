@@ -23,6 +23,7 @@ import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage, LANGUAGES } from '../context/LanguageContext'
 import { getTenantBranding } from '../config/tenantBranding'
 import BuildInfoBadge from '../components/BuildInfoBadge'
+import axios from 'axios'
 
 // Import tab content components
 import OverviewTab     from '../components/tabs/OverviewTab'
@@ -73,27 +74,6 @@ function TabLoadingFallback() {
     <div className="p-6 rounded-xl border" style={{ background: '#FFFFFF', borderColor: '#E5E7EB', color: '#1C2A33' }}>
       <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Loading module...</p>
     </div>
-  )
-}
-
-// ── Role badge config ────────────────────────────
-function getRoleLabels(t) {
-  return {
-    super_admin:     { label: t('superAdmin'),  style: { color: 'var(--purple)', background: 'rgba(var(--purple-rgb),0.1)', border: '1px solid rgba(var(--purple-rgb),0.3)' } },
-    management:      { label: t('management'),  style: { color: '#60a5fa', background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.25)' } },
-    department_head: { label: t('deptHead'),    style: { color: '#fbbf24', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' } },
-    department_user: { label: t('deptUser'),    style: { color: 'var(--text-secondary)', background: 'var(--bg-card-hover)', border: '1px solid var(--border)' } },
-    external:        { label: t('external'),    style: { color: '#4ade80', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)' } },
-  }
-}
-
-function RoleBadge({ role, t }) {
-  const ROLE_LABELS = getRoleLabels(t)
-  const cfg = ROLE_LABELS[role] || ROLE_LABELS.department_user
-  return (
-    <span style={{ ...cfg.style, padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
-      {cfg.label}
-    </span>
   )
 }
 
@@ -242,7 +222,15 @@ function Dashboard() {
   const [erpSubTab,    setErpSubTab]    = useState('dashboard')
   const [chatUnread,   setChatUnread]   = useState(3) // matches seed data initial unread
   const [langMenuOpen, setLangMenuOpen] = useState(false)
+  const [metalMenuOpen, setMetalMenuOpen] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+  const [selectedMetal, setSelectedMetal] = useState('gold')
+  const [metalRates, setMetalRates] = useState({ gold: 0, silver: 0, platinum: 0 })
   const langMenuRef = useRef(null)
+  const metalMenuRef = useRef(null)
+  const notifMenuRef = useRef(null)
+  const accountMenuRef = useRef(null)
 
   const EDGE_TRIGGER_WIDTH = 20
   const SIDEBAR_WIDTH = 240
@@ -314,6 +302,59 @@ function Dashboard() {
     return () => document.removeEventListener('mousedown', handler)
   }, [langMenuOpen])
 
+  useEffect(() => {
+    if (!metalMenuOpen) return
+    const handler = (e) => {
+      if (metalMenuRef.current && !metalMenuRef.current.contains(e.target)) {
+        setMetalMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [metalMenuOpen])
+
+  useEffect(() => {
+    if (!notifOpen) return
+    const handler = (e) => {
+      if (notifMenuRef.current && !notifMenuRef.current.contains(e.target)) {
+        setNotifOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [notifOpen])
+
+  useEffect(() => {
+    if (!accountMenuOpen) return
+    const handler = (e) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target)) {
+        setAccountMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [accountMenuOpen])
+
+  useEffect(() => {
+    let mounted = true
+    const fetchMetalRates = async () => {
+      try {
+        const res = await axios.get('/api/erp-accounting/metal-rates', { withCredentials: true })
+        const rates = res.data?.rates || {}
+        if (!mounted) return
+        setMetalRates({
+          gold: Number(rates.goldPrice || 0),
+          silver: Number(rates.silverPrice || 0),
+          platinum: Number(rates.platinumPrice || rates.platinum || 0),
+        })
+      } catch {
+        // Keep fallback values if endpoint is unavailable.
+      }
+    }
+    fetchMetalRates()
+    return () => { mounted = false }
+  }, [])
+
   // Sync active tab from URL search params
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -349,6 +390,19 @@ function Dashboard() {
   const erpItems   = navItems.filter(n => n.group === 'erp')
 
   const handleLogout = () => { logout(); navigate('/login') }
+
+  const notifications = [
+    { id: 1, title: 'New Invoice Generated', time: '2 min ago' },
+    { id: 2, title: 'Server Backup Completed', time: '15 min ago' },
+    { id: 3, title: 'Gold Price Updated', time: '30 min ago' },
+  ]
+
+  const metalOptions = [
+    { key: 'gold', label: 'Gold', color: '#FACC15' },
+    { key: 'silver', label: 'Silver', color: '#D1D5DB' },
+    { key: 'platinum', label: 'Platinum', color: '#9CA3AF' },
+  ]
+  const selectedMetalOption = metalOptions.find((m) => m.key === selectedMetal) || metalOptions[0]
 
   // Find current tab label
   const currentTab = navItems.find(n => n.id === activeTab)
@@ -460,19 +514,8 @@ function Dashboard() {
 
         </nav>
 
-        {/* Sidebar bottom — user info + logout */}
+        {/* Sidebar bottom — logout */}
         <div className="sidebar-footer flex-shrink-0 inline">
-          <div className="flex items-center gap-3 mb-3">
-            {/* Avatar */}
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-xs flex-shrink-0"
-              style={{ background: 'var(--grad-brand)' }}>
-              {user?.name?.[0]?.toUpperCase() || 'U'}
-            </div>
-            <div className="flex-1 min-w-100px">
-              <p className="text-sm font-medium truncate" style={{ color: '#1C2A33' }}>{user?.name}</p>
-              <RoleBadge role={user?.role} t={t} />
-            </div>
-          </div>
           <button onClick={handleLogout}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all"
             style={{ color: 'var(--text-muted)' }}
@@ -538,7 +581,107 @@ function Dashboard() {
                 </span>
               )}
 
-              {/* ── Language Switcher ── */}
+              {/* Metal price dropdown */}
+              <div className="relative" ref={metalMenuRef}>
+                <button
+                  onClick={() => setMetalMenuOpen(v => !v)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm transition-all"
+                  style={{
+                    background: metalMenuOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#ffffff',
+                  }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 999, background: selectedMetalOption.color }} />
+                  <span className="hidden sm:inline" style={{ fontWeight: 700, fontSize: 12 }}>{selectedMetalOption.label}</span>
+                  <span style={{ fontWeight: 700, fontSize: 12 }}>
+                    {Number(metalRates[selectedMetal] || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  </span>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ opacity: 0.5, marginTop: 1 }}>
+                    <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+
+                {metalMenuOpen && (
+                  <div
+                    className="absolute mt-1 py-1 rounded-xl shadow-2xl"
+                    style={{
+                      right: 0,
+                      top: '100%',
+                      minWidth: 200,
+                      zIndex: 9999,
+                      background: '#1e293b',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+                    }}>
+                    {metalOptions.map((m) => (
+                      <button
+                        key={m.key}
+                        onClick={() => { setSelectedMetal(m.key); setMetalMenuOpen(false) }}
+                        className="w-full flex items-center justify-between gap-2.5 px-3 py-2.5 text-sm transition-all"
+                        style={{
+                          color: m.key === selectedMetal ? '#a78bfa' : 'rgba(255,255,255,0.88)',
+                          background: m.key === selectedMetal ? 'rgba(139,92,246,0.15)' : 'transparent',
+                          textAlign: 'left',
+                        }}>
+                        <span className="flex items-center gap-2">
+                          <span style={{ width: 8, height: 8, borderRadius: 999, background: m.color }} />
+                          <span>{m.label}</span>
+                        </span>
+                        <span style={{ fontWeight: 700 }}>
+                          {Number(metalRates[m.key] || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Notification dropdown */}
+              <div className="relative" ref={notifMenuRef}>
+                <button
+                  onClick={() => setNotifOpen(v => !v)}
+                  className="relative p-2 rounded-lg transition-all"
+                  style={{
+                    background: notifOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#ffffff',
+                  }}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .53-.21 1.04-.59 1.41L4 17h5m6 0a3 3 0 11-6 0m6 0H9" />
+                  </svg>
+                  {notifications.length > 0 && (
+                    <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 16, height: 16, borderRadius: 999, background: '#ef4444', color: '#fff', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', fontWeight: 700 }}>
+                      {notifications.length}
+                    </span>
+                  )}
+                </button>
+
+                {notifOpen && (
+                  <div
+                    className="absolute mt-1 py-1 rounded-xl shadow-2xl"
+                    style={{
+                      right: 0,
+                      top: '100%',
+                      minWidth: 320,
+                      zIndex: 9999,
+                      background: '#ffffff',
+                      border: '1px solid #E5E7EB',
+                      boxShadow: '0 12px 28px rgba(15,23,42,0.2)',
+                    }}>
+                    <div style={{ padding: '10px 12px', borderBottom: '1px solid #E5E7EB', fontWeight: 700, color: '#111827' }}>
+                      Notifications
+                    </div>
+                    {notifications.map((n) => (
+                      <div key={n.id} style={{ padding: '10px 12px', borderBottom: '1px solid #F3F4F6' }}>
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827' }}>{n.title}</p>
+                        <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7280' }}>{n.time}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Language switcher */}
               <div className="relative" ref={langMenuRef}>
                 <button
                   onClick={() => setLangMenuOpen(v => !v)}
@@ -594,18 +737,46 @@ function Dashboard() {
                 )}
               </div>
 
-              {/* Current user role — desktop */}
-              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg"
-                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                <span className="px-2 py-1 rounded text-xs font-semibold" style={{ background: 'rgba(255,255,255,0.1)', color: '#fff' }}>
-                  {branding.displayName}
-                </span>
-                <div className="w-6 h-6 rounded-md flex items-center justify-center font-bold text-white text-xs"
-                  style={{ background: 'var(--grad-brand)' }}>
-                  {user?.name?.[0]?.toUpperCase()}
-                </div>
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{user?.name}</span>
-                <RoleBadge role={user?.role} t={t} />
+              {/* Account dropdown */}
+              <div className="relative" ref={accountMenuRef}>
+                <button
+                  onClick={() => setAccountMenuOpen(v => !v)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                  style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff' }}>
+                  <div className="w-6 h-6 rounded-md flex items-center justify-center font-bold text-white text-xs"
+                    style={{ background: 'var(--grad-brand)' }}>
+                    {user?.name?.[0]?.toUpperCase() || 'U'}
+                  </div>
+                  <span className="hidden sm:inline text-sm" style={{ color: '#fff' }}>{user?.name}</span>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ opacity: 0.7 }}>
+                    <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+
+                {accountMenuOpen && (
+                  <div
+                    className="absolute mt-1 py-1 rounded-xl shadow-2xl"
+                    style={{
+                      right: 0,
+                      top: '100%',
+                      minWidth: 220,
+                      zIndex: 9999,
+                      background: '#ffffff',
+                      border: '1px solid #E5E7EB',
+                      boxShadow: '0 12px 28px rgba(15,23,42,0.2)',
+                    }}>
+                    <div style={{ padding: '10px 12px', borderBottom: '1px solid #E5E7EB' }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#111827' }}>{user?.name}</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7280' }}>{branding.displayName}</p>
+                    </div>
+                    <button
+                      onClick={() => { setAccountMenuOpen(false); handleLogout() }}
+                      className="w-full px-3 py-2.5 text-sm"
+                      style={{ textAlign: 'left', color: '#b91c1c', fontWeight: 600 }}>
+                      {t('signOut')}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
