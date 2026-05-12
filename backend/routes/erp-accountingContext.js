@@ -2205,7 +2205,12 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
       if (rawDiffInBase >= FX_REVALUATION_EPSILON) {
         const diffInBase = toMoney(rawDiffInBase)
         const isGain = type === 'payment' ? fcDiff < 0 : fcDiff > 0
-        const accounts = await resolveExchangeAdjustmentAccounts({ user, isGain })
+        const accounts = await resolveExchangeAdjustmentAccounts({ 
+          user, 
+          isGain, 
+          transactionType: type,
+          offsetAccountId: type === 'receipt' ? transaction.creditAccountId : transaction.debitAccountId
+        })
 
         await Ledger.create({
           date: transaction.date || new Date(),
@@ -2228,7 +2233,7 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
   return entry
 }
 
-const resolveExchangeAdjustmentAccounts = async ({ user, isGain }) => {
+const resolveExchangeAdjustmentAccounts = async ({ user, isGain, transactionType = 'receipt', offsetAccountId = null }) => {
   const mappingType = isGain ? 'exchange_gain' : 'exchange_loss'
   const mapping = await AccountMapping.findOne({ mappingType, isActive: true })
     .select('debitAccountId creditAccountId')
@@ -2241,6 +2246,7 @@ const resolveExchangeAdjustmentAccounts = async ({ user, isGain }) => {
     ])
 
     if (debitAccount && creditAccount) {
+      // Mapped accounts take priority - keep original behavior if explicitly mapped
       return {
         debitAccountId: mapping.debitAccountId,
         creditAccountId: mapping.creditAccountId,
@@ -2248,12 +2254,31 @@ const resolveExchangeAdjustmentAccounts = async ({ user, isGain }) => {
     }
   }
 
-  const { gain, loss } = await ensureExchangeDifferenceAccounts(user)
-  const bank = await ensureCashBankAccount(user, BASE_CURRENCY_CODE, 'bank')
+  // Option B: Use AR/AP account instead of cash account
+  // Exchange entries should affect receivables/payables, not cash directly
+  const txType = String(transactionType || 'receipt').toLowerCase()
+  const isReceipt = txType === 'receipt'
+  
+  // Resolve the AR/AP account that was used in the main transaction
+  let arApAccountId = offsetAccountId
+  if (!arApAccountId) {
+    if (isReceipt) {
+      // For receipt: AR (Accounts Receivable)
+      const arAccount = await ensureAccount({ name: 'Accounts Receivable', code: '1100', type: 'Asset' })
+      arApAccountId = arAccount._id
+    } else {
+      // For payment: AP (Accounts Payable)
+      const apAccount = await ensureAccount({ name: 'Accounts Payable', code: '2000', type: 'Liability' })
+      arApAccountId = apAccount._id
+    }
+  }
 
+  const { gain, loss } = await ensureExchangeDifferenceAccounts(user)
+
+  // New posting logic - use AR/AP instead of bank
   return isGain
-    ? { debitAccountId: bank._id, creditAccountId: gain._id }
-    : { debitAccountId: loss._id, creditAccountId: bank._id }
+    ? { debitAccountId: arApAccountId, creditAccountId: gain._id }
+    : { debitAccountId: loss._id, creditAccountId: arApAccountId }
 }
 
 const getOutstandingForAccount = async (accountId) => {
