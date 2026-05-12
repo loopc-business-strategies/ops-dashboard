@@ -55,7 +55,7 @@ const http = require('http')
 const mongoose = require('mongoose')
 const createApp = require('./app')
 const RealtimeServer = require('./realtime/RealtimeServer')
-const { getDefaultTenant, getTenantUri } = require('./config/tenants')
+const { TENANT_KEYS, getDefaultTenant, getTenantUri } = require('./config/tenants')
 
 const app = createApp()
 
@@ -64,34 +64,56 @@ function envBool(value, defaultValue = false) {
   return String(value).trim().toLowerCase() === 'true'
 }
 
+function getAvailableTenantUris() {
+  return TENANT_KEYS
+    .map((tenant) => ({ tenant, uri: getTenantUri(tenant) }))
+    .filter((entry) => Boolean(entry.uri))
+}
+
 // ── Connect to MongoDB then start server ────────
 const PORT      = process.env.PORT      || 5000
 
 function buildMongoUri() {
   const defaultTenant = getDefaultTenant()
-  const tenantUri = getTenantUri(defaultTenant)
-  return tenantUri || null
+  const defaultTenantUri = getTenantUri(defaultTenant)
+  if (defaultTenantUri) {
+    return { tenant: defaultTenant, uri: defaultTenantUri, source: 'default-tenant' }
+  }
+
+  const available = getAvailableTenantUris()
+  if (!available.length) return null
+
+  return {
+    tenant: available[0].tenant,
+    uri: available[0].uri,
+    source: 'fallback-available-tenant',
+  }
 }
 
 function getMongoConfigInfo() {
-  const defaultTenant = getDefaultTenant()
-  const usingTenantUri = Boolean(getTenantUri(defaultTenant))
+  const selected = buildMongoUri()
   const dbName = process.env.DB_NAME || 'ops-dashboard'
+  const availableTenants = getAvailableTenantUris().map((entry) => entry.tenant.toUpperCase())
 
-  if (usingTenantUri) {
+  if (selected) {
     return {
-      mode: `TENANT_URI (${defaultTenant.toUpperCase()})`,
+      mode: `TENANT_URI (${selected.tenant.toUpperCase()})`,
       target: dbName,
+      source: selected.source,
+      availableTenants,
     }
   }
 
   return {
     mode: 'TENANT_URI_MISSING',
     target: dbName,
+    source: 'none',
+    availableTenants,
   }
 }
 
-const mongoUri = buildMongoUri()
+const mongoSelection = buildMongoUri()
+const mongoUri = mongoSelection?.uri || null
 const mongoInfo = getMongoConfigInfo()
 if (!mongoUri) {
   console.error('Mongo config missing. Set MONGO_URI_MG, MONGO_URI_CG, and MONGO_URI_LOOPC in .env.')
@@ -99,6 +121,8 @@ if (!mongoUri) {
 }
 
 console.log(`Mongo config mode: ${mongoInfo.mode}`)
+console.log(`Mongo config source: ${mongoInfo.source}`)
+console.log(`Mongo configured tenants: ${mongoInfo.availableTenants.join(', ') || 'none'}`)
 console.log(`Mongo target: ${mongoInfo.target}`)
 
 async function startServer() {

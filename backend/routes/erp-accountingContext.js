@@ -2,7 +2,7 @@ const fs = require('fs')
 const path = require('path')
 const multer = require('multer')
 const { protect } = require('../middleware/auth')
-const { Joi, validateBody, validateBodyStrict, validateParams } = require('../middleware/validate')
+const { validateBody, validateBodyStrict, validateParams } = require('../middleware/validate')
 const Ledger = require('../models/Ledger')
 const ChartOfAccount = require('../models/ChartOfAccount')
 const AccountMapping = require('../models/AccountMapping')
@@ -18,7 +18,23 @@ const DirectDeal = require('../models/DirectDeal')
 const Employee = require('../models/Employee')
 const Customer = require('../models/Customer')
 const { applyPartyAccountPriority } = require('../utils/transactionPartyAccounts')
-const { ACCOUNT_TYPES } = require('../constants/accountTypes')
+const {
+  idParam,
+  accountCreateSchema,
+  accountPatchSchema,
+  mappingCreateSchema,
+  mappingPatchSchema,
+  currencyCreateSchema,
+  currencyPatchSchema,
+  customerCreateSchema,
+  customerPatchSchema,
+  vendorCreateSchema,
+  vendorPatchSchema,
+  transactionPatchSchema,
+  transactionCreateSchema,
+  ledgerEntrySchema,
+  hardDeleteSchema,
+} = require('./erp-accounting/schemas')
 const {
   normalizeTransactionNote,
   appendTransactionComment,
@@ -37,6 +53,22 @@ const { registerVendorRoutes } = require('./erp-accounting/vendorRoutes')
 const { registerInventoryRoutes } = require('./erp-accounting/inventoryRoutes')
 const { registerDirectDealsRoutes } = require('./erp-accounting/directDealsRoutes')
 const { registerAttachmentRoutes } = require('./erp-accounting/attachmentRoutes')
+const {
+  TRANSACTION_TYPES,
+  TRANSACTION_STATUSES,
+  BASE_CURRENCY_CODE,
+  MAX_TRANSACTION_AMOUNT,
+  MAX_EXCHANGE_RATE,
+  toMoney,
+  toQty,
+  parseNumber,
+  sanitizeOptionalRef,
+  normalizeMetalFixStatus,
+  normalizeMoneyValue,
+  normalizeExchangeRateValue,
+  getRoleTransactionTypes,
+  validateTransactionPayload,
+} = require('./erp-accounting/transactionHelpers')
 const { createFxRevaluationService } = require('../services/erpAccounting/fxRevaluationService')
 const { createTransactionPostingService } = require('../services/erpAccounting/transactionPostingService')
 const {
@@ -67,213 +99,10 @@ const {
 } = require('../services/erpAccounting/accessPolicy')
 
 
-// ─── Joi Schemas ────────────────────────────────────────────────────────────
-const ACC_TYPES = ACCOUNT_TYPES
-const TX_TYPES  = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
-
-const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
-
-const accountCreateSchema = Joi.object({
-  accountName:     Joi.string().trim().min(1).max(200).required(),
-  accountCode:     Joi.string().trim().min(1).max(20).required(),
-  accountType:     Joi.string().valid(...ACC_TYPES).required(),
-  parentAccountId: Joi.string().hex().length(24).allow('', null).optional(),
-  currency:        Joi.string().trim().allow('').max(10).optional(),
-  description:     Joi.string().trim().allow('').max(500).optional(),
-})
-
-const accountPatchSchema = Joi.object({
-  accountName:     Joi.string().trim().min(1).max(200).optional(),
-  accountCode:     Joi.string().trim().min(1).max(20).optional(),
-  accountType:     Joi.string().valid(...ACC_TYPES).optional(),
-  parentAccountId: Joi.string().hex().length(24).allow('', null).optional(),
-  currency:        Joi.string().trim().allow('').max(10).optional(),
-  description:     Joi.string().trim().allow('').max(500).optional(),
-  isActive:        Joi.boolean().optional(),
-}).min(1)
-
-const mappingCreateSchema = Joi.object({
-  mappingType:     Joi.string().trim().min(1).max(100).required(),
-  debitAccountId:  Joi.string().hex().length(24).required(),
-  creditAccountId: Joi.string().hex().length(24).required(),
-  description:     Joi.string().trim().allow('').max(300).optional(),
-  department:      Joi.string().trim().allow('').max(80).optional(),
-})
-
-const mappingPatchSchema = Joi.object({
-  mappingType:     Joi.string().trim().min(1).max(100).optional(),
-  debitAccountId:  Joi.string().hex().length(24).optional(),
-  creditAccountId: Joi.string().hex().length(24).optional(),
-  description:     Joi.string().trim().allow('').max(300).optional(),
-  department:      Joi.string().trim().allow('').max(80).optional(),
-  isActive:        Joi.boolean().optional(),
-}).min(1)
-
-const currencyCreateSchema = Joi.object({
-  code:         Joi.string().trim().min(2).max(10).required(),
-  name:         Joi.string().trim().min(1).max(100).required(),
-  symbol:       Joi.string().trim().allow('').max(20).optional(),
-  exchangeRate: Joi.number().positive().required(),
-  isActive:     Joi.boolean().optional(),
-  baseCurrency: Joi.boolean().optional(),
-})
-
-const currencyPatchSchema = Joi.object({
-  code:         Joi.string().trim().min(2).max(10).optional(),
-  name:         Joi.string().trim().min(1).max(100).optional(),
-  symbol:       Joi.string().trim().allow('').max(20).optional(),
-  exchangeRate: Joi.number().positive().optional(),
-  isActive:     Joi.boolean().optional(),
-  baseCurrency: Joi.boolean().optional(),
-}).min(1)
-
-const customerCreateSchema = Joi.object({
-  name:             Joi.string().trim().min(1).max(200).required(),
-  phone:            Joi.string().trim().allow('').max(30).optional(),
-  email:            Joi.string().email({ tlds: { allow: false } }).allow('').optional(),
-  address:          Joi.string().trim().allow('').max(300).optional(),
-  gstVat:           Joi.string().trim().allow('').max(60).optional(),
-  openingBalance:   Joi.number().optional(),
-  creditLimit:      Joi.number().min(0).optional(),
-  paymentTermsDays: Joi.number().integer().min(0).optional(),
-  currency:         Joi.string().trim().allow('').max(10).optional(),
-  notes:            Joi.string().trim().allow('').max(2000).optional(),
-})
-
-const customerPatchSchema = Joi.object({
-  name: Joi.string().trim().min(1).max(200).optional(),
-  phone: Joi.string().trim().allow('').max(30).optional(),
-  email: Joi.string().email({ tlds: { allow: false } }).allow('').optional(),
-  address: Joi.string().trim().allow('').max(300).optional(),
-  gstVat: Joi.string().trim().allow('').max(60).optional(),
-  creditLimit: Joi.number().min(0).optional(),
-  paymentTermsDays: Joi.number().integer().min(0).optional(),
-  currency: Joi.string().trim().allow('').max(10).optional(),
-  notes: Joi.string().trim().allow('').max(2000).optional(),
-  isActive: Joi.boolean().optional(),
-  ledgerAccountId: Joi.string().hex().length(24).allow('', null).optional(),
-}).min(1)
-
-const vendorCreateSchema = Joi.object({
-  vendorCode:         Joi.string().trim().allow('').max(30).optional(),
-  name:               Joi.string().trim().min(1).max(200).required(),
-  contactPerson:      Joi.string().trim().allow('').max(120).optional(),
-  phone:              Joi.string().trim().allow('').max(30).optional(),
-  email:              Joi.string().email({ tlds: { allow: false } }).allow('').optional(),
-  address:            Joi.string().trim().allow('').max(300).optional(),
-  city:               Joi.string().trim().allow('').max(80).optional(),
-  country:            Joi.string().trim().allow('').max(80).optional(),
-  postalCode:         Joi.string().trim().allow('').max(20).optional(),
-  gstVat:             Joi.string().trim().allow('').max(60).optional(),
-  taxRegistrationNo:  Joi.string().trim().allow('').max(60).optional(),
-  openingBalance:     Joi.number().optional(),
-  paymentTermsDays:   Joi.number().integer().min(0).optional(),
-  creditLimit:        Joi.number().min(0).optional(),
-  category:           Joi.string().trim().allow('').max(80).optional(),
-  rating:             Joi.number().integer().min(1).max(5).optional(),
-  riskLevel:          Joi.string().valid('Low', 'Medium', 'High').optional(),
-  status:             Joi.string().trim().allow('').max(30).optional(),
-  notes:              Joi.string().trim().allow('').max(2000).optional(),
-  tags:               Joi.array().items(Joi.string().trim().max(50)).max(20).optional(),
-  preferredCurrency:  Joi.string().trim().allow('').max(10).optional(),
-  bankName:           Joi.string().trim().allow('').max(120).optional(),
-  bankAccountNumber:  Joi.string().trim().allow('').max(60).optional(),
-  iban:               Joi.string().trim().allow('').max(34).optional(),
-  swiftCode:          Joi.string().trim().allow('').max(20).optional(),
-  currency:           Joi.string().trim().allow('').max(10).optional(),
-})
-
-const vendorPatchSchema = Joi.object({
-  vendorCode: Joi.string().trim().allow('').max(30).optional(),
-  name: Joi.string().trim().min(1).max(200).optional(),
-  contactPerson: Joi.string().trim().allow('').max(120).optional(),
-  phone: Joi.string().trim().allow('').max(30).optional(),
-  email: Joi.string().email({ tlds: { allow: false } }).allow('').optional(),
-  address: Joi.string().trim().allow('').max(300).optional(),
-  city: Joi.string().trim().allow('').max(80).optional(),
-  country: Joi.string().trim().allow('').max(80).optional(),
-  postalCode: Joi.string().trim().allow('').max(20).optional(),
-  gstVat: Joi.string().trim().allow('').max(60).optional(),
-  taxRegistrationNo: Joi.string().trim().allow('').max(60).optional(),
-  paymentTermsDays: Joi.number().integer().min(0).optional(),
-  creditLimit: Joi.number().min(0).optional(),
-  category: Joi.string().trim().allow('').max(80).optional(),
-  rating: Joi.number().integer().min(1).max(5).optional(),
-  riskLevel: Joi.string().valid('low', 'medium', 'high', 'Low', 'Medium', 'High').optional(),
-  status: Joi.string().trim().allow('').max(30).optional(),
-  notes: Joi.string().trim().allow('').max(2000).optional(),
-  tags: Joi.alternatives().try(
-    Joi.array().items(Joi.string().trim().max(50)).max(20),
-    Joi.string().allow('').max(500)
-  ).optional(),
-  preferredCurrency: Joi.string().trim().allow('').max(10).optional(),
-  bankName: Joi.string().trim().allow('').max(120).optional(),
-  bankAccountNumber: Joi.string().trim().allow('').max(60).optional(),
-  iban: Joi.string().trim().allow('').max(34).optional(),
-  swiftCode: Joi.string().trim().allow('').max(20).optional(),
-  currency: Joi.string().trim().allow('').max(10).optional(),
-  isActive: Joi.boolean().optional(),
-}).min(1)
-
-const transactionPatchSchema = Joi.object({
-  type: Joi.string().valid(...TX_TYPES).optional(),
-  amount: Joi.number().optional(),
-  date: Joi.string().allow('', null).optional(),
-  description: Joi.string().trim().allow('').max(1000).optional(),
-  currency: Joi.string().trim().allow('').max(10).optional(),
-  exchangeRate: Joi.number().positive().optional(),
-  customerId: Joi.string().hex().length(24).allow('', null).optional(),
-  vendorId: Joi.string().hex().length(24).allow('', null).optional(),
-  inventoryItemId: Joi.string().hex().length(24).allow('', null).optional(),
-  mappingId: Joi.string().hex().length(24).allow('', null).optional(),
-  debitAccountId: Joi.string().hex().length(24).allow('', null).optional(),
-  creditAccountId: Joi.string().hex().length(24).allow('', null).optional(),
-  voucherMeta: Joi.object().optional(),
-  metalFixStatus: Joi.string().trim().allow('').max(30).optional(),
-}).min(1)
-
-const transactionCreateSchema = Joi.object({
-  type:              Joi.string().valid(...TX_TYPES).required(),
-  amount:            Joi.number().required(),
-  date:              Joi.string().allow('', null).optional(),
-  description:       Joi.string().trim().allow('').max(1000).optional(),
-  currency:          Joi.string().trim().allow('').max(10).optional(),
-  exchangeRate:      Joi.number().positive().optional(),
-  customerId:        Joi.string().hex().length(24).allow('', null).optional(),
-  vendorId:          Joi.string().hex().length(24).allow('', null).optional(),
-  inventoryItemId:   Joi.string().hex().length(24).allow('', null).optional(),
-  mappingId:         Joi.string().hex().length(24).allow('', null).optional(),
-  debitAccountId:    Joi.string().hex().length(24).allow('', null).optional(),
-  creditAccountId:   Joi.string().hex().length(24).allow('', null).optional(),
-  voucherMeta:       Joi.object().optional(),
-  metalFixStatus:    Joi.string().trim().allow('').max(30).optional(),
-})
-
-const ledgerEntrySchema = Joi.object({
-  date:          Joi.string().allow('', null).optional(),
-  description:   Joi.string().trim().allow('').max(1000).optional(),
-  debitAmount:   Joi.number().min(0).optional(),
-  creditAmount:  Joi.number().min(0).optional(),
-  currency:      Joi.string().trim().allow('').max(10).optional(),
-  exchangeRate:  Joi.number().positive().optional(),
-  referenceType: Joi.string().trim().allow('').max(80).optional(),
-  referenceId:   Joi.string().hex().length(24).allow('', null).optional(),
-  accountId:     Joi.string().hex().length(24).allow('', null).optional(),
-  notes:         Joi.string().trim().allow('').max(1000).optional(),
-}).unknown(true)
-
-const hardDeleteSchema = Joi.object({
-  code: Joi.string().trim().min(1).max(20).required(),
-})
-// ────────────────────────────────────────────────────────────────────────────
-
 // ==========================================
 // ROLE-BASED ACCESS CONTROL
 // ==========================================
 
-const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
-const TRANSACTION_STATUSES = ['draft', 'submitted', 'approved', 'posted', 'returned', 'rejected']
-const BASE_CURRENCY_CODE = 'USD'
 const FX_REVALUATION_EPSILON = 0.01
 const DEFAULT_CURRENCY_MASTER = [
   { code: 'USD', name: 'US Dollar', symbol: '$', exchangeRate: 1, baseCurrency: true },
@@ -281,13 +110,6 @@ const DEFAULT_CURRENCY_MASTER = [
   { code: 'AED', name: 'UAE Dirham', symbol: 'AED', exchangeRate: 0.2723, baseCurrency: false },
   { code: 'UZS', name: 'Uzbekistan Som', symbol: 'UZS', exchangeRate: 0.000078, baseCurrency: false },
 ]
-
-const toMoney = (value) => Number(Number(value || 0).toFixed(2))
-const toQty = (value) => Number(Number(value || 0).toFixed(6))
-const parseNumber = (value, fallback = 0) => {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
 
 const fxRevaluationService = createFxRevaluationService({
   parseNumber,
@@ -309,22 +131,12 @@ const validateFxReferenceRateRequirement = fxRevaluationService.validateFxRefere
 
 let transactionPostingService = null
 
-const sanitizeOptionalRef = (value) => (value ? value : null)
-const normalizeMetalFixStatus = (value) => {
-  const normalized = String(value || '').trim().toLowerCase()
-  if (['fixed', 'fixing'].includes(normalized)) return 'fixed'
-  if (['unfixed', 'unfix', 'non-fixing', 'non_fixing', 'nonfixing'].includes(normalized)) return 'unfixed'
-  return ''
-}
-
 const DIRECT_DEAL_STOCK_TO_OZ = {
   OZ: 1,
   GRAM: 0.0321507,
   KG: 32.1507,
 }
 
-const MAX_TRANSACTION_AMOUNT = Number(process.env.MAX_TRANSACTION_AMOUNT || 1_000_000_000)
-const MAX_EXCHANGE_RATE = Number(process.env.MAX_EXCHANGE_RATE || 1_000_000)
 const MAX_ACCOUNT_CODE_GENERATION_ATTEMPTS = Number(process.env.MAX_ACCOUNT_CODE_GENERATION_ATTEMPTS || 1000)
 const MAX_ACCOUNT_HIERARCHY_DEPTH = Number(process.env.MAX_ACCOUNT_HIERARCHY_DEPTH || 10)
 
@@ -332,20 +144,6 @@ const normalizeDirectDealStockCode = (value) => String(value || 'OZ').trim().toU
 const directDealEqOzFromQtyAndStock = (qty, stockCode) => {
   const ratio = DIRECT_DEAL_STOCK_TO_OZ[normalizeDirectDealStockCode(stockCode)] || 1
   return Number(qty || 0) * ratio
-}
-
-const normalizeMoneyValue = (value, field = 'amount') => {
-  const num = Number(value)
-  if (!Number.isFinite(num) || num <= 0) throw new Error(`Invalid ${field}`)
-  if (num > MAX_TRANSACTION_AMOUNT) throw new Error(`${field} exceeds allowed maximum`)
-  return num
-}
-
-const normalizeExchangeRateValue = (value, field = 'exchange rate') => {
-  const num = Number(value)
-  if (!Number.isFinite(num) || num <= 0) throw new Error(`Invalid ${field}`)
-  if (num > MAX_EXCHANGE_RATE) throw new Error(`${field} exceeds allowed maximum`)
-  return num
 }
 
 const ensureBaseCurrencyConfig = async () => {
@@ -472,14 +270,6 @@ const nextDirectDealDocNo = async () => {
   return `${prefix}${String(seq).padStart(6, '0')}`
 }
 
-const getRoleTransactionTypes = (user) => {
-  if (isSuperAdmin(user) || isFinance(user)) return TRANSACTION_TYPES
-  if (isSales(user)) return ['sale', 'receipt']
-  if (isOperations(user) || isProduction(user)) return ['purchase', 'expense']
-  if (isHR(user)) return ['payroll']
-  return []
-}
-
 const getMappedAccountIds = async (user) => {
   const dept = String(user?.department || '').trim().toLowerCase()
   const mappings = await AccountMapping.find({ isActive: true })
@@ -514,41 +304,6 @@ const getMappedAccountIds = async (user) => {
 const getAccountSummaryScope = async (user) => {
   if (isSuperAdmin(user) || isFinance(user) || isDepartmentHead(user)) return null
   return []
-}
-
-const validateTransactionPayload = (payload) => {
-  const hasDirectPartyAccount = Boolean(
-    payload.partyAccountId
-    || payload.voucherMeta?.partyAccountId
-    || String(payload.voucherMeta?.partyCode || '').trim()
-  )
-
-  if (!TRANSACTION_TYPES.includes(String(payload.type || ''))) {
-    return 'Invalid transaction type'
-  }
-
-  const amount = Number(payload.amount)
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return 'Amount must be greater than zero'
-  }
-
-  if (payload.type === 'receipt' && !payload.customerId && !hasDirectPartyAccount) {
-    return 'Customer is required for receipts'
-  }
-
-  if (payload.type === 'sale' && !payload.customerId && !payload.vendorId && !hasDirectPartyAccount) {
-    return 'Customer or vendor is required for sales'
-  }
-
-  if (payload.type === 'purchase' && !payload.vendorId && !payload.customerId && !hasDirectPartyAccount) {
-    return 'Vendor or customer is required for purchases'
-  }
-
-  if (payload.type === 'payment' && !payload.vendorId && !payload.customerId && !hasDirectPartyAccount) {
-    return 'Vendor or customer is required for payments'
-  }
-
-  return ''
 }
 
 const ensureAccountByCode = async ({ user, code, name, accountType, currency = BASE_CURRENCY_CODE }) => {

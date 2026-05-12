@@ -5,7 +5,43 @@
 
 const express = require('express')
 const mongoose = require('mongoose')
+const { protect, restrictTo } = require('../middleware/auth')
 const router = express.Router()
+
+function envBool(value, defaultValue = false) {
+  if (value === undefined || value === null || value === '') return defaultValue
+  return String(value).trim().toLowerCase() === 'true'
+}
+
+function ensureCleanupRouteEnabled(req, res, next) {
+  const enabledInProduction = envBool(process.env.ENABLE_ADMIN_CLEANUP_API, false)
+  if (process.env.NODE_ENV === 'production' && !enabledInProduction) {
+    return res.status(403).json({
+      ok: false,
+      error: 'Cleanup API is disabled in production. Set ENABLE_ADMIN_CLEANUP_API=true to allow it.',
+    })
+  }
+  return next()
+}
+
+function requireCleanupConfirmationToken(req, res, next) {
+  const expectedToken = String(process.env.CLEANUP_CONFIRM_TOKEN || '').trim()
+  if (!expectedToken) return next()
+
+  const providedToken = String(req.headers['x-cleanup-token'] || req.body?.confirmToken || '').trim()
+  if (!providedToken || providedToken !== expectedToken) {
+    return res.status(403).json({
+      ok: false,
+      error: 'Invalid or missing cleanup confirmation token.',
+    })
+  }
+  return next()
+}
+
+router.use(protect)
+router.use(restrictTo('super_admin'))
+router.use(ensureCleanupRouteEnabled)
+router.use(requireCleanupConfirmationToken)
 
 router.post('/cleanup/exchange-entries', async (req, res) => {
   try {
