@@ -38,30 +38,66 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
 
     console.log(`[Cleanup] Found Cash account: ${cash.accountName}`)
 
-    // Find bad entries posted to cash - search by specific amounts and descriptions
+    // Find bad entries posted to cash - multiple search strategies
     const ledgerCollection = db.collection('ledgers')
+    
+    // Strategy 1: Search by date range and amounts (the ones we see on dashboard)
     const badEntries = await ledgerCollection.find({
       referenceType: 'journal',
       isDeleted: { $ne: true },
+      date: {
+        $gte: new Date('2026-05-05'),
+        $lte: new Date('2026-05-10')
+      },
       $and: [
-        // Entry must be posted to cash
         {
           $or: [
             { debitAccountId: cash._id },
             { creditAccountId: cash._id }
           ]
         },
-        // Must be an exchange entry OR have a suspicious amount
         {
           $or: [
-            { description: /Exchange/i },
-            { amount: { $in: [5954.65, 85.95, 8.26] } }  // Known bad amounts
+            { amount: 5954.65 },
+            { amount: 85.95 },
+            { amount: 8.26 },
+            { description: /Exchange/i }
           ]
         }
       ]
     }).toArray()
 
+    if (badEntries.length === 0) {
+      // Strategy 2: If not found, search ALL exchange entries on Cash 1000
+      const allExchangeOnCash = await ledgerCollection.find({
+        referenceType: 'journal',
+        isDeleted: { $ne: true },
+        description: /Exchange/i,
+        $or: [
+          { debitAccountId: cash._id },
+          { creditAccountId: cash._id }
+        ]
+      }).toArray()
+      
+      badEntries.push(...allExchangeOnCash)
+    }
+
     console.log(`[Cleanup] Found ${badEntries.length} bad entries`)
+    
+    if (badEntries.length === 0) {
+      // Debug: Log what we're looking for
+      console.log('[Cleanup] Debug - searching for Cash account entries...')
+      const allCashEntries = await ledgerCollection.find({
+        $or: [
+          { debitAccountId: cash._id },
+          { creditAccountId: cash._id }
+        ]
+      }).limit(5).toArray()
+      console.log(`[Cleanup] Found ${allCashEntries.length} entries on Cash account`)
+      allCashEntries.forEach(e => {
+        console.log(`  - ${e.date?.toISOString().split('T')[0]} | ${e.referenceType} | ${e.amount} | ${e.description}`)
+      })
+    }
 
     if (badEntries.length === 0) {
       return res.json({
