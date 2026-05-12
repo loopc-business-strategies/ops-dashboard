@@ -38,15 +38,26 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
 
     console.log(`[Cleanup] Found Cash account: ${cash.accountName}`)
 
-    // Find bad entries posted to cash
+    // Find bad entries posted to cash - more lenient matching
     const ledgerCollection = db.collection('ledgers')
     const badEntries = await ledgerCollection.find({
       referenceType: 'journal',
       isDeleted: { $ne: true },
-      description: /Exchange (gain|loss) adjustment/i,
-      $or: [
-        { debitAccountId: cash._id },
-        { creditAccountId: cash._id }
+      $and: [
+        // Entry must be posted to cash
+        {
+          $or: [
+            { debitAccountId: cash._id },
+            { creditAccountId: cash._id }
+          ]
+        },
+        // And have exchange-related description or offset account
+        {
+          $or: [
+            { description: /Exchange/i },
+            { offsetAccount: { $in: ['4190', '5190'] } }
+          ]
+        }
       ]
     }).toArray()
 
