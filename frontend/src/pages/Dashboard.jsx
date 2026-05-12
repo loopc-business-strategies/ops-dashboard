@@ -403,6 +403,14 @@ function Dashboard() {
     { key: 'platinum', label: 'Platinum', color: '#9CA3AF' },
   ]
   const selectedMetalOption = metalOptions.find((m) => m.key === selectedMetal) || metalOptions[0]
+  const languageCode = (langMeta?.code || 'en').toUpperCase()
+  const tenantShortCode = (branding.displayName || user?.company || company || 'NA')
+    .replace(/[^A-Za-z]/g, '')
+    .slice(0, 2)
+    .toUpperCase() || 'NA'
+  const accountRoleLabel = user?.role === 'super_admin'
+    ? t('superAdmin')
+    : (user?.role || 'user').replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
 
   // Find current tab label
   const currentTab = navItems.find(n => n.id === activeTab)
@@ -570,7 +578,7 @@ function Dashboard() {
             </div>
 
             {/* Right side of header */}
-            <div className="flex items-center gap-3">
+            <div className="ml-auto flex items-center justify-end gap-2 flex-nowrap">
               <BuildInfoBadge className="hidden md:inline-flex" />
 
               {/* Read-only badge */}
@@ -585,14 +593,14 @@ function Dashboard() {
               <div className="relative" ref={metalMenuRef}>
                 <button
                   onClick={() => setMetalMenuOpen(v => !v)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm transition-all"
+                  className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-sm transition-all"
                   style={{
                     background: metalMenuOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
                     border: '1px solid rgba(255,255,255,0.2)',
                     color: '#ffffff',
                   }}>
                   <span style={{ width: 8, height: 8, borderRadius: 999, background: selectedMetalOption.color }} />
-                  <span className="hidden sm:inline" style={{ fontWeight: 700, fontSize: 12 }}>{selectedMetalOption.label}</span>
+                  <span className="hidden lg:inline" style={{ fontWeight: 700, fontSize: 12 }}>{selectedMetalOption.label}</span>
                   <span style={{ fontWeight: 700, fontSize: 12 }}>
                     {Number(metalRates[selectedMetal] || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                   </span>
@@ -640,7 +648,7 @@ function Dashboard() {
               <div className="relative" ref={notifMenuRef}>
                 <button
                   onClick={() => setNotifOpen(v => !v)}
-                  className="relative p-2 rounded-lg transition-all"
+                  className="relative h-8 w-8 rounded-lg transition-all inline-flex items-center justify-center"
                   style={{
                     background: notifOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
                     border: '1px solid rgba(255,255,255,0.2)',
@@ -686,14 +694,16 @@ function Dashboard() {
                 <button
                   onClick={() => setLangMenuOpen(v => !v)}
                   title={t('language')}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm transition-all"
+                  className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-sm transition-all"
                   style={{
                     background: langMenuOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
                     border: '1px solid rgba(255,255,255,0.2)',
                     color: '#ffffff',
                   }}>
-                  <span style={{ fontSize: 16, lineHeight: 1 }}>{langMeta.flag}</span>
-                  <span className="hidden sm:inline font-medium" style={{ fontSize: 12 }}>{langMeta.nativeLabel}</span>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ opacity: 0.85 }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h18M12 3a15.3 15.3 0 014 9 15.3 15.3 0 01-4 9 15.3 15.3 0 01-4-9 15.3 15.3 0 014-9zM3 12a9 9 0 019-9 9 9 0 019 9 9 9 0 01-9 9 9 9 0 01-9-9z" />
+                  </svg>
+                  <span className="hidden sm:inline font-semibold" style={{ fontSize: 12 }}>{languageCode} {langMeta.nativeLabel}</span>
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ opacity: 0.5, marginTop: 1 }}>
                     <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
@@ -741,13 +751,38 @@ function Dashboard() {
               <div className="relative" ref={accountMenuRef}>
                 <button
                   onClick={() => setAccountMenuOpen(v => !v)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                  className="flex items-center gap-2 px-2.5 h-8 rounded-lg"
                   style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff' }}>
+                  <span
+                    className="hidden lg:inline-flex items-center justify-center rounded px-1.5"
+                    style={{
+                      height: 18,
+                      background: 'rgba(255,255,255,0.08)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: 'rgba(255,255,255,0.9)',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: 0.2,
+                    }}>
+                    {tenantShortCode}
+                  </span>
                   <div className="w-6 h-6 rounded-md flex items-center justify-center font-bold text-white text-xs"
                     style={{ background: 'var(--grad-brand)' }}>
                     {user?.name?.[0]?.toUpperCase() || 'U'}
                   </div>
-                  <span className="hidden sm:inline text-sm" style={{ color: '#fff' }}>{user?.name}</span>
+                  <span className="hidden sm:inline text-sm" style={{ color: '#fff', fontWeight: 600 }}>{user?.name}</span>
+                  <span
+                    className="hidden xl:inline-flex items-center rounded px-1.5"
+                    style={{
+                      height: 18,
+                      background: 'rgba(59,130,246,0.22)',
+                      border: '1px solid rgba(96,165,250,0.4)',
+                      color: '#93c5fd',
+                      fontSize: 10,
+                      fontWeight: 700,
+                    }}>
+                    {accountRoleLabel}
+                  </span>
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ opacity: 0.7 }}>
                     <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
@@ -767,7 +802,7 @@ function Dashboard() {
                     }}>
                     <div style={{ padding: '10px 12px', borderBottom: '1px solid #E5E7EB' }}>
                       <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#111827' }}>{user?.name}</p>
-                      <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7280' }}>{branding.displayName}</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7280' }}>{branding.displayName} · {accountRoleLabel}</p>
                     </div>
                     <button
                       onClick={() => { setAccountMenuOpen(false); handleLogout() }}
