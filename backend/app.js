@@ -1,6 +1,7 @@
 require('dotenv').config()
 
 const path = require('path')
+const fs = require('fs')
 const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
@@ -156,10 +157,15 @@ function createApp() {
   app.use('/api/training',   trainingRoutes)
 
   if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.join(__dirname, '../frontend/dist')))
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, '../frontend/dist/index.html'))
-    })
+    const frontendDistPath = path.join(__dirname, '../frontend/dist')
+    const frontendIndexPath = path.join(frontendDistPath, 'index.html')
+
+    if (fs.existsSync(frontendIndexPath)) {
+      app.use(express.static(frontendDistPath))
+      app.get('*', (req, res) => {
+        res.sendFile(frontendIndexPath)
+      })
+    }
   }
 
   app.use('*', (req, res) => {
