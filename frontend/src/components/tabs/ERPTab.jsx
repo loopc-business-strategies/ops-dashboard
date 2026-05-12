@@ -1446,7 +1446,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     },
   ] : []
   const modalFundsRows = [
-    { currency: 'USD', limits: 0, value: modalTotalFunds },
+    { currency: 'USD', limits: 0, value: modalTotalFundsDisplay },
   ]
   const statementReferenceTypes = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
   const statementDepartments = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean))).sort()
@@ -1511,6 +1511,13 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     return true
   })
+  const visibleStatementNetBalance = filteredStatementEntries.reduce((sum, entry) => {
+    return sum + Number(entry?.signedAmount || 0)
+  }, 0)
+  const modalTotalFundsDisplay = isCashOnHandEnquiry ? visibleStatementNetBalance : modalTotalFunds
+  const modalNetEquityDisplay = modalTotalFundsDisplay + modalRevaluation
+  const modalExcessDisplay = modalNetEquityDisplay - modalMarginAmt
+  const modalMarginPctDisplay = modalMarginAmt !== 0 ? (modalNetEquityDisplay / modalMarginAmt) * 100 : 0
   const resolveDealSide = (entry) => {
     const explicit = String(entry?.metalDealType || entry?.sourceTransactionType || '').toLowerCase().trim()
     if (explicit === 'sale' || explicit === 'purchase') return explicit
@@ -8209,7 +8216,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Total Funds</span>
                         <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>
-                          {formatDirectionalBalance(modalTotalFunds, { preferredDirection: accountEnquiryData?.balances?.netDirection })}
+                          {formatDirectionalBalance(modalTotalFundsDisplay, { preferredDirection: accountEnquiryData?.balances?.netDirection })}
                         </span>
                       </div>
 
@@ -8222,7 +8229,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                       {/* Net Equity */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Net Equity</span>
-                        <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalNetEquity, 2)}</span>
+                        <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalNetEquityDisplay, 2)}</span>
                       </div>
 
                       {/* Margin Amt @ 2% */}
@@ -8238,14 +8245,14 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                           <select value={excessCurrency} onChange={(e) => setExcessCurrency(e.target.value)} style={{ border: '1px solid #CBD5E0', borderRadius: '0.4rem', background: '#FFFFFF', fontSize: '0.85rem', padding: '0.3rem 0.5rem', fontWeight: '600' }}>
                             <option value="USD">USD</option>
                           </select>
-                          <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>{formatStatementValue(modalExcess, 2)}</span>
+                          <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>{formatStatementValue(modalExcessDisplay, 2)}</span>
                         </div>
                       </div>
 
                       {/* Margin % */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.4rem' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin %</span>
-                        <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.1rem' }}>{formatStatementValue(modalMarginPct, 2)}%</span>
+                        <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.1rem' }}>{formatStatementValue(modalMarginPctDisplay, 2)}%</span>
                       </div>
                     </div>
 
