@@ -24,7 +24,8 @@
     "test:integration:tenant-routing": "jest --runInBand --testTimeout=120000 tests/tenant-routing-auth.test.js",
     "test:integration:tenant-isolation": "jest --runInBand --testTimeout=120000 tests/tenant-db-isolation.test.js",
     "test:integration:erp": "jest --runInBand --testTimeout=120000 tests/erp-accounting-transactions.test.js",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "cleanup:safe": "node scripts/safe-cleanup-cli.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

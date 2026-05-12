@@ -26,6 +26,9 @@ export function AuthProvider({ children }) {
   axios.defaults.headers.common['x-company'] = resolvedTenant
 
   useEffect(() => {
+    const hasResponseInterceptor = Boolean(axios?.interceptors?.response?.use)
+    if (!hasResponseInterceptor) return undefined
+
     const interceptorId = axios.interceptors.response.use(
       (response) => response,
       (error) => {
@@ -47,7 +50,9 @@ export function AuthProvider({ children }) {
     )
 
     return () => {
-      axios.interceptors.response.eject(interceptorId)
+      if (axios?.interceptors?.response?.eject) {
+        axios.interceptors.response.eject(interceptorId)
+      }
     }
   }, [resolvedTenant])
 

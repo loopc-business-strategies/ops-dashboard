@@ -98,6 +98,27 @@ function createFxRevaluationService(deps) {
       totalExpectedForeignAmount += lineExpectedForeign
     })
 
+    // Some vouchers carry only rate metadata on lines (currRate/referenceRate)
+    // without explicit FC/LC amounts. In that case, derive FC movement from the
+    // header amount so FX gain/loss posting remains consistent.
+    if (hasUsableLine && totalActualForeignAmount <= 0 && Number(txAmount || 0) > 0) {
+      const derivedActualForeign = normalizedFallbackRate > 0
+        ? (Number(txAmount || 0) / normalizedFallbackRate)
+        : 0
+      const derivedExpectedForeign = normalizedReferenceRate > 0
+        ? (Number(txAmount || 0) / normalizedReferenceRate)
+        : 0
+
+      return {
+        lineRate: Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0,
+        totalForeignAmount,
+        totalBaseAmount,
+        actualForeignAmount: derivedActualForeign,
+        expectedForeignAmount: derivedExpectedForeign,
+        fcDifference: derivedActualForeign - derivedExpectedForeign,
+      }
+    }
+
     // Backward-compatible fallback for vouchers without usable line detail.
     if (!hasUsableLine) {
       const primaryLine = resolvePrimaryVoucherFxLine(voucherMeta)

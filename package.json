@@ -9,7 +9,11 @@
     "dev:frontend": "npm --prefix frontend run dev",
     "smoke:tenants": "node scripts/smoke-tenants.js",
     "test:backend": "npm --prefix backend test",
-    "test:frontend": "npm --prefix frontend test"
+    "test:frontend": "npm --prefix frontend test",
+    "build:backend": "cd backend && npm install --omit=dev",
+    "build:frontend": "cd frontend && npm run build",
+    "deploy:railway": "npm run test:backend && npm run test:frontend && echo '✓ All tests passed. Ready for Railway deployment.'",
+    "cleanup:safe": "npm --prefix backend run cleanup:safe"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
