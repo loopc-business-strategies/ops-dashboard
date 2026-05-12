@@ -1458,6 +1458,19 @@ function ERPTab({ focusTab, onNavigateMain }) {
     if (/fixing|fixed|price[\s-_]?fix/.test(text)) return 'fixed'
     return 'unknown'
   }
+  const isLikelyMongoId = (value) => /^[a-f0-9]{24}$/i.test(String(value || '').trim())
+  const resolveStatementReceiptNo = (entry = {}) => {
+    const parsedDocNo = (() => {
+      const text = `${String(entry.description || '')} ${String(entry.notes || '')}`
+      const match = text.match(/\b((?:Pay|Rec|Pur|Sal|BnkJV|JV|Jv)[/-]\d{4}[/-]\d{1,6})\b/i)
+      return String(match?.[1] || '').trim()
+    })()
+
+    const sourceNo = String(entry.sourceTransactionNumber || '').trim()
+    if (sourceNo && !isLikelyMongoId(sourceNo)) return sourceNo
+    if (parsedDocNo) return parsedDocNo
+    return '-'
+  }
   const filteredStatementEntries = rawStatementEntries.filter((entry) => {
     if (isCashOnHandEnquiry) {
       const sourceType = String(entry?.sourceTransactionType || '').toLowerCase().trim()
@@ -8225,7 +8238,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                         <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '0.45rem', padding: '0.45rem 0.6rem' }}>
                           <p style={{ margin: 0, fontSize: '0.73rem', color: '#065F46', fontWeight: '700' }}>Recent Payment/Receipt</p>
                           <p style={{ margin: '0.15rem 0 0', fontSize: '0.8rem', color: '#065F46', fontWeight: '700' }}>
-                            {formatStatementDate(recentPaymentReceiptEntry.date)} · {String(recentPaymentReceiptEntry.referenceType || '').toUpperCase()} · #{recentPaymentReceiptEntry.sourceTransactionNumber || recentPaymentReceiptEntry.sourceTransactionId || '-'}
+                            {formatStatementDate(recentPaymentReceiptEntry.date)} · {String(recentPaymentReceiptEntry.referenceType || '').toUpperCase()} · #{resolveStatementReceiptNo(recentPaymentReceiptEntry)}
                           </p>
                         </div>
                       )}
@@ -8326,12 +8339,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                             (() => {
                               let runningPureWeight = Number(accountEnquiryData?.metals?.goldBalance || 0)
                               return filteredStatementEntries.map((entry, index) => {
-                              const parsedDocNo = (() => {
-                                const text = `${String(entry.description || '')} ${String(entry.notes || '')}`
-                                const match = text.match(/\b((?:BnkJV|JV|Jv)[/-]\d{4}[/-]\d{1,6})\b/i)
-                                return match?.[1] || ''
-                              })()
-                              const receiptNo = entry.sourceTransactionNumber || parsedDocNo || entry.sourceTransactionId || entry.referenceId || entry._id || '-'
+                              const receiptNo = resolveStatementReceiptNo(entry)
                               // Account enquiry statement amounts are already in base currency from API.
                               const debitUsd = Number(entry.debitAmount || 0)
                               const creditUsd = Number(entry.creditAmount || 0)
