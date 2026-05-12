@@ -2182,6 +2182,7 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
         voucherMeta,
         txAmount,
         fallbackRate: Number(voucherLine?.currRate || exchangeRate || masterRate || 1),
+        referenceRate,
       })
 
       const foreignAmount = Number(fxMetrics.totalForeignAmount || 0)
@@ -2192,9 +2193,11 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
       //   actualFC   = how many FC units were actually received / paid
       //   For receipt: actualFC > expectedFC → gain (received more FC than expected)
       //   For payment: actualFC < expectedFC → gain (paid less FC than expected)
-      const expectedFC = txAmount / referenceRate
+      const expectedFC = Number(fxMetrics.expectedForeignAmount || (txAmount / referenceRate))
       const actualFC = Number(fxMetrics.actualForeignAmount || (txAmount / lineRate))
-      const fcDiff = actualFC - expectedFC
+      const fcDiff = Number.isFinite(Number(fxMetrics.fcDifference))
+        ? Number(fxMetrics.fcDifference)
+        : (actualFC - expectedFC)
       // Convert the FC difference using the original obligation/reference rate,
       // not settlement rate, to keep gain/loss valuation consistent.
       const rawDiffInBase = Math.abs(fcDiff) * referenceRate

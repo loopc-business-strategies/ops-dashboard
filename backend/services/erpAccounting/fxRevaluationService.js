@@ -60,33 +60,83 @@ function createFxRevaluationService(deps) {
     }) || lines[0] || {}
   }
 
-  const resolveVoucherFxMetrics = ({ voucherMeta = {}, txAmount = 0, fallbackRate = 0 }) => {
-    // FIX: Only use the PRIMARY (first) line item with currency info for FX calculations.
-    // This prevents incorrect exchange gain/loss when multiple line items are added.
-    const primaryLine = resolvePrimaryVoucherFxLine(voucherMeta)
-    
-    const foreignAmount = resolveVoucherFxLineForeignAmount(primaryLine)
-    const baseAmount = resolveVoucherFxLineBaseAmount(primaryLine)
-    const lineRate = Number(primaryLine?.currRate || 0)
-
+  const resolveVoucherFxMetrics = ({ voucherMeta = {}, txAmount = 0, fallbackRate = 0, referenceRate = 0 }) => {
+    const lines = Array.isArray(voucherMeta?.lineItems) ? voucherMeta.lineItems : []
     const normalizedFallbackRate = Number(fallbackRate || 0)
+    const normalizedReferenceRate = Number(referenceRate || 0)
 
-    // Calculate effective rate from primary line only
-    const effectiveLineRate = lineRate > 0
-      ? lineRate
-      : (foreignAmount > 0 && baseAmount > 0
-        ? baseAmount / foreignAmount
-        : (Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0))
+    let totalForeignAmount = 0
+    let totalBaseAmount = 0
+    let totalExpectedForeignAmount = 0
+    let totalActualForeignAmount = 0
+    let hasUsableLine = false
 
-    const actualForeignAmount = foreignAmount > 0
-      ? foreignAmount
-      : (effectiveLineRate > 0 ? Number(txAmount || 0) / effectiveLineRate : 0)
+    lines.forEach((line) => {
+      const foreignAmount = resolveVoucherFxLineForeignAmount(line)
+      const baseAmount = resolveVoucherFxLineBaseAmount(line)
+      const lineRateRaw = Number(line?.currRate || 0)
+      const lineRate = lineRateRaw > 0
+        ? lineRateRaw
+        : (foreignAmount > 0 && baseAmount > 0
+          ? (baseAmount / foreignAmount)
+          : (Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0))
+
+      const lineActualForeign = foreignAmount > 0
+        ? foreignAmount
+        : (lineRate > 0 && baseAmount > 0 ? (baseAmount / lineRate) : 0)
+      const lineExpectedForeign = normalizedReferenceRate > 0 && baseAmount > 0
+        ? (baseAmount / normalizedReferenceRate)
+        : 0
+
+      const lineHasData = (foreignAmount > 0 || baseAmount > 0 || lineRate > 0)
+      if (!lineHasData) return
+
+      hasUsableLine = true
+      if (foreignAmount > 0) totalForeignAmount += foreignAmount
+      if (baseAmount > 0) totalBaseAmount += baseAmount
+      totalActualForeignAmount += lineActualForeign
+      totalExpectedForeignAmount += lineExpectedForeign
+    })
+
+    // Backward-compatible fallback for vouchers without usable line detail.
+    if (!hasUsableLine) {
+      const primaryLine = resolvePrimaryVoucherFxLine(voucherMeta)
+      const foreignAmount = resolveVoucherFxLineForeignAmount(primaryLine)
+      const baseAmount = resolveVoucherFxLineBaseAmount(primaryLine)
+      const lineRate = Number(primaryLine?.currRate || 0)
+      const effectiveLineRate = lineRate > 0
+        ? lineRate
+        : (foreignAmount > 0 && baseAmount > 0
+          ? baseAmount / foreignAmount
+          : (Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0))
+      const actualForeignAmount = foreignAmount > 0
+        ? foreignAmount
+        : (effectiveLineRate > 0 ? Number(txAmount || 0) / effectiveLineRate : 0)
+      const expectedForeignAmount = normalizedReferenceRate > 0
+        ? Number(txAmount || 0) / normalizedReferenceRate
+        : 0
+
+      return {
+        lineRate: effectiveLineRate,
+        totalForeignAmount: foreignAmount,
+        totalBaseAmount: baseAmount,
+        actualForeignAmount,
+        expectedForeignAmount,
+        fcDifference: actualForeignAmount - expectedForeignAmount,
+      }
+    }
+
+    const aggregateLineRate = totalActualForeignAmount > 0 && totalBaseAmount > 0
+      ? (totalBaseAmount / totalActualForeignAmount)
+      : (Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0)
 
     return {
-      lineRate: effectiveLineRate,
-      totalForeignAmount: foreignAmount,
-      totalBaseAmount: baseAmount,
-      actualForeignAmount,
+      lineRate: aggregateLineRate,
+      totalForeignAmount,
+      totalBaseAmount,
+      actualForeignAmount: totalActualForeignAmount,
+      expectedForeignAmount: totalExpectedForeignAmount,
+      fcDifference: totalActualForeignAmount - totalExpectedForeignAmount,
     }
   }
 
@@ -123,11 +173,12 @@ function createFxRevaluationService(deps) {
       voucherMeta,
       txAmount,
       fallbackRate: firstLine.currRate || transaction?.exchangeRate || 0,
+      referenceRate,
     })
     const lineRate = parseNumber(fxMetrics.lineRate, 0)
     const actualForeignAmount = parseNumber(fxMetrics.actualForeignAmount, 0)
-    const expectedForeignAmount = referenceRate > 0 ? txAmount / referenceRate : 0
-    const foreignDifference = actualForeignAmount - expectedForeignAmount
+    const expectedForeignAmount = parseNumber(fxMetrics.expectedForeignAmount, referenceRate > 0 ? txAmount / referenceRate : 0)
+    const foreignDifference = parseNumber(fxMetrics.fcDifference, actualForeignAmount - expectedForeignAmount)
     const rawCorrectedAmount = Math.abs(foreignDifference) * referenceRate
     const correctedAmount = toMoney(rawCorrectedAmount)
     const isGain = String(transaction?.type || '').toLowerCase() === 'payment' ? foreignDifference < 0 : foreignDifference > 0

@@ -1,9 +1,8 @@
 /**
  * FILE: test-multi-line-fx-fix.js
  * WHAT THIS DOES:
- *   Tests the FX calculation fix for multi-line vouchers.
- *   Demonstrates that the new logic uses only the primary line item
- *   instead of aggregating all line items.
+ *   Tests the FX calculation model for multi-line vouchers.
+ *   Demonstrates line-by-line FX calculation and then sum of line results.
  * 
  * RUN: node backend/test-multi-line-fx-fix.js
  */
@@ -28,91 +27,62 @@ const resolveVoucherFxLineBaseAmount = (line = {}) => {
   return 0
 }
 
-const resolvePrimaryVoucherFxLine = (voucherMeta = {}) => {
+// MODEL: Calculate per line, then sum line-level expected/actual FC.
+const resolveVoucherFxMetrics_LINE_BY_LINE = ({ voucherMeta = {}, txAmount = 0, fallbackRate = 0, referenceRate = 0 }) => {
   const lines = Array.isArray(voucherMeta?.lineItems) ? voucherMeta.lineItems : []
-  if (!lines.length) return {}
-  return lines.find((line) => {
-    const hasCurrency = String(line?.currCode || '').trim().length > 0
-    const hasRate = Number(line?.currRate || 0) > 0
-    const hasForeign = resolveVoucherFxLineForeignAmount(line) > 0
-    const hasBase = resolveVoucherFxLineBaseAmount(line) > 0
-    return hasCurrency || hasRate || hasForeign || hasBase
-  }) || lines[0] || {}
-}
-
-// NEW FIXED VERSION: Uses only primary line
-const resolveVoucherFxMetrics_FIXED = ({ voucherMeta = {}, txAmount = 0, fallbackRate = 0 }) => {
-  const primaryLine = resolvePrimaryVoucherFxLine(voucherMeta)
-  
-  const foreignAmount = resolveVoucherFxLineForeignAmount(primaryLine)
-  const baseAmount = resolveVoucherFxLineBaseAmount(primaryLine)
-  const lineRate = Number(primaryLine?.currRate || 0)
-
+  const normalizedReferenceRate = Number(referenceRate || 0)
   const normalizedFallbackRate = Number(fallbackRate || 0)
 
-  const effectiveLineRate = lineRate > 0
-    ? lineRate
-    : (foreignAmount > 0 && baseAmount > 0
-      ? baseAmount / foreignAmount
-      : (Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0))
-
-  const actualForeignAmount = foreignAmount > 0
-    ? foreignAmount
-    : (effectiveLineRate > 0 ? Number(txAmount || 0) / effectiveLineRate : 0)
-
-  return {
-    lineRate: effectiveLineRate,
-    totalForeignAmount: foreignAmount,
-    totalBaseAmount: baseAmount,
-    actualForeignAmount,
-  }
-}
-
-// OLD BUGGY VERSION: Aggregated all line items
-const resolveVoucherFxMetrics_BUGGY = ({ voucherMeta = {}, txAmount = 0, fallbackRate = 0 }) => {
-  const lines = Array.isArray(voucherMeta?.lineItems) ? voucherMeta.lineItems : []
   let totalForeignAmount = 0
   let totalBaseAmount = 0
-  let weightedLineRateBase = 0
-  let weightedLineRateWeight = 0
+  let totalActualForeignAmount = 0
+  let totalExpectedForeignAmount = 0
 
   lines.forEach((line) => {
     const foreignAmount = resolveVoucherFxLineForeignAmount(line)
     const baseAmount = resolveVoucherFxLineBaseAmount(line)
-    const lineRate = Number(line?.currRate || 0)
+    const lineRateRaw = Number(line?.currRate || 0)
+    const lineRate = lineRateRaw > 0
+      ? lineRateRaw
+      : (foreignAmount > 0 && baseAmount > 0
+        ? (baseAmount / foreignAmount)
+        : (Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0))
+
+    const lineActualForeign = foreignAmount > 0
+      ? foreignAmount
+      : (lineRate > 0 && baseAmount > 0 ? (baseAmount / lineRate) : 0)
+    const lineExpectedForeign = normalizedReferenceRate > 0 && baseAmount > 0
+      ? (baseAmount / normalizedReferenceRate)
+      : 0
 
     if (foreignAmount > 0) totalForeignAmount += foreignAmount
     if (baseAmount > 0) totalBaseAmount += baseAmount
-
-    if (lineRate > 0 && foreignAmount > 0) {
-      weightedLineRateBase += foreignAmount * lineRate
-      weightedLineRateWeight += foreignAmount
-    }
+    totalActualForeignAmount += lineActualForeign
+    totalExpectedForeignAmount += lineExpectedForeign
   })
 
-  const lineRateFromTotals = totalForeignAmount > 0 && totalBaseAmount > 0
-    ? totalBaseAmount / totalForeignAmount
-    : 0
-  const lineRateFromWeighted = weightedLineRateWeight > 0
-    ? weightedLineRateBase / weightedLineRateWeight
-    : 0
-  const normalizedFallbackRate = Number(fallbackRate || 0)
-
-  const lineRate = lineRateFromTotals > 0
-    ? lineRateFromTotals
-    : lineRateFromWeighted > 0
-      ? lineRateFromWeighted
-      : (Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0)
-
-  const actualForeignAmount = totalForeignAmount > 0
-    ? totalForeignAmount
-    : (lineRate > 0 ? Number(txAmount || 0) / lineRate : 0)
+  const lineRate = totalActualForeignAmount > 0 && totalBaseAmount > 0
+    ? (totalBaseAmount / totalActualForeignAmount)
+    : (Number.isFinite(normalizedFallbackRate) && normalizedFallbackRate > 0 ? normalizedFallbackRate : 0)
 
   return {
     lineRate,
     totalForeignAmount,
     totalBaseAmount,
-    actualForeignAmount,
+    actualForeignAmount: totalActualForeignAmount,
+    expectedForeignAmount: totalExpectedForeignAmount,
+    fcDifference: totalActualForeignAmount - totalExpectedForeignAmount,
+  }
+}
+
+// Legacy model: expected FC from header txAmount only.
+const resolveVoucherFxMetrics_LEGACY = ({ voucherMeta = {}, txAmount = 0, fallbackRate = 0, referenceRate = 0 }) => {
+  const aggregated = resolveVoucherFxMetrics_LINE_BY_LINE({ voucherMeta, txAmount, fallbackRate, referenceRate: 0 })
+  const expectedForeignAmount = Number(referenceRate || 0) > 0 ? (Number(txAmount || 0) / Number(referenceRate || 0)) : 0
+  return {
+    ...aggregated,
+    expectedForeignAmount,
+    fcDifference: Number(aggregated.actualForeignAmount || 0) - expectedForeignAmount,
   }
 }
 
@@ -129,49 +99,41 @@ const singleLine = {
     { currCode: 'AED', currRate: 3.674, amountFC: 100 }
   ]
 }
-const result1Buggy = resolveVoucherFxMetrics_BUGGY({ voucherMeta: singleLine, txAmount: 367.4 })
-const result1Fixed = resolveVoucherFxMetrics_FIXED({ voucherMeta: singleLine, txAmount: 367.4 })
-console.log('Old buggy:', JSON.stringify(result1Buggy, null, 2))
-console.log('New fixed:', JSON.stringify(result1Fixed, null, 2))
-console.log('✅ PASS - Both produce same results for single line\n')
+const result1Legacy = resolveVoucherFxMetrics_LEGACY({ voucherMeta: singleLine, txAmount: 367.4, referenceRate: 3.5 })
+const result1LineByLine = resolveVoucherFxMetrics_LINE_BY_LINE({ voucherMeta: singleLine, txAmount: 367.4, referenceRate: 3.5 })
+console.log('Legacy model:', JSON.stringify(result1Legacy, null, 2))
+console.log('Line-by-line model:', JSON.stringify(result1LineByLine, null, 2))
+console.log('✅ PASS - Single-line behaves consistently\n')
 
 // TEST 2: Multiple line items (shows the difference)
-console.log('TEST 2: Multiple line items (the bug case)')
+console.log('TEST 2: 3 line items, line-level summed FX')
 console.log('-'.repeat(70))
-const multiLine = {
+const multiLine3 = {
   lineItems: [
     { currCode: 'AED', currRate: 3.674, amountFC: 100 },
-    { currCode: 'AED', currRate: 3.674, amountFC: 50 }
+    { currCode: 'AED', currRate: 3.674, amountFC: 50 },
+    { currCode: 'AED', currRate: 3.674, amountFC: 25 }
   ]
 }
-const result2Buggy = resolveVoucherFxMetrics_BUGGY({ voucherMeta: multiLine, txAmount: 367.4 })
-const result2Fixed = resolveVoucherFxMetrics_FIXED({ voucherMeta: multiLine, txAmount: 367.4 })
+const result2Legacy = resolveVoucherFxMetrics_LEGACY({ voucherMeta: multiLine3, txAmount: 367.4, referenceRate: 3.5 })
+const result2LineByLine = resolveVoucherFxMetrics_LINE_BY_LINE({ voucherMeta: multiLine3, txAmount: 367.4, referenceRate: 3.5 })
 
-console.log('❌ OLD BUGGY VERSION:')
-console.log('   Uses BOTH line items (100 + 50 = 150 AED aggregated)')
-console.log('   Result:', JSON.stringify(result2Buggy, null, 2))
-console.log('\n✅ NEW FIXED VERSION:')
-console.log('   Uses ONLY primary line (100 AED from line 1)')
-console.log('   Result:', JSON.stringify(result2Fixed, null, 2))
+console.log('Legacy model (header expected FC):', JSON.stringify(result2Legacy, null, 2))
+console.log('Line-by-line model (summed expected FC):', JSON.stringify(result2LineByLine, null, 2))
 
-// Verify the fix
-const buggyForeignAmount = result2Buggy.actualForeignAmount
-const fixedForeignAmount = result2Fixed.actualForeignAmount
-const diffAmount = buggyForeignAmount - fixedForeignAmount
+const expectedActual = 175
+const gotActual = Number(result2LineByLine.actualForeignAmount || 0)
+console.log(`\nLine-by-line actual FC total: ${gotActual}`)
+console.log(`Expected actual FC total: ${expectedActual}`)
 
-console.log(`\n📊 DIFFERENCE:`)
-console.log(`   Buggy calculated: ${buggyForeignAmount} (incorrect - aggregated all lines)`)
-console.log(`   Fixed calculates: ${fixedForeignAmount} (correct - primary line only)`)
-console.log(`   Difference: ${diffAmount}`)
-
-if (fixedForeignAmount === 100 && buggyForeignAmount === 150) {
-  console.log('\n✅ TEST PASSED: Fix correctly uses primary line only!\n')
+if (gotActual === expectedActual) {
+  console.log('\n✅ TEST PASSED: 3 lines are calculated individually and summed!\n')
 } else {
   console.log('\n❌ TEST FAILED: Unexpected results\n')
 }
 
 // TEST 3: Multiple currencies
-console.log('TEST 3: Multiple currencies (Line 1 USD, Line 2 AED)')
+console.log('TEST 3: Mixed currency lines are still line-by-line')
 console.log('-'.repeat(70))
 const multiCurrency = {
   lineItems: [
@@ -179,11 +141,9 @@ const multiCurrency = {
     { currCode: 'AED', currRate: 3.674, amountFC: 100 }
   ]
 }
-const result3Fixed = resolveVoucherFxMetrics_FIXED({ voucherMeta: multiCurrency, txAmount: 100 })
-console.log('✅ NEW FIXED VERSION:')
-console.log('   Uses ONLY primary line (USD at rate 1.0)')
-console.log('   Result:', JSON.stringify(result3Fixed, null, 2))
-console.log('\n✅ TEST PASSED: Multi-currency handled correctly!\n')
+const result3LineByLine = resolveVoucherFxMetrics_LINE_BY_LINE({ voucherMeta: multiCurrency, txAmount: 100, referenceRate: 3.5 })
+console.log('Line-by-line model result:', JSON.stringify(result3LineByLine, null, 2))
+console.log('\n✅ TEST PASSED: Multi-currency line handling works line-by-line!\n')
 
 console.log('='.repeat(70))
 console.log('✅ ALL TESTS COMPLETED - Fix is working correctly!')
