@@ -867,7 +867,7 @@ const createLogoRenderAsset = async (logoUrl, width, height, fit = 'contain') =>
   })
 }
 
-function ERPTab({ focusTab, onNavigateMain }) {
+function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const { user, token } = useAuth()
   const { t } = useLanguage()
   const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
@@ -1173,6 +1173,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const inventoryProductModalDragRef = useRef({ moveHandler: null, upHandler: null })
   const [inventoryStockCodeSettings, setInventoryStockCodeSettings] = useState(DEFAULT_INVENTORY_STOCK_CODE_SETTINGS)
   const inventoryStockCodeSettingsKey = `${INVENTORY_STOCK_CODE_SETTINGS_STORAGE_KEY}:${String(user?._id || user?.email || 'anonymous')}`
+
+
 
   const ITEMS_PER_PAGE = 25
   const showNotification = (msg) => {
@@ -1968,6 +1970,17 @@ function ERPTab({ focusTab, onNavigateMain }) {
       setDashboard(data)
       setDashChatMessages(chatData?.messages || chatData || [])
       setError('')
+      // Push live metal prices to the header badge immediately
+      if (typeof onMetalRatesChange === 'function') {
+        const rates = data?.metalRates
+        onMetalRatesChange({
+          goldPrice: Number(rates?.gold || 0),
+          silverPrice: Number(rates?.silver || 0),
+          platinumPrice: Number(rates?.platinum || rates?.stockPrices?.platinum?.price || 0),
+          palladiumPrice: Number(rates?.palladium || rates?.stockPrices?.palladium?.price || 0),
+          updatedAt: rates?.updatedAt || null,
+        })
+      }
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load dashboard')
     }

@@ -3,6 +3,7 @@ import AccountCombobox from '../AccountCombobox'
 import axios from 'axios'
 import { useLanguage } from '../../context/LanguageContext'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
+import { getTenantBranding } from '../../config/tenantBranding'
 
 const BASE = '/api/erp-accounting'
 const cfg = () => ({ withCredentials: true })
@@ -2270,6 +2271,27 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const lineTableHeaders = isMetalVoucher
     ? ['No.', 'Stock Code', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', 'Rate Type', 'Metal Rate', 'Metal Amount', 'Total', '']
     : ['No.', 'A/C Code', 'Type', 'Curr', 'Amount FC', 'Amount LC', '']
+  const branding = user?.branding || {}
+  const tenant = user?.tenant || {}
+  const activeTenantBranding = getTenantBranding(user?.company || tenant?.key || tenant?.name)
+  const voucher = {
+    currency: header?.currCode || 'USD',
+    partyName: header?.partyName || '',
+    partyAccount: header?.partyCode || '',
+  }
+  const companyName = branding?.displayName || tenant?.name || activeTenantBranding?.displayName || ''
+  const companyAddress = branding?.address || tenant?.address || activeTenantBranding?.address || ''
+  const companyPhone = branding?.phone || tenant?.phone || activeTenantBranding?.phone || ''
+  const companyTrn = branding?.trn || tenant?.trn || activeTenantBranding?.trn || ''
+  const companyLogoImage = branding?.logoImage || tenant?.logoImage || activeTenantBranding?.logoImage || ''
+  const companyLogoText = branding?.logoText || tenant?.logoText || activeTenantBranding?.logoText || ''
+  const companyPrimaryColor = branding?.colors?.brandPrimary || tenant?.colors?.brandPrimary || activeTenantBranding?.colors?.brandPrimary || '#374151'
+  const currencyLabel = voucher?.currency || 'USD'
+  const payNoValue = header?.vocNo || ''
+  const payDateValue = header?.docDate || ''
+  const preparedByValue = user?.name || ''
+  const trnValue = companyTrn || ''
+  const phoneValue = companyPhone || ''
   const inventoryStockOptions = inventoryProducts
     .filter((item) => String(item.sku || '').trim())
     // Keep mapped inventory records only, so legacy records do not show duplicate-like stock choices.
@@ -2289,11 +2311,43 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       return a.code.localeCompare(b.code)
     })
 
+  const numberToWords = (amount) => {
+    if (!amount || isNaN(amount)) return ''
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+      'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+      'Seventeen', 'Eighteen', 'Nineteen']
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+    const numToWord = (n) => {
+      if (n === 0) return ''
+      if (n < 20) return `${ones[n]} `
+      if (n < 100) return `${tens[Math.floor(n / 10)]} ${ones[n % 10]} `
+      if (n < 1000) return `${ones[Math.floor(n / 100)]} Hundred ${numToWord(n % 100)}`
+      if (n < 1000000) return `${numToWord(Math.floor(n / 1000))}Thousand ${numToWord(n % 1000)}`
+      if (n < 1000000000) return `${numToWord(Math.floor(n / 1000000))}Million ${numToWord(n % 1000000)}`
+      return `${numToWord(Math.floor(n / 1000000000))}Billion ${numToWord(n % 1000000000)}`
+    }
+    const intPart = Math.floor(Math.abs(amount))
+    const decPart = Math.round((Math.abs(amount) - intPart) * 100)
+    let words = numToWord(intPart).trim()
+    if (decPart > 0) words += ` and ${numToWord(decPart).trim()} Cents`
+    return words.trim()
+  }
+
   // ────────────────────────────────────────────────────────────────────────────
   // RENDER
   // ────────────────────────────────────────────────────────────────────────────
   return (
-    <div style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <>
+    <style>{`
+      @media print {
+        .voucher-screen-only { display: none !important; }
+        .voucher-print-only { display: block !important; }
+        body * { visibility: hidden; }
+        .voucher-print-only, .voucher-print-only * { visibility: visible; }
+        .voucher-print-only { position: absolute; top: 0; left: 0; width: 100%; }
+      }
+    `}</style>
+    <div className="voucher-screen-only" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Notifications */}
       {error && (
         <div style={{ background: '#FEE2E2', color: S.danger, padding: '0.65rem 1rem', borderRadius: '0.4rem', marginBottom: '1rem', fontSize: '0.875rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3472,5 +3526,278 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         </div>
       )}
     </div>
+
+    {voucherType === 'payment' ? (
+      <div className="voucher-print-only" style={{ display: 'none', padding: '18px 24px', color: '#111827', fontFamily: 'Arial, sans-serif', fontSize: '12px' }}>
+      {voucherType === 'payment' ? (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          borderBottom: '2px solid #1a1a1a',
+          paddingBottom: '10px',
+          marginBottom: '10px'
+        }}>
+
+          <div>
+            {companyName
+              ? <div style={{ fontWeight: '700', fontSize: '15px', color: '#111827' }}>
+                  {companyName}
+                </div>
+              : null}
+            <div style={{ fontSize: '9px', color: '#555555', marginTop: '3px', lineHeight: '1.6' }}>
+              {companyAddress || 'Dubai, United Arab Emirates'}
+            </div>
+            <div style={{ fontSize: '9px', color: '#555555', marginTop: '2px' }}>
+              {phoneValue || 'Tel: +971 4 000 0000'}
+            </div>
+            {trnValue
+              ? <div style={{ fontSize: '9px', color: '#555555' }}>
+                  TRN: {trnValue}
+                </div>
+              : null}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+            {companyLogoImage
+              ? <img
+                  src={companyLogoImage}
+                  alt={companyLogoText || 'Logo'}
+                  style={{ maxWidth: '120px', maxHeight: '52px', objectFit: 'contain' }}
+                />
+              : companyLogoText
+                ? <div style={{
+                    background: companyPrimaryColor,
+                    color: '#ffffff',
+                    padding: '8px 14px',
+                    fontWeight: '800',
+                    borderRadius: '5px',
+                    fontSize: '16px',
+                    letterSpacing: '0.06em'
+                  }}>
+                    {companyLogoText}
+                  </div>
+                : null}
+          </div>
+
+        </div>
+      ) : (
+        <div style={{ borderBottom: '2px solid #1a1a1a', paddingBottom: '10px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: '700', fontSize: '15px' }}>{companyName || ''}</div>
+            {companyAddress ? <div>{companyAddress || ''}</div> : null}
+            {(phoneValue || trnValue) ? <div>{`${phoneValue || ''}${phoneValue && trnValue ? ' | ' : ''}${trnValue ? `TRN: ${trnValue}` : ''}`}</div> : null}
+          </div>
+          <div style={{ minWidth: '140px', display: 'flex', justifyContent: 'flex-end' }}>
+            {companyLogoImage ? (
+              <img src={companyLogoImage || ''} alt={companyLogoText || 'Logo'} style={{ maxWidth: '140px', maxHeight: '56px', objectFit: 'contain' }} />
+            ) : (
+              <div style={{ background: companyPrimaryColor || '#374151', color: '#FFFFFF', padding: '10px 12px', fontWeight: '700', borderRadius: '4px' }}>
+                {companyLogoText || ''}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+        <div style={{ flex: 1, borderTop: '3px solid #7F1D1D' }} />
+        <div style={{ fontWeight: '700', fontSize: '16px', letterSpacing: '0.02em' }}>PAYMENT VOUCHER</div>
+        <div style={{ flex: 1, borderTop: '3px solid #7F1D1D' }} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '12px', marginBottom: '10px' }}>
+        <div style={{ border: '1px dashed #6B7280', padding: '8px' }}>
+          <div>{voucher?.partyAccount || ''}</div>
+          <div style={{ marginTop: '6px' }} />
+          <div style={{ textAlign: 'center' }}>{trnValue ? `TRN - ${trnValue}` : ''}</div>
+        </div>
+        <div style={{ border: '1px dashed #6B7280', padding: '8px' }}>
+          <div><strong>PAY NO</strong> : {payNoValue || ''}</div>
+          <div><strong>Date</strong> : {payDateValue || ''}</div>
+          <div><strong>Prepared By</strong> : {preparedByValue || ''}</div>
+        </div>
+      </div>
+
+      {voucherType === 'payment' ? (
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', marginBottom: '8px' }}>
+          <thead>
+            <tr style={{ background: '#E5E7EB' }}>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '42px' }}>No.</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px' }}>Account Description</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '90px' }}>Type</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>Amount FC</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{`Amount (${currencyLabel || 'USD'})`}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(Array.isArray(effectiveLineItems) ? effectiveLineItems : []).map((line, idx) => {
+              const accountCode = line?.acCode || ''
+              const paymentType = normalizeLineType(line?.type) || ''
+              return (
+                <tr key={`print-line-${idx}`}>
+                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'center', verticalAlign: 'top' }}>{idx + 1}</td>
+                  <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>
+                    <div>{accountCode || ''}</div>
+                    <div style={{ fontSize: '9px', color: '#555' }}>
+                      {paymentType || ''}
+                    </div>
+                  </td>
+                  <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>{paymentType || ''}</td>
+                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountFC || 0)}</td>
+                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountLC || 0)}</td>
+                </tr>
+              )
+            })}
+            {(Array.isArray(effectiveLineItems) ? effectiveLineItems : []).length === 0 && (
+              <tr>
+                <td colSpan={5} style={{ border: '1px solid #111827', padding: '8px', textAlign: 'center' }}>No line items</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', marginBottom: '8px' }}>
+          <thead>
+            <tr style={{ background: '#E5E7EB' }}>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '42px' }}>No.</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px' }}>Account Description</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '90px' }}>Type</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>Amount FC</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{`Amount (${currencyLabel || 'USD'})`}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(Array.isArray(effectiveLineItems) ? effectiveLineItems : []).map((line, idx) => {
+              const accountCode = line?.acCode || ''
+              const accountName = (accounts || []).find((a) => getAccountCodeValue(a) === accountCode)?.accountName || ''
+              const paymentType = normalizeLineType(line?.type) || ''
+              const customerAccountNo = line?.partyAccount || voucher?.partyAccount || ''
+              return (
+                <tr key={`print-line-${idx}`}>
+                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'center', verticalAlign: 'top' }}>{idx + 1}</td>
+                  <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>
+                    <div>{`${accountCode || ''}${accountName ? ` - ${accountName}` : ''}`}</div>
+                    <div>{customerAccountNo || ''}</div>
+                    <div>{paymentType || ''}</div>
+                  </td>
+                  <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>{paymentType || ''}</td>
+                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountFC || 0)}</td>
+                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountLC || 0)}</td>
+                </tr>
+              )
+            })}
+            {(Array.isArray(effectiveLineItems) ? effectiveLineItems : []).length === 0 && (
+              <tr>
+                <td colSpan={5} style={{ border: '1px solid #111827', padding: '8px', textAlign: 'center' }}>No line items</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px' }}>
+        <tbody>
+          <tr>
+            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{`Total (${currencyLabel || 'USD'})`}</td>
+            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', width: '110px', fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
+          </tr>
+          <tr>
+            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{`Total Value (${currencyLabel || 'USD'})`}</td>
+            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
+          </tr>
+          <tr>
+            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{`Total Party Value (${currencyLabel || 'USD'})`}</td>
+            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* ── DEBIT NOTICE ── */}
+      <div style={{
+        border: '1px solid #111827',
+        padding: '6px 10px',
+        fontSize: '10px',
+        lineHeight: '1.75',
+        marginTop: '4px'
+      }}>
+        <div style={{ marginBottom: '3px', color: '#555', fontSize: '9px' }}>
+          Your account has been updated with :
+        </div>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: '16px',
+          flexWrap: 'wrap'
+        }}>
+          {/* LEFT — Currency + numeric amount + DEBITED */}
+          <div style={{ fontWeight: '700', fontSize: '11px', color: '#111827', flexShrink: 0 }}>
+            {currencyLabel || 'USD'} {fmt(totals.grandTotal || 0)} DEBITED
+          </div>
+          {/* RIGHT — Amount in words */}
+          <div style={{
+            fontStyle: 'italic',
+            fontSize: '9px',
+            color: '#333333',
+            flex: 1,
+            textAlign: 'right'
+          }}>
+            {totals.grandTotal > 0
+              ? `${numberToWords(totals.grandTotal)} ${currencyLabel || 'USD'} Only`
+              : ''}
+          </div>
+        </div>
+      </div>
+
+      {/* ── NARRATION / NOTE LINE ── */}
+      <div style={{
+        border: '1px solid #111827',
+        borderTop: '1px solid #111827',
+        padding: '5px 10px',
+        fontSize: '9px',
+        color: '#151111',
+        minHeight: '22px'
+      }}>
+        {lineItems?.[0]?.narration || ''}
+      </div>
+
+      <div style={{ marginTop: '10px', fontSize: '11px' }}>Confirmed for & on behalf of</div>
+      {voucherType === 'payment' ? (
+        <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '20px' }}>
+          <div style={{ fontWeight: '600', fontSize: '11px', color: '#111' }}>
+            {voucher?.partyName || ''}
+          </div>
+          <div style={{ fontWeight: '600', fontSize: '11px', color: '#111' }}>
+            {voucher?.partyAccount || ''}
+          </div>
+        </div>
+      ) : (
+        <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'space-between', gap: '12px', minHeight: '20px' }}>
+          <div>{voucher?.partyName || ''}</div>
+          <div>{voucher?.partyAccount || ''}</div>
+        </div>
+      )}
+
+      <div style={{ marginTop: '88px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '36px', textAlign: 'center', fontWeight: '700' }}>
+        <div>
+          <div style={{ borderTop: '1px solid #111827', paddingTop: '4px' }}>RECEIVER'S SIGNATURE</div>
+        </div>
+        <div>
+          <div style={{ borderTop: '1px solid #111827', paddingTop: '4px' }}>CHECKED BY</div>
+        </div>
+        <div>
+          <div style={{ borderTop: '1px solid #111827', paddingTop: '4px' }}>AUTHORISED SIGNATORY</div>
+        </div>
+      </div>
+    </div>
+    ) : (
+      <div className="voucher-print-only" style={{ display: 'none', padding: '40px', textAlign: 'center', fontFamily: 'Arial' }}>
+        <p style={{ fontSize: '14px', color: '#555' }}>
+          Print layout for {voucherLabel} is not available yet.
+        </p>
+      </div>
+    )}
+    </>
   )
 }

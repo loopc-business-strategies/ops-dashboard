@@ -25,6 +25,32 @@ export function AuthProvider({ children }) {
   axios.defaults.headers.common['x-tenant'] = resolvedTenant
   axios.defaults.headers.common['x-company'] = resolvedTenant
 
+  useEffect(() => {
+    const interceptorId = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        const status = error?.response?.status
+        const requestUrl = String(error?.config?.url || '')
+        const isSessionProbe = /\/api\/auth\/me\b/i.test(requestUrl)
+
+        if (status === 401 && isSessionProbe) {
+          setUser(null)
+          setToken(null)
+          setCompany(resolvedTenant)
+          if (window.location.pathname !== '/login') {
+            window.location.replace('/login')
+          }
+        }
+
+        return Promise.reject(error)
+      }
+    )
+
+    return () => {
+      axios.interceptors.response.eject(interceptorId)
+    }
+  }, [resolvedTenant])
+
   // On app load: restore session from server cookie
   useEffect(() => {
     let mounted = true

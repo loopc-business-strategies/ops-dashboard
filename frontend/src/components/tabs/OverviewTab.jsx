@@ -8,7 +8,27 @@ import hrAPI from '../../api/hr'
 import attendanceAPI from '../../api/attendance'
 import messagesAPI from '../../api/messages'
 
-const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const resolveApiOrigin = () => {
+  const configured = String(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+  if (!configured || typeof window === 'undefined') return configured
+
+  try {
+    const parsed = new URL(configured)
+    const currentHost = String(window.location.hostname || '').toLowerCase()
+    const targetHost = String(parsed.hostname || '').toLowerCase()
+    const isLoopbackHost = targetHost === 'localhost' || targetHost === '127.0.0.1' || targetHost === '::1'
+    if (currentHost.endsWith('.localhost') && isLoopbackHost) {
+      parsed.hostname = currentHost
+      return parsed.toString().replace(/\/$/, '')
+    }
+  } catch {
+    return configured
+  }
+
+  return configured
+}
+
+const API_ORIGIN = resolveApiOrigin()
 const REALTIME_URL = `${API_ORIGIN}/api/realtime/events`
 
 const overviewConfig = {

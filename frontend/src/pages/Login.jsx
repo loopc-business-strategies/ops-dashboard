@@ -1,4 +1,4 @@
-// FILE: src/pages/Login.jsx
+﻿// FILE: src/pages/Login.jsx
 
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -198,12 +198,16 @@ function Login() {
                   {t('username')}
                 </label>
                 <div className="relative">
+                  <svg className="w-4 h-4 text-gray-500 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5.121 17.804A9 9 0 1118.88 17.8M15 10a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => { setName(e.target.value); setError('') }}
                     placeholder={t('enterUsername')}
-                    className="w-full bg-[#f3f4f6] border-none rounded-[10px] py-[11px] px-4 text-[13px] text-[#333] outline-none transition-all duration-200 placeholder:text-[#b0b8c4] placeholder:text-[13px] placeholder:font-normal focus:bg-white focus:shadow-[0_0_0_2px_#1877d4]"
+                    className="w-full bg-[#f3f4f6] border-none rounded-[10px] py-[11px] pl-[50px] pr-4 text-[13px] text-[#333] outline-none transition-all duration-200 placeholder:text-[#b0b8c4] placeholder:text-[13px] placeholder:font-normal focus:bg-white focus:shadow-[0_0_0_2px_#1877d4]"
+                    style={{paddingRight:"30px",paddingLeft:"30px"}}
                     autoFocus
                     autoComplete="username"
                     disabled={loading}
@@ -217,12 +221,16 @@ function Login() {
                   {t('password')}
                 </label>
                 <div className="relative">
+                  <svg className="w-4 h-4 text-gray-500 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2h-1V9a5 5 0 00-10 0v2H6a2 2 0 00-2 2v6a2 2 0 002 2zm3-10V9a3 3 0 016 0v2H9z" />
+                  </svg>
                   <input
                     type={showPass ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError('') }}
                     placeholder={t('enterPassword')}
-                    className="w-full bg-[#f3f4f6] border-none rounded-[10px] py-[11px] pl-4 pr-20 text-[13px] text-[#333] outline-none transition-all duration-200 placeholder:text-[#b0b8c4] placeholder:text-[13px] placeholder:font-normal focus:bg-white focus:shadow-[0_0_0_2px_#1877d4]"
+                    className="w-full bg-[#f3f4f6] border-none rounded-[10px] py-[11px] pl-[70px] pr-20 text-[13px] text-[#333] outline-none transition-all duration-200 placeholder:text-[#b0b8c4] placeholder:text-[13px] placeholder:font-normal focus:bg-white focus:shadow-[0_0_0_2px_#1877d4]"
+                    style={{paddingRight:"30px",paddingLeft:"30px"}}
                     autoComplete="current-password"
                     disabled={loading}
                   />

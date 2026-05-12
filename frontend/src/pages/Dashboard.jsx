@@ -141,7 +141,7 @@ function getNavItems(perms, t, chatUnread = 0, branding) {
 }
 
 // ── Render the content for each tab ────────────
-function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab) {
+function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, onErpMetalRatesChange) {
   switch (tabId) {
     case 'overview':
       return <OverviewTab onNavigate={setActiveTab} />
@@ -174,7 +174,7 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab) {
       return <TrainingTab />
 
     case 'erp':
-      return <ERPTab focusTab={erpSubTab} onNavigateMain={setActiveTab} />
+      return <ERPTab focusTab={erpSubTab} onNavigateMain={setActiveTab} onMetalRatesChange={onErpMetalRatesChange} />
 
     case 'procurement-plus':
       return (
@@ -195,11 +195,11 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab) {
   }
 }
 
-function renderTabContent(tabId, setActiveTab, setChatUnread, erpSubTab) {
+function renderTabContent(tabId, setActiveTab, setChatUnread, erpSubTab, onErpMetalRatesChange) {
   return (
     <TabErrorBoundary resetKey={tabId}>
       <Suspense fallback={<TabLoadingFallback />}>
-        {renderTab(tabId, setActiveTab, setChatUnread, erpSubTab)}
+        {renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, onErpMetalRatesChange)}
       </Suspense>
     </TabErrorBoundary>
   )
@@ -208,7 +208,13 @@ function renderTabContent(tabId, setActiveTab, setChatUnread, erpSubTab) {
 // ══════════════════════════════════════════════
 // MAIN DASHBOARD COMPONENT
 // ══════════════════════════════════════════════
-function Dashboard() {
+function Dashboard({
+  goldPrice = 0,
+  silverPrice = 0,
+  platinumPrice = 0,
+  palladiumPrice = 0,
+  metalRatesUpdatedAt = null,
+}) {
   const { user, logout, company } = useAuth()
   const perms = usePermissions()
   const navigate = useNavigate()
@@ -227,6 +233,20 @@ function Dashboard() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [selectedMetal, setSelectedMetal] = useState('gold')
   const [metalRates, setMetalRates] = useState({ gold: 0, silver: 0, platinum: 0 })
+  const [showMetalDropdown, setShowMetalDropdown] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [latestMetalRates, setLatestMetalRates] = useState({
+    goldPrice: null,
+    silverPrice: null,
+    platinumPrice: null,
+    palladiumPrice: null,
+    updatedAt: null,
+  })
+  const [notifications, setNotifications] = useState([
+    { id: 1, title: 'Gold price updated', msg: 'XAU moved to USD 4,555', time: '2m ago', read: false, dotColor: 'bg-yellow-400' },
+    { id: 2, title: 'Voucher submitted', msg: 'Payment #12 awaiting approval', time: '15m ago', read: false, dotColor: 'bg-blue-400' },
+    { id: 3, title: 'System sync complete', msg: 'All accounts updated', time: '1h ago', read: true, dotColor: 'bg-green-400' },
+  ])
   const langMenuRef = useRef(null)
   const metalMenuRef = useRef(null)
   const notifMenuRef = useRef(null)
@@ -265,6 +285,15 @@ function Dashboard() {
       root.style.setProperty('--grad-bar', prevGradBar)
     }
   }, [branding])
+
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowMetalDropdown(false)
+      setShowNotifications(false)
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [])
 
   const clearHideTimer = () => {
     if (hideTimerRef.current) {
@@ -388,6 +417,12 @@ function Dashboard() {
   const adminItems = navItems.filter(n => n.group === 'admin')
   const deptItems  = navItems.filter(n => n.group === 'departments')
   const erpItems   = navItems.filter(n => n.group === 'erp')
+
+  const headerGoldPrice = Number(latestMetalRates?.goldPrice || goldPrice || 0)
+  const headerSilverPrice = Number(latestMetalRates?.silverPrice || silverPrice || 0)
+  const headerPlatinumPrice = Number(latestMetalRates?.platinumPrice || platinumPrice || 0)
+  const headerPalladiumPrice = Number(latestMetalRates?.palladiumPrice || palladiumPrice || 0)
+  const headerMetalRatesUpdatedAt = latestMetalRates?.updatedAt || metalRatesUpdatedAt || null
 
   const handleLogout = () => { logout(); navigate('/login') }
 
@@ -813,6 +848,118 @@ function Dashboard() {
                   </div>
                 )}
               </div>
+
+              {/* Show ONLY on ERP Dashboard tab */}
+              {activeTab === 'erp' && erpSubTab === 'dashboard' && (
+                <>
+                  {/* ── GOLD PRICE BADGE ── */}
+                  <div className="relative right-0" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => setShowMetalDropdown(prev => !prev)}
+                      className="flex items-center gap-1.5 bg-gray-900 border border-yellow-500
+                                 rounded-lg px-3 py-1.5 cursor-pointer text-yellow-500
+                                 text-xs font-bold hover:bg-gray-800 transition-colors"
+                    >
+                      🥇 Gold
+                      <span className="text-white font-semibold">
+                        {headerGoldPrice > 0
+                          ? `USD ${Number(headerGoldPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                          : '---'}
+                      </span>
+                      <span className="text-gray-500 text-[9px]">▼</span>
+                    </button>
+
+                    {showMetalDropdown && (
+                      <div className="absolute top-[110%] right-0 bg-gray-900 border border-gray-700
+                                      rounded-xl p-4 min-w-[240px] z-[9999]
+                                      shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+                        <p className="text-[10px] text-gray-500 font-bold tracking-widest
+                                       uppercase mb-3">
+                          Live Metal Prices
+                        </p>
+                        {[
+                          { label: 'Gold',      symbol: 'XAU', price: headerGoldPrice,      color: 'text-yellow-400', dot: 'bg-yellow-400' },
+                          { label: 'Silver',    symbol: 'XAG', price: headerSilverPrice,    color: 'text-gray-300',   dot: 'bg-gray-400'   },
+                          { label: 'Platinum',  symbol: 'XPT', price: headerPlatinumPrice,  color: 'text-blue-400',   dot: 'bg-blue-400'   },
+                          { label: 'Palladium', symbol: 'XPD', price: headerPalladiumPrice, color: 'text-pink-400',   dot: 'bg-pink-400'   },
+                        ].map(m => (
+                          <div key={m.symbol}
+                            className="flex justify-between items-center py-2 border-b border-gray-700 last:border-0">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${m.dot}`} />
+                              <span className={`${m.color} font-bold text-xs`}>{m.label}</span>
+                              <span className="text-gray-500 text-[10px]">{m.symbol}</span>
+                            </div>
+                            <span className="text-white font-bold text-xs">
+                              {m.price && Number(m.price) > 0
+                                ? `USD ${Number(m.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                                : '---'}
+                            </span>
+                          </div>
+                        ))}
+                        <div className="mt-3 pt-2 border-t border-gray-700 flex justify-between items-center">
+                          <span className="text-[9px] text-gray-600">Source: Live Feed</span>
+                          <span className="text-[9px] text-gray-500">
+                            {headerMetalRatesUpdatedAt
+                              ? `Updated ${new Date(headerMetalRatesUpdatedAt).toLocaleString('en-US', {
+                                  day: 'numeric', month: 'numeric', year: 'numeric',
+                                  hour: '2-digit', minute: '2-digit'
+                                })}`
+                              : 'Updates every 60s'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* NOTIFICATION BELL */}
+                  <div className="relative" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => setShowNotifications(prev => !prev)}
+                      className="relative p-2 text-gray-400 hover:text-white transition-colors cursor-pointer bg-transparent border-none"
+                    >
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                      </svg>
+                      {notifications.filter(n => !n.read).length > 0 && (
+                        <span className="absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full w-4 h-4 text-[10px] font-bold flex items-center justify-center">
+                          {notifications.filter(n => !n.read).length}
+                        </span>
+                      )}
+                    </button>
+                    {showNotifications && (
+                      <div className="absolute top-[110%] right-0 bg-white border border-gray-200 rounded-xl w-80 z-[9999] shadow-xl overflow-hidden">
+                        <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100">
+                          <span className="font-bold text-sm text-gray-900">Notifications</span>
+                          <button
+                            onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+                            className="text-xs text-gray-500 hover:text-gray-700 bg-transparent border-none cursor-pointer"
+                          >Mark all read</button>
+                        </div>
+                        {notifications.map(n => (
+                          <div key={n.id}
+                            onClick={() => setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x))}
+                            className={`flex gap-2.5 items-start px-4 py-3 border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${n.read ? 'bg-white' : 'bg-green-50'}`}
+                          >
+                            <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${n.read ? 'bg-transparent' : n.dotColor}`} />
+                            <div>
+                              <p className="font-semibold text-xs text-gray-900">{n.title}</p>
+                              <p className="text-[11px] text-gray-500 mt-0.5">{n.msg}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">{n.time}</p>
+                            </div>
+                          </div>
+                        ))}
+                        <div className="px-4 py-2.5 text-center border-t border-gray-100">
+                          <button className="text-xs text-blue-500 hover:text-blue-600 bg-transparent border-none cursor-pointer font-medium">
+                            View all notifications
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </header>
@@ -820,7 +967,7 @@ function Dashboard() {
         {/* Page content */}
         <main className={`flex-1 ${activeTab === 'chat' ? 'overflow-hidden' : 'p-6 overflow-y-auto'}`}
           style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-          {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab)}
+          {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, setLatestMetalRates)}
         </main>
 
       </div>
