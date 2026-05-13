@@ -281,7 +281,16 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const [accountEnquiryData, setAccountEnquiryData] = useState(null)
   const [enquiryLoading, setEnquiryLoading] = useState(false)
   const [enquiryStatus, setEnquiryStatus] = useState({ type: '', message: '' })
-  const [statementFilters, setStatementFilters] = useState({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '' })
+  const [statementFilters, setStatementFilters] = useState({
+    startDate: '',
+    endDate: '',
+    referenceType: '',
+    department: '',
+    fixStatus: '',
+    foreignCurrency: '',
+    metalCommodity: '',
+    showAmountIn: '',
+  })
   const [showStatementAuditIds, setShowStatementAuditIds] = useState(false)
   const [statementAuditPreferenceReady, setStatementAuditPreferenceReady] = useState(false)
   const [metalRates, setMetalRates] = useState({ goldPrice: 285, silverPrice: 3.5, priceCurrency: 'USD', updatedAt: null })
@@ -650,6 +659,43 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const modalMarginPct = modalMarginAmt !== 0 ? (modalNetEquity / modalMarginAmt) * 100 : 0
   const breakEvenPrice = Math.abs(xauBalance) !== 0 ? totalFunds / Math.abs(xauBalance) : 0
   const modalStatementCurrency = 'USD'  // Trading platform uses USD
+  const resolvePreferredStatementMetalCode = (entries = []) => {
+    const explicitMetal = entries.find((entry) => {
+      const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
+      return metalCode === 'XAU' || metalCode === 'XAG'
+    })
+    if (explicitMetal?.metalCode) return String(explicitMetal.metalCode).trim().toUpperCase()
+    const goldAbs = Math.abs(Number(accountEnquiryData?.metals?.goldBalance || 0))
+    const silverAbs = Math.abs(Number(accountEnquiryData?.metals?.silverBalance || 0))
+    return silverAbs > goldAbs ? 'XAG' : 'XAU'
+  }
+  const defaultStatementMetalCode = resolvePreferredStatementMetalCode(rawStatementEntries)
+  const statementSelectedMetalCode = statementFilters.metalCommodity === 'silver'
+    ? 'XAG'
+    : statementFilters.metalCommodity === 'gold'
+      ? 'XAU'
+      : defaultStatementMetalCode
+  const statementSelectedMetalLabel = statementSelectedMetalCode === 'XAG' ? 'Silver' : 'Gold'
+  const statementDisplayCurrency = String(
+    statementFilters.showAmountIn
+    || accountEnquiryData?.balances?.rateCurrency
+    || accountEnquiryData?.account?.currency
+    || modalStatementCurrency,
+  ).trim().toUpperCase()
+  const statementCurrencyOptions = Array.from(new Set([
+    'ALL',
+    String(accountEnquiryData?.account?.currency || '').trim().toUpperCase(),
+    String(accountEnquiryData?.balances?.rateCurrency || '').trim().toUpperCase(),
+    String(baseCurrencyCode || '').trim().toUpperCase(),
+    String(modalStatementCurrency || '').trim().toUpperCase(),
+    ...currencies.map((currency) => String(currency?.code || '').trim().toUpperCase()),
+  ].filter(Boolean)))
+  const convertStatementDisplayAmount = (value) => {
+    const numeric = Number(value || 0)
+    if (!Number.isFinite(numeric)) return 0
+    const converted = convertJvAmount(numeric, modalStatementCurrency, statementDisplayCurrency)
+    return Number.isFinite(converted) ? converted : numeric
+  }
   const formatStatementValue = (value, digits = 2) => {
     const num = Number(value || 0)
     return num.toLocaleString(undefined, {
@@ -3582,16 +3628,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       return String(resolveStatementReceiptNo(left)).localeCompare(String(resolveStatementReceiptNo(right)), undefined, { numeric: true, sensitivity: 'base' })
     })
 
-    const statementMetalCode = (() => {
-      const explicitMetal = exportEntries.find((entry) => {
-        const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
-        return metalCode === 'XAU' || metalCode === 'XAG'
-      })
-      if (explicitMetal?.metalCode) return String(explicitMetal.metalCode).trim().toUpperCase()
-      const goldAbs = Math.abs(Number(accountEnquiryData?.metals?.goldBalance || 0))
-      const silverAbs = Math.abs(Number(accountEnquiryData?.metals?.silverBalance || 0))
-      return silverAbs > goldAbs ? 'XAG' : 'XAU'
-    })()
+    const statementMetalCode = statementSelectedMetalCode || resolvePreferredStatementMetalCode(exportEntries)
+    const exportDisplayCurrency = statementDisplayCurrency
 
     const endingPureWeight = statementMetalCode === 'XAG'
       ? Number(accountEnquiryData?.metals?.silverBalance || 0)
@@ -3656,9 +3694,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           <td>${escapeHtml(resolveStatementReceiptNo(entry) || '-')}</td>
           <td>${escapeHtml(formatDateForHeader(entry.date) || formatStatementDate(entry.date) || '-')}</td>
           <td class="narration">${escapeHtml(buildNarration(entry))}</td>
-          <td class="num">${escapeHtml(formatBlankable(debitUsd, 2))}</td>
-          <td class="num">${escapeHtml(formatBlankable(creditUsd, 2))}</td>
-          <td class="num">${escapeHtml(formatDrCr(runningUsdBalance, 2))}</td>
+          <td class="num">${escapeHtml(formatBlankable(convertStatementDisplayAmount(debitUsd), 2))}</td>
+          <td class="num">${escapeHtml(formatBlankable(convertStatementDisplayAmount(creditUsd), 2))}</td>
+          <td class="num">${escapeHtml(formatDrCr(convertStatementDisplayAmount(runningUsdBalance), 2))}</td>
           <td class="num">${escapeHtml(formatBlankable(debitPure, 3))}</td>
           <td class="num">${escapeHtml(formatBlankable(creditPure, 3))}</td>
           <td class="num">${escapeHtml(formatDrCr(runningPureWeight, 3))}</td>
@@ -3688,6 +3726,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const accountAddress = String(accountEnquiryData?.account?.address || accountEnquiryData?.account?.description || '').trim()
     const headerStartDate = statementFilters.startDate || exportEntries[0]?.date || ''
     const headerEndDate = statementFilters.endDate || exportEntries[exportEntries.length - 1]?.date || ''
+    const displayForeignCurrency = statementFilters.foreignCurrency || 'All'
+    const displayMetalCommodity = statementSelectedMetalLabel
     const processedLogo = await createLogoRenderAsset(
       brandingProfile.logoUrl,
       brandingProfile.logoWidth,
@@ -3768,13 +3808,33 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               <div class="party-name">${escapeHtml(accountEnquiryData.account.accountName || 'Account')}</div>
               <div class="party-address">${escapeHtml(accountAddress)}</div>
             </div>
+            <table style="margin-top:8px; margin-bottom:8px; font-size:10px;">
+              <tbody>
+                <tr>
+                  <td style="background:#FFF4E3; font-weight:700; width:120px;">Date From</td>
+                  <td style="width:140px;">${escapeHtml(formatDateForHeader(headerStartDate) || '-')}</td>
+                  <td style="background:#FFF4E3; font-weight:700; width:120px;">Date To</td>
+                  <td style="width:140px;">${escapeHtml(formatDateForHeader(headerEndDate) || '-')}</td>
+                  <td style="background:#FFF4E3; font-weight:700; width:140px;">Foreign Currency</td>
+                  <td>${escapeHtml(displayForeignCurrency)}</td>
+                </tr>
+                <tr>
+                  <td style="background:#FFF4E3; font-weight:700;">Metal/Commodities</td>
+                  <td>${escapeHtml(displayMetalCommodity)}</td>
+                  <td style="background:#FFF4E3; font-weight:700;">Show Amount In</td>
+                  <td>${escapeHtml(exportDisplayCurrency)}</td>
+                  <td style="background:#FFF4E3; font-weight:700;">Reference Type</td>
+                  <td>${escapeHtml(statementFilters.referenceType || 'All')}</td>
+                </tr>
+              </tbody>
+            </table>
             <table>
               <thead>
                 <tr>
                   <th rowspan="2">Doc No</th>
                   <th rowspan="2">Doc Date</th>
                   <th rowspan="2">Narration</th>
-                  <th colspan="3">Amount (USD)</th>
+                  <th colspan="3">Amount (${escapeHtml(exportDisplayCurrency)})</th>
                   <th colspan="3">${escapeHtml(statementMetalCode)}(GMS)</th>
                 </tr>
                 <tr class="subhead">
@@ -3793,7 +3853,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   <td class="carry-label">Balance C/F</td>
                   <td class="num"></td>
                   <td class="num"></td>
-                  <td class="num">${escapeHtml(formatDrCr(openingUsdBalance, 2))}</td>
+                  <td class="num">${escapeHtml(formatDrCr(convertStatementDisplayAmount(openingUsdBalance), 2))}</td>
                   <td class="num"></td>
                   <td class="num"></td>
                   <td class="num">${escapeHtml(formatDrCr(openingPureWeight, 3))}</td>
@@ -3801,9 +3861,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                 ${bodyRows}
                 <tr class="carry-row bottom">
                   <td class="carry-label" colspan="3">Balance C/F</td>
-                  <td class="num">${escapeHtml(formatBlankable(totalDebitUsd, 2))}</td>
-                  <td class="num">${escapeHtml(formatBlankable(totalCreditUsd, 2))}</td>
-                  <td class="num">${escapeHtml(formatDrCr(closingUsdBalance, 2))}</td>
+                  <td class="num">${escapeHtml(formatBlankable(convertStatementDisplayAmount(totalDebitUsd), 2))}</td>
+                  <td class="num">${escapeHtml(formatBlankable(convertStatementDisplayAmount(totalCreditUsd), 2))}</td>
+                  <td class="num">${escapeHtml(formatDrCr(convertStatementDisplayAmount(closingUsdBalance), 2))}</td>
                   <td class="num">${escapeHtml(formatBlankable(totalDebitPure, 3))}</td>
                   <td class="num">${escapeHtml(formatBlankable(totalCreditPure, 3))}</td>
                   <td class="num">${escapeHtml(formatDrCr(closingPureWeight, 3))}</td>
@@ -7876,57 +7936,111 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                       )}
                     </div>
 
-                    <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #E5E7EB', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.55rem' }}>
-                      <input
-                        type="date"
-                        value={statementFilters.startDate}
-                        onChange={(e) => setStatementFilters((prev) => ({ ...prev, startDate: e.target.value }))}
-                        style={modalInputStyle}
-                      />
-                      <input
-                        type="date"
-                        value={statementFilters.endDate}
-                        onChange={(e) => setStatementFilters((prev) => ({ ...prev, endDate: e.target.value }))}
-                        style={modalInputStyle}
-                      />
-                      <select
-                        value={statementFilters.referenceType}
-                        onChange={(e) => setStatementFilters((prev) => ({ ...prev, referenceType: e.target.value }))}
-                        style={modalInputStyle}
-                      >
-                        <option value="">All Types</option>
-                        {statementReferenceTypes.map((type) => (
-                          <option key={type} value={type}>{type}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={statementFilters.department}
-                        onChange={(e) => setStatementFilters((prev) => ({ ...prev, department: e.target.value }))}
-                        style={modalInputStyle}
-                      >
-                        <option value="">All Departments</option>
-                        {statementDepartments.map((department) => (
-                          <option key={department} value={department}>{department}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={statementFilters.fixStatus}
-                        onChange={(e) => setStatementFilters((prev) => ({ ...prev, fixStatus: e.target.value }))}
-                        style={modalInputStyle}
-                      >
-                        <option value="">All Fixing Status</option>
-                        <option value="fixed">Fixed Only</option>
-                        <option value="unfixed">Unfixed Only</option>
-                        <option value="unknown">Unknown Only</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '' })}
-                        style={{ padding: '0.65rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', height: 'fit-content' }}
-                      >
-                        Reset
-                      </button>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#334155', fontSize: '0.82rem', fontWeight: '600', background: '#F8FAFC', border: '1px solid #D1D5DB', borderRadius: '0.5rem', padding: '0.62rem 0.7rem', cursor: 'pointer' }}>
+                    <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #E5E7EB' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
+                          <span>Date From</span>
+                          <input
+                            type="date"
+                            value={statementFilters.startDate}
+                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, startDate: e.target.value }))}
+                            style={modalInputStyle}
+                          />
+                        </label>
+                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
+                          <span>Date To</span>
+                          <input
+                            type="date"
+                            value={statementFilters.endDate}
+                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, endDate: e.target.value }))}
+                            style={modalInputStyle}
+                          />
+                        </label>
+                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
+                          <span>All Types</span>
+                          <select
+                            value={statementFilters.referenceType}
+                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, referenceType: e.target.value }))}
+                            style={modalInputStyle}
+                          >
+                            <option value="">All Types</option>
+                            {statementReferenceTypes.map((type) => (
+                              <option key={type} value={type}>{type}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
+                          <span>All Departments</span>
+                          <select
+                            value={statementFilters.department}
+                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, department: e.target.value }))}
+                            style={modalInputStyle}
+                          >
+                            <option value="">All Departments</option>
+                            {statementDepartments.map((department) => (
+                              <option key={department} value={department}>{department}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
+                          <span>All Fixing Status</span>
+                          <select
+                            value={statementFilters.fixStatus}
+                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, fixStatus: e.target.value }))}
+                            style={modalInputStyle}
+                          >
+                            <option value="">All Fixing Status</option>
+                            <option value="fixed">Fixed Only</option>
+                            <option value="unfixed">Unfixed Only</option>
+                            <option value="unknown">Unknown Only</option>
+                          </select>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '', foreignCurrency: '', metalCommodity: '', showAmountIn: '' })}
+                          style={{ padding: '0.65rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', height: 'fit-content', alignSelf: 'end' }}
+                        >
+                          Reset
+                        </button>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
+                          <span>Foreign Currency</span>
+                          <select
+                            value={statementFilters.foreignCurrency}
+                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, foreignCurrency: e.target.value }))}
+                            style={modalInputStyle}
+                          >
+                            {statementCurrencyOptions.map((code) => (
+                              <option key={code} value={code === 'ALL' ? '' : code}>{code === 'ALL' ? 'All' : code}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
+                          <span>Metal/Commodities</span>
+                          <select
+                            value={statementFilters.metalCommodity || (defaultStatementMetalCode === 'XAG' ? 'silver' : 'gold')}
+                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, metalCommodity: e.target.value }))}
+                            style={modalInputStyle}
+                          >
+                            <option value="gold">Gold</option>
+                            <option value="silver">Silver</option>
+                          </select>
+                        </label>
+                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
+                          <span>Show Amount In</span>
+                          <select
+                            value={statementFilters.showAmountIn || statementDisplayCurrency}
+                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, showAmountIn: e.target.value }))}
+                            style={modalInputStyle}
+                          >
+                            {statementCurrencyOptions.filter((code) => code !== 'ALL').map((code) => (
+                              <option key={code} value={code}>{code}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: '#334155', fontSize: '0.82rem', fontWeight: '600', background: '#F8FAFC', border: '1px solid #D1D5DB', borderRadius: '0.5rem', padding: '0.62rem 0.7rem', cursor: 'pointer' }}>
                         <input
                           type="checkbox"
                           checked={showStatementAuditIds}
@@ -7947,7 +8061,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Deal</th>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Fixing</th>
                             <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Offset Account</th>
-                            <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Amount In USD</th>
+                            <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Amount In {statementDisplayCurrency}</th>
                             <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Pure WT In Grams</th>
                           </tr>
                           <tr style={{ background: '#EEF1E8', borderBottom: '2px solid #CBD5E0' }}>
@@ -7969,15 +8083,21 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             </tr>
                           ) : (
                             (() => {
-                              let runningPureWeight = Number(accountEnquiryData?.metals?.goldBalance || 0)
+                              let runningPureWeight = statementSelectedMetalCode === 'XAG'
+                                ? Number(accountEnquiryData?.metals?.silverBalance || 0)
+                                : Number(accountEnquiryData?.metals?.goldBalance || 0)
                               return filteredStatementEntries.map((entry, index) => {
                               const receiptNo = resolveStatementReceiptNo(entry)
                               // Account enquiry statement amounts are already in base currency from API.
                               const debitUsd = Number(entry.debitAmount || 0)
                               const creditUsd = Number(entry.creditAmount || 0)
                               const balanceUsd = Number(entry.runningBalance || 0)
+                              const debitDisplay = convertStatementDisplayAmount(debitUsd)
+                              const creditDisplay = convertStatementDisplayAmount(creditUsd)
+                              const balanceDisplay = convertStatementDisplayAmount(balanceUsd)
                               const sourceType = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
-                              const isMetalRow = entry.isMetalTrade || sourceType === 'sale' || sourceType === 'purchase'
+                              const entryMetalCode = resolveMetalCode(entry)
+                              const isMetalRow = (entry.isMetalTrade || sourceType === 'sale' || sourceType === 'purchase') && entryMetalCode === statementSelectedMetalCode
                               const signedPureWeight = Number(entry.metalSignedWeight || 0)
                               const debitPureWeight = isMetalRow && signedPureWeight > 0 ? signedPureWeight : (isMetalRow ? 0 : null)
                               const creditPureWeight = isMetalRow && signedPureWeight < 0 ? Math.abs(signedPureWeight) : (isMetalRow ? 0 : null)
@@ -7999,10 +8119,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                                   <td style={{ padding: '0.6rem', color: '#374151' }}>
                                     {entry.offsetAccountCode ? `${entry.offsetAccountCode}${entry.offsetAccountName ? ` - ${entry.offsetAccountName}` : ''}` : '-'}
                                   </td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{formatStatementValue(debitUsd, 2)}</td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementValue(creditUsd, 2)}</td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: getSignedColor(balanceUsd), fontWeight: '700' }}>
-                                    {formatDirectionalBalance(balanceUsd)}
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{formatStatementValue(debitDisplay, 2)}</td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementValue(creditDisplay, 2)}</td>
+                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: getSignedColor(balanceDisplay), fontWeight: '700' }}>
+                                    {formatDirectionalBalance(balanceDisplay)}
                                   </td>
                                   <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{formatStatementNullableValue(debitPureWeight, 2)}</td>
                                   <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementNullableValue(creditPureWeight, 2)}</td>
