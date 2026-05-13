@@ -682,6 +682,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     || accountEnquiryData?.account?.currency
     || modalStatementCurrency,
   ).trim().toUpperCase()
+  const baseCurrencyCode = String(currencies.find((currency) => currency.baseCurrency)?.code || 'USD').toUpperCase()
   const statementCurrencyOptions = Array.from(new Set([
     'ALL',
     String(accountEnquiryData?.account?.currency || '').trim().toUpperCase(),
@@ -1421,8 +1422,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         .map((a) => ({ value: String(a._id), label: `${a.accountCode || ''} - ${a.accountName || ''}` })),
     }])
     .filter((g) => g.options.length > 0)
-
-  const baseCurrencyCode = String(currencies.find((currency) => currency.baseCurrency)?.code || 'USD').toUpperCase()
 
   const inferJvAccountCurrency = (accountId) => {
     const account = entryAccountOptions.find((item) => String(item?._id) === String(accountId || ''))
