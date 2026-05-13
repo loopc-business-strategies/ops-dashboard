@@ -474,11 +474,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const usdToTargetAmount = Number.isFinite(usdAmountValue) && usdAmountValue >= 0 && selectedUsdConversionRate > 0
     ? (usdAmountValue / selectedUsdConversionRate)
     : 0
-  const inventoryMappingProducts = inventoryProducts.filter((item) => String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
-  const inventoryCatalogProducts = inventoryProducts.filter((item) => String(item?.category || '').includes('recordType=product'))
-  const legacyInventoryProducts = inventoryProducts.filter((item) => !String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
-  const inventoryReportProducts = [...inventoryCatalogProducts, ...legacyInventoryProducts]
-  const inventoryReportRows = inventoryReportProducts.map((item) => {
+  const inventoryMappingProducts = (inventoryProducts || []).filter((item) => String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
+  const inventoryCatalogProducts = (inventoryProducts || []).filter((item) => String(item?.category || '').includes('recordType=product'))
+  const legacyInventoryProducts = (inventoryProducts || []).filter((item) => !String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
+  const inventoryReportProducts = [...(inventoryCatalogProducts || []), ...(legacyInventoryProducts || [])]
+  const inventoryReportRows = (inventoryReportProducts || []).map((item) => {
     const categoryMeta = decodeInventoryCategoryMeta(item.category)
     const productMeta = decodeInventoryCategoryPairs(item.category)
     const quantity = Math.max(0, Number(item.quantity || 0))
@@ -507,14 +507,14 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       isLowStock: minThreshold > 0 && quantity <= minThreshold,
     }
   })
-  const inventoryTotalQuantity = inventoryReportRows.reduce((sum, row) => sum + row.quantity, 0)
-  const inventoryTotalValue = inventoryReportRows.reduce((sum, row) => sum + row.stockValue, 0)
-  const inventoryLowStockCount = inventoryReportRows.filter((row) => row.isLowStock).length
-  const inventoryTopProducts = [...inventoryReportRows]
-    .sort((a, b) => b.stockValue - a.stockValue)
+  const inventoryTotalQuantity = (inventoryReportRows || []).reduce((sum, row) => sum + (row?.quantity || 0), 0)
+  const inventoryTotalValue = (inventoryReportRows || []).reduce((sum, row) => sum + (row?.stockValue || 0), 0)
+  const inventoryLowStockCount = (inventoryReportRows || []).filter((row) => row?.isLowStock).length
+  const inventoryTopProducts = [...(inventoryReportRows || [])]
+    .sort((a, b) => (b?.stockValue || 0) - (a?.stockValue || 0))
     .slice(0, 5)
-  const inventoryMetalBreakdown = Object.values(inventoryReportRows.reduce((groups, row) => {
-    const key = row.metal || 'Unmapped'
+  const inventoryMetalBreakdown = Object.values((inventoryReportRows || []).reduce((groups, row) => {
+    const key = row?.metal || 'Unmapped'
     if (!groups[key]) {
       groups[key] = {
         metal: key,
@@ -525,11 +525,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       }
     }
     groups[key].productCount += 1
-    groups[key].totalQty += row.quantity
-    groups[key].totalValue += row.stockValue
-    groups[key].lowStockCount += row.isLowStock ? 1 : 0
+    groups[key].totalQty += row?.quantity || 0
+    groups[key].totalValue += row?.stockValue || 0
+    groups[key].lowStockCount += row?.isLowStock ? 1 : 0
     return groups
-  }, {})).sort((a, b) => b.totalValue - a.totalValue)
+  }, {})).sort((a, b) => (b?.totalValue || 0) - (a?.totalValue || 0))
   const inventoryStockTypeOptions = useMemo(() => {
     if (!inventoryMappingProducts || inventoryMappingProducts.length === 0) return []
     return inventoryMappingProducts.map((item) => {
