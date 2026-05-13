@@ -3692,30 +3692,38 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           <title>Statement of Account ${escapeHtml(accountEnquiryData.account.accountCode)}</title>
           <style>
             @page { size: A4 landscape; margin: 12mm; }
-            body { font-family: Arial, sans-serif; color: #111827; margin: 0; padding: 20px; background: #FFFFFF; }
+            :root {
+              --soa-orange: #F59E0B;
+              --soa-orange-deep: #D97706;
+              --soa-orange-soft: #FFF4E3;
+              --soa-border: #C9A15A;
+              --soa-ink: #111827;
+            }
+            body { font-family: Arial, sans-serif; color: var(--soa-ink); margin: 0; padding: 18px; background: #FFFFFF; }
             .sheet { width: 100%; }
-            .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 10px; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 3px solid var(--soa-orange); }
             .brand { display: flex; gap: 16px; align-items: flex-start; }
             .brand-copy { font-size: 12px; line-height: 1.25; }
             .brand-copy .company { font-size: 15px; font-weight: 700; }
-            .muted { color: #111827; }
+            .muted { color: var(--soa-ink); }
             .statement-head { text-align: right; min-width: 240px; }
-            .statement-head .title { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
-            .statement-head .dates { font-size: 12px; }
-            .party-box { border: 1px solid #202020; min-height: 116px; padding: 8px 10px; margin: 8px 0 0; }
+            .statement-head .title { font-size: 16px; font-weight: 800; margin-bottom: 2px; color: var(--soa-orange-deep); }
+            .statement-head .dates { font-size: 12px; color: #5B4632; }
+            .party-box { border: 1px solid var(--soa-border); background: linear-gradient(180deg, var(--soa-orange-soft) 0%, #FFFFFF 72%); min-height: 116px; padding: 8px 10px; margin: 8px 0 0; }
             .party-code { font-size: 12px; margin-bottom: 4px; }
             .party-name { font-size: 13px; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; }
             .party-address { font-size: 12px; line-height: 1.25; white-space: pre-line; }
             table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 0; }
-            th, td { border: 1px solid #2D2D2D; padding: 5px 6px; vertical-align: middle; }
-            thead th { background: #F6CA82; color: #111827; font-weight: 700; text-align: center; }
-            .subhead th { background: #F6CA82; font-size: 10px; }
+            th, td { border: 1px solid var(--soa-border); padding: 5px 6px; vertical-align: middle; }
+            thead th { background: linear-gradient(180deg, #FDE7BD 0%, #F7C86A 100%); color: var(--soa-ink); font-weight: 700; text-align: center; }
+            .subhead th { background: linear-gradient(180deg, #FDE7BD 0%, #F7C86A 100%); font-size: 10px; }
             td { text-align: center; }
             .narration { text-align: left; }
             .num { text-align: right; white-space: nowrap; }
-            .opening td { font-weight: 700; }
-            .footer { margin-top: 10px; display: flex; justify-content: space-between; font-size: 11px; font-style: italic; color: #1F2937; }
-            @media print { body { padding: 0; } }
+            .opening td { font-weight: 700; background: #FFF9EE; }
+            .footer { margin-top: 10px; display: flex; justify-content: space-between; font-size: 11px; font-style: italic; color: #4B5563; }
+            .print-note { margin-top: 8px; font-size: 11px; color: #B45309; text-align: right; }
+            @media print { body { padding: 0; } .print-note { display: none; } }
           </style>
         </head>
         <body>
@@ -3777,20 +3785,14 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               <span>Printed By: ${escapeHtml(user?.name || 'User')} On ${escapeHtml(new Date().toLocaleString())}</span>
               <span>Page 1</span>
             </div>
+            <div class="print-note">Use your browser's print or save option to download this statement as PDF.</div>
           </div>
         </body>
       </html>
     `)
     w.document.close()
     w.focus()
-    window.setTimeout(() => {
-      try {
-        w.print()
-      } catch {
-        // Leave preview open if print is blocked.
-      }
-    }, 300)
-    showNotification('✅ PDF export opened for printing')
+    showNotification('✅ Statement preview opened in orange style')
   }
 
   const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`
