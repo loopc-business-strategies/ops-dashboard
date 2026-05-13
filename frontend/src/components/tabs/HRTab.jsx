@@ -89,8 +89,8 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">
-      <h3 className="text-base font-semibold text-white mb-1">{t('addNewEmployee')}</h3>
-      <p className="text-gray-500 text-sm mb-5">{t('fillEmployeeDetails')}</p>
+      <h3 className="text-base font-semibold text-white mb-1 leading-tight">{t('addNewEmployee')}</h3>
+      <p className="text-gray-500 text-sm mb-5 leading-relaxed">{t('fillEmployeeDetails')}</p>
 
       {error && (
         <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
@@ -103,7 +103,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
 
           {/* Name */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
+            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider leading-none">
               {t('fullName')} <span className="text-emerald-700">*</span>
             </label>
             <input
@@ -117,7 +117,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
 
           {/* ID Number */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
+            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider leading-none">
               {t('idNumber')} <span className="text-emerald-700">*</span>
             </label>
             <input
@@ -131,7 +131,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
 
           {/* Employee Code */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
+            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider leading-none">
               {t('employeeCode')} <span className="text-emerald-700">*</span>
             </label>
             <input
@@ -145,7 +145,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
 
           {/* Phone Number */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
+            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider leading-none">
               {t('phoneNumber')}
             </label>
             <input
@@ -159,7 +159,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
 
           {/* Department */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
+            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider leading-none">
               {t('department')}
             </label>
             <select
@@ -175,7 +175,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
 
           {/* Rating */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
+            <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider leading-none">
               {t('rating')}
             </label>
             <StarRating value={form.rating} onChange={(val) => setForm(f => ({ ...f, rating: val }))} />
@@ -184,7 +184,7 @@ function AddEmployeeForm({ onSave, onCancel, token }) {
 
         {/* Address — full width */}
         <div className="mb-6">
-          <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
+          <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider leading-none">
             {t('address')}
           </label>
           <textarea
@@ -261,8 +261,8 @@ function EmployeeList({ token }) {
       {/* Header row */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h3 className="text-base font-semibold text-white">Employee List</h3>
-          <p className="text-gray-500 text-sm mt-0.5">
+          <h3 className="text-base font-semibold text-white leading-tight">Employee List</h3>
+          <p className="text-gray-500 text-sm mt-1 leading-relaxed">
             {employees.length} employee{employees.length !== 1 ? 's' : ''} on record
           </p>
         </div>
@@ -305,25 +305,25 @@ function EmployeeList({ token }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-800/60 border-b border-gray-700">
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium">Name</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium">Employee Code</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium">ID Number</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium">Department</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium">Phone</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium">Address</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium">Rating</th>
-                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium"></th>
+                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none">Name</th>
+                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none">Employee Code</th>
+                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none">ID Number</th>
+                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none">Department</th>
+                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none">Phone</th>
+                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none">Address</th>
+                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none">Rating</th>
+                <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium leading-none"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
               {employees.map(emp => (
                 <tr key={emp._id} className="hover:bg-gray-800/30 transition-colors">
-                  <td className="px-4 py-3 font-medium text-white whitespace-nowrap">{emp.name}</td>
-                  <td className="px-4 py-3 text-gray-300 font-mono text-xs whitespace-nowrap">{emp.employeeCode}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{emp.idNumber}</td>
-                  <td className="px-4 py-3 text-gray-300 text-xs whitespace-nowrap">{deptLabel(emp.department)}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{emp.phoneNumber || '—'}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs max-w-[180px] truncate">{emp.address || '—'}</td>
+                  <td className="px-4 py-3 font-medium text-white whitespace-nowrap leading-tight">{emp.name}</td>
+                  <td className="px-4 py-3 text-gray-300 font-mono text-xs whitespace-nowrap leading-tight">{emp.employeeCode}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap leading-tight">{emp.idNumber}</td>
+                  <td className="px-4 py-3 text-gray-300 text-xs whitespace-nowrap leading-tight">{deptLabel(emp.department)}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap leading-tight">{emp.phoneNumber || '—'}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs max-w-[180px] truncate leading-tight">{emp.address || '—'}</td>
                   <td className="px-4 py-3 text-base whitespace-nowrap">{renderStars(emp.rating)}</td>
                   <td className="px-4 py-3">
                     <button
@@ -348,8 +348,8 @@ function LabourLaw() {
   return (
     <div className="text-center py-20 border border-dashed border-gray-800 rounded-2xl">
       <p className="text-4xl mb-3">⚖️</p>
-      <p className="text-gray-400 font-medium">Labour Law</p>
-      <p className="text-gray-600 text-sm mt-1">Labour law guidelines and compliance documents will appear here</p>
+      <p className="text-gray-400 font-medium leading-tight">Labour Law</p>
+      <p className="text-gray-600 text-sm mt-1 leading-relaxed">Labour law guidelines and compliance documents will appear here</p>
     </div>
   )
 }
@@ -359,8 +359,8 @@ function CurrentUpdates() {
   return (
     <div className="text-center py-20 border border-dashed border-gray-800 rounded-2xl">
       <p className="text-4xl mb-3">📋</p>
-      <p className="text-gray-400 font-medium">Current Updates</p>
-      <p className="text-gray-600 text-sm mt-1">HR announcements and updates will appear here</p>
+      <p className="text-gray-400 font-medium leading-tight">Current Updates</p>
+      <p className="text-gray-600 text-sm mt-1 leading-relaxed">HR announcements and updates will appear here</p>
     </div>
   )
 }
@@ -389,7 +389,7 @@ export default function HRTab() {
           <button
             key={tab.id}
             onClick={() => setSubTab(tab.id)}
-            className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-all ${
+            className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-all leading-none ${
               subTab === tab.id
                 ? 'text-emerald-700 border-b-2 border-emerald-700'
                 : 'text-gray-400 hover:text-gray-900 border-b-2 border-transparent'

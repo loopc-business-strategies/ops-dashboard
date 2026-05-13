@@ -202,26 +202,34 @@ function getSeverityTone(severity) {
 }
 
 function KpiCard({ title, value, hint, tone = 'green', onClick, readOnly }) {
-  const borderClass = tone === 'red' ? 'border-red-400' : tone === 'yellow' ? 'border-yellow-400' : 'border-emerald-400'
+  const toneClass = tone === 'red'
+    ? 'bg-red-500'
+    : tone === 'yellow'
+      ? 'bg-amber-500'
+      : 'bg-emerald-500'
   return (
     <button
       onClick={onClick}
-      className={`text-left bg-white border rounded-xl px-3 py-2 transition-all hover:-translate-y-0.5 hover:shadow-md shadow-sm ${borderClass} ${onClick ? '' : 'cursor-default'}`}
-      style={{ borderTopWidth: 3 }}
+      className={`relative overflow-hidden text-left bg-white border border-gray-200 rounded-xl px-4 py-4 min-h-[128px] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md shadow-sm ${onClick ? '' : 'cursor-default'}`}
+      style={{ minHeight: 132, padding: '16px', borderRadius: 12, borderColor: '#e5e7eb' }}
       disabled={!onClick}
     >
-      <p className="text-[11px] text-gray-600 tracking-wider uppercase">{title}</p>
-      <p className="text-[22px] leading-none font-bold text-gray-900 mt-1">{value}</p>
-      <p className="text-[11px] text-gray-600 mt-0.5">{hint}{readOnly ? ' - read only' : ''}</p>
+      <span className={`absolute left-0 top-0 h-1.5 w-full ${toneClass}`} />
+      <p className="text-[11px] text-gray-500 tracking-[0.14em] uppercase mt-1">{title}</p>
+      <p className="text-[36px] leading-[1.08] font-bold text-gray-900 mt-2">{value}</p>
+      <p className="text-xs text-gray-600 mt-2">{hint}{readOnly ? ' - read only' : ''}</p>
     </button>
   )
 }
 
 function Section({ title, action, children }) {
   return (
-    <section className="bg-white border border-gray-200 rounded-2xl p-2.5 shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-2">
-        <h2 className="text-sm sm:text-base font-bold tracking-tight text-gray-900">{title}</h2>
+    <section
+      className="bg-white border border-gray-200 rounded-xl p-5 sm:p-6 shadow-[0_1px_4px_rgba(0,0,0,0.04)]"
+      style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '20px 22px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
+    >
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-5 pb-3 border-b border-gray-100">
+        <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-gray-900 leading-tight sm:whitespace-nowrap">{title}</h2>
         {action && <div className="w-full sm:w-auto flex justify-start sm:justify-end">{action}</div>}
       </div>
       {children}
@@ -1026,7 +1034,7 @@ function OverviewTab({ onNavigate }) {
   }
 
   return (
-    <div className="space-y-3 pb-4">
+    <div className="space-y-5 sm:space-y-6 pb-8 px-2 sm:px-3 lg:px-4" style={{ padding: '0 14px 32px' }}>
       {toast && (
         <div className="fixed top-3 right-3 left-3 sm:left-auto sm:top-4 sm:right-4 z-50 px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-100 text-emerald-800 text-sm">
           {toast}
@@ -1034,30 +1042,31 @@ function OverviewTab({ onNavigate }) {
       )}
 
       <Section
-        title={`Operational Command Center - ${roleView.replace(/_/g, ' ')}`}
-        action={<p className="text-xs text-gray-600">{today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>}
+        title="Operational Command Center"
+        action={<p className="text-sm font-medium text-gray-600" style={{ marginTop: 2 }}>{today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>}
       >
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2.5">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
           <div>
-            <p className="text-base sm:text-lg font-bold text-gray-900">Good day, {user?.name || 'User'}</p>
-            <p className="text-xs sm:text-sm text-gray-600">Last login: {user?.lastLogin ? fmtDateTime(user.lastLogin) : '2 hrs ago'}</p>
+            <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">Good day, {user?.name || 'User'}</p>
+            <p className="text-sm text-gray-600 mt-1.5">Last login: {user?.lastLogin ? fmtDateTime(user.lastLogin) : '2 hrs ago'}</p>
+            <p className="text-xs text-gray-500 uppercase tracking-[0.12em] mt-2.5 whitespace-nowrap">{roleView.replace(/_/g, ' ')}</p>
           </div>
-          <div className="flex w-full lg:w-auto flex-wrap gap-1.5">
+          <div className="flex w-full lg:w-auto lg:max-w-[760px] flex-wrap gap-2.5 lg:justify-end">
             <input
               value={taskSearch}
               onChange={(e) => setTaskSearch(e.target.value)}
               placeholder="Quick Search"
-              className="input-field w-full sm:w-44"
+              className="input-field w-full sm:!w-44 h-11 rounded-xl text-sm"
             />
             {roleCreateOptions.length > 0 && !isReadOnlyExec && (
-              <select className="input-field w-full sm:w-44" onChange={(e) => { if (e.target.value) onQuickAction(e.target.value); e.target.value = '' }} defaultValue="">
+              <select className="input-field w-full sm:!w-44 h-11 rounded-xl text-sm" onChange={(e) => { if (e.target.value) onQuickAction(e.target.value); e.target.value = '' }} defaultValue="">
                 <option value="">+ Quick Create</option>
                 {roleCreateOptions.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
             )}
-            <button className="px-3 py-2 text-xs rounded-lg border border-yellow-300 bg-yellow-100 text-yellow-800">Alerts {alertRows.filter((a) => !ackedAlerts[a.id]).length}</button>
-            {perms.isSuperAdmin && <button className="px-3 py-2 text-xs rounded-lg border border-blue-300 bg-blue-100 text-blue-800">Export Board Report</button>}
-            {isReadOnlyExec && <span className="px-3 py-2 text-xs rounded-lg border border-sky-300 bg-sky-100 text-sky-800">Read only</span>}
+            <button className="h-11 px-3.5 text-sm font-medium rounded-xl border border-yellow-300 bg-yellow-50 text-yellow-800 inline-flex items-center">Alerts {alertRows.filter((a) => !ackedAlerts[a.id]).length}</button>
+            {perms.isSuperAdmin && <button className="h-11 px-3.5 text-sm font-medium rounded-xl border border-blue-300 bg-blue-50 text-blue-800 inline-flex items-center">Export Board Report</button>}
+            {isReadOnlyExec && <span className="h-11 px-3.5 text-sm font-medium rounded-xl border border-sky-300 bg-sky-50 text-sky-800 inline-flex items-center">Read only</span>}
           </div>
         </div>
       </Section>
@@ -1066,38 +1075,38 @@ function OverviewTab({ onNavigate }) {
         title="Notifications & New Tasks"
         action={
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setNotificationFilter('all')} className={`px-2 py-1 text-xs rounded ${notificationFilter === 'all' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>All</button>
-            <button onClick={() => setNotificationFilter('task')} className={`px-2 py-1 text-xs rounded ${notificationFilter === 'task' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>Tasks</button>
-            <button onClick={() => setNotificationFilter('message')} className={`px-2 py-1 text-xs rounded ${notificationFilter === 'message' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>Messages</button>
+            <button onClick={() => setNotificationFilter('all')} className={`h-9 px-3 text-sm rounded-lg border inline-flex items-center ${notificationFilter === 'all' ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300 text-gray-700'}`}>All</button>
+            <button onClick={() => setNotificationFilter('task')} className={`h-9 px-3 text-sm rounded-lg border inline-flex items-center ${notificationFilter === 'task' ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300 text-gray-700'}`}>Tasks</button>
+            <button onClick={() => setNotificationFilter('message')} className={`h-9 px-3 text-sm rounded-lg border inline-flex items-center ${notificationFilter === 'message' ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300 text-gray-700'}`}>Messages</button>
           </div>
         }
       >
-        <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_0.82fr] gap-2.5">
-          <div className="space-y-1.5">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_0.82fr] gap-5">
+          <div className="space-y-3.5">
             {notificationRows.map((item) => (
-              <div key={item.id} className="border border-gray-300 rounded-xl p-2 bg-white">
+              <div key={item.id} className="border border-gray-200 rounded-xl p-4 sm:p-5 bg-white min-h-[112px]">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium text-gray-900">{item.title}</p>
-                  <span className={`text-[11px] px-2 py-0.5 rounded border ${item.type === 'task' ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-blue-300 bg-blue-100 text-blue-800'}`}>{item.type}</span>
+                  <p className="text-base font-semibold text-gray-900 leading-snug">{item.title}</p>
+                  <span className={`text-[11px] font-medium px-2.5 py-1 rounded-md border leading-none ${item.type === 'task' ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-blue-300 bg-blue-100 text-blue-800'}`}>{item.type}</span>
                 </div>
-                <p className="text-xs text-gray-700 mt-0.5">{item.text}</p>
-                <p className="text-[11px] text-gray-600 mt-1.5">{String(item.time)}</p>
+                <p className="text-sm text-gray-700 mt-2 leading-relaxed">{item.text}</p>
+                <p className="text-xs text-gray-600 mt-3">{String(item.time)}</p>
               </div>
             ))}
           </div>
-          <div className="border border-gray-300 rounded-xl p-3 bg-white">
-            <p className="text-sm font-semibold text-gray-900">Task Action Shortcuts</p>
-            <div className="grid grid-cols-1 gap-1.5 mt-2">
-              <button onClick={() => runTaskShortcut('create')} disabled={!canCreateTasks} className="px-3 py-1.5 text-xs rounded-lg border border-emerald-300 bg-emerald-100 text-emerald-800 disabled:opacity-50">+ Create Task</button>
-              <button onClick={() => runTaskShortcut('my')} className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 bg-white text-gray-800">Open My Tasks</button>
-              <button onClick={() => runTaskShortcut('overdue')} className="px-3 py-1.5 text-xs rounded-lg border border-red-300 bg-red-100 text-red-800">Review Overdue</button>
-              <button onClick={() => runTaskShortcut('dm')} className="px-3 py-1.5 text-xs rounded-lg border border-blue-300 bg-blue-100 text-blue-800">View Direct Messages</button>
+          <div className="border border-gray-200 rounded-xl p-5 bg-gray-50/60">
+            <p className="text-base font-semibold text-gray-900">Task Action Shortcuts</p>
+            <div className="grid grid-cols-1 gap-2.5 mt-3.5">
+              <button onClick={() => runTaskShortcut('create')} disabled={!canCreateTasks} className="h-10 px-3 text-sm rounded-lg border border-emerald-300 bg-emerald-100 text-emerald-800 disabled:opacity-50">+ Create Task</button>
+              <button onClick={() => runTaskShortcut('my')} className="h-10 px-3 text-sm rounded-lg border border-gray-300 bg-white text-gray-700">Open My Tasks</button>
+              <button onClick={() => runTaskShortcut('overdue')} className="h-10 px-3 text-sm rounded-lg border border-red-300 bg-red-50 text-red-700">Review Overdue</button>
+              <button onClick={() => runTaskShortcut('dm')} className="h-10 px-3 text-sm rounded-lg border border-blue-300 bg-blue-50 text-blue-700">View Direct Messages</button>
             </div>
           </div>
         </div>
       </Section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {executiveCards.map((card) => (
           <KpiCard
             key={card.id}
@@ -1112,17 +1121,17 @@ function OverviewTab({ onNavigate }) {
       </div>
 
       <Section title="Executive Summary by Department">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {visibleDeptMetrics.map((m) => (
-            <div key={m.dept} className={`bg-white border rounded-xl p-2.5 ${DEPT_STATUS[m.status] || DEPT_STATUS.attention}`}>
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="font-semibold text-gray-900">{m.title}</p>
-                <span className="text-[11px] text-gray-700">{m.status}</span>
+            <div key={m.dept} className={`bg-white border rounded-xl p-4 sm:p-5 ${DEPT_STATUS[m.status] || DEPT_STATUS.attention}`}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-base font-semibold text-gray-900">{m.title}</p>
+                <span className="text-xs text-gray-700">{m.status}</span>
               </div>
               <p className="text-sm text-gray-800">{m.line1}</p>
-              <p className="text-[11px] sm:text-xs text-gray-700 mt-1">{m.line2}</p>
-              <p className="text-[11px] sm:text-xs text-gray-700">{m.line3}</p>
-              <button onClick={() => onNavigate?.(TAB_BY_DEPT[m.dept])} className="mt-2 text-xs text-emerald-700 hover:text-emerald-800 font-medium">
+              <p className="text-xs text-gray-700 mt-1.5">{m.line2}</p>
+              <p className="text-xs text-gray-700 mt-0.5">{m.line3}</p>
+              <button onClick={() => onNavigate?.(TAB_BY_DEPT[m.dept])} className="mt-3 text-sm text-emerald-700 hover:text-emerald-800 font-medium">
                 View {'->'}
               </button>
             </div>
@@ -1135,13 +1144,13 @@ function OverviewTab({ onNavigate }) {
         title="Tasks Command Center"
         action={
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setTaskView('list')} className={`px-2 py-1 text-xs rounded ${taskView === 'list' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>List</button>
-            <button onClick={() => setTaskView('kanban')} className={`px-2 py-1 text-xs rounded ${taskView === 'kanban' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>Kanban</button>
-            <button onClick={() => setTaskView('calendar')} className={`px-2 py-1 text-xs rounded ${taskView === 'calendar' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>Calendar</button>
+            <button onClick={() => setTaskView('list')} className={`px-3 py-1.5 text-sm rounded-lg border ${taskView === 'list' ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300 text-gray-700'}`}>List</button>
+            <button onClick={() => setTaskView('kanban')} className={`px-3 py-1.5 text-sm rounded-lg border ${taskView === 'kanban' ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300 text-gray-700'}`}>Kanban</button>
+            <button onClick={() => setTaskView('calendar')} className={`px-3 py-1.5 text-sm rounded-lg border ${taskView === 'calendar' ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300 text-gray-700'}`}>Calendar</button>
           </div>
         }
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
           <KpiCard title="Total Tasks" value={taskStats.total} hint="All visible" tone="green" />
           <KpiCard title="My Tasks" value={taskStats.mine} hint="Assigned to me" tone="green" />
           <KpiCard title="Overdue" value={taskStats.overdue} hint="Need action" tone="red" />
@@ -1157,7 +1166,7 @@ function OverviewTab({ onNavigate }) {
             ['due-today', 'Due Today'],
             ['this-week', 'This Week'],
           ].map(([id, label]) => (
-            <button key={id} onClick={() => setTaskFilter(id)} className={`px-3 py-1.5 rounded-lg text-xs ${taskFilter === id ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>
+            <button key={id} onClick={() => setTaskFilter(id)} className={`px-3 py-1.5 rounded-lg text-sm border ${taskFilter === id ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300 text-gray-700'}`}>
               {label}
             </button>
           ))}
@@ -1175,7 +1184,7 @@ function OverviewTab({ onNavigate }) {
           </select>
           <input className="input-field flex-1 min-w-[180px]" placeholder="Search tasks" value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} />
           {canCreateTasks && (
-            <button onClick={() => showTaskCreate ? resetTaskComposer() : openTaskComposer()} className="px-3 py-2 text-xs rounded-lg border border-emerald-300 bg-emerald-100 text-emerald-800">
+            <button onClick={() => showTaskCreate ? resetTaskComposer() : openTaskComposer()} className="px-3 py-2 text-sm rounded-lg border border-emerald-300 bg-emerald-100 text-emerald-800">
               + Create Task
             </button>
           )}

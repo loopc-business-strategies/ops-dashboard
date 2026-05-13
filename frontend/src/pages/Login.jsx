@@ -186,15 +186,15 @@ function Login() {
               </div>
 
               <div
-                className="rounded-[22px] border border-[#dbe3ef] bg-white px-8 pt-12 pb-11 sm:px-12"
-                style={{ width: '100%', maxWidth: '432px', margin: '0 auto', boxShadow: '0 16px 38px rgba(20, 34, 60, 0.08), inset 0 1px 0 rgba(255,255,255,0.95)' }}
+                className="rounded-[24px] border border-[#dbe3ef] bg-white"
+                style={{ width: '100%', maxWidth: '448px', margin: '0 auto', padding: '40px 28px 34px', boxShadow: '0 16px 38px rgba(20, 34, 60, 0.08), inset 0 1px 0 rgba(255,255,255,0.95)' }}
               >
-                <div className="hidden lg:block mb-9">
-                  <h1 className="text-[42px] leading-none font-extrabold tracking-tight text-[#1b2540]">{t('signIn')}</h1>
+                <div className="hidden lg:block" style={{ marginBottom: 26 }}>
+                  <h1 className="leading-none font-extrabold tracking-tight text-[#1b2540]" style={{ fontSize: 52 }}>{t('signIn')}</h1>
                   <p className="text-[13px] text-[#7f8796] mt-2">{branding.tagline || t('operationsControl')}</p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} style={{ display: 'grid', rowGap: 16 }}>
                   {error && (
                     <div className="flex items-center gap-2 rounded-[12px] border border-[#f0c9c9] bg-[#fff5f5] px-3 py-3">
                       <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -205,19 +205,17 @@ function Login() {
                   )}
 
                   <div>
-                    <label className="block text-[12px] font-semibold text-[#8b95a5] mb-2 uppercase tracking-[0.05em]">
+                    <label className="block text-[12px] font-semibold text-[#8b95a5] mb-[8px] uppercase tracking-[0.05em]">
                       {t('username')}
                     </label>
                     <div className="relative">
-                      <svg className="w-4 h-4 text-[#7f8a99] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5.121 17.804A9 9 0 1118.88 17.8M15 10a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
                       <input
                         type="text"
                         value={name}
                         onChange={(e) => { setName(e.target.value); setError('') }}
                         placeholder={t('enterUsername')}
-                        className="w-full rounded-[10px] border border-[#aab7c8] bg-[#f3f7fc] py-[13px] pl-10 pr-4 text-[13px] text-[#273247] outline-none transition-all duration-200 placeholder:text-[#9aa5b4] focus:border-[#6ea6e5] focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,123,255,0.10)]"
+                        className="w-full rounded-[11px] border border-[#aab7c8] bg-[#f3f7fc] pl-4 pr-4 text-[13px] text-[#273247] outline-none transition-all duration-200 placeholder:text-[#9aa5b4] focus:border-[#6ea6e5] focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,123,255,0.10)]"
+                        style={{ height: 56 }}
                         autoFocus
                         autoComplete="username"
                         disabled={loading}
@@ -226,19 +224,17 @@ function Login() {
                   </div>
 
                   <div>
-                    <label className="block text-[12px] font-semibold text-[#8b95a5] mb-2 uppercase tracking-[0.05em]">
+                    <label className="block text-[12px] font-semibold text-[#8b95a5] mb-[8px] uppercase tracking-[0.05em]">
                       {t('password')}
                     </label>
                     <div className="relative">
-                      <svg className="w-4 h-4 text-[#7f8a99] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2h-1V9a5 5 0 00-10 0v2H6a2 2 0 00-2 2v6a2 2 0 002 2zm3-10V9a3 3 0 016 0v2H9z" />
-                      </svg>
                       <input
                         type={showPass ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => { setPassword(e.target.value); setError('') }}
                         placeholder={t('enterPassword')}
-                        className="w-full rounded-[10px] border border-[#aab7c8] bg-[#f3f7fc] py-[13px] pl-10 pr-20 text-[13px] text-[#273247] outline-none transition-all duration-200 placeholder:text-[#9aa5b4] focus:border-[#6ea6e5] focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,123,255,0.10)]"
+                        className="w-full rounded-[11px] border border-[#aab7c8] bg-[#f3f7fc] pl-4 pr-20 text-[13px] text-[#273247] outline-none transition-all duration-200 placeholder:text-[#9aa5b4] focus:border-[#6ea6e5] focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,123,255,0.10)]"
+                        style={{ height: 56 }}
                         autoComplete="current-password"
                         disabled={loading}
                       />
@@ -254,8 +250,8 @@ function Login() {
 
                   <button
                     type="submit"
-                    className="w-full rounded-[10px] py-[13px] text-white text-[14px] font-bold tracking-[0.01em] shadow-[0_8px_18px_rgba(0,91,150,0.22)] transition-transform duration-200 hover:-translate-y-[1px]"
-                    style={{ background: branding.colors.gradBar }}
+                    className="w-full rounded-[11px] text-white text-[14px] font-bold tracking-[0.01em] shadow-[0_8px_18px_rgba(0,91,150,0.22)] transition-transform duration-200 hover:-translate-y-[1px]"
+                    style={{ background: branding.colors.gradBar, height: 54 }}
                     disabled={loading}
                   >
                     {loading ? (
@@ -269,7 +265,7 @@ function Login() {
                     ) : t('signIn')}
                   </button>
 
-                  <div className="pt-4 text-center">
+                  <div className="text-center" style={{ paddingTop: 6 }}>
                     <p className="text-[13px] text-[#7f8796] font-medium">
                       <span className="mr-1">🔒</span>
                       {t('accessByInvitation')}

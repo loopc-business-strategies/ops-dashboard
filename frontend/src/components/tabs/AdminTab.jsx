@@ -112,10 +112,10 @@ function MetricCard({ label, value, tone = 'emerald' }) {
 
 function SettingTile({ title, desc, children }) {
   return (
-    <div className="rounded-2xl border border-gray-800 bg-gray-900/60 p-5">
-      <div className="mb-4">
-        <h4 className="text-sm font-semibold text-white">{title}</h4>
-        <p className="text-xs text-gray-300 mt-1">{desc}</p>
+    <div className="rounded-2xl border border-gray-800 bg-gray-900/60 p-6">
+      <div className="mb-5">
+        <h4 className="text-sm font-semibold text-white leading-tight">{title}</h4>
+        <p className="text-xs text-gray-300 mt-1 leading-relaxed">{desc}</p>
       </div>
       {children}
     </div>
@@ -444,7 +444,7 @@ function UsersTab({ users, token, onRefresh, onOpenPermissions }) {
         />
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
         <MetricCard label="Total Users" value={summary.total} tone="emerald" />
         <MetricCard label="Active Accounts" value={summary.active} tone="green" />
         <MetricCard label="Department Heads" value={summary.heads} tone="amber" />
@@ -453,16 +453,16 @@ function UsersTab({ users, token, onRefresh, onOpenPermissions }) {
 
       <div className="flex items-center justify-between gap-4 mb-5 flex-wrap">
         <div>
-          <h3 className="text-base font-semibold text-white">Users & Access</h3>
-          <p className="text-gray-300 text-sm mt-0.5">Manage user accounts, departments, role profiles, and access metadata.</p>
+          <h3 className="text-base font-semibold text-white leading-tight">Users & Access</h3>
+          <p className="text-gray-300 text-sm mt-1 leading-relaxed">Manage user accounts, departments, role profiles, and access metadata.</p>
         </div>
         {!showCreate && <button onClick={() => setShowCreate(true)} className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors" style={{ background: 'var(--grad-brand)' }}>+ Add User</button>}
       </div>
 
       {showCreate && <CreateUserForm token={token} onCreated={() => { setShowCreate(false); onRefresh(); notify('User created.') }} onCancel={() => setShowCreate(false)} />}
 
-      <div className="rounded-2xl border border-gray-800 bg-gray-900/50 p-4 mb-5">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="rounded-2xl border border-gray-800 bg-gray-900/50 p-5 mb-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Search</label>
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search user, title, code, phone or location" className="input-field" />
@@ -498,10 +498,10 @@ function UsersTab({ users, token, onRefresh, onOpenPermissions }) {
                   <div className="flex items-start gap-3">
                     <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0" style={{ background: 'var(--purple)' }}>{u.name?.[0]?.toUpperCase()}</div>
                     <div>
-                      <p className="text-sm font-medium text-white">{u.fullName || u.name}{u._id === me?.id && <span className="ml-2 text-xs" style={{ color: 'var(--purple)' }}>(you)</span>}</p>
+                      <p className="text-sm font-medium text-white leading-tight">{u.fullName || u.name}{u._id === me?.id && <span className="ml-2 text-xs" style={{ color: 'var(--purple)' }}>(you)</span>}</p>
                       <p className="text-xs text-gray-300">@{u.name}</p>
-                      <p className="text-xs text-gray-300 mt-1">{u.title || 'No title'}{u.employeeCode ? ` | ${u.employeeCode}` : ''}</p>
-                      <p className="text-xs text-gray-300 mt-1">{u.phone || 'No phone'}{u.location ? ` | ${u.location}` : ''}</p>
+                      <p className="text-xs text-gray-300 mt-1 leading-relaxed">{u.title || 'No title'}{u.employeeCode ? ` | ${u.employeeCode}` : ''}</p>
+                      <p className="text-xs text-gray-300 mt-1 leading-relaxed">{u.phone || 'No phone'}{u.location ? ` | ${u.location}` : ''}</p>
                     </div>
                   </div>
                 </td>
@@ -572,13 +572,13 @@ function SettingsTab() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {toast && <div className="fixed top-4 right-4 z-50 bg-gray-800 border border-gray-700 text-gray-200 px-4 py-3 rounded-xl text-sm shadow-xl">{toast}</div>}
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h3 className="text-base font-semibold text-white">Admin Settings</h3>
-          <p className="text-gray-300 text-sm mt-0.5">Configure the operating profile for user access, approvals, alerts, and onboarding defaults.</p>
+          <h3 className="text-base font-semibold text-white leading-tight">Admin Settings</h3>
+          <p className="text-gray-300 text-sm mt-1 leading-relaxed">Configure the operating profile for user access, approvals, alerts, and onboarding defaults.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={resetSettings} className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-all">Reset</button>
@@ -586,9 +586,9 @@ function SettingsTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         <SettingTile title="System Profile" desc="Base operational defaults used across admin-managed processes.">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Company Name</label>
               <input value={settings.companyName} onChange={(e) => setSettings((s) => ({ ...s, companyName: e.target.value }))} className="input-field" />
@@ -619,14 +619,14 @@ function SettingsTab() {
               <input value={settings.passwordRotationDays} onChange={(e) => setSettings((s) => ({ ...s, passwordRotationDays: e.target.value }))} className="input-field" />
             </div>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <Toggle checked={settings.requireMfaForAdmins} onChange={() => setSettings((s) => ({ ...s, requireMfaForAdmins: !s.requireMfaForAdmins }))} label="Require stronger admin sign-in" desc="Use this as the control point for privileged-user hardening policies." />
             <Toggle checked={settings.loginAlerts} onChange={() => setSettings((s) => ({ ...s, loginAlerts: !s.loginAlerts }))} label="Send login alerts" desc="Highlights unexpected access patterns during operational hours." />
           </div>
         </SettingTile>
 
         <SettingTile title="Workflow Controls" desc="Operational defaults for approvals and guided onboarding.">
-          <div className="space-y-3">
+          <div className="space-y-4">
             <Toggle checked={settings.approvalEscalation} onChange={() => setSettings((s) => ({ ...s, approvalEscalation: !s.approvalEscalation }))} label="Escalate overdue approvals" desc="Useful for finance, compliance, and production signoff chains." />
             <Toggle checked={settings.allowWeekendApprovals} onChange={() => setSettings((s) => ({ ...s, allowWeekendApprovals: !s.allowWeekendApprovals }))} label="Allow weekend approvals" desc="Enable or block approval activity outside standard working windows." />
             <Toggle checked={settings.onboardingChecklist} onChange={() => setSettings((s) => ({ ...s, onboardingChecklist: !s.onboardingChecklist }))} label="Use onboarding checklist for new users" desc="Encourages consistent setup of role, department, and access notes." />
@@ -634,7 +634,7 @@ function SettingsTab() {
         </SettingTile>
 
         <SettingTile title="Monitoring & Notifications" desc="Admin-facing awareness and reporting defaults.">
-          <div className="space-y-3">
+          <div className="space-y-4">
             <Toggle checked={settings.dailyDigest} onChange={() => setSettings((s) => ({ ...s, dailyDigest: !s.dailyDigest }))} label="Daily admin digest" desc="Summarize new users, deactivations, and pending admin issues." />
             <div className="rounded-xl border border-gray-800 bg-black/20 p-4">
               <p className="text-sm font-medium text-white">Role Coverage Snapshot</p>

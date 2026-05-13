@@ -49,9 +49,15 @@ function Badge({ children, color = 'gray' }) {
 
 function StatCard({ icon, label, value, sub, color = 'var(--purple)', trend }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 hover:border-violet-500/30 transition-all hover:-translate-y-0.5"
-         style={{ boxShadow: `0 0 0 1px transparent` }}>
-      <div className="flex items-start justify-between mb-3">
+    <div
+      className="rounded-2xl p-5 hover:-translate-y-0.5 transition-all"
+      style={{
+        background: 'rgba(17, 24, 39, 0.96)',
+        border: '1px solid rgba(55, 65, 81, 0.95)',
+        boxShadow: '0 1px 0 rgba(255, 255, 255, 0.02), 0 12px 24px rgba(0, 0, 0, 0.16)',
+      }}
+    >
+      <div className="flex items-start justify-between gap-3 mb-4">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg"
              style={{ background: `${color}22` }}>{icon}</div>
         {trend !== undefined && (
@@ -60,9 +66,9 @@ function StatCard({ icon, label, value, sub, color = 'var(--purple)', trend }) {
           </span>
         )}
       </div>
-      <p className="text-2xl font-bold text-white mt-1">{value}</p>
-      <p className="text-xs text-gray-400 mt-0.5">{label}</p>
-      {sub && <p className="text-xs text-gray-600 mt-1">{sub}</p>}
+      <p className="text-2xl font-bold text-white leading-none tracking-tight">{value}</p>
+      <p className="text-xs text-gray-400 mt-1.5 leading-snug">{label}</p>
+      {sub && <p className="text-xs text-gray-500 mt-1 leading-relaxed">{sub}</p>}
     </div>
   )
 }
@@ -92,10 +98,10 @@ function OEEGauge({ value = 78, size = 80 }) {
 
 function SectionHeader({ title, sub, action }) {
   return (
-    <div className="flex items-center justify-between mb-6">
+    <div className="flex items-center justify-between mb-7 gap-4">
       <div>
-        <h3 className="text-base font-semibold text-white">{title}</h3>
-        {sub && <p className="text-sm text-gray-500 mt-0.5">{sub}</p>}
+        <h3 className="text-base font-semibold text-white leading-tight">{title}</h3>
+        {sub && <p className="text-sm text-gray-500 mt-1 leading-relaxed">{sub}</p>}
       </div>
       {action}
     </div>
@@ -123,7 +129,7 @@ function Modal({ open, title, onClose, children, wide }) {
          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
       <div className={`bg-gray-950 border border-gray-800 rounded-2xl shadow-2xl w-full ${wide ? 'max-w-2xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-          <h2 className="text-base font-semibold text-white">{title}</h2>
+          <h2 className="text-base font-semibold text-white leading-tight">{title}</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-white text-xl leading-none">×</button>
         </div>
         <div className="p-6">{children}</div>
@@ -135,7 +141,7 @@ function Modal({ open, title, onClose, children, wide }) {
 function Field({ label, required, children }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">
+      <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider leading-none">
         {label} {required && <span className="text-violet-400">*</span>}
       </label>
       {children}
@@ -340,7 +346,7 @@ function KPIOverview() {
   const avgQuality = (LINES.reduce((s, l) => s + l.quality, 0) / LINES.length).toFixed(1)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <SectionHeader title="KPI Overview" sub="Real-time status across all production lines" />
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -359,23 +365,38 @@ function KPIOverview() {
         <StatCard icon="🔄" label="Shift Changes"    value="3"  sub="Next: 14:00" color="#3b82f6" />
       </div>
 
-      <div>
-        <h4 className="text-sm font-semibold text-white mb-3">Production Line Status</h4>
+      <div
+        className="rounded-2xl p-5"
+        style={{
+          background: 'rgba(17, 24, 39, 0.96)',
+          border: '1px solid rgba(55, 65, 81, 0.95)',
+          boxShadow: '0 1px 0 rgba(255, 255, 255, 0.02), 0 12px 24px rgba(0, 0, 0, 0.16)',
+        }}
+      >
+        <h4 className="text-sm font-semibold text-white mb-4 leading-tight">Production Line Status</h4>
         <div className="space-y-3">
           {LINES.map(line => {
             const pct = Math.round((line.output / line.target) * 100)
             const sc  = STATE_COLORS[line.state]
             return (
-              <div key={line.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-white">{line.name}</span>
+              <div
+                key={line.id}
+                className="rounded-xl p-4"
+                style={{
+                  background: 'rgba(17, 24, 39, 0.92)',
+                  border: '1px solid rgba(55, 65, 81, 0.9)',
+                  boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.02)',
+                }}
+              >
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-3 items-start mb-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-sm font-medium text-white leading-tight truncate">{line.name}</span>
                     <Badge color={sc.badge}>{sc.label}</Badge>
                   </div>
-                  <div className="flex items-center gap-4 text-xs text-gray-400">
-                    <span>OEE: <span className="text-white font-medium">{line.oee || '—'}%</span></span>
-                    <span>Quality: <span className="text-white font-medium">{line.quality}%</span></span>
-                    <span>Operator: <span className="text-white font-medium">{line.operator}</span></span>
+                  <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-xs text-gray-400 lg:text-right">
+                    <span className="whitespace-nowrap">OEE: <span className="text-white font-medium">{line.oee || '—'}%</span></span>
+                    <span className="whitespace-nowrap">Quality: <span className="text-white font-medium">{line.quality}%</span></span>
+                    <span className="whitespace-nowrap">Operator: <span className="text-white font-medium">{line.operator}</span></span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -415,8 +436,8 @@ function LiveMonitor({ canEdit, showToast }) {
                  onClick={() => setSelected(line)}>
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="text-sm font-semibold text-white">{line.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Operator: {line.operator}</p>
+                  <p className="text-sm font-semibold text-white leading-tight">{line.name}</p>
+                  <p className="text-xs text-gray-500 mt-1 leading-relaxed">Operator: {line.operator}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <Badge color={sc.badge}>{sc.label}</Badge>
@@ -460,7 +481,7 @@ function LiveMonitor({ canEdit, showToast }) {
 
       {/* Timeline */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-        <h4 className="text-sm font-semibold text-white mb-4">Today's Production Timeline</h4>
+        <h4 className="text-sm font-semibold text-white mb-4 leading-tight">Today's Production Timeline</h4>
         <div className="space-y-3">
           {LINES.map(line => (
             <div key={line.id} className="flex items-center gap-3">
@@ -587,7 +608,7 @@ function Equipment({ canEdit, showToast }) {
           <thead>
             <tr className="border-b border-gray-800">
               {['Equipment', 'Line', 'Type', 'Status', 'Last Maint.', 'Next Maint.', 'Age', canEdit ? 'Actions' : ''].filter(Boolean).map(h => (
-                <th key={h} className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider pb-3 pr-4">{h}</th>
+                <th key={h} className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider pb-3 pr-4 leading-none">{h}</th>
               ))}
             </tr>
           </thead>
@@ -596,13 +617,13 @@ function Equipment({ canEdit, showToast }) {
               const st = EQUIP_STATUS[eq.status] || EQUIP_STATUS.idle
               return (
                 <tr key={eq.id} className="hover:bg-gray-800/30 transition-colors">
-                  <td className="py-3 pr-4 font-medium text-white">{eq.name}</td>
-                  <td className="py-3 pr-4 text-gray-400">{eq.line}</td>
-                  <td className="py-3 pr-4 text-gray-400">{eq.type}</td>
+                  <td className="py-3 pr-4 font-medium text-white leading-tight">{eq.name}</td>
+                  <td className="py-3 pr-4 text-gray-400 leading-tight">{eq.line}</td>
+                  <td className="py-3 pr-4 text-gray-400 leading-tight">{eq.type}</td>
                   <td className="py-3 pr-4"><Badge color={st.badge}>{st.label}</Badge></td>
-                  <td className="py-3 pr-4 text-gray-400">{eq.lastMaint || '—'}</td>
-                  <td className="py-3 pr-4 text-gray-400">{eq.nextMaint || '—'}</td>
-                  <td className="py-3 pr-4 text-gray-400">{eq.age}</td>
+                  <td className="py-3 pr-4 text-gray-400 leading-tight">{eq.lastMaint || '—'}</td>
+                  <td className="py-3 pr-4 text-gray-400 leading-tight">{eq.nextMaint || '—'}</td>
+                  <td className="py-3 pr-4 text-gray-400 leading-tight">{eq.age}</td>
                   {canEdit && (
                     <td className="py-3">
                       <button onClick={() => openEdit(eq)}
@@ -747,20 +768,20 @@ function Maintenance({ canEdit, showToast }) {
           <thead>
             <tr className="border-b border-gray-800">
               {['ID', 'Equipment', 'Type', 'Priority', 'Status', 'Assignee', 'Scheduled', canEdit ? 'Actions' : ''].filter(Boolean).map(h => (
-                <th key={h} className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider pb-3 pr-4">{h}</th>
+                <th key={h} className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider pb-3 pr-4 leading-none">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800/50">
             {orders.map(o => (
               <tr key={o.id} className="hover:bg-gray-800/30 transition-colors">
-                <td className="py-3 pr-4 font-mono text-xs text-violet-400">{o.id}</td>
-                <td className="py-3 pr-4 font-medium text-white max-w-[180px] truncate">{o.equipment}</td>
+                <td className="py-3 pr-4 font-mono text-xs text-violet-400 leading-tight">{o.id}</td>
+                <td className="py-3 pr-4 font-medium text-white max-w-[180px] truncate leading-tight">{o.equipment}</td>
                 <td className="py-3 pr-4"><Badge color={typeColor[o.type] || 'gray'}>{o.type}</Badge></td>
                 <td className="py-3 pr-4"><Badge color={WO_PRIORITY[o.priority]?.badge || 'gray'}>{WO_PRIORITY[o.priority]?.label}</Badge></td>
                 <td className="py-3 pr-4"><Badge color={WO_STATUS[o.status]?.badge || 'gray'}>{WO_STATUS[o.status]?.label}</Badge></td>
-                <td className="py-3 pr-4 text-gray-400">{o.assignee}</td>
-                <td className="py-3 pr-4 text-gray-400">{o.scheduled || '—'}</td>
+                <td className="py-3 pr-4 text-gray-400 leading-tight">{o.assignee}</td>
+                <td className="py-3 pr-4 text-gray-400 leading-tight">{o.scheduled || '—'}</td>
                 {canEdit && (
                   <td className="py-3">
                     {o.status === 'open' && (

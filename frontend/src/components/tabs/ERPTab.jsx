@@ -741,9 +741,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       breakEven: Math.abs(xagBalance) !== 0 ? totalFunds / Math.abs(xagBalance) : 0,
     },
   ] : []
-  const modalFundsRows = [
-    { currency: 'USD', limits: 0, value: modalTotalFundsDisplay },
-  ]
   const statementReferenceTypes = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
   const statementDepartments = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean))).sort()
   const isCashOnHandEnquiry = String(accountEnquiryData?.account?.accountCode || '').trim() === '1000'
@@ -831,6 +828,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const modalNetEquityDisplay = modalTotalFundsDisplay + modalRevaluation
   const modalExcessDisplay = modalNetEquityDisplay - modalMarginAmt
   const modalMarginPctDisplay = modalMarginAmt !== 0 ? (modalNetEquityDisplay / modalMarginAmt) * 100 : 0
+  const modalFundsRows = [
+    { currency: 'USD', limits: 0, value: modalTotalFundsDisplay },
+  ]
   const resolveDealSide = (entry) => {
     const explicit = String(entry?.metalDealType || entry?.sourceTransactionType || '').toLowerCase().trim()
     if (explicit === 'sale' || explicit === 'purchase') return explicit
