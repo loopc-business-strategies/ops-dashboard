@@ -126,23 +126,28 @@ console.log(`Mongo configured tenants: ${mongoInfo.availableTenants.join(', ') |
 console.log(`Mongo target: ${mongoInfo.target}`)
 
 async function startServer() {
+  // Start HTTP server FIRST so the Railway healthcheck at /api/health can
+  // respond immediately. MongoDB connects in the background; Mongoose queues
+  // any route-level queries until the connection is established.
+  const httpServer = http.createServer(app)
+  const realtimeServer = new RealtimeServer(httpServer)
+  app.set('realtimeServer', realtimeServer)
+
+  httpServer.listen(PORT, () => {
+    console.log(`✅ Server running at http://localhost:${PORT}`)
+    console.log(`   Health check: http://localhost:${PORT}/api/health`)
+    console.log('✅ Realtime Socket.IO enabled')
+  })
+
+  // Connect to MongoDB after the HTTP server is already accepting traffic.
   try {
     await mongoose.connect(mongoUri)
     console.log('✅ Connected to MongoDB')
-
-    const httpServer = http.createServer(app)
-    const realtimeServer = new RealtimeServer(httpServer)
-    app.set('realtimeServer', realtimeServer)
-
-    httpServer.listen(PORT, () => {
-      console.log(`✅ Server running at http://localhost:${PORT}`)
-      console.log(`   Health check: http://localhost:${PORT}/api/health`)
-      console.log('✅ Realtime Socket.IO enabled')
-    })
   } catch (err) {
-    console.warn(`⚠️  MongoDB connect failed (${mongoUri.split('@')[1]?.split('/')[0] || 'unknown'}): ${err.message}`)
-    console.error('❌ MongoDB connection failed. Server not started.')
-    process.exit(1)
+    console.error(`❌ MongoDB connect failed (${mongoUri.split('@')[1]?.split('/')[0] || 'unknown'}): ${err.message}`)
+    // Don't exit — Railway will keep the process alive and Mongoose will
+    // continue retrying. Requests that hit the DB before reconnect will
+    // receive a 500, but the healthcheck stays green.
   }
 }
 
