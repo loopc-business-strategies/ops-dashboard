@@ -807,6 +807,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const entryCurrency = String(entry.currency || '').toUpperCase().trim()
       if (entryCurrency !== statementFilters.foreignCurrency.toUpperCase().trim()) return false
     }
+    if (statementFilters.metalCommodity) {
+      const selectedMetalCode = resolveMetalCodeFromStockName(statementFilters.metalCommodity)
+      const entryMetalCode = resolveMetalCode(entry)
+      if (entryMetalCode !== selectedMetalCode) return false
+    }
     return true
   })
   const visibleStatementNetBalance = filteredStatementEntries.reduce((sum, entry) => {
@@ -8088,7 +8093,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                       </label>
                     </div>
 
-                    <div style={{ overflowX: 'auto' }}>
+                    <div style={{ overflowX: 'auto' }} data-statement-table="true">
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
                         <thead>
                           <tr style={{ background: '#E8EBE0', borderBottom: '1px solid #CBD5E0' }}>
@@ -8184,6 +8189,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
             <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               {canExportAccountSummary && accountEnquiryData && (
                 <>
+                  <button onClick={() => {
+                    const tableElement = document.querySelector('[data-statement-table="true"]');
+                    if (tableElement) {
+                      tableElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                  }} style={{ padding: '0.6rem 1.2rem', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>👁 View Statement</button>
                   <button onClick={handleExportEnquiryPdf} style={{ padding: '0.6rem 1.2rem', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
                 </>
               )}
