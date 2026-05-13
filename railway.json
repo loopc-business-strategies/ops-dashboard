@@ -1,8 +1,8 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "deploy": {
-    "buildCommand": "cd backend && npm install --omit=dev",
-    "startCommand": "cd backend && node server.js",
+    "buildCommand": "if [ -d backend ]; then cd backend; fi; npm install --omit=dev",
+    "startCommand": "if [ -d backend ]; then cd backend; fi; node server.js",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 120,
     "restartPolicyType": "on_failure",
