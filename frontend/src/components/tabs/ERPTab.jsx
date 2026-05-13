@@ -3706,9 +3706,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               --soa-border: #C9A15A;
               --soa-ink: #111827;
             }
-            body { font-family: Arial, sans-serif; color: var(--soa-ink); margin: 0; padding: 18px; background: #FFFFFF; }
+            body { font-family: Arial, sans-serif; color: var(--soa-ink); margin: 0; padding: 18px; background: #FFFFFF; color-adjust: exact; -webkit-print-color-adjust: exact; }
             .sheet { width: 100%; }
-            .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 3px solid var(--soa-orange); }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 3px solid var(--soa-orange); color-adjust: exact; -webkit-print-color-adjust: exact; }
             .brand { display: flex; gap: 16px; align-items: flex-start; }
             .brand-copy { font-size: 12px; line-height: 1.25; }
             .brand-copy .company { font-size: 15px; font-weight: 700; }
@@ -3716,25 +3716,29 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
             .statement-head { text-align: right; min-width: 240px; }
             .statement-head .title { font-size: 16px; font-weight: 800; margin-bottom: 2px; color: var(--soa-orange-deep); }
             .statement-head .dates { font-size: 12px; color: #5B4632; }
-            .party-box { border: 1px solid var(--soa-border); background: linear-gradient(180deg, var(--soa-orange-soft) 0%, #FFFFFF 72%); min-height: 116px; padding: 8px 10px; margin: 8px 0 0; }
+            .party-box { border: 1px solid var(--soa-border); background: linear-gradient(180deg, var(--soa-orange-soft) 0%, #FFFFFF 72%); min-height: 116px; padding: 8px 10px; margin: 8px 0 0; color-adjust: exact; -webkit-print-color-adjust: exact; }
             .party-code { font-size: 12px; margin-bottom: 4px; }
             .party-name { font-size: 13px; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; }
             .party-address { font-size: 12px; line-height: 1.25; white-space: pre-line; }
             table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 0; }
-            th, td { border: 1px solid var(--soa-border); padding: 5px 6px; vertical-align: middle; }
-            thead th { background: linear-gradient(180deg, #FDE7BD 0%, #F7C86A 100%); color: var(--soa-ink); font-weight: 700; text-align: center; }
-            .subhead th { background: linear-gradient(180deg, #FDE7BD 0%, #F7C86A 100%); font-size: 10px; }
+            th, td { border: 1px solid var(--soa-border); padding: 5px 6px; vertical-align: middle; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            thead th { background: linear-gradient(180deg, #FDE7BD 0%, #F7C86A 100%); color: var(--soa-ink); font-weight: 700; text-align: center; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .subhead th { background: linear-gradient(180deg, #FDE7BD 0%, #F7C86A 100%); font-size: 10px; color-adjust: exact; -webkit-print-color-adjust: exact; }
             td { text-align: center; }
             .narration { text-align: left; }
             .num { text-align: right; white-space: nowrap; }
-            .opening td { font-weight: 700; background: #FFF9EE; }
-            .carry-row td { background: #FBE6BD; font-weight: 700; }
+            .opening td { font-weight: 700; background: #FFF9EE; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .carry-row td { background: #FBE6BD; font-weight: 700; color-adjust: exact; -webkit-print-color-adjust: exact; }
             .carry-row.top td { border-top: 0; }
             .carry-row.bottom td { border-bottom: 0; }
             .carry-label { text-align: center; font-weight: 700; }
             .footer { margin-top: 10px; display: flex; justify-content: space-between; font-size: 11px; font-style: italic; color: #4B5563; }
             .print-note { margin-top: 8px; font-size: 11px; color: #B45309; text-align: right; }
-            @media print { body { padding: 0; } .print-note { display: none; } }
+            @media print { 
+              body { padding: 0; color-adjust: exact; -webkit-print-color-adjust: exact; } 
+              .print-note { display: none; } 
+              * { color-adjust: exact; -webkit-print-color-adjust: exact; }
+            }
           </style>
         </head>
         <body>
