@@ -604,10 +604,10 @@ function Dashboard({
         </div>
       </aside>
 
-      {/* Overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40"
-          style={{ background: 'rgba(0,0,0,0.25)', backdropFilter: 'blur(1px)' }}
+      {/* Mobile overlay */}
+      {sidebarOpen && !isDesktop && (
+        <div className="fixed inset-0 z-40 lg:hidden"
+          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(2px)' }}
           onClick={closeSidebar} />
       )}
 
