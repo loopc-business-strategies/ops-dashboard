@@ -2,6 +2,7 @@ require('dotenv').config()
 
 const path = require('path')
 const fs = require('fs')
+const { execSync } = require('child_process')
 const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
@@ -29,18 +30,37 @@ const trainingRoutes   = require('./routes/training')
 const cleanupRoutes    = require('./routes/cleanupRoutes')
 const backendPackage = require('./package.json')
 
-const resolveBackendSha = () => String(
-  process.env.BACKEND_BUILD_SHA
-  || process.env.RAILWAY_GIT_COMMIT_SHA
-  || process.env.GIT_COMMIT_SHA
-  || process.env.SOURCE_VERSION
-  || process.env.COMMIT_SHA
-  || 'unknown'
-).trim()
+const resolveBackendCommit = () => {
+  const envCommit = String(
+    process.env.BACKEND_BUILD_COMMIT
+    || process.env.BACKEND_BUILD_SHA
+    || process.env.RAILWAY_GIT_COMMIT_SHA
+    || process.env.GIT_COMMIT_SHA
+    || process.env.SOURCE_VERSION
+    || process.env.COMMIT_SHA
+    || process.env.GITHUB_SHA
+    || process.env.CI_COMMIT_SHA
+    || ''
+  ).trim()
+
+  if (envCommit) return envCommit
+
+  try {
+    return execSync('git rev-parse --short=7 HEAD', {
+      cwd: path.join(__dirname, '..'),
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).toString().trim()
+  } catch {
+    return 'unknown'
+  }
+}
+
+const backendCommit = resolveBackendCommit()
 
 const backendBuildMeta = {
   version: String(backendPackage.version || '0.0.0'),
-  sha: resolveBackendSha(),
+  commit: backendCommit,
+  sha: backendCommit,
   builtAt: String(process.env.BACKEND_BUILD_TIME || process.env.RAILWAY_DEPLOYMENT_TIMESTAMP || new Date().toISOString()),
 }
 
@@ -127,6 +147,7 @@ function createApp() {
       success: true,
       message: 'Server is running!',
       time: new Date(),
+      commit: backendBuildMeta.commit,
       build: backendBuildMeta,
       backend: backendBuildMeta,
     })

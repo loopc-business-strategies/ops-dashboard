@@ -25,10 +25,11 @@ function BuildInfoBadge({ tone = 'dark', className = '' }) {
         if (!response.ok) return
         const payload = await response.json()
         const build = payload?.build || payload?.backend || {}
+        const resolvedBackendSha = String(build.sha || build.commit || payload?.commit || 'unknown')
         if (!active) return
         setBackendMeta({
           version: String(build.version || '0.0.0'),
-          sha: String(build.sha || 'unknown'),
+          sha: resolvedBackendSha,
           builtAt: String(build.builtAt || ''),
         })
       } catch {
