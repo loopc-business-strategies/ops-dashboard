@@ -79,6 +79,11 @@ const loadPdfTools = async () => {
   return { jsPDF, autoTable: autoTableMod.default || autoTableMod }
 }
 
+const loadHtmlToPdf = async () => {
+  const mod = await import('html2pdf.js')
+  return mod.default || mod
+}
+
 const TRANSACTION_STATUS_STYLES = {
   draft: { background: '#FEF3C7', color: '#92400E' },
   submitted: { background: '#DBEAFE', color: '#1D4ED8' },
@@ -3818,21 +3823,66 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   }
 
   const handlePrintStatement = async () => {
-    const htmlData = await generateStatementHtml()
-    if (!htmlData) return
+    try {
+      const htmlData = await generateStatementHtml()
+      if (!htmlData) return
 
-    const w = window.open('', '_blank')
-    if (!w) {
-      setError('Popup blocked. Please allow popups for print')
-      return
+      const html2pdf = await loadHtmlToPdf()
+      const parser = new DOMParser()
+      const parsed = parser.parseFromString(htmlData.html, 'text/html')
+      const exportRoot = document.createElement('div')
+      exportRoot.style.position = 'fixed'
+      exportRoot.style.left = '-20000px'
+      exportRoot.style.top = '0'
+      exportRoot.style.width = '1120px'
+      exportRoot.style.background = '#FFFFFF'
+      exportRoot.innerHTML = `
+        <style>${parsed.querySelector('style')?.textContent || ''}</style>
+        ${parsed.body.innerHTML}
+      `
+      document.body.appendChild(exportRoot)
+
+      const stamp = new Date().toISOString().slice(0, 10)
+      const fileName = `Statement-${htmlData.accountCode}-${stamp}.pdf`
+      const worker = html2pdf().set({
+        margin: 0,
+        filename: fileName,
+        image: { type: 'jpeg', quality: 1 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        },
+        jsPDF: {
+          unit: 'mm',
+          format: 'a4',
+          orientation: 'landscape',
+        },
+      }).from(exportRoot).toPdf()
+
+      const blobUrl = await worker.outputPdf('bloburl')
+      document.body.removeChild(exportRoot)
+
+      const w = window.open(blobUrl, '_blank')
+      if (!w) {
+        URL.revokeObjectURL(blobUrl)
+        setError('Popup blocked. Please allow popups for print')
+        return
+      }
+
+      setTimeout(() => {
+        w.focus()
+        w.print()
+      }, 700)
+
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
+      setExportOptionsOpen(false)
+      showNotification('✅ Color PDF opened for printing')
+    } catch (err) {
+      console.error('Statement print error:', err)
+      setError('Failed to prepare a color PDF for printing.')
     }
-
-    w.document.write(htmlData.html)
-    w.document.close()
-    w.focus()
-    setTimeout(() => w.print(), 500)
-    setExportOptionsOpen(false)
-    showNotification('✅ Print dialog opened')
   }
 
   const handleDownloadStatementPdf = async () => {
@@ -3840,28 +3890,42 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const htmlData = await generateStatementHtml()
       if (!htmlData) return
 
-      // Create a blob from HTML string
-      const blob = new Blob([htmlData.html], { type: 'text/html' })
-      const url = URL.createObjectURL(blob)
-      
-      // Open in new window and trigger print to PDF
-      const w = window.open(url, '_blank')
-      if (!w) {
-        setError('Popup blocked. Please allow popups to download PDF')
-        return
-      }
+      const html2pdf = await loadHtmlToPdf()
+      const parser = new DOMParser()
+      const parsed = parser.parseFromString(htmlData.html, 'text/html')
+      const exportRoot = document.createElement('div')
+      exportRoot.style.position = 'fixed'
+      exportRoot.style.left = '-20000px'
+      exportRoot.style.top = '0'
+      exportRoot.style.width = '1120px'
+      exportRoot.style.background = '#FFFFFF'
+      exportRoot.innerHTML = `
+        <style>${parsed.querySelector('style')?.textContent || ''}</style>
+        ${parsed.body.innerHTML}
+      `
+      document.body.appendChild(exportRoot)
 
-      w.addEventListener('load', () => {
-        setTimeout(() => {
-          w.print()
-        }, 500)
-      })
+      const stamp = new Date().toISOString().slice(0, 10)
+      await html2pdf().set({
+        margin: 0,
+        filename: `Statement-${htmlData.accountCode}-${stamp}.pdf`,
+        image: { type: 'jpeg', quality: 1 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        },
+        jsPDF: {
+          unit: 'mm',
+          format: 'a4',
+          orientation: 'landscape',
+        },
+      }).from(exportRoot).save()
 
+      document.body.removeChild(exportRoot)
       setExportOptionsOpen(false)
-      showNotification('✅ Print dialog opened - Save as PDF from browser')
-      
-      // Clean up the blob URL after a delay
-      setTimeout(() => URL.revokeObjectURL(url), 60000)
+      showNotification('✅ Color PDF downloaded')
     } catch (err) {
       console.error('PDF generation error:', err)
       setError('Failed to generate PDF. Please try again.')
