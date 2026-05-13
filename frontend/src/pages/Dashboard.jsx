@@ -252,7 +252,7 @@ function Dashboard({
   const accountMenuRef = useRef(null)
 
   const DESKTOP_MIN_WIDTH = 1024
-  const DESKTOP_SIDEBAR_WIDTH = 224
+  const DESKTOP_SIDEBAR_WIDTH = 216
   const [isDesktop, setIsDesktop] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_MIN_WIDTH : true
   ))
@@ -651,12 +651,12 @@ function Dashboard({
             </div>
 
             {/* Right side of header */}
-            <div className="ml-auto flex items-center justify-end gap-1.5 flex-nowrap">
+            <div className="ml-auto flex items-center justify-end gap-1 flex-nowrap">
               <BuildInfoBadge className="hidden md:inline-flex" />
 
               {/* Read-only badge */}
               {perms.isReadOnly && (
-                <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs"
+                <span className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg text-[11px]"
                   style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)', color: '#60a5fa' }}>
                   🔒 {t('readOnly')}
                 </span>
@@ -666,15 +666,15 @@ function Dashboard({
               <div className="relative" ref={metalMenuRef}>
                 <button
                   onClick={() => setMetalMenuOpen(v => !v)}
-                  className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-sm transition-all"
+                  className="flex items-center gap-1 px-2 h-7 rounded-lg text-xs transition-all"
                   style={{
                     background: metalMenuOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
                     border: '1px solid rgba(255,255,255,0.2)',
                     color: '#ffffff',
                   }}>
                   <span style={{ width: 8, height: 8, borderRadius: 999, background: selectedMetalOption.color }} />
-                  <span className="hidden lg:inline" style={{ fontWeight: 700, fontSize: 12 }}>{selectedMetalOption.label}</span>
-                  <span style={{ fontWeight: 700, fontSize: 12 }}>
+                  <span className="hidden lg:inline" style={{ fontWeight: 700, fontSize: 11 }}>{selectedMetalOption.label}</span>
+                  <span style={{ fontWeight: 700, fontSize: 11 }}>
                     {Number(metalRates[selectedMetal] || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                   </span>
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ opacity: 0.5, marginTop: 1 }}>
@@ -721,17 +721,17 @@ function Dashboard({
               <div className="relative" ref={notifMenuRef}>
                 <button
                   onClick={() => setNotifOpen(v => !v)}
-                  className="relative h-8 w-8 rounded-lg transition-all inline-flex items-center justify-center"
+                  className="relative h-7 w-7 rounded-lg transition-all inline-flex items-center justify-center"
                   style={{
                     background: notifOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
                     border: '1px solid rgba(255,255,255,0.2)',
                     color: '#ffffff',
                   }}>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .53-.21 1.04-.59 1.41L4 17h5m6 0a3 3 0 11-6 0m6 0H9" />
                   </svg>
                   {notifications.length > 0 && (
-                    <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 16, height: 16, borderRadius: 999, background: '#ef4444', color: '#fff', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', fontWeight: 700 }}>
+                    <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 15, height: 15, borderRadius: 999, background: '#ef4444', color: '#fff', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', fontWeight: 700 }}>
                       {notifications.length}
                     </span>
                   )}
@@ -767,7 +767,7 @@ function Dashboard({
                 <button
                   onClick={() => setLangMenuOpen(v => !v)}
                   title={t('language')}
-                  className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-sm transition-all"
+                  className="flex items-center gap-1 px-2 h-7 rounded-lg text-xs transition-all"
                   style={{
                     background: langMenuOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
                     border: '1px solid rgba(255,255,255,0.2)',
@@ -776,7 +776,7 @@ function Dashboard({
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ opacity: 0.85 }}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h18M12 3a15.3 15.3 0 014 9 15.3 15.3 0 01-4 9 15.3 15.3 0 01-4-9 15.3 15.3 0 014-9zM3 12a9 9 0 019-9 9 9 0 019 9 9 9 0 01-9 9 9 9 0 01-9-9z" />
                   </svg>
-                  <span className="hidden sm:inline font-semibold" style={{ fontSize: 12 }}>{languageCode} {langMeta.nativeLabel}</span>
+                  <span className="hidden sm:inline font-semibold" style={{ fontSize: 11 }}>{languageCode} {langMeta.nativeLabel}</span>
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ opacity: 0.5, marginTop: 1 }}>
                     <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
@@ -824,34 +824,34 @@ function Dashboard({
               <div className="relative" ref={accountMenuRef}>
                 <button
                   onClick={() => setAccountMenuOpen(v => !v)}
-                  className="flex items-center gap-2 px-2.5 h-8 rounded-lg"
+                  className="flex items-center gap-1.5 px-2 h-7 rounded-lg"
                   style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff' }}>
                   <span
                     className="hidden lg:inline-flex items-center justify-center rounded px-1.5"
                     style={{
-                      height: 18,
+                      height: 16,
                       background: 'rgba(255,255,255,0.08)',
                       border: '1px solid rgba(255,255,255,0.2)',
                       color: 'rgba(255,255,255,0.9)',
-                      fontSize: 10,
+                      fontSize: 9,
                       fontWeight: 700,
                       letterSpacing: 0.2,
                     }}>
                     {tenantShortCode}
                   </span>
-                  <div className="w-6 h-6 rounded-md flex items-center justify-center font-bold text-white text-xs"
+                  <div className="w-5.5 h-5.5 rounded-md flex items-center justify-center font-bold text-white text-[11px]"
                     style={{ background: 'var(--grad-brand)' }}>
                     {user?.name?.[0]?.toUpperCase() || 'U'}
                   </div>
-                  <span className="hidden sm:inline text-sm" style={{ color: '#fff', fontWeight: 600 }}>{user?.name}</span>
+                  <span className="hidden sm:inline text-xs" style={{ color: '#fff', fontWeight: 600 }}>{user?.name}</span>
                   <span
                     className="hidden xl:inline-flex items-center rounded px-1.5"
                     style={{
-                      height: 18,
+                      height: 16,
                       background: 'rgba(59,130,246,0.22)',
                       border: '1px solid rgba(96,165,250,0.4)',
                       color: '#93c5fd',
-                      fontSize: 10,
+                      fontSize: 9,
                       fontWeight: 700,
                     }}>
                     {accountRoleLabel}

@@ -206,21 +206,21 @@ function KpiCard({ title, value, hint, tone = 'green', onClick, readOnly }) {
   return (
     <button
       onClick={onClick}
-      className={`text-left bg-white border rounded-xl p-3 transition-all hover:-translate-y-0.5 hover:shadow-md shadow-sm ${borderClass} ${onClick ? '' : 'cursor-default'}`}
+      className={`text-left bg-white border rounded-xl px-3 py-2.5 transition-all hover:-translate-y-0.5 hover:shadow-md shadow-sm ${borderClass} ${onClick ? '' : 'cursor-default'}`}
       style={{ borderTopWidth: 3 }}
       disabled={!onClick}
     >
       <p className="text-[11px] text-gray-600 tracking-wider uppercase">{title}</p>
-      <p className="text-xl font-bold text-gray-900 mt-1">{value}</p>
-      <p className="text-[11px] sm:text-xs text-gray-600 mt-1">{hint}{readOnly ? ' - read only' : ''}</p>
+      <p className="text-[22px] leading-none font-bold text-gray-900 mt-1">{value}</p>
+      <p className="text-[11px] text-gray-600 mt-1">{hint}{readOnly ? ' - read only' : ''}</p>
     </button>
   )
 }
 
 function Section({ title, action, children }) {
   return (
-    <section className="bg-white border border-gray-200 rounded-2xl p-3 sm:p-4 shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-3">
+    <section className="bg-white border border-gray-200 rounded-2xl p-3 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-2.5">
         <h2 className="text-sm sm:text-base font-bold tracking-tight text-gray-900">{title}</h2>
         {action && <div className="w-full sm:w-auto flex justify-start sm:justify-end">{action}</div>}
       </div>
@@ -1026,7 +1026,7 @@ function OverviewTab({ onNavigate }) {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-5 pb-5 sm:pb-6">
+    <div className="space-y-3.5 sm:space-y-4 pb-5">
       {toast && (
         <div className="fixed top-3 right-3 left-3 sm:left-auto sm:top-4 sm:right-4 z-50 px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-100 text-emerald-800 text-sm">
           {toast}
@@ -1072,26 +1072,26 @@ function OverviewTab({ onNavigate }) {
           </div>
         }
       >
-        <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_0.85fr] gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_0.82fr] gap-2.5">
           <div className="space-y-2">
             {notificationRows.map((item) => (
-              <div key={item.id} className="border border-gray-300 rounded-xl p-2.5 bg-white">
+              <div key={item.id} className="border border-gray-300 rounded-xl p-2 bg-white">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-medium text-gray-900">{item.title}</p>
                   <span className={`text-[11px] px-2 py-0.5 rounded border ${item.type === 'task' ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-blue-300 bg-blue-100 text-blue-800'}`}>{item.type}</span>
                 </div>
-                <p className="text-xs text-gray-700 mt-1">{item.text}</p>
-                <p className="text-[11px] text-gray-600 mt-2">{String(item.time)}</p>
+                <p className="text-xs text-gray-700 mt-0.5">{item.text}</p>
+                <p className="text-[11px] text-gray-600 mt-1.5">{String(item.time)}</p>
               </div>
             ))}
           </div>
           <div className="border border-gray-300 rounded-xl p-3 bg-white">
             <p className="text-sm font-semibold text-gray-900">Task Action Shortcuts</p>
-            <div className="grid grid-cols-1 gap-2 mt-3">
-              <button onClick={() => runTaskShortcut('create')} disabled={!canCreateTasks} className="px-3 py-2 text-xs rounded-lg border border-emerald-300 bg-emerald-100 text-emerald-800 disabled:opacity-50">+ Create Task</button>
-              <button onClick={() => runTaskShortcut('my')} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white text-gray-800">Open My Tasks</button>
-              <button onClick={() => runTaskShortcut('overdue')} className="px-3 py-2 text-xs rounded-lg border border-red-300 bg-red-100 text-red-800">Review Overdue</button>
-              <button onClick={() => runTaskShortcut('dm')} className="px-3 py-2 text-xs rounded-lg border border-blue-300 bg-blue-100 text-blue-800">View Direct Messages</button>
+            <div className="grid grid-cols-1 gap-1.5 mt-2.5">
+              <button onClick={() => runTaskShortcut('create')} disabled={!canCreateTasks} className="px-3 py-1.5 text-xs rounded-lg border border-emerald-300 bg-emerald-100 text-emerald-800 disabled:opacity-50">+ Create Task</button>
+              <button onClick={() => runTaskShortcut('my')} className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 bg-white text-gray-800">Open My Tasks</button>
+              <button onClick={() => runTaskShortcut('overdue')} className="px-3 py-1.5 text-xs rounded-lg border border-red-300 bg-red-100 text-red-800">Review Overdue</button>
+              <button onClick={() => runTaskShortcut('dm')} className="px-3 py-1.5 text-xs rounded-lg border border-blue-300 bg-blue-100 text-blue-800">View Direct Messages</button>
             </div>
           </div>
         </div>

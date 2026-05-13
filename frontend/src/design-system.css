@@ -106,7 +106,7 @@ html, body, #root {
 
 /* ─── Sidebar ────────────────────────────────────────── */
 .sidebar {
-  width: 224px; min-width: 224px;
+  width: 216px; min-width: 216px;
   background: var(--bg-sidebar);
   display: flex; flex-direction: column;
   border-right: 1px solid var(--border);
@@ -191,7 +191,7 @@ html, body, #root {
 
 /* ─── Topbar ─────────────────────────────────────────── */
 .topbar {
-  padding: 10px 18px;
+  padding: 9px 16px;
   background: var(--bg-topbar);
   border-bottom: 1px solid rgba(255,255,255,0.08);
   display: flex; align-items: center; justify-content: space-between;
@@ -204,8 +204,8 @@ html, body, #root {
   --border:         rgba(255,255,255,0.15);
   --border-hover:   rgba(255,255,255,0.3);
 }
-.topbar-title   { font-size: 15px; font-weight: 700; color: #ffffff; letter-spacing: -0.2px; }
-.topbar-subtitle{ font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+.topbar-title   { font-size: 14px; font-weight: 700; color: #ffffff; letter-spacing: -0.2px; }
+.topbar-subtitle{ font-size: 10px; color: rgba(255,255,255,0.6); margin-top: 1px; }
 .topbar-right   { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .topbar-avatar  {
   width: 32px; height: 32px; border-radius: 50%;
