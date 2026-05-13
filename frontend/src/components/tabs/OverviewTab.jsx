@@ -206,12 +206,12 @@ function KpiCard({ title, value, hint, tone = 'green', onClick, readOnly }) {
   return (
     <button
       onClick={onClick}
-      className={`text-left bg-white border rounded-xl p-3 sm:p-4 transition-all hover:-translate-y-0.5 hover:shadow-md shadow-sm ${borderClass} ${onClick ? '' : 'cursor-default'}`}
+      className={`text-left bg-white border rounded-xl p-3 transition-all hover:-translate-y-0.5 hover:shadow-md shadow-sm ${borderClass} ${onClick ? '' : 'cursor-default'}`}
       style={{ borderTopWidth: 3 }}
       disabled={!onClick}
     >
       <p className="text-[11px] text-gray-600 tracking-wider uppercase">{title}</p>
-      <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">{value}</p>
+      <p className="text-xl font-bold text-gray-900 mt-1">{value}</p>
       <p className="text-[11px] sm:text-xs text-gray-600 mt-1">{hint}{readOnly ? ' - read only' : ''}</p>
     </button>
   )
@@ -219,8 +219,8 @@ function KpiCard({ title, value, hint, tone = 'green', onClick, readOnly }) {
 
 function Section({ title, action, children }) {
   return (
-    <section className="bg-white border border-gray-200 rounded-2xl p-3 sm:p-5 shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-3 sm:mb-4">
+    <section className="bg-white border border-gray-200 rounded-2xl p-3 sm:p-4 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-3">
         <h2 className="text-sm sm:text-base font-bold tracking-tight text-gray-900">{title}</h2>
         {action && <div className="w-full sm:w-auto flex justify-start sm:justify-end">{action}</div>}
       </div>
@@ -1026,7 +1026,7 @@ function OverviewTab({ onNavigate }) {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-6 sm:pb-8">
+    <div className="space-y-4 sm:space-y-5 pb-5 sm:pb-6">
       {toast && (
         <div className="fixed top-3 right-3 left-3 sm:left-auto sm:top-4 sm:right-4 z-50 px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-100 text-emerald-800 text-sm">
           {toast}
@@ -1037,12 +1037,12 @@ function OverviewTab({ onNavigate }) {
         title={`Operational Command Center - ${roleView.replace(/_/g, ' ')}`}
         action={<p className="text-xs text-gray-600">{today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>}
       >
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div>
             <p className="text-base sm:text-lg font-bold text-gray-900">Good day, {user?.name || 'User'}</p>
             <p className="text-xs sm:text-sm text-gray-600">Last login: {user?.lastLogin ? fmtDateTime(user.lastLogin) : '2 hrs ago'}</p>
           </div>
-          <div className="flex w-full lg:w-auto flex-wrap gap-2">
+          <div className="flex w-full lg:w-auto flex-wrap gap-1.5">
             <input
               value={taskSearch}
               onChange={(e) => setTaskSearch(e.target.value)}
@@ -1072,10 +1072,10 @@ function OverviewTab({ onNavigate }) {
           </div>
         }
       >
-        <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_0.85fr] gap-3">
           <div className="space-y-2">
             {notificationRows.map((item) => (
-              <div key={item.id} className="border border-gray-300 rounded-xl p-3 bg-white">
+              <div key={item.id} className="border border-gray-300 rounded-xl p-2.5 bg-white">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-medium text-gray-900">{item.title}</p>
                   <span className={`text-[11px] px-2 py-0.5 rounded border ${item.type === 'task' ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-blue-300 bg-blue-100 text-blue-800'}`}>{item.type}</span>
@@ -1085,7 +1085,7 @@ function OverviewTab({ onNavigate }) {
               </div>
             ))}
           </div>
-          <div className="border border-gray-300 rounded-xl p-3 sm:p-4 bg-white">
+          <div className="border border-gray-300 rounded-xl p-3 bg-white">
             <p className="text-sm font-semibold text-gray-900">Task Action Shortcuts</p>
             <div className="grid grid-cols-1 gap-2 mt-3">
               <button onClick={() => runTaskShortcut('create')} disabled={!canCreateTasks} className="px-3 py-2 text-xs rounded-lg border border-emerald-300 bg-emerald-100 text-emerald-800 disabled:opacity-50">+ Create Task</button>
@@ -1097,7 +1097,7 @@ function OverviewTab({ onNavigate }) {
         </div>
       </Section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
         {executiveCards.map((card) => (
           <KpiCard
             key={card.id}
@@ -1112,9 +1112,9 @@ function OverviewTab({ onNavigate }) {
       </div>
 
       <Section title="Executive Summary by Department">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
           {visibleDeptMetrics.map((m) => (
-            <div key={m.dept} className={`bg-white border rounded-xl p-3 sm:p-4 ${DEPT_STATUS[m.status] || DEPT_STATUS.attention}`}>
+            <div key={m.dept} className={`bg-white border rounded-xl p-3 ${DEPT_STATUS[m.status] || DEPT_STATUS.attention}`}>
               <div className="flex items-center justify-between mb-2">
                 <p className="font-semibold text-gray-900">{m.title}</p>
                 <span className="text-[11px] text-gray-700">{m.status}</span>

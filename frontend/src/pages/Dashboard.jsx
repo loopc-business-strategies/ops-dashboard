@@ -252,7 +252,7 @@ function Dashboard({
   const accountMenuRef = useRef(null)
 
   const DESKTOP_MIN_WIDTH = 1024
-  const DESKTOP_SIDEBAR_WIDTH = 240
+  const DESKTOP_SIDEBAR_WIDTH = 224
   const [isDesktop, setIsDesktop] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_MIN_WIDTH : true
   ))
@@ -626,8 +626,8 @@ function Dashboard({
 
         {/* Top header bar */}
         <header className="topbar sticky top-0 z-30 flex-shrink-0">
-          <div className="flex w-full items-center justify-between gap-10">
-            <div className="flex items-center gap-3">
+          <div className="flex w-full items-center justify-between gap-6">
+            <div className="flex items-center gap-2.5">
               {/* Hamburger */}
               <button onClick={toggleSidebar}
                 className="p-2 rounded-lg transition-colors"
@@ -651,7 +651,7 @@ function Dashboard({
             </div>
 
             {/* Right side of header */}
-            <div className="ml-auto flex items-center justify-end gap-2 flex-nowrap">
+            <div className="ml-auto flex items-center justify-end gap-1.5 flex-nowrap">
               <BuildInfoBadge className="hidden md:inline-flex" />
 
               {/* Read-only badge */}
@@ -957,7 +957,7 @@ function Dashboard({
         </header>
 
         {/* Page content */}
-        <main className={`flex-1 ${activeTab === 'chat' ? 'overflow-hidden' : 'p-6 overflow-y-auto'}`}
+        <main className={`flex-1 ${activeTab === 'chat' ? 'overflow-hidden' : 'p-4 lg:p-5 overflow-y-auto'}`}
           style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
           {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, setLatestMetalRates)}
         </main>
