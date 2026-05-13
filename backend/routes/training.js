@@ -129,7 +129,7 @@ function crudRoutes(router, path, Model, createSchema) {
       const doc = await TenantModel.findByIdAndUpdate(
         req.params.id,
         { $set: req.body },
-        { new: true, runValidators: true }
+        { returnDocument: 'after', runValidators: true }
       )
       if (!doc) return res.status(404).json({ success: false, message: 'Not found' })
       res.json({ success: true, data: doc })
@@ -161,3 +161,4 @@ crudRoutes(router, '/feedback',    TrainingFeedback,   feedbackSchema)
 crudRoutes(router, '/trainees',    TrainingTrainee,    traineeSchema)
 
 module.exports = router
+

@@ -865,7 +865,7 @@ router.put('/accounts/:id', protect, validateParams(idParam), validateBody(accou
     if (Object.prototype.hasOwnProperty.call(req.body, 'parentAccountId') && req.body.parentAccountId) {
       await validateAccountParentAssignment({ accountId: req.params.id, parentAccountId: req.body.parentAccountId, accountType: existingAccount.accountType })
     }
-    const account = await ChartOfAccount.findByIdAndUpdate(req.params.id, updates, { new: true })
+    const account = await ChartOfAccount.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' })
     if (!account) return res.status(404).json({ success: false, message: 'Account not found' })
     res.json({ success: true, account })
   } catch (e) {
@@ -880,7 +880,7 @@ router.put('/accounts/:id', protect, validateParams(idParam), validateBody(accou
 router.delete('/accounts/:id', protect, validateParams(idParam), async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const account = await ChartOfAccount.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true })
+    const account = await ChartOfAccount.findByIdAndUpdate(req.params.id, { isActive: false }, { returnDocument: 'after' })
     if (!account) return res.status(404).json({ success: false, message: 'Account not found' })
     res.json({ success: true, message: 'Account deactivated', account })
   } catch {
@@ -985,3 +985,4 @@ router.post('/accounts/hard-delete-by-code', protect, async (req, res) => {
 module.exports = {
   registerAccountsRoutes,
 }
+

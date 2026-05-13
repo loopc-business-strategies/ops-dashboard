@@ -272,7 +272,7 @@ router.put('/inventory/:id', protect, validateParams(idParam), validateBody(inve
       lastRestockedAt: req.body.lastRestockedAt !== undefined ? req.body.lastRestockedAt : existing.lastRestockedAt,
     }
 
-    const updated = await InventoryItem.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true })
+    const updated = await InventoryItem.findByIdAndUpdate(req.params.id, update, { returnDocument: 'after', runValidators: true })
 
     const delta = Number(updated.quantity || 0) - oldQty
     if (delta !== 0) {
@@ -388,7 +388,7 @@ router.put('/procurement/suppliers/:id', protect, validateParams(idParam), valid
       return res.status(403).json({ success: false, message: 'Only Super Admin or Operations Head can update suppliers.' })
     }
 
-    const supplier = await Supplier.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+    const supplier = await Supplier.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true })
     if (!supplier) {
       return res.status(404).json({ success: false, message: 'Supplier not found.' })
     }
@@ -550,7 +550,7 @@ router.put('/procurement/purchase-orders/:id', protect, validateParams(idParam),
       }
     }
 
-    const updated = await PurchaseOrder.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true })
+    const updated = await PurchaseOrder.findByIdAndUpdate(req.params.id, update, { returnDocument: 'after', runValidators: true })
     const amount = getPOAmount(updated)
 
     res.json({
@@ -659,7 +659,7 @@ router.put('/production/work-orders/:id', protect, validateParams(idParam), vali
       return res.status(403).json({ success: false, message: 'Only Production Head or Super Admin can update work orders.' })
     }
 
-    const workOrder = await WorkOrder.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+    const workOrder = await WorkOrder.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true })
     if (!workOrder) {
       return res.status(404).json({ success: false, message: 'Work order not found.' })
     }
@@ -763,7 +763,7 @@ router.put('/finance/records/:id', protect, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only Finance Head or Super Admin can update finance records.' })
     }
 
-    const record = await FinanceRecord.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+    const record = await FinanceRecord.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true })
     if (!record) {
       return res.status(404).json({ success: false, message: 'Finance record not found.' })
     }
@@ -925,7 +925,7 @@ router.put('/alerts/expiry/:id/resolve', protect, async (req, res) => {
         resolvedBy: req.user.name,
         notes: req.body.notes,
       },
-      { new: true }
+      { returnDocument: 'after' }
     )
 
     if (!alert) {
@@ -939,3 +939,4 @@ router.put('/alerts/expiry/:id/resolve', protect, async (req, res) => {
 })
 
 module.exports = router
+

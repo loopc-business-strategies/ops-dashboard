@@ -303,7 +303,7 @@ router.put('/:id', protect, validateParams(taskIdParamSchema), validateBody(upda
     }
 
     const { notifyText, alsoNotifyIds, alsoNotifyNames, ...dbUpdatePayload } = updatePayload
-    const updatedTask = await Task.findByIdAndUpdate(req.params.id, dbUpdatePayload, { new: true, runValidators: true })
+    const updatedTask = await Task.findByIdAndUpdate(req.params.id, dbUpdatePayload, { returnDocument: 'after', runValidators: true })
 
     const assigneeChanged = (updatedTask.assignedTo || '') !== (prevAssignedTo || '') || String(updatedTask.assignedToId || '') !== prevAssignedToId
     const statusChanged = updatedTask.status !== prevStatus
@@ -398,3 +398,4 @@ router.delete('/:id', protect, validateParams(taskIdParamSchema), async (req, re
 })
 
 module.exports = router
+

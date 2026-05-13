@@ -62,7 +62,7 @@ router.put('/:module', protect, async (req, res) => {
           updatedByName: req.user.name,
         },
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     )
 
     res.json({ success: true, module, state: row.state, updatedAt: row.updatedAt })
@@ -72,3 +72,4 @@ router.put('/:module', protect, async (req, res) => {
 })
 
 module.exports = router
+

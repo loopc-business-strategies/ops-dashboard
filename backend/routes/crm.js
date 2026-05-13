@@ -665,7 +665,7 @@ router.put('/contacts/:id', salesOnly, validateParams(idParam), validateBody(con
     const contact = await CrmContact.findOneAndUpdate(
       { _id: req.params.id, isDeleted: false },
       { $set: req.body },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     )
     if (!contact) return res.status(404).json({ success: false, message: 'Contact not found.' })
     res.json({ success: true, data: contact })
@@ -691,7 +691,7 @@ router.post('/contacts/:id/notes', salesOnly, validateParams(idParam), validateB
     const contact = await CrmContact.findOneAndUpdate(
       { _id: req.params.id, isDeleted: false },
       { $push: { notes: { text, author: req.user.name, isPrivate: !!isPrivate } } },
-      { new: true }
+      { returnDocument: 'after' }
     )
     if (!contact) return res.status(404).json({ success: false, message: 'Contact not found.' })
     res.json({ success: true, data: contact })
@@ -835,7 +835,7 @@ router.put('/companies/:id', salesOnly, validateParams(idParam), validateBody(co
     const co = await CrmCompany.findOneAndUpdate(
       { _id: req.params.id, isDeleted: false },
       { $set: req.body },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     )
     if (!co) return res.status(404).json({ success: false, message: 'Company not found.' })
     res.json({ success: true, data: co })
@@ -884,7 +884,7 @@ router.put('/leads/:id', salesOnly, validateParams(idParam), validateBody(leadPa
     const lead = await CrmLead.findOneAndUpdate(
       { _id: req.params.id, isDeleted: false },
       { $set: req.body },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     )
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found.' })
     res.json({ success: true, data: lead })
@@ -902,7 +902,7 @@ router.post('/leads/:id/stage', salesOnly, validateParams(idParam), validateBody
         $set:  { stage },
         $push: { stageHistory: { stage, date: new Date(), note: note || '', by: req.user.name } },
       },
-      { new: true }
+      { returnDocument: 'after' }
     )
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found.' })
     res.json({ success: true, data: lead })
@@ -1023,7 +1023,7 @@ router.put('/deals/:id', salesOnly, validateParams(idParam), validateBody(dealPa
     const deal = await CrmDeal.findOneAndUpdate(
       { _id: req.params.id, isDeleted: false },
       { $set: req.body },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     )
     if (!deal) return res.status(404).json({ success: false, message: 'Deal not found.' })
     res.json({ success: true, data: deal })
@@ -1044,7 +1044,11 @@ router.post('/deals/:id/close', salesOnly, validateParams(idParam), validateBody
     if (outcome === 'won') update.closedWon = { finalValue, closeDate: new Date(closeDate), contractSigned: !!contractSigned }
     else                   update.closedLost = { reason, competitor, notes: lostNotes }
 
-    const deal = await CrmDeal.findOneAndUpdate({ _id: req.params.id, isDeleted: false }, update, { new: true })
+    const deal = await CrmDeal.findOneAndUpdate(
+      { _id: req.params.id, isDeleted: false },
+      update,
+      { returnDocument: 'after' }
+    )
     if (!deal) return res.status(404).json({ success: false, message: 'Deal not found.' })
     res.json({ success: true, data: deal })
   } catch (e) {
@@ -1093,7 +1097,7 @@ router.put('/activities/:id', salesOnly, validateParams(idParam), validateBody(a
     const act = await CrmActivity.findOneAndUpdate(
       { _id: req.params.id, isDeleted: false },
       { $set: req.body },
-      { new: true }
+      { returnDocument: 'after' }
     )
     if (!act) return res.status(404).json({ success: false, message: 'Activity not found.' })
     res.json({ success: true, data: act })
@@ -1116,7 +1120,7 @@ router.patch('/activities/:id/followup-done', salesOnly, async (req, res) => {
     const act = await CrmActivity.findOneAndUpdate(
       { _id: req.params.id, isDeleted: false },
       { $set: { 'nextAction.isDone': true } },
-      { new: true }
+      { returnDocument: 'after' }
     )
     if (!act) return res.status(404).json({ success: false, message: 'Activity not found.' })
     res.json({ success: true, data: act })
@@ -1142,3 +1146,4 @@ router.get('/followups', salesOnly, async (req, res) => {
 })
 
 module.exports = router
+

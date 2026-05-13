@@ -200,7 +200,7 @@ function registerCustomerRoutes(deps) {
         if (req.body[field] !== undefined) updates[field] = req.body[field]
       })
 
-      const customer = await Customer.findByIdAndUpdate(req.params.id, updates, { new: true })
+      const customer = await Customer.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' })
       if (!customer) return res.status(404).json({ success: false, message: 'Customer not found' })
 
       if ((updates.name || updates.currency) && customer.ledgerAccountId) {

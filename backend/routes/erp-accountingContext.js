@@ -163,7 +163,7 @@ const ensureBaseCurrencyConfig = async () => {
           rateUpdatedAt: new Date(),
         },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     )
   }
 
@@ -2609,3 +2609,4 @@ function registerErpAccountingRoutes(router) {
 module.exports = {
   registerErpAccountingRoutes,
 }
+

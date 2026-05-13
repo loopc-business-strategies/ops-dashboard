@@ -160,7 +160,7 @@ function registerCurrencyRoutes(deps) {
       const branding = await ReportBranding.findOneAndUpdate(
         { key },
         { $set: updates },
-        { new: true, upsert: true, setDefaultsOnInsert: true }
+        { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
       )
 
       const profiles = await ReportBranding.find({}).sort({ isDefault: -1, entityName: 1, branchName: 1, key: 1 })
@@ -362,3 +362,4 @@ function registerCurrencyRoutes(deps) {
 module.exports = {
   registerCurrencyRoutes,
 }
+

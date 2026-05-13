@@ -257,7 +257,7 @@ router.post('/records', protect, validateBody(attendanceRecordSchema), async (re
     const record = await AttendanceRecord.findOneAndUpdate(
       { date: payload.date, employeeName: payload.employeeName },
       payload,
-      { new: true, upsert: true, runValidators: true }
+      { returnDocument: 'after', upsert: true, runValidators: true }
     )
 
     res.json({ success: true, record })
@@ -363,3 +363,4 @@ router.put('/leave/:id/decision', protect, validateParams(recordIdParam), valida
 })
 
 module.exports = router
+

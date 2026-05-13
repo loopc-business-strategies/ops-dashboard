@@ -233,7 +233,7 @@ router.put('/ledger/:id', protect, async (req, res) => {
       updates.currency = String(base?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
       updates.exchangeRate = 1
     }
-    const updated = await TenantLedger.findByIdAndUpdate(req.params.id, updates, { new: true })
+    const updated = await TenantLedger.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' })
     const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
@@ -372,3 +372,4 @@ router.put('/ledger/:id/reconcile', protect, async (req, res) => {
 module.exports = {
   registerLedgerRoutes,
 }
+

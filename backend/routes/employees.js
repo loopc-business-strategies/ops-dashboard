@@ -117,7 +117,7 @@ router.put('/:id', protect, validateParams(employeeIdParam), validateBody(update
       return res.status(403).json({ success: false, message: 'HR department head can only update HR employees.' })
     }
 
-    const employee = await TenantEmployee.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+    const employee = await TenantEmployee.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true })
     if (!employee) return res.status(404).json({ success: false, message: 'Employee not found.' })
 
     res.json({ success: true, employee })
@@ -149,3 +149,4 @@ router.delete('/:id', protect, validateParams(employeeIdParam), async (req, res)
 })
 
 module.exports = router
+

@@ -419,7 +419,7 @@ function registerVendorRoutes(deps) {
       }
       updates.updatedBy = req.user._id
 
-      const updatedVendor = await Vendor.findByIdAndUpdate(req.params.id, updates, { new: true })
+      const updatedVendor = await Vendor.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' })
       if (!updatedVendor) return res.status(404).json({ success: false, message: 'Vendor not found' })
 
       if ((updates.name || updates.currency) && updatedVendor.ledgerAccountId) {
@@ -667,7 +667,7 @@ function registerVendorRoutes(deps) {
         isActive: false,
         deletedAt: new Date(),
         updatedBy: req.user._id,
-      }, { new: true })
+      }, { returnDocument: 'after' })
 
       if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' })
 

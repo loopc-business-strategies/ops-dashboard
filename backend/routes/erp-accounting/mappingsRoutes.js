@@ -87,7 +87,7 @@ router.put('/mappings/:id', protect, validateParams(idParam), validateBody(mappi
       if (req.body[field] !== undefined) updates[field] = req.body[field]
     })
     if (updates.department !== undefined) updates.department = String(updates.department || '').trim().toLowerCase()
-    const mapping = await AccountMapping.findByIdAndUpdate(req.params.id, updates, { new: true })
+    const mapping = await AccountMapping.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' })
     if (!mapping) return res.status(404).json({ success: false, message: 'Mapping not found' })
     res.json({ success: true, mapping })
   } catch {
@@ -98,7 +98,7 @@ router.put('/mappings/:id', protect, validateParams(idParam), validateBody(mappi
 router.delete('/mappings/:id', protect, async (req, res) => {
   try {
     if (!canManageMappings(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const mapping = await AccountMapping.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true })
+    const mapping = await AccountMapping.findByIdAndUpdate(req.params.id, { isActive: false }, { returnDocument: 'after' })
     if (!mapping) return res.status(404).json({ success: false, message: 'Mapping not found' })
     res.json({ success: true, message: 'Mapping deactivated', mapping })
   } catch {
@@ -111,3 +111,4 @@ router.delete('/mappings/:id', protect, async (req, res) => {
 module.exports = {
   registerMappingsRoutes,
 }
+
