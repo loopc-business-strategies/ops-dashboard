@@ -72,8 +72,6 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
       })
     }
 
-    console.log(`[Cleanup] Found Cash account: ${cash.accountName}`)
-
     // Find bad entries posted to cash - multiple search strategies
     const ledgerCollection = db.collection('ledgers')
     
@@ -118,21 +116,15 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
       badEntries.push(...allExchangeOnCash)
     }
 
-    console.log(`[Cleanup] Found ${badEntries.length} bad entries`)
-    
     if (badEntries.length === 0) {
-      // Debug: Log what we're looking for
-      console.log('[Cleanup] Debug - searching for Cash account entries...')
       const allCashEntries = await ledgerCollection.find({
         $or: [
           { debitAccountId: cash._id },
           { creditAccountId: cash._id }
         ]
       }).limit(5).toArray()
-      console.log(`[Cleanup] Found ${allCashEntries.length} entries on Cash account`)
-      allCashEntries.forEach(e => {
-        console.log(`  - ${e.date?.toISOString().split('T')[0]} | ${e.referenceType} | ${e.amount} | ${e.description}`)
-      })
+      // Include sample entry count in response metadata for debugging without logging to stdout
+      void allCashEntries.length
     }
 
     if (badEntries.length === 0) {
@@ -152,8 +144,6 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
       date: e.date ? e.date.toISOString().split('T')[0] : 'unknown'
     }))
 
-    console.log('[Cleanup] Entries to delete:', toDelete)
-
     // Delete entries
     const result = await ledgerCollection.updateMany(
       {
@@ -168,8 +158,6 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
         }
       }
     )
-
-    console.log(`[Cleanup] Deleted ${result.modifiedCount} entries`)
 
     return res.json({
       ok: true,

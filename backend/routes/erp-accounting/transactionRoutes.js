@@ -521,6 +521,15 @@ router.post('/transactions/:id/approve', protect, async (req, res) => {
           type: result.transaction.type,
         })
       }
+      // Notify the transaction owner that their submission was approved
+      const ownerId = String(result.transaction.createdBy || '')
+      if (ownerId && typeof realtimeServer.sendUserNotification === 'function') {
+        realtimeServer.sendUserNotification(ownerId, 'transaction_approved', {
+          transactionId: String(result.transaction._id),
+          type: result.transaction.type,
+          approvedBy: String(req.user?.name || req.user?._id || ''),
+        })
+      }
     })
     res.json({ success: true, transaction: populated })
   } catch (e) {
@@ -551,6 +560,14 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
           transactionId: String(result.transaction._id),
           ledgerEntryId: String(result.ledgerEntry?._id || result.transaction.journalEntryId || ''),
           referenceType: result.ledgerEntry?.referenceType || result.transaction.type,
+        })
+      }
+      // Notify dashboard subscribers that financial metrics may have changed
+      if (typeof realtimeServer.broadcastMetricsUpdate === 'function') {
+        realtimeServer.broadcastMetricsUpdate(tenantKey, {
+          trigger: 'transaction_posted',
+          transactionId: String(result.transaction._id),
+          type: result.transaction.type,
         })
       }
     })
@@ -690,6 +707,16 @@ router.post('/transactions/:id/return', protect, async (req, res) => {
           type: result.transaction.type,
         })
       }
+      // Notify the transaction owner their submission was returned for revision
+      const ownerId = String(result.transaction.createdBy || '')
+      if (ownerId && typeof realtimeServer.sendUserNotification === 'function') {
+        realtimeServer.sendUserNotification(ownerId, 'transaction_returned', {
+          transactionId: String(result.transaction._id),
+          type: result.transaction.type,
+          returnedBy: String(req.user?.name || req.user?._id || ''),
+          comment: String(req.body?.comment || ''),
+        })
+      }
     })
     res.json({ success: true, transaction: populated })
   } catch (e) {
@@ -711,6 +738,16 @@ router.post('/transactions/:id/reject', protect, async (req, res) => {
           transactionId: String(result.transaction._id),
           status: result.transaction.status,
           type: result.transaction.type,
+        })
+      }
+      // Notify the transaction owner their submission was rejected
+      const ownerId = String(result.transaction.createdBy || '')
+      if (ownerId && typeof realtimeServer.sendUserNotification === 'function') {
+        realtimeServer.sendUserNotification(ownerId, 'transaction_rejected', {
+          transactionId: String(result.transaction._id),
+          type: result.transaction.type,
+          rejectedBy: String(req.user?.name || req.user?._id || ''),
+          comment: String(req.body?.comment || ''),
         })
       }
     })

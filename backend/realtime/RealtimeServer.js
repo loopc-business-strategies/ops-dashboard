@@ -5,11 +5,28 @@
 
 const socketIO = require('socket.io')
 
+/**
+ * Build the socket.io CORS origin list from the same env vars used by Express CORS.
+ * CLIENT_URLS – comma-separated list (preferred)
+ * CLIENT_URL  – single origin (legacy)
+ * FRONTEND_URL – legacy single origin kept for backwards compatibility
+ * Falls back to localhost in development.
+ */
+function buildSocketOrigins() {
+  const raw = [
+    ...(process.env.CLIENT_URLS || '').split(','),
+    ...(process.env.CLIENT_URL  || '').split(','),
+    ...(process.env.FRONTEND_URL || '').split(','),
+  ]
+  const origins = raw.map((s) => s.trim()).filter(Boolean)
+  return origins.length ? origins : ['http://localhost:5173']
+}
+
 class RealtimeServer {
   constructor(httpServer) {
     this.io = socketIO(httpServer, {
       cors: {
-        origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+        origin: buildSocketOrigins(),
         credentials: true,
       },
       transports: ['websocket', 'polling'],
@@ -37,8 +54,6 @@ class RealtimeServer {
      * Dashboard namespace: broadcast dashboard updates to subscribed clients
      */
     this.io.of('/dashboard').on('connection', (socket) => {
-      console.log(`[Dashboard] User ${socket.userId} connected`)
-
       // Subscribe to dashboard metrics updates
       socket.on('subscribe:metrics', (tenant) => {
         socket.join(`dashboard:metrics:${tenant}`)
@@ -49,26 +64,16 @@ class RealtimeServer {
       socket.on('unsubscribe:metrics', (tenant) => {
         socket.leave(`dashboard:metrics:${tenant}`)
       })
-
-      socket.on('disconnect', () => {
-        console.log(`[Dashboard] User ${socket.userId} disconnected`)
-      })
     })
 
     /**
      * Reports namespace: broadcast report generation status
      */
     this.io.of('/reports').on('connection', (socket) => {
-      console.log(`[Reports] User ${socket.userId} connected`)
-
       // Subscribe to report generation updates
       socket.on('subscribe:report', (reportId) => {
         socket.join(`report:${reportId}`)
         socket.emit('subscribed', { report: reportId })
-      })
-
-      socket.on('disconnect', () => {
-        console.log(`[Reports] User ${socket.userId} disconnected`)
       })
     })
 
@@ -76,8 +81,6 @@ class RealtimeServer {
      * Ledger namespace: broadcast ledger entry updates
      */
     this.io.of('/ledger').on('connection', (socket) => {
-      console.log(`[Ledger] User ${socket.userId} connected`)
-
       socket.on('subscribe:tenant', (tenant) => {
         socket.join(`ledger:tenant:${tenant}`)
         socket.emit('subscribed', { namespace: '/ledger', tenant })
@@ -91,25 +94,15 @@ class RealtimeServer {
       socket.on('unsubscribe:account', (accountId) => {
         socket.leave(`ledger:account:${accountId}`)
       })
-
-      socket.on('disconnect', () => {
-        console.log(`[Ledger] User ${socket.userId} disconnected`)
-      })
     })
 
     /**
      * Transactions namespace: broadcast transaction workflow updates
      */
     this.io.of('/transactions').on('connection', (socket) => {
-      console.log(`[Transactions] User ${socket.userId} connected`)
-
       socket.on('subscribe:tenant', (tenant) => {
         socket.join(`transactions:tenant:${tenant}`)
         socket.emit('subscribed', { namespace: '/transactions', tenant })
-      })
-
-      socket.on('disconnect', () => {
-        console.log(`[Transactions] User ${socket.userId} disconnected`)
       })
     })
 
@@ -117,14 +110,10 @@ class RealtimeServer {
      * Notifications namespace: broadcast user notifications
      */
     this.io.of('/notifications').on('connection', (socket) => {
-      console.log(`[Notifications] User ${socket.userId} connected`)
       socket.join(`user:${socket.userId}`)
-
-      socket.on('disconnect', () => {
-        console.log(`[Notifications] User ${socket.userId} disconnected`)
-      })
     })
   }
+
 
   /**
    * Broadcast dashboard metrics update

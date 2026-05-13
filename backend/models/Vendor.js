@@ -74,8 +74,10 @@ const vendorSchema = new mongoose.Schema(
 vendorSchema.index({ name: 1 })
 vendorSchema.index({ vendorCode: 1 })
 vendorSchema.index({ email: 1 })
+vendorSchema.index({ isActive: 1 })
 vendorSchema.index({ status: 1 })
 vendorSchema.index({ approvalStatus: 1 })
 vendorSchema.index({ category: 1 })
+vendorSchema.index({ isActive: 1, name: 1 })
 
 module.exports = createTenantModel('Vendor', vendorSchema)
