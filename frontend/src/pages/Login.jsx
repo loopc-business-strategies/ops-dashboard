@@ -170,7 +170,7 @@ function Login() {
           </div>
 
           <div className="flex-1 relative flex items-center justify-center lg:justify-start px-6 py-24 sm:px-10 lg:px-0 xl:px-0">
-            <div className="relative z-10 w-full max-w-[430px] lg:ml-[10px] xl:ml-[18px]">
+            <div className="relative z-10 w-full max-w-[472px] lg:ml-[18px] xl:ml-[34px]">
               <div className="lg:hidden mb-8 text-center">
                 <div
                   className="inline-flex items-center justify-center w-16 h-16 rounded-[18px] mb-4"
@@ -186,11 +186,11 @@ function Login() {
               </div>
 
               <div
-                className="rounded-[22px] border border-[#dbe3ef] bg-white px-7 py-8 sm:px-9 sm:py-10"
-                style={{ width: '404px', minHeight: '402px', boxShadow: '0 16px 38px rgba(20, 34, 60, 0.08), inset 0 1px 0 rgba(255,255,255,0.95)' }}
+                className="rounded-[22px] border border-[#dbe3ef] bg-white px-8 py-8 sm:px-10 sm:py-9"
+                style={{ width: '442px', boxShadow: '0 16px 38px rgba(20, 34, 60, 0.08), inset 0 1px 0 rgba(255,255,255,0.95)' }}
               >
-                <div className="hidden lg:block mb-8" style={{ paddingTop: '10px' }}>
-                  <h1 className="text-[52px] leading-none font-extrabold tracking-tight text-[#1b2540]" style={{ fontSize: '26px' }}>{t('signIn')}</h1>
+                <div className="hidden lg:block mb-8" style={{ paddingTop: '6px' }}>
+                  <h1 className="text-[31px] leading-none font-extrabold tracking-tight text-[#1b2540]">{t('signIn')}</h1>
                   <p className="text-[13px] text-[#7f8796] mt-2">{branding.tagline || t('operationsControl')}</p>
                 </div>
 
@@ -217,7 +217,7 @@ function Login() {
                         value={name}
                         onChange={(e) => { setName(e.target.value); setError('') }}
                         placeholder={t('enterUsername')}
-                        className="w-full rounded-[11px] border border-[#aab7c8] bg-[#f3f7fc] py-[12px] pl-10 pr-4 text-[13px] text-[#273247] outline-none transition-all duration-200 placeholder:text-[#9aa5b4] focus:border-[#6ea6e5] focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,123,255,0.10)]"
+                        className="w-full rounded-[11px] border border-[#aab7c8] bg-[#f3f7fc] py-[14px] pl-10 pr-4 text-[13px] text-[#273247] outline-none transition-all duration-200 placeholder:text-[#9aa5b4] focus:border-[#6ea6e5] focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,123,255,0.10)]"
                         autoFocus
                         autoComplete="username"
                         disabled={loading}
@@ -238,7 +238,7 @@ function Login() {
                         value={password}
                         onChange={(e) => { setPassword(e.target.value); setError('') }}
                         placeholder={t('enterPassword')}
-                        className="w-full rounded-[11px] border border-[#aab7c8] bg-[#f3f7fc] py-[12px] pl-10 pr-20 text-[13px] text-[#273247] outline-none transition-all duration-200 placeholder:text-[#9aa5b4] focus:border-[#6ea6e5] focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,123,255,0.10)]"
+                        className="w-full rounded-[11px] border border-[#aab7c8] bg-[#f3f7fc] py-[14px] pl-10 pr-20 text-[13px] text-[#273247] outline-none transition-all duration-200 placeholder:text-[#9aa5b4] focus:border-[#6ea6e5] focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,123,255,0.10)]"
                         autoComplete="current-password"
                         disabled={loading}
                       />
@@ -254,7 +254,7 @@ function Login() {
 
                   <button
                     type="submit"
-                    className="w-full rounded-[11px] py-[12px] text-white text-[14px] font-bold tracking-[0.01em] shadow-[0_8px_18px_rgba(0,91,150,0.22)] transition-transform duration-200 hover:-translate-y-[1px]"
+                    className="w-full rounded-[11px] py-[13px] text-white text-[14px] font-bold tracking-[0.01em] shadow-[0_8px_18px_rgba(0,91,150,0.22)] transition-transform duration-200 hover:-translate-y-[1px]"
                     style={{ background: branding.colors.gradBar }}
                     disabled={loading}
                   >
@@ -269,7 +269,7 @@ function Login() {
                     ) : t('signIn')}
                   </button>
 
-                  <div className="pt-5 text-center">
+                  <div className="pt-1 text-center">
                     <p className="text-[13px] text-[#7f8796] font-medium">
                       <span className="mr-1">🔒</span>
                       {t('accessByInvitation')}
