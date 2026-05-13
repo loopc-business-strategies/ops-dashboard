@@ -339,7 +339,10 @@ function ChatTab({ onUnreadChange, onBack }) {
       text,
       department: user?.department || '',
       recipientNames: currentChat?.type === 'direct' ? [currentChat?.name].filter(Boolean) : [],
-    }).catch(() => {})
+    }).catch(() => {
+      setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: c.messages.filter(m => m.id !== newMsg.id) } : c))
+      showToast('Send failed', 'Message could not be delivered. Please try again.', C.red)
+    })
     const chat = chats.find(c => c.id === chatId)
     if (chat?.type !== 'direct') return
     const otherId = chat.otherId

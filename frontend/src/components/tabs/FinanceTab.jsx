@@ -644,20 +644,23 @@ function RevenueTracking({ finRole, can, canEdit, onToast }) {
 
 // ─── Expense Management ───────────────────────────────────────
 function ExpenseManagement({ finRole, can, canEdit, expenses, setExpenses, addAudit, onToast, openModal, financeApi }) {
+    const { user: authUser } = useAuth()
   if (can('vendor','sales_head','hr_mgr')) return <Restricted msg="Expense management is not available for your role." />
   const deptOnly = finRole === 'dept_head'
   const data = deptOnly ? expenses.filter(e=>e.dept==='Operations') : expenses
 
   function approve(id) {
-    setExpenses(p => p.map(e => e.id===id ? {...e, status:'Approved', approvedBy:'You'} : e))
-    financeApi.expenses.update(id, { status:'Approved', approvedBy:'You' }).catch(() => {})
+    const approvedBy = authUser?.name || authUser?.email || 'Unknown'
+    setExpenses(p => p.map(e => e.id===id ? {...e, status:'Approved', approvedBy} : e))
+    financeApi.expenses.update(id, { status:'Approved', approvedBy }).catch(() => { onToast('Error', 'Save failed. Please refresh.') })
     const e = expenses.find(x=>x.id===id)
     addAudit({ action:'Expense Approved', user:'You', urole:'Finance Manager', amount:fmtFull(e?.amount||0), dt:'Now', ip:'192.168.1.x', before:'Pending', after:'Approved' })
     onToast('Approved','Expense '+id+' approved')
   }
   function reject(id) {
-    setExpenses(p => p.map(e => e.id===id ? {...e, status:'Rejected', approvedBy:'You'} : e))
-    financeApi.expenses.update(id, { status:'Rejected', approvedBy:'You' }).catch(() => {})
+    const approvedBy = authUser?.name || authUser?.email || 'Unknown'
+    setExpenses(p => p.map(e => e.id===id ? {...e, status:'Rejected', approvedBy} : e))
+    financeApi.expenses.update(id, { status:'Rejected', approvedBy }).catch(() => { onToast('Error', 'Save failed. Please refresh.') })
     onToast('Rejected','Expense '+id+' rejected')
   }
 
@@ -723,7 +726,7 @@ function InvoiceManagement({ finRole, can, canEdit, invoices, setInvoices, addAu
   function markPaid(id) {
     const inv = invoices.find(i=>i.id===id)
     setInvoices(p => p.map(i => i.id===id ? {...i, status:'Paid', daysOverdue:0} : i))
-    financeApi.invoices.update(id, { status:'Paid', daysOverdue:0 }).catch(() => {})
+    financeApi.invoices.update(id, { status:'Paid', daysOverdue:0 }).catch(() => { onToast('Error', 'Save failed. Please refresh.') })
     addAudit({ action:'Invoice Marked Paid', user:'You', urole:'Finance Manager', amount:fmtFull(inv?.amount||0), dt:'Now', ip:'192.168.1.x', before:'Sent/Overdue', after:'Paid' })
     onToast('Invoice Paid', id+' marked as paid. Audit log updated.')
   }
@@ -821,7 +824,7 @@ function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, se
     const payload = { dept:bf.dept.trim(), annual, spent, status }
     if (editId) {
       setBudgets(p => p.map(x => (x.id || x._id?.toString()) === editId ? { ...x, ...payload } : x))
-      financeApi.budgets.update(editId, payload).catch(() => {})
+      financeApi.budgets.update(editId, payload).catch(() => { onToast('Error', 'Save failed. Please refresh.') })
       onToast('Budget Updated', bf.dept.trim() + ' budget updated')
     } else {
       financeApi.budgets.create(payload).then(doc => {
@@ -837,7 +840,7 @@ function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, se
     if (!window.confirm('Delete budget for ' + row.dept + '?')) return
     const rid = row.id || row._id?.toString()
     setBudgets(p => p.filter(x => (x.id || x._id?.toString()) !== rid))
-    if (rid) financeApi.budgets.remove(rid).catch(() => {})
+    if (rid) financeApi.budgets.remove(rid).catch(() => { onToast('Error', 'Delete failed. Please refresh.') })
     onToast('Budget Deleted', row.dept + ' budget removed')
   }
 
@@ -907,7 +910,7 @@ function PayrollManagement({ finRole, can, canEdit, payroll, setPayroll, addAudi
     setPayroll(p => p.map(e => ({...e, status:'Processed'})))
     payroll.filter(e => e.status !== 'Processed').forEach(e => {
       const rid = e.id || e._id?.toString()
-      if (rid) financeApi.payroll.update(rid, { status:'Processed' }).catch(() => {})
+      if (rid) financeApi.payroll.update(rid, { status:'Processed' }).catch(() => { onToast('Error', 'Save failed. Please refresh.') })
     })
     addAudit({ action:'Payroll Run', user:'You', urole:'Finance Manager', amount:'$284,600', dt:'Now', ip:'192.168.1.x', before:'Pending', after:'Processed' })
     onToast('Payroll Processed','April 2026 payroll of $284,600 processed for 47 employees.')
@@ -1101,7 +1104,7 @@ function TaxCompliance({ finRole, can, canEdit, onToast, taxes, setTaxes, financ
     const payload = { type:tf.type.trim(), period:tf.period.trim(), amount:Number(tf.amount)||0, due:tf.due||'—', filed:tf.filed||'—', status:tf.status }
     if (editId) {
       setTaxes(p => p.map(x => (x.id || x._id?.toString()) === editId ? { ...x, ...payload } : x))
-      financeApi.taxes.update(editId, payload).catch(() => {})
+      financeApi.taxes.update(editId, payload).catch(() => { onToast('Error', 'Save failed. Please refresh.') })
       onToast('Tax Updated', payload.type + ' updated')
     } else {
       financeApi.taxes.create(payload).then(doc => {
@@ -1117,7 +1120,7 @@ function TaxCompliance({ finRole, can, canEdit, onToast, taxes, setTaxes, financ
     if (!window.confirm('Delete tax row for ' + row.type + '?')) return
     const rid = row.id || row._id?.toString()
     setTaxes(p => p.filter(x => (x.id || x._id?.toString()) !== rid))
-    if (rid) financeApi.taxes.remove(rid).catch(() => {})
+    if (rid) financeApi.taxes.remove(rid).catch(() => { onToast('Error', 'Delete failed. Please refresh.') })
     onToast('Tax Deleted', row.type + ' removed')
   }
 
@@ -1157,7 +1160,23 @@ function TaxCompliance({ finRole, can, canEdit, onToast, taxes, setTaxes, financ
             <Td style={{ color:t.filed==='—'?C.t4:C.green }}>{t.filed}</Td>
             <Td><Badge status={t.status} /></Td>
             {canEdit() && <Td style={{ whiteSpace:'nowrap' }}>
-              {t.filed==='—' ? <button onClick={() => { const rid = t.id || t._id?.toString(); setTaxes(p => p.map(x => (x.id||x._id?.toString())===rid ? {...x, filed:'Today', status:'Filed'} : x)); if (rid) financeApi.taxes.update(rid, { filed:'Today', status:'Filed' }).catch(()=>{}); onToast('Filed',t.type+' marked as filed') }} style={{...B.link,color:'var(--purple)',marginRight:8}}>Mark Filed</button> : <span style={{ color:C.t4, marginRight:8 }}>—</span>}
+              {t.filed==='—' ? <button onClick={async () => {
+                const rid = t.id || t._id?.toString()
+                const prevTaxes = taxes
+                setTaxes(p => p.map(x => (x.id || x._id?.toString()) === rid ? { ...x, filed:'Today', status:'Filed' } : x))
+                if (!rid) {
+                  onToast('Error', 'Tax record id is missing. Please refresh and try again.')
+                  setTaxes(prevTaxes)
+                  return
+                }
+                try {
+                  await financeApi.taxes.update(rid, { filed:'Today', status:'Filed' })
+                  onToast('Filed', t.type + ' marked as filed')
+                } catch {
+                  setTaxes(prevTaxes)
+                  onToast('Error', 'Failed to mark tax as filed. Please try again.')
+                }
+              }} style={{...B.link,color:'var(--purple)',marginRight:8}}>Mark Filed</button> : <span style={{ color:C.t4, marginRight:8 }}>—</span>}
               <button onClick={() => openTaxForm(t)} style={{...B.link,color:C.cyan,marginRight:8}}>Edit</button>
               <button onClick={() => deleteTax(t)} style={{...B.link,color:C.red}}>Del</button>
             </Td>}
@@ -1265,7 +1284,7 @@ function GeneralLedger({ finRole, can, canEdit, onToast, token }) {
         }))
         setLedgerEntries(entries)
       })
-      .catch(() => {})
+      .catch(() => { onToast('Error', 'Failed to load ledger entries. Please retry.') })
       .finally(() => setLoading(false))
   }, [token])
   
@@ -1505,7 +1524,7 @@ export default function FinanceTab() {
       if (pays.length)  setPayroll(norm(pays))
       if (buds.length)  setBudgets(norm(buds))
       if (taxs.length)  setTaxes(norm(taxs))
-    }).catch(() => {})
+    }).catch(() => { showToast('Error', 'Failed to load finance data. Showing available records.') })
     return () => { cancelled = true }
   }, [token])
 
@@ -1626,12 +1645,24 @@ export default function FinanceTab() {
       <PayrollModal
         open={modal==='payroll'}
         onClose={() => setModal(null)}
-        onRun={(auth, bank) => {
-          setPayroll(p => p.map(e => ({...e, status:'Processed'})))
-          payroll.filter(e => e.status !== 'Processed').forEach(e => {
+        onRun={async (auth, bank) => {
+          const previousPayroll = payroll
+          const toProcess = payroll.filter(e => e.status !== 'Processed')
+          setPayroll(p => p.map(e => ({ ...e, status:'Processed' })))
+
+          const updates = await Promise.allSettled(toProcess.map(e => {
             const rid = e.id || e._id?.toString()
-            if (rid) financeAPI.payroll.update(rid, { status:'Processed' }).catch(() => {})
-          })
+            if (!rid) return Promise.reject(new Error('Missing payroll id'))
+            return financeAPI.payroll.update(rid, { status:'Processed' })
+          }))
+
+          const hasFailures = updates.some(r => r.status === 'rejected')
+          if (hasFailures) {
+            setPayroll(previousPayroll)
+            showToast('Error', 'Payroll processing failed for one or more records. No changes were saved.')
+            return
+          }
+
           addAudit({ action:'Payroll Run', user:auth||'You', urole:'Finance Manager', amount:'$284,600', dt:'Now', ip:'192.168.1.x', before:'Pending', after:'Processed' })
           showToast('Payroll Processed','April 2026 payroll of $284,600 processed for 47 employees. Salary slips generated.')
         }}

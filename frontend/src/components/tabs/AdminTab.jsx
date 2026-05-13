@@ -164,7 +164,7 @@ function UserFormFields({ form, setForm, isEdit = false }) {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">{isEdit ? 'Reset Password' : 'Password'} {!isEdit && <span className="text-emerald-700">*</span>}</label>
-          <input type="text" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder={isEdit ? 'Leave blank to keep current password' : 'Min. 6 characters'} className="input-field" />
+          <input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder={isEdit ? 'Leave blank to keep current password' : 'Min. 8 characters'} className="input-field" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-300 mb-2 uppercase tracking-wider">Job Title</label>

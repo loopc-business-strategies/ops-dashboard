@@ -69,7 +69,8 @@ function registerDirectDealsRoutes(deps) {
 
       res.json({ success: true, deals, total, page, limit, summary, permissions: { canManage: canManageDirectDeals(req.user) } })
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message || 'Server error' })
+      console.error('[direct-deals] error:', error)
+      res.status(500).json({ success: false, message: 'Internal server error' })
     }
   })
 
@@ -198,7 +199,8 @@ function registerDirectDealsRoutes(deps) {
 
       res.json({ success: true, message: 'Direct deal deleted', deal })
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message || 'Server error' })
+      console.error('[direct-deals] error:', error)
+      res.status(500).json({ success: false, message: 'Internal server error' })
     }
   })
 }

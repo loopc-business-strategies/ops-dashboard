@@ -380,7 +380,8 @@ function registerVendorRoutes(deps) {
 
       res.status(201).json({ success: true, vendor })
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message || 'Server error' })
+      console.error('[vendor] error:', error)
+      res.status(500).json({ success: false, message: 'Internal server error' })
     }
   })
 

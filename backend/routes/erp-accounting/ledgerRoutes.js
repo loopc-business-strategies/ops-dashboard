@@ -200,7 +200,8 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
 
     res.status(201).json({ success: true, entry })
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message || 'Server error' })
+    console.error('[ledger] error:', err)
+    res.status(500).json({ success: false, message: 'Internal server error' })
   }
 })
 
@@ -363,7 +364,8 @@ router.put('/ledger/:id/reconcile', protect, async (req, res) => {
     res.json({ success: true, bankReconciled: nextReconciled })
   } catch (error) {
     console.error('[reconcile] error:', error.message, error.stack)
-    res.status(500).json({ success: false, message: error?.message || 'Server error' })
+    console.error('[ledger] error:', error)
+    res.status(500).json({ success: false, message: 'Internal server error' })
   }
 })
 

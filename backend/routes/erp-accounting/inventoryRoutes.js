@@ -74,7 +74,8 @@ function registerInventoryRoutes(deps) {
 
       res.status(201).json({ success: true, product })
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message || 'Server error' })
+      console.error('[inventory] error:', error)
+      res.status(500).json({ success: false, message: 'Internal server error' })
     }
   })
 
@@ -137,7 +138,8 @@ function registerInventoryRoutes(deps) {
 
       res.json({ success: true, product: item, ledgerEntry })
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message || 'Server error' })
+      console.error('[inventory] error:', error)
+      res.status(500).json({ success: false, message: 'Internal server error' })
     }
   })
 
@@ -189,7 +191,8 @@ function registerInventoryRoutes(deps) {
 
       res.json({ success: true, product: item, ledgerEntry })
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message || 'Server error' })
+      console.error('[inventory] error:', error)
+      res.status(500).json({ success: false, message: 'Internal server error' })
     }
   })
 
@@ -215,7 +218,8 @@ function registerInventoryRoutes(deps) {
 
       res.json({ success: true, product })
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message || 'Server error' })
+      console.error('[inventory] error:', error)
+      res.status(500).json({ success: false, message: 'Internal server error' })
     }
   })
 
@@ -235,7 +239,8 @@ function registerInventoryRoutes(deps) {
 
       res.json({ success: true, message: 'Product deleted' })
     } catch (error) {
-      res.status(500).json({ success: false, message: error.message || 'Server error' })
+      console.error('[inventory] error:', error)
+      res.status(500).json({ success: false, message: 'Internal server error' })
     }
   })
 

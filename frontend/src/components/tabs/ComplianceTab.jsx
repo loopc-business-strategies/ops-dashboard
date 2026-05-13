@@ -255,7 +255,7 @@ function ComplianceTab() {
   function removeRowApi(setter, rows, id, label, apiResource) {
     if (!window.confirm(`Delete ${label}?`)) return
     setter(rows.filter(r => r.id !== id))
-    if (id) apiResource.remove(id).catch(() => {})
+    if (id) apiResource.remove(id).catch(() => { pushToast('Delete failed. Please try again.') })
     pushToast(`${label} deleted`)
   }
 
@@ -273,7 +273,7 @@ function ComplianceTab() {
     if (!eForm.entity.trim() || !eForm.permit.trim()) return
     if (eModal.editId) {
       setEligibility(prev => prev.map(r => r.id === eModal.editId ? { ...r, ...eForm } : r))
-      complianceAPI.eligibility.update(eModal.editId, eForm).catch(() => {})
+      complianceAPI.eligibility.update(eModal.editId, eForm).catch(() => { pushToast('Save failed. Please try again.') })
       pushToast('Eligibility updated')
     } else {
       complianceAPI.eligibility.create(eForm).then(doc => {
@@ -298,7 +298,7 @@ function ComplianceTab() {
     if (!aForm.authority.trim() || !aForm.filing.trim()) return
     if (aModal.editId) {
       setApprovals(prev => prev.map(r => r.id === aModal.editId ? { ...r, ...aForm } : r))
-      complianceAPI.approvals.update(aModal.editId, aForm).catch(() => {})
+      complianceAPI.approvals.update(aModal.editId, aForm).catch(() => { pushToast('Save failed. Please try again.') })
       pushToast('Approval updated')
     } else {
       complianceAPI.approvals.create(aForm).then(doc => {
@@ -323,7 +323,7 @@ function ComplianceTab() {
     if (!dForm.name.trim()) return
     if (dModal.editId) {
       setDocs(prev => prev.map(r => r.id === dModal.editId ? { ...r, ...dForm } : r))
-      complianceAPI.docs.update(dModal.editId, dForm).catch(() => {})
+      complianceAPI.docs.update(dModal.editId, dForm).catch(() => { pushToast('Save failed. Please try again.') })
       pushToast('Document updated')
     } else {
       complianceAPI.docs.create(dForm).then(doc => {
@@ -348,7 +348,7 @@ function ComplianceTab() {
     if (!uForm.title.trim() || !uForm.source.trim()) return
     if (uModal.editId) {
       setUpdates(prev => prev.map(r => r.id === uModal.editId ? { ...r, ...uForm } : r))
-      complianceAPI.updates.update(uModal.editId, uForm).catch(() => {})
+      complianceAPI.updates.update(uModal.editId, uForm).catch(() => { pushToast('Save failed. Please try again.') })
       pushToast('Regulatory update edited')
     } else {
       complianceAPI.updates.create(uForm).then(doc => {
@@ -374,7 +374,7 @@ function ComplianceTab() {
     const payload = { ...gForm, value: Number(gForm.value || 0) }
     if (gModal.editId) {
       setAgreements(prev => prev.map(r => r.id === gModal.editId ? { ...r, ...payload } : r))
-      complianceAPI.agreements.update(gModal.editId, payload).catch(() => {})
+      complianceAPI.agreements.update(gModal.editId, payload).catch(() => { pushToast('Save failed. Please try again.') })
       pushToast('Agreement updated')
     } else {
       complianceAPI.agreements.create(payload).then(doc => {
@@ -446,7 +446,18 @@ function ComplianceTab() {
                         onEdit={() => openApproval(r)}
                         onDelete={() => removeRowApi(setApprovals, approvals, r.id, r.filing, complianceAPI.approvals)}
                         extra={!readOnlyByRole && r.status === 'Pending' ? (
-                          <button onClick={() => { complianceAPI.approvals.update(r.id, { status: 'Submitted', submittedDate: 'Today' }).catch(() => {}); setApprovals(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Submitted', submittedDate: 'Today' } : x)); pushToast('Marked as submitted') }} style={{ border: 'none', background: 'transparent', color: C.blue, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Submit</button>
+                          <button onClick={async () => {
+                            const today = new Date().toISOString().slice(0, 10)
+                            const prev = approvals
+                            setApprovals(rows => rows.map(x => x.id === r.id ? { ...x, status: 'Submitted', submittedDate: today } : x))
+                            try {
+                              await complianceAPI.approvals.update(r.id, { status: 'Submitted', submittedDate: today })
+                              pushToast('Marked as submitted')
+                            } catch {
+                              setApprovals(prev)
+                              pushToast('Submit failed. Please try again.')
+                            }
+                          }} style={{ border: 'none', background: 'transparent', color: C.blue, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Submit</button>
                         ) : null}
                       />
                     </td>
@@ -477,7 +488,20 @@ function ComplianceTab() {
                         onEdit={() => openDoc(r)}
                         onDelete={() => removeRowApi(setDocs, docs, r.id, r.name, complianceAPI.docs)}
                         extra={!readOnlyByRole && r.status === 'Expiring Soon' ? (
-                          <button onClick={() => { const newVer = x => x.version === 'v1' ? 'v2' : `v${Number(String(x.version).replace('v',''))+1}`; const found = docs.find(x => x.id === r.id); complianceAPI.docs.update(r.id, { status: 'Active', version: found ? newVer(found) : 'v2' }).catch(() => {}); setDocs(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Active', version: x.version === 'v1' ? 'v2' : `v${Number(String(x.version).replace('v', '')) + 1}` } : x)); pushToast('Document renewed') }} style={{ border: 'none', background: 'transparent', color: C.blue, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Renew</button>
+                          <button onClick={async () => {
+                            const prev = docs
+                            const newVer = x => x.version === 'v1' ? 'v2' : `v${Number(String(x.version).replace('v', '')) + 1}`
+                            const found = docs.find(x => x.id === r.id)
+                            const nextVersion = found ? newVer(found) : 'v2'
+                            setDocs(rows => rows.map(x => x.id === r.id ? { ...x, status: 'Active', version: nextVersion } : x))
+                            try {
+                              await complianceAPI.docs.update(r.id, { status: 'Active', version: nextVersion })
+                              pushToast('Document renewed')
+                            } catch {
+                              setDocs(prev)
+                              pushToast('Renew failed. Please try again.')
+                            }
+                          }} style={{ border: 'none', background: 'transparent', color: C.blue, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Renew</button>
                         ) : null}
                       />
                     </td>
@@ -527,7 +551,17 @@ function ComplianceTab() {
                         onEdit={() => openAgreement(r)}
                         onDelete={() => removeRowApi(setAgreements, agreements, r.id, r.partner, complianceAPI.agreements)}
                         extra={!readOnlyByRole && r.status === 'Renewal Required' ? (
-                          <button onClick={() => { complianceAPI.agreements.update(r.id, { status: 'Active' }).catch(() => {}); setAgreements(prev => prev.map(x => x.id === r.id ? { ...x, status: 'Active' } : x)); pushToast('Agreement moved to active') }} style={{ border: 'none', background: 'transparent', color: C.blue, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Renew</button>
+                          <button onClick={async () => {
+                            const prev = agreements
+                            setAgreements(rows => rows.map(x => x.id === r.id ? { ...x, status: 'Active' } : x))
+                            try {
+                              await complianceAPI.agreements.update(r.id, { status: 'Active' })
+                              pushToast('Agreement moved to active')
+                            } catch {
+                              setAgreements(prev)
+                              pushToast('Renew failed. Please try again.')
+                            }
+                          }} style={{ border: 'none', background: 'transparent', color: C.blue, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Renew</button>
                         ) : null}
                       />
                     </td>

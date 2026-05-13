@@ -1344,7 +1344,7 @@ export default function TrainingTab() {
       if (c.length)   setCerts(norm(c))
       if (fb.length)  setFeedback(norm(fb))
       if (tr.length)  setTrainees(norm(tr))
-    }).catch(() => {})
+    }).catch(() => { showToast('Error', 'Failed to load training data. Showing available records.') })
     return () => { cancelled = true }
   }, [token])
 
@@ -1499,17 +1499,77 @@ export default function TrainingTab() {
     showToast('Feedback Submitted', 'Thank you for your feedback!')
   }
 
-  function deleteSession(id)    { trainingAPI.sessions.remove(id).catch(() => {}); setSessions(p => p.filter(x => x.id !== id)) }
-  function deleteBatch(id)      { trainingAPI.batches.remove(id).catch(() => {}); setBatches(p => p.filter(x => x.id !== id)) }
-  function deleteResource(id)   { trainingAPI.resources.remove(id).catch(() => {}); setResources(p => p.filter(x => x.id !== id)) }
-  function deleteAssessment(id) { trainingAPI.assessments.remove(id).catch(() => {}); setAssessments(p => p.filter(x => x.id !== id)) }
-  function deleteCert(id)       { trainingAPI.certs.remove(id).catch(() => {}); setCerts(p => p.filter(x => x.id !== id)) }
-  function deleteTrainee(id)    { trainingAPI.trainees.remove(id).catch(() => {}); setTrainees(p => p.filter(x => x.id !== id)) }
+  function deleteSession(id) {
+    const prev = sessions
+    setSessions(p => p.filter(x => x.id !== id))
+    trainingAPI.sessions.remove(id)
+      .then(() => showToast('Session Deleted', 'Session removed successfully.'))
+      .catch(() => {
+        setSessions(prev)
+        showToast('Error', 'Failed to delete session. Please try again.')
+      })
+  }
+  function deleteBatch(id) {
+    const prev = batches
+    setBatches(p => p.filter(x => x.id !== id))
+    trainingAPI.batches.remove(id)
+      .then(() => showToast('Batch Deleted', 'Batch removed successfully.'))
+      .catch(() => {
+        setBatches(prev)
+        showToast('Error', 'Failed to delete batch. Please try again.')
+      })
+  }
+  function deleteResource(id) {
+    const prev = resources
+    setResources(p => p.filter(x => x.id !== id))
+    trainingAPI.resources.remove(id)
+      .then(() => showToast('Resource Deleted', 'Resource removed successfully.'))
+      .catch(() => {
+        setResources(prev)
+        showToast('Error', 'Failed to delete resource. Please try again.')
+      })
+  }
+  function deleteAssessment(id) {
+    const prev = assessments
+    setAssessments(p => p.filter(x => x.id !== id))
+    trainingAPI.assessments.remove(id)
+      .then(() => showToast('Assessment Deleted', 'Assessment removed successfully.'))
+      .catch(() => {
+        setAssessments(prev)
+        showToast('Error', 'Failed to delete assessment. Please try again.')
+      })
+  }
+  function deleteCert(id) {
+    const prev = certs
+    setCerts(p => p.filter(x => x.id !== id))
+    trainingAPI.certs.remove(id)
+      .then(() => showToast('Certificate Deleted', 'Certificate removed successfully.'))
+      .catch(() => {
+        setCerts(prev)
+        showToast('Error', 'Failed to delete certificate. Please try again.')
+      })
+  }
+  function deleteTrainee(id) {
+    const prev = trainees
+    setTrainees(p => p.filter(x => x.id !== id))
+    trainingAPI.trainees.remove(id)
+      .then(() => showToast('Trainee Deleted', 'Trainee removed successfully.'))
+      .catch(() => {
+        setTrainees(prev)
+        showToast('Error', 'Failed to delete trainee. Please try again.')
+      })
+  }
   function approveCert(traineeId) {
     const c = certs.find(x => x.trainee === traineeId && x.st === 'Pending')
     if (!c) return
-    trainingAPI.certs.update(c.id, { st:'Issued', issued:'Apr 13, 2026', expiry:'Apr 13, 2028' }).catch(() => {})
+    const prev = certs
     setCerts(p => p.map(x => x.trainee === traineeId && x.st === 'Pending' ? { ...x, st:'Issued', issued:'Apr 13, 2026', expiry:'Apr 13, 2028' } : x))
+    trainingAPI.certs.update(c.id, { st:'Issued', issued:'Apr 13, 2026', expiry:'Apr 13, 2028' })
+      .then(() => showToast('Certificate Approved', `${traineeId} certificate issued.`))
+      .catch(() => {
+        setCerts(prev)
+        showToast('Error', 'Failed to approve certificate. Please try again.')
+      })
   }
 
   const unreadCount = notifs.filter(n => !n.read).length

@@ -81,7 +81,8 @@ function crudRoutes(router, path, Model, createSchema) {
       const rows = await TenantModel.find().sort({ createdAt: -1 }).limit(500).lean()
       res.json({ success: true, data: rows })
     } catch (err) {
-      res.status(500).json({ success: false, message: err.message })
+      console.error('[compliance] list error:', err)
+      res.status(500).json({ success: false, message: 'Internal server error' })
     }
   })
 
@@ -124,7 +125,8 @@ function crudRoutes(router, path, Model, createSchema) {
       if (!doc) return res.status(404).json({ success: false, message: 'Not found' })
       res.json({ success: true })
     } catch (err) {
-      res.status(500).json({ success: false, message: err.message })
+      console.error('[compliance] delete error:', err)
+      res.status(500).json({ success: false, message: 'Internal server error' })
     }
   })
 }

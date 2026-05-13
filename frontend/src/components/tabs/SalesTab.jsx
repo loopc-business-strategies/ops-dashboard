@@ -905,7 +905,11 @@ export default function SalesTab() {
 
   useEffect(() => {
     if (!canViewSalesCRM) return
-    const t = setTimeout(() => { getContacts(filters).then((r) => setContacts(r?.data || [])).catch(() => {}) }, 280)
+    const t = setTimeout(() => {
+      getContacts(filters)
+        .then((r) => setContacts(r?.data || []))
+        .catch(() => setMsg('Failed to refresh contacts'))
+    }, 280)
     return () => clearTimeout(t)
   }, [filters, canViewSalesCRM])
 

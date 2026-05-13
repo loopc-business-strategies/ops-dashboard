@@ -1042,7 +1042,8 @@ router.get('/reports/dashboard', protect, async (req, res) => {
       generatedAt: new Date(),
     })
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error', detail: err.message })
+    console.error('[reports] error:', err)
+    res.status(500).json({ success: false, message: 'Internal server error' })
   }
 })
 
