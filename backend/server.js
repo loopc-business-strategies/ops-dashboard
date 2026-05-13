@@ -9,12 +9,13 @@
 require('dotenv').config() // load .env variables FIRST
 
 // ── Startup env validation ────────────────────────────────────────────────────
-// Fail fast if critical secrets are missing rather than running in a broken state.
+// Railway healthchecks must get an HTTP response quickly. Prefer warning over
+// hard-exit so /api/health remains available even during partial misconfig.
 ;(function validateEnv() {
   const missing = []
   if (!process.env.JWT_SECRET) missing.push('JWT_SECRET')
   if (process.env.NODE_ENV === 'production' && !process.env.SERVER_BASE_URL) {
-    missing.push('SERVER_BASE_URL (required in production for attachment links)')
+    missing.push('SERVER_BASE_URL (recommended in production for attachment links)')
   }
   
   // Check if at least one tenant URI is available; warn if none
@@ -32,9 +33,8 @@ require('dotenv').config() // load .env variables FIRST
   }
   
   if (missing.length) {
-    console.error('[startup] FATAL — missing required environment variables:')
-    missing.forEach(k => console.error(`  • ${k}`))
-    process.exit(1)
+    console.warn('[startup] WARNING — missing environment variables (service will still start):')
+    missing.forEach(k => console.warn(`  • ${k}`))
   }
 })()
 // ─────────────────────────────────────────────────────────────────────────────
@@ -116,8 +116,7 @@ const mongoSelection = buildMongoUri()
 const mongoUri = mongoSelection?.uri || null
 const mongoInfo = getMongoConfigInfo()
 if (!mongoUri) {
-  console.error('Mongo config missing. Set MONGO_URI_MG, MONGO_URI_CG, and MONGO_URI_LOOPC in .env.')
-  process.exit(1)
+  console.warn('[startup] WARNING — Mongo config missing. Set at least one of MONGO_URI_MG/MONGO_URI_CG/MONGO_URI_LOOPC.')
 }
 
 console.log(`Mongo config mode: ${mongoInfo.mode}`)
@@ -140,6 +139,8 @@ async function startServer() {
   })
 
   // Connect to MongoDB after the HTTP server is already accepting traffic.
+  if (!mongoUri) return
+
   try {
     await mongoose.connect(mongoUri)
     console.log('✅ Connected to MongoDB')
