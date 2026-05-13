@@ -206,21 +206,21 @@ function KpiCard({ title, value, hint, tone = 'green', onClick, readOnly }) {
   return (
     <button
       onClick={onClick}
-      className={`text-left bg-white border rounded-xl px-3 py-2.5 transition-all hover:-translate-y-0.5 hover:shadow-md shadow-sm ${borderClass} ${onClick ? '' : 'cursor-default'}`}
+      className={`text-left bg-white border rounded-xl px-3 py-2 transition-all hover:-translate-y-0.5 hover:shadow-md shadow-sm ${borderClass} ${onClick ? '' : 'cursor-default'}`}
       style={{ borderTopWidth: 3 }}
       disabled={!onClick}
     >
       <p className="text-[11px] text-gray-600 tracking-wider uppercase">{title}</p>
       <p className="text-[22px] leading-none font-bold text-gray-900 mt-1">{value}</p>
-      <p className="text-[11px] text-gray-600 mt-1">{hint}{readOnly ? ' - read only' : ''}</p>
+      <p className="text-[11px] text-gray-600 mt-0.5">{hint}{readOnly ? ' - read only' : ''}</p>
     </button>
   )
 }
 
 function Section({ title, action, children }) {
   return (
-    <section className="bg-white border border-gray-200 rounded-2xl p-3 shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-2.5">
+    <section className="bg-white border border-gray-200 rounded-2xl p-2.5 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-2">
         <h2 className="text-sm sm:text-base font-bold tracking-tight text-gray-900">{title}</h2>
         {action && <div className="w-full sm:w-auto flex justify-start sm:justify-end">{action}</div>}
       </div>
@@ -1026,7 +1026,7 @@ function OverviewTab({ onNavigate }) {
   }
 
   return (
-    <div className="space-y-3.5 sm:space-y-4 pb-5">
+    <div className="space-y-3 pb-4">
       {toast && (
         <div className="fixed top-3 right-3 left-3 sm:left-auto sm:top-4 sm:right-4 z-50 px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-100 text-emerald-800 text-sm">
           {toast}
@@ -1037,7 +1037,7 @@ function OverviewTab({ onNavigate }) {
         title={`Operational Command Center - ${roleView.replace(/_/g, ' ')}`}
         action={<p className="text-xs text-gray-600">{today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>}
       >
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2.5">
           <div>
             <p className="text-base sm:text-lg font-bold text-gray-900">Good day, {user?.name || 'User'}</p>
             <p className="text-xs sm:text-sm text-gray-600">Last login: {user?.lastLogin ? fmtDateTime(user.lastLogin) : '2 hrs ago'}</p>
@@ -1073,7 +1073,7 @@ function OverviewTab({ onNavigate }) {
         }
       >
         <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_0.82fr] gap-2.5">
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {notificationRows.map((item) => (
               <div key={item.id} className="border border-gray-300 rounded-xl p-2 bg-white">
                 <div className="flex items-center justify-between gap-3">
@@ -1087,7 +1087,7 @@ function OverviewTab({ onNavigate }) {
           </div>
           <div className="border border-gray-300 rounded-xl p-3 bg-white">
             <p className="text-sm font-semibold text-gray-900">Task Action Shortcuts</p>
-            <div className="grid grid-cols-1 gap-1.5 mt-2.5">
+            <div className="grid grid-cols-1 gap-1.5 mt-2">
               <button onClick={() => runTaskShortcut('create')} disabled={!canCreateTasks} className="px-3 py-1.5 text-xs rounded-lg border border-emerald-300 bg-emerald-100 text-emerald-800 disabled:opacity-50">+ Create Task</button>
               <button onClick={() => runTaskShortcut('my')} className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 bg-white text-gray-800">Open My Tasks</button>
               <button onClick={() => runTaskShortcut('overdue')} className="px-3 py-1.5 text-xs rounded-lg border border-red-300 bg-red-100 text-red-800">Review Overdue</button>
@@ -1114,15 +1114,15 @@ function OverviewTab({ onNavigate }) {
       <Section title="Executive Summary by Department">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
           {visibleDeptMetrics.map((m) => (
-            <div key={m.dept} className={`bg-white border rounded-xl p-3 ${DEPT_STATUS[m.status] || DEPT_STATUS.attention}`}>
-              <div className="flex items-center justify-between mb-2">
+            <div key={m.dept} className={`bg-white border rounded-xl p-2.5 ${DEPT_STATUS[m.status] || DEPT_STATUS.attention}`}>
+              <div className="flex items-center justify-between mb-1.5">
                 <p className="font-semibold text-gray-900">{m.title}</p>
                 <span className="text-[11px] text-gray-700">{m.status}</span>
               </div>
               <p className="text-sm text-gray-800">{m.line1}</p>
               <p className="text-[11px] sm:text-xs text-gray-700 mt-1">{m.line2}</p>
               <p className="text-[11px] sm:text-xs text-gray-700">{m.line3}</p>
-              <button onClick={() => onNavigate?.(TAB_BY_DEPT[m.dept])} className="mt-3 text-xs text-emerald-700 hover:text-emerald-800 font-medium">
+              <button onClick={() => onNavigate?.(TAB_BY_DEPT[m.dept])} className="mt-2 text-xs text-emerald-700 hover:text-emerald-800 font-medium">
                 View {'->'}
               </button>
             </div>
