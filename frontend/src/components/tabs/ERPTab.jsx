@@ -8038,17 +8038,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             style={modalInputStyle}
                           >
                             <option value="">All</option>
-                            {[
-                              ...((currencies && currencies.length > 0) ? currencies.map(c => ({ code: String(c?.code || '').toUpperCase().trim() })).filter(c => c.code) : []),
-                              { code: 'USD' },
-                              { code: 'AED' },
-                              { code: 'EUR' }
-                            ].reduce((acc, c) => {
-                              if (!acc.find(x => x.code === c.code)) acc.push(c);
-                              return acc;
-                            }, []).map(c => (
-                              <option key={c.code} value={c.code}>{c.code}</option>
-                            ))}
+                            <option value="USD">USD</option>
+                            <option value="AED">AED</option>
+                            <option value="EUR">EUR</option>
+                            <option value="UZS">UZS</option>
                           </select>
                         </label>
                         <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
@@ -8077,17 +8070,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, showAmountIn: e.target.value }))}
                             style={modalInputStyle}
                           >
-                            {[
-                              ...((currencies && currencies.length > 0) ? currencies.map(c => ({ code: String(c?.code || '').toUpperCase().trim() })).filter(c => c.code) : []),
-                              { code: 'USD' },
-                              { code: 'AED' },
-                              { code: 'EUR' }
-                            ].reduce((acc, c) => {
-                              if (!acc.find(x => x.code === c.code)) acc.push(c);
-                              return acc;
-                            }, []).map(c => (
-                              <option key={c.code} value={c.code}>{c.code}</option>
-                            ))}
+                            <option value="USD">USD</option>
+                            <option value="AED">AED</option>
+                            <option value="EUR">EUR</option>
+                            <option value="UZS">UZS</option>
                           </select>
                         </label>
                       </div>
