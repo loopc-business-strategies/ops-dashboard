@@ -8038,10 +8038,18 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             style={modalInputStyle}
                           >
                             <option value="">All</option>
-                            {(currencies || []).map((c) => {
-                              const code = String(c?.code || '').toUpperCase().trim()
-                              return code ? <option key={code} value={code}>{code}</option> : null
-                            })}
+                            {(currencies && currencies.length > 0) ? (
+                              currencies.map((c) => {
+                                const code = String(c?.code || '').toUpperCase().trim()
+                                return code ? <option key={code} value={code}>{code}</option> : null
+                              })
+                            ) : (
+                              <>
+                                <option value="USD">USD</option>
+                                <option value="AED">AED</option>
+                                <option value="EUR">EUR</option>
+                              </>
+                            )}
                           </select>
                         </label>
                         <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
@@ -8070,10 +8078,18 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, showAmountIn: e.target.value }))}
                             style={modalInputStyle}
                           >
-                            {(currencies || []).map((c) => {
-                              const code = String(c?.code || '').toUpperCase().trim()
-                              return code ? <option key={code} value={code}>{code}</option> : null
-                            }).filter(Boolean)}
+                            {(currencies && currencies.length > 0) ? (
+                              currencies.map((c) => {
+                                const code = String(c?.code || '').toUpperCase().trim()
+                                return code ? <option key={code} value={code}>{code}</option> : null
+                              })
+                            ) : (
+                              <>
+                                <option value="USD">USD</option>
+                                <option value="AED">AED</option>
+                                <option value="EUR">EUR</option>
+                              </>
+                            )}
                           </select>
                         </label>
                       </div>
