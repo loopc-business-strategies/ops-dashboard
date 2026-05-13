@@ -1,8 +1,22 @@
 {
-  "experimentalServices": {
-    "backend": {
-      "entrypoint": "backend",
-      "routePrefix": "/"
-    }
-  }
+  "installCommand": "npm install",
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "frontend/dist",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "has": [
+        { "type": "host", "value": "(mg|cg|loopc|app)\\.loopcstrategies\\.com" }
+      ],
+      "destination": "https://api.loopcstrategies.com/api/$1"
+    },
+    {
+      "source": "/api/(.*)",
+      "has": [
+        { "type": "host", "value": ".*\\.vercel\\.app" }
+      ],
+      "destination": "/api-preview-disabled.json"
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
