@@ -530,16 +530,19 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     groups[key].lowStockCount += row.isLowStock ? 1 : 0
     return groups
   }, {})).sort((a, b) => b.totalValue - a.totalValue)
-  const inventoryStockTypeOptions = inventoryMappingProducts.map((item) => {
-    const meta = decodeInventoryCategoryMeta(item.category)
-    return {
-      id: item._id,
-      label: titleCaseWords(meta.mainStock || meta.metalType || item.name),
-      category: item.category,
-      mainStock: titleCaseWords(meta.mainStock || meta.metalType || item.name),
-      purity: meta.purity || '',
-    }
-  })
+  const inventoryStockTypeOptions = useMemo(() => {
+    if (!inventoryMappingProducts || inventoryMappingProducts.length === 0) return []
+    return inventoryMappingProducts.map((item) => {
+      const meta = decodeInventoryCategoryMeta(item.category)
+      return {
+        id: item._id,
+        label: titleCaseWords(meta.mainStock || meta.metalType || item.name),
+        category: item.category,
+        mainStock: titleCaseWords(meta.mainStock || meta.metalType || item.name),
+        purity: meta.purity || '',
+      }
+    })
+  }, [inventoryMappingProducts])
   const fixingRegisterStockTypeOptions = useMemo(() => {
     const normalizeToMetalCode = (rawValue) => {
       const normalized = String(rawValue || '').trim().toLowerCase()
