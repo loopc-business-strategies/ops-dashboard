@@ -8056,16 +8056,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, metalCommodity: e.target.value }))}
                             style={modalInputStyle}
                           >
-                            {(inventoryStockTypeOptions || []).length > 0 ? (
-                              Array.from(new Map(inventoryStockTypeOptions.map((s) => [s.mainStock, s])).values()).map((s) => (
-                                <option key={s.id} value={s.mainStock}>{s.mainStock}</option>
-                              ))
-                            ) : (
-                              <>
-                                <option value="Gold">Gold</option>
-                                <option value="Silver">Silver</option>
-                              </>
-                            )}
+                            <option value="Gold">Gold</option>
+                            <option value="Silver">Silver</option>
+                            <option value="Platinum">Platinum</option>
+                            <option value="Palladium">Palladium</option>
                           </select>
                         </label>
                         <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
