@@ -75,6 +75,7 @@ const emptyForm = () => ({
   parentAccountId: '',
   currency: 'USD',
   description: '',
+  address: '',
   openingBalance: '',
   department: '',
   createAs: 'standard',
@@ -116,8 +117,8 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
   const [creatingSupplier, setCreatingSupplier] = useState(false)
   const [accountCodeTouched, setAccountCodeTouched] = useState(false)
   const [lastAutoSuggestedCode, setLastAutoSuggestedCode] = useState('')
-  const [newCustomerDraft, setNewCustomerDraft] = useState({ name: '', phone: '', email: '', currency: 'USD' })
-  const [newSupplierDraft, setNewSupplierDraft] = useState({ name: '', phone: '', email: '', currency: 'USD' })
+  const [newCustomerDraft, setNewCustomerDraft] = useState({ name: '', phone: '', email: '', address: '', currency: 'USD' })
+  const [newSupplierDraft, setNewSupplierDraft] = useState({ name: '', phone: '', email: '', address: '', currency: 'USD' })
   const isCustomerCreateMode = modal?.mode === 'add' && (modal?.action === 'customer' || form.createAs === 'customer')
   const isSupplierCreateMode = modal?.mode === 'add' && (modal?.action === 'supplier' || form.createAs === 'supplier')
 
@@ -305,8 +306,8 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
     const parentId = parentNode?._id || ''
     const suggestedCode = suggestNextAccountCode(parentId)
     const isLockedSubAccountFlow = action === 'general' && Boolean(parentId)
-    setNewCustomerDraft({ name: '', phone: '', email: '', currency: 'USD' })
-    setNewSupplierDraft({ name: '', phone: '', email: '', currency: 'USD' })
+    setNewCustomerDraft({ name: '', phone: '', email: '', address: '', currency: 'USD' })
+    setNewSupplierDraft({ name: '', phone: '', email: '', address: '', currency: 'USD' })
     setAccountCodeTouched(false)
     setLastAutoSuggestedCode(suggestedCode || '')
     setForm({
@@ -328,6 +329,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
       parentAccountId: node.parentAccountId?._id || node.parentAccountId || '',
       currency:        node.currency || 'USD',
       description:     node.description || '',
+      address:         node.address || '',
       openingBalance:  node.openingBalance ?? '',
       department:      node.department || '',
     })
@@ -382,6 +384,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
             name: newCustomerDraft.name.trim(),
             phone: newCustomerDraft.phone.trim(),
             email: newCustomerDraft.email.trim(),
+            address: newCustomerDraft.address.trim(),
             currency: newCustomerDraft.currency || 'USD',
           })
 
@@ -397,6 +400,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
             name: newSupplierDraft.name.trim(),
             phone: newSupplierDraft.phone.trim(),
             email: newSupplierDraft.email.trim(),
+            address: newSupplierDraft.address.trim(),
             currency: newSupplierDraft.currency || 'USD',
           })
 
@@ -420,6 +424,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
           parentAccountId: form.parentAccountId || null,
           currency:        form.currency || 'USD',
           description:     form.description,
+          address:         form.address,
           openingBalance:  form.openingBalance ? Number(form.openingBalance) : 0,
           department:      form.department,
         })
@@ -429,6 +434,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
         await erpAccountingAPI.updateAccount(token, modal.node._id, {
           accountName:  form.accountName.trim(),
           description:  form.description,
+          address:      form.address,
           currency:     form.currency || 'USD',
           department:   form.department,
           isActive:     true,
@@ -930,6 +936,12 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                             onChange={(e) => setNewCustomerDraft((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))}
                             style={inputStyle}
                           />
+                          <input
+                            placeholder="Address"
+                            value={newCustomerDraft.address}
+                            onChange={(e) => setNewCustomerDraft((prev) => ({ ...prev, address: e.target.value }))}
+                            style={{ ...inputStyle, gridColumn: '1 / span 2' }}
+                          />
                         </div>
                       </div>
                       <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#6B7280' }}>
@@ -969,6 +981,12 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                             value={newSupplierDraft.currency}
                             onChange={(e) => setNewSupplierDraft((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))}
                             style={inputStyle}
+                          />
+                          <input
+                            placeholder="Address"
+                            value={newSupplierDraft.address}
+                            onChange={(e) => setNewSupplierDraft((prev) => ({ ...prev, address: e.target.value }))}
+                            style={{ ...inputStyle, gridColumn: '1 / span 2' }}
                           />
                         </div>
                       </div>
@@ -1063,6 +1081,10 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
                       <input type="number" step="0.01" value={form.openingBalance} onChange={e => setForm({ ...form, openingBalance: e.target.value })} style={inputStyle} placeholder="0.00" />
                     </Field>
                   )}
+
+                  <Field label="Address">
+                    <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} style={inputStyle} />
+                  </Field>
 
                   <Field label="Description">
                     <textarea rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} style={{ ...inputStyle, resize: 'vertical' }} />

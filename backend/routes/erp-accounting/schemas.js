@@ -16,6 +16,7 @@ const accountCreateSchema = Joi.object({
   parentAccountId: Joi.string().hex().length(24).allow('', null).optional(),
   currency:        Joi.string().trim().allow('').max(10).optional(),
   description:     Joi.string().trim().allow('').max(500).optional(),
+  address:         Joi.string().trim().allow('').max(300).optional(),
 })
 
 const accountPatchSchema = Joi.object({
@@ -25,6 +26,7 @@ const accountPatchSchema = Joi.object({
   parentAccountId: Joi.string().hex().length(24).allow('', null).optional(),
   currency:        Joi.string().trim().allow('').max(10).optional(),
   description:     Joi.string().trim().allow('').max(500).optional(),
+  address:         Joi.string().trim().allow('').max(300).optional(),
   isActive:        Joi.boolean().optional(),
 }).min(1)
 

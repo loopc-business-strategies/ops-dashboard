@@ -796,13 +796,13 @@ router.get('/accounts/:id', protect, async (req, res) => {
 router.post('/accounts', protect, validateBody(accountCreateSchema), async (req, res) => {
   try {
     if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const { accountName, accountCode, accountType, parentAccountId, currency, description } = req.body
+    const { accountName, accountCode, accountType, parentAccountId, currency, description, address } = req.body
     if (!accountName || !accountCode || !accountType) return res.status(400).json({ success: false, message: 'Required fields missing' })
     if (parentAccountId) {
       await validateAccountParentAssignment({ parentAccountId, accountType })
     }
     const account = await ChartOfAccount.create({
-      accountName, accountCode, accountType, parentAccountId, currency, description, createdBy: req.user._id,
+      accountName, accountCode, accountType, parentAccountId, currency, description, address, createdBy: req.user._id,
     })
     res.status(201).json({ success: true, account })
   } catch (e) {
@@ -834,7 +834,7 @@ router.post('/accounts/bulk-seed', protect, async (req, res) => {
       if (!acc.accountName || !acc.accountCode || !acc.accountType) continue
       const result = await ChartOfAccount.updateOne(
         { accountCode: acc.accountCode },
-        { $set: { accountName: acc.accountName, accountType: acc.accountType, currency: acc.currency || 'USD', isActive: acc.isActive !== false, description: acc.description || '', openingBalance: acc.openingBalance || 0, department: acc.department || '', createdBy: req.user._id } },
+        { $set: { accountName: acc.accountName, accountType: acc.accountType, currency: acc.currency || 'USD', isActive: acc.isActive !== false, description: acc.description || '', address: acc.address || '', openingBalance: acc.openingBalance || 0, department: acc.department || '', createdBy: req.user._id } },
         { upsert: true }
       )
       if (result.upsertedCount > 0) created++
@@ -854,7 +854,7 @@ router.put('/accounts/:id', protect, validateParams(idParam), validateBody(accou
     if (!existingAccount) return res.status(404).json({ success: false, message: 'Account not found' })
 
     const updates = {}
-    const allowedFields = ['accountName', 'description', 'isActive', 'currency', 'department', 'parentAccountId']
+    const allowedFields = ['accountName', 'description', 'address', 'isActive', 'currency', 'department', 'parentAccountId']
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field]
     })

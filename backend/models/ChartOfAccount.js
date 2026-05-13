@@ -11,6 +11,7 @@ const chartOfAccountSchema = new mongoose.Schema(
     currency: { type: String, default: 'USD' },
     isActive: { type: Boolean, default: true },
     description: { type: String, default: '' },
+    address: { type: String, trim: true, default: '' },
     openingBalance: { type: Number, default: 0 },
     department: { type: String, default: '' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
