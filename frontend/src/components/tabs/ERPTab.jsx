@@ -670,12 +670,18 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     return silverAbs > goldAbs ? 'XAG' : 'XAU'
   }
   const defaultStatementMetalCode = resolvePreferredStatementMetalCode(rawStatementEntries)
-  const statementSelectedMetalCode = statementFilters.metalCommodity === 'silver'
-    ? 'XAG'
-    : statementFilters.metalCommodity === 'gold'
-      ? 'XAU'
-      : defaultStatementMetalCode
-  const statementSelectedMetalLabel = statementSelectedMetalCode === 'XAG' ? 'Silver' : 'Gold'
+  const resolveMetalCodeFromStockName = (name) => {
+    const n = String(name || '').trim().toLowerCase()
+    if (n === 'xau' || n === 'gold') return 'XAU'
+    if (n === 'xag' || n === 'silver') return 'XAG'
+    if (n === 'xpt' || n === 'platinum') return 'XPT'
+    if (n === 'xpd' || n === 'palladium') return 'XPD'
+    return n.toUpperCase()
+  }
+  const statementSelectedMetalCode = statementFilters.metalCommodity
+    ? resolveMetalCodeFromStockName(statementFilters.metalCommodity)
+    : defaultStatementMetalCode
+  const statementSelectedMetalLabel = statementFilters.metalCommodity || (statementSelectedMetalCode === 'XAG' ? 'Silver' : 'Gold')
   const statementDisplayCurrency = String(
     statementFilters.showAmountIn
     || accountEnquiryData?.balances?.rateCurrency
@@ -8031,20 +8037,22 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, foreignCurrency: e.target.value }))}
                             style={modalInputStyle}
                           >
-                            {statementCurrencyOptions.map((code) => (
-                              <option key={code} value={code === 'ALL' ? '' : code}>{code === 'ALL' ? 'All' : code}</option>
+                            <option value="">All</option>
+                            {currencies.map((c) => String(c?.code || '').toUpperCase()).filter(Boolean).map((code) => (
+                              <option key={code} value={code}>{code}</option>
                             ))}
                           </select>
                         </label>
                         <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
                           <span>Metal/Commodities</span>
                           <select
-                            value={statementFilters.metalCommodity || (defaultStatementMetalCode === 'XAG' ? 'silver' : 'gold')}
+                            value={statementFilters.metalCommodity || statementSelectedMetalLabel}
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, metalCommodity: e.target.value }))}
                             style={modalInputStyle}
                           >
-                            <option value="gold">Gold</option>
-                            <option value="silver">Silver</option>
+                            {Array.from(new Map(inventoryStockTypeOptions.map((s) => [s.mainStock, s])).values()).map((s) => (
+                              <option key={s.id} value={s.mainStock}>{s.mainStock}</option>
+                            ))}
                           </select>
                         </label>
                         <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
@@ -8054,7 +8062,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, showAmountIn: e.target.value }))}
                             style={modalInputStyle}
                           >
-                            {statementCurrencyOptions.filter((code) => code !== 'ALL').map((code) => (
+                            {currencies.map((c) => String(c?.code || '').toUpperCase()).filter(Boolean).map((code) => (
                               <option key={code} value={code}>{code}</option>
                             ))}
                           </select>
