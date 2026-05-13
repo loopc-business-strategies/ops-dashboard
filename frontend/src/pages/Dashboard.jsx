@@ -256,7 +256,6 @@ function Dashboard({
     typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_MIN_WIDTH : true
   ))
   const EDGE_TRIGGER_WIDTH = 20
-  const SIDEBAR_WIDTH = 240
   const HIDE_DELAY_MS = 400
   const HIDE_THRESHOLD_X = 320
   const hideTimerRef = useRef(null)
@@ -605,18 +604,17 @@ function Dashboard({
         </div>
       </aside>
 
-      {/* Mobile overlay */}
+      {/* Overlay */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden"
-          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(2px)' }}
+        <div className="fixed inset-0 z-40"
+          style={{ background: 'rgba(0,0,0,0.25)', backdropFilter: 'blur(1px)' }}
           onClick={closeSidebar} />
       )}
 
       {/* ══════════════════════════════════════
           MAIN CONTENT AREA
           ══════════════════════════════════════ */}
-      <div className={`flex-1 w-full h-full flex flex-col min-w-0 transition-all duration-300
-        ${sidebarOpen ? (isRTL ? 'lg:mr-[240px]' : 'lg:ml-[240px]') : (isRTL ? 'lg:mr-0' : 'lg:ml-0')}`}>
+      <div className="flex-1 w-full h-full flex flex-col min-w-0 transition-all duration-300">
 
         {/* Top header bar */}
         <header className="topbar sticky top-0 z-30 flex-shrink-0">
