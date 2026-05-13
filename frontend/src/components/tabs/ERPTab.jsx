@@ -3716,18 +3716,18 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
             .statement-head { text-align: right; min-width: 240px; }
             .statement-head .title { font-size: 16px; font-weight: 800; margin-bottom: 2px; color: var(--soa-orange-deep); }
             .statement-head .dates { font-size: 12px; color: #5B4632; }
-            .party-box { border: 1px solid var(--soa-border); background: linear-gradient(180deg, var(--soa-orange-soft) 0%, #FFFFFF 72%); min-height: 116px; padding: 8px 10px; margin: 8px 0 0; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .party-box { border: 1px solid var(--soa-border); background: #FDE7BD; min-height: 116px; padding: 8px 10px; margin: 8px 0 0; color-adjust: exact; -webkit-print-color-adjust: exact; }
             .party-code { font-size: 12px; margin-bottom: 4px; }
             .party-name { font-size: 13px; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; }
             .party-address { font-size: 12px; line-height: 1.25; white-space: pre-line; }
             table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 0; }
             th, td { border: 1px solid var(--soa-border); padding: 5px 6px; vertical-align: middle; color-adjust: exact; -webkit-print-color-adjust: exact; }
-            thead th { background: linear-gradient(180deg, #FDE7BD 0%, #F7C86A 100%); color: var(--soa-ink); font-weight: 700; text-align: center; color-adjust: exact; -webkit-print-color-adjust: exact; }
-            .subhead th { background: linear-gradient(180deg, #FDE7BD 0%, #F7C86A 100%); font-size: 10px; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            thead th { background: #F59E0B; color: #FFFFFF; font-weight: 700; text-align: center; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .subhead th { background: #F59E0B; font-size: 10px; color: #FFFFFF; color-adjust: exact; -webkit-print-color-adjust: exact; }
             td { text-align: center; }
             .narration { text-align: left; }
             .num { text-align: right; white-space: nowrap; }
-            .opening td { font-weight: 700; background: #FFF9EE; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .opening td { font-weight: 700; background: #FDE7BD; color-adjust: exact; -webkit-print-color-adjust: exact; }
             .carry-row td { background: #FBE6BD; font-weight: 700; color-adjust: exact; -webkit-print-color-adjust: exact; }
             .carry-row.top td { border-top: 0; }
             .carry-row.bottom td { border-bottom: 0; }
