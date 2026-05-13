@@ -3456,6 +3456,13 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     w.print()
   }
 
+  const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
   const handleBrandingLogoFile = async (file) => {
     if (!file) return
     const reader = new FileReader()
@@ -3559,16 +3566,119 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     showNotification('✅ Excel file exported')
   }
 
-  const handleExportEnquiryPdf = () => {
+  const handleExportEnquiryPdf = async () => {
     if (!accountEnquiryData) {
       setError('Load an account summary first to export')
       return
     }
 
-    const rows = buildEnquiryExportRows()
-    const htmlRows = rows
-      .map((row) => `<tr><td style=\"padding:8px;border:1px solid #D1D5DB;font-weight:600;\">${row[0]}</td><td style=\"padding:8px;border:1px solid #D1D5DB;\">${row[1]}</td></tr>`)
-      .join('')
+    const exportEntries = [...filteredStatementEntries].sort((left, right) => {
+      const leftDate = left?.date ? new Date(left.date).getTime() : 0
+      const rightDate = right?.date ? new Date(right.date).getTime() : 0
+      if (leftDate !== rightDate) return leftDate - rightDate
+      return String(resolveStatementReceiptNo(left)).localeCompare(String(resolveStatementReceiptNo(right)), undefined, { numeric: true, sensitivity: 'base' })
+    })
+
+    const statementMetalCode = (() => {
+      const explicitMetal = exportEntries.find((entry) => {
+        const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
+        return metalCode === 'XAU' || metalCode === 'XAG'
+      })
+      if (explicitMetal?.metalCode) return String(explicitMetal.metalCode).trim().toUpperCase()
+      const goldAbs = Math.abs(Number(accountEnquiryData?.metals?.goldBalance || 0))
+      const silverAbs = Math.abs(Number(accountEnquiryData?.metals?.silverBalance || 0))
+      return silverAbs > goldAbs ? 'XAG' : 'XAU'
+    })()
+
+    const endingPureWeight = statementMetalCode === 'XAG'
+      ? Number(accountEnquiryData?.metals?.silverBalance || 0)
+      : Number(accountEnquiryData?.metals?.goldBalance || 0)
+    const totalPureWeightMovement = exportEntries.reduce((sum, entry) => {
+      const signedWeight = Number(entry?.metalSignedWeight || 0)
+      const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
+      if (metalCode && metalCode !== statementMetalCode) return sum
+      return sum + signedWeight
+    }, 0)
+    const openingPureWeight = endingPureWeight - totalPureWeightMovement
+
+    const firstEntry = exportEntries[0] || null
+    const firstSignedAmount = Number(firstEntry?.signedAmount || 0)
+    const firstRunningBalance = Number(firstEntry?.runningBalance || 0)
+    const openingUsdBalance = firstEntry
+      ? (firstRunningBalance - firstSignedAmount)
+      : Number(accountEnquiryData?.balances?.netBalance || 0)
+
+    let runningUsdBalance = openingUsdBalance
+    let runningPureWeight = openingPureWeight
+
+    const formatDateForHeader = (value) => {
+      if (!value) return ''
+      const date = new Date(value)
+      if (Number.isNaN(date.getTime())) return ''
+      return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
+    }
+    const formatNumber = (value, decimals = 2) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    const formatDrCr = (value, decimals = 2) => {
+      const numeric = Number(value || 0)
+      return `${formatNumber(Math.abs(numeric), decimals)}${numeric >= 0 ? 'Dr' : 'Cr'}`
+    }
+    const formatBlankable = (value, decimals = 2) => {
+      const numeric = Number(value || 0)
+      if (!numeric) return ''
+      return formatNumber(numeric, decimals)
+    }
+    const buildNarration = (entry) => {
+      const primary = String(entry?.description || '').trim()
+      if (primary) return primary
+      const reference = String(entry?.referenceType || '').trim().toUpperCase()
+      const offset = entry?.offsetAccountCode
+        ? `${String(entry.offsetAccountCode).trim()}${entry?.offsetAccountName ? ` ${String(entry.offsetAccountName).trim()}` : ''}`
+        : ''
+      return [reference, offset].filter(Boolean).join(' - ') || 'Statement entry'
+    }
+
+    const bodyRows = exportEntries.map((entry) => {
+      const debitUsd = Number(entry?.debitAmount || 0)
+      const creditUsd = Number(entry?.creditAmount || 0)
+      const signedPureWeight = Number(entry?.metalSignedWeight || 0)
+      const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
+      const debitPure = metalCode === statementMetalCode && signedPureWeight > 0 ? signedPureWeight : 0
+      const creditPure = metalCode === statementMetalCode && signedPureWeight < 0 ? Math.abs(signedPureWeight) : 0
+
+      runningUsdBalance += Number(entry?.signedAmount || (debitUsd - creditUsd))
+      if (metalCode === statementMetalCode) runningPureWeight += signedPureWeight
+
+      return `
+        <tr>
+          <td>${escapeHtml(resolveStatementReceiptNo(entry) || '-')}</td>
+          <td>${escapeHtml(formatDateForHeader(entry.date) || formatStatementDate(entry.date) || '-')}</td>
+          <td class="narration">${escapeHtml(buildNarration(entry))}</td>
+          <td class="num">${escapeHtml(formatBlankable(debitUsd, 2))}</td>
+          <td class="num">${escapeHtml(formatBlankable(creditUsd, 2))}</td>
+          <td class="num">${escapeHtml(formatDrCr(runningUsdBalance, 2))}</td>
+          <td class="num">${escapeHtml(formatBlankable(debitPure, 3))}</td>
+          <td class="num">${escapeHtml(formatBlankable(creditPure, 3))}</td>
+          <td class="num">${escapeHtml(formatDrCr(runningPureWeight, 3))}</td>
+        </tr>
+      `
+    }).join('')
+
+    const brandingProfile = { ...DEFAULT_BRANDING, ...(reportBranding || {}) }
+    const companyAddress = String(brandingProfile.address || '').trim()
+    const companyPhone = String(brandingProfile.phone || '').trim()
+    const companyTrn = String(brandingProfile.trn || '').trim()
+    const accountAddress = String(accountEnquiryData?.account?.address || accountEnquiryData?.account?.description || '').trim()
+    const headerStartDate = statementFilters.startDate || exportEntries[0]?.date || ''
+    const headerEndDate = statementFilters.endDate || exportEntries[exportEntries.length - 1]?.date || ''
+    const processedLogo = await createLogoRenderAsset(
+      brandingProfile.logoUrl,
+      brandingProfile.logoWidth,
+      brandingProfile.logoHeight,
+      brandingProfile.logoFit,
+    )
+    const logoMarkup = processedLogo
+      ? `<img src="${processedLogo}" alt="Company Logo" style="max-width:180px;max-height:58px;object-fit:contain;display:block;" />`
+      : ''
 
     const w = window.open('', '_blank')
     if (!w) {
@@ -3579,24 +3689,107 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     w.document.write(`
       <html>
         <head>
-          <title>Account Summary ${accountEnquiryData.account.accountCode}</title>
+          <title>Statement of Account ${escapeHtml(accountEnquiryData.account.accountCode)}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 20px; color: #111827; }
-            h1 { margin: 0 0 8px 0; font-size: 20px; }
-            p { margin: 0 0 16px 0; color: #374151; }
-            table { width: 100%; border-collapse: collapse; font-size: 13px; }
+            @page { size: A4 landscape; margin: 12mm; }
+            body { font-family: Arial, sans-serif; color: #111827; margin: 0; padding: 20px; background: #FFFFFF; }
+            .sheet { width: 100%; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 10px; }
+            .brand { display: flex; gap: 16px; align-items: flex-start; }
+            .brand-copy { font-size: 12px; line-height: 1.25; }
+            .brand-copy .company { font-size: 15px; font-weight: 700; }
+            .muted { color: #111827; }
+            .statement-head { text-align: right; min-width: 240px; }
+            .statement-head .title { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+            .statement-head .dates { font-size: 12px; }
+            .party-box { border: 1px solid #202020; min-height: 116px; padding: 8px 10px; margin: 8px 0 0; }
+            .party-code { font-size: 12px; margin-bottom: 4px; }
+            .party-name { font-size: 13px; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; }
+            .party-address { font-size: 12px; line-height: 1.25; white-space: pre-line; }
+            table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 0; }
+            th, td { border: 1px solid #2D2D2D; padding: 5px 6px; vertical-align: middle; }
+            thead th { background: #F6CA82; color: #111827; font-weight: 700; text-align: center; }
+            .subhead th { background: #F6CA82; font-size: 10px; }
+            td { text-align: center; }
+            .narration { text-align: left; }
+            .num { text-align: right; white-space: nowrap; }
+            .opening td { font-weight: 700; }
+            .footer { margin-top: 10px; display: flex; justify-content: space-between; font-size: 11px; font-style: italic; color: #1F2937; }
+            @media print { body { padding: 0; } }
           </style>
         </head>
         <body>
-          <h1>Account Summary</h1>
-          <p>${accountEnquiryData.account.accountCode} - ${accountEnquiryData.account.accountName}</p>
-          <table>${htmlRows}</table>
+          <div class="sheet">
+            <div class="header">
+              <div class="brand">
+                ${logoMarkup ? `<div>${logoMarkup}</div>` : ''}
+                <div class="brand-copy">
+                  <div class="company">${escapeHtml(brandingProfile.companyName || DEFAULT_BRANDING.companyName)}</div>
+                  ${brandingProfile.legalName ? `<div class="muted">${escapeHtml(brandingProfile.legalName)}</div>` : ''}
+                  ${companyAddress ? `<div class="muted">${escapeHtml(companyAddress)}</div>` : ''}
+                  ${companyPhone ? `<div class="muted">Telephone: ${escapeHtml(companyPhone)}${companyTrn ? `, TRN: ${escapeHtml(companyTrn)}` : ''}</div>` : (companyTrn ? `<div class="muted">TRN: ${escapeHtml(companyTrn)}</div>` : '')}
+                </div>
+              </div>
+              <div class="statement-head">
+                <div class="title">Statement Of Account</div>
+                <div class="dates">Doc Date From ${escapeHtml(formatDateForHeader(headerStartDate) || '-')} To ${escapeHtml(formatDateForHeader(headerEndDate) || '-')}</div>
+              </div>
+            </div>
+            <div class="party-box">
+              <div class="party-code">${escapeHtml(accountEnquiryData.account.accountCode || '')}</div>
+              <div class="party-name">${escapeHtml(accountEnquiryData.account.accountName || 'Account')}</div>
+              <div class="party-address">${escapeHtml(accountAddress)}</div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th rowspan="2">Doc No</th>
+                  <th rowspan="2">Doc Date</th>
+                  <th rowspan="2">Narration</th>
+                  <th colspan="3">Amount (USD)</th>
+                  <th colspan="3">${escapeHtml(statementMetalCode)}(GMS)</th>
+                </tr>
+                <tr class="subhead">
+                  <th>Debit</th>
+                  <th>Credit</th>
+                  <th>Balance</th>
+                  <th>Debit</th>
+                  <th>Credit</th>
+                  <th>Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="opening">
+                  <td></td>
+                  <td></td>
+                  <td class="narration">Balance B/F</td>
+                  <td class="num"></td>
+                  <td class="num"></td>
+                  <td class="num">${escapeHtml(formatDrCr(openingUsdBalance, 2))}</td>
+                  <td class="num"></td>
+                  <td class="num"></td>
+                  <td class="num">${escapeHtml(formatDrCr(openingPureWeight, 3))}</td>
+                </tr>
+                ${bodyRows}
+              </tbody>
+            </table>
+            <div class="footer">
+              <span>Printed By: ${escapeHtml(user?.name || 'User')} On ${escapeHtml(new Date().toLocaleString())}</span>
+              <span>Page 1</span>
+            </div>
+          </div>
         </body>
       </html>
     `)
     w.document.close()
     w.focus()
-    w.print()
+    window.setTimeout(() => {
+      try {
+        w.print()
+      } catch {
+        // Leave preview open if print is blocked.
+      }
+    }, 300)
     showNotification('✅ PDF export opened for printing')
   }
 
@@ -6547,6 +6740,24 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   style={modalInputStyle}
                 />
                 <input
+                  placeholder="Company Address"
+                  value={brandingForm.address}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, address: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <input
+                  placeholder="Company Phone"
+                  value={brandingForm.phone}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, phone: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <input
+                  placeholder="TRN / Tax Registration"
+                  value={brandingForm.trn}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, trn: e.target.value }))}
+                  style={modalInputStyle}
+                />
+                <input
                   placeholder="Report Subtitle"
                   value={brandingForm.reportSubtitle}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, reportSubtitle: e.target.value }))}
@@ -6632,6 +6843,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                     <p style={{ margin: '0 0 0.35rem', color: '#111827', fontSize: '1.3rem', fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 700 }}>ERP Financial Statement</p>
                     <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem' }}>{brandingPreview.entityName || DEFAULT_BRANDING.entityName}{brandingPreview.branchName ? ` / ${brandingPreview.branchName}` : ''}</p>
                     {brandingPreview.legalName ? <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem' }}>{brandingPreview.legalName}</p> : null}
+                    {brandingPreview.address ? <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem', whiteSpace: 'pre-line' }}>{brandingPreview.address}</p> : null}
+                    {(brandingPreview.phone || brandingPreview.trn) ? <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem' }}>{`${brandingPreview.phone || ''}${brandingPreview.phone && brandingPreview.trn ? ' | ' : ''}${brandingPreview.trn ? `TRN: ${brandingPreview.trn}` : ''}`}</p> : null}
                     <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem' }}>{brandingPreview.reportSubtitle || DEFAULT_BRANDING.reportSubtitle} | Prepared for statutory / CA-style review</p>
                     <p style={{ margin: 0, color: '#4B5563', fontSize: '0.8rem' }}>Period: 01 Apr 2026 to 30 Apr 2026</p>
                   </div>
