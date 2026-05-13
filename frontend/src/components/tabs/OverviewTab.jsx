@@ -59,8 +59,8 @@ const STATUS_OPTIONS = [
 ]
 
 const PRIORITY_OPTIONS = [
-  { value: 'low', label: 'Low', tone: 'text-gray-300 border-gray-700 bg-gray-800/70' },
-  { value: 'medium', label: 'Medium', tone: 'text-yellow-300 border-yellow-500/30 bg-yellow-500/10' },
+  { value: 'low', label: 'Low', tone: 'text-gray-800 border-gray-300 bg-gray-100' },
+  { value: 'medium', label: 'Medium', tone: 'text-yellow-900 border-yellow-300 bg-yellow-100' },
   { value: 'high', label: 'High', tone: 'text-red-800 border-red-300 bg-red-100' },
   { value: 'critical', label: 'Critical', tone: 'text-red-900 border-red-300 bg-red-100' },
 ]
@@ -206,23 +206,23 @@ function KpiCard({ title, value, hint, tone = 'green', onClick, readOnly }) {
   return (
     <button
       onClick={onClick}
-      className={`text-left bg-white border rounded-xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md shadow-sm ${borderClass} ${onClick ? '' : 'cursor-default'}`}
+      className={`text-left bg-white border rounded-xl p-3 sm:p-4 transition-all hover:-translate-y-0.5 hover:shadow-md shadow-sm ${borderClass} ${onClick ? '' : 'cursor-default'}`}
       style={{ borderTopWidth: 3 }}
       disabled={!onClick}
     >
-      <p className="text-xs text-gray-500 tracking-wider uppercase">{title}</p>
-      <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
-      <p className="text-xs text-gray-500 mt-1">{hint}{readOnly ? ' - read only' : ''}</p>
+      <p className="text-[11px] text-gray-600 tracking-wider uppercase">{title}</p>
+      <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">{value}</p>
+      <p className="text-[11px] sm:text-xs text-gray-600 mt-1">{hint}{readOnly ? ' - read only' : ''}</p>
     </button>
   )
 }
 
 function Section({ title, action, children }) {
   return (
-    <section className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm">
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <h2 className="text-sm sm:text-base font-semibold text-gray-900">{title}</h2>
-        {action}
+    <section className="bg-white border border-gray-200 rounded-2xl p-3 sm:p-5 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-3 sm:mb-4">
+        <h2 className="text-sm sm:text-base font-bold tracking-tight text-gray-900">{title}</h2>
+        {action && <div className="w-full sm:w-auto flex justify-start sm:justify-end">{action}</div>}
       </div>
       {children}
     </section>
@@ -1026,31 +1026,31 @@ function OverviewTab({ onNavigate }) {
   }
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-4 sm:space-y-6 pb-6 sm:pb-8">
       {toast && (
-        <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-100 text-emerald-800 text-sm">
+        <div className="fixed top-3 right-3 left-3 sm:left-auto sm:top-4 sm:right-4 z-50 px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-100 text-emerald-800 text-sm">
           {toast}
         </div>
       )}
 
       <Section
         title={`Operational Command Center - ${roleView.replace(/_/g, ' ')}`}
-        action={<p className="text-xs text-gray-500">{today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>}
+        action={<p className="text-xs text-gray-600">{today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>}
       >
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
           <div>
-            <p className="text-lg font-bold text-gray-900">Good day, {user?.name || 'User'}</p>
-            <p className="text-sm text-gray-400">Last login: {user?.lastLogin ? fmtDateTime(user.lastLogin) : '2 hrs ago'}</p>
+            <p className="text-base sm:text-lg font-bold text-gray-900">Good day, {user?.name || 'User'}</p>
+            <p className="text-xs sm:text-sm text-gray-600">Last login: {user?.lastLogin ? fmtDateTime(user.lastLogin) : '2 hrs ago'}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex w-full lg:w-auto flex-wrap gap-2">
             <input
               value={taskSearch}
               onChange={(e) => setTaskSearch(e.target.value)}
               placeholder="Quick Search"
-              className="input-field w-44"
+              className="input-field w-full sm:w-44"
             />
             {roleCreateOptions.length > 0 && !isReadOnlyExec && (
-              <select className="input-field w-44" onChange={(e) => { if (e.target.value) onQuickAction(e.target.value); e.target.value = '' }} defaultValue="">
+              <select className="input-field w-full sm:w-44" onChange={(e) => { if (e.target.value) onQuickAction(e.target.value); e.target.value = '' }} defaultValue="">
                 <option value="">+ Quick Create</option>
                 {roleCreateOptions.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
@@ -1065,14 +1065,14 @@ function OverviewTab({ onNavigate }) {
       <Section
         title="Notifications & New Tasks"
         action={
-          <div className="flex gap-2">
-            <button onClick={() => setNotificationFilter('all')} className={`px-2 py-1 text-xs rounded ${notificationFilter === 'all' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>All</button>
-            <button onClick={() => setNotificationFilter('task')} className={`px-2 py-1 text-xs rounded ${notificationFilter === 'task' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>Tasks</button>
-            <button onClick={() => setNotificationFilter('message')} className={`px-2 py-1 text-xs rounded ${notificationFilter === 'message' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>Messages</button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setNotificationFilter('all')} className={`px-2 py-1 text-xs rounded ${notificationFilter === 'all' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>All</button>
+            <button onClick={() => setNotificationFilter('task')} className={`px-2 py-1 text-xs rounded ${notificationFilter === 'task' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>Tasks</button>
+            <button onClick={() => setNotificationFilter('message')} className={`px-2 py-1 text-xs rounded ${notificationFilter === 'message' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>Messages</button>
           </div>
         }
       >
-        <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-3 sm:gap-4">
           <div className="space-y-2">
             {notificationRows.map((item) => (
               <div key={item.id} className="border border-gray-300 rounded-xl p-3 bg-white">
@@ -1081,11 +1081,11 @@ function OverviewTab({ onNavigate }) {
                   <span className={`text-[11px] px-2 py-0.5 rounded border ${item.type === 'task' ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-blue-300 bg-blue-100 text-blue-800'}`}>{item.type}</span>
                 </div>
                 <p className="text-xs text-gray-700 mt-1">{item.text}</p>
-                <p className="text-[11px] text-gray-500 mt-2">{String(item.time)}</p>
+                <p className="text-[11px] text-gray-600 mt-2">{String(item.time)}</p>
               </div>
             ))}
           </div>
-          <div className="border border-gray-300 rounded-xl p-4 bg-white">
+          <div className="border border-gray-300 rounded-xl p-3 sm:p-4 bg-white">
             <p className="text-sm font-semibold text-gray-900">Task Action Shortcuts</p>
             <div className="grid grid-cols-1 gap-2 mt-3">
               <button onClick={() => runTaskShortcut('create')} disabled={!canCreateTasks} className="px-3 py-2 text-xs rounded-lg border border-emerald-300 bg-emerald-100 text-emerald-800 disabled:opacity-50">+ Create Task</button>
@@ -1097,7 +1097,7 @@ function OverviewTab({ onNavigate }) {
         </div>
       </Section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3">
         {executiveCards.map((card) => (
           <KpiCard
             key={card.id}
@@ -1112,16 +1112,16 @@ function OverviewTab({ onNavigate }) {
       </div>
 
       <Section title="Executive Summary by Department">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3">
           {visibleDeptMetrics.map((m) => (
-            <div key={m.dept} className={`bg-white border rounded-xl p-4 ${DEPT_STATUS[m.status] || DEPT_STATUS.attention}`}>
+            <div key={m.dept} className={`bg-white border rounded-xl p-3 sm:p-4 ${DEPT_STATUS[m.status] || DEPT_STATUS.attention}`}>
               <div className="flex items-center justify-between mb-2">
                 <p className="font-semibold text-gray-900">{m.title}</p>
-                <span className="text-xs text-gray-700">{m.status}</span>
+                <span className="text-[11px] text-gray-700">{m.status}</span>
               </div>
               <p className="text-sm text-gray-800">{m.line1}</p>
-              <p className="text-xs text-gray-700 mt-1">{m.line2}</p>
-              <p className="text-xs text-gray-700">{m.line3}</p>
+              <p className="text-[11px] sm:text-xs text-gray-700 mt-1">{m.line2}</p>
+              <p className="text-[11px] sm:text-xs text-gray-700">{m.line3}</p>
               <button onClick={() => onNavigate?.(TAB_BY_DEPT[m.dept])} className="mt-3 text-xs text-emerald-700 hover:text-emerald-800 font-medium">
                 View {'->'}
               </button>
@@ -1134,14 +1134,14 @@ function OverviewTab({ onNavigate }) {
       <Section
         title="Tasks Command Center"
         action={
-          <div className="flex gap-2">
-            <button onClick={() => setTaskView('list')} className={`px-2 py-1 text-xs rounded ${taskView === 'list' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>List</button>
-            <button onClick={() => setTaskView('kanban')} className={`px-2 py-1 text-xs rounded ${taskView === 'kanban' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>Kanban</button>
-            <button onClick={() => setTaskView('calendar')} className={`px-2 py-1 text-xs rounded ${taskView === 'calendar' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>Calendar</button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setTaskView('list')} className={`px-2 py-1 text-xs rounded ${taskView === 'list' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>List</button>
+            <button onClick={() => setTaskView('kanban')} className={`px-2 py-1 text-xs rounded ${taskView === 'kanban' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>Kanban</button>
+            <button onClick={() => setTaskView('calendar')} className={`px-2 py-1 text-xs rounded ${taskView === 'calendar' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>Calendar</button>
           </div>
         }
       >
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-4">
           <KpiCard title="Total Tasks" value={taskStats.total} hint="All visible" tone="green" />
           <KpiCard title="My Tasks" value={taskStats.mine} hint="Assigned to me" tone="green" />
           <KpiCard title="Overdue" value={taskStats.overdue} hint="Need action" tone="red" />
@@ -1157,19 +1157,19 @@ function OverviewTab({ onNavigate }) {
             ['due-today', 'Due Today'],
             ['this-week', 'This Week'],
           ].map(([id, label]) => (
-            <button key={id} onClick={() => setTaskFilter(id)} className={`px-3 py-1.5 rounded-lg text-xs ${taskFilter === id ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>
+            <button key={id} onClick={() => setTaskFilter(id)} className={`px-3 py-1.5 rounded-lg text-xs ${taskFilter === id ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>
               {label}
             </button>
           ))}
-          <select className="input-field w-36" value={taskDeptFilter} onChange={(e) => setTaskDeptFilter(e.target.value)}>
+          <select className="input-field w-full sm:w-36" value={taskDeptFilter} onChange={(e) => setTaskDeptFilter(e.target.value)}>
             <option value="all">All Depts</option>
             {DEPT_OPTIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
           </select>
-          <select className="input-field w-36" value={taskAssignedFilter} onChange={(e) => setTaskAssignedFilter(e.target.value)}>
+          <select className="input-field w-full sm:w-36" value={taskAssignedFilter} onChange={(e) => setTaskAssignedFilter(e.target.value)}>
             <option value="any">Anyone</option>
             {assignees.map((p) => <option key={`${p.id}-${p.name}`} value={p.name}>{p.name}</option>)}
           </select>
-          <select className="input-field w-32" value={taskPriorityFilter} onChange={(e) => setTaskPriorityFilter(e.target.value)}>
+          <select className="input-field w-full sm:w-32" value={taskPriorityFilter} onChange={(e) => setTaskPriorityFilter(e.target.value)}>
             <option value="all">All Priority</option>
             {PRIORITY_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
@@ -1185,7 +1185,7 @@ function OverviewTab({ onNavigate }) {
           <div className="mb-5 p-4 rounded-xl border border-gray-200 bg-gray-50 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-gray-900">{editingTaskId ? 'Edit Task' : 'Quick Create Task'}</p>
-              <button onClick={resetTaskComposer} className="text-gray-400 hover:text-gray-700">x</button>
+              <button onClick={resetTaskComposer} className="text-gray-600 hover:text-gray-800">x</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <input className="input-field" placeholder="Task Title *" value={taskForm.title} onChange={(e) => setTaskForm((p) => ({ ...p, title: e.target.value }))} />
@@ -1214,7 +1214,7 @@ function OverviewTab({ onNavigate }) {
               <input type="date" className="input-field" value={taskForm.dueDate} onChange={(e) => setTaskForm((p) => ({ ...p, dueDate: e.target.value }))} />
               <input className="input-field" placeholder="Linked record" value={taskForm.linkedRecord} onChange={(e) => setTaskForm((p) => ({ ...p, linkedRecord: e.target.value }))} />
               <input type="datetime-local" className="input-field" value={taskForm.reminderAt} onChange={(e) => setTaskForm((p) => ({ ...p, reminderAt: e.target.value }))} />
-              <div className="text-xs text-gray-500 flex items-center">Reminder for assignee or watchers</div>
+              <div className="text-xs text-gray-600 flex items-center">Reminder for assignee or watchers</div>
               <select
                 multiple
                 className="input-field md:col-span-2 min-h-24"
@@ -1236,9 +1236,9 @@ function OverviewTab({ onNavigate }) {
         )}
 
         {loadingTasks ? (
-          <div className="text-sm text-gray-400 py-6">Loading tasks...</div>
+          <div className="text-sm text-gray-600 py-6">Loading tasks...</div>
         ) : filteredTasks.length === 0 ? (
-          <div className="text-sm text-gray-500 py-6 border border-dashed border-gray-300 rounded-xl text-center">No tasks match current filters</div>
+          <div className="text-sm text-gray-600 py-6 border border-dashed border-gray-300 rounded-xl text-center">No tasks match current filters</div>
         ) : taskView === 'list' ? (
           <div className="space-y-3">
             {filteredTasks.map((task) => {
@@ -1250,8 +1250,8 @@ function OverviewTab({ onNavigate }) {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-gray-900">{task.title}</p>
-                        <p className="text-xs text-gray-500 mt-1">{task.department || 'General'} {'->'} {task.module || 'General'}</p>
-                        <p className="text-xs text-gray-400 mt-1">{task.assignedTo || 'Unassigned'} · Due: {fmtDate(task.dueDate)} {overdue ? '· OVERDUE' : ''}</p>
+                        <p className="text-xs text-gray-600 mt-1">{task.department || 'General'} {'->'} {task.module || 'General'}</p>
+                        <p className="text-xs text-gray-600 mt-1">{task.assignedTo || 'Unassigned'} · Due: {fmtDate(task.dueDate)} {overdue ? '· OVERDUE' : ''}</p>
                       </div>
                       <div className="flex flex-col gap-2 items-end">
                         <span className={`text-xs px-2 py-0.5 rounded border ${priorityTone(task.priority)}`}>{(task.priority || 'medium').toUpperCase()}</span>
@@ -1279,9 +1279,9 @@ function OverviewTab({ onNavigate }) {
                   {isExpanded && (
                     <div className="border-t border-gray-800 p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
                       <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Details</p>
+                        <p className="text-xs uppercase tracking-wide text-gray-600 mb-2">Details</p>
                         <p className="text-sm text-gray-700">{task.description || 'No description provided.'}</p>
-                        <div className="text-xs text-gray-500 mt-3 space-y-1">
+                        <div className="text-xs text-gray-600 mt-3 space-y-1">
                           <p>Priority: {task.priority}</p>
                           <p>Status: {statusLabel(task.status)}</p>
                           <p>Created by: {task.createdBy || 'System'}</p>
@@ -1292,13 +1292,13 @@ function OverviewTab({ onNavigate }) {
                         </div>
                       </div>
                       <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Activity & Messages</p>
+                        <p className="text-xs uppercase tracking-wide text-gray-600 mb-2">Activity & Messages</p>
                         <div className="space-y-2 max-h-44 overflow-auto pr-1">
                           {(task.comments || []).length === 0 && <p className="text-xs text-gray-600">No comments yet.</p>}
                           {(task.comments || []).map((c, idx) => (
                             <div key={`${task._id}-c-${idx}`} className="rounded-lg border border-gray-200 p-2 bg-gray-50">
                               <p className="text-xs text-gray-700"><span className="font-semibold">{c.author}</span> - {fmtDateTime(c.createdAt)}</p>
-                              <p className="text-xs text-gray-400 mt-1">{c.text}</p>
+                              <p className="text-xs text-gray-600 mt-1">{c.text}</p>
                             </div>
                           ))}
                         </div>
@@ -1324,16 +1324,16 @@ function OverviewTab({ onNavigate }) {
               const colTasks = filteredTasks.filter((t) => t.status === col)
               return (
                 <div key={col} className="border border-gray-200 rounded-xl p-3 bg-gray-50">
-                  <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">{statusLabel(col)} ({colTasks.length})</p>
+                  <p className="text-xs text-gray-600 uppercase tracking-wider mb-2">{statusLabel(col)} ({colTasks.length})</p>
                   <div className="space-y-2">
                     {colTasks.map((t) => (
                       <div key={`${col}-${t._id}`} className="border border-gray-200 rounded-lg p-2 bg-white">
                         <p className="text-sm text-gray-900 font-medium">{t.title}</p>
-                        <p className="text-xs text-gray-500 mt-1">{t.assignedTo || 'Unassigned'} · {fmtDate(t.dueDate)}</p>
+                        <p className="text-xs text-gray-600 mt-1">{t.assignedTo || 'Unassigned'} · {fmtDate(t.dueDate)}</p>
                       </div>
                     ))}
                     {canCreateTasks && (
-                      <button onClick={() => openTaskComposer()} className="w-full py-2 text-xs rounded border border-dashed border-gray-300 text-gray-500 hover:text-gray-700">
+                      <button onClick={() => openTaskComposer()} className="w-full py-2 text-xs rounded border border-dashed border-gray-300 text-gray-600 hover:text-gray-700">
                         + Add Task
                       </button>
                     )}
@@ -1349,10 +1349,10 @@ function OverviewTab({ onNavigate }) {
               const onDay = filteredTasks.filter((t) => t.dueDate && new Date(t.dueDate).getDate() === day)
               return (
                 <div key={`day-${day}`} className="min-h-20 border border-gray-200 rounded-lg p-1 bg-white">
-                  <p className="text-[10px] text-gray-500">{day}</p>
+                  <p className="text-[10px] text-gray-600">{day}</p>
                   <div className="space-y-1 mt-1">
                     {onDay.slice(0, 2).map((t) => (
-                      <p key={`cal-${t._id}`} className="text-[10px] px-1 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 truncate">
+                      <p key={`cal-${t._id}`} className="text-[10px] px-1 py-0.5 rounded bg-emerald-100 border border-emerald-300 text-emerald-900 truncate">
                         {t.title}
                       </p>
                     ))}
@@ -1448,7 +1448,7 @@ function OverviewTab({ onNavigate }) {
                         <button onClick={() => markAttendance(r, 'present')} className="text-emerald-700 hover:text-emerald-800">Present</button>
                         <button onClick={() => markAttendance(r, 'late')} className="text-yellow-700 hover:text-yellow-800">Late</button>
                         <button onClick={() => markAttendance(r, 'absent')} className="text-red-700 hover:text-red-800">Absent</button>
-                        <button onClick={() => sendAttendanceReminder(r)} className="text-blue-300">Remind</button>
+                        <button onClick={() => sendAttendanceReminder(r)} className="text-blue-700 hover:text-blue-800">Remind</button>
                       </div>
                     ) : '-'}
                   </td>
@@ -1531,14 +1531,14 @@ function OverviewTab({ onNavigate }) {
         <Section title="Charts & Analytics">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="border border-gray-200 rounded-xl p-3 bg-white">
-              <p className="text-xs text-gray-500 mb-2">Revenue Trend</p>
+              <p className="text-xs text-gray-600 mb-2">Revenue Trend</p>
               <svg viewBox="0 0 240 120" className="w-full h-32">
                 <polyline fill="none" stroke="#00ED64" strokeWidth="3" points="0,90 25,78 50,80 75,70 100,75 125,62 150,55 175,58 200,45 225,35 240,38" />
                 <line x1="0" y1="52" x2="240" y2="52" stroke="#64748b" strokeDasharray="4 4" />
               </svg>
             </div>
             <div className="border border-gray-200 rounded-xl p-3 bg-white">
-              <p className="text-xs text-gray-500 mb-2">Department Health Radar (summary)</p>
+              <p className="text-xs text-gray-600 mb-2">Department Health Radar (summary)</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {DEMO_DEPT_METRICS.map((m) => (
                   <button key={`rad-${m.dept}`} onClick={() => onNavigate?.(TAB_BY_DEPT[m.dept])} className="text-left p-2 rounded border border-gray-200 bg-gray-50 text-gray-700 hover:text-gray-900">
@@ -1548,7 +1548,7 @@ function OverviewTab({ onNavigate }) {
               </div>
             </div>
             <div className="border border-gray-200 rounded-xl p-3 bg-white">
-              <p className="text-xs text-gray-500 mb-2">Sales Pipeline Funnel</p>
+              <p className="text-xs text-gray-600 mb-2">Sales Pipeline Funnel</p>
               {[
                 ['Prospect', 42],
                 ['Contacted', 31],
@@ -1558,7 +1558,7 @@ function OverviewTab({ onNavigate }) {
                 ['Active', 4],
               ].map(([name, v]) => (
                 <div key={name} className="mb-1">
-                  <p className="text-[11px] text-gray-500">{name} ({v})</p>
+                  <p className="text-[11px] text-gray-600">{name} ({v})</p>
                   <div className="h-2 rounded bg-gray-200 overflow-hidden"><div className="h-full bg-blue-500" style={{ width: `${Math.max(8, Number(v) * 2)}%` }} /></div>
                 </div>
               ))}
@@ -1580,19 +1580,19 @@ function OverviewTab({ onNavigate }) {
         </Section>
       )}
 
-      <Section title="Upcoming Deadlines - Next 14 days" action={<button className="text-xs text-emerald-300">View Calendar</button>}>
+      <Section title="Upcoming Deadlines - Next 14 days" action={<button className="text-xs text-emerald-700 hover:text-emerald-800">View Calendar</button>}>
         <div className="space-y-2">
           {deadlineRows.map((d) => (
             <div key={d.id} className="flex items-center justify-between border border-gray-200 rounded-lg p-2 bg-white">
               <p className="text-xs text-gray-800">{d.when} · {d.text}</p>
-              <button className="text-xs text-gray-400 capitalize" onClick={() => onNavigate?.(TAB_BY_DEPT[d.dept] || 'overview')}>{d.dept}</button>
+              <button className="text-xs text-gray-600 hover:text-gray-800 capitalize" onClick={() => onNavigate?.(TAB_BY_DEPT[d.dept] || 'overview')}>{d.dept}</button>
             </div>
           ))}
         </div>
       </Section>
 
       <Section title={t('quickActions')}>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
           {(QUICK_ACTIONS[role] || QUICK_ACTIONS.department_user).map((action) => (
             <button key={action} onClick={() => onQuickAction(action)} className="px-3 py-2 text-xs rounded-lg border border-gray-200 bg-gray-50 text-gray-700 hover:text-gray-900 hover:border-emerald-500">
               {action}
@@ -1602,12 +1602,12 @@ function OverviewTab({ onNavigate }) {
       </Section>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Section title="Live Activity Feed" action={<button className="text-xs text-emerald-300">View Full Log</button>}>
+        <Section title="Live Activity Feed" action={<button className="text-xs text-emerald-700 hover:text-emerald-800">View Full Log</button>}>
           <div className="space-y-2">
             {latestFeed.map((f) => (
               <div key={f.id} className="border border-gray-200 rounded-lg p-2 bg-white">
                 <p className="text-xs text-gray-800">{f.text}</p>
-                <p className="text-[11px] text-gray-500 mt-1">{f.dept} · {fmtDateTime(f.time)}</p>
+                <p className="text-[11px] text-gray-600 mt-1">{f.dept} · {fmtDateTime(f.time)}</p>
               </div>
             ))}
           </div>
@@ -1617,19 +1617,19 @@ function OverviewTab({ onNavigate }) {
         <Section
           title={t('latestMessages')}
           action={
-            <div className="flex gap-2">
-              <button onClick={() => setMessageFilter('all')} className={`px-2 py-1 text-xs rounded ${messageFilter === 'all' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>All</button>
-              <button onClick={() => setMessageFilter('group')} className={`px-2 py-1 text-xs rounded ${messageFilter === 'group' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>Group</button>
-              <button onClick={() => setMessageFilter('dm')} className={`px-2 py-1 text-xs rounded ${messageFilter === 'dm' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-300'}`}>DM</button>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => setMessageFilter('all')} className={`px-2 py-1 text-xs rounded ${messageFilter === 'all' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>All</button>
+              <button onClick={() => setMessageFilter('group')} className={`px-2 py-1 text-xs rounded ${messageFilter === 'group' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>Group</button>
+              <button onClick={() => setMessageFilter('dm')} className={`px-2 py-1 text-xs rounded ${messageFilter === 'dm' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-100'}`}>DM</button>
             </div>
           }
         >
           <div className="space-y-2">
             {messageRows.map((m) => (
               <div key={m.id} className="border border-gray-200 rounded-lg p-2 bg-white">
-                <p className="text-xs text-gray-500 uppercase">{m.type} · {m.room}</p>
+                <p className="text-xs text-gray-600 uppercase">{m.type} · {m.room}</p>
                 <p className="text-xs text-gray-800 mt-1"><span className="font-semibold">{m.sender}:</span> {m.text}</p>
-                <p className="text-[11px] text-gray-500 mt-1">{m.ago}</p>
+                <p className="text-[11px] text-gray-600 mt-1">{m.ago}</p>
               </div>
             ))}
             <div className="flex gap-2 mt-2">
@@ -1642,7 +1642,7 @@ function OverviewTab({ onNavigate }) {
       </div>
 
       {(loadingEmployees || loadingTasks) && (
-        <p className="text-xs text-gray-500">Syncing live data...</p>
+        <p className="text-xs text-gray-600">Syncing live data...</p>
       )}
     </div>
   )

@@ -251,6 +251,10 @@ function Dashboard({
   const notifMenuRef = useRef(null)
   const accountMenuRef = useRef(null)
 
+  const DESKTOP_MIN_WIDTH = 1024
+  const [isDesktop, setIsDesktop] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_MIN_WIDTH : true
+  ))
   const EDGE_TRIGGER_WIDTH = 20
   const SIDEBAR_WIDTH = 240
   const HIDE_DELAY_MS = 400
@@ -300,12 +304,18 @@ function Dashboard({
     }
   }
 
+  const closeSidebar = () => {
+    clearHideTimer()
+    setSidebarOpen(false)
+  }
+
   const openSidebar = () => {
     clearHideTimer()
     setSidebarOpen(true)
   }
 
   const queueHideSidebar = () => {
+    if (!isDesktop) return
     clearHideTimer()
     hideTimerRef.current = setTimeout(() => {
       setSidebarOpen(false)
@@ -316,6 +326,18 @@ function Dashboard({
   useEffect(() => {
     return () => clearHideTimer()
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= DESKTOP_MIN_WIDTH)
+    }
+
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [DESKTOP_MIN_WIDTH])
 
   // Close language menu when clicking outside
   useEffect(() => {
@@ -397,6 +419,8 @@ function Dashboard({
   }, [])
 
   const handleShellMouseMove = (e) => {
+    if (!isDesktop) return
+
     const x = e.clientX
 
     if (x <= EDGE_TRIGGER_WIDTH) {
@@ -408,6 +432,22 @@ function Dashboard({
     if (sidebarOpen && x > HIDE_THRESHOLD_X) {
       queueHideSidebar()
     }
+  }
+
+  const handleTabSelect = (tabId) => {
+    setActiveTab(tabId)
+    if (!isDesktop) closeSidebar()
+  }
+
+  const handleErpTabSelect = (subTab) => {
+    setActiveTab('erp')
+    setErpSubTab(subTab)
+    if (!isDesktop) closeSidebar()
+  }
+
+  const toggleSidebar = () => {
+    clearHideTimer()
+    setSidebarOpen((prev) => !prev)
   }
 
   // Group nav items
@@ -447,7 +487,7 @@ function Dashboard({
     <div className="h-screen overflow-hidden" style={{ background: 'var(--bg-base)', display: 'flex', flexDirection: 'row', minHeight: '100vh' }} onMouseMove={handleShellMouseMove}>
 
       {/* Desktop edge sensor: reveal sidebar when mouse nears left/right edge */}
-      {!sidebarOpen && (
+      {isDesktop && !sidebarOpen && (
         <div
           className={`fixed inset-y-0 z-40 ${isRTL ? 'right-0' : 'left-0'}`}
           style={{ width: EDGE_TRIGGER_WIDTH }}
@@ -463,8 +503,8 @@ function Dashboard({
           ${isRTL ? 'right-0' : 'left-0'}
           ${sidebarOpen ? 'translate-x-0' : isRTL ? 'translate-x-full' : '-translate-x-full'}
         `}
-        onMouseEnter={clearHideTimer}
-        onMouseLeave={queueHideSidebar}>
+        onMouseEnter={isDesktop ? clearHideTimer : undefined}
+        onMouseLeave={isDesktop ? queueHideSidebar : undefined}>
 
         {/* Sidebar top — logo */}
         <div className="sidebar-logo flex-shrink-0">
@@ -487,7 +527,7 @@ function Dashboard({
           {mainItems.map(item => (
             <NavItem key={item.id} {...item}
               active={activeTab === item.id}
-              onClick={() => setActiveTab(item.id)} />
+              onClick={() => handleTabSelect(item.id)} />
           ))}
 
           {/* Divider before Admin */}
@@ -504,7 +544,7 @@ function Dashboard({
               {adminOpen && adminItems.map(item => (
                 <NavItem key={item.id} {...item}
                   active={activeTab === item.id}
-                  onClick={() => setActiveTab(item.id)} />
+                  onClick={() => handleTabSelect(item.id)} />
               ))}
             </>
           )}
@@ -523,7 +563,7 @@ function Dashboard({
               {deptOpen && deptItems.map(item => (
                 <NavItem key={item.id} {...item}
                   active={activeTab === item.id}
-                  onClick={() => setActiveTab(item.id)} />
+                  onClick={() => handleTabSelect(item.id)} />
               ))}
             </>
           )}
@@ -542,7 +582,7 @@ function Dashboard({
               {erpOpen && erpItems.map(item => (
                 <NavItem key={item.id} {...item}
                   active={activeTab === 'erp' && erpSubTab === item.erpSub}
-                  onClick={() => { setActiveTab('erp'); setErpSubTab(item.erpSub) }} />
+                  onClick={() => handleErpTabSelect(item.erpSub)} />
               ))}
             </>
           )}
@@ -569,7 +609,7 @@ function Dashboard({
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 lg:hidden"
           style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(2px)' }}
-          onClick={() => setSidebarOpen(false)} />
+          onClick={closeSidebar} />
       )}
 
       {/* ══════════════════════════════════════
@@ -583,7 +623,7 @@ function Dashboard({
           <div className="flex w-full items-center justify-between gap-10">
             <div className="flex items-center gap-3">
               {/* Hamburger */}
-              <button onClick={() => setSidebarOpen(!sidebarOpen)}
+              <button onClick={toggleSidebar}
                 className="p-2 rounded-lg transition-colors"
                 style={{ color: 'var(--text-muted)' }}
                 onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'rgba(255,255,255,0.12)' }}
