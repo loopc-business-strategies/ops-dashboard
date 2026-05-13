@@ -796,6 +796,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (statementFilters.fixStatus === 'unfixed' && fixStatus !== 'unfixed') return false
       if (statementFilters.fixStatus === 'unknown' && fixStatus !== 'unknown') return false
     }
+    if (statementFilters.foreignCurrency) {
+      const entryCurrency = String(entry.currency || '').toUpperCase().trim()
+      if (entryCurrency !== statementFilters.foreignCurrency.toUpperCase().trim()) return false
+    }
     return true
   })
   const visibleStatementNetBalance = filteredStatementEntries.reduce((sum, entry) => {
@@ -2717,7 +2721,16 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setAccountEnquiryCode(cleanCode)
       setAccountEnquiryData(data)
       setAccountSummaryView('position')
-      setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '' })
+      setStatementFilters({
+        startDate: '',
+        endDate: '',
+        referenceType: '',
+        department: '',
+        fixStatus: '',
+        foreignCurrency: String(data.account?.currency || '').toUpperCase(),
+        metalCommodity: 'gold',
+        showAmountIn: '',
+      })
       pushEnquiryHistory(data.account)
       setError('')
       setEnquiryStatus({ type: 'success', message: `Account ${data.account.accountCode} summary loaded successfully` })
@@ -7936,8 +7949,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                       )}
                     </div>
 
-                    <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #E5E7EB' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #E5E7EB', background: '#FAFBFC' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.55rem' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Filter</span>
+                        <div style={{ flex: 1, height: '1px', background: '#E2E8F0' }} />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', marginBottom: '0.75rem' }}>
                         <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
                           <span>Date From</span>
                           <input
@@ -7997,13 +8014,17 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                         </label>
                         <button
                           type="button"
-                          onClick={() => setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '', foreignCurrency: '', metalCommodity: '', showAmountIn: '' })}
-                          style={{ padding: '0.65rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', height: 'fit-content', alignSelf: 'end' }}
+                          onClick={() => setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '', foreignCurrency: '', metalCommodity: 'gold', showAmountIn: '' })}
+                          style={{ padding: '0.65rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', height: 'fit-content', alignSelf: 'end', fontWeight: '600', fontSize: '0.78rem' }}
                         >
                           Reset
                         </button>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', margin: '0.1rem 0 0.55rem' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Display</span>
+                        <div style={{ flex: 1, height: '1px', background: '#E2E8F0' }} />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.6rem', marginBottom: '0.75rem' }}>
                         <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
                           <span>Foreign Currency</span>
                           <select
