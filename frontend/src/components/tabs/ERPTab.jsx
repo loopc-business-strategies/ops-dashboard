@@ -3832,9 +3832,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const parsed = parser.parseFromString(htmlData.html, 'text/html')
       const exportRoot = document.createElement('div')
       exportRoot.style.position = 'fixed'
-      exportRoot.style.left = '-20000px'
+      exportRoot.style.left = '0'
       exportRoot.style.top = '0'
       exportRoot.style.width = '1120px'
+      exportRoot.style.opacity = '0'
+      exportRoot.style.pointerEvents = 'none'
+      exportRoot.style.zIndex = '-1'
       exportRoot.style.background = '#FFFFFF'
       exportRoot.innerHTML = `
         <style>${parsed.querySelector('style')?.textContent || ''}</style>
@@ -3895,9 +3898,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const parsed = parser.parseFromString(htmlData.html, 'text/html')
       const exportRoot = document.createElement('div')
       exportRoot.style.position = 'fixed'
-      exportRoot.style.left = '-20000px'
+      exportRoot.style.left = '0'
       exportRoot.style.top = '0'
       exportRoot.style.width = '1120px'
+      exportRoot.style.opacity = '0'
+      exportRoot.style.pointerEvents = 'none'
+      exportRoot.style.zIndex = '-1'
       exportRoot.style.background = '#FFFFFF'
       exportRoot.innerHTML = `
         <style>${parsed.querySelector('style')?.textContent || ''}</style>
