@@ -3663,6 +3663,21 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       `
     }).join('')
 
+    const totalDebitUsd = exportEntries.reduce((sum, entry) => sum + Number(entry?.debitAmount || 0), 0)
+    const totalCreditUsd = exportEntries.reduce((sum, entry) => sum + Number(entry?.creditAmount || 0), 0)
+    const totalDebitPure = exportEntries.reduce((sum, entry) => {
+      const signedPureWeight = Number(entry?.metalSignedWeight || 0)
+      const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
+      return sum + (metalCode === statementMetalCode && signedPureWeight > 0 ? signedPureWeight : 0)
+    }, 0)
+    const totalCreditPure = exportEntries.reduce((sum, entry) => {
+      const signedPureWeight = Number(entry?.metalSignedWeight || 0)
+      const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
+      return sum + (metalCode === statementMetalCode && signedPureWeight < 0 ? Math.abs(signedPureWeight) : 0)
+    }, 0)
+    const closingUsdBalance = openingUsdBalance + (totalDebitUsd - totalCreditUsd)
+    const closingPureWeight = openingPureWeight + (totalDebitPure - totalCreditPure)
+
     const brandingProfile = { ...DEFAULT_BRANDING, ...(reportBranding || {}) }
     const companyAddress = String(brandingProfile.address || '').trim()
     const companyPhone = String(brandingProfile.phone || '').trim()
@@ -3721,6 +3736,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
             .narration { text-align: left; }
             .num { text-align: right; white-space: nowrap; }
             .opening td { font-weight: 700; background: #FFF9EE; }
+            .carry-row td { background: #FBE6BD; font-weight: 700; }
+            .carry-row.top td { border-top: 0; }
+            .carry-row.bottom td { border-bottom: 0; }
+            .carry-label { text-align: center; font-weight: 700; }
             .footer { margin-top: 10px; display: flex; justify-content: space-between; font-size: 11px; font-style: italic; color: #4B5563; }
             .print-note { margin-top: 8px; font-size: 11px; color: #B45309; text-align: right; }
             @media print { body { padding: 0; } .print-note { display: none; } }
@@ -3767,10 +3786,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                 </tr>
               </thead>
               <tbody>
-                <tr class="opening">
+                <tr class="carry-row top">
                   <td></td>
                   <td></td>
-                  <td class="narration">Balance B/F</td>
+                  <td class="carry-label">Balance C/F</td>
                   <td class="num"></td>
                   <td class="num"></td>
                   <td class="num">${escapeHtml(formatDrCr(openingUsdBalance, 2))}</td>
@@ -3779,6 +3798,15 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   <td class="num">${escapeHtml(formatDrCr(openingPureWeight, 3))}</td>
                 </tr>
                 ${bodyRows}
+                <tr class="carry-row bottom">
+                  <td class="carry-label" colspan="3">Balance C/F</td>
+                  <td class="num">${escapeHtml(formatBlankable(totalDebitUsd, 2))}</td>
+                  <td class="num">${escapeHtml(formatBlankable(totalCreditUsd, 2))}</td>
+                  <td class="num">${escapeHtml(formatDrCr(closingUsdBalance, 2))}</td>
+                  <td class="num">${escapeHtml(formatBlankable(totalDebitPure, 3))}</td>
+                  <td class="num">${escapeHtml(formatBlankable(totalCreditPure, 3))}</td>
+                  <td class="num">${escapeHtml(formatDrCr(closingPureWeight, 3))}</td>
+                </tr>
               </tbody>
             </table>
             <div class="footer">
