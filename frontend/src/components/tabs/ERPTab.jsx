@@ -8038,9 +8038,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             style={modalInputStyle}
                           >
                             <option value="">All</option>
-                            {currencies.map((c) => String(c?.code || '').toUpperCase()).filter(Boolean).map((code) => (
-                              <option key={code} value={code}>{code}</option>
-                            ))}
+                            {(currencies || []).map((c) => {
+                              const code = String(c?.code || '').toUpperCase().trim()
+                              return code ? <option key={code} value={code}>{code}</option> : null
+                            })}
                           </select>
                         </label>
                         <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
@@ -8050,9 +8051,16 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, metalCommodity: e.target.value }))}
                             style={modalInputStyle}
                           >
-                            {Array.from(new Map(inventoryStockTypeOptions.map((s) => [s.mainStock, s])).values()).map((s) => (
-                              <option key={s.id} value={s.mainStock}>{s.mainStock}</option>
-                            ))}
+                            {(inventoryStockTypeOptions || []).length > 0 ? (
+                              Array.from(new Map(inventoryStockTypeOptions.map((s) => [s.mainStock, s])).values()).map((s) => (
+                                <option key={s.id} value={s.mainStock}>{s.mainStock}</option>
+                              ))
+                            ) : (
+                              <>
+                                <option value="Gold">Gold</option>
+                                <option value="Silver">Silver</option>
+                              </>
+                            )}
                           </select>
                         </label>
                         <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
@@ -8062,9 +8070,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, showAmountIn: e.target.value }))}
                             style={modalInputStyle}
                           >
-                            {currencies.map((c) => String(c?.code || '').toUpperCase()).filter(Boolean).map((code) => (
-                              <option key={code} value={code}>{code}</option>
-                            ))}
+                            {(currencies || []).map((c) => {
+                              const code = String(c?.code || '').toUpperCase().trim()
+                              return code ? <option key={code} value={code}>{code}</option> : null
+                            }).filter(Boolean)}
                           </select>
                         </label>
                       </div>
