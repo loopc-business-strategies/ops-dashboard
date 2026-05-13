@@ -252,6 +252,7 @@ function Dashboard({
   const accountMenuRef = useRef(null)
 
   const DESKTOP_MIN_WIDTH = 1024
+  const DESKTOP_SIDEBAR_WIDTH = 240
   const [isDesktop, setIsDesktop] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_MIN_WIDTH : true
   ))
@@ -614,7 +615,14 @@ function Dashboard({
       {/* ══════════════════════════════════════
           MAIN CONTENT AREA
           ══════════════════════════════════════ */}
-      <div className="flex-1 w-full h-full flex flex-col min-w-0 transition-all duration-300">
+      <div
+        className="flex-1 w-full h-full flex flex-col min-w-0 transition-all duration-300"
+        style={isDesktop && sidebarOpen
+          ? (isRTL
+              ? { marginRight: DESKTOP_SIDEBAR_WIDTH }
+              : { marginLeft: DESKTOP_SIDEBAR_WIDTH })
+          : undefined}
+      >
 
         {/* Top header bar */}
         <header className="topbar sticky top-0 z-30 flex-shrink-0">
