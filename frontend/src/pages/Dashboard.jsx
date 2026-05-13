@@ -615,7 +615,7 @@ function Dashboard({
           MAIN CONTENT AREA
           ══════════════════════════════════════ */}
       <div className={`flex-1 w-full h-full flex flex-col min-w-0 transition-all duration-300 ${
-        isDesktop && sidebarOpen ? (isRTL ? 'lg:mr-[240px]' : 'lg:ml-[240px]') : ''
+        sidebarOpen ? (isRTL ? 'lg:mr-[240px]' : 'lg:ml-[240px]') : ''
       }`}>
 
         {/* Top header bar */}
