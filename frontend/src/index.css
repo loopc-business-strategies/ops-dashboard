@@ -5,9 +5,7 @@
 
 @import './overrides.css';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
 
 html, body, #root {
   height: 100%;
