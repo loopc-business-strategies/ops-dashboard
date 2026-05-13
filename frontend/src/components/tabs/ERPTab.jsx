@@ -171,6 +171,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [exportOptionsOpen, setExportOptionsOpen] = useState(false)
   const [form, setForm] = useState({})
   const [ledgerForm, setLedgerForm] = useState({
     date: new Date().toISOString().slice(0, 10),
@@ -3566,11 +3567,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     showNotification('✅ Excel file exported')
   }
 
-  const handleExportEnquiryPdf = async () => {
-    if (!accountEnquiryData) {
-      setError('Load an account summary first to export')
-      return
-    }
+  const generateStatementHtml = async () => {
+    if (!accountEnquiryData) return null
 
     const exportEntries = [...filteredStatementEntries].sort((left, right) => {
       const leftDate = left?.date ? new Date(left.date).getTime() : 0
@@ -3695,13 +3693,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       ? `<img src="${processedLogo}" alt="Company Logo" style="max-width:180px;max-height:58px;object-fit:contain;display:block;" />`
       : ''
 
-    const w = window.open('', '_blank')
-    if (!w) {
-      setError('Popup blocked. Please allow popups to export PDF')
-      return
-    }
-
-    w.document.write(`
+    const html = `
       <html>
         <head>
           <title>Statement of Account ${escapeHtml(accountEnquiryData.account.accountCode)}</title>
@@ -3813,14 +3805,71 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               <span>Printed By: ${escapeHtml(user?.name || 'User')} On ${escapeHtml(new Date().toLocaleString())}</span>
               <span>Page 1</span>
             </div>
-            <div class="print-note">Use your browser's print or save option to download this statement as PDF.</div>
+            <div class="print-note">Select Print or Download from the export dialog.</div>
           </div>
         </body>
       </html>
-    `)
+    `
+    return { html, accountCode: accountEnquiryData.account.accountCode }
+  }
+
+  const handlePrintStatement = async () => {
+    const htmlData = await generateStatementHtml()
+    if (!htmlData) return
+
+    const w = window.open('', '_blank')
+    if (!w) {
+      setError('Popup blocked. Please allow popups for print')
+      return
+    }
+
+    w.document.write(htmlData.html)
     w.document.close()
     w.focus()
-    showNotification('✅ Statement preview opened in orange style')
+    setTimeout(() => w.print(), 500)
+    setExportOptionsOpen(false)
+    showNotification('✅ Print dialog opened')
+  }
+
+  const handleDownloadStatementPdf = async () => {
+    try {
+      const htmlData = await generateStatementHtml()
+      if (!htmlData) return
+
+      // Create a blob from HTML string
+      const blob = new Blob([htmlData.html], { type: 'text/html' })
+      const url = URL.createObjectURL(blob)
+      
+      // Open in new window and trigger print to PDF
+      const w = window.open(url, '_blank')
+      if (!w) {
+        setError('Popup blocked. Please allow popups to download PDF')
+        return
+      }
+
+      w.addEventListener('load', () => {
+        setTimeout(() => {
+          w.print()
+        }, 500)
+      })
+
+      setExportOptionsOpen(false)
+      showNotification('✅ Print dialog opened - Save as PDF from browser')
+      
+      // Clean up the blob URL after a delay
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (err) {
+      console.error('PDF generation error:', err)
+      setError('Failed to generate PDF. Please try again.')
+    }
+  }
+
+  const handleExportEnquiryPdf = () => {
+    if (!accountEnquiryData) {
+      setError('Load an account summary first to export')
+      return
+    }
+    setExportOptionsOpen(true)
   }
 
   const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`
@@ -7910,6 +7959,72 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               <button onClick={() => setShowEnquiryModal(false)} style={{ padding: '0.6rem 1.2rem', background: '#6B7280', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Close</button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Export Options Modal */}
+      {exportOptionsOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: '#fff', borderRadius: '0.75rem', padding: '2rem', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0, 0, 0, 0.2)' }}>
+            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontWeight: '700', color: '#111827' }}>Export Statement</h3>
+            <p style={{ margin: '0 0 1.5rem 0', color: '#6B7280', fontSize: '0.95rem' }}>Choose how you'd like to export the statement:</p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handlePrintStatement}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: '#3B82F6',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.95rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s',
+                }}
+                onMouseEnter={(e) => e.target.style.background = '#2563EB'}
+                onMouseLeave={(e) => e.target.style.background = '#3B82F6'}
+              >
+                🖨 Print
+              </button>
+              <button
+                onClick={handleDownloadStatementPdf}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: '#10B981',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.95rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s',
+                }}
+                onMouseEnter={(e) => e.target.style.background = '#059669'}
+                onMouseLeave={(e) => e.target.style.background = '#10B981'}
+              >
+                ⬇ Download PDF
+              </button>
+              <button
+                onClick={() => setExportOptionsOpen(false)}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: '#6B7280',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.95rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s',
+                }}
+                onMouseEnter={(e) => e.target.style.background = '#4B5563'}
+                onMouseLeave={(e) => e.target.style.background = '#6B7280'}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
