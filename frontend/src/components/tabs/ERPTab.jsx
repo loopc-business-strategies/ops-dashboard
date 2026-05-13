@@ -291,6 +291,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     metalCommodity: '',
     showAmountIn: '',
   })
+  const [statementMetalCommodityEnabled, setStatementMetalCommodityEnabled] = useState(false)
   const [showStatementAuditIds, setShowStatementAuditIds] = useState(false)
   const [statementAuditPreferenceReady, setStatementAuditPreferenceReady] = useState(false)
   const [metalRates, setMetalRates] = useState({ goldPrice: 285, silverPrice: 3.5, priceCurrency: 'USD', updatedAt: null })
@@ -816,7 +817,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const entryCurrency = String(entry.currency || '').toUpperCase().trim()
       if (entryCurrency !== statementFilters.foreignCurrency.toUpperCase().trim()) return false
     }
-    if (statementFilters.metalCommodity) {
+    if (statementMetalCommodityEnabled && statementFilters.metalCommodity) {
       const selectedMetalCode = resolveMetalCodeFromStockName(statementFilters.metalCommodity)
       const entryMetalCode = resolveMetalCode(entry)
       if (entryMetalCode !== selectedMetalCode) return false
@@ -2739,9 +2740,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         department: '',
         fixStatus: '',
         foreignCurrency: String(data.account?.currency || '').toUpperCase(),
-        metalCommodity: 'gold',
+        metalCommodity: '',
         showAmountIn: '',
       })
+      setStatementMetalCommodityEnabled(false)
       pushEnquiryHistory(data.account)
       setError('')
       setEnquiryStatus({ type: 'success', message: `Account ${data.account.accountCode} summary loaded successfully` })
@@ -8025,7 +8027,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                         </label>
                         <button
                           type="button"
-                          onClick={() => setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '', foreignCurrency: '', metalCommodity: 'gold', showAmountIn: '' })}
+                          onClick={() => {
+                            setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '', foreignCurrency: '', metalCommodity: '', showAmountIn: '' })
+                            setStatementMetalCommodityEnabled(false)
+                          }}
                           style={{ padding: '0.65rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', height: 'fit-content', alignSelf: 'end', fontWeight: '600', fontSize: '0.78rem' }}
                         >
                           Reset
@@ -8052,22 +8057,44 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                         </label>
                         <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
                           <span>Metal/Commodities</span>
-                          <select
-                            value={statementFilters.metalCommodity || statementSelectedMetalLabel}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, metalCommodity: e.target.value }))}
-                            style={modalInputStyle}
-                          >
-                            {(inventoryStockTypeOptions || []).length > 0 ? (
-                              Array.from(new Map(inventoryStockTypeOptions.map((s) => [s.mainStock, s])).values()).map((s) => (
-                                <option key={s.id} value={s.mainStock}>{s.mainStock}</option>
-                              ))
-                            ) : (
-                              <>
-                                <option value="Gold">Gold</option>
-                                <option value="Silver">Silver</option>
-                              </>
-                            )}
-                          </select>
+                          <div style={{ display: 'grid', gap: '0.45rem' }}>
+                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: '#334155', fontSize: '0.78rem', fontWeight: '700' }}>
+                              <input
+                                type="checkbox"
+                                checked={statementMetalCommodityEnabled}
+                                onChange={(e) => {
+                                  const enabled = e.target.checked
+                                  setStatementMetalCommodityEnabled(enabled)
+                                  if (!enabled) {
+                                    setStatementFilters((prev) => ({ ...prev, metalCommodity: '' }))
+                                  } else if (!statementFilters.metalCommodity) {
+                                    setStatementFilters((prev) => ({ ...prev, metalCommodity: 'Gold' }))
+                                  }
+                                }}
+                                style={{ cursor: 'pointer' }}
+                              />
+                              Enable metal filter
+                            </label>
+                            <select
+                              value={statementFilters.metalCommodity || ''}
+                              onChange={(e) => setStatementFilters((prev) => ({ ...prev, metalCommodity: e.target.value }))}
+                              style={{ ...modalInputStyle, marginBottom: 0, opacity: statementMetalCommodityEnabled ? 1 : 0.55 }}
+                              disabled={!statementMetalCommodityEnabled}
+                            >
+                              <option value="">All Metals</option>
+                              {(inventoryStockTypeOptions || []).length > 0 ? (
+                                Array.from(new Map(inventoryStockTypeOptions.map((s) => [s.mainStock, s])).values()).map((s) => (
+                                  <option key={s.id} value={s.mainStock}>{s.mainStock}</option>
+                                ))
+                              ) : (
+                                <>
+                                  <option value="Gold">Gold</option>
+                                  <option value="Silver">Silver</option>
+                                  <option value="Platinum">Platinum</option>
+                                </>
+                              )}
+                            </select>
+                          </div>
                         </label>
                         <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
                           <span>Show Amount In</span>
