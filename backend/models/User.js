@@ -149,10 +149,9 @@ userSchema.index({ isActive: 1 })
 // This runs every time a user is saved with a new password
 // bcrypt turns "mypassword" into "$2a$12$xKj..." (unreadable)
 // -----------------------------------------------
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next() // only hash if changed
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return // only hash if changed
   this.password = await bcrypt.hash(this.password, 12)
-  next()
 })
 
 // -----------------------------------------------

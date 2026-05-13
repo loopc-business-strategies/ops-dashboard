@@ -166,13 +166,13 @@ function createApp() {
 
     if (fs.existsSync(frontendIndexPath)) {
       app.use(express.static(frontendDistPath))
-      app.get('*', (req, res) => {
+      app.get(/.*/, (req, res) => {
         res.sendFile(frontendIndexPath)
       })
     }
   }
 
-  app.use('*', (req, res) => {
+  app.use((req, res) => {
     res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found.` })
   })
 
