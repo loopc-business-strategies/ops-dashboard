@@ -766,6 +766,14 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     if (/fixing|fixed|price[\s-_]?fix/.test(text)) return 'fixed'
     return 'unknown'
   }
+  const resolveMetalCode = (entry) => {
+    const explicit = String(entry?.metalCode || '').trim().toUpperCase()
+    if (explicit) return explicit
+    const text = `${String(entry?.description || '')} ${String(entry?.offsetAccountName || '')} ${String(entry?.offsetAccountCode || '')}`.toLowerCase()
+    if (/\bxau\b|\bgold\b/.test(text)) return 'XAU'
+    if (/\bxag\b|\bsilver\b/.test(text)) return 'XAG'
+    return '-'
+  }
   const isLikelyMongoId = (value) => /^[a-f0-9]{24}$/i.test(String(value || '').trim())
   const resolveStatementReceiptNo = (entry = {}) => {
     const parsedDocNo = (() => {
@@ -828,14 +836,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const referenceType = String(entry?.referenceType || '').toLowerCase().trim()
     if (referenceType === 'sale' || referenceType === 'purchase') return referenceType
     return ''
-  }
-  const resolveMetalCode = (entry) => {
-    const explicit = String(entry?.metalCode || '').trim().toUpperCase()
-    if (explicit) return explicit
-    const text = `${String(entry?.description || '')} ${String(entry?.offsetAccountName || '')} ${String(entry?.offsetAccountCode || '')}`.toLowerCase()
-    if (/\bxau\b|\bgold\b/.test(text)) return 'XAU'
-    if (/\bxag\b|\bsilver\b/.test(text)) return 'XAG'
-    return '-'
   }
   const metalFixingEntries = filteredStatementEntries
     .map((entry) => {
