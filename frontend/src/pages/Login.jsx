@@ -74,6 +74,8 @@ function Login() {
   const circleLarge = bp
   const circleMed   = bp
   const circleSmall = bp
+  const heroCircleShadow = 'inset 28px 28px 64px rgba(255,255,255,0.18), inset -28px -28px 64px rgba(0,0,0,0.26)'
+  const orbShadow = 'inset 16px 16px 36px rgba(255,255,255,0.16), inset -18px -18px 40px rgba(0,0,0,0.24)'
 
   return (
     <div className="min-h-screen bg-[#eef2f6] p-0 md:p-3">
@@ -88,47 +90,62 @@ function Login() {
           }}
         />
 
+        <div
+          className="absolute hidden lg:block rounded-full"
+          style={{
+            width: '150px',
+            height: '150px',
+            left: '-8px',
+            bottom: '-14px',
+            background: circleSmall,
+            boxShadow: orbShadow,
+            zIndex: 1,
+          }}
+        />
+        <div
+          className="absolute hidden lg:block rounded-full"
+          style={{
+            width: '162px',
+            height: '162px',
+            left: '340px',
+            bottom: '32px',
+            background: circleMed,
+            boxShadow: orbShadow,
+            zIndex: 1,
+          }}
+        />
+        <div
+          className="absolute rounded-full"
+          style={{
+            width: '230px',
+            height: '230px',
+            right: '-34px',
+            bottom: '-54px',
+            background: circleSmall,
+            boxShadow: orbShadow,
+            zIndex: 1,
+          }}
+        />
+
         <div style={{ position: 'absolute', top: '18px', right: '20px', zIndex: 5 }}>
           <BuildInfoBadge tone="light" className="hidden sm:inline-flex" />
         </div>
 
         <div className="relative min-h-screen md:min-h-[calc(100vh-24px)] flex flex-col lg:flex-row">
-          <div className="hidden lg:flex lg:w-[46%] relative overflow-hidden items-center">
+          <div className="hidden lg:flex lg:w-[46%] relative overflow-hidden">
             <div
               className="absolute rounded-full"
               style={{
-                width: '900px',
-                height: '900px',
-                top: '-212px',
-                left: '-472px',
+                width: '840px',
+                height: '840px',
+                top: '-114px',
+                left: '-430px',
                 background: circleLarge,
-                boxShadow: 'inset 28px 28px 64px rgba(255,255,255,0.18), inset -28px -28px 64px rgba(0,0,0,0.26)',
-              }}
-            />
-            <div
-              className="absolute rounded-full"
-              style={{
-                width: '168px',
-                height: '168px',
-                bottom: '36px',
-                right: '-10px',
-                background: circleMed,
-                boxShadow: 'inset 16px 16px 36px rgba(255,255,255,0.16), inset -18px -18px 40px rgba(0,0,0,0.24)',
-              }}
-            />
-            <div
-              className="absolute rounded-full"
-              style={{
-                width: '226px',
-                height: '226px',
-                bottom: '-118px',
-                left: '-78px',
-                background: circleSmall,
-                boxShadow: 'inset 16px 16px 36px rgba(255,255,255,0.16), inset -18px -18px 40px rgba(0,0,0,0.24)',
+                boxShadow: heroCircleShadow,
               }}
             />
 
-            <div className="relative z-10 pl-12 xl:pl-16 pr-8 max-w-[360px]" style={{ marginTop: '-28px' }}>
+            <div className="absolute z-10 left-[48px] top-[178px] max-w-[320px]">
               <div
                 className="inline-flex items-center justify-center w-[78px] h-[78px] rounded-[18px] mb-7"
                 style={{ background: 'rgba(255,255,255,0.14)', border: '2px solid rgba(255,255,255,0.28)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)' }}
@@ -139,13 +156,13 @@ function Login() {
                 }
               </div>
 
-              <h1 className="text-[46px] leading-none font-extrabold text-white tracking-tight mb-2">WELCOME</h1>
-              <div className="text-[31px] leading-none font-extrabold tracking-tight mb-3">
+              <h1 className="text-[38px] leading-none font-extrabold text-white tracking-tight mb-3">WELCOME</h1>
+              <div className="text-[26px] leading-none font-extrabold tracking-tight mb-3">
                 <span style={{ color: '#7bc3ff' }}>Nexa</span>
                 <span style={{ color: '#0f172a' }}>Ops</span>
-                <span style={{ color: '#0f172a', fontSize: '16px', verticalAlign: 'super', marginLeft: 2 }}>TM</span>
+                <span style={{ color: '#0f172a', fontSize: '15px', verticalAlign: 'super', marginLeft: 2 }}>TM</span>
               </div>
-              <p className="text-[14px] leading-7 text-white/82 max-w-[300px]">
+              <p className="text-[14px] leading-8 text-white/82 max-w-[290px]">
                 Unified platform for metal trading, ERP,
                 compliance, and financial control.
               </p>
@@ -153,30 +170,7 @@ function Login() {
           </div>
 
           <div className="flex-1 relative flex items-center justify-center lg:justify-start px-6 py-24 sm:px-10 lg:px-0 xl:px-0">
-            <div
-              className="absolute rounded-full hidden md:block"
-              style={{
-                width: '162px',
-                height: '162px',
-                left: '-18px',
-                bottom: '34px',
-                background: circleMed,
-                boxShadow: 'inset 16px 16px 32px rgba(255,255,255,0.18), inset -18px -18px 38px rgba(0,0,0,0.22)',
-              }}
-            />
-            <div
-              className="absolute rounded-full"
-              style={{
-                width: '228px',
-                height: '228px',
-                right: '-48px',
-                bottom: '-44px',
-                background: circleSmall,
-                boxShadow: 'inset 16px 16px 36px rgba(255,255,255,0.18), inset -18px -18px 40px rgba(0,0,0,0.24)',
-              }}
-            />
-
-            <div className="relative z-10 w-full max-w-[430px] lg:ml-[8px] xl:ml-[22px]">
+            <div className="relative z-10 w-full max-w-[430px] lg:ml-[10px] xl:ml-[18px]">
               <div className="lg:hidden mb-8 text-center">
                 <div
                   className="inline-flex items-center justify-center w-16 h-16 rounded-[18px] mb-4"
@@ -193,10 +187,10 @@ function Login() {
 
               <div
                 className="rounded-[22px] border border-[#dbe3ef] bg-white px-7 py-8 sm:px-9 sm:py-10"
-                style={{ width: '426px', minHeight: '426px', boxShadow: '0 16px 38px rgba(20, 34, 60, 0.08), inset 0 1px 0 rgba(255,255,255,0.95)' }}
+                style={{ width: '404px', minHeight: '402px', boxShadow: '0 16px 38px rgba(20, 34, 60, 0.08), inset 0 1px 0 rgba(255,255,255,0.95)' }}
               >
-                <div className="hidden lg:block mb-8" style={{ paddingTop: '8px' }}>
-                  <h1 className="text-[37px] leading-none font-extrabold tracking-tight text-[#1b2540]">{t('signIn')}</h1>
+                <div className="hidden lg:block mb-8" style={{ paddingTop: '10px' }}>
+                  <h1 className="text-[52px] leading-none font-extrabold tracking-tight text-[#1b2540]" style={{ fontSize: '26px' }}>{t('signIn')}</h1>
                   <p className="text-[13px] text-[#7f8796] mt-2">{branding.tagline || t('operationsControl')}</p>
                 </div>
 
@@ -223,7 +217,7 @@ function Login() {
                         value={name}
                         onChange={(e) => { setName(e.target.value); setError('') }}
                         placeholder={t('enterUsername')}
-                        className="w-full rounded-[12px] border border-[#aab7c8] bg-[#f3f7fc] py-[13px] pl-10 pr-4 text-[13px] text-[#273247] outline-none transition-all duration-200 placeholder:text-[#9aa5b4] focus:border-[#6ea6e5] focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,123,255,0.10)]"
+                        className="w-full rounded-[11px] border border-[#aab7c8] bg-[#f3f7fc] py-[12px] pl-10 pr-4 text-[13px] text-[#273247] outline-none transition-all duration-200 placeholder:text-[#9aa5b4] focus:border-[#6ea6e5] focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,123,255,0.10)]"
                         autoFocus
                         autoComplete="username"
                         disabled={loading}
@@ -244,7 +238,7 @@ function Login() {
                         value={password}
                         onChange={(e) => { setPassword(e.target.value); setError('') }}
                         placeholder={t('enterPassword')}
-                        className="w-full rounded-[12px] border border-[#aab7c8] bg-[#f3f7fc] py-[13px] pl-10 pr-20 text-[13px] text-[#273247] outline-none transition-all duration-200 placeholder:text-[#9aa5b4] focus:border-[#6ea6e5] focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,123,255,0.10)]"
+                        className="w-full rounded-[11px] border border-[#aab7c8] bg-[#f3f7fc] py-[12px] pl-10 pr-20 text-[13px] text-[#273247] outline-none transition-all duration-200 placeholder:text-[#9aa5b4] focus:border-[#6ea6e5] focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,123,255,0.10)]"
                         autoComplete="current-password"
                         disabled={loading}
                       />
@@ -260,7 +254,7 @@ function Login() {
 
                   <button
                     type="submit"
-                    className="w-full rounded-[12px] py-[13px] text-white text-[14px] font-bold tracking-[0.01em] shadow-[0_8px_18px_rgba(0,91,150,0.22)] transition-transform duration-200 hover:-translate-y-[1px]"
+                    className="w-full rounded-[11px] py-[12px] text-white text-[14px] font-bold tracking-[0.01em] shadow-[0_8px_18px_rgba(0,91,150,0.22)] transition-transform duration-200 hover:-translate-y-[1px]"
                     style={{ background: branding.colors.gradBar }}
                     disabled={loading}
                   >
