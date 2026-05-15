@@ -509,10 +509,19 @@ function Dashboard({
         {/* Sidebar top — logo */}
         <div className="sidebar-logo flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm"
-              style={{ background: 'var(--grad-brand)' }}>
-              <span style={{ color: 'white', fontWeight: 700, letterSpacing: 0.4 }}>{branding.logoText}</span>
-            </div>
+            {branding.logoImage ? (
+              <img
+                src={branding.logoImage}
+                alt={`${branding.displayName} logo`}
+                className="h-8 rounded-lg flex-shrink-0"
+                style={{ width: 52, objectFit: 'contain', background: '#FFFFFF' }}
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm"
+                style={{ background: 'var(--grad-brand)' }}>
+                <span style={{ color: 'white', fontWeight: 700, letterSpacing: 0.4 }}>{branding.logoText}</span>
+              </div>
+            )}
             <div className="min-w-0">
               <p className="font-bold text-sm truncate" style={{ color: '#1C2A33' }}>{branding.displayName} Ops</p>
               <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{t('controlSystem')}</p>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="140" viewBox="0 0 360 140" role="img" aria-labelledby="title desc">
+  <title id="title">MG Logo</title>
+  <desc id="desc">Metal Group tenant logo</desc>
+  <rect width="360" height="140" rx="18" fill="#F8FBFF"/>
+  <rect x="10" y="10" width="340" height="120" rx="14" fill="#0B4F8A"/>
+  <path d="M42 104V36h26l27 39 27-39h26v68h-24V70l-21 30H87L66 70v34H42Z" fill="#FFFFFF"/>
+  <path d="M176 70c0-22 17-38 42-38 16 0 29 6 38 17l-17 15c-5-7-12-10-21-10-11 0-19 7-19 17s8 17 20 17c6 0 12-1 17-4v-8h-22V58h45v38c-11 8-25 12-41 12-25 0-42-16-42-38Z" fill="#FFFFFF"/>
+  <path d="M279 42h39v10h-39zm0 23h39v10h-39zm0 23h39v10h-39z" fill="#74D4FF"/>
+</svg>

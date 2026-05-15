@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="140" viewBox="0 0 360 140" role="img" aria-labelledby="title desc">
+  <title id="title">CG Logo</title>
+  <desc id="desc">CG tenant logo</desc>
+  <rect width="360" height="140" rx="18" fill="#FFF7ED"/>
+  <rect x="10" y="10" width="340" height="120" rx="14" fill="#8A2D12"/>
+  <path d="M52 70c0-23 18-39 44-39 17 0 31 7 39 19l-18 14c-5-8-12-11-21-11-12 0-21 8-21 17s9 17 22 17c8 0 15-3 20-11l18 14c-8 12-22 19-39 19-26 0-44-16-44-39Z" fill="#FFFFFF"/>
+  <path d="M154 70c0-22 17-38 43-38 16 0 30 6 39 17l-17 15c-5-7-12-10-21-10-12 0-20 7-20 17s8 17 21 17c6 0 12-1 17-4v-8h-22V58h45v38c-11 8-26 12-42 12-26 0-43-16-43-38Z" fill="#FFFFFF"/>
+  <circle cx="294" cy="70" r="28" fill="#FDBA74"/>
+  <path d="M280 70h28M294 56v28" stroke="#8A2D12" stroke-width="8" stroke-linecap="round"/>
+</svg>

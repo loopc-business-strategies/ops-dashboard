@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="140" viewBox="0 0 360 140" role="img" aria-labelledby="title desc">
+  <title id="title">LoopC Logo</title>
+  <desc id="desc">LoopC tenant logo</desc>
+  <rect width="360" height="140" rx="18" fill="#F0FDF4"/>
+  <rect x="10" y="10" width="340" height="120" rx="14" fill="#00684A"/>
+  <path d="M48 36h25v47h54v21H48V36Z" fill="#FFFFFF"/>
+  <path d="M139 70c0-23 18-39 45-39 18 0 32 7 40 20l-19 13c-5-8-12-12-21-12-13 0-22 8-22 18s9 18 22 18c9 0 16-4 21-12l19 13c-8 13-22 20-40 20-27 0-45-16-45-39Z" fill="#FFFFFF"/>
+  <path d="M248 70c0-22 17-38 42-38 15 0 28 6 37 17l-17 15c-5-7-11-10-20-10-11 0-19 7-19 16s8 16 19 16c9 0 15-3 20-10l17 15c-9 11-22 17-37 17-25 0-42-16-42-38Z" fill="#FFFFFF"/>
+  <path d="M118 42c18-15 44-15 62 0M118 98c18 15 44 15 62 0" stroke="#35D399" stroke-width="8" stroke-linecap="round"/>
+</svg>

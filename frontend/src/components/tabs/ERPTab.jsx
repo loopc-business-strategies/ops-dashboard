@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import AccountCombobox from '../AccountCombobox'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
+import { getTenantBranding } from '../../config/tenantBranding'
 import erpAccountingAPI from '../../api/erp-accounting'
 import messagesAPI from '../../api/messages'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
@@ -3745,7 +3746,15 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const closingUsdBalance = openingUsdBalance + (totalDebitUsd - totalCreditUsd)
     const closingPureWeight = openingPureWeight + (totalDebitPure - totalCreditPure)
 
-    const brandingProfile = { ...DEFAULT_BRANDING, ...(reportBranding || {}) }
+    const tenantBranding = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)
+    const brandingProfile = {
+      ...DEFAULT_BRANDING,
+      ...(reportBranding || {}),
+      logoUrl: reportBranding?.logoUrl || tenantBranding.logoImage || DEFAULT_BRANDING.logoUrl,
+      logoWidth: reportBranding?.logoUrl ? reportBranding.logoWidth : 180,
+      logoHeight: reportBranding?.logoUrl ? reportBranding.logoHeight : 70,
+      logoFit: reportBranding?.logoUrl ? reportBranding.logoFit : 'contain',
+    }
     const companyAddress = String(brandingProfile.address || '').trim()
     const companyPhone = String(brandingProfile.phone || '').trim()
     const companyTrn = String(brandingProfile.trn || '').trim()

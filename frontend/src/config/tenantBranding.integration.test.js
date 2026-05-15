@@ -16,6 +16,9 @@ describe('tenant branding integration', () => {
 
     expect(mg.displayName).toBe('MG')
     expect(cg.displayName).toBe('CG')
+    expect(mg.logoImage).toBe('/logos/mg-logo.svg')
+    expect(cg.logoImage).toBe('/logos/cg-logo.svg')
+    expect(getTenantBranding('loopc').logoImage).toBe('/logos/loopc-logo.svg')
     expect(mg.enabledTabs).toContain('erp')
     expect(mg.enabledErpSubTabs).toEqual(expect.arrayContaining(['accounts', 'transactions', 'vouchers']))
   })
