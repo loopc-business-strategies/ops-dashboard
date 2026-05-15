@@ -16,6 +16,8 @@ describe('tenant branding integration', () => {
 
     expect(mg.displayName).toBe('MG')
     expect(cg.displayName).toBe('CG')
+    expect(mg.companyName).toBe('MODERN GOLD JEWELRY MANUFACTURING')
+    expect(mg.address).toMatch(/Namangan City/)
     expect(mg.logoImage).toBe('/logos/mg-logo.svg')
     expect(cg.logoImage).toBe('/logos/cg-logo.svg')
     expect(getTenantBranding('loopc').logoImage).toBe('/logos/loopc-logo.svg')

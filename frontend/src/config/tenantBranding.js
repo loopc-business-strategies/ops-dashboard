@@ -28,6 +28,8 @@ const tenantBranding = {
   mg: {
     key: 'mg',
     displayName: 'MG',
+    companyName: 'MODERN GOLD JEWELRY MANUFACTURING',
+    address: '242, Girvonbulok Street, Davlatabad District,\nNamangan City, Namangan Region,\nRepublic of Uzbekistan.',
     logoText: 'MG',
     logoImage: '/logos/mg-logo.svg',
     tagline: 'Metal Group Operations',

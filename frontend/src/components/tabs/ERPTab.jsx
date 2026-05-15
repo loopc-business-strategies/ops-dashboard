@@ -3683,7 +3683,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (!value) return ''
       const date = new Date(value)
       if (Number.isNaN(date.getTime())) return ''
-      return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
+      const day = String(date.getDate()).padStart(2, '0')
+      const month = date.toLocaleString('en-US', { month: 'short' })
+      const year = String(date.getFullYear()).slice(-2)
+      return `${day}-${month}-${year}`
     }
     const formatNumber = (value, decimals = 2) => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
     const formatDrCr = (value, decimals = 2) => {
@@ -3747,13 +3750,21 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const closingPureWeight = openingPureWeight + (totalDebitPure - totalCreditPure)
 
     const tenantBranding = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)
+    const hasCustomReportLogo = Boolean(String(reportBranding?.logoUrl || '').trim())
+    const hasCustomCompanyName = Boolean(
+      String(reportBranding?.companyName || '').trim() &&
+      String(reportBranding?.companyName || '').trim() !== DEFAULT_BRANDING.companyName
+    )
+    const hasCustomAddress = Boolean(String(reportBranding?.address || '').trim())
     const brandingProfile = {
       ...DEFAULT_BRANDING,
       ...(reportBranding || {}),
-      logoUrl: reportBranding?.logoUrl || tenantBranding.logoImage || DEFAULT_BRANDING.logoUrl,
-      logoWidth: reportBranding?.logoUrl ? reportBranding.logoWidth : 180,
-      logoHeight: reportBranding?.logoUrl ? reportBranding.logoHeight : 70,
-      logoFit: reportBranding?.logoUrl ? reportBranding.logoFit : 'contain',
+      companyName: hasCustomCompanyName ? reportBranding.companyName : (tenantBranding.companyName || tenantBranding.displayName || DEFAULT_BRANDING.companyName),
+      address: hasCustomAddress ? reportBranding.address : (tenantBranding.address || DEFAULT_BRANDING.address),
+      logoUrl: hasCustomReportLogo ? reportBranding.logoUrl : (tenantBranding.logoImage || DEFAULT_BRANDING.logoUrl),
+      logoWidth: hasCustomReportLogo ? reportBranding.logoWidth : 160,
+      logoHeight: hasCustomReportLogo ? reportBranding.logoHeight : 116,
+      logoFit: hasCustomReportLogo ? reportBranding.logoFit : 'contain',
     }
     const companyAddress = String(brandingProfile.address || '').trim()
     const companyPhone = String(brandingProfile.phone || '').trim()
@@ -3761,8 +3772,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const accountAddress = String(accountEnquiryData?.account?.address || accountEnquiryData?.account?.description || '').trim()
     const headerStartDate = statementFilters.startDate || exportEntries[0]?.date || ''
     const headerEndDate = statementFilters.endDate || exportEntries[exportEntries.length - 1]?.date || ''
-    const displayForeignCurrency = statementFilters.foreignCurrency || 'All'
-    const displayMetalCommodity = statementSelectedMetalLabel
     const processedLogo = await createLogoRenderAsset(
       brandingProfile.logoUrl,
       brandingProfile.logoWidth,
@@ -3770,7 +3779,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       brandingProfile.logoFit,
     )
     const logoMarkup = processedLogo
-      ? `<img src="${processedLogo}" alt="Company Logo" style="max-width:180px;max-height:58px;object-fit:contain;display:block;" />`
+      ? `<img src="${processedLogo}" alt="Company Logo" style="width:150px;height:116px;object-fit:contain;display:block;" />`
       : ''
 
     const html = `
@@ -3778,41 +3787,36 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         <head>
           <title>Statement of Account ${escapeHtml(accountEnquiryData.account.accountCode)}</title>
           <style>
-            @page { size: A4 landscape; margin: 12mm; }
+            @page { size: A4 landscape; margin: 10mm; }
             :root {
-              --soa-orange: #F59E0B;
-              --soa-orange-deep: #D97706;
-              --soa-orange-soft: #FFF4E3;
-              --soa-border: #C9A15A;
+              --soa-yellow: #FFD56A;
+              --soa-yellow-border: #8B7A43;
+              --soa-border: #4B5563;
               --soa-ink: #111827;
             }
-            body { font-family: Arial, sans-serif; color: var(--soa-ink); margin: 0; padding: 18px; background: #FFFFFF; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            body { font-family: Arial, Helvetica, sans-serif; color: var(--soa-ink); margin: 0; padding: 16px 18px; background: #FFFFFF; color-adjust: exact; -webkit-print-color-adjust: exact; }
             .sheet { width: 100%; }
-            .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 3px solid var(--soa-orange); color-adjust: exact; -webkit-print-color-adjust: exact; }
-            .brand { display: flex; gap: 16px; align-items: flex-start; }
-            .brand-copy { font-size: 12px; line-height: 1.25; }
-            .brand-copy .company { font-size: 15px; font-weight: 700; }
+            .header { display: grid; grid-template-columns: 164px minmax(0, 1fr) 330px; align-items: start; gap: 18px; margin-bottom: 12px; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .brand-copy { font-size: 18px; line-height: 1.34; padding-top: 24px; }
+            .brand-copy .company { font-size: 29px; font-weight: 800; letter-spacing: 0; margin-bottom: 14px; color: #050505; }
             .muted { color: var(--soa-ink); }
-            .statement-head { text-align: right; min-width: 240px; }
-            .statement-head .title { font-size: 16px; font-weight: 800; margin-bottom: 2px; color: var(--soa-orange-deep); }
-            .statement-head .dates { font-size: 12px; color: #5B4632; }
-            .party-box { border: 1px solid var(--soa-border); background: #FDE7BD; min-height: 116px; padding: 8px 10px; margin: 8px 0 0; color-adjust: exact; -webkit-print-color-adjust: exact; }
-            .party-code { font-size: 12px; margin-bottom: 4px; }
-            .party-name { font-size: 13px; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; }
-            .party-address { font-size: 12px; line-height: 1.25; white-space: pre-line; }
-            table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 0; }
-            th, td { border: 1px solid var(--soa-border); padding: 5px 6px; vertical-align: middle; color-adjust: exact; -webkit-print-color-adjust: exact; }
-            thead th { background: #F59E0B; color: #FFFFFF; font-weight: 700; text-align: center; color-adjust: exact; -webkit-print-color-adjust: exact; }
-            .subhead th { background: #F59E0B; font-size: 10px; color: #FFFFFF; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .statement-head { text-align: right; padding-top: 46px; color: #111111; }
+            .statement-head .title { font-size: 20px; font-weight: 400; margin-bottom: 2px; color: #111111; }
+            .statement-head .dates { font-size: 16px; color: #111111; }
+            .party-box { border: 1.5px solid var(--soa-border); min-height: 74px; padding: 12px 22px; margin: 4px 0 0; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .party-code { font-size: 17px; margin-bottom: 10px; }
+            .party-name { font-size: 16px; font-weight: 800; margin-bottom: 6px; text-transform: uppercase; }
+            .party-address { font-size: 13px; line-height: 1.25; white-space: pre-line; }
+            table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 0; table-layout: fixed; }
+            th, td { border: 1.4px solid var(--soa-border); padding: 7px 6px; vertical-align: middle; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            thead th { background: var(--soa-yellow); color: #111111; font-weight: 800; text-align: center; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .subhead th { background: var(--soa-yellow); font-size: 13px; color: #111111; color-adjust: exact; -webkit-print-color-adjust: exact; }
             td { text-align: center; }
             .narration { text-align: left; }
             .num { text-align: right; white-space: nowrap; }
-            .opening td { font-weight: 700; background: #FDE7BD; color-adjust: exact; -webkit-print-color-adjust: exact; }
-            .carry-row td { background: #FBE6BD; font-weight: 700; color-adjust: exact; -webkit-print-color-adjust: exact; }
-            .carry-row.top td { border-top: 0; }
-            .carry-row.bottom td { border-bottom: 0; }
-            .carry-label { text-align: center; font-weight: 700; }
-            .footer { margin-top: 10px; display: flex; justify-content: space-between; font-size: 11px; font-style: italic; color: #4B5563; }
+            .opening td { font-weight: 800; background: #FFFFFF; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .carry-label { text-align: center; font-weight: 800; }
+            .footer { margin-top: 12px; display: flex; justify-content: space-between; font-size: 15px; font-style: italic; color: #111111; }
             .print-note { margin-top: 8px; font-size: 11px; color: #B45309; text-align: right; }
             @media print { 
               body { padding: 0; color-adjust: exact; -webkit-print-color-adjust: exact; } 
@@ -3824,14 +3828,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         <body>
           <div class="sheet">
             <div class="header">
-              <div class="brand">
-                ${logoMarkup ? `<div>${logoMarkup}</div>` : ''}
-                <div class="brand-copy">
-                  <div class="company">${escapeHtml(brandingProfile.companyName || DEFAULT_BRANDING.companyName)}</div>
-                  ${brandingProfile.legalName ? `<div class="muted">${escapeHtml(brandingProfile.legalName)}</div>` : ''}
-                  ${companyAddress ? `<div class="muted">${escapeHtml(companyAddress)}</div>` : ''}
-                  ${companyPhone ? `<div class="muted">Telephone: ${escapeHtml(companyPhone)}${companyTrn ? `, TRN: ${escapeHtml(companyTrn)}` : ''}</div>` : (companyTrn ? `<div class="muted">TRN: ${escapeHtml(companyTrn)}</div>` : '')}
-                </div>
+              <div>${logoMarkup}</div>
+              <div class="brand-copy">
+                <div class="company">${escapeHtml(brandingProfile.companyName || DEFAULT_BRANDING.companyName)}</div>
+                ${companyAddress ? `<div class="muted">${escapeHtml(companyAddress).replace(/\n/g, '<br />')}</div>` : ''}
+                ${companyPhone ? `<div class="muted">Telephone: ${escapeHtml(companyPhone)}${companyTrn ? `, TRN: ${escapeHtml(companyTrn)}` : ''}</div>` : (companyTrn ? `<div class="muted">TRN: ${escapeHtml(companyTrn)}</div>` : '')}
               </div>
               <div class="statement-head">
                 <div class="title">Statement Of Account</div>
@@ -3843,27 +3844,18 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               <div class="party-name">${escapeHtml(accountEnquiryData.account.accountName || 'Account')}</div>
               <div class="party-address">${escapeHtml(accountAddress)}</div>
             </div>
-            <table style="margin-top:8px; margin-bottom:8px; font-size:10px;">
-              <tbody>
-                <tr>
-                  <td style="background:#FFF4E3; font-weight:700; width:120px;">Date From</td>
-                  <td style="width:140px;">${escapeHtml(formatDateForHeader(headerStartDate) || '-')}</td>
-                  <td style="background:#FFF4E3; font-weight:700; width:120px;">Date To</td>
-                  <td style="width:140px;">${escapeHtml(formatDateForHeader(headerEndDate) || '-')}</td>
-                  <td style="background:#FFF4E3; font-weight:700; width:140px;">Foreign Currency</td>
-                  <td>${escapeHtml(displayForeignCurrency)}</td>
-                </tr>
-                <tr>
-                  <td style="background:#FFF4E3; font-weight:700;">Metal/Commodities</td>
-                  <td>${escapeHtml(displayMetalCommodity)}</td>
-                  <td style="background:#FFF4E3; font-weight:700;">Show Amount In</td>
-                  <td>${escapeHtml(exportDisplayCurrency)}</td>
-                  <td style="background:#FFF4E3; font-weight:700;">Reference Type</td>
-                  <td>${escapeHtml(statementFilters.referenceType || 'All')}</td>
-                </tr>
-              </tbody>
-            </table>
             <table>
+              <colgroup>
+                <col style="width:12%;" />
+                <col style="width:7%;" />
+                <col style="width:20%;" />
+                <col style="width:10%;" />
+                <col style="width:10%;" />
+                <col style="width:10%;" />
+                <col style="width:10.5%;" />
+                <col style="width:10.5%;" />
+                <col style="width:10%;" />
+              </colgroup>
               <thead>
                 <tr>
                   <th rowspan="2">Doc No</th>
@@ -3882,10 +3874,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                 </tr>
               </thead>
               <tbody>
-                <tr class="carry-row top">
-                  <td></td>
-                  <td></td>
-                  <td class="carry-label">Balance C/F</td>
+                <tr class="opening">
+                  <td colspan="2"></td>
+                  <td class="carry-label">Balance B/F</td>
                   <td class="num"></td>
                   <td class="num"></td>
                   <td class="num">${escapeHtml(formatDrCr(convertStatementDisplayAmount(openingUsdBalance), 2))}</td>
@@ -3894,7 +3885,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   <td class="num">${escapeHtml(formatDrCr(openingPureWeight, 3))}</td>
                 </tr>
                 ${bodyRows}
-                <tr class="carry-row bottom">
+                <tr class="opening">
                   <td class="carry-label" colspan="3">Balance C/F</td>
                   <td class="num">${escapeHtml(formatBlankable(convertStatementDisplayAmount(totalDebitUsd), 2))}</td>
                   <td class="num">${escapeHtml(formatBlankable(convertStatementDisplayAmount(totalCreditUsd), 2))}</td>
@@ -3907,14 +3898,34 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
             </table>
             <div class="footer">
               <span>Printed By: ${escapeHtml(user?.name || 'User')} On ${escapeHtml(new Date().toLocaleString())}</span>
-              <span>Page 1</span>
+              <span>Page 1 of 1</span>
             </div>
-            <div class="print-note">Select Print or Download from the export dialog.</div>
           </div>
         </body>
       </html>
     `
     return { html, accountCode: accountEnquiryData.account.accountCode }
+  }
+
+  const handleViewStatement = async () => {
+    try {
+      const htmlData = await generateStatementHtml()
+      if (!htmlData) return
+
+      const w = window.open('', '_blank')
+      if (!w) {
+        setError('Popup blocked. Please allow popups for statement preview')
+        return
+      }
+
+      w.document.write(htmlData.html)
+      w.document.close()
+      w.focus()
+      showNotification('Statement preview opened')
+    } catch (err) {
+      console.error('Statement preview error:', err)
+      setError('Failed to open statement preview.')
+    }
   }
 
   const handlePrintStatement = async () => {
@@ -8215,10 +8226,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
             <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               {canExportAccountSummary && accountEnquiryData && (
                 <>
-                  <button onClick={() => {
-                    statementTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                    statementTableRef.current?.focus?.()
-                  }} style={{ padding: '0.6rem 1.2rem', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>👁 View Statement</button>
+                  <button onClick={handleViewStatement} style={{ padding: '0.6rem 1.2rem', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>👁 View Statement</button>
                   <button onClick={handleExportEnquiryPdf} style={{ padding: '0.6rem 1.2rem', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
                 </>
               )}

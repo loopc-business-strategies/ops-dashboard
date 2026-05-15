@@ -1,9 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="360" height="140" viewBox="0 0 360 140" role="img" aria-labelledby="title desc">
-  <title id="title">MG Logo</title>
-  <desc id="desc">Metal Group tenant logo</desc>
-  <rect width="360" height="140" rx="18" fill="#F8FBFF"/>
-  <rect x="10" y="10" width="340" height="120" rx="14" fill="#0B4F8A"/>
-  <path d="M42 104V36h26l27 39 27-39h26v68h-24V70l-21 30H87L66 70v34H42Z" fill="#FFFFFF"/>
-  <path d="M176 70c0-22 17-38 42-38 16 0 29 6 38 17l-17 15c-5-7-12-10-21-10-11 0-19 7-19 17s8 17 20 17c6 0 12-1 17-4v-8h-22V58h45v38c-11 8-25 12-41 12-25 0-42-16-42-38Z" fill="#FFFFFF"/>
-  <path d="M279 42h39v10h-39zm0 23h39v10h-39zm0 23h39v10h-39z" fill="#74D4FF"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="180" viewBox="0 0 220 180" role="img" aria-labelledby="title desc">
+  <title id="title">Modern Gold Jewelry Logo</title>
+  <desc id="desc">Modern Gold Jewelry tenant logo</desc>
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF6B7"/>
+      <stop offset="0.28" stop-color="#F7C948"/>
+      <stop offset="0.58" stop-color="#C98500"/>
+      <stop offset="1" stop-color="#FFE58A"/>
+    </linearGradient>
+  </defs>
+  <rect width="220" height="180" fill="#FFFFFF"/>
+  <g fill="url(#gold)" stroke="#B77900" stroke-width="1.2">
+    <path d="M104 90C82 78 68 56 63 21c19 16 31 36 36 60-19-9-34-23-46-43 2 31 19 53 51 67z"/>
+    <path d="M116 90c22-12 36-34 41-69-19 16-31 36-36 60 19-9 34-23 46-43-2 31-19 53-51 67z"/>
+    <path d="M91 101c-26-8-48-25-65-51 5 33 25 56 61 67z"/>
+    <path d="M129 101c26-8 48-25 65-51-5 33-25 56-61 67z"/>
+    <path d="M110 72c14 13 22 24 22 37 0 18-14 31-22 42-8-11-22-24-22-42 0-13 8-24 22-37z"/>
+    <circle cx="110" cy="58" r="13"/>
+  </g>
+  <text x="110" y="147" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="22" font-weight="700" fill="#C28A00">MODERN GOLD</text>
+  <text x="110" y="166" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="11" letter-spacing="5" fill="#C28A00">JEWELRY</text>
 </svg>
