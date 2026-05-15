@@ -5036,9 +5036,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
 
     setSaving(true)
     try {
-      // If editing an existing JV, permanently delete old entries first
+      // If editing an existing JV, reverse old entries first and post replacements.
+      // This keeps the accounting audit trail intact.
       if (jvEditEntryIds.length > 0) {
-        await Promise.all(jvEditEntryIds.map((id) => erpAccountingAPI.permanentDeleteLedgerEntry(token, id)))
+        await Promise.all(jvEditEntryIds.map((id) => erpAccountingAPI.deleteLedgerEntry(token, id)))
       }
       await Promise.all(entries.map((entry) => erpAccountingAPI.createLedgerEntry(token, {
         date: jvHeader.date,
@@ -5366,21 +5367,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       showNotification(`✅ Entry marked as ${entry.bankReconciled ? 'Unreconciled' : 'Reconciled'}`)
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to update reconciliation status')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handlePermanentDeleteLedger = async (entry) => {
-    if (!window.confirm(`Delete ledger entry ${entry.referenceType} (${entry.amount}) permanently?`)) return
-    try {
-      setSaving(true)
-      await erpAccountingAPI.permanentDeleteLedgerEntry(token, entry._id)
-      await loadLedger()
-      setError('')
-      showNotification('✅ Entry deleted successfully')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to delete entry')
     } finally {
       setSaving(false)
     }
@@ -6367,7 +6353,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         handleEditLedger={handleEditLedger}
         handleReconcileLedger={handleReconcileLedger}
         handleReverseLedger={handleReverseLedger}
-        handlePermanentDeleteLedger={handlePermanentDeleteLedger}
       />
 
       {/* ACCOUNT MAPPINGS TAB */}

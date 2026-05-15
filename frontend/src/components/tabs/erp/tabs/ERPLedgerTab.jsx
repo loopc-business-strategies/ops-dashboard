@@ -52,7 +52,6 @@ export default function ERPLedgerTab({
   handleEditLedger,
   handleReconcileLedger,
   handleReverseLedger,
-  handlePermanentDeleteLedger,
 }) {
   return (
     <>
@@ -456,7 +455,6 @@ export default function ERPLedgerTab({
                             <a href={`${(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')}${entry.attachmentUrl}`} target="_blank" rel="noreferrer" style={{ padding: '0.35rem 0.5rem', background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'none' }}>Slip</a>
                           )}
                           <button onClick={() => handleReverseLedger(entry)} title="Reverse" style={{ padding: '0.35rem 0.5rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Reverse</button>
-                          <button onClick={() => handlePermanentDeleteLedger(entry)} title="Delete" style={{ padding: '0.35rem 0.5rem', background: '#7F1D1D', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Delete</button>
                         </div>
                       </td>
                     </tr>

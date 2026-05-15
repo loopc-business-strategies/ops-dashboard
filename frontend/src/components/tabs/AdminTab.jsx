@@ -421,13 +421,18 @@ function UsersTab({ users, token, onRefresh, onOpenPermissions }) {
   }
 
   const handleDelete = async (u) => {
-    if (!window.confirm(`Permanently delete "${u.name}"? This cannot be undone.`)) return
+    if (!window.confirm(`Deactivate and remove "${u.name}" from the active user list? Audit details will be kept.`)) return
+    const reason = window.prompt('Reason/comment for removing this user:', 'Admin removed user')
+    if (!reason || reason.trim().length < 4) {
+      notify('Reason is required.')
+      return
+    }
     try {
-      await authAPI.deleteUser(token, u._id)
+      await authAPI.deleteUser(token, u._id, reason.trim())
       onRefresh()
-      notify(`${u.name} deleted.`)
+      notify(`${u.name} deactivated and removed from active list.`)
     } catch {
-      notify('Failed to delete user.')
+      notify('Failed to remove user.')
     }
   }
 
@@ -854,4 +859,3 @@ function AdminTab() {
 }
 
 export default AdminTab
-

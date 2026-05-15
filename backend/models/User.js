@@ -133,6 +133,35 @@ const userSchema = new mongoose.Schema(
       default: true,
     },
 
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+
+    deletedByName: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+
+    deletionReason: {
+      type: String,
+      trim: true,
+      maxlength: [600, 'Deletion reason must be at most 600 characters'],
+      default: '',
+    },
+
     lastLogin: Date,
   },
   {
@@ -143,6 +172,7 @@ const userSchema = new mongoose.Schema(
 userSchema.index({ name: 1 })
 userSchema.index({ role: 1 })
 userSchema.index({ isActive: 1 })
+userSchema.index({ isDeleted: 1 })
 
 // -----------------------------------------------
 // BEFORE SAVING: Hash the password automatically

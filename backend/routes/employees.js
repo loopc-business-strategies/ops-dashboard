@@ -14,6 +14,7 @@ const express  = require('express')
 const Employee = require('../models/Employee')
 const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
+const { softDeleteById } = require('../utils/softDelete')
 
 const router = express.Router()
 
@@ -70,9 +71,10 @@ router.get('/', protect, async (req, res) => {
     const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 200))
     const skip  = (page - 1) * limit
 
+    const activeFilter = { $and: [filter, { isDeleted: { $ne: true } }] }
     const [employees, total] = await Promise.all([
-      TenantEmployee.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
-      TenantEmployee.countDocuments(filter),
+      TenantEmployee.find(activeFilter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      TenantEmployee.countDocuments(activeFilter),
     ])
     res.json({ success: true, count: employees.length, total, page, limit, employees })
   } catch (err) {
@@ -141,7 +143,7 @@ router.delete('/:id', protect, validateParams(employeeIdParam), async (req, res)
       return res.status(403).json({ success: false, message: 'HR department head can only delete HR employees.' })
     }
 
-    await TenantEmployee.findByIdAndDelete(req.params.id)
+    await softDeleteById(TenantEmployee, req.params.id, req)
     res.json({ success: true, message: 'Employee deleted.' })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })
@@ -149,4 +151,3 @@ router.delete('/:id', protect, validateParams(employeeIdParam), async (req, res)
 })
 
 module.exports = router
-

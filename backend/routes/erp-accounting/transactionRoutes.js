@@ -1,4 +1,5 @@
 function registerTransactionRoutes(deps) {
+  const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
   const {
     router,
     protect,
@@ -387,12 +388,15 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
   }
 })
 
-router.post('/transactions/:id/void', protect, async (req, res) => {
-  try {
-    if (!isSuperAdmin(req.user) && !isFinance(req.user)) {
-      return res.status(403).json({ success: false, message: 'Forbidden' })
-    }
+const requireTransactionVoidRole = (req, res, next) => {
+  if (!isSuperAdmin(req.user) && !isFinance(req.user)) {
+    return res.status(403).json({ success: false, message: 'Forbidden' })
+  }
+  return next()
+}
 
+router.post('/transactions/:id/void', protect, requireTransactionVoidRole, requireDestructiveAdminGuard('transactions/void'), async (req, res) => {
+  try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
 
@@ -415,7 +419,7 @@ router.post('/transactions/:id/void', protect, async (req, res) => {
     tx.isDeleted = true
     tx.deletedAt = now
     tx.updatedBy = req.user._id
-    appendTransactionAudit(tx, req.user, 'void', { fromStatus: tx.status, toStatus: 'voided', comment: req.body?.reason || 'Voided by user' })
+    appendTransactionAudit(tx, req.user, 'void', { fromStatus: tx.status, toStatus: 'voided', comment: req.destructiveAction.reason })
     await tx.save()
 
     const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
@@ -437,7 +441,7 @@ router.post('/transactions/:id/void', protect, async (req, res) => {
       }
     })
 
-    res.json({ success: true, message: 'Transaction voided and ledger entries removed' })
+    res.json({ success: true, message: 'Transaction voided and linked ledger entries soft-deleted' })
   } catch (e) {
     console.error('Void transaction error:', e)
     res.status(500).json({ success: false, message: 'Server error' })

@@ -40,6 +40,7 @@ The table below predates the workspace registry and uses a few descriptive label
 | `audit-cg-accounting-integrity.js` | read-only | See script source before use. |
 | `audit-loopc-accounting-integrity.js` | read-only | See script source before use. |
 | `audit-mg-accounting-integrity.js` | read-only | See script source before use. |
+| `audit-mg-exchange-cleanup.js` | read-only | Counts active/deleted MG exchange entries. Does not modify data. |
 | `audit-mg-voucher-ledger-details-live-api.js` | read-only | See script source before use. |
 | `audit-ooo-remnants.js` | read-only | See script source before use. |
 | `backfill-fx-journals-all-tenants.js` | dry-run/apply or writes data | See script source before use. |
@@ -67,6 +68,7 @@ The table below predates the workspace registry and uses a few descriptive label
 | `check-voucher-5-fixed.js` | read-only | See script source before use. |
 | `check-voucher-5.js` | read-only | See script source before use. |
 | `destructive/cleanup-cg-test-overrides.js` | writes data | See script source before use. |
+| `destructive/cleanup-cash-1000-direct.js` | writes data | Legacy direct MG cleanup script quarantined. Requires destructive guard before it can soft-delete ledger rows. |
 | `destructive/cleanup-loopc-orphan-test-parties.js` | writes data | See script source before use. |
 | `destructive/cleanup-mg-orphan-test-parties.js` | writes data | See script source before use. |
 | `destructive/cleanup-mg-test-overrides.js` | writes data | See script source before use. |
@@ -86,6 +88,7 @@ The table below predates the workspace registry and uses a few descriptive label
 | `deep-search-joshua.js` | read-only | See script source before use. |
 | `destructive/delete-via-live-api.js` | writes data | See script source before use. |
 | `destructive/danger-reset-mg-transactions.js` | writes data | Dry-run by default. Requires `MONGO_URI_MG`, `ALLOW_MG_DESTRUCTIVE_RESET=true`, `--apply`, and a confirmation token before deleting MG transactions/ledgers. Does not touch users or chart of accounts. |
+| `destructive/danger-reset-mg-transactions-ledgers.js` | writes data | Legacy root cleanup script quarantined. Requires destructive guard before it can delete MG transactions/ledgers. Does not touch chart of accounts. |
 | `export-cg-account-balances.js` | read-only | See script source before use. |
 | `export-loopc-account-balances.js` | read-only | See script source before use. |
 | `export-mg-account-balances.js` | read-only | See script source before use. |

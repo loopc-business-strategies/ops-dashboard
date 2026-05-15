@@ -9,6 +9,7 @@ const ProcurementDoc = require('../models/ProcurementDoc')
 const ExpiryAlert = require('../models/ExpiryAlert')
 const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
+const { softDeleteById } = require('../utils/softDelete')
 
 const router = express.Router()
 
@@ -160,7 +161,7 @@ router.get('/inventory', protect, async (req, res) => {
     const typeFilter = req.query.type
     const lowStockOnly = req.query.lowStockOnly === 'true'
 
-    const query = {}
+    const query = { isDeleted: { $ne: true } }
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -316,7 +317,7 @@ router.delete('/inventory/:id', protect, validateParams(idParam), async (req, re
       actorName: req.user.name,
     })
 
-    await InventoryItem.findByIdAndDelete(req.params.id)
+    await softDeleteById(InventoryItem, req.params.id, req, 'Inventory item removed')
     res.json({ success: true, message: 'Inventory item deleted.' })
   } catch {
     res.status(500).json({ success: false, message: 'Failed to delete inventory item.' })
@@ -340,8 +341,8 @@ router.get('/procurement/suppliers', protect, async (req, res) => {
   try {
     const { page, limit, skip } = parsePagination(req.query, 20, 100)
     const [suppliers, total] = await Promise.all([
-      Supplier.find({}).sort({ updatedAt: -1 }).skip(skip).limit(limit),
-      Supplier.countDocuments({}),
+      Supplier.find({ isDeleted: { $ne: true } }).sort({ updatedAt: -1 }).skip(skip).limit(limit),
+      Supplier.countDocuments({ isDeleted: { $ne: true } }),
     ])
     res.json({
       success: true,
@@ -410,7 +411,7 @@ router.delete('/procurement/suppliers/:id', protect, validateParams(idParam), as
       return res.status(404).json({ success: false, message: 'Supplier not found.' })
     }
 
-    await Supplier.findByIdAndDelete(req.params.id)
+    await softDeleteById(Supplier, req.params.id, req)
     res.json({ success: true, message: 'Supplier deleted.' })
   } catch {
     res.status(500).json({ success: false, message: 'Failed to delete supplier.' })
@@ -425,7 +426,7 @@ router.get('/procurement/purchase-orders', protect, async (req, res) => {
     const search = String(req.query.search || '').trim().toLowerCase()
     const statusFilter = req.query.status
 
-    const query = {}
+    const query = { isDeleted: { $ne: true } }
     if (search) {
       query.$or = [
         { poNumber: { $regex: search, $options: 'i' } },
@@ -577,7 +578,7 @@ router.delete('/procurement/purchase-orders/:id', protect, validateParams(idPara
       return res.status(404).json({ success: false, message: 'Purchase order not found.' })
     }
 
-    await PurchaseOrder.findByIdAndDelete(req.params.id)
+    await softDeleteById(PurchaseOrder, req.params.id, req)
     res.json({ success: true, message: 'Purchase order deleted.' })
   } catch {
     res.status(500).json({ success: false, message: 'Failed to delete purchase order.' })
@@ -594,7 +595,7 @@ router.get('/production/work-orders', protect, async (req, res) => {
     const stageFilter = req.query.stage
     const statusFilter = req.query.status
 
-    const query = {}
+    const query = { isDeleted: { $ne: true } }
     if (search) {
       query.$or = [{ woNumber: { $regex: search, $options: 'i' } }, { assignedTo: { $regex: search, $options: 'i' } }]
     }
@@ -676,7 +677,7 @@ router.delete('/production/work-orders/:id', protect, validateParams(idParam), a
       return res.status(403).json({ success: false, message: 'Only Production Head or Super Admin can delete work orders.' })
     }
 
-    const workOrder = await WorkOrder.findByIdAndDelete(req.params.id)
+    const workOrder = await softDeleteById(WorkOrder, req.params.id, req)
     if (!workOrder) {
       return res.status(404).json({ success: false, message: 'Work order not found.' })
     }
@@ -698,7 +699,7 @@ router.get('/finance/records', protect, async (req, res) => {
     const categoryFilter = req.query.category
     const deptFilter = req.query.department
 
-    const query = {}
+    const query = { isDeleted: { $ne: true } }
     if (search) {
       query.$or = [{ description: { $regex: search, $options: 'i' } }, { category: { $regex: search, $options: 'i' } }]
     }
@@ -780,7 +781,7 @@ router.delete('/finance/records/:id', protect, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only Finance Head or Super Admin can delete finance records.' })
     }
 
-    const record = await FinanceRecord.findByIdAndDelete(req.params.id)
+    const record = await softDeleteById(FinanceRecord, req.params.id, req)
     if (!record) {
       return res.status(404).json({ success: false, message: 'Finance record not found.' })
     }
@@ -799,7 +800,7 @@ router.get('/procurement/documents', protect, async (req, res) => {
     const limit = Math.min(50, Number(req.query.limit) || 20)
     const skip = (page - 1) * limit
 
-    const query = {}
+    const query = { isDeleted: { $ne: true } }
     if (poId) query.poId = poId
 
     const total = await ProcurementDoc.countDocuments(query)
@@ -873,7 +874,7 @@ router.delete('/procurement/documents/:id', protect, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only authorized users can delete procurement documents.' })
     }
 
-    const doc = await ProcurementDoc.findByIdAndDelete(req.params.id)
+    const doc = await softDeleteById(ProcurementDoc, req.params.id, req)
     if (!doc) {
       return res.status(404).json({ success: false, message: 'Procurement document not found.' })
     }
@@ -939,4 +940,3 @@ router.put('/alerts/expiry/:id/resolve', protect, async (req, res) => {
 })
 
 module.exports = router
-

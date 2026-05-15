@@ -1706,13 +1706,23 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
   const handleVoidVoucher = async (voucher) => {
     if (!voucher?._id) return
-    if (!window.confirm(`Void Receipt/Payment #${voucher.voucherMeta?.vocNo || '-'}? This will permanently remove all ledger entries. This cannot be undone.`)) return
+    if (!window.confirm(`Void Receipt/Payment #${voucher.voucherMeta?.vocNo || '-'}? This will soft-delete linked ledger entries and keep an audit trail.`)) return
+    const reason = window.prompt('Reason/comment for voiding this voucher (min 8 characters):', '')
+    if (!reason || reason.trim().length < 8) {
+      setError('Void reason/comment must be at least 8 characters.')
+      return
+    }
+    const confirmToken = window.prompt('Destructive action confirmation token:', '')
+    if (!confirmToken) {
+      setError('Confirmation token is required to void a voucher.')
+      return
+    }
     setSaving(true)
     clearError()
     try {
-      await axios.post(`${BASE}/transactions/${voucher._id}/void`, {}, cfg())
+      await axios.post(`${BASE}/transactions/${voucher._id}/void`, { reason: reason.trim(), confirmToken: confirmToken.trim() }, cfg())
       await loadVouchers()
-      showMsg(`Voucher #${voucher.voucherMeta?.vocNo || '-'} voided and removed`)
+      showMsg(`Voucher #${voucher.voucherMeta?.vocNo || '-'} voided with audit trail`)
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to void voucher')
     } finally {

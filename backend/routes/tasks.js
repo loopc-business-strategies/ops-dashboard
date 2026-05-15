@@ -11,6 +11,7 @@ const Message = require('../models/Message')
 const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams, validateQuery } = require('../middleware/validate')
 const { publishRealtimeEvent } = require('../utils/realtimeBus')
+const { softDeleteById } = require('../utils/softDelete')
 
 const router = express.Router()
 
@@ -200,9 +201,10 @@ router.get('/', protect, validateQuery(listTasksQuerySchema), async (req, res) =
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50))
     const skip = (page - 1) * limit
 
+    const activeFilter = { $and: [filter, { isDeleted: { $ne: true } }] }
     const [tasks, total] = await Promise.all([
-      Task.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
-      Task.countDocuments(filter),
+      Task.find(activeFilter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Task.countDocuments(activeFilter),
     ])
 
     res.json({ success: true, count: tasks.length, total, page, limit, tasks })
@@ -379,7 +381,7 @@ router.delete('/:id', protect, validateParams(taskIdParamSchema), async (req, re
       return res.status(403).json({ success: false, message: 'You do not have permission to delete this task.' })
     }
 
-    await Task.findByIdAndDelete(req.params.id)
+    await softDeleteById(Task, req.params.id, req, req.body?.reason || 'Task removed')
 
     const recipients = taskMessageRecipients({ assignedToId: task.assignedToId, assignedTo: task.assignedTo })
     await createTaskMessage(req.user, task, `Task removed: ${task.title}`, recipients)
@@ -398,4 +400,3 @@ router.delete('/:id', protect, validateParams(taskIdParamSchema), async (req, re
 })
 
 module.exports = router
-

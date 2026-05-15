@@ -40,9 +40,9 @@ const updateUserRole = async (_token, id, data) =>
 const toggleUser = async (_token, id) =>
   (await axios.put(`${BASE}/users/${id}/toggle`, {}, cfg())).data
 
-// Permanently delete a user (super_admin only)
-const deleteUser = async (_token, id) =>
-  (await axios.delete(`${BASE}/users/${id}`, cfg())).data
+// Deactivate and soft-delete a user (super_admin only)
+const deleteUser = async (_token, id, reason = '') =>
+  (await axios.delete(`${BASE}/users/${id}`, { ...cfg(), data: { reason } })).data
 
 // Update granular module permissions for a user (super_admin only)
 const updatePermissions = async (_token, id, modulePermissions) =>

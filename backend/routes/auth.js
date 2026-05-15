@@ -283,7 +283,7 @@ router.post('/refresh', protect, async (req, res) => {
 router.get('/users', protect, restrictTo('super_admin'), async (req, res) => {
   try {
     const TenantUser = await User.getTenantModel(req.tenant)
-    const users = await TenantUser.find().select('-password').sort({ createdAt: -1 })
+    const users = await TenantUser.find({ isDeleted: { $ne: true } }).select('-password').sort({ createdAt: -1 })
     res.json({ success: true, count: users.length, users })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })
@@ -382,7 +382,7 @@ router.put('/users/:id/role', protect, restrictTo('super_admin'), validateParams
 })
 
 // ==========================================
-// DELETE /api/auth/users/:id — permanently delete a user
+// DELETE /api/auth/users/:id — deactivate and soft-delete a user
 // SUPER ADMIN only
 // ==========================================
 router.delete('/users/:id', protect, restrictTo('super_admin'), validateParams(userIdParamSchema), async (req, res) => {
@@ -394,8 +394,15 @@ router.delete('/users/:id', protect, restrictTo('super_admin'), validateParams(u
     if (user._id.toString() === req.user._id.toString())
       return res.status(400).json({ success: false, message: 'Cannot delete your own account.' })
 
-    await TenantUser.findByIdAndDelete(req.params.id)
-    res.json({ success: true, message: 'User deleted.' })
+    const reason = String(req.body?.reason || req.body?.comment || '').trim()
+    user.isActive = false
+    user.isDeleted = true
+    user.deletedAt = new Date()
+    user.deletedBy = req.user._id
+    user.deletedByName = req.user.name
+    user.deletionReason = reason
+    await user.save({ validateBeforeSave: false })
+    res.json({ success: true, message: 'User deactivated and removed from active user list.' })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })
   }

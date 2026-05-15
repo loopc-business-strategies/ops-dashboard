@@ -56,8 +56,8 @@ const protect = async (req, res, next) => {
     const tenantUserModel = await User.getTenantModel(tenant)
     const user = await tenantUserModel.findById(decoded.id)
 
-    if (!user)          return res.status(401).json({ success: false, message: 'User no longer exists.' })
-    if (!user.isActive) return res.status(401).json({ success: false, message: 'Account has been deactivated.' })
+    if (!user || user.isDeleted) return res.status(401).json({ success: false, message: 'User no longer exists.' })
+    if (!user.isActive)          return res.status(401).json({ success: false, message: 'Account has been deactivated.' })
 
     req.tenant = tenant
     req.user = user // attach user to request

@@ -1,6 +1,7 @@
 const express = require('express')
 const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
+const { softDeleteById } = require('../utils/softDelete')
 const {
   TrainingSession,
   TrainingBatch,
@@ -100,7 +101,7 @@ function crudRoutes(router, path, Model, createSchema) {
   router.get(path, protect, async (req, res) => {
     try {
       const TenantModel = await Model.getTenantModel(req.tenant)
-      const rows = await TenantModel.find().sort({ createdAt: -1 }).limit(500).lean()
+      const rows = await TenantModel.find({ isDeleted: { $ne: true } }).sort({ createdAt: -1 }).limit(500).lean()
       res.json({ success: true, data: rows })
     } catch (err) {
         console.error('[training] list error:', err)
@@ -143,7 +144,7 @@ function crudRoutes(router, path, Model, createSchema) {
     if (req.user?.role !== 'super_admin') return res.status(403).json({ success: false, message: 'Only super admin can delete records.' })
     try {
       const TenantModel = await Model.getTenantModel(req.tenant)
-      const doc = await TenantModel.findByIdAndDelete(req.params.id)
+      const doc = await softDeleteById(TenantModel, req.params.id, req)
       if (!doc) return res.status(404).json({ success: false, message: 'Not found' })
       res.json({ success: true })
     } catch (err) {
@@ -163,4 +164,3 @@ crudRoutes(router, '/feedback',    TrainingFeedback,   feedbackSchema)
 crudRoutes(router, '/trainees',    TrainingTrainee,    traineeSchema)
 
 module.exports = router
-
