@@ -3908,22 +3908,47 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   }
 
   const handleViewStatement = async () => {
+    const w = window.open('', '_blank')
+    if (!w) {
+      setError('Popup blocked. Please allow popups for statement preview')
+      return
+    }
+
+    w.document.open()
+    w.document.write(`
+      <html>
+        <head><title>Preparing Statement</title></head>
+        <body style="margin:0;padding:32px;font-family:Arial, sans-serif;color:#111827;background:#ffffff;">
+          Preparing statement...
+        </body>
+      </html>
+    `)
+    w.document.close()
+
     try {
       const htmlData = await generateStatementHtml()
-      if (!htmlData) return
-
-      const w = window.open('', '_blank')
-      if (!w) {
-        setError('Popup blocked. Please allow popups for statement preview')
+      if (!htmlData) {
+        w.close()
         return
       }
 
+      w.document.open()
       w.document.write(htmlData.html)
       w.document.close()
       w.focus()
       showNotification('Statement preview opened')
     } catch (err) {
       console.error('Statement preview error:', err)
+      w.document.open()
+      w.document.write(`
+        <html>
+          <head><title>Statement Error</title></head>
+          <body style="margin:0;padding:32px;font-family:Arial, sans-serif;color:#991B1B;background:#ffffff;">
+            Failed to open statement preview.
+          </body>
+        </html>
+      `)
+      w.document.close()
       setError('Failed to open statement preview.')
     }
   }
