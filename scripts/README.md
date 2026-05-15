@@ -15,6 +15,8 @@ This directory contains repo-level automation. Backend data repair and tenant ma
 
 | Script | Classification | Notes |
 |---|---|---|
+| `check-forbidden-tracked-paths.mjs` | safe, audit-only | Fails if generated, uploaded, report, log, or env files are tracked by git. |
+| `check-frontend-bundle-budget.mjs` | safe, audit-only | Checks built frontend JS/CSS chunk sizes after `frontend/dist` exists. |
 | `check-access-policy-parity.mjs` | safe, audit-only | Verifies shared ERP access policy copies stay aligned. |
 | `dev-orchestrator.js` | safe | Starts local frontend/backend with free ports and injected API base. |
 | `production-smoke.js` | live-data, audit-only, tenant-specific | Checks Vercel tenant login pages, Railway health, and auth routing. |

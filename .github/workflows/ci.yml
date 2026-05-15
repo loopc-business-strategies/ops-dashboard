@@ -9,6 +9,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  repository-hygiene:
+    name: Repository Hygiene
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Check forbidden tracked paths
+        run: npm run check:tracked-paths
+
   backend-fast-tests:
     name: Backend Fast Tests
     runs-on: ubuntu-latest
@@ -119,3 +135,6 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+      - name: Check frontend bundle budget
+        run: npm run check:frontend-bundle
