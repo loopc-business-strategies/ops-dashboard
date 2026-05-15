@@ -1,6 +1,6 @@
 const { requireDestructiveAdminGuard } = require('../middleware/destructiveAction')
 
-function runGuard({ env = {}, headers = {}, body = {} } = {}) {
+function runGuard({ actionName = 'test-action', env = {}, headers = {}, body = {} } = {}) {
   const req = { headers, body }
   const res = {
     statusCode: 200,
@@ -19,6 +19,7 @@ function runGuard({ env = {}, headers = {}, body = {} } = {}) {
   const previousEnv = {
     NODE_ENV: process.env.NODE_ENV,
     ENABLE_DESTRUCTIVE_ADMIN_API: process.env.ENABLE_DESTRUCTIVE_ADMIN_API,
+    ENABLE_PERMANENT_DELETE_API: process.env.ENABLE_PERMANENT_DELETE_API,
     DESTRUCTIVE_ADMIN_CONFIRM_TOKEN: process.env.DESTRUCTIVE_ADMIN_CONFIRM_TOKEN,
     CLEANUP_CONFIRM_TOKEN: process.env.CLEANUP_CONFIRM_TOKEN,
   }
@@ -28,7 +29,7 @@ function runGuard({ env = {}, headers = {}, body = {} } = {}) {
     else delete process.env[key]
   }
 
-  requireDestructiveAdminGuard('test-action')(req, res, next)
+  requireDestructiveAdminGuard(actionName)(req, res, next)
 
   Object.entries(previousEnv).forEach(([key, value]) => {
     if (value === undefined) delete process.env[key]
@@ -100,5 +101,39 @@ describe('destructive action guard', () => {
     expect(res.payload).toBe(null)
     expect(next).toHaveBeenCalledTimes(1)
     expect(req.destructiveAction.reason).toBe('monthly admin cleanup')
+  })
+
+  test('blocks production permanent deletes unless separately enabled', () => {
+    const { res, next } = runGuard({
+      actionName: 'ledger-permanent-delete',
+      env: {
+        NODE_ENV: 'production',
+        ENABLE_DESTRUCTIVE_ADMIN_API: 'true',
+        DESTRUCTIVE_ADMIN_CONFIRM_TOKEN: 'secret',
+      },
+      headers: { 'x-destructive-token': 'secret' },
+      body: { reason: 'approved maintenance cleanup' },
+    })
+
+    expect(next).not.toHaveBeenCalled()
+    expect(res.statusCode).toBe(403)
+    expect(res.payload.message).toMatch(/permanent delete api is disabled/i)
+  })
+
+  test('allows production permanent deletes only when permanent gate is enabled', () => {
+    const { res, next } = runGuard({
+      actionName: 'ledger-permanent-delete',
+      env: {
+        NODE_ENV: 'production',
+        ENABLE_DESTRUCTIVE_ADMIN_API: 'true',
+        ENABLE_PERMANENT_DELETE_API: 'true',
+        DESTRUCTIVE_ADMIN_CONFIRM_TOKEN: 'secret',
+      },
+      headers: { 'x-destructive-token': 'secret' },
+      body: { reason: 'approved maintenance cleanup' },
+    })
+
+    expect(res.payload).toBe(null)
+    expect(next).toHaveBeenCalledTimes(1)
   })
 })

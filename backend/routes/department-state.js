@@ -1,11 +1,18 @@
 const express = require('express')
 const { protect } = require('../middleware/auth')
+const { Joi, validateBody, validateParams } = require('../middleware/validate')
 const DepartmentState = require('../models/DepartmentState')
 
 const router = express.Router()
 
 const normalize = (value = '') => String(value).trim().toLowerCase()
 const allowedModules = ['finance', 'compliance', 'training']
+const moduleParamSchema = Joi.object({
+  module: Joi.string().trim().lowercase().valid(...allowedModules).required(),
+})
+const moduleStateSchema = Joi.object({
+  state: Joi.object().required().max(200),
+})
 
 const canAccessModule = (user, module) => {
   if (!user) return false
@@ -18,7 +25,7 @@ const canAccessModule = (user, module) => {
   return false
 }
 
-router.get('/:module', protect, async (req, res) => {
+router.get('/:module', protect, validateParams(moduleParamSchema), async (req, res) => {
   try {
     const module = normalize(req.params.module)
     if (!allowedModules.includes(module)) {
@@ -36,7 +43,7 @@ router.get('/:module', protect, async (req, res) => {
   }
 })
 
-router.put('/:module', protect, async (req, res) => {
+router.put('/:module', protect, validateParams(moduleParamSchema), validateBody(moduleStateSchema), async (req, res) => {
   try {
     const module = normalize(req.params.module)
     if (!allowedModules.includes(module)) {
@@ -72,4 +79,3 @@ router.put('/:module', protect, async (req, res) => {
 })
 
 module.exports = router
-

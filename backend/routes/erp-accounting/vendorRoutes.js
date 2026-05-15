@@ -1,3 +1,26 @@
+const { Joi } = require('../../middleware/validate')
+
+const vendorDocumentParamSchema = Joi.object({
+  id: Joi.string().hex().length(24).required(),
+  documentId: Joi.string().hex().length(24).required(),
+})
+const vendorWorkflowSchema = Joi.object({
+  status: Joi.string().trim().lowercase().valid('draft', 'review', 'approved', 'blacklisted').required(),
+  reason: Joi.string().trim().allow('').max(1000).optional(),
+})
+const vendorDocumentSchema = Joi.object({
+  docType: Joi.string().valid('contract', 'trade_license', 'vat_certificate', 'bank_proof', 'other').optional(),
+  title: Joi.string().trim().min(1).max(200).required(),
+  documentNo: Joi.string().trim().allow('').max(120).optional(),
+  fileUrl: Joi.string().trim().allow('').max(1000).optional(),
+  issueDate: Joi.date().allow('', null).optional(),
+  expiryDate: Joi.date().allow('', null).optional(),
+  status: Joi.string().valid('active', 'expired', 'pending_verification').optional(),
+  verified: Joi.boolean().optional(),
+  notes: Joi.string().trim().allow('').max(1000).optional(),
+})
+const vendorDocumentPatchSchema = vendorDocumentSchema.fork(['title'], (schema) => schema.optional()).min(1)
+
 function registerVendorRoutes(deps) {
   const {
     router,
@@ -486,7 +509,7 @@ function registerVendorRoutes(deps) {
     }
   })
 
-  router.post('/vendors/:id/workflow', protect, async (req, res) => {
+  router.post('/vendors/:id/workflow', protect, validateParams(idParam), validateBody(vendorWorkflowSchema), async (req, res) => {
     try {
       if (!canUpdateVendorOperational(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
@@ -533,7 +556,7 @@ function registerVendorRoutes(deps) {
     }
   })
 
-  router.post('/vendors/:id/documents', protect, async (req, res) => {
+  router.post('/vendors/:id/documents', protect, validateParams(idParam), validateBody(vendorDocumentSchema), async (req, res) => {
     try {
       if (!canUpdateVendorOperational(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
@@ -564,7 +587,7 @@ function registerVendorRoutes(deps) {
     }
   })
 
-  router.put('/vendors/:id/documents/:documentId', protect, async (req, res) => {
+  router.put('/vendors/:id/documents/:documentId', protect, validateParams(vendorDocumentParamSchema), strictBody(vendorDocumentPatchSchema), async (req, res) => {
     try {
       if (!canUpdateVendorOperational(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
@@ -591,7 +614,7 @@ function registerVendorRoutes(deps) {
     }
   })
 
-  router.delete('/vendors/:id/documents/:documentId', protect, async (req, res) => {
+  router.delete('/vendors/:id/documents/:documentId', protect, validateParams(vendorDocumentParamSchema), async (req, res) => {
     try {
       if (!canUpdateVendorOperational(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
@@ -658,7 +681,7 @@ function registerVendorRoutes(deps) {
     }
   })
 
-  router.delete('/vendors/:id', protect, async (req, res) => {
+  router.delete('/vendors/:id', protect, validateParams(idParam), async (req, res) => {
     try {
       if (!canManageVendors(req.user)) {
         return res.status(403).json({ success: false, message: 'Only Admin/Finance can delete vendors' })

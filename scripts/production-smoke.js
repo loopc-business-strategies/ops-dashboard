@@ -8,6 +8,8 @@ const VERCEL_HOSTS = (process.env.SMOKE_VERCEL_HOSTS || TENANTS.map((tenant) => 
   .map((host) => host.trim())
   .filter(Boolean)
 const RAILWAY_HEALTH_URL = process.env.SMOKE_RAILWAY_HEALTH_URL || `${API_BASE}/api/health`
+const SMOKE_AUTH_TOKEN = String(process.env.SMOKE_AUTH_TOKEN || '').trim()
+const SMOKE_SESSION_COOKIE = String(process.env.SMOKE_SESSION_COOKIE || '').trim()
 const timeoutMs = Number(process.env.SMOKE_TIMEOUT_MS || 20000)
 
 async function fetchWithTimeout(url, options = {}) {
@@ -77,6 +79,51 @@ async function verifyTenantAuthPath(tenant) {
   return `${response.status} invalid-login probe`
 }
 
+async function verifyTenantReadOnlyErpPath(tenant) {
+  if (!SMOKE_AUTH_TOKEN && !SMOKE_SESSION_COOKIE) {
+    return 'skipped; set SMOKE_AUTH_TOKEN or SMOKE_SESSION_COOKIE for authenticated ERP probe'
+  }
+
+  const headers = {
+    'x-tenant': tenant,
+    'x-company': tenant,
+  }
+  if (SMOKE_AUTH_TOKEN) headers.authorization = `Bearer ${SMOKE_AUTH_TOKEN}`
+  if (SMOKE_SESSION_COOKIE) headers.cookie = SMOKE_SESSION_COOKIE
+
+  const response = await fetchWithTimeout(`${API_BASE}/api/erp-accounting/accounts?limit=1`, { headers })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok || body.success !== true) {
+    throw new Error(`ERP read-only route returned ${response.status}: ${body.message || 'unexpected response'}`)
+  }
+  return `${response.status} accounts read-only probe`
+}
+
+async function verifyCsrfAuthShape(tenant) {
+  const response = await fetchWithTimeout(`${API_BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-tenant': tenant,
+      'x-company': tenant,
+    },
+    body: JSON.stringify({
+      company: tenant,
+      name: '__smoke_invalid__',
+      password: '__smoke_invalid__',
+    }),
+  })
+  const body = await response.json().catch(() => ({}))
+  const message = String(body.message || '')
+  if (/csrf validation failed/i.test(message)) {
+    throw new Error('login path was unexpectedly blocked by CSRF validation')
+  }
+  if (response.status !== 401) {
+    throw new Error(`login shape returned ${response.status}: ${message || 'unexpected response'}`)
+  }
+  return `${response.status} csrf/auth bypass shape`
+}
+
 async function run() {
   console.log('Production smoke report')
   console.log(`API: ${API_BASE}`)
@@ -90,6 +137,8 @@ async function run() {
   for (const tenant of TENANTS) {
     checks.push(check(`railway:${tenant}:health`, () => verifyRailwayHealth(tenant)))
     checks.push(check(`railway:${tenant}:auth-routing`, () => verifyTenantAuthPath(tenant)))
+    checks.push(check(`railway:${tenant}:csrf-auth-shape`, () => verifyCsrfAuthShape(tenant)))
+    checks.push(check(`railway:${tenant}:erp-readonly`, () => verifyTenantReadOnlyErpPath(tenant)))
   }
 
   const results = await Promise.all(checks)

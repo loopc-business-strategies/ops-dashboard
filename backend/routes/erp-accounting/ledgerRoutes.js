@@ -1,4 +1,17 @@
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
+const { Joi, validateBodyStrict, validateParams } = require('../../middleware/validate')
+
+const objectId = Joi.string().hex().length(24)
+const idParamSchema = Joi.object({ id: objectId.required() })
+const ledgerPatchSchema = Joi.object({
+  date: Joi.date().allow('', null).optional(),
+  debitAccountId: objectId.allow('', null).optional(),
+  creditAccountId: objectId.allow('', null).optional(),
+  amount: Joi.number().positive().optional(),
+  description: Joi.string().trim().allow('').max(1000).optional(),
+  referenceType: Joi.string().trim().allow('').max(80).optional(),
+  currency: Joi.string().trim().allow('').max(10).optional(),
+}).min(1)
 
 function registerLedgerRoutes(deps) {
   const {
@@ -210,7 +223,7 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
 // ==========================================
 // LEDGER EDIT/DELETE ENDPOINTS
 // ==========================================
-router.put('/ledger/:id', protect, async (req, res) => {
+router.put('/ledger/:id', protect, validateParams(idParamSchema), validateBodyStrict(ledgerPatchSchema), async (req, res) => {
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const TenantLedger = await Ledger.getTenantModel(req.tenant)
@@ -254,7 +267,7 @@ router.put('/ledger/:id', protect, async (req, res) => {
   }
 })
 
-router.delete('/ledger/:id', protect, async (req, res) => {
+router.delete('/ledger/:id', protect, validateParams(idParamSchema), async (req, res) => {
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const TenantLedger = await Ledger.getTenantModel(req.tenant)
@@ -294,7 +307,7 @@ router.delete('/ledger/:id', protect, async (req, res) => {
   }
 })
 
-router.delete('/ledger/:id/permanent', protect, requireDestructiveAdminGuard('ledger/permanent-delete'), async (req, res) => {
+router.delete('/ledger/:id/permanent', protect, validateParams(idParamSchema), requireDestructiveAdminGuard('ledger/permanent-delete'), async (req, res) => {
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const TenantLedger = await Ledger.getTenantModel(req.tenant)
@@ -338,7 +351,7 @@ router.delete('/ledger/:id/permanent', protect, requireDestructiveAdminGuard('le
 })
 
 // Bank JV reconciliation toggle
-router.put('/ledger/:id/reconcile', protect, async (req, res) => {
+router.put('/ledger/:id/reconcile', protect, validateParams(idParamSchema), async (req, res) => {
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const TenantLedger = await Ledger.getTenantModel(req.tenant)

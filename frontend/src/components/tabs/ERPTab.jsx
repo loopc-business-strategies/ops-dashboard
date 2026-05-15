@@ -3925,10 +3925,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       exportRoot.style.pointerEvents = 'none'
       exportRoot.style.zIndex = '-1'
       exportRoot.style.background = '#FFFFFF'
-      exportRoot.innerHTML = `
-        <style>${parsed.querySelector('style')?.textContent || ''}</style>
-        ${parsed.body.innerHTML}
-      `
+      const style = document.createElement('style')
+      style.textContent = parsed.querySelector('style')?.textContent || ''
+      exportRoot.appendChild(style)
+      Array.from(parsed.body.childNodes).forEach((node) => {
+        exportRoot.appendChild(node.cloneNode(true))
+      })
       document.body.appendChild(exportRoot)
 
       const stamp = new Date().toISOString().slice(0, 10)
@@ -3991,10 +3993,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       exportRoot.style.pointerEvents = 'none'
       exportRoot.style.zIndex = '-1'
       exportRoot.style.background = '#FFFFFF'
-      exportRoot.innerHTML = `
-        <style>${parsed.querySelector('style')?.textContent || ''}</style>
-        ${parsed.body.innerHTML}
-      `
+      const style = document.createElement('style')
+      style.textContent = parsed.querySelector('style')?.textContent || ''
+      exportRoot.appendChild(style)
+      Array.from(parsed.body.childNodes).forEach((node) => {
+        exportRoot.appendChild(node.cloneNode(true))
+      })
       document.body.appendChild(exportRoot)
 
       const stamp = new Date().toISOString().slice(0, 10)

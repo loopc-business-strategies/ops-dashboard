@@ -1,3 +1,33 @@
+const { Joi, validateBody, validateBodyStrict, validateParams } = require('../../middleware/validate')
+
+const objectId = Joi.string().hex().length(24)
+const idParamSchema = Joi.object({ id: objectId.required() })
+const directDealLineSchema = Joi.object({
+  customerId: objectId.allow('', null).optional(),
+  customerCode: Joi.string().trim().allow('').max(80).optional(),
+  customerName: Joi.string().trim().allow('').max(200).optional(),
+  direction: Joi.string().valid('buy', 'sell').required(),
+  metal: Joi.string().trim().allow('').max(20).optional(),
+  qty: Joi.number().positive().required(),
+  stockCode: Joi.string().trim().allow('').max(30).optional(),
+  price: Joi.number().positive().required(),
+  eqOz: Joi.number().min(0).optional(),
+  amount: Joi.number().min(0).optional(),
+  notes: Joi.string().trim().allow('').max(1000).optional(),
+}).unknown(true)
+const directDealCreateSchema = Joi.object({
+  docNo: Joi.string().trim().allow('').max(80).optional(),
+  entryType: Joi.string().valid('fixing', 'non_fixing').optional(),
+  docDate: Joi.date().allow('', null).optional(),
+  valueDate: Joi.date().allow('', null).optional(),
+  currency: Joi.string().trim().allow('').max(10).optional(),
+  branch: Joi.string().trim().allow('').max(80).optional(),
+  status: Joi.string().valid('draft', 'confirmed').optional(),
+  remarks: Joi.string().trim().allow('').max(2000).optional(),
+  lineItems: Joi.array().items(directDealLineSchema).min(1).max(200).required(),
+})
+const directDealPatchSchema = directDealCreateSchema.fork(['lineItems'], (schema) => schema.optional()).min(1)
+
 function registerDirectDealsRoutes(deps) {
   const {
     router,
@@ -74,7 +104,7 @@ function registerDirectDealsRoutes(deps) {
     }
   })
 
-  router.post('/direct-deals', protect, async (req, res) => {
+  router.post('/direct-deals', protect, validateBody(directDealCreateSchema), async (req, res) => {
     try {
       if (!canManageDirectDeals(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
@@ -127,7 +157,7 @@ function registerDirectDealsRoutes(deps) {
     }
   })
 
-  router.put('/direct-deals/:id', protect, async (req, res) => {
+  router.put('/direct-deals/:id', protect, validateParams(idParamSchema), validateBodyStrict(directDealPatchSchema), async (req, res) => {
     try {
       if (!canManageDirectDeals(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const deal = await DirectDeal.findById(req.params.id)
@@ -178,7 +208,7 @@ function registerDirectDealsRoutes(deps) {
     }
   })
 
-  router.delete('/direct-deals/:id', protect, async (req, res) => {
+  router.delete('/direct-deals/:id', protect, validateParams(idParamSchema), async (req, res) => {
     try {
       if (!canManageDirectDeals(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const deal = await DirectDeal.findById(req.params.id)

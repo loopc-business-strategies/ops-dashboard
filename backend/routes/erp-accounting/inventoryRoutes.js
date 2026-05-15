@@ -1,4 +1,37 @@
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
+const { Joi, validateBody, validateBodyStrict, validateParams } = require('../../middleware/validate')
+
+const objectId = Joi.string().hex().length(24)
+const idParamSchema = Joi.object({ id: objectId.required() })
+const inventoryProductCreateSchema = Joi.object({
+  sku: Joi.string().trim().allow('').max(80).optional(),
+  name: Joi.string().trim().min(1).max(200).required(),
+  category: Joi.string().trim().allow('').max(1200).optional(),
+  unit: Joi.string().trim().allow('').max(30).optional(),
+  unitCost: Joi.number().min(0).optional(),
+  sellingPrice: Joi.number().min(0).optional(),
+  quantity: Joi.number().min(0).optional(),
+  currency: Joi.string().trim().allow('').max(10).optional(),
+  minThreshold: Joi.number().min(0).optional(),
+  supplierName: Joi.string().trim().allow('').max(200).optional(),
+  weight: Joi.number().min(0).optional(),
+  wipStage: Joi.string().trim().allow('').max(120).optional(),
+})
+const inventoryProductPatchSchema = inventoryProductCreateSchema.fork(['name'], (schema) => schema.optional()).min(1)
+const stockInSchema = Joi.object({
+  itemId: objectId.required(),
+  quantity: Joi.number().positive().required(),
+  unitCost: Joi.number().min(0).optional(),
+  vendorId: objectId.allow('', null).optional(),
+  currency: Joi.string().trim().allow('').max(10).optional(),
+  description: Joi.string().trim().allow('').max(1000).optional(),
+})
+const stockOutSchema = Joi.object({
+  itemId: objectId.required(),
+  quantity: Joi.number().positive().required(),
+  currency: Joi.string().trim().allow('').max(10).optional(),
+  description: Joi.string().trim().allow('').max(1000).optional(),
+})
 
 function registerInventoryRoutes(deps) {
   const {
@@ -38,7 +71,7 @@ function registerInventoryRoutes(deps) {
     }
   })
 
-  router.post('/inventory/products', protect, async (req, res) => {
+  router.post('/inventory/products', protect, validateBody(inventoryProductCreateSchema), async (req, res) => {
     try {
       if (!canAccessInventory(req.user) || !(isSuperAdmin(req.user) || isFinance(req.user) || isOperations(req.user) || isProduction(req.user))) {
         return res.status(403).json({ success: false, message: 'Forbidden' })
@@ -81,7 +114,7 @@ function registerInventoryRoutes(deps) {
     }
   })
 
-  router.post('/inventory/stock-in', protect, async (req, res) => {
+  router.post('/inventory/stock-in', protect, validateBody(stockInSchema), async (req, res) => {
     try {
       if (!canAccessInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const { itemId, quantity, unitCost, vendorId, currency = 'USD', description = '' } = req.body
@@ -145,7 +178,7 @@ function registerInventoryRoutes(deps) {
     }
   })
 
-  router.post('/inventory/stock-out', protect, async (req, res) => {
+  router.post('/inventory/stock-out', protect, validateBody(stockOutSchema), async (req, res) => {
     try {
       if (!canAccessInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const { itemId, quantity, currency = 'USD', description = '' } = req.body
@@ -198,7 +231,7 @@ function registerInventoryRoutes(deps) {
     }
   })
 
-  router.put('/inventory/products/:id', protect, async (req, res) => {
+  router.put('/inventory/products/:id', protect, validateParams(idParamSchema), validateBodyStrict(inventoryProductPatchSchema), async (req, res) => {
     try {
       if (!canAccessInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const product = await InventoryItem.findById(req.params.id)
@@ -225,7 +258,7 @@ function registerInventoryRoutes(deps) {
     }
   })
 
-  router.delete('/inventory/products/:id', protect, async (req, res) => {
+  router.delete('/inventory/products/:id', protect, validateParams(idParamSchema), async (req, res) => {
     try {
       if (!(isSuperAdmin(req.user) || isFinance(req.user))) return res.status(403).json({ success: false, message: 'Forbidden' })
       const product = await InventoryItem.findById(req.params.id)

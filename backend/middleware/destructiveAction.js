@@ -16,6 +16,19 @@ function requireDestructiveAdminGuard(actionName) {
       })
     }
 
+    const normalizedActionName = String(actionName || '').toLowerCase()
+    const isPermanentDeleteAction = /hard-delete|permanent-delete|permanent/.test(normalizedActionName)
+    if (
+      process.env.NODE_ENV === 'production' &&
+      isPermanentDeleteAction &&
+      !envBool(process.env.ENABLE_PERMANENT_DELETE_API, false)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Permanent delete API is disabled in production. Set ENABLE_PERMANENT_DELETE_API=true only for an approved maintenance window.',
+      })
+    }
+
     const expectedToken = String(
       process.env.DESTRUCTIVE_ADMIN_CONFIRM_TOKEN ||
       process.env.CLEANUP_CONFIRM_TOKEN ||
