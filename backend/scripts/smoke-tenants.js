@@ -3,7 +3,7 @@ require('dotenv').config()
 
 const BASE = process.env.SMOKE_API_BASE_URL || 'http://localhost:5000'
 const DEFAULT_NAME = process.env.SMOKE_DEFAULT_NAME || 'Nan'
-const DEFAULT_PASSWORD = process.env.SMOKE_DEFAULT_PASSWORD || '123456'
+const DEFAULT_PASSWORD = process.env.SMOKE_DEFAULT_PASSWORD
 
 const TENANTS = [
   {
@@ -22,6 +22,12 @@ const TENANTS = [
     password: process.env.SMOKE_LOOPC_PASSWORD || DEFAULT_PASSWORD,
   },
 ]
+
+for (const tenant of TENANTS) {
+  if (!tenant.password) {
+    throw new Error(`Missing smoke password for ${tenant.company}. Set SMOKE_${tenant.company.toUpperCase()}_PASSWORD or SMOKE_DEFAULT_PASSWORD.`)
+  }
+}
 
 const ENDPOINTS = [
   '/api/auth/me',

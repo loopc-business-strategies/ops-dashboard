@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
 
 function registerAccountsRoutes(deps) {
   const {
@@ -888,7 +889,7 @@ router.delete('/accounts/:id', protect, validateParams(idParam), async (req, res
   }
 })
 
-router.post('/accounts/hard-delete-by-code', protect, async (req, res) => {
+router.post('/accounts/hard-delete-by-code', protect, requireDestructiveAdminGuard('accounts/hard-delete-by-code'), async (req, res) => {
   const session = await mongoose.startSession()
   session.startTransaction()
 
@@ -923,27 +924,46 @@ router.post('/accounts/hard-delete-by-code', protect, async (req, res) => {
       unlinkedCustomers,
       unlinkedVendors,
       unlinkedInventoryItems,
-      deletedMappings,
-      deletedTransactions,
-      deletedLedger,
-      deletedAccounts,
+      deactivatedMappings,
+      softDeletedTransactions,
+      softDeletedLedger,
+      deactivatedAccounts,
     ] = await Promise.all([
       ChartOfAccount.updateMany({ parentAccountId: { $in: accountIds } }, { $set: { parentAccountId: null } }, { session }),
       Customer.updateMany({ ledgerAccountId: { $in: accountIds } }, { $set: { ledgerAccountId: null } }, { session }),
       Vendor.updateMany({ ledgerAccountId: { $in: accountIds } }, { $set: { ledgerAccountId: null } }, { session }),
       InventoryItem.updateMany({ ledgerAccountId: { $in: accountIds } }, { $set: { ledgerAccountId: null } }, { session }),
-      AccountMapping.deleteMany({
+      AccountMapping.updateMany({
         $or: [{ debitAccountId: { $in: accountIds } }, { creditAccountId: { $in: accountIds } }],
-      }, { session }),
-      Transaction.deleteMany({
+      }, { $set: { isActive: false, updatedAt: new Date() } }, { session }),
+      Transaction.updateMany({
         $or: [
           { debitAccountId: { $in: accountIds } },
           { creditAccountId: { $in: accountIds } },
           ...(ledgerIds.length ? [{ journalEntryId: { $in: ledgerIds } }] : []),
         ],
+        isDeleted: { $ne: true },
+      }, {
+        $set: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          updatedBy: req.user._id,
+        },
       }, { session }),
-      Ledger.deleteMany({ _id: { $in: ledgerIds } }, { session }),
-      ChartOfAccount.deleteMany({ _id: { $in: accountIds } }, { session }),
+      Ledger.updateMany({ _id: { $in: ledgerIds }, isDeleted: { $ne: true } }, {
+        $set: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          updatedBy: req.user._id,
+          notes: `Soft-deleted by guarded account removal: ${req.destructiveAction.reason}`,
+        },
+      }, { session }),
+      ChartOfAccount.updateMany({ _id: { $in: accountIds } }, {
+        $set: {
+          isActive: false,
+          description: `Deactivated by guarded account removal: ${req.destructiveAction.reason}`,
+        },
+      }, { session }),
     ])
 
     const deletedCodes = accounts.map((account) => account.accountCode)
@@ -952,7 +972,7 @@ router.post('/accounts/hard-delete-by-code', protect, async (req, res) => {
     await session.commitTransaction()
     res.json({
       success: true,
-      message: 'Accounts deleted permanently',
+      message: 'Accounts deactivated and related rows soft-deleted',
       deleted: accounts.map((account) => ({
         id: account._id,
         accountCode: account.accountCode,
@@ -964,11 +984,12 @@ router.post('/accounts/hard-delete-by-code', protect, async (req, res) => {
         unlinkedCustomers: unlinkedCustomers.modifiedCount || 0,
         unlinkedVendors: unlinkedVendors.modifiedCount || 0,
         unlinkedInventoryItems: unlinkedInventoryItems.modifiedCount || 0,
-        deletedMappings: deletedMappings.deletedCount || 0,
-        deletedTransactions: deletedTransactions.deletedCount || 0,
-        deletedLedger: deletedLedger.deletedCount || 0,
-        deletedAccounts: deletedAccounts.deletedCount || 0,
+        deactivatedMappings: deactivatedMappings.modifiedCount || 0,
+        softDeletedTransactions: softDeletedTransactions.modifiedCount || 0,
+        softDeletedLedger: softDeletedLedger.modifiedCount || 0,
+        deactivatedAccounts: deactivatedAccounts.modifiedCount || 0,
       },
+      destructiveReason: req.destructiveAction.reason,
       missingCodes,
     })
   } catch (e) {
@@ -985,4 +1006,3 @@ router.post('/accounts/hard-delete-by-code', protect, async (req, res) => {
 module.exports = {
   registerAccountsRoutes,
 }
-

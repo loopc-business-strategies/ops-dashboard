@@ -1,3 +1,5 @@
+const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
+
 function registerInventoryRoutes(deps) {
   const {
     router,
@@ -249,8 +251,8 @@ function registerInventoryRoutes(deps) {
       if (!canAccessInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const { page, limit, skip } = parsePagination(req.query, 50, 200)
       const [movements, total] = await Promise.all([
-        StockMovement.find({}).sort({ createdAt: -1 }).skip(skip).limit(limit),
-        StockMovement.countDocuments({}),
+        StockMovement.find({ isDeleted: { $ne: true } }).sort({ createdAt: -1 }).skip(skip).limit(limit),
+        StockMovement.countDocuments({ isDeleted: { $ne: true } }),
       ])
       res.json({ success: true, movements, total, page, limit })
     } catch {
@@ -258,13 +260,28 @@ function registerInventoryRoutes(deps) {
     }
   })
 
-  router.delete('/inventory/stock-ledger', protect, async (req, res) => {
+  router.delete('/inventory/stock-ledger', protect, requireDestructiveAdminGuard('inventory/stock-ledger'), async (req, res) => {
     try {
       if (!isSuperAdmin(req.user) && !isFinance(req.user)) {
         return res.status(403).json({ success: false, message: 'Forbidden' })
       }
-      const result = await StockMovement.deleteMany({})
-      res.json({ success: true, deletedCount: result.deletedCount || 0 })
+      const result = await StockMovement.updateMany(
+        { isDeleted: { $ne: true } },
+        {
+          $set: {
+            isDeleted: true,
+            deletedAt: new Date(),
+            deletedBy: req.user._id,
+            deleteReason: req.destructiveAction.reason,
+          },
+        }
+      )
+      res.json({
+        success: true,
+        message: 'Stock movement ledger soft-deleted.',
+        deletedCount: result.modifiedCount || 0,
+        destructiveReason: req.destructiveAction.reason,
+      })
     } catch {
       res.status(500).json({ success: false, message: 'Server error' })
     }

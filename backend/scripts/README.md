@@ -12,9 +12,29 @@ This directory contains operational scripts for tenant audits, ERP/accounting ma
 
 ## Registry
 
+Destructive or live-mutating scripts matching `cleanup-*`, `clear-*`, `delete-*`, `find-and-remove-*`, `hard-delete-*`, `purge-*`, `remove-*`, `reset-*`, plus other known data repair/reset scripts, are quarantined under `destructive/`. Each one loads
+`destructive/_destructive-guard.js` before its legacy logic runs. The guard
+requires:
+
+- `--tenant=mg`, `--tenant=cg`, `--tenant=loopc`, or `--tenant=all`
+- `--apply`
+- `ALLOW_PRODUCTION_DESTRUCTIVE_SCRIPT=true` when `NODE_ENV`, Railway, Vercel,
+  or `--production` indicates production
+
+The guard only blocks accidental execution. It does not make legacy scripts
+safe or transactional; inspect each script and take a backup before applying.
+
+The table below predates the workspace registry and uses a few descriptive labels. Read them as:
+
+- `read-only` = `safe`, `audit-only`
+- `writes data` = `destructive`, usually `tenant-specific`
+- `dry-run/apply or writes data` = `destructive` when apply mode is enabled; otherwise `audit-only`
+- `exercises API / may write test data` = `live-data`, `tenant-specific`
+- `review before running` = not yet classified; treat as `live-data`, `tenant-specific` until inspected
+
 | Script | Safety class | Notes |
 |---|---|---|
-| `add-user-nan-all-tenants.js` | writes data | See script source before use. |
+| `destructive/add-user-nan-all-tenants.js` | writes data | See script source before use. |
 | `analyze-all-tenants.js` | read-only | See script source before use. |
 | `analyze-pay0003-live.js` | read-only | See script source before use. |
 | `audit-cg-accounting-integrity.js` | read-only | See script source before use. |
@@ -28,7 +48,7 @@ This directory contains operational scripts for tenant audits, ERP/accounting ma
 | `backfill-mapping-departments.js` | dry-run/apply or writes data | See script source before use. |
 | `backfill-missing-metal-ledger.js` | dry-run/apply or writes data | See script source before use. |
 | `backfill-transaction-type-all-tenants.js` | dry-run/apply or writes data | See script source before use. |
-| `bootstrap-mappings-all-tenants.js` | dry-run/apply or writes data | See script source before use. |
+| `destructive/bootstrap-mappings-all-tenants.js` | dry-run/apply or writes data | See script source before use. |
 | `bootstrap-statutory-accounts-all-tenants.js` | dry-run/apply or writes data | See script source before use. |
 | `check-all-collections.js` | read-only | See script source before use. |
 | `check-api-accounts.js` | read-only | See script source before use. |
@@ -46,13 +66,13 @@ This directory contains operational scripts for tenant audits, ERP/accounting ma
 | `check-pw.js` | read-only | See script source before use. |
 | `check-voucher-5-fixed.js` | read-only | See script source before use. |
 | `check-voucher-5.js` | read-only | See script source before use. |
-| `cleanup-cg-test-overrides.js` | writes data | See script source before use. |
-| `cleanup-loopc-orphan-test-parties.js` | writes data | See script source before use. |
-| `cleanup-mg-orphan-test-parties.js` | writes data | See script source before use. |
-| `cleanup-mg-test-overrides.js` | writes data | See script source before use. |
-| `clear-mg-journal-vouchers.js` | writes data | See script source before use. |
-| `clear-mg-legacy-vouchers-live-api.js` | writes data | See script source before use. |
-| `clear-mg-legacy-vouchers.js` | writes data | See script source before use. |
+| `destructive/cleanup-cg-test-overrides.js` | writes data | See script source before use. |
+| `destructive/cleanup-loopc-orphan-test-parties.js` | writes data | See script source before use. |
+| `destructive/cleanup-mg-orphan-test-parties.js` | writes data | See script source before use. |
+| `destructive/cleanup-mg-test-overrides.js` | writes data | See script source before use. |
+| `destructive/clear-mg-journal-vouchers.js` | writes data | See script source before use. |
+| `destructive/clear-mg-legacy-vouchers-live-api.js` | writes data | See script source before use. |
+| `destructive/clear-mg-legacy-vouchers.js` | writes data | See script source before use. |
 | `comprehensive-ooo-mark-search.js` | review before running | See script source before use. |
 | `compute-nets-v2.js` | read-only | See script source before use. |
 | `compute-nets-v3.js` | read-only | See script source before use. |
@@ -64,22 +84,23 @@ This directory contains operational scripts for tenant audits, ERP/accounting ma
 | `debug-nets.js` | read-only | See script source before use. |
 | `deep-analysis.js` | read-only | See script source before use. |
 | `deep-search-joshua.js` | read-only | See script source before use. |
-| `delete-via-live-api.js` | writes data | See script source before use. |
+| `destructive/delete-via-live-api.js` | writes data | See script source before use. |
+| `destructive/danger-reset-mg-transactions.js` | writes data | Dry-run by default. Requires `MONGO_URI_MG`, `ALLOW_MG_DESTRUCTIVE_RESET=true`, `--apply`, and a confirmation token before deleting MG transactions/ledgers. Does not touch users or chart of accounts. |
 | `export-cg-account-balances.js` | read-only | See script source before use. |
 | `export-loopc-account-balances.js` | read-only | See script source before use. |
 | `export-mg-account-balances.js` | read-only | See script source before use. |
 | `find-all-joshua-accounts.js` | read-only | See script source before use. |
-| `find-and-remove-2301.js` | read-only | See script source before use. |
-| `find-and-remove-ooo-mark-cg.js` | read-only | See script source before use. |
+| `destructive/find-and-remove-2301.js` | read-only | See script source before use. |
+| `destructive/find-and-remove-ooo-mark-cg.js` | read-only | See script source before use. |
 | `find-creditor-accounts.js` | read-only | See script source before use. |
 | `find-orphan-ledgers.js` | read-only | See script source before use. |
 | `find_missing_ledger.js` | read-only | See script source before use. |
-| `fix-exchange-gain-mapping.js` | writes data | See script source before use. |
+| `destructive/fix-exchange-gain-mapping.js` | writes data | See script source before use. |
 | `fix-inventory-ledger.js` | writes data | See script source before use. |
-| `fix-mg-voucher-nonzero-balance-live-api.js` | writes data | See script source before use. |
+| `destructive/fix-mg-voucher-nonzero-balance-live-api.js` | writes data | See script source before use. |
 | `fix-voucher-5-accounts.js` | writes data | See script source before use. |
-| `fix-voucher-entries.js` | writes data | See script source before use. |
-| `hard-delete-via-live-api.js` | writes data | See script source before use. |
+| `destructive/fix-voucher-entries.js` | writes data | See script source before use. |
+| `destructive/hard-delete-via-live-api.js` | writes data | See script source before use. |
 | `inspect-ledger-ids.js` | read-only | See script source before use. |
 | `inspect-legacy-for-test-accounts.js` | read-only | See script source before use. |
 | `inspect-sale-mapping.js` | read-only | See script source before use. |
@@ -88,39 +109,39 @@ This directory contains operational scripts for tenant audits, ERP/accounting ma
 | `ledger-debug.js` | read-only | See script source before use. |
 | `list-all-ap-accounts.js` | read-only | See script source before use. |
 | `list-users.js` | read-only | See script source before use. |
-| `live-jv-dual-test.js` | exercises API / may write test data | See script source before use. |
+| `destructive/live-jv-dual-test.js` | exercises API / may write test data | See script source before use. |
 | `merge-cg-hepi-account.js` | writes data | See script source before use. |
-| `prune-customer-accounts.js` | writes data | See script source before use. |
-| `purge-cg-vouchers-and-journals.js` | writes data | See script source before use. |
+| `destructive/prune-customer-accounts.js` | writes data | See script source before use. |
+| `destructive/purge-cg-vouchers-and-journals.js` | writes data | See script source before use. |
 | `query-ledger-1302.js` | read-only | See script source before use. |
 | `reclass-fx-journal-bank-to-cash-all-tenants.js` | writes data | See script source before use. |
-| `remove-2301-from-atlas.js` | writes data | See script source before use. |
-| `remove-account-2301.js` | writes data | See script source before use. |
-| `remove-joshua-customer.js` | writes data | See script source before use. |
-| `remove-joshua-vendor-and-account.js` | writes data | See script source before use. |
-| `remove-mark-from-all.js` | writes data | See script source before use. |
-| `remove-mark-ooo-chart-cg.js` | writes data | See script source before use. |
-| `remove-mg-mark-ooo-ledger.js` | writes data | See script source before use. |
-| `remove-mg-mark-ooo.js` | writes data | See script source before use. |
-| `remove-ooo-from-cg.js` | writes data | See script source before use. |
-| `remove-ooo-mark-vendors-cg.js` | writes data | See script source before use. |
-| `renumber-mg-payment-receipt-docno-live-api.js` | writes data | See script source before use. |
-| `repair-cg-voucher-postings.js` | dry-run/apply or writes data | See script source before use. |
+| `destructive/remove-2301-from-atlas.js` | writes data | See script source before use. |
+| `destructive/remove-account-2301.js` | writes data | See script source before use. |
+| `destructive/remove-joshua-customer.js` | writes data | See script source before use. |
+| `destructive/remove-joshua-vendor-and-account.js` | writes data | See script source before use. |
+| `destructive/remove-mark-from-all.js` | writes data | See script source before use. |
+| `destructive/remove-mark-ooo-chart-cg.js` | writes data | See script source before use. |
+| `destructive/remove-mg-mark-ooo-ledger.js` | writes data | See script source before use. |
+| `destructive/remove-mg-mark-ooo.js` | writes data | See script source before use. |
+| `destructive/remove-ooo-from-cg.js` | writes data | See script source before use. |
+| `destructive/remove-ooo-mark-vendors-cg.js` | writes data | See script source before use. |
+| `destructive/renumber-mg-payment-receipt-docno-live-api.js` | writes data | See script source before use. |
+| `destructive/repair-cg-voucher-postings.js` | dry-run/apply or writes data | See script source before use. |
 | `repair-inventory-accounts.js` | dry-run/apply or writes data | See script source before use. |
-| `reset-cg-admin.js` | writes data | See script source before use. |
-| `reset-erp-master-fresh.js` | writes data | See script source before use. |
-| `reset-erp-start.js` | writes data | See script source before use. |
-| `reset-mg-admin.js` | writes data | See script source before use. |
-| `reset-nan-all-tenants.js` | writes data | See script source before use. |
-| `reset-pw.js` | writes data | See script source before use. |
-| `restore-cg-test-accounts.js` | writes data | See script source before use. |
-| `restore-mg-payment-receipt-legacy-live-api.js` | writes data | See script source before use. |
+| `destructive/reset-cg-admin.js` | writes data | See script source before use. |
+| `destructive/reset-erp-master-fresh.js` | writes data | See script source before use. |
+| `destructive/reset-erp-start.js` | writes data | See script source before use. |
+| `destructive/reset-mg-admin.js` | writes data | See script source before use. |
+| `destructive/reset-nan-all-tenants.js` | writes data | See script source before use. |
+| `destructive/reset-pw.js` | writes data | See script source before use. |
+| `destructive/restore-cg-test-accounts.js` | writes data | See script source before use. |
+| `destructive/restore-mg-payment-receipt-legacy-live-api.js` | writes data | See script source before use. |
 | `revalue-fx-journals-all-tenants.js` | review before running | See script source before use. |
 | `search-all-joshua.js` | read-only | See script source before use. |
 | `search-ooo-mark-all-collections-cg.js` | read-only | See script source before use. |
 | `search-test-accounts-cg.js` | read-only | See script source before use. |
 | `seed-currency-master-all-tenants.js` | writes data | See script source before use. |
-| `seed-erp-accounting.js` | writes data | See script source before use. |
+| `destructive/seed-erp-accounting.js` | writes data | See script source before use. |
 | `set-fx-mapping-to-cash-all-tenants.js` | dry-run/apply or writes data | See script source before use. |
 | `setup-cg-requested-parties-and-bank.js` | review before running | See script source before use. |
 | `smoke-erp-api.js` | exercises API / may write test data | See script source before use. |
@@ -148,3 +169,4 @@ This directory contains operational scripts for tenant audits, ERP/accounting ma
 | `verify-mg-vouchers-balances-live-api.js` | read-only | See script source before use. |
 | `verify-voucher-5-fixed-v2.js` | read-only | See script source before use. |
 | `verify-voucher-5-fixed.js` | read-only | See script source before use. |
+

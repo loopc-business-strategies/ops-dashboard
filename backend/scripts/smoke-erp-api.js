@@ -3,10 +3,14 @@ require('dotenv').config()
 const BASE_URL = process.env.SMOKE_API_BASE_URL || process.env.API_BASE_URL || 'http://localhost:5000'
 const LOGIN_COMPANY = process.env.SMOKE_LOGIN_COMPANY || process.env.DEFAULT_TENANT || 'loopc'
 const LOGIN_NAME = process.env.SMOKE_LOGIN_NAME || process.env.SMOKE_DEFAULT_NAME || 'Nan'
-const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD || process.env.SMOKE_DEFAULT_PASSWORD || '123456'
+const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD || process.env.SMOKE_DEFAULT_PASSWORD
 const FILTER_DEPARTMENT = process.env.SMOKE_LEDGER_DEPARTMENT || 'sales'
 const FILTER_REFERENCE_TYPE = process.env.SMOKE_LEDGER_REFERENCE_TYPE || 'invoice'
 const FILTER_LIMIT = Number(process.env.SMOKE_LEDGER_LIMIT || 5)
+
+if (!LOGIN_PASSWORD) {
+  throw new Error('SMOKE_LOGIN_PASSWORD or SMOKE_DEFAULT_PASSWORD is required.')
+}
 
 async function safeJson(response) {
   try {

@@ -1,5 +1,11 @@
 ﻿const mongoose = require('mongoose');
-const mongoUri = 'mongodb+srv://mg_db:loopc-mg@cluster0.m5yqfs7.mongodb.net/ops-dashboard?appName=Cluster0&retryWrites=true&w=majority';
+require('dotenv').config();
+
+const mongoUri = process.env.MONGO_URI_MG;
+
+if (!mongoUri) {
+  throw new Error('MONGO_URI_MG is required. Refusing to connect to MG without an explicit URI.');
+}
 
 async function run() {
   try {

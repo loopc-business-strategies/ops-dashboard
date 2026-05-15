@@ -3,7 +3,8 @@ const https = require('https')
 const API_BASE = 'https://api.loopcstrategies.com'
 const TENANT = 'mg'
 const USERNAME = process.env.MG_ADMIN_NAME || 'Nan'
-const PASSWORD = process.env.MG_ADMIN_PASSWORD || '123456'
+const PASSWORD = process.env.MG_ADMIN_PASSWORD
+if (!PASSWORD) throw new Error('MG_ADMIN_PASSWORD is required.')
 
 const EXPECTED = [
   { type: 'payment', docNo: 'Pay/2026/0001', amount: 20000, partyCode: '101001' },

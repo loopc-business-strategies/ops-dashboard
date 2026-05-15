@@ -1,3 +1,5 @@
+const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
+
 function registerLedgerRoutes(deps) {
   const {
     router,
@@ -292,7 +294,7 @@ router.delete('/ledger/:id', protect, async (req, res) => {
   }
 })
 
-router.delete('/ledger/:id/permanent', protect, async (req, res) => {
+router.delete('/ledger/:id/permanent', protect, requireDestructiveAdminGuard('ledger/permanent-delete'), async (req, res) => {
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const TenantLedger = await Ledger.getTenantModel(req.tenant)
@@ -315,6 +317,7 @@ router.delete('/ledger/:id/permanent', protect, async (req, res) => {
     entry.isDeleted = true
     entry.deletedAt = new Date()
     entry.updatedBy = req.user._id
+    entry.notes = [entry.notes, `Permanent delete reason: ${req.destructiveAction.reason}`].filter(Boolean).join('\n')
     await entry.save()
 
     const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
@@ -374,4 +377,3 @@ router.put('/ledger/:id/reconcile', protect, async (req, res) => {
 module.exports = {
   registerLedgerRoutes,
 }
-

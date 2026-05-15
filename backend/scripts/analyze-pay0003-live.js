@@ -2,6 +2,11 @@ const https = require('https')
 
 const API = 'https://api.loopcstrategies.com'
 const TENANT = 'mg'
+const MG_ADMIN_PASSWORD = process.env.MG_ADMIN_PASSWORD
+
+if (!MG_ADMIN_PASSWORD) {
+  throw new Error('MG_ADMIN_PASSWORD is required.')
+}
 
 function req(method, path, body, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -43,7 +48,7 @@ function req(method, path, body, headers = {}) {
 async function main() {
   const login = await req('POST', '/api/auth/login', {
     name: process.env.MG_ADMIN_NAME || 'Nan',
-    password: process.env.MG_ADMIN_PASSWORD || '123456',
+    password: MG_ADMIN_PASSWORD,
     company: TENANT,
   })
 
