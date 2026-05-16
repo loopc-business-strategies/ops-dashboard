@@ -2380,11 +2380,12 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const mgCompanyAddress = '242, Girvonbulok Street, Davlatabad District,\nNamangan City, Namangan Region,\nRepublic of Uzbekistan.'
   const mgLineItems = Array.isArray(effectiveLineItems) ? effectiveLineItems : []
   const mgPrimaryLine = mgLineItems[0] || {}
-  const mgAccountDescription = (line = mgPrimaryLine) => {
-    const accountCode = line?.acCode || voucher?.partyAccount || ''
-    const accountName = accountNameByCode(accountCode)
-    const joined = `${accountName || voucher?.partyName || ''}${accountCode ? ` ${accountCode}` : ''}`.trim()
-    return joined || accountCode || voucher?.partyName || ''
+  const mgSelectedParty = findPartyOptionByCode(voucher?.partyAccount)
+  const mgPartyAccountCode = String(voucher?.partyAccount || mgSelectedParty?.partyCode || '').trim()
+  const mgPartyAccountName = String(voucher?.partyName || mgSelectedParty?.partyName || accountNameByCode(mgPartyAccountCode) || '').trim()
+  const mgAccountDescription = () => {
+    const joined = `${mgPartyAccountName}${mgPartyAccountCode ? ` ${mgPartyAccountCode}` : ''}`.trim()
+    return joined || mgPartyAccountCode || mgPartyAccountName || ''
   }
   const mgAmountCurrencyName = {
     AED: 'United Arab Emirates Dirham',
