@@ -48,6 +48,16 @@ Add these if you want smoke checks to verify a real logged-in ERP route:
 
 In CI, authenticated ERP smoke is required by default because GitHub sets `CI=true`. For local/manual runs without credentials, the authenticated ERP probe is skipped unless `SMOKE_REQUIRE_AUTH=true`. Existing `SMOKE_AUTH_TOKEN` or `SMOKE_SESSION_COOKIE` values are still supported.
 
+### Backend Build Metadata
+Railway writes `backend/build-meta.json` during build so `/api/health` reports the source commit that produced the running backend.
+
+Do not set `BACKEND_BUILD_COMMIT` or `BACKEND_BUILD_SHA` in Railway. Those legacy variable names can become stale. If a manual override is ever needed, use:
+
+```text
+BACKEND_BUILD_OVERRIDE_COMMIT=<sha>
+BACKEND_BUILD_OVERRIDE_SHA=<sha>
+```
+
 ### Copy-Paste Values (Production)
 Use these defaults directly if you run current production domains:
 

@@ -72,8 +72,8 @@ const resolveBackendCommit = () => {
   if (backendBuildMetaFile?.commit && backendBuildMetaFile.commit !== 'unknown') return backendBuildMetaFile.commit
 
   const envCommit = String(
-    process.env.BACKEND_BUILD_COMMIT
-    || process.env.BACKEND_BUILD_SHA
+    process.env.BACKEND_BUILD_OVERRIDE_COMMIT
+    || process.env.BACKEND_BUILD_OVERRIDE_SHA
     || process.env.RAILWAY_GIT_COMMIT_SHA
     || process.env.GIT_COMMIT_SHA
     || process.env.SOURCE_VERSION
