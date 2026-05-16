@@ -3700,7 +3700,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           </div>
 
           <div style={{ margin: '0 0 10px 6px', fontSize: '11px', fontStyle: 'italic' }}>Confirmed for &amp; on behalf of</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '80px', margin: '0 8px 24px', fontWeight: '900', fontSize: '11px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '80px', margin: '0 8px 42px', fontWeight: '900', fontSize: '11px' }}>
             <div>{voucher?.partyName || mgAccountDescription()}</div>
             <div style={{ textAlign: 'right' }}>{mgCompanyName}</div>
           </div>
