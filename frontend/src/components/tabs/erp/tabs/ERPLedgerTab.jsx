@@ -34,6 +34,7 @@ export default function ERPLedgerTab({
   handleJvLineKeyDown,
   removeJvLine,
   addJvLine,
+  handlePrintJvVoucher,
   handleSaveMultiLineJV,
   saving,
   beginJvModalResize,
@@ -322,6 +323,7 @@ export default function ERPLedgerTab({
                 >
                   {saving ? 'Saving...' : jvEditEntryIds.length > 0 ? '💾 Update JV' : '💾 Save JV'}
                 </button>
+                <button type="button" onClick={handlePrintJvVoucher} style={{ padding: '0.38rem 0.8rem', background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>Print JV</button>
                 <button type="button" onClick={closeJvModal} style={{ padding: '0.38rem 0.8rem', background: '#fff', color: '#374151', border: '1px solid #D1D5DB', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.82rem' }}>Cancel</button>
                 <span style={{ marginLeft: 'auto', fontSize: '0.74rem', color: '#94A3B8' }}>Press <kbd style={{ background: '#E5E7EB', padding: '0 0.3rem', borderRadius: '0.2rem', fontSize: '0.72rem' }}>Enter</kbd> on last row to add a new line</span>
               </div>

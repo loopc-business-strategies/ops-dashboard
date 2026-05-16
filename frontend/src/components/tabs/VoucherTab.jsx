@@ -4,6 +4,8 @@ import axios from 'axios'
 import { useLanguage } from '../../context/LanguageContext'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import { getTenantBranding } from '../../config/tenantBranding'
+import DocumentPrintHeader from './erp/DocumentPrintHeader'
+import { resolveDocumentBranding } from './erp/documentBranding'
 
 const BASE = '/api/erp-accounting'
 const cfg = () => ({ withCredentials: true })
@@ -587,7 +589,7 @@ const pickDefaultAccountCodeByType = (accounts, lineType) => {
   return ''
 }
 
-export default function VoucherTab({ token, user, accounts = [], customers: propCustomers = [], vendors: propVendors = [], currencies = [] }) {
+export default function VoucherTab({ token, user, accounts = [], customers: propCustomers = [], vendors: propVendors = [], currencies = [], reportBranding = null }) {
   const { t } = useLanguage()
   const role = user?.role || ''
   const dept = (user?.department || '').toLowerCase()
@@ -2284,18 +2286,19 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const branding = user?.branding || {}
   const tenant = user?.tenant || {}
   const activeTenantBranding = getTenantBranding(user?.company || tenant?.key || tenant?.name)
+  const documentBranding = resolveDocumentBranding({ reportBranding, user, tenantBranding: activeTenantBranding })
   const voucher = {
     currency: header?.currCode || 'USD',
     partyName: header?.partyName || '',
     partyAccount: header?.partyCode || '',
   }
-  const companyName = branding?.displayName || tenant?.name || activeTenantBranding?.displayName || ''
-  const companyAddress = branding?.address || tenant?.address || activeTenantBranding?.address || ''
-  const companyPhone = branding?.phone || tenant?.phone || activeTenantBranding?.phone || ''
-  const companyTrn = branding?.trn || tenant?.trn || activeTenantBranding?.trn || ''
-  const companyLogoImage = branding?.logoImage || tenant?.logoImage || activeTenantBranding?.logoImage || ''
+  const companyName = documentBranding.companyName || branding?.displayName || tenant?.name || activeTenantBranding?.displayName || ''
+  const companyAddress = documentBranding.address || branding?.address || tenant?.address || activeTenantBranding?.address || ''
+  const companyPhone = documentBranding.phone || branding?.phone || tenant?.phone || activeTenantBranding?.phone || ''
+  const companyTrn = documentBranding.trn || branding?.trn || tenant?.trn || activeTenantBranding?.trn || ''
+  const companyLogoImage = documentBranding.logoUrl || branding?.logoImage || tenant?.logoImage || activeTenantBranding?.logoImage || ''
   const companyLogoText = branding?.logoText || tenant?.logoText || activeTenantBranding?.logoText || ''
-  const companyPrimaryColor = branding?.colors?.brandPrimary || tenant?.colors?.brandPrimary || activeTenantBranding?.colors?.brandPrimary || '#374151'
+  const companyPrimaryColor = documentBranding.primaryColor || branding?.colors?.brandPrimary || tenant?.colors?.brandPrimary || activeTenantBranding?.colors?.brandPrimary || '#374151'
   const currencyLabel = voucher?.currency || 'USD'
   const payNoValue = header?.vocNo || ''
   const payDateValue = header?.docDate || ''
@@ -2342,6 +2345,24 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     if (decPart > 0) words += ` and ${numToWord(decPart).trim()} Cents`
     return words.trim()
   }
+
+  const printTitleByType = {
+    payment: 'Payment Voucher',
+    receipt: 'Receipt Voucher',
+    purchase: 'Metal Purchase Voucher',
+    sale: 'Metal Sale Voucher',
+  }
+  const printTitle = printTitleByType[voucherType] || voucherLabel
+  const printMeta = [
+    { label: 'Doc No', value: payNoValue },
+    { label: 'Doc Date', value: payDateValue },
+    { label: 'Value Date', value: header?.valueDate || payDateValue },
+    { label: 'Prepared By', value: preparedByValue },
+    ...(isMetalVoucher ? [{ label: 'Fixing', value: normalizeVoucherFixingType(header?.fixingType) }] : []),
+  ]
+  const printAmountLabel = `Amount (${currencyLabel || 'USD'})`
+  const printPostingDirection = voucherType === 'receipt' || voucherType === 'sale' ? 'CREDITED' : 'DEBITED'
+  const accountNameByCode = (code) => (accounts || []).find((a) => getAccountCodeValue(a) === String(code || '').trim())?.accountName || ''
 
   // ────────────────────────────────────────────────────────────────────────────
   // RENDER
@@ -3537,84 +3558,8 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       )}
     </div>
 
-    {voucherType === 'payment' ? (
-      <div className="voucher-print-only" style={{ display: 'none', padding: '18px 24px', color: '#111827', fontFamily: 'Arial, sans-serif', fontSize: '12px' }}>
-      {voucherType === 'payment' ? (
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          borderBottom: '2px solid #1a1a1a',
-          paddingBottom: '10px',
-          marginBottom: '10px'
-        }}>
-
-          <div>
-            {companyName
-              ? <div style={{ fontWeight: '700', fontSize: '15px', color: '#111827' }}>
-                  {companyName}
-                </div>
-              : null}
-            <div style={{ fontSize: '9px', color: '#555555', marginTop: '3px', lineHeight: '1.6' }}>
-              {companyAddress || 'Dubai, United Arab Emirates'}
-            </div>
-            <div style={{ fontSize: '9px', color: '#555555', marginTop: '2px' }}>
-              {phoneValue || 'Tel: +971 4 000 0000'}
-            </div>
-            {trnValue
-              ? <div style={{ fontSize: '9px', color: '#555555' }}>
-                  TRN: {trnValue}
-                </div>
-              : null}
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-            {companyLogoImage
-              ? <img
-                  src={companyLogoImage}
-                  alt={companyLogoText || 'Logo'}
-                  style={{ maxWidth: '120px', maxHeight: '52px', objectFit: 'contain' }}
-                />
-              : companyLogoText
-                ? <div style={{
-                    background: companyPrimaryColor,
-                    color: '#ffffff',
-                    padding: '8px 14px',
-                    fontWeight: '800',
-                    borderRadius: '5px',
-                    fontSize: '16px',
-                    letterSpacing: '0.06em'
-                  }}>
-                    {companyLogoText}
-                  </div>
-                : null}
-          </div>
-
-        </div>
-      ) : (
-        <div style={{ borderBottom: '2px solid #1a1a1a', paddingBottom: '10px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: '700', fontSize: '15px' }}>{companyName || ''}</div>
-            {companyAddress ? <div>{companyAddress || ''}</div> : null}
-            {(phoneValue || trnValue) ? <div>{`${phoneValue || ''}${phoneValue && trnValue ? ' | ' : ''}${trnValue ? `TRN: ${trnValue}` : ''}`}</div> : null}
-          </div>
-          <div style={{ minWidth: '140px', display: 'flex', justifyContent: 'flex-end' }}>
-            {companyLogoImage ? (
-              <img src={companyLogoImage || ''} alt={companyLogoText || 'Logo'} style={{ maxWidth: '140px', maxHeight: '56px', objectFit: 'contain' }} />
-            ) : (
-              <div style={{ background: companyPrimaryColor || '#374151', color: '#FFFFFF', padding: '10px 12px', fontWeight: '700', borderRadius: '4px' }}>
-                {companyLogoText || ''}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-        <div style={{ flex: 1, borderTop: '3px solid #7F1D1D' }} />
-        <div style={{ fontWeight: '700', fontSize: '16px', letterSpacing: '0.02em' }}>PAYMENT VOUCHER</div>
-        <div style={{ flex: 1, borderTop: '3px solid #7F1D1D' }} />
-      </div>
+    <div className="voucher-print-only" style={{ display: 'none', padding: '18px 24px', color: '#111827', fontFamily: 'Arial, sans-serif', fontSize: '12px' }}>
+      <DocumentPrintHeader branding={documentBranding} title={printTitle} meta={printMeta} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '12px', marginBottom: '10px' }}>
         <div style={{ border: '1px dashed #6B7280', padding: '8px' }}>
@@ -3634,10 +3579,10 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           <thead>
             <tr style={{ background: '#E5E7EB' }}>
               <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '42px' }}>No.</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px' }}>Account Description</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '90px' }}>Type</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>Amount FC</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{`Amount (${currencyLabel || 'USD'})`}</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px' }}>{isMetalVoucher ? 'Stock / Account Description' : 'Account Description'}</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '90px' }}>{isMetalVoucher ? 'Metal' : 'Type'}</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{isMetalVoucher ? 'Pure Wt.' : 'Amount FC'}</th>
+              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{isMetalVoucher ? 'Total' : printAmountLabel}</th>
             </tr>
           </thead>
           <tbody>
@@ -3680,20 +3625,31 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           <tbody>
             {(Array.isArray(effectiveLineItems) ? effectiveLineItems : []).map((line, idx) => {
               const accountCode = line?.acCode || ''
-              const accountName = (accounts || []).find((a) => getAccountCodeValue(a) === accountCode)?.accountName || ''
+              const accountName = accountNameByCode(accountCode)
               const paymentType = normalizeLineType(line?.type) || ''
               const customerAccountNo = line?.partyAccount || voucher?.partyAccount || ''
+              const metalLabel = line?.metalSymbol || line?.metalName || line?.productType || ''
+              const lineTotal = Number(line?.totalAmount || line?.amountWithVAT || line?.amountLC || line?.amountFC || 0)
               return (
                 <tr key={`print-line-${idx}`}>
                   <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'center', verticalAlign: 'top' }}>{idx + 1}</td>
                   <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>
-                    <div>{`${accountCode || ''}${accountName ? ` - ${accountName}` : ''}`}</div>
-                    <div>{customerAccountNo || ''}</div>
-                    <div>{paymentType || ''}</div>
+                    {isMetalVoucher ? (
+                      <>
+                        <div>{`${line?.stockCode || accountCode || ''}${line?.productType ? ` - ${line.productType}` : accountName ? ` - ${accountName}` : ''}`}</div>
+                        <div style={{ fontSize: '9px', color: '#555' }}>{line?.remarks || line?.narration || customerAccountNo || ''}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div>{`${accountCode || ''}${accountName ? ` - ${accountName}` : ''}`}</div>
+                        <div>{customerAccountNo || ''}</div>
+                        <div>{paymentType || ''}</div>
+                      </>
+                    )}
                   </td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>{paymentType || ''}</td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountFC || 0)}</td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountLC || 0)}</td>
+                  <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>{isMetalVoucher ? metalLabel : paymentType}</td>
+                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{isMetalVoucher ? fmt(line?.pureWeight || 0) : fmt(line?.amountFC || 0)}</td>
+                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(isMetalVoucher ? lineTotal : line?.amountLC || 0)}</td>
                 </tr>
               )
             })}
@@ -3743,7 +3699,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         }}>
           {/* LEFT — Currency + numeric amount + DEBITED */}
           <div style={{ fontWeight: '700', fontSize: '11px', color: '#111827', flexShrink: 0 }}>
-            {currencyLabel || 'USD'} {fmt(totals.grandTotal || 0)} DEBITED
+            {currencyLabel || 'USD'} {fmt(totals.grandTotal || 0)} {printPostingDirection}
           </div>
           {/* RIGHT — Amount in words */}
           <div style={{
@@ -3801,13 +3757,6 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         </div>
       </div>
     </div>
-    ) : (
-      <div className="voucher-print-only" style={{ display: 'none', padding: '40px', textAlign: 'center', fontFamily: 'Arial' }}>
-        <p style={{ fontSize: '14px', color: '#555' }}>
-          Print layout for {voucherLabel} is not available yet.
-        </p>
-      </div>
-    )}
     </>
   )
 }

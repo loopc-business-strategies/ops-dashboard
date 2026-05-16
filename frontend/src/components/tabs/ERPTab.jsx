@@ -66,6 +66,7 @@ import {
   brandingOptionLabel,
   createLogoRenderAsset,
 } from './erp/ERPBrandingUtils'
+import { resolveDocumentBranding } from './erp/documentBranding'
 
 const loadExcel = async () => {
   const mod = await import('exceljs')
@@ -2915,6 +2916,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     else if (activeTab === 'mappings') loadMappings(mappingFilters)
     else if (activeTab === 'transactions') loadTransactions()
+    else if (activeTab === 'vouchers') {
+      loadReportBranding()
+    }
     else if (activeTab === 'reports') {
       loadReportBranding()
       loadReports()
@@ -3472,7 +3476,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     if (deptValue === 'hr') return { background: '#EDE9FE', color: '#6D28D9' }
     return { background: '#E5E7EB', color: '#374151' }
   }
-  const branding = { ...DEFAULT_BRANDING, ...reportBranding }
+  const tenantBranding = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)
+  const branding = resolveDocumentBranding({ reportBranding, user, tenantBranding })
   const brandingPreview = { ...DEFAULT_BRANDING, ...brandingForm }
 
   const buildBrandingLogoTag = async (brandingConfig, extraStyle = '') => {
@@ -3506,6 +3511,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
             .sheet { max-width: 980px; margin: 0 auto; }
             .brandbar { height: 10px; background: var(--grad-brand); border-radius: 999px; margin-bottom: 14px; }
             .head { border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 20px; }
+            .doc-head { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 14px; }
+            .company { font-size: 18px; font-weight: 800; margin-bottom: 5px; }
+            h1 { font-size: 22px; text-align: center; text-transform: uppercase; letter-spacing: 0.04em; margin: 12px 0; }
+            .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; font-size: 12px; }
+            .note { border: 1px solid #D1D5DB; min-height: 34px; padding: 8px; margin-top: 12px; font-size: 12px; }
             .title { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
             .subtitle { color: #065F46; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin: 0 0 8px; }
             .meta { color: #4B5563; font-size: 12px; margin: 2px 0; }
@@ -3749,23 +3759,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const closingUsdBalance = openingUsdBalance + (totalDebitUsd - totalCreditUsd)
     const closingPureWeight = openingPureWeight + (totalDebitPure - totalCreditPure)
 
-    const tenantBranding = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)
-    const hasCustomReportLogo = Boolean(String(reportBranding?.logoUrl || '').trim())
-    const hasCustomCompanyName = Boolean(
-      String(reportBranding?.companyName || '').trim() &&
-      String(reportBranding?.companyName || '').trim() !== DEFAULT_BRANDING.companyName
-    )
-    const hasCustomAddress = Boolean(String(reportBranding?.address || '').trim())
-    const brandingProfile = {
-      ...DEFAULT_BRANDING,
-      ...(reportBranding || {}),
-      companyName: hasCustomCompanyName ? reportBranding.companyName : (tenantBranding.companyName || tenantBranding.displayName || DEFAULT_BRANDING.companyName),
-      address: hasCustomAddress ? reportBranding.address : (tenantBranding.address || DEFAULT_BRANDING.address),
-      logoUrl: hasCustomReportLogo ? reportBranding.logoUrl : (tenantBranding.logoImage || DEFAULT_BRANDING.logoUrl),
-      logoWidth: hasCustomReportLogo ? reportBranding.logoWidth : 160,
-      logoHeight: hasCustomReportLogo ? reportBranding.logoHeight : 116,
-      logoFit: hasCustomReportLogo ? reportBranding.logoFit : 'contain',
-    }
+    const brandingProfile = branding
     const companyAddress = String(brandingProfile.address || '').trim()
     const companyPhone = String(brandingProfile.phone || '').trim()
     const companyTrn = String(brandingProfile.trn || '').trim()
@@ -5022,6 +5016,61 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     if (jvEditEntryIds.length > 0) return
     setJvMode(mode)
     setJvHeader((prev) => ({ ...prev, docNo: buildJvDocNo(mode) }))
+  }
+
+  const handlePrintJvVoucher = async () => {
+    const validation = getJvValidation(jvLines)
+    const modeMeta = resolveJvModeMeta(jvMode)
+    const logoMarkup = await buildBrandingLogoTag(branding, 'margin-left:auto;')
+    const rows = (validation.activeLines.length ? validation.activeLines : jvLines)
+      .map((line, index) => {
+        const account = resolveJvLineAccount(line)
+        const accountText = account
+          ? `${account.accountCode || ''} - ${account.accountName || ''}`
+          : (line.accountInput || line.accountId || '')
+        return `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${escapeHtml(accountText)}</td>
+            <td>${escapeHtml(line.description || jvHeader.narration || '')}</td>
+            <td class="num">${Number(line.debit || 0) > 0 ? Number(line.debit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}</td>
+            <td class="num">${Number(line.credit || 0) > 0 ? Number(line.credit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}</td>
+          </tr>
+        `
+      })
+      .join('')
+
+    const body = `
+      <div class="doc-head">
+        <div>
+          <div class="company">${escapeHtml(branding.companyName || DEFAULT_BRANDING.companyName)}</div>
+          ${branding.address ? `<div class="meta">${escapeHtml(branding.address).replace(/\n/g, '<br />')}</div>` : ''}
+          ${branding.phone ? `<div class="meta">Telephone: ${escapeHtml(branding.phone)}</div>` : ''}
+          ${branding.trn ? `<div class="meta">TRN: ${escapeHtml(branding.trn)}</div>` : ''}
+        </div>
+        ${logoMarkup}
+      </div>
+      <h1>${escapeHtml(modeMeta.badge)}</h1>
+      <div class="meta-grid">
+        <div><strong>Doc No:</strong> ${escapeHtml(jvHeader.docNo || '')}</div>
+        <div><strong>Date:</strong> ${escapeHtml(jvHeader.date || '')}</div>
+        <div><strong>Currency:</strong> ${escapeHtml(jvHeader.currency || baseCurrencyCode)}</div>
+        <div><strong>Prepared By:</strong> ${escapeHtml(user?.name || '')}</div>
+      </div>
+      <table>
+        <thead><tr><th>No.</th><th>Account</th><th>Narration</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="5">No JV rows</td></tr>'}</tbody>
+        <tfoot><tr><td colspan="3" class="num">Total</td><td class="num">${validation.totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td class="num">${validation.totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr></tfoot>
+      </table>
+      <div class="note">${escapeHtml(jvHeader.narration || '')}</div>
+      <div class="signatures">
+        <div>Prepared By</div>
+        <div>Checked By</div>
+        <div>Authorised Signatory</div>
+      </div>
+    `
+    openPrintWindow(modeMeta.badge, body)
+    showNotification('JV print layout opened')
   }
 
   const handleSaveMultiLineJV = async () => {
@@ -6383,6 +6432,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         handleJvLineKeyDown={handleJvLineKeyDown}
         removeJvLine={removeJvLine}
         addJvLine={addJvLine}
+        handlePrintJvVoucher={handlePrintJvVoucher}
         handleSaveMultiLineJV={handleSaveMultiLineJV}
         saving={saving}
         beginJvModalResize={beginJvModalResize}
@@ -6922,6 +6972,59 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
             <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Settings</h3>
+          </div>
+
+          <div style={{ marginBottom: '1.25rem', background: C.p1, padding: '1rem', borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
+            <h4 style={{ color: C.ink, marginTop: 0, marginBottom: '0.4rem', fontWeight: '700' }}>Logo Settings</h4>
+            <p style={{ marginTop: 0, marginBottom: '0.75rem', color: C.inkSoft, fontSize: '0.82rem' }}>
+              Upload one company logo here. It is used automatically by vouchers, statements, report printouts, and PDF exports for the active tenant.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) repeat(3, minmax(130px, 0.7fr)) auto', gap: '0.65rem', alignItems: 'center' }}>
+              <select value={selectedBrandingKey} onChange={(e) => handleSelectBrandingProfile(e.target.value)} style={modalInputStyle}>
+                {brandingProfiles.map((profile) => (
+                  <option key={profile.key} value={profile.key}>{brandingOptionLabel(profile)}{profile.isDefault ? ' (Default)' : ''}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min="80"
+                max="260"
+                placeholder="Width"
+                value={brandingForm.logoWidth}
+                onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoWidth: e.target.value }))}
+                style={modalInputStyle}
+              />
+              <input
+                type="number"
+                min="32"
+                max="120"
+                placeholder="Height"
+                value={brandingForm.logoHeight}
+                onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoHeight: e.target.value }))}
+                style={modalInputStyle}
+              />
+              <select
+                value={brandingForm.logoFit}
+                onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoFit: e.target.value }))}
+                style={modalInputStyle}
+              >
+                <option value="contain">Contain</option>
+                <option value="cover">Cover</option>
+                <option value="fill">Fill</option>
+              </select>
+              <label style={{ ...modalInputStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginBottom: 0 }}>
+                Upload Logo
+                <input type="file" accept="image/*" onChange={(e) => handleBrandingLogoFile(e.target.files?.[0])} style={{ display: 'none' }} />
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.8rem' }}>
+              <div style={{ width: '180px', height: '64px', border: '1px dashed #D1D5DB', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                {brandingForm.logoUrl ? <img src={brandingForm.logoUrl} alt="Current logo preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : <span style={{ color: C.inkSoft, fontSize: '0.8rem' }}>No logo</span>}
+              </div>
+              <button type="button" disabled={saving || !canManageAccounts} onClick={handleSaveBranding} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: canManageAccounts ? 'pointer' : 'not-allowed', opacity: canManageAccounts ? 1 : 0.65 }}>
+                {saving ? 'Saving...' : 'Save Logo Settings'}
+              </button>
+            </div>
           </div>
 
           <div style={{ marginBottom: '1.25rem', background: C.p1, padding: '1rem', borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
@@ -7637,6 +7740,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           customers={customers}
           vendors={vendors}
           currencies={currencies}
+          reportBranding={branding}
         />
       </ERPVouchersTabContainer>
 
