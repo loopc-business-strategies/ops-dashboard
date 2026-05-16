@@ -1,23 +1,46 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="220" height="180" viewBox="0 0 220 180" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
   <title id="title">Modern Gold Jewelry Logo</title>
-  <desc id="desc">Modern Gold Jewelry tenant logo</desc>
+  <desc id="desc">Gold winged Modern Gold Jewelry mark</desc>
   <defs>
-    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFF6B7"/>
-      <stop offset="0.28" stop-color="#F7C948"/>
-      <stop offset="0.58" stop-color="#C98500"/>
-      <stop offset="1" stop-color="#FFE58A"/>
+    <linearGradient id="gold-main" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#D69400"/>
+      <stop offset="0.18" stop-color="#FFC533"/>
+      <stop offset="0.38" stop-color="#FFF08A"/>
+      <stop offset="0.55" stop-color="#F7B914"/>
+      <stop offset="0.76" stop-color="#FFD64C"/>
+      <stop offset="1" stop-color="#B87400"/>
+    </linearGradient>
+    <linearGradient id="gold-side" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#F9B500"/>
+      <stop offset="0.32" stop-color="#FFE875"/>
+      <stop offset="0.52" stop-color="#F4AA00"/>
+      <stop offset="0.74" stop-color="#FFF18A"/>
+      <stop offset="1" stop-color="#C47A00"/>
     </linearGradient>
   </defs>
-  <rect width="220" height="180" fill="#FFFFFF"/>
-  <g fill="url(#gold)" stroke="#B77900" stroke-width="1.2">
-    <path d="M104 90C82 78 68 56 63 21c19 16 31 36 36 60-19-9-34-23-46-43 2 31 19 53 51 67z"/>
-    <path d="M116 90c22-12 36-34 41-69-19 16-31 36-36 60 19-9 34-23 46-43-2 31-19 53-51 67z"/>
-    <path d="M91 101c-26-8-48-25-65-51 5 33 25 56 61 67z"/>
-    <path d="M129 101c26-8 48-25 65-51-5 33-25 56-61 67z"/>
-    <path d="M110 72c14 13 22 24 22 37 0 18-14 31-22 42-8-11-22-24-22-42 0-13 8-24 22-37z"/>
-    <circle cx="110" cy="58" r="13"/>
+
+  <g fill="url(#gold-main)">
+    <path d="M494 526c14-90 80-138 142-193 66-58 94-120 62-187 63 62 66 159 10 244-37 57-94 91-122 153-22 49-17 96-49 140 44-21 75-58 91-107 18-56 21-104 72-154 68-67 86-126 61-226 53 74 44 171-30 259-24 29-54 56-91 83 31-2 61-10 90-23-23 36-55 60-96 72 23 5 47 4 71-3-28 28-64 45-109 50-33 34-61 53-96 65 32-39 46-83 31-121-7-18-18-34-37-52z"/>
+    <path d="M530 706c22 29 24 55 9 77-19 29-62 43-127 45 70-14 107-39 111-75 2-17-5-32-22-47-71-60-110-105-117-157-5-37 8-70 39-99l-13-61c-23-44-60-75-97-108-66-58-85-120-43-189-23 83 9 145 88 210 59 49 107 89 131 164l-36 23c-21 26-25 56-12 88 13 34 45 74 89 129z"/>
   </g>
-  <text x="110" y="147" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="22" font-weight="700" fill="#C28A00">MODERN GOLD</text>
-  <text x="110" y="166" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="11" letter-spacing="5" fill="#C28A00">JEWELRY</text>
+
+  <g fill="url(#gold-side)">
+    <path d="M306 152c-27 64-15 135 36 211 31 46 75 83 111 124l23 52-53 38-18-83c-27-45-72-79-105-120-63-78-74-161 6-222z"/>
+    <path d="M247 236c-31 81-11 155 61 224 29 27 62 50 94 72l19 68-53-12c-38-36-83-63-111-106-47-73-49-157-10-246z"/>
+    <path d="M210 324c-39 61-30 132 26 196 34 39 81 62 132 76l40 44c-62 17-120 2-166-42-67-64-72-177-32-274z"/>
+    <path d="M188 426c12 71 66 111 161 132l61 54c-52 10-98 4-139-18-61-34-84-92-83-168z"/>
+    <path d="M224 546c34 39 84 61 152 65l41 37c-58 28-113 23-164-16-23-18-32-46-29-86z"/>
+    <path d="M267 623c41 22 87 26 137 12l-1 22c-37 19-72 26-104 19-17-4-28-19-32-53z"/>
+
+    <path d="M775 230c34 80 17 155-51 226-29 30-63 55-96 77l-19 67 53-12c39-36 84-64 112-109 45-72 44-154 1-249z"/>
+    <path d="M812 314c42 61 35 133-19 199-32 40-79 65-129 81l-38 45c63 14 120-3 164-49 65-67 66-180 22-276z"/>
+    <path d="M838 418c-10 71-62 113-156 137l-59 56c52 8 98 0 138-23 60-36 81-95 77-170z"/>
+    <path d="M801 541c-32 41-81 64-149 70l-40 39c59 26 114 19 163-22 23-19 31-47 26-87z"/>
+    <path d="M757 619c-40 24-86 29-136 18l2 22c38 17 73 23 105 15 17-5 27-20 29-55z"/>
+  </g>
+
+  <g fill="url(#gold-main)" text-anchor="middle">
+    <text x="512" y="914" font-family="Georgia, 'Times New Roman', serif" font-size="72" font-weight="700" letter-spacing="3">Modern Gold</text>
+    <text x="512" y="990" font-family="Georgia, 'Times New Roman', serif" font-size="68" font-weight="700" letter-spacing="5">Jewelry</text>
+  </g>
 </svg>
