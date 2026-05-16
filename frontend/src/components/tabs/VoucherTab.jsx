@@ -2363,6 +2363,39 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const printAmountLabel = `Amount (${currencyLabel || 'USD'})`
   const printPostingDirection = voucherType === 'receipt' || voucherType === 'sale' ? 'CREDITED' : 'DEBITED'
   const accountNameByCode = (code) => (accounts || []).find((a) => getAccountCodeValue(a) === String(code || '').trim())?.accountName || ''
+  const tenantIdentity = [
+    activeTenantBranding?.key,
+    tenant?.key,
+    tenant?.name,
+    user?.company,
+    documentBranding?.companyName,
+    branding?.displayName,
+  ].map((value) => String(value || '').trim().toLowerCase()).join(' ')
+  const isModernGoldTenant = /\bmg\b/.test(tenantIdentity) || tenantIdentity.includes('modern gold')
+  const isMgCurrencyVoucher = isModernGoldTenant && ['payment', 'receipt'].includes(voucherType)
+  const mgPrintTitle = voucherType === 'receipt' ? 'RECEIPT CURRENCY' : 'CURRENCY PAYMENT'
+  const mgBranch = header?.branch || effectiveLineItems?.find((line) => line?.branch)?.branch || 'HO'
+  const mgLogoImage = '/logos/mg-logo.svg'
+  const mgCompanyName = 'MODERN GOLD JEWELRY MANUFACTURING'
+  const mgCompanyAddress = '242, Girvonbulok Street, Davlatabad District,\nNamangan City, Namangan Region,\nRepublic of Uzbekistan.'
+  const mgLineItems = Array.isArray(effectiveLineItems) ? effectiveLineItems : []
+  const mgPrimaryLine = mgLineItems[0] || {}
+  const mgAccountDescription = (line = mgPrimaryLine) => {
+    const accountCode = line?.acCode || voucher?.partyAccount || ''
+    const accountName = accountNameByCode(accountCode)
+    const joined = `${accountName || voucher?.partyName || ''}${accountCode ? ` ${accountCode}` : ''}`.trim()
+    return joined || accountCode || voucher?.partyName || ''
+  }
+  const mgAmountCurrencyName = {
+    AED: 'United Arab Emirates Dirham',
+    USD: 'United States Dollar',
+    EUR: 'Euro',
+    GBP: 'Pound Sterling',
+    UZS: 'Uzbekistani Som',
+  }[String(currencyLabel || '').toUpperCase()] || currencyLabel || ''
+  const mgAmountWords = totals.grandTotal > 0
+    ? `${numberToWords(totals.grandTotal)} ${mgAmountCurrencyName} Only`
+    : ''
 
   // ────────────────────────────────────────────────────────────────────────────
   // RENDER
@@ -2371,6 +2404,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     <>
     <style>{`
       @media print {
+        @page { size: A4 portrait; margin: 8mm; }
         .voucher-screen-only { display: none !important; }
         .voucher-print-only { display: block !important; }
         body * { visibility: hidden; }
@@ -3558,7 +3592,128 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       )}
     </div>
 
-    <div className="voucher-print-only" style={{ display: 'none', padding: '18px 24px', color: '#111827', fontFamily: 'Arial, sans-serif', fontSize: '12px' }}>
+    <div className="voucher-print-only" style={{ display: 'none', padding: isMgCurrencyVoucher ? '10px 18px' : '18px 24px', color: '#111827', fontFamily: 'Arial, sans-serif', fontSize: '12px' }}>
+      {isMgCurrencyVoucher ? (
+        <div style={{ maxWidth: '760px', margin: '0 auto', fontSize: '12px', color: '#111111' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 210px', gap: '24px', alignItems: 'start', marginBottom: '20px' }}>
+            <div>
+              <div style={{ fontSize: '25px', lineHeight: '1.05', fontWeight: '900', letterSpacing: '-0.02em', marginBottom: '12px' }}>
+                {mgCompanyName}
+              </div>
+              <div style={{ fontSize: '13px', lineHeight: '1.85', fontWeight: '700', whiteSpace: 'pre-line' }}>
+                {mgCompanyAddress}
+              </div>
+              <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: '58px 1fr', gap: '8px', fontWeight: '700', lineHeight: '1.8' }}>
+                <div>Phone</div><div>: {phoneValue || ''}</div>
+                <div>Email</div><div>: {documentBranding?.email || ''}</div>
+              </div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              {mgLogoImage ? (
+                <img src={mgLogoImage} alt="Modern Gold Jewelry" style={{ width: '176px', height: '176px', objectFit: 'contain' }} />
+              ) : null}
+            </div>
+          </div>
+
+          <div style={{ position: 'relative', height: '36px', margin: '4px 0 18px' }}>
+            <div style={{ position: 'absolute', top: '13px', left: 0, right: 0, borderTop: '6px solid #F19900', borderBottom: '2px solid #F19900', height: '8px' }} />
+            <div style={{ position: 'relative', zIndex: 1, marginLeft: '95px', width: '300px', height: '34px', border: '1px solid #F19900', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: '900' }}>
+              {mgPrintTitle}
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'right', fontSize: '16px', fontWeight: '800', color: '#6B7280', marginBottom: '14px' }}>PARTY COPY</div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 292px', gap: '28px', marginBottom: '30px' }}>
+            <div style={{ border: '1.5px solid #111827', borderRadius: '4px', overflow: 'hidden', minHeight: '138px' }}>
+              <div style={{ minHeight: '31px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '13px' }}>
+                {mgAccountDescription()}
+              </div>
+              <div style={{ borderTop: '1.5px dashed #111827', height: '32px' }} />
+              <div style={{ borderTop: '1.5px dashed #111827', height: '32px' }} />
+              <div style={{ borderTop: '1.5px dashed #111827', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                TRN {trnValue ? `- ${trnValue}` : '-'}
+              </div>
+            </div>
+
+            <div style={{ border: '1.5px solid #111827', borderRadius: '4px', overflow: 'hidden', alignSelf: 'start' }}>
+              {[
+                ['REC NO', payNoValue ? `${mgBranch} - ${payNoValue}` : mgBranch],
+                ['Date', payDateValue],
+                ['Prepared By', preparedByValue || 'ADMIN'],
+              ].map(([label, value]) => (
+                <div key={label} style={{ display: 'grid', gridTemplateColumns: '92px 1fr', borderBottom: label === 'Prepared By' ? 0 : '1.5px dashed #111827', minHeight: '34px', alignItems: 'center', padding: '0 10px', fontSize: '13px' }}>
+                  <strong>{label}</strong>
+                  <span>:&nbsp;&nbsp;{value || ''}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'right', fontSize: '12px', fontStyle: 'italic', marginBottom: '12px' }}>Page 1 of 1</div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '12px', marginBottom: '14px' }}>
+            <thead>
+              <tr style={{ background: '#F3F4F6' }}>
+                <th style={{ border: '1.5px solid #111827', padding: '8px 4px', width: '30px' }}>No.</th>
+                <th style={{ border: '1.5px solid #111827', padding: '8px 4px', width: '70px' }}>Branch</th>
+                <th style={{ border: '1.5px solid #111827', padding: '8px 4px' }}>Account Description</th>
+                <th style={{ border: '1.5px solid #111827', padding: '8px 4px', width: '66px' }}>Type</th>
+                <th style={{ border: '1.5px solid #111827', padding: '8px 4px', width: '132px' }}>Amount FC</th>
+                <th style={{ border: '1.5px solid #111827', padding: '8px 4px', width: '136px' }}>{printAmountLabel}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(mgLineItems.length ? mgLineItems : [mgPrimaryLine]).map((line, idx) => (
+                <tr key={`mg-print-line-${idx}`} style={{ height: mgLineItems.length <= 1 ? '216px' : '56px' }}>
+                  <td style={{ border: '1.5px solid #111827', padding: '10px 6px', textAlign: 'center', verticalAlign: 'top' }}>{idx + 1}</td>
+                  <td style={{ border: '1.5px solid #111827', padding: '10px 6px', verticalAlign: 'top' }}>{line?.branch || mgBranch}</td>
+                  <td style={{ border: '1.5px solid #111827', padding: '10px 12px', verticalAlign: 'top' }}>{mgAccountDescription(line)}</td>
+                  <td style={{ border: '1.5px solid #111827', padding: '10px 8px', verticalAlign: 'top' }}>{normalizeLineType(line?.type) || ''}</td>
+                  <td style={{ border: '1.5px solid #111827', padding: '10px 8px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountFC || 0)}</td>
+                  <td style={{ border: '1.5px solid #111827', padding: '10px 8px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountLC || line?.amountFC || 0)}</td>
+                </tr>
+              ))}
+              <tr>
+                <td colSpan={3} style={{ border: '1.5px solid #111827', padding: '8px 6px' }}>({mgLineItems.length || 1} Record)</td>
+                <td colSpan={2} style={{ border: '1.5px solid #111827', padding: '8px 6px', textAlign: 'right', fontWeight: '800' }}>{`Total (${currencyLabel || 'USD'})`}</td>
+                <td style={{ border: '1.5px solid #111827', padding: '8px 8px', textAlign: 'right', fontWeight: '800' }}>{fmt(totals.grandTotal || 0)}</td>
+              </tr>
+              <tr>
+                <td colSpan={5} style={{ border: '1.5px solid #111827', padding: '8px 6px', textAlign: 'right', fontWeight: '800' }}>{`Total Value (${currencyLabel || 'USD'})`}</td>
+                <td style={{ border: '1.5px solid #111827', padding: '8px 8px', textAlign: 'right', fontWeight: '800' }}>{fmt(totals.grandTotal || 0)}</td>
+              </tr>
+              <tr>
+                <td colSpan={5} style={{ border: '1.5px solid #111827', padding: '8px 6px', textAlign: 'right', fontWeight: '800' }}>{`Total Party Value (${currencyLabel || 'USD'})`}</td>
+                <td style={{ border: '1.5px solid #111827', padding: '8px 8px', textAlign: 'right', fontWeight: '800' }}>{fmt(totals.grandTotal || 0)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style={{ margin: '0 0 8px 6px', fontSize: '12px', fontStyle: 'italic' }}>Your account has been updated with :</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', border: '1.5px solid #111827', minHeight: '36px', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ borderRight: '1.5px solid #111827', padding: '8px 8px', fontWeight: '900', fontStyle: 'italic' }}>
+              {currencyLabel || 'USD'} {fmt(totals.grandTotal || 0)} CREDITED
+            </div>
+            <div style={{ padding: '8px 12px', fontStyle: 'italic' }}>{mgAmountWords}</div>
+          </div>
+
+          <div style={{ margin: '0 0 18px 6px', fontSize: '12px', fontStyle: 'italic' }}>Confirmed for &amp; on behalf of</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '110px', margin: '0 8px 40px', fontWeight: '900', fontSize: '12px' }}>
+            <div>{voucher?.partyName || mgAccountDescription()}</div>
+            <div style={{ textAlign: 'right' }}>{mgCompanyName}</div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '250px', textAlign: 'center', fontSize: '10px' }}>
+            <div>
+              <div style={{ borderTop: '1.5px solid #111827', paddingTop: '6px' }}>CUSTOMER'S SIGNATURE</div>
+            </div>
+            <div>
+              <div style={{ borderTop: '1.5px solid #111827', paddingTop: '6px' }}>AUTHORISED SIGNATORY</div>
+            </div>
+          </div>
+        </div>
+      ) : (
+      <>
       <DocumentPrintHeader branding={documentBranding} title={printTitle} meta={printMeta} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '12px', marginBottom: '10px' }}>
@@ -3756,6 +3911,8 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           <div style={{ borderTop: '1px solid #111827', paddingTop: '4px' }}>AUTHORISED SIGNATORY</div>
         </div>
       </div>
+      </>
+      )}
     </div>
     </>
   )
