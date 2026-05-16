@@ -3,16 +3,21 @@ frontend/node_modules/
 backend/node_modules/
 frontend/dist/
 
-# Environment files — NEVER commit these
+# Environment files - NEVER commit these
 .env
 .env.local
 .env.*.local
 backend/.env
+.env*.local
+
+# Deployment tool state
+.vercel/
 
 # Runtime/generated artifacts
 backend/logs/
 backend/uploads/transactions/
 backend/reports/
+backend/build-meta.json
 *.log
 *.cookies/
 *.cookies
@@ -23,9 +28,4 @@ coverage/
 # Generated endpoint mapping artifacts (local analysis output)
 PROJECT-ENDPOINT-ROWMAP.csv
 PROJECT-ENDPOINT-ROWMAP.md
-
-.vercel
-.env*.local
-
-.vercel
-.env*.local
+node_modules

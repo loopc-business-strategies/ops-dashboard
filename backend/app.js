@@ -2,7 +2,6 @@ require('dotenv').config()
 
 const path = require('path')
 const fs = require('fs')
-const { execSync } = require('child_process')
 const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
@@ -30,7 +29,48 @@ const trainingRoutes   = require('./routes/training')
 const cleanupRoutes    = require('./routes/cleanupRoutes')
 const backendPackage = require('./package.json')
 
+const readBackendBuildMetaFile = () => {
+  try {
+    const metaPath = path.join(__dirname, 'build-meta.json')
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'))
+    return {
+      commit: String(meta.commit || meta.sha || '').trim(),
+      sha: String(meta.sha || meta.commit || '').trim(),
+      builtAt: String(meta.builtAt || '').trim(),
+    }
+  } catch {
+    return null
+  }
+}
+
+const backendBuildMetaFile = readBackendBuildMetaFile()
+
+const readGitHead = () => {
+  try {
+    const gitDir = path.join(__dirname, '..', '.git')
+    const head = fs.readFileSync(path.join(gitDir, 'HEAD'), 'utf8').trim()
+    if (!head.startsWith('ref:')) return head
+
+    const refPath = head.replace(/^ref:\s*/, '')
+    const looseRefPath = path.join(gitDir, refPath)
+    if (fs.existsSync(looseRefPath)) return fs.readFileSync(looseRefPath, 'utf8').trim()
+
+    const packedRefsPath = path.join(gitDir, 'packed-refs')
+    if (fs.existsSync(packedRefsPath)) {
+      const packedRef = fs.readFileSync(packedRefsPath, 'utf8')
+        .split(/\r?\n/)
+        .find((line) => line && !line.startsWith('#') && line.endsWith(` ${refPath}`))
+      if (packedRef) return packedRef.split(' ')[0].trim()
+    }
+  } catch {
+    return ''
+  }
+  return ''
+}
+
 const resolveBackendCommit = () => {
+  if (backendBuildMetaFile?.commit && backendBuildMetaFile.commit !== 'unknown') return backendBuildMetaFile.commit
+
   const envCommit = String(
     process.env.BACKEND_BUILD_COMMIT
     || process.env.BACKEND_BUILD_SHA
@@ -45,14 +85,7 @@ const resolveBackendCommit = () => {
 
   if (envCommit) return envCommit
 
-  try {
-    return execSync('git rev-parse --short=7 HEAD', {
-      cwd: path.join(__dirname, '..'),
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).toString().trim()
-  } catch {
-    return 'unknown'
-  }
+  return readGitHead() || 'unknown'
 }
 
 const backendCommit = resolveBackendCommit()
@@ -61,7 +94,12 @@ const backendBuildMeta = {
   version: String(backendPackage.version || '0.0.0'),
   commit: backendCommit,
   sha: backendCommit,
-  builtAt: String(process.env.BACKEND_BUILD_TIME || process.env.RAILWAY_DEPLOYMENT_TIMESTAMP || new Date().toISOString()),
+  builtAt: String(
+    (backendBuildMetaFile?.commit && backendBuildMetaFile.commit !== 'unknown' ? backendBuildMetaFile.builtAt : '')
+    || process.env.BACKEND_BUILD_TIME
+    || process.env.RAILWAY_DEPLOYMENT_TIMESTAMP
+    || new Date().toISOString()
+  ),
 }
 
 function createApp() {

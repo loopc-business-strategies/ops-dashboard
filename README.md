@@ -31,6 +31,23 @@ Add under `Repository secrets`:
 | `SMOKE_SLACK_WEBHOOK_URL` | `https://hooks.slack.com/services/...` | Post smoke failures to Slack |
 | `SMOKE_TEAMS_WEBHOOK_URL` | `https://outlook.office.com/webhook/...` | Post smoke failures to Microsoft Teams |
 
+### Optional Secrets (Authenticated ERP Smoke)
+Add these if you want smoke checks to verify a real logged-in ERP route:
+
+| Name | Example Value | Purpose |
+|---|---|---|
+| `SMOKE_AUTH_NAME` | `smoke-user` | Shared smoke login username for all tenants |
+| `SMOKE_AUTH_PASSWORD` | `***` | Shared smoke login password for all tenants |
+| `SMOKE_AUTH_NAME_MG` | `mg-smoke-user` | Optional MG-specific smoke username |
+| `SMOKE_AUTH_PASSWORD_MG` | `***` | Optional MG-specific smoke password |
+| `SMOKE_AUTH_NAME_CG` | `cg-smoke-user` | Optional CG-specific smoke username |
+| `SMOKE_AUTH_PASSWORD_CG` | `***` | Optional CG-specific smoke password |
+| `SMOKE_AUTH_NAME_LOOPC` | `loopc-smoke-user` | Optional LoopC-specific smoke username |
+| `SMOKE_AUTH_PASSWORD_LOOPC` | `***` | Optional LoopC-specific smoke password |
+| `SMOKE_REQUIRE_AUTH` | `true` | Fail smoke if authenticated ERP credentials are missing |
+
+In CI, authenticated ERP smoke is required by default because GitHub sets `CI=true`. For local/manual runs without credentials, the authenticated ERP probe is skipped unless `SMOKE_REQUIRE_AUTH=true`. Existing `SMOKE_AUTH_TOKEN` or `SMOKE_SESSION_COOKIE` values are still supported.
+
 ### Copy-Paste Values (Production)
 Use these defaults directly if you run current production domains:
 

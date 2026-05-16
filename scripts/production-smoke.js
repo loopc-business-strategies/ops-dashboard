@@ -10,6 +10,9 @@ const VERCEL_HOSTS = (process.env.SMOKE_VERCEL_HOSTS || TENANTS.map((tenant) => 
 const RAILWAY_HEALTH_URL = process.env.SMOKE_RAILWAY_HEALTH_URL || `${API_BASE}/api/health`
 const SMOKE_AUTH_TOKEN = String(process.env.SMOKE_AUTH_TOKEN || '').trim()
 const SMOKE_SESSION_COOKIE = String(process.env.SMOKE_SESSION_COOKIE || '').trim()
+const SMOKE_AUTH_NAME = String(process.env.SMOKE_AUTH_NAME || '').trim()
+const SMOKE_AUTH_PASSWORD = String(process.env.SMOKE_AUTH_PASSWORD || '').trim()
+const SMOKE_REQUIRE_AUTH = String(process.env.SMOKE_REQUIRE_AUTH || process.env.CI || '').trim().toLowerCase() === 'true'
 const timeoutMs = Number(process.env.SMOKE_TIMEOUT_MS || 20000)
 
 async function fetchWithTimeout(url, options = {}) {
@@ -79,9 +82,69 @@ async function verifyTenantAuthPath(tenant) {
   return `${response.status} invalid-login probe`
 }
 
+function tenantEnvName(base, tenant) {
+  return `${base}_${tenant.toUpperCase()}`
+}
+
+function getTenantSmokeCredentials(tenant) {
+  const name = String(process.env[tenantEnvName('SMOKE_AUTH_NAME', tenant)] || SMOKE_AUTH_NAME || '').trim()
+  const password = String(process.env[tenantEnvName('SMOKE_AUTH_PASSWORD', tenant)] || SMOKE_AUTH_PASSWORD || '').trim()
+  if (!name || !password) return null
+  return { name, password }
+}
+
+function cookieHeaderFromResponse(response) {
+  const rawSetCookie = response.headers.getSetCookie
+    ? response.headers.getSetCookie()
+    : [response.headers.get('set-cookie')].filter(Boolean)
+
+  return rawSetCookie
+    .flatMap((value) => String(value || '').split(/,(?=\s*[^;,=\s]+=[^;,]+)/))
+    .map((value) => value.split(';')[0].trim())
+    .filter(Boolean)
+    .join('; ')
+}
+
+async function loginForSmoke(tenant) {
+  const credentials = getTenantSmokeCredentials(tenant)
+  if (!credentials) return null
+
+  const response = await fetchWithTimeout(`${API_BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-tenant': tenant,
+      'x-company': tenant,
+    },
+    body: JSON.stringify({
+      company: tenant,
+      name: credentials.name,
+      password: credentials.password,
+    }),
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok || body.success !== true) {
+    throw new Error(`smoke login returned ${response.status}: ${body.message || 'unexpected response'}`)
+  }
+
+  const cookie = cookieHeaderFromResponse(response)
+  const csrfToken = String(body.csrfToken || response.headers.get('x-csrf-token') || '').trim()
+  if (!cookie) throw new Error('smoke login did not return a session cookie')
+
+  return { cookie, csrfToken }
+}
+
 async function verifyTenantReadOnlyErpPath(tenant) {
+  let smokeSession = null
   if (!SMOKE_AUTH_TOKEN && !SMOKE_SESSION_COOKIE) {
-    return 'skipped; set SMOKE_AUTH_TOKEN or SMOKE_SESSION_COOKIE for authenticated ERP probe'
+    smokeSession = await loginForSmoke(tenant)
+  }
+
+  if (!SMOKE_AUTH_TOKEN && !SMOKE_SESSION_COOKIE && !smokeSession) {
+    if (SMOKE_REQUIRE_AUTH) {
+      throw new Error('authenticated ERP probe requires SMOKE_AUTH_TOKEN, SMOKE_SESSION_COOKIE, or SMOKE_AUTH_NAME/SMOKE_AUTH_PASSWORD')
+    }
+    return 'skipped; set SMOKE_AUTH_TOKEN, SMOKE_SESSION_COOKIE, or SMOKE_AUTH_NAME/SMOKE_AUTH_PASSWORD for authenticated ERP probe'
   }
 
   const headers = {
@@ -89,7 +152,8 @@ async function verifyTenantReadOnlyErpPath(tenant) {
     'x-company': tenant,
   }
   if (SMOKE_AUTH_TOKEN) headers.authorization = `Bearer ${SMOKE_AUTH_TOKEN}`
-  if (SMOKE_SESSION_COOKIE) headers.cookie = SMOKE_SESSION_COOKIE
+  if (SMOKE_SESSION_COOKIE || smokeSession?.cookie) headers.cookie = SMOKE_SESSION_COOKIE || smokeSession.cookie
+  if (smokeSession?.csrfToken) headers['x-csrf-token'] = smokeSession.csrfToken
 
   const response = await fetchWithTimeout(`${API_BASE}/api/erp-accounting/accounts?limit=1`, { headers })
   const body = await response.json().catch(() => ({}))
