@@ -3487,7 +3487,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
 
     const width = clampBrandingDimension(brandingConfig.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
     const height = clampBrandingDimension(brandingConfig.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
-    return `<img src="${logoAsset}" alt="Company Logo" style="width:${width}px;height:${height}px;object-fit:fill;display:block;${extraStyle}" />`
+    return `<img src="${logoAsset}" alt="Company Logo" style="width:${width}px;height:${height}px;object-fit:contain;display:block;${extraStyle}" />`
   }
 
   const openPrintWindow = (title, bodyHtml) => {
@@ -3778,8 +3778,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       brandingProfile.logoHeight,
       brandingProfile.logoFit,
     )
+    const logoWidth = clampBrandingDimension(brandingProfile.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
+    const logoHeight = clampBrandingDimension(brandingProfile.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
     const logoMarkup = processedLogo
-      ? `<img src="${processedLogo}" alt="Company Logo" style="width:150px;height:116px;object-fit:contain;display:block;" />`
+      ? `<img src="${processedLogo}" alt="Company Logo" style="width:${logoWidth}px;height:${logoHeight}px;object-fit:contain;display:block;" />`
       : ''
 
     const html = `
@@ -3796,7 +3798,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
             }
             body { font-family: Arial, Helvetica, sans-serif; color: var(--soa-ink); margin: 0; padding: 16px 18px; background: #FFFFFF; color-adjust: exact; -webkit-print-color-adjust: exact; }
             .sheet { width: 100%; }
-            .header { display: grid; grid-template-columns: 164px minmax(0, 1fr) 330px; align-items: start; gap: 18px; margin-bottom: 12px; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .header { display: grid; grid-template-columns: ${Math.max(164, logoWidth + 4)}px minmax(0, 1fr) 330px; align-items: start; gap: 18px; margin-bottom: 12px; color-adjust: exact; -webkit-print-color-adjust: exact; }
             .brand-copy { font-size: 18px; line-height: 1.34; padding-top: 24px; }
             .brand-copy .company { font-size: 29px; font-weight: 800; letter-spacing: 0; margin-bottom: 14px; color: #050505; }
             .muted { color: var(--soa-ink); }
