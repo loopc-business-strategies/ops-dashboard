@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import AccountCombobox from '../AccountCombobox'
-import axios from 'axios'
+import axios from '../../api/client'
 import { useLanguage } from '../../context/LanguageContext'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import { getTenantBranding } from '../../config/tenantBranding'

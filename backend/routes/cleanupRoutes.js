@@ -4,8 +4,8 @@
  */
 
 const express = require('express')
-const mongoose = require('mongoose')
 const { protect, restrictTo } = require('../middleware/auth')
+const { connectTenant } = require('../db/tenantConnections')
 const router = express.Router()
 
 function envBool(value, defaultValue = false) {
@@ -26,7 +26,15 @@ function ensureCleanupRouteEnabled(req, res, next) {
 
 function requireCleanupConfirmationToken(req, res, next) {
   const expectedToken = String(process.env.CLEANUP_CONFIRM_TOKEN || '').trim()
-  if (!expectedToken) return next()
+  if (!expectedToken) {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({
+        ok: false,
+        error: 'Cleanup confirmation token is required in production.',
+      })
+    }
+    return next()
+  }
 
   const providedToken = String(req.headers['x-cleanup-token'] || req.body?.confirmToken || '').trim()
   if (!providedToken || providedToken !== expectedToken) {
@@ -38,6 +46,17 @@ function requireCleanupConfirmationToken(req, res, next) {
   return next()
 }
 
+async function resolveTenantDb(req) {
+  const tenant = req.tenant || req.user?.company || req.headers['x-tenant'] || req.headers['x-company']
+  const connection = await connectTenant(tenant)
+
+  if (!connection || !connection.db) {
+    throw new Error('No tenant database connection available')
+  }
+
+  return connection.db
+}
+
 router.use(protect)
 router.use(restrictTo('super_admin'))
 router.use(ensureCleanupRouteEnabled)
@@ -45,18 +64,7 @@ router.use(requireCleanupConfirmationToken)
 
 router.post('/cleanup/exchange-entries', async (req, res) => {
   try {
-    // Get database connection
-    const connection = mongoose.connection
-    
-    if (!connection || !connection.db) {
-      console.error('[Cleanup] No database connection')
-      return res.status(500).json({ 
-        error: 'No database connection available',
-        ok: false 
-      })
-    }
-
-    const db = connection.db
+    const db = await resolveTenantDb(req)
 
     // Find cash account 1000 using raw collection
     const accountCollection = db.collection('chartofaccounts')

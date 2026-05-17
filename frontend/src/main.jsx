@@ -4,9 +4,8 @@
 
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import axios from 'axios'
+import axios from './api/client'
 import App from './App'
-import { installCsrfInterceptor } from './utils/csrfInterceptor'
 import './index.css'
 
 const resolveTenantLocalhostUrl = (rawUrl) => {
@@ -54,8 +53,6 @@ const rewriteTenantLocalhostApiUrl = (rawUrl) => {
     return rawUrl
   }
 }
-
-installCsrfInterceptor(axios)
 
 axios.interceptors.request.use((config) => {
   if (config?.url) {

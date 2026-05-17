@@ -6,7 +6,7 @@
 //   This avoids passing user data as props through every component.
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import axios from 'axios'
+import axios from '../api/client'
 import authAPI from '../api/auth'
 import { resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
 

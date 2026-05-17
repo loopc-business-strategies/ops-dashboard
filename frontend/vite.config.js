@@ -1,8 +1,16 @@
 import { execSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
 import { createLogger, defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+
+const localTestTempDir = fileURLToPath(new URL('./node_modules/.cache/tmp', import.meta.url))
+if (process.env.VITEST || process.env.npm_lifecycle_event === 'test') {
+  mkdirSync(localTestTempDir, { recursive: true })
+  process.env.TMPDIR = localTestTempDir
+  process.env.TMP = localTestTempDir
+  process.env.TEMP = localTestTempDir
+}
 
 const frontendPackageJson = JSON.parse(
   readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf8')
@@ -44,6 +52,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    pool: 'forks',
+    fileParallelism: false,
   },
   build: {
     chunkSizeWarningLimit: 1600,

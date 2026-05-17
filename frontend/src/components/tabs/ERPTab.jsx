@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import AccountCombobox from '../AccountCombobox'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
@@ -21,7 +21,6 @@ import {
 } from './erpTabConstants'
 import { formatTransactionAuditEntry, formatTransactionCommentKind, getTransactionBulkSelectionLabel } from './transactionWorkflow'
 import ChartOfAccountsTree from './ChartOfAccountsTree'
-import VoucherTab from './VoucherTab'
 import DirectDealsTab from './DirectDealsTab'
 import { MiniBarChart } from './erp/ERPTabCharts'
 import { renderERP_DashWidget } from './erp/ERPDashboardWidgets'
@@ -58,6 +57,8 @@ import ERPLedgerTab from './erp/tabs/ERPLedgerTab'
 import ERPTransactionsTab from './erp/tabs/ERPTransactionsTab'
 import ERPReportsTab from './erp/tabs/ERPReportsTab'
 import { startERPRealtimeFeeds } from '../../utils/realtimeSocket'
+
+const VoucherTab = lazy(() => import('./VoucherTab'))
 import {
   DEFAULT_BRANDING,
   DEFAULT_BRANDING_PROFILES,
@@ -7733,15 +7734,17 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
 
       {/* VOUCHERS TAB */}
       <ERPVouchersTabContainer activeTab={activeTab}>
-        <VoucherTab
-          token={token}
-          user={user}
-          accounts={accounts}
-          customers={customers}
-          vendors={vendors}
-          currencies={currencies}
-          reportBranding={branding}
-        />
+        <Suspense fallback={<div style={{ padding: '1rem', color: C.inkSoft }}>Loading vouchers...</div>}>
+          <VoucherTab
+            token={token}
+            user={user}
+            accounts={accounts}
+            customers={customers}
+            vendors={vendors}
+            currencies={currencies}
+            reportBranding={branding}
+          />
+        </Suspense>
       </ERPVouchersTabContainer>
 
       {/* DIRECT DEALS TAB */}

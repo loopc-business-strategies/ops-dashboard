@@ -1,9 +1,8 @@
 // FILE: src/api/hr.js
 // API calls for HR employee records.
 
-import axios from 'axios'
+import axios, { API_ORIGIN } from './client'
 
-const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const BASE = `${API_ORIGIN}/api/hr/employees`
 
 const getEmployees    = async (_token)         => (await axios.get(BASE)).data

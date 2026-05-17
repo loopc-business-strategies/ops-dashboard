@@ -1,6 +1,23 @@
-import { execFileSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 
-const trackedFiles = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
+function getTrackedFiles() {
+  const result = spawnSync('git', ['ls-files'], { encoding: 'utf8' })
+
+  // Some WSL/Node combinations report EPERM even when the child process
+  // completed successfully. Trust the process status over the wrapper error.
+  if (result.error && result.status !== 0) {
+    throw result.error
+  }
+
+  if (result.status !== 0) {
+    const message = result.stderr || result.error?.message || 'git ls-files failed.'
+    throw new Error(message.trim())
+  }
+
+  return result.stdout || ''
+}
+
+const trackedFiles = getTrackedFiles()
   .split(/\r?\n/)
   .filter(Boolean)
 

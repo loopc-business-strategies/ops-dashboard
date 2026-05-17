@@ -21,7 +21,11 @@ const applyCsrfHeader = (config, cookieSource = document) => {
   return nextConfig
 }
 
+const installedInterceptors = new WeakSet()
+
 const installCsrfInterceptor = (axiosInstance, cookieSource = document) => {
+  if (!axiosInstance?.interceptors?.request?.use || installedInterceptors.has(axiosInstance)) return
+  installedInterceptors.add(axiosInstance)
   axiosInstance.interceptors.request.use((config) => applyCsrfHeader(config, cookieSource))
 }
 

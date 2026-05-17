@@ -38,4 +38,18 @@ describe('csrf interceptor utility', () => {
     const result = interceptor({ method: 'put', headers: {} })
     expect(result.headers['x-csrf-token']).toBe('token-via-install')
   })
+
+  it('installs only one request interceptor per axios instance', () => {
+    const use = vi.fn()
+    const axiosInstance = {
+      interceptors: {
+        request: { use },
+      },
+    }
+
+    installCsrfInterceptor(axiosInstance)
+    installCsrfInterceptor(axiosInstance)
+
+    expect(use).toHaveBeenCalledTimes(1)
+  })
 })

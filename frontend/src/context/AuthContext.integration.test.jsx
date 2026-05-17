@@ -7,6 +7,10 @@ import { AuthProvider, useAuth } from './AuthContext'
 vi.mock('axios', () => ({
   default: {
     defaults: { headers: { common: {} } },
+    interceptors: {
+      request: { use: vi.fn() },
+      response: { use: vi.fn(() => 1), eject: vi.fn() },
+    },
     get: vi.fn(),
     post: vi.fn(),
   },

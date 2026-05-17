@@ -2,6 +2,7 @@ const express = require('express')
 const request = require('supertest')
 
 let mockDb
+let connectTenant
 
 class MockObjectId {
   constructor(value = Math.random().toString(16).slice(2)) {
@@ -13,20 +14,14 @@ class MockObjectId {
   }
 }
 
-jest.mock('mongoose', () => ({
-  connection: {
-    get db() {
-      return mockDb
-    },
-  },
-  Types: {
-    ObjectId: MockObjectId,
-  },
+jest.mock('../db/tenantConnections', () => ({
+  connectTenant: jest.fn(async () => ({ db: mockDb })),
 }))
 
 jest.mock('../middleware/auth', () => ({
   protect: (req, _res, next) => {
     req.user = { _id: new MockObjectId('user-1'), role: 'super_admin' }
+    req.tenant = 'loopc'
     next()
   },
   restrictTo: () => (_req, _res, next) => next(),
@@ -101,6 +96,8 @@ let app
 
 beforeEach(() => {
   jest.resetModules()
+  ;({ connectTenant } = require('../db/tenantConnections'))
+  connectTenant.mockClear()
   app = createApp()
   process.env.NODE_ENV = 'test'
   delete process.env.ENABLE_ADMIN_CLEANUP_API
@@ -138,6 +135,19 @@ describe('admin cleanup routes', () => {
     expect(res.status).toBe(403)
     expect(res.body.ok).toBe(false)
     expect(res.body.error).toMatch(/confirmation token/i)
+  })
+
+  test('requires confirmation token in production when cleanup API is enabled', async () => {
+    process.env.NODE_ENV = 'production'
+    process.env.ENABLE_ADMIN_CLEANUP_API = 'true'
+
+    const res = await request(app)
+      .post('/api/admin/cleanup/exchange-entries')
+      .send({})
+
+    expect(res.status).toBe(403)
+    expect(res.body.ok).toBe(false)
+    expect(res.body.error).toMatch(/confirmation token is required/i)
   })
 
   test('soft deletes matching exchange ledger entries only after safeguards pass', async () => {
@@ -184,6 +194,7 @@ describe('admin cleanup routes', () => {
     expect(res.body.deletedCount).toBe(1)
     expect(res.body.entries).toHaveLength(1)
     expect(res.body.entries[0].id).toBe('exchange-1')
+    expect(connectTenant).toHaveBeenCalledWith('loopc')
     expect(exchangeEntry.isDeleted).toBe(true)
     expect(ordinaryEntry.isDeleted).toBe(false)
   })

@@ -1,7 +1,6 @@
 // FILE: src/api/tasks.js
-import axios from 'axios'
+import axios, { API_ORIGIN } from './client'
 
-const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const BASE = `${API_ORIGIN}/api/tasks`
 
 const getTasks    = async (_token)           => (await axios.get(BASE)).data

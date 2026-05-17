@@ -23,7 +23,7 @@ import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage, LANGUAGES } from '../context/LanguageContext'
 import { getTenantBranding } from '../config/tenantBranding'
 import BuildInfoBadge from '../components/BuildInfoBadge'
-import axios from 'axios'
+import axios from '../api/client'
 
 // Import tab content components
 import OverviewTab     from '../components/tabs/OverviewTab'
