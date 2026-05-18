@@ -5,6 +5,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import { getTenantBranding } from '../../config/tenantBranding'
 import DocumentPrintHeader from './erp/DocumentPrintHeader'
+import MGMetalInvoicePrintLayout from './erp/MGMetalInvoicePrintLayout'
 import MGVoucherPrintLayout from './erp/MGVoucherPrintLayout'
 import { resolveDocumentBranding } from './erp/documentBranding'
 
@@ -2374,6 +2375,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   ].map((value) => String(value || '').trim().toLowerCase()).join(' ')
   const isModernGoldTenant = /\bmg\b/.test(tenantIdentity) || tenantIdentity.includes('modern gold')
   const isMgCurrencyVoucher = isModernGoldTenant && ['payment', 'receipt'].includes(voucherType)
+  const isMgMetalVoucher = isModernGoldTenant && ['purchase', 'sale'].includes(voucherType)
   const mgPrintTitle = voucherType === 'receipt' ? 'RECEIPT CURRENCY' : 'CURRENCY PAYMENT'
   const mgBranch = header?.branch || effectiveLineItems?.find((line) => line?.branch)?.branch || 'HO'
   const mgLogoImage = documentBranding.logoUrl || ''
@@ -2398,6 +2400,12 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const mgAmountWords = totals.grandTotal > 0
     ? `${numberToWords(totals.grandTotal)} ${mgAmountCurrencyName} Only`
     : ''
+  const mgFixingDisplay = normalizeVoucherFixingType(header?.fixingType) === 'non-fixing' ? 'UNFIXED' : 'FIXED'
+  const mgMetalInvoiceTitle = `${voucherType === 'purchase' ? 'PURCHASE INVOICE' : 'SALE INVOICE'} (${mgFixingDisplay})`
+  const mgMetalCopyLabel = voucherType === 'purchase' ? 'ACCOUNTS COPY' : 'PARTY COPY'
+  const mgMetalPostingDirection = voucherType === 'purchase' ? 'DEBITED' : 'CREDITED'
+  const mgMetalRateValue = mgLineItems.find((line) => Number(line?.metalRate || 0) > 0)?.metalRate || ''
+  const mgMetalRateLabel = mgMetalRateValue ? `${fmt(mgMetalRateValue)} / SOZ (${currencyLabel || 'USD'})` : ''
 
   // ────────────────────────────────────────────────────────────────────────────
   // RENDER
@@ -3609,7 +3617,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       )}
     </div>
 
-    <div className="voucher-print-only" style={{ display: 'none', padding: isMgCurrencyVoucher ? '0 10px' : '18px 24px', color: '#111827', fontFamily: 'Arial, sans-serif', fontSize: '12px' }}>
+    <div className="voucher-print-only" style={{ display: 'none', padding: isMgCurrencyVoucher || isMgMetalVoucher ? '0 10px' : '18px 24px', color: '#111827', fontFamily: 'Arial, sans-serif', fontSize: '12px' }}>
       {isMgCurrencyVoucher ? (
         <MGVoucherPrintLayout
           companyName={mgCompanyName}
@@ -3632,6 +3640,29 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           amountWords={mgAmountWords}
           partyName={voucher?.partyName}
           normalizeLineType={normalizeLineType}
+          fmt={fmt}
+        />
+      ) : isMgMetalVoucher ? (
+        <MGMetalInvoicePrintLayout
+          companyName={mgCompanyName}
+          companyAddress={mgCompanyAddress}
+          invoiceTitle={mgMetalInvoiceTitle}
+          copyLabel={mgMetalCopyLabel}
+          partyName={mgPartyAccountName}
+          partyCode={mgPartyAccountCode}
+          trnValue={trnValue}
+          docNoValue={payNoValue}
+          branch={mgBranch}
+          dateValue={payDateValue}
+          paymentTerms={header?.paymentTerms || ''}
+          salesman={preparedByValue}
+          fixingLabel={mgFixingDisplay}
+          metalRateLabel={mgMetalRateLabel}
+          currencyLabel={currencyLabel || 'USD'}
+          lineItems={mgLineItems}
+          totals={totals}
+          amountWords={mgAmountWords}
+          postingDirection={mgMetalPostingDirection}
           fmt={fmt}
         />
       ) : (
