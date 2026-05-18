@@ -28,7 +28,7 @@ export default function MGVoucherPrintLayout({
     <div style={{ maxWidth: '735px', margin: '0 auto', fontSize: '11px', color: '#111111', pageBreakInside: 'avoid' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 170px', gap: '18px', alignItems: 'start', marginBottom: '8px' }}>
         <div>
-          <div style={{ fontSize: '22px', lineHeight: '1', fontWeight: '900', letterSpacing: '-0.02em', marginBottom: '8px' }}>
+          <div style={{ fontSize: '18px', lineHeight: '1.1', fontWeight: '900', letterSpacing: 0, marginBottom: '8px' }}>
             {companyName}
           </div>
           <div style={{ fontSize: '12px', lineHeight: '1.55', fontWeight: '700', whiteSpace: 'pre-line' }}>

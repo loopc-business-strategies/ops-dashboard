@@ -7,6 +7,7 @@ import {
   DEFAULT_BRANDING,
   DEFAULT_BRANDING_PROFILES,
   LOGO_UPLOAD_ACCEPT,
+  LOGO_UPLOAD_MAX_BYTES,
   normalizeBrandingKey,
   clampBrandingDimension,
   brandingOptionLabel,
@@ -119,5 +120,9 @@ describe('ERPBrandingUtils – logo uploads', () => {
     expect(isSupportedLogoUpload({ name: 'logo.svg', type: 'image/svg+xml' })).toBe(true)
     expect(isSupportedLogoUpload({ name: 'logo.SVG', type: '' })).toBe(true)
     expect(isSupportedLogoUpload({ name: 'logo.jpg', type: 'image/jpeg' })).toBe(false)
+  })
+
+  test('keeps logo upload max below backend request body limit', () => {
+    expect(LOGO_UPLOAD_MAX_BYTES).toBe(1024 * 1024)
   })
 })
