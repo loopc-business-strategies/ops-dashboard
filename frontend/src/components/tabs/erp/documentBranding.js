@@ -12,12 +12,6 @@ export const resolveDocumentBranding = ({ reportBranding = {}, user = {}, tenant
   const tenant = user?.tenant || {}
   const fallbackTenantBranding = tenantBranding || getTenantBranding(user?.company || tenant?.key || tenant?.name)
   const uploadedLogo = String(reportBranding?.logoUrl || '').trim()
-  const fallbackLogo = pick(
-    user?.branding?.logoImage,
-    tenant?.logoImage,
-    fallbackTenantBranding?.logoImage,
-    DEFAULT_BRANDING.logoUrl,
-  )
 
   return {
     ...DEFAULT_BRANDING,
@@ -36,7 +30,7 @@ export const resolveDocumentBranding = ({ reportBranding = {}, user = {}, tenant
     address: pick(reportBranding?.address, user?.branding?.address, tenant?.address, fallbackTenantBranding?.address, DEFAULT_BRANDING.address),
     phone: pick(reportBranding?.phone, user?.branding?.phone, tenant?.phone, fallbackTenantBranding?.phone, DEFAULT_BRANDING.phone),
     trn: pick(reportBranding?.trn, user?.branding?.trn, tenant?.trn, fallbackTenantBranding?.trn, DEFAULT_BRANDING.trn),
-    logoUrl: uploadedLogo || fallbackLogo,
+    logoUrl: uploadedLogo,
     logoWidth: clampBrandingDimension(uploadedLogo ? reportBranding?.logoWidth : reportBranding?.logoWidth || 160, DEFAULT_BRANDING.logoWidth, 80, 260),
     logoHeight: clampBrandingDimension(uploadedLogo ? reportBranding?.logoHeight : reportBranding?.logoHeight || 56, DEFAULT_BRANDING.logoHeight, 32, 120),
     logoFit: ['contain', 'cover', 'fill'].includes(reportBranding?.logoFit) ? reportBranding.logoFit : DEFAULT_BRANDING.logoFit,

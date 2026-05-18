@@ -2297,7 +2297,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const companyAddress = documentBranding.address || branding?.address || tenant?.address || activeTenantBranding?.address || ''
   const companyPhone = documentBranding.phone || branding?.phone || tenant?.phone || activeTenantBranding?.phone || ''
   const companyTrn = documentBranding.trn || branding?.trn || tenant?.trn || activeTenantBranding?.trn || ''
-  const companyLogoImage = documentBranding.logoUrl || branding?.logoImage || tenant?.logoImage || activeTenantBranding?.logoImage || ''
+  const companyLogoImage = documentBranding.logoUrl || ''
   const companyLogoText = branding?.logoText || tenant?.logoText || activeTenantBranding?.logoText || ''
   const companyPrimaryColor = documentBranding.primaryColor || branding?.colors?.brandPrimary || tenant?.colors?.brandPrimary || activeTenantBranding?.colors?.brandPrimary || '#374151'
   const currencyLabel = voucher?.currency || 'USD'
@@ -2376,7 +2376,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const isMgCurrencyVoucher = isModernGoldTenant && ['payment', 'receipt'].includes(voucherType)
   const mgPrintTitle = voucherType === 'receipt' ? 'RECEIPT CURRENCY' : 'CURRENCY PAYMENT'
   const mgBranch = header?.branch || effectiveLineItems?.find((line) => line?.branch)?.branch || 'HO'
-  const mgLogoImage = '/logos/mg-logo.svg'
+  const mgLogoImage = documentBranding.logoUrl || ''
   const mgCompanyName = 'MODERN GOLD JEWELRY MANUFACTURING'
   const mgCompanyAddress = '242, Girvonbulok Street, Davlatabad District,\nNamangan City, Namangan Region,\nRepublic of Uzbekistan.'
   const mgLineItems = Array.isArray(effectiveLineItems) ? effectiveLineItems : []
