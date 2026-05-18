@@ -4,6 +4,67 @@
  */
 
 const socketIO = require('socket.io')
+const jwt = require('jsonwebtoken')
+const User = require('../models/User')
+const { normalizeTenant, resolveTenantFromHost } = require('../config/tenants')
+
+function parseCookies(cookieHeader = '') {
+  return String(cookieHeader || '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((acc, part) => {
+      const eqIndex = part.indexOf('=')
+      if (eqIndex === -1) return acc
+      const key = decodeURIComponent(part.slice(0, eqIndex).trim())
+      const value = decodeURIComponent(part.slice(eqIndex + 1).trim())
+      if (key) acc[key] = value
+      return acc
+    }, {})
+}
+
+function getSocketToken(socket) {
+  const authToken = String(socket.handshake?.auth?.token || '').trim()
+  if (authToken && authToken !== 'browser-session' && authToken !== 'cookie-session') {
+    return authToken
+  }
+
+  const authHeader = String(socket.handshake?.headers?.authorization || '').trim()
+  if (authHeader.toLowerCase().startsWith('bearer ')) {
+    return authHeader.slice(7).trim()
+  }
+
+  const cookies = parseCookies(socket.handshake?.headers?.cookie)
+  return cookies.sessionToken || ''
+}
+
+function getSocketHostname(socket) {
+  const forwardedHost = String(socket.handshake?.headers?.['x-forwarded-host'] || '').split(',')[0].trim()
+  const host = forwardedHost || String(socket.handshake?.headers?.host || '').trim()
+  return host.replace(/:\d+$/, '')
+}
+
+async function authenticateSocket(socket) {
+  const token = getSocketToken(socket)
+  if (!token) throw new Error('Authentication error')
+
+  const decoded = jwt.verify(token, process.env.JWT_SECRET)
+  const tenant = normalizeTenant(decoded.company)
+  if (!tenant) throw new Error('Invalid tenant in session')
+
+  const headerTenant = normalizeTenant(socket.handshake?.headers?.['x-tenant'] || socket.handshake?.headers?.['x-company'])
+  const hostTenant = resolveTenantFromHost(getSocketHostname(socket), headerTenant || tenant)
+  if (hostTenant !== tenant) throw new Error('Session tenant does not match this company portal')
+
+  const TenantUser = await User.getTenantModel(tenant)
+  const user = await TenantUser.findById(decoded.id).select('_id name role isActive isDeleted')
+  if (!user || user.isDeleted || !user.isActive) throw new Error('User is not active')
+
+  socket.userId = String(user._id)
+  socket.tenant = tenant
+  socket.userRole = user.role
+  return socket
+}
 
 /**
  * Build the socket.io CORS origin list from the same env vars used by Express CORS.
@@ -37,23 +98,25 @@ class RealtimeServer {
   }
 
   setupMiddleware() {
-    // Authentication middleware
-    this.io.use((socket, next) => {
-      const token = socket.handshake.auth.token
-      if (!token) {
-        return next(new Error('Authentication error'))
+    this.authMiddleware = async (socket, next) => {
+      try {
+        await authenticateSocket(socket)
+        next()
+      } catch {
+        next(new Error('Authentication error'))
       }
-      // Token validation would be done by JWT middleware
-      socket.userId = socket.handshake.auth.userId
-      next()
-    })
+    }
+
+    this.io.use(this.authMiddleware)
   }
 
   setupNamespaces() {
     /**
      * Dashboard namespace: broadcast dashboard updates to subscribed clients
      */
-    this.io.of('/dashboard').on('connection', (socket) => {
+    const dashboardNamespace = this.io.of('/dashboard')
+    dashboardNamespace.use(this.authMiddleware)
+    dashboardNamespace.on('connection', (socket) => {
       // Subscribe to dashboard metrics updates
       socket.on('subscribe:metrics', (tenant) => {
         socket.join(`dashboard:metrics:${tenant}`)
@@ -69,7 +132,9 @@ class RealtimeServer {
     /**
      * Reports namespace: broadcast report generation status
      */
-    this.io.of('/reports').on('connection', (socket) => {
+    const reportsNamespace = this.io.of('/reports')
+    reportsNamespace.use(this.authMiddleware)
+    reportsNamespace.on('connection', (socket) => {
       // Subscribe to report generation updates
       socket.on('subscribe:report', (reportId) => {
         socket.join(`report:${reportId}`)
@@ -80,7 +145,9 @@ class RealtimeServer {
     /**
      * Ledger namespace: broadcast ledger entry updates
      */
-    this.io.of('/ledger').on('connection', (socket) => {
+    const ledgerNamespace = this.io.of('/ledger')
+    ledgerNamespace.use(this.authMiddleware)
+    ledgerNamespace.on('connection', (socket) => {
       socket.on('subscribe:tenant', (tenant) => {
         socket.join(`ledger:tenant:${tenant}`)
         socket.emit('subscribed', { namespace: '/ledger', tenant })
@@ -99,7 +166,9 @@ class RealtimeServer {
     /**
      * Transactions namespace: broadcast transaction workflow updates
      */
-    this.io.of('/transactions').on('connection', (socket) => {
+    const transactionsNamespace = this.io.of('/transactions')
+    transactionsNamespace.use(this.authMiddleware)
+    transactionsNamespace.on('connection', (socket) => {
       socket.on('subscribe:tenant', (tenant) => {
         socket.join(`transactions:tenant:${tenant}`)
         socket.emit('subscribed', { namespace: '/transactions', tenant })
@@ -109,7 +178,9 @@ class RealtimeServer {
     /**
      * Notifications namespace: broadcast user notifications
      */
-    this.io.of('/notifications').on('connection', (socket) => {
+    const notificationsNamespace = this.io.of('/notifications')
+    notificationsNamespace.use(this.authMiddleware)
+    notificationsNamespace.on('connection', (socket) => {
       socket.join(`user:${socket.userId}`)
     })
   }
@@ -208,3 +279,5 @@ class RealtimeServer {
 }
 
 module.exports = RealtimeServer
+module.exports.authenticateSocket = authenticateSocket
+module.exports.getSocketToken = getSocketToken

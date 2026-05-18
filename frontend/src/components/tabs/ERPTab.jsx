@@ -57,6 +57,7 @@ import ERPLedgerTab from './erp/tabs/ERPLedgerTab'
 import ERPTransactionsTab from './erp/tabs/ERPTransactionsTab'
 import ERPReportsTab from './erp/tabs/ERPReportsTab'
 import { startERPRealtimeFeeds } from '../../utils/realtimeSocket'
+import { createHtmlExportRoot, downloadBlob, downloadCsv } from './erp/exportHelpers'
 
 const VoucherTab = lazy(() => import('./VoucherTab'))
 import {
@@ -3640,19 +3641,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       return
     }
 
-    const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`
     const rows = buildEnquiryExportRows()
-    const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
     const stamp = new Date().toISOString().slice(0, 10)
-    link.href = url
-    link.download = `account-summary-${accountEnquiryData.account.accountCode}-${stamp}.csv`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+    downloadCsv(rows, `account-summary-${accountEnquiryData.account.accountCode}-${stamp}.csv`)
     showNotification('✅ Excel file exported')
   }
 
@@ -3956,24 +3947,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (!htmlData) return
 
       const html2pdf = await loadHtmlToPdf()
-      const parser = new DOMParser()
-      const parsed = parser.parseFromString(htmlData.html, 'text/html')
-      const exportRoot = document.createElement('div')
-      exportRoot.style.position = 'fixed'
-      exportRoot.style.left = '0'
-      exportRoot.style.top = '0'
-      exportRoot.style.width = '1120px'
-      exportRoot.style.opacity = '0'
-      exportRoot.style.pointerEvents = 'none'
-      exportRoot.style.zIndex = '-1'
-      exportRoot.style.background = '#FFFFFF'
-      const style = document.createElement('style')
-      style.textContent = parsed.querySelector('style')?.textContent || ''
-      exportRoot.appendChild(style)
-      Array.from(parsed.body.childNodes).forEach((node) => {
-        exportRoot.appendChild(node.cloneNode(true))
-      })
-      document.body.appendChild(exportRoot)
+      const exportRoot = createHtmlExportRoot(htmlData.html)
 
       const stamp = new Date().toISOString().slice(0, 10)
       const fileName = `Statement-${htmlData.accountCode}-${stamp}.pdf`
@@ -4024,24 +3998,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (!htmlData) return
 
       const html2pdf = await loadHtmlToPdf()
-      const parser = new DOMParser()
-      const parsed = parser.parseFromString(htmlData.html, 'text/html')
-      const exportRoot = document.createElement('div')
-      exportRoot.style.position = 'fixed'
-      exportRoot.style.left = '0'
-      exportRoot.style.top = '0'
-      exportRoot.style.width = '1120px'
-      exportRoot.style.opacity = '0'
-      exportRoot.style.pointerEvents = 'none'
-      exportRoot.style.zIndex = '-1'
-      exportRoot.style.background = '#FFFFFF'
-      const style = document.createElement('style')
-      style.textContent = parsed.querySelector('style')?.textContent || ''
-      exportRoot.appendChild(style)
-      Array.from(parsed.body.childNodes).forEach((node) => {
-        exportRoot.appendChild(node.cloneNode(true))
-      })
-      document.body.appendChild(exportRoot)
+      const exportRoot = createHtmlExportRoot(htmlData.html)
 
       const stamp = new Date().toISOString().slice(0, 10)
       await html2pdf().set({
@@ -4078,21 +4035,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     setExportOptionsOpen(true)
   }
 
-  const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`
-
-  const downloadCsv = (rows, fileName) => {
-    const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = fileName
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-  }
-
   const downloadXlsx = async (rows, fileName, sheetName = 'Report') => {
     const ExcelJS = await loadExcel()
     const workbook = new ExcelJS.Workbook()
@@ -4102,14 +4044,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     })
     const buffer = await workbook.xlsx.writeBuffer()
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = fileName
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+    downloadBlob(blob, fileName)
   }
 
   const buildTransactionExportPayload = () => {

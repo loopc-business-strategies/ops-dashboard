@@ -25,6 +25,12 @@ jobs:
       - name: Check forbidden tracked paths
         run: npm run check:tracked-paths
 
+      - name: Check ERP access policy parity
+        run: |
+          npm run sync:erp-access
+          node scripts/check-access-policy-parity.mjs
+          git diff --exit-code -- shared/erp-access-matrix.json backend/shared/erp-access-matrix.json frontend/src/generated/erp-access-matrix.json
+
   backend-fast-tests:
     name: Backend Fast Tests
     runs-on: ubuntu-latest
@@ -43,6 +49,9 @@ jobs:
       - name: Install backend dependencies
         working-directory: backend
         run: npm ci
+
+      - name: Sync ERP access policy
+        run: npm run sync:erp-access
 
       - name: Run backend fast tests
         working-directory: backend
@@ -86,6 +95,9 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      - name: Sync ERP access policy
+        run: npm run sync:erp-access
+
       - name: Run backend integration tests
         working-directory: backend
         run: npm run ${{ matrix.script }}
@@ -109,6 +121,9 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Sync ERP access policy
+        run: npm run sync:erp-access
+
       - name: Run frontend tests
         working-directory: frontend
         run: npm test
@@ -131,6 +146,9 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Sync ERP access policy
+        run: npm run sync:erp-access
 
       - name: Build frontend
         working-directory: frontend
