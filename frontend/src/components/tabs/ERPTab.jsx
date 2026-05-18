@@ -72,10 +72,12 @@ const VoucherTab = lazy(() => import('./VoucherTab'))
 import {
   DEFAULT_BRANDING,
   DEFAULT_BRANDING_PROFILES,
+  LOGO_UPLOAD_ACCEPT,
   normalizeBrandingKey,
   clampBrandingDimension,
   brandingOptionLabel,
   createLogoRenderAsset,
+  isSupportedLogoUpload,
 } from './erp/ERPBrandingUtils'
 import { resolveDocumentBranding } from './erp/documentBranding'
 
@@ -3562,9 +3564,14 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
 
   const handleBrandingLogoFile = async (file) => {
     if (!file) return
+    if (!isSupportedLogoUpload(file)) {
+      setError('Logo upload supports PNG and SVG files only.')
+      return
+    }
     const reader = new FileReader()
     reader.onload = () => {
       setBrandingForm((prev) => ({ ...prev, logoUrl: String(reader.result || '') }))
+      setError('')
     }
     reader.readAsDataURL(file)
   }
@@ -6952,9 +6959,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </select>
               <label style={{ ...modalInputStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginBottom: 0 }}>
                 Upload Logo
-                <input type="file" accept="image/*" onChange={(e) => handleBrandingLogoFile(e.target.files?.[0])} style={{ display: 'none' }} />
+                <input type="file" accept={LOGO_UPLOAD_ACCEPT} onChange={(e) => handleBrandingLogoFile(e.target.files?.[0])} style={{ display: 'none' }} />
               </label>
             </div>
+            <p style={{ margin: '0.45rem 0 0', color: C.inkSoft, fontSize: '0.78rem' }}>Supported logo files: PNG and SVG.</p>
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.8rem' }}>
               <div style={{ width: '180px', height: '64px', border: '1px dashed #D1D5DB', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                 {brandingForm.logoUrl ? <img src={brandingForm.logoUrl} alt="Current logo preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : <span style={{ color: C.inkSoft, fontSize: '0.8rem' }}>No logo</span>}
@@ -7098,12 +7106,13 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   Upload Logo
                   <input
                     type="file"
-                    accept="image/*"
+                    accept={LOGO_UPLOAD_ACCEPT}
                     onChange={(e) => handleBrandingLogoFile(e.target.files?.[0])}
                     style={{ display: 'none' }}
                   />
                 </label>
               </div>
+              <p style={{ margin: '-0.35rem 0 0.75rem', color: C.inkSoft, fontSize: '0.78rem' }}>Supported logo files: PNG and SVG.</p>
 
               {brandingForm.logoUrl && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>

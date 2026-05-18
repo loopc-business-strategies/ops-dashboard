@@ -35,6 +35,16 @@ export const DEFAULT_BRANDING_PROFILES = [{
   isDefault: DEFAULT_BRANDING.isDefault,
 }]
 
+export const LOGO_UPLOAD_ACCEPT = 'image/png,image/svg+xml,.png,.svg'
+export const SUPPORTED_LOGO_MIME_TYPES = new Set(['image/png', 'image/svg+xml'])
+export const SUPPORTED_LOGO_EXTENSIONS = new Set(['png', 'svg'])
+
+export const isSupportedLogoUpload = (file = {}) => {
+  const type = String(file?.type || '').trim().toLowerCase()
+  const extension = String(file?.name || '').split('.').pop()?.trim().toLowerCase()
+  return SUPPORTED_LOGO_MIME_TYPES.has(type) || SUPPORTED_LOGO_EXTENSIONS.has(extension)
+}
+
 /**
  * Normalises an arbitrary string into a safe branding key.
  * @param {string} value

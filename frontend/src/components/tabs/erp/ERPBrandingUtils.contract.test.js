@@ -6,10 +6,12 @@
 import {
   DEFAULT_BRANDING,
   DEFAULT_BRANDING_PROFILES,
+  LOGO_UPLOAD_ACCEPT,
   normalizeBrandingKey,
   clampBrandingDimension,
   brandingOptionLabel,
   createLogoRenderAsset,
+  isSupportedLogoUpload,
 } from './ERPBrandingUtils'
 
 describe('ERPBrandingUtils – DEFAULT_BRANDING', () => {
@@ -101,5 +103,21 @@ describe('ERPBrandingUtils – createLogoRenderAsset', () => {
     const result = await createLogoRenderAsset('http://example.com/logo.png', 180, 56)
     expect(result).toBe('')
     Object.defineProperty(global, 'document', { value: origDocument, configurable: true, writable: true })
+  })
+})
+
+describe('ERPBrandingUtils – logo uploads', () => {
+  test('accept string explicitly includes PNG and SVG', () => {
+    expect(LOGO_UPLOAD_ACCEPT).toContain('image/png')
+    expect(LOGO_UPLOAD_ACCEPT).toContain('image/svg+xml')
+    expect(LOGO_UPLOAD_ACCEPT).toContain('.png')
+    expect(LOGO_UPLOAD_ACCEPT).toContain('.svg')
+  })
+
+  test('supports PNG and SVG logo files only', () => {
+    expect(isSupportedLogoUpload({ name: 'logo.png', type: 'image/png' })).toBe(true)
+    expect(isSupportedLogoUpload({ name: 'logo.svg', type: 'image/svg+xml' })).toBe(true)
+    expect(isSupportedLogoUpload({ name: 'logo.SVG', type: '' })).toBe(true)
+    expect(isSupportedLogoUpload({ name: 'logo.jpg', type: 'image/jpeg' })).toBe(false)
   })
 })
