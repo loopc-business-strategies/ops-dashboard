@@ -1370,6 +1370,56 @@ describe('ERP accounting transactions workflow', () => {
     expect(limitedRes.body?.statement?.entries || []).toHaveLength(5)
   })
 
+  test('balance sheet reclassifies credit-balance debtors as liabilities', async () => {
+    const financeUser = await createUser({ name: 'Balance Sheet Reclass Tester' })
+    const debtorAccount = await ChartOfAccount.create({
+      accountName: 'MODERN CAPITAL TRADING LLC (Debtor)',
+      accountCode: '1301',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const bankAccount = await ChartOfAccount.create({
+      accountName: 'NATIONAL BANK OF UZBEKISTAN-USD',
+      accountCode: '101001',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+
+    await Ledger.create({
+      date: new Date('2026-05-15T00:00:00.000Z'),
+      debitAccountId: bankAccount._id,
+      creditAccountId: debtorAccount._id,
+      amount: 112022.75,
+      description: 'Receipt creating credit debtor balance',
+      referenceType: 'receipt',
+      createdBy: financeUser._id,
+      currency: 'USD',
+      exchangeRate: 1,
+    })
+
+    const res = await request(app)
+      .get('/api/erp-accounting/reports/balance-sheet')
+      .query({ endDate: '2026-05-18' })
+      .set(authHeader(financeUser))
+
+    expect(res.status).toBe(200)
+    const assetRow = (res.body?.assets || []).find((row) => row.accountCode === '1301')
+    const liabilityRow = (res.body?.liabilities || []).find((row) => row.accountCode === '1301')
+    expect(assetRow).toBeUndefined()
+    expect(liabilityRow).toMatchObject({
+      accountCode: '1301',
+      direction: 'Cr',
+      isReclassified: true,
+      normalSection: 'Asset',
+      classification: 'Liability',
+    })
+    expect(Number(liabilityRow.balance || 0)).toBeCloseTo(112022.75, 2)
+    expect(Number(liabilityRow.signedBalance || 0)).toBeCloseTo(-112022.75, 2)
+    expect(Number(res.body?.totalAssets || 0)).toBeCloseTo(112022.75, 2)
+    expect(Number(res.body?.totalLiabilities || 0)).toBeCloseTo(112022.75, 2)
+    expect(Number(res.body?.difference || 0)).toBeCloseTo(0, 2)
+  })
+
   test('rejects non-base receipt when reference rate is missing or zero', async () => {
     const financeUser = await createUser({ name: 'FX Guard Tester' })
     const receivableAccount = await ChartOfAccount.create({

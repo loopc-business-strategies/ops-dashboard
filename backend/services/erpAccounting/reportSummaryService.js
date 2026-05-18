@@ -127,24 +127,59 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
     let incomeSignedTotal = 0
     let expenseSignedTotal = 0
 
-    const normalizeBalanceByType = (accountType, signedBalance) => {
-      if (accountType === 'Asset') return signedBalance
-      if (accountType === 'Liability' || accountType === 'Equity') return -signedBalance
-      return signedBalance
+    const isCurrentBalanceSheetAccount = (account) => {
+      const text = `${String(account.accountCode || '')} ${String(account.accountName || '')}`
+      return /(cash|bank|receivable|debtor|customer|inventory|stock|payable|creditor|tax|accrual|short)/i.test(text)
+    }
+
+    const buildBalanceSheetRow = (account, signedBalance, balance, classification, direction) => {
+      const normalSection = account.accountType === 'Asset'
+        ? 'Asset'
+        : account.accountType === 'Liability'
+          ? 'Liability'
+          : account.accountType === 'Equity'
+            ? 'Equity'
+            : account.accountType
+      return {
+        accountId: account._id,
+        accountCode: account.accountCode,
+        accountName: account.accountName,
+        accountType: account.accountType,
+        normalSection,
+        classification,
+        balance: toMoney(balance),
+        signedBalance: toMoney(signedBalance),
+        direction,
+        isReclassified: classification !== normalSection,
+        isCurrent: isCurrentBalanceSheetAccount(account),
+      }
     }
 
     accounts.forEach((account) => {
       const bal = Number(account.openingBalance || 0) + Number(balanceByAccount.get(account._id.toString()) || 0)
-      const row = {
-        accountId: account._id,
-        accountCode: account.accountCode,
-        accountName: account.accountName,
-        balance: toMoney(normalizeBalanceByType(account.accountType, bal)),
-        signedBalance: toMoney(bal),
+      if (account.accountType === 'Asset') {
+        if (bal >= 0) {
+          assets.push(buildBalanceSheetRow(account, bal, bal, 'Asset', 'Dr'))
+        } else {
+          liabilities.push(buildBalanceSheetRow(account, bal, Math.abs(bal), 'Liability', 'Cr'))
+        }
+        return
       }
-      if (account.accountType === 'Asset') assets.push(row)
-      if (account.accountType === 'Liability') liabilities.push(row)
-      if (account.accountType === 'Equity') equity.push(row)
+
+      if (account.accountType === 'Liability') {
+        if (bal <= 0) {
+          liabilities.push(buildBalanceSheetRow(account, bal, Math.abs(bal), 'Liability', 'Cr'))
+        } else {
+          assets.push(buildBalanceSheetRow(account, bal, bal, 'Asset', 'Dr'))
+        }
+        return
+      }
+
+      if (account.accountType === 'Equity') {
+        equity.push(buildBalanceSheetRow(account, bal, -bal, 'Equity', bal <= 0 ? 'Cr' : 'Dr'))
+        return
+      }
+
       if (account.accountType === 'Income') incomeSignedTotal += bal
       if (account.accountType === 'Expense') expenseSignedTotal += bal
     })
@@ -157,6 +192,11 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
         accountName: 'Current Period Earnings',
         balance: retainedEarnings,
         signedBalance: toMoney(-retainedEarnings),
+        direction: retainedEarnings >= 0 ? 'Cr' : 'Dr',
+        classification: 'Equity',
+        normalSection: 'Equity',
+        isReclassified: false,
+        isCurrent: false,
       })
     }
 
@@ -166,10 +206,10 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
     const liabilitiesPlusEquity = toMoney(Number(totalLiabilities) + Number(totalEquity))
 
     const currentAssets = toMoney(assets
-      .filter((x) => /(cash|bank|receivable|inventory|stock)/i.test(`${x.accountCode} ${x.accountName}`))
+      .filter((x) => x.isCurrent)
       .reduce((s, x) => s + Number(x.balance || 0), 0))
     const currentLiabilities = toMoney(liabilities
-      .filter((x) => /(payable|creditor|tax|accrual|short)/i.test(`${x.accountCode} ${x.accountName}`))
+      .filter((x) => x.isCurrent)
       .reduce((s, x) => s + Number(x.balance || 0), 0))
     const workingCapital = toMoney(Number(currentAssets) - Number(currentLiabilities))
     const currentRatio = Number(currentLiabilities) > 0 ? toMoney(Number(currentAssets) / Number(currentLiabilities)) : null

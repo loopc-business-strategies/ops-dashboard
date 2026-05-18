@@ -3050,6 +3050,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
 
   const formatMoney = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
   const formatMoneyAbs = (value) => Math.abs(Number(value || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })
+  const formatReportDirectionalBalance = (row, fallbackDirection = '') => (
+    formatDirectionalBalance(row?.balance, { preferredDirection: row?.direction || fallbackDirection })
+  )
   const getReportPeriodLabel = () => {
     const now = new Date()
     const formatDate = (value) => {
@@ -4176,10 +4179,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
 
     if (reportView === 'balanceSheet') {
-      const rows = [...brandingRows, ['Section', 'Account Code', 'Account Name', 'Balance']]
-      ;(reports.balanceSheet?.assets || []).forEach((row) => rows.push(['Asset', row.accountCode, row.accountName, row.balance]))
-      ;(reports.balanceSheet?.liabilities || []).forEach((row) => rows.push(['Liability', row.accountCode, row.accountName, row.balance]))
-      ;(reports.balanceSheet?.equity || []).forEach((row) => rows.push(['Equity', row.accountCode, row.accountName, row.balance]))
+      const rows = [...brandingRows, ['Section', 'Account Code', 'Account Name', 'Balance', 'Direction', 'Reclassified']]
+      ;(reports.balanceSheet?.assets || []).forEach((row) => rows.push(['Asset', row.accountCode, row.accountName, row.balance, row.direction || 'Dr', row.isReclassified ? 'Yes' : 'No']))
+      ;(reports.balanceSheet?.liabilities || []).forEach((row) => rows.push(['Liability', row.accountCode, row.accountName, row.balance, row.direction || 'Cr', row.isReclassified ? 'Yes' : 'No']))
+      ;(reports.balanceSheet?.equity || []).forEach((row) => rows.push(['Equity', row.accountCode, row.accountName, row.balance, row.direction || 'Cr', row.isReclassified ? 'Yes' : 'No']))
       ;(reports.balanceSheet?.monthlyComparison || []).forEach((row) => rows.push(['Monthly', row.label, 'Working Capital', row.workingCapital]))
       return { rows, fileBase: `balance-sheet-${stamp}`, sheetName: 'Balance Sheet', successLabel: 'Balance sheet' }
     }
@@ -4300,7 +4303,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         ${signatureBlock}
       `
     } else if (reportView === 'balanceSheet') {
-      const section = (title, rows) => `<div class="section"><p class="section-title">${title}</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Balance</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td class="num">${formatMoney(row.balance)}</td></tr>`).join('')}</tbody></table></div>`
+      const section = (title, rows, fallbackDirection) => `<div class="section"><p class="section-title">${title}</p><table><thead><tr><th>Code</th><th>Account</th><th class="num">Balance</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}</td><td class="num">${formatReportDirectionalBalance(row, fallbackDirection)}</td></tr>`).join('')}</tbody></table></div>`
       body = `
         ${head}
         <div class="summary">
@@ -4308,9 +4311,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           <div class="card"><div class="card-label">Liabilities + Equity</div><div class="card-value">${formatMoneyAbs(reports.balanceSheet?.liabilitiesPlusEquity)}</div></div>
           <div class="card"><div class="card-label">Working Capital</div><div class="card-value">${formatMoney(reports.balanceSheet?.workingCapital)}</div></div>
         </div>
-        ${section('Assets', reports.balanceSheet?.assets || [])}
-        ${section('Liabilities', reports.balanceSheet?.liabilities || [])}
-        ${section('Equity', reports.balanceSheet?.equity || [])}
+        ${section('Assets', reports.balanceSheet?.assets || [], 'Dr')}
+        ${section('Liabilities', reports.balanceSheet?.liabilities || [], 'Cr')}
+        ${section('Equity', reports.balanceSheet?.equity || [], 'Cr')}
         ${signatureBlock}
       `
     } else {
@@ -4401,9 +4404,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     } else if (reportView === 'balanceSheet') {
       head = [['Section', 'Code', 'Account', 'Balance']]
       body = [
-        ...(reports.balanceSheet?.assets || []).map((row) => ['Asset', row.accountCode, row.accountName, formatMoney(row.balance)]),
-        ...(reports.balanceSheet?.liabilities || []).map((row) => ['Liability', row.accountCode, row.accountName, formatMoney(row.balance)]),
-        ...(reports.balanceSheet?.equity || []).map((row) => ['Equity', row.accountCode, row.accountName, formatMoney(row.balance)]),
+        ...(reports.balanceSheet?.assets || []).map((row) => ['Asset', row.accountCode, `${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}`, formatReportDirectionalBalance(row, 'Dr')]),
+        ...(reports.balanceSheet?.liabilities || []).map((row) => ['Liability', row.accountCode, `${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}`, formatReportDirectionalBalance(row, 'Cr')]),
+        ...(reports.balanceSheet?.equity || []).map((row) => ['Equity', row.accountCode, `${row.accountName}${row.isReclassified ? ' (reclassified)' : ''}`, formatReportDirectionalBalance(row, 'Cr')]),
       ]
     } else if (reportView === 'dayBook') {
       head = [['Date', 'Type', 'Description', 'Debit A/C', 'Credit A/C', 'Amount']]
