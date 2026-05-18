@@ -91,3 +91,23 @@ export function buildStatementMetalOptions(stockTypeOptions = []) {
       .filter(([, name]) => Boolean(name)),
   ).values())
 }
+
+export function calculateAccountSummaryMetrics({
+  totalFunds = 0,
+  revaluation = 0,
+  marginAmount = 0,
+} = {}) {
+  const fundsExposure = Math.abs(Number(totalFunds || 0))
+  const revaluationValue = Number(revaluation || 0)
+  const marginValue = Math.abs(Number(marginAmount || 0))
+  const netEquity = fundsExposure + revaluationValue
+  const excess = netEquity - marginValue
+  const marginPercent = marginValue !== 0 ? (netEquity / marginValue) * 100 : 0
+
+  return {
+    fundsExposure,
+    netEquity,
+    excess,
+    marginPercent,
+  }
+}

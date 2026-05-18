@@ -61,6 +61,7 @@ import { createHtmlExportRoot, downloadBlob, downloadCsv } from './erp/exportHel
 import {
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
+  calculateAccountSummaryMetrics,
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
   resolveStatementMetalBalance,
@@ -667,11 +668,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const xagCurrentValue = xagBalance * silverPriceUSD
   const modalRevaluation = xauCurrentValue + xagCurrentValue
   const modalTotalFunds = totalFunds
-  const modalNetEquity = modalTotalFunds + modalRevaluation
   const modalMarginAmt = Math.abs(modalRevaluation) * 0.02
-  const modalExcess = modalNetEquity - modalMarginAmt
-  const modalMarginPct = modalMarginAmt !== 0 ? (modalNetEquity / modalMarginAmt) * 100 : 0
-  const breakEvenPrice = Math.abs(xauBalance) !== 0 ? totalFunds / Math.abs(xauBalance) : 0
+  const breakEvenPrice = Math.abs(xauBalance) !== 0 ? Math.abs(totalFunds) / Math.abs(xauBalance) : 0
   const modalStatementCurrency = 'USD'  // Trading platform uses USD
   const resolvePreferredStatementMetalCode = (entries = []) => {
     const explicitMetal = entries.find((entry) => {
@@ -751,7 +749,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       balance: xagBalance,
       price: silverPriceUSD,
       currentValue: xagBalance * silverPriceUSD,
-      breakEven: Math.abs(xagBalance) !== 0 ? totalFunds / Math.abs(xagBalance) : 0,
+      breakEven: Math.abs(xagBalance) !== 0 ? Math.abs(totalFunds) / Math.abs(xagBalance) : 0,
     },
   ] : []
   const statementReferenceTypes = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
@@ -829,9 +827,14 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     return sum + Number(entry?.signedAmount || 0)
   }, 0)
   const modalTotalFundsDisplay = isCashOnHandEnquiry ? visibleStatementNetBalance : modalTotalFunds
-  const modalNetEquityDisplay = modalTotalFundsDisplay + modalRevaluation
-  const modalExcessDisplay = modalNetEquityDisplay - modalMarginAmt
-  const modalMarginPctDisplay = modalMarginAmt !== 0 ? (modalNetEquityDisplay / modalMarginAmt) * 100 : 0
+  const modalDisplayMetrics = calculateAccountSummaryMetrics({
+    totalFunds: modalTotalFundsDisplay,
+    revaluation: modalRevaluation,
+    marginAmount: modalMarginAmt,
+  })
+  const modalNetEquityDisplay = modalDisplayMetrics.netEquity
+  const modalExcessDisplay = modalDisplayMetrics.excess
+  const modalMarginPctDisplay = modalDisplayMetrics.marginPercent
   const modalFundsRows = [
     { currency: 'USD', limits: 0, value: modalTotalFundsDisplay },
   ]

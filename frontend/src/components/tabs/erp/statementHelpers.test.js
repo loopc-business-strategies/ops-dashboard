@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import {
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
+  calculateAccountSummaryMetrics,
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
   resolveStatementMetalBalance,
@@ -68,5 +69,18 @@ describe('statement helpers', () => {
     expect(resolveStatementMetalBalance({ goldBalance: 12, silverBalance: 8 }, 'XAU', entries)).toBe(12)
     expect(resolveStatementMetalBalance({ goldBalance: 12, silverBalance: 8 }, 'XAG', entries)).toBe(8)
     expect(resolveStatementMetalBalance({}, 'OTHER', entries)).toBe(2.5)
+  })
+
+  test('calculates account summary equity from credit exposure magnitude', () => {
+    const metrics = calculateAccountSummaryMetrics({
+      totalFunds: -112022.75,
+      revaluation: 0,
+      marginAmount: 0,
+    })
+
+    expect(metrics.fundsExposure).toBe(112022.75)
+    expect(metrics.netEquity).toBe(112022.75)
+    expect(metrics.excess).toBe(112022.75)
+    expect(metrics.marginPercent).toBe(0)
   })
 })
