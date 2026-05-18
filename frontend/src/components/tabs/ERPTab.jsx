@@ -3765,21 +3765,41 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const closingUsdBalance = openingUsdBalance + (totalDebitUsd - totalCreditUsd)
     const closingPureWeight = openingPureWeight + (totalDebitPure - totalCreditPure)
 
-    const brandingProfile = branding
+    const tenantIdentity = [
+      tenantBranding?.key,
+      tenantBranding?.displayName,
+      user?.tenant?.key,
+      user?.tenant?.name,
+      user?.company,
+      branding?.companyName,
+    ].map((value) => String(value || '').trim().toLowerCase()).join(' ')
+    const isModernGoldStatement = /\bmg\b/.test(tenantIdentity) || tenantIdentity.includes('modern gold')
+    const brandingProfile = {
+      ...branding,
+      companyName: isModernGoldStatement && (!branding.companyName || branding.companyName === DEFAULT_BRANDING.companyName)
+        ? 'MODERN GOLD JEWELRY MANUFACTURING'
+        : branding.companyName,
+    }
     const companyAddress = String(brandingProfile.address || '').trim()
     const companyPhone = String(brandingProfile.phone || '').trim()
     const companyTrn = String(brandingProfile.trn || '').trim()
     const accountAddress = String(accountEnquiryData?.account?.address || accountEnquiryData?.account?.description || '').trim()
     const headerStartDate = statementFilters.startDate || exportEntries[0]?.date || ''
     const headerEndDate = statementFilters.endDate || exportEntries[exportEntries.length - 1]?.date || ''
+    const statementLogoWidth = isModernGoldStatement && brandingProfile.logoUrl
+      ? Math.max(110, clampBrandingDimension(brandingProfile.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260))
+      : clampBrandingDimension(brandingProfile.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
+    const statementLogoHeight = isModernGoldStatement && brandingProfile.logoUrl
+      ? Math.max(90, clampBrandingDimension(brandingProfile.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120))
+      : clampBrandingDimension(brandingProfile.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
     const processedLogo = await createLogoRenderAsset(
       brandingProfile.logoUrl,
-      brandingProfile.logoWidth,
-      brandingProfile.logoHeight,
+      statementLogoWidth,
+      statementLogoHeight,
       brandingProfile.logoFit,
     )
-    const logoWidth = clampBrandingDimension(brandingProfile.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
-    const logoHeight = clampBrandingDimension(brandingProfile.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
+    const logoWidth = statementLogoWidth
+    const logoHeight = statementLogoHeight
     const logoMarkup = processedLogo
       ? `<img src="${processedLogo}" alt="Company Logo" style="width:${logoWidth}px;height:${logoHeight}px;object-fit:contain;display:block;" />`
       : ''

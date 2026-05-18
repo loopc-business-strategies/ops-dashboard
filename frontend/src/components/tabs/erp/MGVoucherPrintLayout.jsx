@@ -29,9 +29,9 @@ export default function MGVoucherPrintLayout({
 
   return (
     <div style={{ maxWidth: '735px', margin: '0 auto', padding: '14px 6px 10px', fontSize: '11px', color: '#111111', pageBreakInside: 'avoid', colorAdjust: 'exact', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 184px', gap: '24px', alignItems: 'start', marginBottom: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 188px', gap: '24px', alignItems: 'start', marginBottom: '12px' }}>
         <div>
-          <div style={{ fontSize: '20px', lineHeight: '1.05', fontWeight: '900', letterSpacing: 0, marginBottom: '14px' }}>
+          <div style={{ fontSize: '18px', lineHeight: '1.06', fontWeight: '900', letterSpacing: 0, marginBottom: '14px' }}>
             {companyName}
           </div>
           <div style={{ fontSize: '12px', lineHeight: '1.65', fontWeight: '800', whiteSpace: 'pre-line' }}>
@@ -42,14 +42,14 @@ export default function MGVoucherPrintLayout({
             <div>Email</div><div>: {documentEmail || ''}</div>
           </div>
         </div>
-        <div style={{ textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+        <div style={{ textAlign: 'center', display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', paddingRight: '2px', marginTop: '-8px' }}>
           {logoImage ? (
             <img
               src={logoImage}
               alt="Modern Gold Jewelry"
               style={{
-                width: '154px',
-                height: '154px',
+                width: '170px',
+                height: '170px',
                 objectFit: 'contain',
                 filter: 'none',
                 mixBlendMode: 'normal',
@@ -146,11 +146,11 @@ export default function MGVoucherPrintLayout({
       </div>
 
       <div style={{ margin: '0 0 16px 6px', fontSize: '11px', fontStyle: 'italic' }}>Confirmed for &amp; on behalf of</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '80px', margin: '0 8px 48px', fontWeight: '900', fontSize: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '112px', margin: '0 8px 72px', fontWeight: '900', fontSize: '12px' }}>
         <div>{partyName || accountDescription()}</div>
         <div style={{ textAlign: 'right' }}>{companyName}</div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '190px', textAlign: 'center', fontSize: '9px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '230px', textAlign: 'center', fontSize: '9px' }}>
         <div>
           <div style={{ borderTop: border, paddingTop: '6px' }}>CUSTOMER'S SIGNATURE</div>
         </div>
