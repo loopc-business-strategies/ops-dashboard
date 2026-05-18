@@ -32,7 +32,10 @@ const tenantBranding = {
     address: '242, Girvonbulok Street, Davlatabad District,\nNamangan City, Namangan Region,\nRepublic of Uzbekistan.',
     logoText: 'MG',
     logoImage: '/logos/mg-logo.svg',
+    logoUrl: '/logos/mg-logo.svg',
     tagline: 'Metal Group Operations',
+    phone: '',
+    trn: '',
     colors: {
       bgTopbar: '#1C2638',
       brandPrimary: '#005B96',
@@ -50,7 +53,11 @@ const tenantBranding = {
     displayName: 'CG',
     logoText: 'CG',
     logoImage: '/logos/cg-logo.svg',
+    logoUrl: '/logos/cg-logo.svg',
     tagline: 'CG Enterprise Suite',
+    address: '',
+    phone: '',
+    trn: '',
     colors: {
       bgTopbar: '#2C1B1B',
       brandPrimary: '#9A3412',
@@ -63,7 +70,18 @@ const tenantBranding = {
       procurementPlus: true,
     },
   },
-  loopc: defaultBranding,
+  loopc: {
+    ...defaultBranding,
+    key: 'loopc',
+    displayName: 'LoopC',
+    logoText: 'LC',
+    logoImage: '/logos/loopc-logo.svg',
+    logoUrl: '/logos/loopc-logo.svg',
+    tagline: 'Loop C Business Platform',
+    address: '',
+    phone: '',
+    trn: '',
+  },
 }
 
 export function getTenantBranding(tenant) {
