@@ -41,6 +41,22 @@ describe('statement helpers', () => {
     expect(matchesStatementMetal({ metalSignedWeight: 2.5 }, 'Other')).toBe(true)
   })
 
+  test('keeps each explicit metal statement selection isolated', () => {
+    const rows = [
+      { id: 'gold', metalCode: 'XAU' },
+      { id: 'silver', metalCode: 'XAG' },
+      { id: 'platinum', metalCode: 'XPT' },
+      { id: 'palladium', metalCode: 'XPD' },
+      { id: 'other', metalCode: 'COPPER' },
+    ]
+
+    expect(rows.filter((row) => matchesStatementMetal(row, 'Gold')).map((row) => row.id)).toEqual(['gold'])
+    expect(rows.filter((row) => matchesStatementMetal(row, 'Silver')).map((row) => row.id)).toEqual(['silver'])
+    expect(rows.filter((row) => matchesStatementMetal(row, 'Platinum')).map((row) => row.id)).toEqual(['platinum'])
+    expect(rows.filter((row) => matchesStatementMetal(row, 'Palladium')).map((row) => row.id)).toEqual(['palladium'])
+    expect(rows.filter((row) => matchesStatementMetal(row, 'Other')).map((row) => row.id)).toEqual(['other'])
+  })
+
   test('uses account balances for gold/silver and entry movements for other metals', () => {
     const entries = [
       { metalCode: 'XAU', metalSignedWeight: 1 },
