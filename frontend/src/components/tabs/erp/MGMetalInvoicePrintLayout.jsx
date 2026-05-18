@@ -24,6 +24,7 @@ export default function MGMetalInvoicePrintLayout({
   const rows = Array.isArray(lineItems) && lineItems.length ? lineItems : [{}]
   const border = '1.25px solid #111827'
   const gold = '#D99A12'
+  const logoSize = '136px'
   const totalGross = rows.reduce((sum, line) => sum + Number(line?.grossWeight || 0), 0)
   const totalPure = rows.reduce((sum, line) => sum + Number(line?.pureWeight || 0), 0)
   const totalMetal = rows.reduce((sum, line) => sum + Number(line?.metalAmount || line?.amountLC || 0), 0)
@@ -39,19 +40,19 @@ export default function MGMetalInvoicePrintLayout({
 
   return (
     <div style={{ maxWidth: '735px', margin: '0 auto', padding: '10px 8px 6px', color: '#111111', fontFamily: 'Arial, sans-serif', fontSize: '9.5px', pageBreakInside: 'avoid', colorAdjust: 'exact', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 118px', gap: '18px', alignItems: 'start', marginBottom: '10px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 154px', gap: '18px', alignItems: 'start', marginBottom: '8px' }}>
         <div>
           <div style={{ fontSize: '16px', fontWeight: '900', lineHeight: 1.05, marginBottom: '3px' }}>{companyName}</div>
           <div style={{ fontSize: '12px', lineHeight: 1.25, whiteSpace: 'pre-line' }}>{companyAddress}</div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', minHeight: '76px' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', minHeight: '104px', marginTop: '-4px' }}>
           {logoImage ? (
             <img
               src={logoImage}
               alt="Modern Gold Jewelry"
               style={{
-                width: '98px',
-                height: '98px',
+                width: logoSize,
+                height: logoSize,
                 objectFit: 'contain',
                 filter: 'none',
                 mixBlendMode: 'normal',

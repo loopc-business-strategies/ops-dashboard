@@ -26,10 +26,11 @@ export default function MGVoucherPrintLayout({
   const border = '1.3px solid #111827'
   const dashedBorder = '1.2px dashed #111827'
   const gold = '#F19900'
+  const logoSize = '136px'
 
   return (
     <div style={{ maxWidth: '735px', margin: '0 auto', padding: '14px 6px 10px', fontSize: '11px', color: '#111111', pageBreakInside: 'avoid', colorAdjust: 'exact', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 188px', gap: '24px', alignItems: 'start', marginBottom: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 154px', gap: '24px', alignItems: 'start', marginBottom: '12px' }}>
         <div>
           <div style={{ fontSize: '18px', lineHeight: '1.06', fontWeight: '900', letterSpacing: 0, marginBottom: '14px' }}>
             {companyName}
@@ -48,8 +49,8 @@ export default function MGVoucherPrintLayout({
               src={logoImage}
               alt="Modern Gold Jewelry"
               style={{
-                width: '170px',
-                height: '170px',
+                width: logoSize,
+                height: logoSize,
                 objectFit: 'contain',
                 filter: 'none',
                 mixBlendMode: 'normal',
