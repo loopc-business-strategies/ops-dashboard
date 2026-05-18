@@ -3646,6 +3646,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         <MGMetalInvoicePrintLayout
           companyName={mgCompanyName}
           companyAddress={mgCompanyAddress}
+          logoImage={mgLogoImage}
           invoiceTitle={mgMetalInvoiceTitle}
           copyLabel={mgMetalCopyLabel}
           partyName={mgPartyAccountName}

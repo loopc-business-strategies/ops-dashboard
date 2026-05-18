@@ -1,6 +1,7 @@
 export default function MGMetalInvoicePrintLayout({
   companyName,
   companyAddress,
+  logoImage,
   invoiceTitle,
   copyLabel,
   partyName,
@@ -38,9 +39,29 @@ export default function MGMetalInvoicePrintLayout({
 
   return (
     <div style={{ maxWidth: '735px', margin: '0 auto', padding: '10px 8px 6px', color: '#111111', fontFamily: 'Arial, sans-serif', fontSize: '9.5px', pageBreakInside: 'avoid', colorAdjust: 'exact', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
-      <div style={{ marginBottom: '14px' }}>
-        <div style={{ fontSize: '18px', fontWeight: '900', lineHeight: 1.05, marginBottom: '3px' }}>{companyName}</div>
-        <div style={{ fontSize: '12px', lineHeight: 1.25, whiteSpace: 'pre-line' }}>{companyAddress}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 118px', gap: '18px', alignItems: 'start', marginBottom: '10px' }}>
+        <div>
+          <div style={{ fontSize: '16px', fontWeight: '900', lineHeight: 1.05, marginBottom: '3px' }}>{companyName}</div>
+          <div style={{ fontSize: '12px', lineHeight: 1.25, whiteSpace: 'pre-line' }}>{companyAddress}</div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', minHeight: '76px' }}>
+          {logoImage ? (
+            <img
+              src={logoImage}
+              alt="Modern Gold Jewelry"
+              style={{
+                width: '98px',
+                height: '98px',
+                objectFit: 'contain',
+                filter: 'none',
+                mixBlendMode: 'normal',
+                colorAdjust: 'exact',
+                printColorAdjust: 'exact',
+                WebkitPrintColorAdjust: 'exact',
+              }}
+            />
+          ) : null}
+        </div>
       </div>
 
       <div style={{ position: 'relative', height: '28px', marginBottom: '7px' }}>
