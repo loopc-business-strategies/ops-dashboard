@@ -36,7 +36,7 @@ export const DEFAULT_BRANDING_PROFILES = [{
 }]
 
 export const LOGO_UPLOAD_ACCEPT = 'image/png,image/svg+xml,.png,.svg'
-export const LOGO_UPLOAD_MAX_BYTES = 1024 * 1024
+export const LOGO_UPLOAD_MAX_BYTES = 3 * 1024 * 1024
 export const SUPPORTED_LOGO_MIME_TYPES = new Set(['image/png', 'image/svg+xml'])
 export const SUPPORTED_LOGO_EXTENSIONS = new Set(['png', 'svg'])
 

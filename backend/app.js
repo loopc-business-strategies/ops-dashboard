@@ -104,7 +104,7 @@ const backendBuildMeta = {
 
 function createApp() {
   const app = express()
-  const REQUEST_BODY_LIMIT = process.env.REQUEST_BODY_LIMIT || '2mb'
+  const REQUEST_BODY_LIMIT = process.env.REQUEST_BODY_LIMIT || '5mb'
   const isProduction = process.env.NODE_ENV === 'production'
 
   app.set('trust proxy', 1)

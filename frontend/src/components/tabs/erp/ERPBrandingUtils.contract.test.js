@@ -122,7 +122,7 @@ describe('ERPBrandingUtils – logo uploads', () => {
     expect(isSupportedLogoUpload({ name: 'logo.jpg', type: 'image/jpeg' })).toBe(false)
   })
 
-  test('keeps logo upload max below backend request body limit', () => {
-    expect(LOGO_UPLOAD_MAX_BYTES).toBe(1024 * 1024)
+  test('allows logo uploads up to 3 MB', () => {
+    expect(LOGO_UPLOAD_MAX_BYTES).toBe(3 * 1024 * 1024)
   })
 })
