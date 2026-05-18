@@ -1325,6 +1325,51 @@ describe('ERP accounting transactions workflow', () => {
     expect(String(balances.netDirection || '')).toBe('Debit')
   })
 
+  test('account enquiry returns an expanded statement when statementLimit is requested', async () => {
+    const financeUser = await createUser({ name: 'Account Statement Limit Tester' })
+
+    const targetAccount = await ChartOfAccount.create({
+      accountName: 'Statement Limit Target',
+      accountCode: '1502',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const offsetAccount = await ChartOfAccount.create({
+      accountName: 'Statement Limit Offset',
+      accountCode: '2502',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+
+    await Ledger.insertMany(Array.from({ length: 15 }, (_, index) => ({
+      date: new Date(`2026-02-${String(index + 1).padStart(2, '0')}T00:00:00.000Z`),
+      debitAccountId: targetAccount._id,
+      creditAccountId: offsetAccount._id,
+      amount: 10 + index,
+      description: `Statement limit movement ${index + 1}`,
+      referenceType: 'journal',
+      createdBy: financeUser._id,
+      currency: 'USD',
+      exchangeRate: 1,
+    })))
+
+    const defaultRes = await request(app)
+      .get('/api/erp-accounting/accounts/enquiry')
+      .query({ accountCode: '1502' })
+      .set(authHeader(financeUser))
+
+    expect(defaultRes.status).toBe(200)
+    expect(defaultRes.body?.statement?.entries || []).toHaveLength(15)
+
+    const limitedRes = await request(app)
+      .get('/api/erp-accounting/accounts/enquiry')
+      .query({ accountCode: '1502', statementLimit: 5 })
+      .set(authHeader(financeUser))
+
+    expect(limitedRes.status).toBe(200)
+    expect(limitedRes.body?.statement?.entries || []).toHaveLength(5)
+  })
+
   test('rejects non-base receipt when reference rate is missing or zero', async () => {
     const financeUser = await createUser({ name: 'FX Guard Tester' })
     const receivableAccount = await ChartOfAccount.create({

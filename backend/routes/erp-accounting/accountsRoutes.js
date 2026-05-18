@@ -68,6 +68,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     if (!accountCode) {
       return res.status(400).json({ success: false, message: 'Account number is required' })
     }
+    const rawStatementLimit = Number(req.query.statementLimit || 500)
+    const statementLimit = Math.min(Math.max(Number.isFinite(rawStatementLimit) ? rawStatementLimit : 500, 1), 1000)
 
     const scopedIds = await getAccountSummaryScope(req.user)
     const accountQuery = { accountCode }
@@ -185,7 +187,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       .populate('creditAccountId', 'accountCode accountName')
       .populate('createdBy', 'name')
       .sort({ date: -1, createdAt: -1 })
-      .limit(12)
+      .limit(statementLimit)
 
     const ledgerIds = ledgerEntries.map((entry) => entry._id)
     const referenceIds = ledgerEntries.map((entry) => entry.referenceId).filter(Boolean)
@@ -201,9 +203,14 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         const stockText = String(line?.stockCode || '').trim().toUpperCase()
         if (stockText === 'XAU' || stockText.includes('GOLD')) return 'XAU'
         if (stockText === 'XAG' || stockText.includes('SILV')) return 'XAG'
+        if (stockText === 'XPT' || stockText.includes('PLAT')) return 'XPT'
+        if (stockText === 'XPD' || stockText.includes('PALL')) return 'XPD'
         const productText = `${String(line?.productType || '')} ${String(line?.narration || '')}`.toLowerCase()
         if (productText.includes('gold') || productText.includes('xau')) return 'XAU'
         if (productText.includes('silver') || productText.includes('xag')) return 'XAG'
+        if (productText.includes('platinum') || productText.includes('xpt')) return 'XPT'
+        if (productText.includes('palladium') || productText.includes('xpd')) return 'XPD'
+        if (productText.includes('other') || productText.includes('misc')) return 'OTHER'
       }
       return ''
     }
@@ -211,9 +218,14 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const stockText = String(line?.stockCode || '').trim().toUpperCase()
       if (stockText === 'XAU' || stockText.includes('GOLD')) return 'XAU'
       if (stockText === 'XAG' || stockText.includes('SILV')) return 'XAG'
+      if (stockText === 'XPT' || stockText.includes('PLAT')) return 'XPT'
+      if (stockText === 'XPD' || stockText.includes('PALL')) return 'XPD'
       const productText = `${String(line?.productType || '')} ${String(line?.narration || '')}`.toLowerCase()
       if (productText.includes('gold') || productText.includes('xau')) return 'XAU'
       if (productText.includes('silver') || productText.includes('xag')) return 'XAG'
+      if (productText.includes('platinum') || productText.includes('xpt')) return 'XPT'
+      if (productText.includes('palladium') || productText.includes('xpd')) return 'XPD'
+      if (productText.includes('other') || productText.includes('misc')) return 'OTHER'
       return ''
     }
     const resolveSignedPureWeight = (txType, lines = [], txMetalCode = '') => {

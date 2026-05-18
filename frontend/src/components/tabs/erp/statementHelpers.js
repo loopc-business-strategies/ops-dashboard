@@ -1,0 +1,93 @@
+const STANDARD_METAL_CODES = new Set(['XAU', 'XAG', 'XPT', 'XPD'])
+
+export const DEFAULT_STATEMENT_METAL_OPTIONS = [
+  'Gold',
+  'Silver',
+  'Platinum',
+  'Palladium',
+  'Other',
+]
+
+export function resolveMetalCodeFromStockName(name) {
+  const normalized = String(name || '').trim().toLowerCase()
+  if (normalized === 'xau' || normalized === 'gold') return 'XAU'
+  if (normalized === 'xag' || normalized === 'silver') return 'XAG'
+  if (normalized === 'xpt' || normalized === 'platinum') return 'XPT'
+  if (normalized === 'xpd' || normalized === 'palladium') return 'XPD'
+  if (normalized === 'other' || normalized === 'others' || normalized === 'misc') return 'OTHER'
+  return normalized.toUpperCase()
+}
+
+export function resolveStatementMetalCode(entry = {}) {
+  const explicit = String(entry?.metalCode || '').trim().toUpperCase()
+  if (explicit) return explicit
+
+  const text = `${String(entry?.description || '')} ${String(entry?.offsetAccountName || '')} ${String(entry?.offsetAccountCode || '')}`.toLowerCase()
+  if (/\bxau\b|\bgold\b/.test(text)) return 'XAU'
+  if (/\bxag\b|\bsilver\b/.test(text)) return 'XAG'
+  if (/\bxpt\b|\bplatinum\b/.test(text)) return 'XPT'
+  if (/\bxpd\b|\bpalladium\b/.test(text)) return 'XPD'
+
+  return Number(entry?.metalSignedWeight || 0) !== 0 ? 'OTHER' : '-'
+}
+
+export function isOtherStatementMetalCode(metalCode) {
+  const normalized = String(metalCode || '').trim().toUpperCase()
+  return Boolean(normalized && normalized !== '-' && !STANDARD_METAL_CODES.has(normalized))
+}
+
+export function matchesStatementMetal(entry = {}, selectedMetal) {
+  const selected = resolveMetalCodeFromStockName(selectedMetal)
+  if (!selected) return true
+  const entryMetalCode = resolveStatementMetalCode(entry)
+  if (selected === 'OTHER') return isOtherStatementMetalCode(entryMetalCode)
+  return entryMetalCode === selected
+}
+
+export function resolveStatementMetalBalance(metals = {}, selectedMetalCode, entries = []) {
+  const metalCode = String(selectedMetalCode || '').trim().toUpperCase()
+  if (metalCode === 'XAG') return Number(metals?.silverBalance || 0)
+  if (metalCode === 'XAU') return Number(metals?.goldBalance || 0)
+
+  return entries.reduce((sum, entry) => {
+    if (!matchesStatementMetal(entry, metalCode)) return sum
+    return sum + Number(entry?.metalSignedWeight || 0)
+  }, 0)
+}
+
+export function buildStatementCurrencyOptions({
+  currencies = [],
+  accountCurrency = '',
+  rateCurrency = '',
+  baseCurrency = '',
+  modalCurrency = 'USD',
+  includeAll = false,
+} = {}) {
+  const values = [
+    includeAll ? 'ALL' : '',
+    accountCurrency,
+    rateCurrency,
+    baseCurrency,
+    modalCurrency,
+    ...currencies.map((currency) => currency?.code),
+  ]
+
+  return Array.from(new Set(values
+    .map((value) => String(value || '').trim().toUpperCase())
+    .filter(Boolean)))
+}
+
+export function buildStatementMetalOptions(stockTypeOptions = []) {
+  const inventoryOptions = Array.from(new Map(
+    (stockTypeOptions || [])
+      .map((stock) => String(stock?.mainStock || '').trim())
+      .filter(Boolean)
+      .map((mainStock) => [mainStock.toLowerCase(), mainStock]),
+  ).values())
+
+  return Array.from(new Map(
+    [...inventoryOptions, ...DEFAULT_STATEMENT_METAL_OPTIONS]
+      .map((name) => [String(name).trim().toLowerCase(), String(name).trim()])
+      .filter(([, name]) => Boolean(name)),
+  ).values())
+}

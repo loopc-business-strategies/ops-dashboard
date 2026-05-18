@@ -58,6 +58,14 @@ import ERPTransactionsTab from './erp/tabs/ERPTransactionsTab'
 import ERPReportsTab from './erp/tabs/ERPReportsTab'
 import { startERPRealtimeFeeds } from '../../utils/realtimeSocket'
 import { createHtmlExportRoot, downloadBlob, downloadCsv } from './erp/exportHelpers'
+import {
+  buildStatementCurrencyOptions,
+  buildStatementMetalOptions,
+  matchesStatementMetal,
+  resolveMetalCodeFromStockName,
+  resolveStatementMetalBalance,
+  resolveStatementMetalCode,
+} from './erp/statementHelpers'
 
 const VoucherTab = lazy(() => import('./VoucherTab'))
 import {
@@ -676,18 +684,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     return silverAbs > goldAbs ? 'XAG' : 'XAU'
   }
   const defaultStatementMetalCode = resolvePreferredStatementMetalCode(rawStatementEntries)
-  const resolveMetalCodeFromStockName = (name) => {
-    const n = String(name || '').trim().toLowerCase()
-    if (n === 'xau' || n === 'gold') return 'XAU'
-    if (n === 'xag' || n === 'silver') return 'XAG'
-    if (n === 'xpt' || n === 'platinum') return 'XPT'
-    if (n === 'xpd' || n === 'palladium') return 'XPD'
-    return n.toUpperCase()
-  }
   const statementSelectedMetalCode = statementFilters.metalCommodity
     ? resolveMetalCodeFromStockName(statementFilters.metalCommodity)
     : defaultStatementMetalCode
-  const statementSelectedMetalLabel = statementFilters.metalCommodity || (statementSelectedMetalCode === 'XAG' ? 'Silver' : 'Gold')
+  const statementSelectedMetalLabel = statementFilters.metalCommodity || (statementSelectedMetalCode === 'XAG' ? 'Silver' : statementSelectedMetalCode === 'OTHER' ? 'Other' : 'Gold')
   const statementDisplayCurrency = String(
     statementFilters.showAmountIn
     || accountEnquiryData?.balances?.rateCurrency
@@ -695,14 +695,23 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     || modalStatementCurrency,
   ).trim().toUpperCase()
   const baseCurrencyCode = String(currencies.find((currency) => currency.baseCurrency)?.code || 'USD').toUpperCase()
-  const statementCurrencyOptions = Array.from(new Set([
-    'ALL',
-    String(accountEnquiryData?.account?.currency || '').trim().toUpperCase(),
-    String(accountEnquiryData?.balances?.rateCurrency || '').trim().toUpperCase(),
-    String(baseCurrencyCode || '').trim().toUpperCase(),
-    String(modalStatementCurrency || '').trim().toUpperCase(),
-    ...currencies.map((currency) => String(currency?.code || '').trim().toUpperCase()),
-  ].filter(Boolean)))
+  const statementFilterCurrencyOptions = buildStatementCurrencyOptions({
+    includeAll: true,
+    currencies,
+    accountCurrency: accountEnquiryData?.account?.currency,
+    rateCurrency: accountEnquiryData?.balances?.rateCurrency,
+    baseCurrency: baseCurrencyCode,
+    modalCurrency: modalStatementCurrency,
+  })
+  const statementDisplayCurrencyOptions = buildStatementCurrencyOptions({
+    includeAll: false,
+    currencies,
+    accountCurrency: accountEnquiryData?.account?.currency,
+    rateCurrency: accountEnquiryData?.balances?.rateCurrency,
+    baseCurrency: baseCurrencyCode,
+    modalCurrency: modalStatementCurrency,
+  })
+  const statementMetalOptions = buildStatementMetalOptions(inventoryStockTypeOptions)
   const convertStatementDisplayAmount = (value) => {
     const numeric = Number(value || 0)
     if (!Number.isFinite(numeric)) return 0
@@ -768,14 +777,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     if (/fixing|fixed|price[\s-_]?fix/.test(text)) return 'fixed'
     return 'unknown'
   }
-  const resolveMetalCode = (entry) => {
-    const explicit = String(entry?.metalCode || '').trim().toUpperCase()
-    if (explicit) return explicit
-    const text = `${String(entry?.description || '')} ${String(entry?.offsetAccountName || '')} ${String(entry?.offsetAccountCode || '')}`.toLowerCase()
-    if (/\bxau\b|\bgold\b/.test(text)) return 'XAU'
-    if (/\bxag\b|\bsilver\b/.test(text)) return 'XAG'
-    return '-'
-  }
+  const resolveMetalCode = resolveStatementMetalCode
   const isLikelyMongoId = (value) => /^[a-f0-9]{24}$/i.test(String(value || '').trim())
   const resolveStatementReceiptNo = (entry = {}) => {
     const parsedDocNo = (() => {
@@ -819,9 +821,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (entryCurrency !== statementFilters.foreignCurrency.toUpperCase().trim()) return false
     }
     if (statementMetalCommodityEnabled && statementFilters.metalCommodity) {
-      const selectedMetalCode = resolveMetalCodeFromStockName(statementFilters.metalCommodity)
-      const entryMetalCode = resolveMetalCode(entry)
-      if (entryMetalCode !== selectedMetalCode) return false
+      if (!matchesStatementMetal(entry, statementFilters.metalCommodity)) return false
     }
     return true
   })
@@ -2733,7 +2733,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setEnquiryLoading(true)
       setShowEnquiryLookupMenu(false)
       setEnquiryStatus({ type: '', message: '' })
-      const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode)
+      const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, { statementLimit: 1000 })
       setAccountEnquiryCode(cleanCode)
       setAccountEnquiryData(data)
       setAccountSummaryView('position')
@@ -2806,7 +2806,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       showNotification('✅ Gold/Silver rates updated')
 
       if (accountEnquiryData?.account?.accountCode) {
-        const refreshed = await erpAccountingAPI.getAccountEnquiry(token, accountEnquiryData.account.accountCode)
+        const refreshed = await erpAccountingAPI.getAccountEnquiry(token, accountEnquiryData.account.accountCode, { statementLimit: 1000 })
         setAccountEnquiryData(refreshed)
         pushEnquiryHistory(refreshed.account)
       }
@@ -3660,13 +3660,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const statementMetalCode = statementSelectedMetalCode || resolvePreferredStatementMetalCode(exportEntries)
     const exportDisplayCurrency = statementDisplayCurrency
 
-    const endingPureWeight = statementMetalCode === 'XAG'
-      ? Number(accountEnquiryData?.metals?.silverBalance || 0)
-      : Number(accountEnquiryData?.metals?.goldBalance || 0)
+    const endingPureWeight = resolveStatementMetalBalance(accountEnquiryData?.metals, statementMetalCode, rawStatementEntries)
     const totalPureWeightMovement = exportEntries.reduce((sum, entry) => {
       const signedWeight = Number(entry?.metalSignedWeight || 0)
-      const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
-      if (metalCode && metalCode !== statementMetalCode) return sum
+      const metalCode = resolveMetalCode(entry)
+      if (metalCode && metalCode !== '-' && !matchesStatementMetal(entry, statementMetalCode)) return sum
       return sum + signedWeight
     }, 0)
     const openingPureWeight = endingPureWeight - totalPureWeightMovement
@@ -3714,12 +3712,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const debitUsd = Number(entry?.debitAmount || 0)
       const creditUsd = Number(entry?.creditAmount || 0)
       const signedPureWeight = Number(entry?.metalSignedWeight || 0)
-      const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
-      const debitPure = metalCode === statementMetalCode && signedPureWeight > 0 ? signedPureWeight : 0
-      const creditPure = metalCode === statementMetalCode && signedPureWeight < 0 ? Math.abs(signedPureWeight) : 0
+      const isSelectedMetalEntry = matchesStatementMetal(entry, statementMetalCode)
+      const debitPure = isSelectedMetalEntry && signedPureWeight > 0 ? signedPureWeight : 0
+      const creditPure = isSelectedMetalEntry && signedPureWeight < 0 ? Math.abs(signedPureWeight) : 0
 
       runningUsdBalance += Number(entry?.signedAmount || (debitUsd - creditUsd))
-      if (metalCode === statementMetalCode) runningPureWeight += signedPureWeight
+      if (isSelectedMetalEntry) runningPureWeight += signedPureWeight
 
       return `
         <tr>
@@ -3740,13 +3738,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const totalCreditUsd = exportEntries.reduce((sum, entry) => sum + Number(entry?.creditAmount || 0), 0)
     const totalDebitPure = exportEntries.reduce((sum, entry) => {
       const signedPureWeight = Number(entry?.metalSignedWeight || 0)
-      const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
-      return sum + (metalCode === statementMetalCode && signedPureWeight > 0 ? signedPureWeight : 0)
+      return sum + (matchesStatementMetal(entry, statementMetalCode) && signedPureWeight > 0 ? signedPureWeight : 0)
     }, 0)
     const totalCreditPure = exportEntries.reduce((sum, entry) => {
       const signedPureWeight = Number(entry?.metalSignedWeight || 0)
-      const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
-      return sum + (metalCode === statementMetalCode && signedPureWeight < 0 ? Math.abs(signedPureWeight) : 0)
+      return sum + (matchesStatementMetal(entry, statementMetalCode) && signedPureWeight < 0 ? Math.abs(signedPureWeight) : 0)
     }, 0)
     const closingUsdBalance = openingUsdBalance + (totalDebitUsd - totalCreditUsd)
     const closingPureWeight = openingPureWeight + (totalDebitPure - totalCreditPure)
@@ -8126,11 +8122,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, foreignCurrency: e.target.value }))}
                             style={modalInputStyle}
                           >
-                            <option value="">All</option>
-                            <option value="USD">USD</option>
-                            <option value="AED">AED</option>
-                            <option value="EUR">EUR</option>
-                            <option value="UZS">UZS</option>
+                            {statementFilterCurrencyOptions.map((currencyCode) => (
+                              <option key={currencyCode} value={currencyCode === 'ALL' ? '' : currencyCode}>
+                                {currencyCode === 'ALL' ? 'All' : currencyCode}
+                              </option>
+                            ))}
                           </select>
                         </label>
                         <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
@@ -8160,17 +8156,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                               disabled={!statementMetalCommodityEnabled}
                             >
                               <option value="">All Metals</option>
-                              {(inventoryStockTypeOptions || []).length > 0 ? (
-                                Array.from(new Map(inventoryStockTypeOptions.map((s) => [s.mainStock, s])).values()).map((s) => (
-                                  <option key={s.id} value={s.mainStock}>{s.mainStock}</option>
-                                ))
-                              ) : (
-                                <>
-                                  <option value="Gold">Gold</option>
-                                  <option value="Silver">Silver</option>
-                                  <option value="Platinum">Platinum</option>
-                                </>
-                              )}
+                              {statementMetalOptions.map((metalOption) => (
+                                <option key={metalOption} value={metalOption}>{metalOption}</option>
+                              ))}
                             </select>
                           </div>
                         </label>
@@ -8181,10 +8169,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, showAmountIn: e.target.value }))}
                             style={modalInputStyle}
                           >
-                            <option value="USD">USD</option>
-                            <option value="AED">AED</option>
-                            <option value="EUR">EUR</option>
-                            <option value="UZS">UZS</option>
+                            {statementDisplayCurrencyOptions.map((currencyCode) => (
+                              <option key={currencyCode} value={currencyCode}>{currencyCode}</option>
+                            ))}
                           </select>
                         </label>
                       </div>
