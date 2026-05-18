@@ -1,4 +1,5 @@
-﻿// repair-inventory-accounts.js
+﻿require('./destructive/_destructive-guard')({ scriptName: __filename })
+// repair-inventory-accounts.js
 require('dotenv').config();
 const mongoose = require('mongoose');
 
@@ -71,3 +72,4 @@ async function main() {
   await mongoose.disconnect();
 }
 main().catch(e => { console.error(e); process.exit(1); });
+require('./destructive/_destructive-guard')({ scriptName: __filename })

@@ -1,3 +1,4 @@
+require('./destructive/_destructive-guard')({ scriptName: __filename })
 require('dotenv').config()
 const mongoose = require('mongoose')
 
@@ -143,3 +144,4 @@ run().catch(async (e) => {
   try { await mongoose.disconnect() } catch {}
   process.exit(1)
 })
+require('./destructive/_destructive-guard')({ scriptName: __filename })

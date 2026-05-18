@@ -1,3 +1,4 @@
+require('./destructive/_destructive-guard')({ scriptName: __filename })
 require('dotenv').config()
 const dns = require('dns')
 
@@ -200,3 +201,4 @@ main().catch((err) => {
   console.error('Statutory bootstrap failed:', err.message)
   process.exit(1)
 })
+require('./destructive/_destructive-guard')({ scriptName: __filename })

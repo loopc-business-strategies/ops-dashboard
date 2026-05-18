@@ -67,6 +67,13 @@ import {
   resolveStatementMetalBalance,
   resolveStatementMetalCode,
 } from './erp/statementHelpers'
+import {
+  JV_MODE_META,
+  buildJvDocNo as buildNextJvDocNo,
+  createJvHeader as createNextJvHeader,
+  emptyJvLine,
+  resolveJvModeMeta,
+} from './erp/journalVoucherHelpers'
 
 const VoucherTab = lazy(() => import('./VoucherTab'))
 import {
@@ -214,45 +221,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   })
 
   // ─── Multi-line Journal Voucher state ─────────────────────────────────────
-  const emptyJvLine = (id) => ({ id, accountId: '', accountInput: '', description: '', debit: '', credit: '' })
-  const JV_MODE_META = {
-    journal: { label: 'Normal JV', badge: 'JOURNAL VOUCHER', prefix: 'Jv', referenceType: 'journal' },
-    bank_jv: { label: 'Bank JV', badge: 'BANK JOURNAL VOUCHER', prefix: 'BnkJV', referenceType: 'bank_jv' },
-  }
-  const resolveJvModeMeta = (mode = 'journal') => JV_MODE_META[mode] || JV_MODE_META.journal
-  const buildJvDocNo = (mode = 'journal') => {
-    const { prefix, referenceType } = resolveJvModeMeta(mode)
-    const year = new Date().getFullYear()
-    const maxExisting = ledger.reduce((max, entry) => {
-      if (String(entry?.referenceType || '').toLowerCase() !== String(referenceType || '').toLowerCase()) return max
-      const head = String(entry?.description || '').split(' — ')[0].trim()
-
-      const formattedMatch = head.match(/^([A-Z]+)\/(\d{4})\/(\d+)$/i)
-      if (formattedMatch) {
-        const formattedPrefix = String(formattedMatch[1] || '').toLowerCase()
-        const y = Number(formattedMatch[2])
-        const n = Number(formattedMatch[3])
-        if (formattedPrefix === String(prefix).toLowerCase() && y === year && Number.isFinite(n) && n > max) return n
-      }
-
-      const legacyMatch = head.match(/^([A-Z]+)-(\d+)$/i)
-      if (legacyMatch) {
-        const legacyPrefix = String(legacyMatch[1] || '').toLowerCase()
-        const n = Number(legacyMatch[2])
-        if (legacyPrefix === String(prefix).toLowerCase() && Number.isFinite(n) && n > max) return n
-      }
-
-      return max
-    }, 0)
-    const next = maxExisting + 1
-    return `${prefix}/${year}/${String(next).padStart(4, '0')}`
-  }
-  const createJvHeader = (currencyCode = 'USD', mode = 'journal') => ({
-    docNo: buildJvDocNo(mode),
-    date: new Date().toISOString().slice(0, 10),
-    narration: '',
-    currency: currencyCode,
-  })
+  const buildJvDocNo = (mode = 'journal') => buildNextJvDocNo(ledger, mode)
+  const createJvHeader = (currencyCode = 'USD', mode = 'journal') => createNextJvHeader(ledger, currencyCode, mode)
   const [jvLines, setJvLines] = useState([emptyJvLine(1), emptyJvLine(2)])
   const [jvHeader, setJvHeader] = useState(() => createJvHeader('USD', 'journal'))
   const [nextJvLineId, setNextJvLineId] = useState(3)

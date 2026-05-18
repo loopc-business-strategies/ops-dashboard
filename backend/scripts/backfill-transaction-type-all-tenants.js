@@ -1,3 +1,4 @@
+require('./destructive/_destructive-guard')({ scriptName: __filename })
 require('dotenv').config();
 const dns = require('dns');
 dns.setServers(['8.8.8.8', '1.1.1.1']);
@@ -60,3 +61,4 @@ async function fixTenant(name, uri) {
   console.error('Fatal:', e.message);
   process.exit(1);
 });
+require('./destructive/_destructive-guard')({ scriptName: __filename })

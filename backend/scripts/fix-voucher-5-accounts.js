@@ -1,3 +1,4 @@
+require('./destructive/_destructive-guard')({ scriptName: __filename })
 require("dotenv").config();
 const mongoose = require("mongoose");
 
@@ -66,3 +67,4 @@ async function fixVoucher5Accounts() {
 }
 
 fixVoucher5Accounts();
+require('./destructive/_destructive-guard')({ scriptName: __filename })

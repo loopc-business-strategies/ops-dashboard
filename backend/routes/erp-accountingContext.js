@@ -74,6 +74,15 @@ const { createTransactionPostingService } = require('../services/erpAccounting/t
 const { createCurrencyBootstrapService } = require('../services/erpAccounting/currencyBootstrapService')
 const { createReportSummaryService } = require('../services/erpAccounting/reportSummaryService')
 const {
+  TRANSACTION_ATTACHMENT_MIME_TYPES,
+  validateAttachmentContent,
+} = require('../services/erpAccounting/attachmentValidationService')
+const {
+  storeTransactionAttachment,
+  removeStoredAttachment,
+  sendStoredAttachment,
+} = require('../services/erpAccounting/attachmentStorageService')
+const {
   isSuperAdmin,
   isDepartmentHead,
   isFinance,
@@ -886,106 +895,10 @@ const transactionUpload = multer({
   }),
   limits: { fileSize: Number(process.env.TRANSACTION_ATTACHMENT_MAX_BYTES || 10 * 1024 * 1024) },
   fileFilter: (_req, file, cb) => {
-    const allowed = [
-      'application/pdf',
-      'image/png',
-      'image/jpeg',
-      'image/webp',
-      'text/plain',
-      'text/csv',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ]
-    if (allowed.includes(file.mimetype)) return cb(null, true)
+    if (TRANSACTION_ATTACHMENT_MIME_TYPES.includes(file.mimetype)) return cb(null, true)
     cb(new Error('Unsupported attachment type'))
   },
 })
-
-const detectAttachmentSignature = (filePath) => {
-  const fd = fs.openSync(filePath, 'r')
-  try {
-    const header = Buffer.alloc(16)
-    const bytesRead = fs.readSync(fd, header, 0, 16, 0)
-    const b = header.slice(0, bytesRead)
-
-    if (b.length >= 4 && b.toString('ascii', 0, 4) === '%PDF') return 'pdf'
-    if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 && b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A) return 'png'
-    if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpeg'
-    if (b.length >= 12 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP') return 'webp'
-    if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4B && b[2] === 0x03 && b[3] === 0x04) return 'zip'
-    if (b.length >= 8 && b[0] === 0xD0 && b[1] === 0xCF && b[2] === 0x11 && b[3] === 0xE0 && b[4] === 0xA1 && b[5] === 0xB1 && b[6] === 0x1A && b[7] === 0xE1) return 'ole'
-
-    return 'unknown'
-  } finally {
-    fs.closeSync(fd)
-  }
-}
-
-const isLikelyTextFile = (filePath) => {
-  const fd = fs.openSync(filePath, 'r')
-  try {
-    const sample = Buffer.alloc(1024)
-    const bytesRead = fs.readSync(fd, sample, 0, 1024, 0)
-    const b = sample.slice(0, bytesRead)
-    if (!b.length) return true
-
-    let suspicious = 0
-    for (const byte of b) {
-      const isControl = byte < 9 || (byte > 13 && byte < 32)
-      if (isControl) suspicious += 1
-    }
-    return (suspicious / b.length) < 0.05
-  } finally {
-    fs.closeSync(fd)
-  }
-}
-
-const validateAttachmentContent = (file) => {
-  const sig = detectAttachmentSignature(file.path)
-  const mime = String(file.mimetype || '')
-
-  if (mime === 'application/pdf') return sig === 'pdf'
-  if (mime === 'image/png') return sig === 'png'
-  if (mime === 'image/jpeg') return sig === 'jpeg'
-  if (mime === 'image/webp') return sig === 'webp'
-  if (mime === 'text/plain' || mime === 'text/csv') return isLikelyTextFile(file.path)
-  if (mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return sig === 'zip'
-  if (mime === 'application/vnd.ms-excel' || mime === 'application/msword') return sig === 'ole' || sig === 'zip'
-
-  return false
-}
-
-const resolveBackendBaseUrl = (req) => {
-  const configured = String(process.env.SERVER_BASE_URL || '').trim()
-  if (configured) return configured.replace(/\/+$/, '')
-
-  if (req) {
-    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim()
-    const proto = forwardedProto || req.protocol || 'http'
-    const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim()
-    const host = forwardedHost || req.get('host')
-    if (host) return `${proto}://${host}`
-  }
-
-  return ''
-}
-
-const buildTransactionAttachment = (req, file, user) => {
-  const relativePath = `/uploads/transactions/${file.filename}`
-  const backendBaseUrl = resolveBackendBaseUrl(req)
-  return {
-    originalName: file.originalname,
-    fileName: file.filename,
-    relativePath,
-    url: backendBaseUrl ? `${backendBaseUrl}${relativePath}` : relativePath,
-    mimeType: file.mimetype || 'application/octet-stream',
-    size: Number(file.size || 0),
-    uploadedBy: user._id,
-    uploadedAt: new Date(),
-  }
-}
 
 const populateTransactionQuery = (query) => query
   .populate('customerId', 'name')
@@ -2279,7 +2192,8 @@ function registerErpAccountingRoutes(router) {
     applyTransactionWorkflowAction,
     buildFxJournalRevaluationPreview,
     applyFxJournalRevaluation,
-    buildTransactionAttachment,
+    storeTransactionAttachment,
+    removeStoredAttachment,
     validateAttachmentContent,
     canAccessReports,
     isSuperAdmin,
@@ -2299,6 +2213,11 @@ function registerErpAccountingRoutes(router) {
     path,
     fs,
     Transaction,
+    Ledger,
+    canAccessTransactions,
+    canViewLedger,
+    canCreateTransaction,
+    sendStoredAttachment,
   })
   
   const {

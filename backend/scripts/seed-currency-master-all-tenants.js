@@ -1,3 +1,4 @@
+require('./destructive/_destructive-guard')({ scriptName: __filename })
 require('dotenv').config()
 const mongoose = require('mongoose')
 const { TENANT_KEYS, getTenantUri } = require('../config/tenants')
@@ -100,3 +101,4 @@ run().catch((error) => {
   console.error(error)
   process.exit(1)
 })
+require('./destructive/_destructive-guard')({ scriptName: __filename })

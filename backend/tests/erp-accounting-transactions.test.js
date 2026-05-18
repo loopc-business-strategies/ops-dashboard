@@ -196,7 +196,25 @@ describe('ERP accounting transactions workflow', () => {
 
     expect(attachmentRes.status).toBe(201)
     expect(attachmentRes.body.transaction.attachments).toHaveLength(1)
+    expect(attachmentRes.body.attachment.storageDriver).toBe('gridfs')
+    expect(attachmentRes.body.attachment.storageKey).toBeTruthy()
     expect(attachmentRes.body.transaction.auditTrail.some((entry) => entry.action === 'upload_attachment')).toBe(true)
+
+    const downloadRes = await request(app)
+      .get(`/api/erp-accounting/attachments/download/transaction/${attachmentRes.body.attachment.fileName}`)
+      .query({ txId: tx._id.toString() })
+      .set(authHeader(financeUser))
+
+    expect(downloadRes.status).toBe(200)
+    expect(downloadRes.text || downloadRes.body?.toString?.()).toContain('invoice-support')
+
+    const otherTx = await createDraftTransaction(financeUser, { description: 'Other voucher' })
+    const crossTxDownloadRes = await request(app)
+      .get(`/api/erp-accounting/attachments/download/transaction/${attachmentRes.body.attachment.fileName}`)
+      .query({ txId: otherTx._id.toString() })
+      .set(authHeader(financeUser))
+
+    expect(crossTxDownloadRes.status).toBe(404)
 
     const returnRes = await request(app)
       .post(`/api/erp-accounting/transactions/${tx._id}/return`)
@@ -308,6 +326,16 @@ describe('ERP accounting transactions workflow', () => {
     expect(Number(saleLedger.amount)).toBe(1500)
     expect(String(cogsLedger.creditAccountId)).toBe(String(inventoryAccount._id))
     expect(Number(cogsLedger.amount)).toBe(500)
+
+    const secondPostRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${createRes.body.transaction._id}/post`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Post sale voucher again' })
+
+    expect(secondPostRes.status).toBe(409)
+
+    const ledgersAfterSecondPost = await Ledger.find({ referenceId: createRes.body.transaction._id })
+    expect(ledgersAfterSecondPost).toHaveLength(2)
   })
 
   test('posting purchase voucher updates vendor ledger, inventory, and balance sheet from voucher lines', async () => {

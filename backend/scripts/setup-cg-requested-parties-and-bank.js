@@ -1,3 +1,4 @@
+require('./destructive/_destructive-guard')({ scriptName: __filename })
 require('dotenv').config()
 const dns = require('dns')
 const mongoose = require('mongoose')
@@ -254,3 +255,4 @@ main().catch((err) => {
   console.error('Fatal:', err.message)
   process.exit(1)
 })
+require('./destructive/_destructive-guard')({ scriptName: __filename })

@@ -1,3 +1,4 @@
+require('./destructive/_destructive-guard')({ scriptName: __filename })
 require('dotenv').config()
 const dns = require('dns')
 dns.setServers(['8.8.8.8', '1.1.1.1'])
@@ -182,3 +183,4 @@ main().catch((err) => {
   console.error('Fatal:', err.message)
   process.exit(1)
 })
+require('./destructive/_destructive-guard')({ scriptName: __filename })

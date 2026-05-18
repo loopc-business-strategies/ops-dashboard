@@ -1,3 +1,4 @@
+require('./destructive/_destructive-guard')({ scriptName: __filename })
 /**
  * Update UZS exchange rate to 1/12100 (1 USD = 12100 UZS) across all tenants
  */

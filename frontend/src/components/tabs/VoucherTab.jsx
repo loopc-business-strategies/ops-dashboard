@@ -7,6 +7,7 @@ import { getTenantBranding } from '../../config/tenantBranding'
 import DocumentPrintHeader from './erp/DocumentPrintHeader'
 import MGMetalInvoicePrintLayout from './erp/MGMetalInvoicePrintLayout'
 import MGVoucherPrintLayout from './erp/MGVoucherPrintLayout'
+import VoucherAttachmentsPanel from './erp/VoucherAttachmentsPanel'
 import { resolveDocumentBranding } from './erp/documentBranding'
 
 const BASE = '/api/erp-accounting'
@@ -14,7 +15,6 @@ const cfg = () => ({ withCredentials: true })
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const today = () => new Date().toISOString().slice(0, 10)
-
 const S = {
   // Colours
   green: 'var(--purple-light)',
@@ -706,6 +706,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const [selectedPartyId, setSelectedPartyId] = useState('')
   const [recentPartyVouchers, setRecentPartyVouchers] = useState([])
   const [loadingRecentPartyVouchers, setLoadingRecentPartyVouchers] = useState(false)
+  const [attachmentInputKey, setAttachmentInputKey] = useState(0)
   const [modalOffset, setModalOffset] = useState({ x: 0, y: 0 })
   const [modalDrag, setModalDrag] = useState(null)
   const dragMetaRef = useRef({ moved: false })
@@ -2267,6 +2268,82 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const canRejectWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && ['submitted', 'approved', 'returned'].includes(currentVoucherStatus)
   const canPostWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(currentVoucherStatus)
   const canRevalueCurrentVoucher = Boolean(editingId) && isSuperAdmin && ['payment', 'receipt'].includes(voucherType) && currentVoucherStatus === 'posted'
+  const currentAttachments = Array.isArray(currentVoucher?.attachments) ? currentVoucher.attachments : []
+  const attachmentUrl = (attachment, download = false) => (
+    `${BASE}/attachments/download/transaction/${encodeURIComponent(attachment.fileName)}?txId=${encodeURIComponent(editingId || '')}${download ? '&download=1' : ''}`
+  )
+
+  const handleUploadVoucherAttachments = async (fileList) => {
+    const files = Array.from(fileList || []).filter(Boolean)
+    if (!editingId) {
+      setError('Save the voucher first, then add attachments.')
+      return
+    }
+    if (!files.length) return
+
+    setSaving(true)
+    setError('')
+    try {
+      for (const file of files) {
+        const formData = new FormData()
+        formData.append('file', file)
+        await axios.post(`${BASE}/transactions/${editingId}/attachments`, formData, {
+          withCredentials: true,
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+      }
+      setAttachmentInputKey((prev) => prev + 1)
+      await loadVouchers()
+      const refreshed = await axios.get(`${BASE}/transactions`, {
+        ...cfg(),
+        params: { type: voucherType, limit: 200 },
+      })
+      const nextVouchers = sortVouchersByDocNo(
+        (refreshed.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
+        voucherType
+      )
+      setVouchers(nextVouchers)
+      const updated = nextVouchers.find((item) => item._id === editingId)
+      if (updated) openVoucher(updated)
+      showMsg(files.length === 1 ? 'Attachment uploaded' : `${files.length} attachments uploaded`)
+      setMenuTab('attachments')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to upload attachment')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteVoucherAttachment = async (attachmentId) => {
+    if (!editingId || !attachmentId) return
+    setSaving(true)
+    setError('')
+    try {
+      await axios.delete(`${BASE}/transactions/${editingId}/attachments/${attachmentId}`, cfg())
+      const refreshed = await axios.get(`${BASE}/transactions`, {
+        ...cfg(),
+        params: { type: voucherType, limit: 200 },
+      })
+      const nextVouchers = sortVouchersByDocNo(
+        (refreshed.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
+        voucherType
+      )
+      setVouchers(nextVouchers)
+      const updated = nextVouchers.find((item) => item._id === editingId)
+      if (updated) openVoucher(updated)
+      showMsg('Attachment deleted')
+      setMenuTab('attachments')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to delete attachment')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handlePreviewVoucherAttachment = (attachment, download = false) => {
+    if (!attachment?.fileName || !editingId) return
+    window.open(attachmentUrl(attachment, download), '_blank', 'noopener,noreferrer')
+  }
 
   // ─── guard ───────────────────────────────────────────────────────────────────
   if (!canView) {
@@ -3521,14 +3598,17 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
           {/* ── Attachments panel ── */}
           {menuTab === 'attachments' && (
-            <div style={sectionBox}>
-              <div style={sectionHeader}>Attachments</div>
-              <div style={{ ...sectionBody, color: S.muted, fontSize: '0.875rem', textAlign: 'center', padding: '2rem' }}>
-                {editingId
-                  ? 'Attachments can be managed via the Transactions tab.'
-                  : 'Save the voucher first, then add attachments.'}
-              </div>
-            </div>
+            <VoucherAttachmentsPanel
+              editingId={editingId}
+              attachments={currentAttachments}
+              isReadOnly={isReadOnly}
+              saving={saving}
+              attachmentInputKey={attachmentInputKey}
+              onUpload={handleUploadVoucherAttachments}
+              onPreview={handlePreviewVoucherAttachment}
+              onDelete={handleDeleteVoucherAttachment}
+              styles={{ sectionBox, sectionHeader, sectionBody, btn, S }}
+            />
           )}
 
           {/* ── Voucher Workflow ── */}

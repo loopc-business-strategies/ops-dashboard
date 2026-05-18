@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'vitest'
+import tenantRoutingCases from '../../../shared/tenant-routing-cases.json'
 import { getTenantBranding, resolveTenantFromHostname, resolveTenantFromSearch } from './tenantBranding'
 
 describe('tenant branding integration', () => {
+  test.each(tenantRoutingCases)('matches shared tenant routing case: $name', ({ hostname, fallback, expected }) => {
+    expect(resolveTenantFromHostname(hostname, fallback)).toBe(expected)
+  })
+
   test('resolves tenant from production-style subdomains and query overrides', () => {
     expect(resolveTenantFromHostname('mg.loopcstrategies.com')).toBe('mg')
     expect(resolveTenantFromHostname('cg.loopcstrategies.com')).toBe('cg')

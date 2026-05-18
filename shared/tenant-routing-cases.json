@@ -1,0 +1,38 @@
+[
+  {
+    "name": "production mg subdomain",
+    "hostname": "mg.loopcstrategies.com",
+    "fallback": "loopc",
+    "expected": "mg"
+  },
+  {
+    "name": "production cg subdomain with port",
+    "hostname": "cg.loopcstrategies.com:443",
+    "fallback": "loopc",
+    "expected": "cg"
+  },
+  {
+    "name": "direct tenant host",
+    "hostname": "loopc",
+    "fallback": "mg",
+    "expected": "loopc"
+  },
+  {
+    "name": "neutral api host falls back to header tenant",
+    "hostname": "api.loopcstrategies.com",
+    "fallback": "mg",
+    "expected": "mg"
+  },
+  {
+    "name": "localhost keeps selected fallback tenant",
+    "hostname": "localhost",
+    "fallback": "cg",
+    "expected": "cg"
+  },
+  {
+    "name": "unknown host keeps fallback tenant",
+    "hostname": "example.com",
+    "fallback": "loopc",
+    "expected": "loopc"
+  }
+]

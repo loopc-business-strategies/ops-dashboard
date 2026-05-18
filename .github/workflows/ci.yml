@@ -25,6 +25,15 @@ jobs:
       - name: Check forbidden tracked paths
         run: npm run check:tracked-paths
 
+      - name: Check destructive script guards
+        run: npm run check:destructive-guards
+
+      - name: Check risk guardrails
+        run: npm run check:risk-guardrails
+
+      - name: Check Vercel rewrites
+        run: npm run check:vercel-rewrites
+
       - name: Check ERP access policy parity
         run: |
           npm run sync:erp-access

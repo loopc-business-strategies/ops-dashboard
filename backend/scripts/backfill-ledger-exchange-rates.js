@@ -1,3 +1,4 @@
+require('./destructive/_destructive-guard')({ scriptName: __filename })
 /**
  * backfill-ledger-exchange-rates.js
  *

@@ -1,3 +1,4 @@
+require('./destructive/_destructive-guard')({ scriptName: __filename })
 require('dotenv').config()
 const mongoose = require('mongoose')
 const AccountMapping = require('../models/AccountMapping')
@@ -56,3 +57,4 @@ backfill().catch(async (error) => {
   await mongoose.disconnect()
   process.exit(1)
 })
+require('./destructive/_destructive-guard')({ scriptName: __filename })

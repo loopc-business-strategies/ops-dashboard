@@ -26,7 +26,8 @@ function registerTransactionRoutes(deps) {
     applyTransactionWorkflowAction,
     buildFxJournalRevaluationPreview,
     applyFxJournalRevaluation,
-    buildTransactionAttachment,
+    storeTransactionAttachment,
+    removeStoredAttachment,
     validateAttachmentContent,
     canAccessReports,
     isSuperAdmin,
@@ -545,6 +546,9 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
   try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
+    if (tx.status === 'posted') {
+      return res.status(409).json({ success: false, message: 'Transaction is already posted.' })
+    }
     const result = await applyTransactionWorkflowAction(tx, req.user, 'post', { comment: req.body?.comment, mappingOverride: req.body || {} })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
@@ -655,7 +659,12 @@ router.post('/transactions/:id/attachments', protect, transactionUpload.single('
       return res.status(400).json({ success: false, message: 'Attachment content does not match file type' })
     }
 
-    const attachment = buildTransactionAttachment(req, req.file, req.user)
+    const attachment = await storeTransactionAttachment({
+      req,
+      file: req.file,
+      user: req.user,
+      transactionModel: Transaction,
+    })
     tx.attachments.push(attachment)
     tx.updatedBy = req.user._id
     appendTransactionAudit(tx, req.user, 'upload_attachment', { fromStatus: tx.status, toStatus: tx.status, comment: attachment.originalName })
@@ -686,7 +695,11 @@ router.delete('/transactions/:id/attachments/:attachmentId', protect, async (req
     appendTransactionAudit(tx, req.user, 'delete_attachment', { fromStatus: tx.status, toStatus: tx.status, comment: attachment.originalName })
     await tx.save()
 
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+    await removeStoredAttachment({
+      attachment,
+      transactionModel: Transaction,
+      localFilePath: filePath,
+    })
 
     const populated = await populateTransactionQuery(Transaction.findById(tx._id))
     res.json({ success: true, transaction: populated })

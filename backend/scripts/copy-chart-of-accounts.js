@@ -1,3 +1,4 @@
+require('./destructive/_destructive-guard')({ scriptName: __filename })
 /**
  * copy-chart-of-accounts.js
  *
@@ -107,3 +108,4 @@ main().catch(err => {
   console.error('Fatal error:', err.message)
   process.exit(1)
 })
+require('./destructive/_destructive-guard')({ scriptName: __filename })

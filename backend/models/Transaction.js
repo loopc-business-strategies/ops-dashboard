@@ -49,6 +49,8 @@ const transactionSchema = new mongoose.Schema(
         fileName: { type: String, trim: true, required: true },
         relativePath: { type: String, trim: true, required: true },
         url: { type: String, trim: true, required: true },
+        storageDriver: { type: String, enum: ['local', 'gridfs'], default: 'local' },
+        storageKey: { type: String, trim: true, default: '' },
         mimeType: { type: String, trim: true, default: 'application/octet-stream' },
         size: { type: Number, default: 0 },
         uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },

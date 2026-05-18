@@ -1,3 +1,4 @@
+require('./destructive/_destructive-guard')({ scriptName: __filename })
 require('dotenv').config()
 const dns = require('dns')
 const mongoose = require('mongoose')
@@ -138,3 +139,4 @@ async function processTenant(tenant) {
   console.error('Fatal:', err.message)
   process.exit(1)
 })
+require('./destructive/_destructive-guard')({ scriptName: __filename })
