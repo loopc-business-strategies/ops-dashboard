@@ -2411,7 +2411,22 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         .voucher-print-only { display: block !important; }
         body * { visibility: hidden; }
         .voucher-print-only, .voucher-print-only * { visibility: visible; }
-        .voucher-print-only { position: absolute; top: 0; left: 0; width: 100%; }
+        .voucher-print-only {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          color-adjust: exact;
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
+        .voucher-print-only img {
+          filter: none !important;
+          mix-blend-mode: normal !important;
+          color-adjust: exact;
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
       }
     `}</style>
     <div className="voucher-screen-only" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>

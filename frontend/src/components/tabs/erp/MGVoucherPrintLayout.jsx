@@ -25,7 +25,7 @@ export default function MGVoucherPrintLayout({
   const recordCount = lineItems.length || 1
 
   return (
-    <div style={{ maxWidth: '735px', margin: '0 auto', fontSize: '11px', color: '#111111', pageBreakInside: 'avoid' }}>
+    <div style={{ maxWidth: '735px', margin: '0 auto', fontSize: '11px', color: '#111111', pageBreakInside: 'avoid', colorAdjust: 'exact', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 170px', gap: '18px', alignItems: 'start', marginBottom: '8px' }}>
         <div>
           <div style={{ fontSize: '18px', lineHeight: '1.1', fontWeight: '900', letterSpacing: 0, marginBottom: '8px' }}>
@@ -41,7 +41,20 @@ export default function MGVoucherPrintLayout({
         </div>
         <div style={{ textAlign: 'center' }}>
           {logoImage ? (
-            <img src={logoImage} alt="Modern Gold Jewelry" style={{ width: '136px', height: '136px', objectFit: 'contain' }} />
+            <img
+              src={logoImage}
+              alt="Modern Gold Jewelry"
+              style={{
+                width: '136px',
+                height: '136px',
+                objectFit: 'contain',
+                filter: 'none',
+                mixBlendMode: 'normal',
+                colorAdjust: 'exact',
+                printColorAdjust: 'exact',
+                WebkitPrintColorAdjust: 'exact',
+              }}
+            />
           ) : null}
         </div>
       </div>
