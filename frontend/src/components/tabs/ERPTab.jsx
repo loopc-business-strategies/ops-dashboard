@@ -2902,7 +2902,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
 
     if (activeTab === 'dashboard') loadDashboard()
     else if (activeTab === 'accounts') loadAccounts()
-    else if (activeTab === 'customers' || activeTab === 'customer-margin') loadCustomers()
+    else if (activeTab === 'customer-margin') loadCustomers({ limit: 200 })
+    else if (activeTab === 'customers') loadCustomers()
     else if (activeTab === 'supplier-margin') loadVendors()
     else if (activeTab === 'ledger') {
       loadLedger()
@@ -5865,7 +5866,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                     <td style={{ padding: '0.75rem', color: C.t2 }}>{customer.email || '-'}</td>
                     <td style={{ padding: '0.75rem', color: C.t2 }}>{customer.gstVat || '-'}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.openingBalance || 0).toLocaleString()}</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right', color: Number(customer.outstandingBalance || 0) > 0 ? C.s1 : C.t2, fontWeight: '600' }}>{Number(customer.outstandingBalance || 0).toLocaleString()}</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right', color: Number(customer.outstandingBalance || 0) > 0 ? C.s1 : Number(customer.outstandingBalance || 0) < 0 ? '#DC2626' : C.t2, fontWeight: '600' }}>{Number(customer.outstandingBalance || 0).toLocaleString()}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.aging?.bucket0to30 || 0).toLocaleString()}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.aging?.bucket31to60 || 0).toLocaleString()}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.aging?.bucket61to90 || 0).toLocaleString()}</td>

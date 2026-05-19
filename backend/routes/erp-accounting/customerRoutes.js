@@ -64,11 +64,17 @@ function registerCustomerRoutes(deps) {
         const debit = debitMap.get(accountId) || 0
         const credit = creditMap.get(accountId) || 0
         const net = debit - credit
-        const outstanding = toMoney(Math.abs(net))
+        const outstanding = toMoney(net)
         return {
           ...customer.toObject(),
           outstandingBalance: outstanding,
-          aging: { bucket0to30: 0, bucket31to60: 0, bucket61to90: 0, bucket90Plus: 0, total: outstanding },
+          aging: {
+            bucket0to30: 0,
+            bucket31to60: 0,
+            bucket61to90: 0,
+            bucket90Plus: 0,
+            total: toMoney(Math.abs(net)),
+          },
         }
       })
 
