@@ -92,17 +92,25 @@ export function buildStatementMetalOptions(stockTypeOptions = []) {
   ).values())
 }
 
+export function resolveExposureDirection(value) {
+  const amount = Number(value || 0)
+  if (amount > 0) return 'Debit'
+  if (amount < 0) return 'Credit'
+  return 'Flat'
+}
+
 export function calculateAccountSummaryMetrics({
   totalFunds = 0,
   revaluation = 0,
   marginAmount = 0,
 } = {}) {
-  const fundsExposure = Math.abs(Number(totalFunds || 0))
+  const signedFunds = Number(totalFunds || 0)
   const revaluationValue = Number(revaluation || 0)
   const marginValue = Math.abs(Number(marginAmount || 0))
-  const netEquity = fundsExposure + revaluationValue
+  const fundsExposure = Math.abs(signedFunds)
+  const netEquity = signedFunds + revaluationValue
   const excess = netEquity - marginValue
-  const marginPercent = marginValue !== 0 ? (netEquity / marginValue) * 100 : 0
+  const marginPercent = marginValue > 0 ? (fundsExposure / marginValue) * 100 : 0
 
   return {
     fundsExposure,

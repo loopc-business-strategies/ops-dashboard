@@ -984,7 +984,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
     ])
 
     // --- AP & AR (via customer / vendor ledger accounts) ---
-    const customers = await Customer.find({ isActive: true }).populate('ledgerAccountId', 'accountCode accountName')
+    const customers = await Customer.find({ isActive: true }).populate('ledgerAccountId', 'accountCode accountName openingBalance')
     const vendors = await Vendor.find({ isActive: true, deletedAt: null }).populate('ledgerAccountId', 'accountCode accountName')
 
     const customerOutstanding = await Promise.all(customers.map(async (c) => {
@@ -1000,8 +1000,9 @@ router.get('/reports/dashboard', protect, async (req, res) => {
 
     // --- Customer / Supplier margin: show every created party account ---
     const customerMargins = await Promise.all(customers.map(async (c) => {
+      const opening = Number(c.ledgerAccountId?.openingBalance ?? c.openingBalance ?? 0)
       const outstanding = c.ledgerAccountId?._id
-        ? Number(await getOutstandingForAccount(c.ledgerAccountId._id) || 0)
+        ? opening + Number(await getOutstandingForAccount(c.ledgerAccountId._id) || 0)
         : Number(c.outstandingBalance || 0)
       const base = Number(c.creditLimit || 0) > 0
         ? Number(c.creditLimit || 0)

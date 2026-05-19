@@ -3,6 +3,7 @@ import {
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
   calculateAccountSummaryMetrics,
+  resolveExposureDirection,
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
   resolveStatementMetalBalance,
@@ -71,7 +72,7 @@ describe('statement helpers', () => {
     expect(resolveStatementMetalBalance({}, 'OTHER', entries)).toBe(2.5)
   })
 
-  test('calculates account summary equity from credit exposure magnitude', () => {
+  test('calculates account summary equity with signed credit exposure', () => {
     const metrics = calculateAccountSummaryMetrics({
       totalFunds: -112022.75,
       revaluation: 0,
@@ -79,8 +80,9 @@ describe('statement helpers', () => {
     })
 
     expect(metrics.fundsExposure).toBe(112022.75)
-    expect(metrics.netEquity).toBe(112022.75)
-    expect(metrics.excess).toBe(112022.75)
+    expect(metrics.netEquity).toBe(-112022.75)
+    expect(metrics.excess).toBe(-112022.75)
     expect(metrics.marginPercent).toBe(0)
+    expect(resolveExposureDirection(metrics.netEquity)).toBe('Credit')
   })
 })

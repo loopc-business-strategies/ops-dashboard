@@ -32,7 +32,7 @@ function registerCustomerRoutes(deps) {
         Customer.find({ isActive: true })
           .populate({
             path: 'ledgerAccountId',
-            select: 'accountName accountCode accountType isActive',
+            select: 'accountName accountCode accountType isActive openingBalance',
             match: { isActive: true },
           })
           .sort({ createdAt: -1 })
@@ -63,7 +63,8 @@ function registerCustomerRoutes(deps) {
         const accountId = String(customer.ledgerAccountId?._id || '')
         const debit = debitMap.get(accountId) || 0
         const credit = creditMap.get(accountId) || 0
-        const net = debit - credit
+        const opening = Number(customer.ledgerAccountId?.openingBalance ?? customer.openingBalance ?? 0)
+        const net = opening + (debit - credit)
         const outstanding = toMoney(net)
         return {
           ...customer.toObject(),

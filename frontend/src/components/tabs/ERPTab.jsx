@@ -62,6 +62,7 @@ import {
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
   calculateAccountSummaryMetrics,
+  resolveExposureDirection,
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
   resolveStatementMetalBalance,
@@ -8205,7 +8206,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                       {/* Net Equity */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Net Equity</span>
-                        <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalNetEquityDisplay, 2)}</span>
+                        <span style={{ color: getSignedColor(modalNetEquityDisplay), fontWeight: '700', fontSize: '1rem' }}>
+                          {formatDirectionalBalance(modalNetEquityDisplay, { preferredDirection: resolveExposureDirection(modalNetEquityDisplay) })}
+                        </span>
                       </div>
 
                       {/* Margin Amt @ 2% */}
@@ -8221,7 +8224,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                           <select value={excessCurrency} onChange={(e) => setExcessCurrency(e.target.value)} style={{ border: '1px solid #CBD5E0', borderRadius: '0.4rem', background: '#FFFFFF', fontSize: '0.85rem', padding: '0.3rem 0.5rem', fontWeight: '600' }}>
                             <option value="USD">USD</option>
                           </select>
-                          <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>{formatStatementValue(modalExcessDisplay, 2)}</span>
+                          <span style={{ color: getSignedColor(modalExcessDisplay), fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>
+                            {formatDirectionalBalance(modalExcessDisplay, { preferredDirection: resolveExposureDirection(modalExcessDisplay) })}
+                          </span>
                         </div>
                       </div>
 
@@ -8230,6 +8235,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin %</span>
                         <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.1rem' }}>{formatStatementValue(modalMarginPctDisplay, 2)}%</span>
                       </div>
+                      <p style={{ margin: '0.45rem 0 0', color: '#6B7280', fontSize: '0.72rem', lineHeight: 1.45 }}>
+                        Debit exposure is favorable; Credit exposure is payable. Customer Margin negative equity matches Credit (Cr) balances here.
+                      </p>
                     </div>
 
                   </div>
