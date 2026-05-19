@@ -1,3 +1,5 @@
+import { API_ORIGIN } from '../../../../api/client'
+
 export default function ERPVendorsTab({
   activeTab,
   C,
@@ -35,6 +37,48 @@ export default function ERPVendorsTab({
   setVendorDocumentForm,
   handleDeleteVendorDocument,
 }) {
+  const formatDate = (value) => {
+    if (!value) return '-'
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString()
+  }
+
+  const getVendorContact = (vendor) => {
+    const parts = [vendor.contactPerson, vendor.phone, vendor.email].filter(Boolean)
+    return parts.length ? parts.join(' | ') : '-'
+  }
+
+  const getVendorDueSummary = (vendor) => {
+    const nextDue = vendor.nextDue || null
+    const overdue = Number(vendor.dueAlerts?.overdue || 0)
+    const amount = Number(vendor.dueAmount || nextDue?.remaining || 0)
+    if (!nextDue && !amount) return { label: 'No due', color: C.inkSoft, detail: '-' }
+    if (overdue > 0 || nextDue?.alertLevel === 'overdue') {
+      return { label: `${amount.toLocaleString()} overdue`, color: '#991B1B', detail: nextDue ? `Since ${formatDate(nextDue.dueDate)}` : `${overdue} overdue` }
+    }
+    return { label: `${amount.toLocaleString()} due`, color: '#92400E', detail: nextDue ? `Next ${formatDate(nextDue.dueDate)}` : '-' }
+  }
+
+  const getVendorAlertText = (vendor) => {
+    const nextDue = vendor.nextDue
+    if (nextDue?.alertLevel === 'overdue') return `Overdue payment: ${Number(nextDue.remaining || 0).toLocaleString()} ${nextDue.currency || vendor.currency || 'USD'}`
+    if (nextDue?.alertLevel === 'due_soon') return `Due soon: ${Number(nextDue.remaining || 0).toLocaleString()} ${nextDue.currency || vendor.currency || 'USD'}`
+    if (vendor.compliance && !vendor.compliance.compliant) return `Missing docs: ${(vendor.compliance.missingDocuments || []).join(', ') || 'review required'}`
+    return 'Monthly review'
+  }
+
+  const getVendorMessage = (vendor) => {
+    if (vendor.nextDue) return `${getVendorAlertText(vendor)}. Contact ${vendor.contactPerson || vendor.email || vendor.phone || 'vendor'} before ${formatDate(vendor.nextDue.dueDate)}.`
+    if (vendor.notes) return vendor.notes
+    return 'No open payment message.'
+  }
+
+  const getVendorDocumentUrl = (doc, vendorId = selectedVendorId) => {
+    if (!doc) return ''
+    if (doc.fileName && doc._id && vendorId) return `${API_ORIGIN}/api/erp-accounting/vendors/${vendorId}/documents/${doc._id}/download`
+    return doc.fileUrl || ''
+  }
+
   return (
     <>
       {/* VENDORS TAB */}
@@ -253,22 +297,46 @@ export default function ERPVendorsTab({
                     <th style={{ padding: '0.6rem', textAlign: 'left' }}>Contact</th>
                     <th style={{ padding: '0.6rem', textAlign: 'left' }}>Status</th>
                     <th style={{ padding: '0.6rem', textAlign: 'right' }}>Outstanding</th>
+                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Pay Due / Overdue</th>
+                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Next Due Date</th>
+                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Alert</th>
+                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Attachments</th>
+                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Message</th>
                     <th style={{ padding: '0.6rem', textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {vendors.map((v) => (
+                  {vendors.map((v) => {
+                    const due = getVendorDueSummary(v)
+                    const latestDoc = (v.documents || [])[0]
+                    return (
                     <tr key={v._id} style={{ borderBottom: `1px solid ${C.p2}`, background: selectedVendorId === v._id ? '#ECFEFF' : 'transparent' }}>
                       <td style={{ padding: '0.6rem' }}>{v.vendorCode || '-'}</td>
                       <td style={{ padding: '0.6rem', minWidth: '170px' }}>
                         <div style={{ fontWeight: '700', color: C.ink }}>{v.name}</div>
                         <div style={{ color: C.inkSoft, fontSize: '0.74rem' }}>{v.category || 'general'} | Risk {v.riskLevel || 'medium'}</div>
                       </td>
-                      <td style={{ padding: '0.6rem' }}>{v.contactPerson || v.phone || '-'}</td>
+                      <td style={{ padding: '0.6rem', minWidth: '170px' }}>{getVendorContact(v)}</td>
                       <td style={{ padding: '0.6rem' }}>
                         <span style={{ padding: '0.15rem 0.5rem', borderRadius: '999px', background: v.status === 'blacklisted' ? '#FEE2E2' : v.status === 'on_hold' ? '#FEF3C7' : '#DCFCE7', color: v.status === 'blacklisted' ? '#991B1B' : v.status === 'on_hold' ? '#92400E' : '#166534', fontWeight: '700', fontSize: '0.72rem' }}>{v.status || 'active'}</span>
                       </td>
                       <td style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '700', color: v.isOverLimit ? '#DC2626' : C.ink }}>{Number(v.outstanding || 0).toLocaleString()}</td>
+                      <td style={{ padding: '0.6rem', minWidth: '140px' }}>
+                        <div style={{ color: due.color, fontWeight: '800' }}>{due.label}</div>
+                        <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{due.detail}</div>
+                      </td>
+                      <td style={{ padding: '0.6rem' }}>{formatDate(v.nextDue?.dueDate)}</td>
+                      <td style={{ padding: '0.6rem', minWidth: '150px', color: C.inkSoft }}>{getVendorAlertText(v)}</td>
+                      <td style={{ padding: '0.6rem' }}>
+                        {latestDoc ? (
+                          <a href={getVendorDocumentUrl(latestDoc, v._id)} target="_blank" rel="noreferrer" style={{ color: '#1D4ED8', fontWeight: '700', textDecoration: 'none' }}>
+                            {(v.documents || []).length} file{(v.documents || []).length === 1 ? '' : 's'}
+                          </a>
+                        ) : (
+                          <span style={{ color: C.inkSoft }}>No file</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '0.6rem', minWidth: '220px', color: C.inkSoft }}>{getVendorMessage(v)}</td>
                       <td style={{ padding: '0.6rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                           <button onClick={() => handleVendorSelect(v._id)} style={{ padding: '0.25rem 0.55rem', background: '#E0F2FE', border: '1px solid #7DD3FC', borderRadius: '0.3rem', color: '#075985', cursor: 'pointer', fontSize: '0.75rem' }}>View</button>
@@ -277,7 +345,7 @@ export default function ERPVendorsTab({
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
               {vendors.length === 0 && <p style={{ color: C.inkSoft, margin: '0.8rem', textAlign: 'center' }}>No vendors found for current filters.</p>}
@@ -399,7 +467,11 @@ export default function ERPVendorsTab({
                         </select>
                         <input placeholder="Title" value={vendorDocumentForm.title} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, title: e.target.value }))} style={modalInputStyle} />
                         <input placeholder="Document No" value={vendorDocumentForm.documentNo} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, documentNo: e.target.value }))} style={modalInputStyle} />
-                        <input placeholder="File URL" value={vendorDocumentForm.fileUrl} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, fileUrl: e.target.value }))} style={modalInputStyle} />
+                        <input placeholder="File URL (optional)" value={vendorDocumentForm.fileUrl} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, fileUrl: e.target.value }))} style={modalInputStyle} />
+                        <label style={{ ...modalInputStyle, marginBottom: 0, display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', color: C.inkSoft }}>
+                          <span>{vendorDocumentForm.file?.name || 'Upload PDF/image/file'}</span>
+                          <input type="file" onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, file: e.target.files?.[0] || null, title: prev.title || e.target.files?.[0]?.name || '' }))} style={{ display: 'none' }} />
+                        </label>
                         <input type="date" value={vendorDocumentForm.issueDate} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, issueDate: e.target.value }))} style={modalInputStyle} />
                         <input type="date" value={vendorDocumentForm.expiryDate} onChange={(e) => setVendorDocumentForm((prev) => ({ ...prev, expiryDate: e.target.value }))} style={modalInputStyle} />
                       </div>
@@ -409,7 +481,11 @@ export default function ERPVendorsTab({
                       {(selectedVendorDetails.vendor.documents || []).map((doc) => (
                         <div key={doc._id} style={{ padding: '0.45rem', borderBottom: `1px solid ${C.p2}` }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.35rem' }}>
-                            <span style={{ color: C.ink, fontWeight: '600', fontSize: '0.74rem' }}>{doc.docType} - {doc.title}</span>
+                            {getVendorDocumentUrl(doc) ? (
+                              <a href={getVendorDocumentUrl(doc)} target="_blank" rel="noreferrer" style={{ color: '#1D4ED8', fontWeight: '700', fontSize: '0.74rem', textDecoration: 'none' }}>{doc.docType} - {doc.title}</a>
+                            ) : (
+                              <span style={{ color: C.ink, fontWeight: '600', fontSize: '0.74rem' }}>{doc.docType} - {doc.title}</span>
+                            )}
                             {vendorPermissions.canUpdateOperational && <button onClick={() => handleDeleteVendorDocument(doc._id)} style={{ padding: '0.2rem 0.45rem', borderRadius: '0.28rem', border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#991B1B', cursor: 'pointer', fontSize: '0.7rem' }}>Delete</button>}
                           </div>
                           <div style={{ color: C.inkSoft, fontSize: '0.71rem' }}>{doc.documentNo || '-'} {doc.expiryDate ? `| Exp: ${new Date(doc.expiryDate).toLocaleDateString()}` : ''}</div>

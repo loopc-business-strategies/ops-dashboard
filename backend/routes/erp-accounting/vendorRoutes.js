@@ -1,4 +1,6 @@
 const { Joi } = require('../../middleware/validate')
+const fs = require('fs')
+const path = require('path')
 
 const vendorDocumentParamSchema = Joi.object({
   id: Joi.string().hex().length(24).required(),
@@ -46,6 +48,12 @@ function registerVendorRoutes(deps) {
     buildVendorSummary,
     nextVendorCode,
     nextVendorAccountCode,
+    vendorDocumentUpload,
+    vendorDocumentUploadDir,
+    storeUploadedAttachment,
+    removeStoredAttachment,
+    sendStoredAttachment,
+    validateAttachmentContent,
     toMoney,
   } = deps
 
@@ -92,10 +100,16 @@ function registerVendorRoutes(deps) {
         Vendor.countDocuments(query),
       ])
 
-      const summaries = await batchVendorSummaries(vendors)
+      const [summaries, paymentSchedules] = await Promise.all([
+        batchVendorSummaries(vendors),
+        Promise.all(vendors.map((vendor) => buildVendorPaymentCalendar(vendor, { horizonDays: 45 }))),
+      ])
       const data = vendors.map((vendor, index) => ({
         ...vendor.toObject(),
         ...summaries[index],
+        nextDue: paymentSchedules[index]?.calendar?.[0] || null,
+        dueAlerts: paymentSchedules[index]?.alertCounts || { overdue: 0, due_soon: 0, upcoming: 0, later: 0 },
+        dueAmount: paymentSchedules[index]?.totalDue || 0,
       }))
 
       const totals = data.reduce((acc, row) => {
@@ -436,6 +450,7 @@ function registerVendorRoutes(deps) {
       if (updates.rating !== undefined) updates.rating = Math.min(Math.max(Number(updates.rating || 3), 1), 5)
       if (updates.paymentTermsDays !== undefined) updates.paymentTermsDays = Math.max(0, Number(updates.paymentTermsDays || 0))
       if (updates.creditLimit !== undefined) updates.creditLimit = Math.max(0, Number(updates.creditLimit || 0))
+      if (updates.riskLevel !== undefined) updates.riskLevel = String(updates.riskLevel || 'medium').toLowerCase()
       if (updates.tags !== undefined) {
         updates.tags = Array.isArray(updates.tags)
           ? updates.tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 20)
@@ -587,6 +602,85 @@ function registerVendorRoutes(deps) {
     }
   })
 
+  router.post('/vendors/:id/documents/upload', protect, validateParams(idParam), vendorDocumentUpload.single('file'), async (req, res) => {
+    try {
+      if (!canUpdateVendorOperational(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!req.file) return res.status(400).json({ success: false, message: 'File is required' })
+
+      const vendor = await Vendor.findById(req.params.id)
+      if (!vendor || vendor.deletedAt) return res.status(404).json({ success: false, message: 'Vendor not found' })
+
+      if (!validateAttachmentContent(req.file)) {
+        const filePath = path.resolve(vendorDocumentUploadDir, req.file.filename)
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+        return res.status(400).json({ success: false, message: 'Unsupported or invalid attachment content' })
+      }
+
+      const TenantVendor = await Vendor.getTenantModel(req.tenant)
+      const stored = await storeUploadedAttachment({
+        req,
+        file: req.file,
+        user: req.user,
+        model: TenantVendor,
+        relativePathPrefix: '/uploads/vendor-documents',
+        bucketName: 'vendorDocuments',
+        metadata: { vendorId: String(vendor._id) },
+      })
+
+      const title = String(req.body.title || req.file.originalname || 'Vendor attachment').trim()
+      vendor.documents.push({
+        docType: ['contract', 'trade_license', 'vat_certificate', 'bank_proof', 'other'].includes(String(req.body.docType || '').trim()) ? req.body.docType : 'other',
+        title,
+        documentNo: String(req.body.documentNo || '').trim(),
+        fileUrl: stored.url,
+        originalName: stored.originalName,
+        fileName: stored.fileName,
+        relativePath: stored.relativePath,
+        storageDriver: stored.storageDriver,
+        storageKey: stored.storageKey,
+        mimeType: stored.mimeType,
+        size: stored.size,
+        issueDate: req.body.issueDate ? new Date(req.body.issueDate) : null,
+        expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : null,
+        status: ['active', 'expired', 'pending_verification'].includes(String(req.body.status || '').trim()) ? req.body.status : 'active',
+        notes: String(req.body.notes || '').trim(),
+        uploadedBy: req.user._id,
+      })
+      vendor.updatedBy = req.user._id
+      await vendor.save()
+
+      res.status(201).json({ success: true, documents: vendor.documents || [] })
+    } catch (error) {
+      if (req.file?.filename) {
+        const filePath = path.resolve(vendorDocumentUploadDir, req.file.filename)
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+      }
+      res.status(500).json({ success: false, message: error?.message || 'Server error' })
+    }
+  })
+
+  router.get('/vendors/:id/documents/:documentId/download', protect, validateParams(vendorDocumentParamSchema), async (req, res) => {
+    try {
+      if (!canAccessVendors(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+
+      const vendor = await Vendor.findById(req.params.id)
+      if (!vendor || vendor.deletedAt) return res.status(404).json({ success: false, message: 'Vendor not found' })
+
+      const doc = vendor.documents.id(req.params.documentId)
+      if (!doc || !doc.fileName) return res.status(404).json({ success: false, message: 'Document file not found' })
+
+      if (doc.mimeType) res.type(doc.mimeType)
+      const disposition = req.query.download === '1' ? 'attachment' : 'inline'
+      res.setHeader('Content-Disposition', `${disposition}; filename="${String(doc.originalName || doc.title || doc.fileName).replace(/"/g, '')}"`)
+
+      const TenantVendor = await Vendor.getTenantModel(req.tenant)
+      const filePath = path.resolve(vendorDocumentUploadDir, doc.fileName)
+      return sendStoredAttachment({ res, attachment: doc, transactionModel: TenantVendor, localFilePath: filePath, bucketName: 'vendorDocuments' })
+    } catch {
+      res.status(500).json({ success: false, message: 'Server error' })
+    }
+  })
+
   router.put('/vendors/:id/documents/:documentId', protect, validateParams(vendorDocumentParamSchema), strictBody(vendorDocumentPatchSchema), async (req, res) => {
     try {
       if (!canUpdateVendorOperational(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
@@ -623,6 +717,11 @@ function registerVendorRoutes(deps) {
 
       const doc = vendor.documents.id(req.params.documentId)
       if (!doc) return res.status(404).json({ success: false, message: 'Document not found' })
+      const filePath = doc.fileName ? path.resolve(vendorDocumentUploadDir, doc.fileName) : ''
+      const TenantVendor = doc.fileName ? await Vendor.getTenantModel(req.tenant) : null
+      if (TenantVendor) {
+        await removeStoredAttachment({ attachment: doc, transactionModel: TenantVendor, localFilePath: filePath, bucketName: 'vendorDocuments' })
+      }
       doc.deleteOne()
       vendor.updatedBy = req.user._id
       await vendor.save()

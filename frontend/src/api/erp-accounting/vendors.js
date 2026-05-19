@@ -5,6 +5,17 @@ const getVendorDetails = async (token, id) => (await axios.get(`${BASE}/vendors/
 const updateVendorWorkflow = async (token, id, payload) => (await axios.post(`${BASE}/vendors/${id}/workflow`, payload, getAuthConfig(token))).data
 const getVendorDocuments = async (token, id) => (await axios.get(`${BASE}/vendors/${id}/documents`, getAuthConfig(token))).data
 const addVendorDocument = async (token, id, payload) => (await axios.post(`${BASE}/vendors/${id}/documents`, payload, getAuthConfig(token))).data
+const uploadVendorDocument = async (_token, id, payload, file) => {
+  const formData = new FormData()
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) formData.append(key, value)
+  })
+  formData.append('file', file)
+  return (await axios.post(`${BASE}/vendors/${id}/documents/upload`, formData, {
+    withCredentials: true,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })).data
+}
 const updateVendorDocument = async (token, id, documentId, payload) => (await axios.put(`${BASE}/vendors/${id}/documents/${documentId}`, payload, getAuthConfig(token))).data
 const deleteVendorDocument = async (token, id, documentId) => (await axios.delete(`${BASE}/vendors/${id}/documents/${documentId}`, getAuthConfig(token))).data
 const getVendorPaymentCalendar = async (token, params) => (await axios.get(`${BASE}/vendors/payment-calendar`, getAuthConfig(token, params))).data
@@ -20,6 +31,7 @@ export const vendorsApi = {
   updateVendorWorkflow,
   getVendorDocuments,
   addVendorDocument,
+  uploadVendorDocument,
   updateVendorDocument,
   deleteVendorDocument,
   getVendorPaymentCalendar,

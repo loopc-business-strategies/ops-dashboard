@@ -24,8 +24,16 @@ function getGridFsBucket(connection) {
   return new GridFSBucket(connection.db, { bucketName: 'transactionAttachments' })
 }
 
-async function storeTransactionAttachment({ req, file, user, transactionModel }) {
-  const relativePath = `/uploads/transactions/${file.filename}`
+async function storeUploadedAttachment({
+  req,
+  file,
+  user,
+  model,
+  relativePathPrefix = '/uploads/transactions',
+  bucketName = 'transactionAttachments',
+  metadata = {},
+}) {
+  const relativePath = `${relativePathPrefix}/${file.filename}`
   const backendBaseUrl = resolveBackendBaseUrl(req)
   const base = {
     originalName: file.originalname,
@@ -42,7 +50,7 @@ async function storeTransactionAttachment({ req, file, user, transactionModel })
     return { ...base, storageDriver: 'local', storageKey: file.filename }
   }
 
-  const bucket = getGridFsBucket(transactionModel.db)
+  const bucket = new GridFSBucket(model.db, { bucketName })
   const uploadId = new ObjectId()
   await new Promise((resolve, reject) => {
     fs.createReadStream(file.path)
@@ -50,9 +58,9 @@ async function storeTransactionAttachment({ req, file, user, transactionModel })
         contentType: file.mimetype || 'application/octet-stream',
         metadata: {
           tenant: req.tenant,
-          transactionId: String(req.params.id || ''),
           originalName: file.originalname,
           uploadedBy: String(user._id),
+          ...metadata,
         },
       }))
       .on('error', reject)
@@ -63,7 +71,19 @@ async function storeTransactionAttachment({ req, file, user, transactionModel })
   return { ...base, storageDriver: 'gridfs', storageKey: String(uploadId) }
 }
 
-async function removeStoredAttachment({ attachment, transactionModel, localFilePath }) {
+async function storeTransactionAttachment({ req, file, user, transactionModel }) {
+  return storeUploadedAttachment({
+    req,
+    file,
+    user,
+    model: transactionModel,
+    relativePathPrefix: '/uploads/transactions',
+    bucketName: 'transactionAttachments',
+    metadata: { transactionId: String(req.params.id || '') },
+  })
+}
+
+async function removeStoredAttachment({ attachment, transactionModel, localFilePath, bucketName = 'transactionAttachments' }) {
   if (String(attachment?.storageDriver || 'local') !== 'gridfs') {
     if (localFilePath && fs.existsSync(localFilePath)) fs.unlinkSync(localFilePath)
     return
@@ -72,13 +92,14 @@ async function removeStoredAttachment({ attachment, transactionModel, localFileP
   const storageKey = String(attachment.storageKey || '')
   if (!ObjectId.isValid(storageKey)) return
   try {
-    await getGridFsBucket(transactionModel.db).delete(new ObjectId(storageKey))
+    const bucket = new GridFSBucket(transactionModel.db, { bucketName })
+    await bucket.delete(new ObjectId(storageKey))
   } catch (err) {
     if (err?.code !== 'ENOENT') throw err
   }
 }
 
-async function sendStoredAttachment({ res, attachment, transactionModel, localFilePath }) {
+async function sendStoredAttachment({ res, attachment, transactionModel, localFilePath, bucketName = 'transactionAttachments' }) {
   if (String(attachment?.storageDriver || 'local') !== 'gridfs') {
     if (!localFilePath || !fs.existsSync(localFilePath)) {
       return res.status(404).json({ success: false, message: 'File not found' })
@@ -91,7 +112,8 @@ async function sendStoredAttachment({ res, attachment, transactionModel, localFi
     return res.status(404).json({ success: false, message: 'Stored file not found' })
   }
 
-  const stream = getGridFsBucket(transactionModel.db).openDownloadStream(new ObjectId(storageKey))
+  const bucket = new GridFSBucket(transactionModel.db, { bucketName })
+  const stream = bucket.openDownloadStream(new ObjectId(storageKey))
   stream.on('error', () => {
     if (!res.headersSent) res.status(404).json({ success: false, message: 'Stored file not found' })
   })
@@ -100,6 +122,7 @@ async function sendStoredAttachment({ res, attachment, transactionModel, localFi
 
 module.exports = {
   getAttachmentStorageDriver,
+  storeUploadedAttachment,
   storeTransactionAttachment,
   removeStoredAttachment,
   sendStoredAttachment,

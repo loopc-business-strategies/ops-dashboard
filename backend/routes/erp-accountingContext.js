@@ -78,6 +78,7 @@ const {
   validateAttachmentContent,
 } = require('../services/erpAccounting/attachmentValidationService')
 const {
+  storeUploadedAttachment,
   storeTransactionAttachment,
   removeStoredAttachment,
   sendStoredAttachment,
@@ -868,6 +869,9 @@ fs.mkdirSync(transactionUploadDir, { recursive: true })
 const bankSlipUploadDir = path.resolve(process.env.BANK_SLIP_UPLOAD_DIR || path.join(__dirname, '../uploads/bank-slips'))
 fs.mkdirSync(bankSlipUploadDir, { recursive: true })
 
+const vendorDocumentUploadDir = path.resolve(process.env.VENDOR_DOCUMENT_UPLOAD_DIR || path.join(__dirname, '../uploads/vendor-documents'))
+fs.mkdirSync(vendorDocumentUploadDir, { recursive: true })
+
 const bankSlipUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, bankSlipUploadDir),
@@ -894,6 +898,22 @@ const transactionUpload = multer({
     },
   }),
   limits: { fileSize: Number(process.env.TRANSACTION_ATTACHMENT_MAX_BYTES || 10 * 1024 * 1024) },
+  fileFilter: (_req, file, cb) => {
+    if (TRANSACTION_ATTACHMENT_MIME_TYPES.includes(file.mimetype)) return cb(null, true)
+    cb(new Error('Unsupported attachment type'))
+  },
+})
+
+const vendorDocumentUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, vendorDocumentUploadDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || '')
+      const base = path.basename(file.originalname || 'vendor-document', ext).replace(/[^a-zA-Z0-9-_]+/g, '-').slice(0, 48) || 'vendor-document'
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${base}${ext}`)
+    },
+  }),
+  limits: { fileSize: Number(process.env.VENDOR_DOCUMENT_MAX_BYTES || 10 * 1024 * 1024) },
   fileFilter: (_req, file, cb) => {
     if (TRANSACTION_ATTACHMENT_MIME_TYPES.includes(file.mimetype)) return cb(null, true)
     cb(new Error('Unsupported attachment type'))
@@ -2126,6 +2146,12 @@ function registerErpAccountingRoutes(router) {
     buildVendorSummary,
     nextVendorCode,
     nextVendorAccountCode,
+    vendorDocumentUpload,
+    vendorDocumentUploadDir,
+    storeUploadedAttachment,
+    removeStoredAttachment,
+    sendStoredAttachment,
+    validateAttachmentContent,
     toMoney,
   })
   
@@ -2178,6 +2204,8 @@ function registerErpAccountingRoutes(router) {
     Transaction,
     Ledger,
     Currency,
+    Customer,
+    Vendor,
     populateTransactionQuery,
     normalizeMoneyValue,
     normalizeExchangeRateValue,

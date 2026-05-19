@@ -386,7 +386,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const [selectedVendorId, setSelectedVendorId] = useState('')
   const [selectedVendorDetails, setSelectedVendorDetails] = useState(null)
   const [vendorWorkflowReason, setVendorWorkflowReason] = useState('')
-  const [vendorDocumentForm, setVendorDocumentForm] = useState({ docType: 'contract', title: '', documentNo: '', fileUrl: '', issueDate: '', expiryDate: '', status: 'active', verified: false, notes: '' })
+  const [vendorDocumentForm, setVendorDocumentForm] = useState({ docType: 'contract', title: '', documentNo: '', fileUrl: '', file: null, issueDate: '', expiryDate: '', status: 'active', verified: false, notes: '' })
   const [vendorPaymentCalendar, setVendorPaymentCalendar] = useState({ rows: [], alerts: { overdue: 0, due_soon: 0, upcoming: 0, later: 0, totalDue: 0 } })
   const [vendorComplianceSummary, setVendorComplianceSummary] = useState({ summary: { total: 0, nonCompliant: 0, avgComplianceScore: 0 }, expiryBuckets: { expired: 0, warning30: 0, warning60: 0, warning90: 0 }, atRisk: [] })
   const [vendorOverdueQueue, setVendorOverdueQueue] = useState({ summary: { total: 0, withRecipient: 0, critical: 0, totalAmountDue: 0 }, queue: [] })
@@ -2055,8 +2055,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
   }
 
-  const handleUploadTransactionAttachment = async (file) => {
-    if (!selectedTransactionId) {
+  const handleUploadTransactionAttachment = async (file, transactionId = selectedTransactionId) => {
+    if (!transactionId) {
       setError('Select a transaction first')
       return
     }
@@ -2064,7 +2064,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
 
     try {
       setSaving(true)
-      await erpAccountingAPI.uploadTransactionAttachment(token, selectedTransactionId, file)
+      setSelectedTransactionId(transactionId)
+      await erpAccountingAPI.uploadTransactionAttachment(token, transactionId, file)
       await loadTransactions()
       setTransactionAttachmentInputKey((prev) => prev + 1)
       showNotification('✅ Attachment uploaded')
@@ -2294,14 +2295,23 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError('Select a vendor first')
       return
     }
-    if (!vendorDocumentForm.title) {
+    if (!vendorDocumentForm.title && !vendorDocumentForm.file) {
       setError('Document title is required')
       return
     }
     try {
       setSaving(true)
-      await erpAccountingAPI.addVendorDocument(token, selectedVendorId, vendorDocumentForm)
-      setVendorDocumentForm({ docType: 'contract', title: '', documentNo: '', fileUrl: '', issueDate: '', expiryDate: '', status: 'active', verified: false, notes: '' })
+      if (vendorDocumentForm.file) {
+        const { file, ...payload } = vendorDocumentForm
+        await erpAccountingAPI.uploadVendorDocument(token, selectedVendorId, {
+          ...payload,
+          title: payload.title || file.name || 'Vendor attachment',
+        }, file)
+      } else {
+        const { file, ...payload } = vendorDocumentForm
+        await erpAccountingAPI.addVendorDocument(token, selectedVendorId, payload)
+      }
+      setVendorDocumentForm({ docType: 'contract', title: '', documentNo: '', fileUrl: '', file: null, issueDate: '', expiryDate: '', status: 'active', verified: false, notes: '' })
       await Promise.all([
         loadVendorDetails(selectedVendorId),
         loadVendorComplianceSummary(),

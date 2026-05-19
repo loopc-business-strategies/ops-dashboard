@@ -56,6 +56,37 @@ export default function ERPTransactionsTab({
   transactionMeta,
   loading,
 }) {
+  const getLineNarration = (tx) => (tx.voucherMeta?.lineItems || [])
+    .map((line) => line?.narration || line?.exp || '')
+    .find((value) => String(value || '').trim())
+
+  const getTransactionPartyLabel = (tx) => {
+    const partyName = tx.customerId?.name
+      || tx.vendorId?.name
+      || tx.voucherMeta?.partyName
+      || tx.voucherMeta?.lineItems?.find((line) => line?.acCode)?.acCode
+      || tx.inventoryItemId?.sku
+      || tx.inventoryItemId?.name
+      || ''
+    const partyCode = tx.voucherMeta?.partyCode || ''
+    if (partyName && partyCode && !String(partyName).includes(partyCode)) return `${partyName} (${partyCode})`
+    return partyName || partyCode || '-'
+  }
+
+  const getTransactionDescription = (tx) => (
+    tx.voucherMeta?.lineItems?.find((line) => String(line?.narration || '').trim())?.narration
+    || tx.voucherMeta?.lineItems?.find((line) => String(line?.exp || '').trim())?.exp
+    || tx.description
+    || tx.voucherMeta?.refNo
+    || tx.voucherMeta?.vocNo
+    || '-'
+  )
+
+  const getTransactionAttachmentLabel = (tx) => {
+    const count = (tx.attachments || []).length
+    return count ? `${count} file${count === 1 ? '' : 's'}` : 'No file'
+  }
+
   return (
     <>
       {/* TRANSACTIONS TAB */}
@@ -103,7 +134,7 @@ export default function ERPTransactionsTab({
           </div>
           <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.5rem' }}>
-              <input placeholder="Search description/type/currency" value={transactionFilters.search} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, search: e.target.value }))} style={modalInputStyle} />
+              <input placeholder="Search narration/party/voucher/currency" value={transactionFilters.search} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, search: e.target.value }))} style={modalInputStyle} />
               <select value={transactionFilters.status} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, status: e.target.value }))} style={modalInputStyle}>
                 <option value="">All statuses</option>
                 <option value="draft">Draft</option>
@@ -117,8 +148,14 @@ export default function ERPTransactionsTab({
                 <option value="">All types</option>
                 {availableTransactionTypes.map((type) => <option key={type} value={type}>{TRANSACTION_TYPE_LABELS[type]}</option>)}
               </select>
-              <input type="date" value={transactionFilters.startDate} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, startDate: e.target.value }))} style={modalInputStyle} />
-              <input type="date" value={transactionFilters.endDate} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, endDate: e.target.value }))} style={modalInputStyle} />
+              <label style={{ display: 'grid', gap: '0.2rem', color: C.inkSoft, fontSize: '0.76rem', fontWeight: '700' }}>
+                From date
+                <input type="date" value={transactionFilters.startDate} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, startDate: e.target.value }))} style={modalInputStyle} />
+              </label>
+              <label style={{ display: 'grid', gap: '0.2rem', color: C.inkSoft, fontSize: '0.76rem', fontWeight: '700' }}>
+                To date
+                <input type="date" value={transactionFilters.endDate} onChange={(e) => setTransactionFilters((prev) => ({ ...prev, endDate: e.target.value }))} style={modalInputStyle} />
+              </label>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <button type="button" onClick={() => loadTransactions({ cursor: null, cursorHistory: [] })} style={{ padding: '0.45rem 0.8rem', borderRadius: '0.35rem', border: 'none', background: C.s1, color: '#fff', cursor: 'pointer', fontWeight: '700' }}>Apply Filters</button>
@@ -203,15 +240,15 @@ export default function ERPTransactionsTab({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <div>
                   <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>{TRANSACTION_TYPE_LABELS[selectedTransaction.type] || selectedTransaction.type}</p>
-                  <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.85rem' }}>{selectedTransaction.description || 'No description provided'}</p>
+                  <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.85rem' }}>{getTransactionDescription(selectedTransaction) || 'No description provided'}</p>
                 </div>
                 <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: '800', ...(TRANSACTION_STATUS_STYLES[selectedTransaction.status] || { background: '#E5E7EB', color: C.ink }) }}>{selectedTransaction.status}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginTop: '0.9rem' }}>
                 <div style={emptyCardStyle}><strong>Amount:</strong> {selectedTransaction.currency} {Number(selectedTransaction.amount || 0).toLocaleString()}</div>
                 <div style={emptyCardStyle}><strong>Date:</strong> {selectedTransaction.date ? new Date(selectedTransaction.date).toLocaleDateString() : '-'}</div>
-                <div style={emptyCardStyle}><strong>Customer:</strong> {selectedTransaction.customerId?.name || '-'}</div>
-                <div style={emptyCardStyle}><strong>Vendor:</strong> {selectedTransaction.vendorId?.name || '-'}</div>
+                <div style={emptyCardStyle}><strong>Party:</strong> {getTransactionPartyLabel(selectedTransaction)}</div>
+                <div style={emptyCardStyle}><strong>Narration:</strong> {getLineNarration(selectedTransaction) || selectedTransaction.description || '-'}</div>
                 <div style={emptyCardStyle}><strong>Debit:</strong> {selectedTransaction.debitAccountId ? `${selectedTransaction.debitAccountId.accountCode} - ${selectedTransaction.debitAccountId.accountName}` : '-'}</div>
                 <div style={emptyCardStyle}><strong>Credit:</strong> {selectedTransaction.creditAccountId ? `${selectedTransaction.creditAccountId.accountCode} - ${selectedTransaction.creditAccountId.accountName}` : '-'}</div>
               </div>
@@ -317,6 +354,7 @@ export default function ERPTransactionsTab({
                   <th style={{ padding: '0.65rem', textAlign: 'right' }}>Amount</th>
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>Status</th>
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>Description</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Attachments</th>
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>Actions</th>
                 </tr>
               </thead>
@@ -328,10 +366,23 @@ export default function ERPTransactionsTab({
                     </td>
                     <td style={{ padding: '0.65rem' }}>{new Date(tx.date).toLocaleDateString()}</td>
                     <td style={{ padding: '0.65rem', textTransform: 'capitalize', fontWeight: '700' }}>{TRANSACTION_TYPE_LABELS[tx.type] || tx.type}</td>
-                    <td style={{ padding: '0.65rem' }}>{tx.customerId?.name || tx.vendorId?.name || tx.inventoryItemId?.sku || '-'}</td>
+                    <td style={{ padding: '0.65rem' }}>{getTransactionPartyLabel(tx)}</td>
                     <td style={{ padding: '0.65rem', textAlign: 'right' }}>{tx.currency} {Number(tx.amount || 0).toLocaleString()}</td>
                     <td style={{ padding: '0.65rem', textTransform: 'capitalize', fontWeight: '600' }}><span style={{ padding: '0.25rem 0.5rem', borderRadius: '999px', ...(TRANSACTION_STATUS_STYLES[tx.status] || { background: '#E5E7EB', color: C.ink }) }}>{tx.status}</span></td>
-                    <td style={{ padding: '0.65rem', maxWidth: '260px', color: C.inkSoft }}>{tx.description || '-'}</td>
+                    <td style={{ padding: '0.65rem', maxWidth: '260px', color: C.inkSoft }}>{getTransactionDescription(tx)}</td>
+                    <td style={{ padding: '0.65rem' }}>
+                      <div style={{ display: 'grid', gap: '0.35rem' }}>
+                        {(tx.attachments || []).length ? (
+                          <a href={resolveTransactionAttachmentUrl(tx.attachments[0])} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: '#1D4ED8', fontWeight: '700', textDecoration: 'none' }}>{getTransactionAttachmentLabel(tx)}</a>
+                        ) : (
+                          <span style={{ color: C.inkSoft }}>{getTransactionAttachmentLabel(tx)}</span>
+                        )}
+                        <label onClick={(e) => e.stopPropagation()} style={{ width: 'fit-content', padding: '0.25rem 0.5rem', borderRadius: '0.3rem', border: '1px solid #7DD3FC', background: '#E0F2FE', color: '#075985', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '0.74rem', fontWeight: '700' }}>
+                          Upload
+                          <input type="file" disabled={saving} onChange={(e) => handleUploadTransactionAttachment(e.target.files?.[0], tx._id)} style={{ display: 'none' }} />
+                        </label>
+                      </div>
+                    </td>
                     <td style={{ padding: '0.65rem' }}>
                       <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                         {tx.status !== 'posted' && <button onClick={(e) => { e.stopPropagation(); populateTransactionForm(tx) }} style={{ padding: '0.3rem 0.5rem', border: '1px solid #D1D5DB', borderRadius: '0.3rem', background: '#fff', color: C.ink, cursor: 'pointer' }}>Edit</button>}
@@ -347,7 +398,7 @@ export default function ERPTransactionsTab({
                 ))}
                 {!transactions.length && (
                   <tr>
-                    <td colSpan={8} style={{ padding: '1rem', textAlign: 'center', color: C.inkSoft }}>No transactions match the current filters.</td>
+                    <td colSpan={9} style={{ padding: '1rem', textAlign: 'center', color: C.inkSoft }}>No transactions match the current filters.</td>
                   </tr>
                 )}
               </tbody>

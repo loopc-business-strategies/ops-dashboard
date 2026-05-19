@@ -12,6 +12,8 @@ function registerTransactionRoutes(deps) {
     Transaction,
     Ledger,
     Currency,
+    Customer,
+    Vendor,
     populateTransactionQuery,
     normalizeMoneyValue,
     normalizeExchangeRateValue,
@@ -59,6 +61,16 @@ const encodeCursor = (doc) => {
   return Buffer.from(JSON.stringify({ createdAt: doc.createdAt, id: String(doc._id) })).toString('base64')
 }
 
+const parseDateBoundary = (value, endOfDay = false) => {
+  if (!value) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? new Date(`${raw}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`)
+    : new Date(raw)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 const emitRealtime = (req, cb) => {
   const realtimeServer = req.app.get('realtimeServer')
   if (!realtimeServer || typeof cb !== 'function') return
@@ -96,8 +108,11 @@ router.get('/transactions', protect, async (req, res) => {
 
     if (req.query.startDate || req.query.endDate) {
       query.date = {}
-      if (req.query.startDate) query.date.$gte = new Date(req.query.startDate)
-      if (req.query.endDate) query.date.$lte = new Date(`${req.query.endDate}T23:59:59.999Z`)
+      const startDate = parseDateBoundary(req.query.startDate, false)
+      const endDate = parseDateBoundary(req.query.endDate, true)
+      if (startDate) query.date.$gte = startDate
+      if (endDate) query.date.$lte = endDate
+      if (!Object.keys(query.date).length) delete query.date
     }
 
     if (req.query.search) {
@@ -108,7 +123,20 @@ router.get('/transactions', protect, async (req, res) => {
           { description: regex },
           { type: regex },
           { currency: regex },
+          { 'voucherMeta.partyCode': regex },
+          { 'voucherMeta.partyName': regex },
+          { 'voucherMeta.vocNo': regex },
+          { 'voucherMeta.refNo': regex },
+          { 'voucherMeta.lineItems.narration': regex },
         ]
+        const [matchingCustomers, matchingVendors] = await Promise.all([
+          Customer ? Customer.find({ name: regex, isActive: { $ne: false } }).select('_id').limit(100).lean() : Promise.resolve([]),
+          Vendor ? Vendor.find({ name: regex, deletedAt: null }).select('_id').limit(100).lean() : Promise.resolve([]),
+        ])
+        const customerIds = matchingCustomers.map((row) => row._id)
+        const vendorIds = matchingVendors.map((row) => row._id)
+        if (customerIds.length) query.$or.push({ customerId: { $in: customerIds } })
+        if (vendorIds.length) query.$or.push({ vendorId: { $in: vendorIds } })
       }
     }
 
