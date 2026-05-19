@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { DonutChart } from './ERPTabCharts'
+import { BASE, axios, getAuthConfig } from '../../../api/erp-accounting/client'
 
 function fmtMoney(val, currency = '') {
   const n = Number(val || 0)
@@ -24,7 +25,7 @@ function MarginsWidget({ dashboard, onNavigate }) {
   const mapMarginRow = (row, nameKey) => {
     const net = Number(row?.equity ?? row?.netCashFlow ?? 0)
     const exp = Number(row?.expenses || 0)
-    const status = net > 0 ? 'POSITIVE' : net < 0 ? 'NEGATIVE' : 'NEUTRAL'
+    const status = String(row?.status || (net > 0 ? 'POSITIVE' : net < 0 ? 'NEGATIVE' : 'NEUTRAL')).toUpperCase()
     const rawMargin = row?.marginPercent
     const marginPercent = Number.isFinite(Number(rawMargin)) ? Number(rawMargin) : (exp > 0 ? (Math.abs(net) / exp) * 100 : null)
     const equityAbs = Math.abs(net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -204,6 +205,138 @@ function MarginsWidget({ dashboard, onNavigate }) {
   )
 }
 
+function MetalsMarketWidget({ dashboard }) {
+  const rates = dashboard?.metalRates || {}
+  const initialMetals = {
+    gold: Number(rates?.gold || rates?.stockPrices?.gold?.price || 0),
+    silver: Number(rates?.silver || rates?.stockPrices?.silver?.price || 0),
+    platinum: Number(rates?.platinum || rates?.stockPrices?.platinum?.price || 0),
+    palladium: Number(rates?.palladium || rates?.stockPrices?.palladium?.price || 0),
+  }
+  const [currency, setCurrency] = useState(String(rates?.currency || 'USD').toUpperCase())
+  const [unit, setUnit] = useState('toz')
+  const [quantity, setQuantity] = useState('1')
+  const [market, setMarket] = useState({
+    metals: initialMetals,
+    currency: String(rates?.currency || 'USD').toUpperCase(),
+    unit: 'toz',
+    source: 'dashboard',
+    updatedAt: rates?.updatedAt || null,
+  })
+  const [history, setHistory] = useState({})
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const loadPrices = async () => {
+    setLoading(true)
+    try {
+      const data = await axios.get(`${BASE}/reports/market-prices`, getAuthConfig(null, { currency, unit }))
+      const payload = data.data || {}
+      const metals = payload.metals || {}
+      setMarket({
+        metals,
+        currency: payload.currency || currency,
+        unit: payload.unit || unit,
+        source: payload.source || 'market',
+        updatedAt: payload.updatedAt || payload.generatedAt || new Date().toISOString(),
+        warning: payload.warning || '',
+      })
+      setHistory((prev) => {
+        const next = { ...prev }
+        Object.entries(metals).forEach(([metal, price]) => {
+          const n = Number(price || 0)
+          if (!Number.isFinite(n) || n <= 0) return
+          next[metal] = [...(next[metal] || []), n].slice(-18)
+        })
+        return next
+      })
+      setError('')
+    } catch (err) {
+      setError(err.response?.data?.message || 'Live feed unavailable')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadPrices()
+    const timer = setInterval(loadPrices, 15000)
+    return () => clearInterval(timer)
+  }, [currency, unit])
+
+  const qty = Math.max(Number(quantity || 1), 0)
+  const metals = [
+    { key: 'gold', label: 'Gold', symbol: 'XAU', color: '#D97706' },
+    { key: 'silver', label: 'Silver', symbol: 'XAG', color: '#64748B' },
+    { key: 'platinum', label: 'Platinum', symbol: 'XPT', color: '#4F46E5' },
+    { key: 'palladium', label: 'Palladium', symbol: 'XPD', color: '#0F766E' },
+  ]
+  const unitLabel = unit === 'g' ? 'gram' : unit === 'kg' ? 'kg' : 'troy oz'
+  const money = (value) => `${market.currency || currency} ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const spark = (values, color) => {
+    const data = values?.length > 1 ? values : [1, 1.006, 1.002, 1.011, 1.008, 1.014].map((m) => Number(values?.[0] || 1) * m)
+    const min = Math.min(...data)
+    const max = Math.max(...data)
+    const range = max - min || 1
+    const points = data.map((v, index) => `${(index / (data.length - 1)) * 78},${28 - ((v - min) / range) * 22 + 3}`).join(' ')
+    return <svg width="78" height="34" viewBox="0 0 78 34" aria-hidden="true"><polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginBottom: '0.8rem' }}>
+        <div>
+          <p style={{ margin: 0, fontSize: '0.78rem', fontWeight: '800', color: '#111827' }}>Live Market Prices</p>
+          <p style={{ margin: '0.18rem 0 0', fontSize: '0.66rem', color: '#6B7280' }}>
+            {loading ? 'Updating feed...' : `Source: ${market.source || 'market'}${market.updatedAt ? ` · ${new Date(market.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <input type="number" min="0" step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} style={{ width: 74, height: 32, border: '1px solid #CBD5E1', borderRadius: 6, padding: '0 0.45rem', fontSize: '0.75rem' }} />
+          <select value={unit} onChange={(e) => setUnit(e.target.value)} style={{ height: 32, border: '1px solid #CBD5E1', borderRadius: 6, fontSize: '0.75rem', background: '#FFFFFF' }}>
+            <option value="toz">Ounce</option>
+            <option value="g">Gram</option>
+            <option value="kg">Kg</option>
+          </select>
+          <select value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ height: 32, border: '1px solid #CBD5E1', borderRadius: 6, fontSize: '0.75rem', background: '#FFFFFF' }}>
+            {['USD', 'AED', 'SOM', 'UZS', 'EUR', 'GBP', 'INR'].map((code) => <option key={code} value={code}>{code}</option>)}
+          </select>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gap: '0.45rem' }}>
+        {metals.map((metal) => {
+          const rawPrice = Number(market.metals?.[metal.key] || 0)
+          const displayPrice = rawPrice
+          const total = displayPrice * qty
+          const values = history[metal.key] || [rawPrice]
+          const previous = Number(values[values.length - 2] || values[0] || rawPrice)
+          const change = previous > 0 ? rawPrice - previous : 0
+          const changePct = previous > 0 ? (change / previous) * 100 : 0
+          const up = change >= 0
+          return (
+            <div key={metal.key} style={{ display: 'grid', gridTemplateColumns: 'minmax(86px, 1fr) 82px minmax(105px, auto)', gap: '0.55rem', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid #F1F5F9' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.42rem' }}>
+                  <span style={{ width: 9, height: 9, borderRadius: 9, background: metal.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.8rem', color: '#111827', fontWeight: '800' }}>{metal.label}</span>
+                  <span style={{ fontSize: '0.62rem', color: '#64748B', fontWeight: '700' }}>{metal.symbol}</span>
+                </div>
+                <div style={{ marginTop: 2, fontSize: '0.64rem', color: '#64748B' }}>{qty.toLocaleString()} {unitLabel}</div>
+              </div>
+              {spark(values, up ? '#16A34A' : '#DC2626')}
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ color: rawPrice > 0 ? '#111827' : '#94A3B8', fontWeight: '900', fontSize: '0.85rem', fontVariantNumeric: 'tabular-nums' }}>{rawPrice > 0 ? money(total) : '-'}</div>
+                <div style={{ color: up ? '#16A34A' : '#DC2626', fontSize: '0.66rem', fontWeight: '800' }}>{up ? '+' : ''}{money(change)} · {up ? '+' : ''}{changePct.toFixed(2)}%</div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {(error || market.warning) && <p style={{ margin: '0.55rem 0 0', color: '#92400E', fontSize: '0.68rem' }}>{error || 'Using local fallback prices until live provider responds.'}</p>}
+    </div>
+  )
+}
+
 // ── AP/AR Widget — AR / AP tabs, full 3-col width ─────────────
 function APARWidget({ dashboard, onNavigate }) {
   const [tab, setTab] = useState('ar')
@@ -321,57 +454,9 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       return <div style={widgetContainerStyle}><MarginsWidget dashboard={dashboard} onNavigate={onNavigate} /></div>
 
     case 'metals': {
-      const rates = dashboard?.metalRates
-      const g = Number(rates?.gold || 0)
-      const s = Number(rates?.silver || 0)
-      const pt = Number(rates?.platinum || rates?.stockPrices?.platinum?.price || 0)
-      const gCur = rates?.stockPrices?.gold?.currency || rates?.currency || 'USD'
-      const sCur = rates?.stockPrices?.silver?.currency || rates?.currency || 'USD'
-      const ptCur = rates?.stockPrices?.platinum?.currency || rates?.currency || 'USD'
-      const METALS_DEF = [
-        { n: 'Gold',     sym: 'XAU', color: '#F59E0B', price: g,  cur: gCur,  prev: g > 0 ? g * 0.9973 : 0,  spark: [g * 0.97 || 2290, g * 0.975 || 2310, g * 0.972 || 2280, g * 0.978 || 2315, g * 0.976 || 2300, g * 0.982 || 2330, g || 2341] },
-        { n: 'Silver',   sym: 'XAG', color: '#9CA3AF', price: s,  cur: sCur,  prev: s > 0 ? s * 0.9961 : 0,  spark: [s * 0.97 || 27.1, s * 0.975 || 27.3, s * 0.972 || 27.0, s * 0.978 || 27.5, s * 0.976 || 27.6, s * 0.982 || 27.8, s || 27.85] },
-        { n: 'Platinum', sym: 'XPT', color: '#6366F1', price: pt, cur: ptCur, prev: pt > 0 ? pt * 0.9969 : 0, spark: [pt * 0.97 || 970, pt * 0.975 || 965, pt * 0.972 || 960, pt * 0.978 || 958, pt * 0.976 || 962, pt * 0.982 || 959, pt || 956] },
-      ]
       return (
         <div style={widgetContainerStyle}>
-          {METALS_DEF.map(m => {
-            const hasPrice = m.price > 0
-            const chg = m.prev > 0 ? ((m.price - m.prev) / m.prev) * 100 : 0
-            const isUp = chg >= 0
-            return (
-              <div key={m.n} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid #F9FAFB' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: m.color, display: 'inline-block', flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: '0.82rem', fontWeight: '600', color: ink }}>{m.n}</div>
-                    <div style={{ fontSize: '0.67rem', color: muted }}>{m.sym}</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  {sparkLine(m.spark, hasPrice ? (isUp ? '#16A34A' : '#DC2626') : '#9CA3AF')}
-                  <div style={{ textAlign: 'right', minWidth: '96px' }}>
-                    <div style={{ fontSize: '0.875rem', fontWeight: '600', color: hasPrice ? ink : '#9CA3AF' }}>
-                      {hasPrice ? `${m.cur} ${m.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
-                    </div>
-                    {hasPrice && m.prev > 0 && (
-                      <div style={{ fontSize: '0.67rem', color: muted }}>{m.cur} {m.prev.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-                    )}
-                  </div>
-                  {hasPrice && m.prev > 0 && (
-                    <span style={{ fontSize: '0.68rem', fontWeight: '600', padding: '2px 6px', borderRadius: '10px', background: isUp ? '#DCFCE7' : '#FEE2E2', color: isUp ? '#059669' : '#DC2626', flexShrink: 0 }}>
-                      {isUp ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
-                    </span>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-          {rates?.updatedAt && (
-            <p style={{ fontSize: '0.67rem', color: '#9CA3AF', marginTop: '0.4rem', textAlign: 'right' }}>
-              Updated {new Date(rates.updatedAt).toLocaleString()}
-            </p>
-          )}
+          <MetalsMarketWidget dashboard={dashboard} />
         </div>
       )
     }

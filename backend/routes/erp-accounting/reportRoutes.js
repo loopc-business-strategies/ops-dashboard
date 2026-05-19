@@ -11,6 +11,7 @@ function registerReportRoutes(deps) {
     InventoryItem,
     StockMovement,
     MetalRate,
+    Currency,
     toMoney,
     parseBool,
     buildDateQuery,
@@ -23,6 +24,157 @@ function registerReportRoutes(deps) {
     evaluateVendorCompliance,
     canAccessReports,
   } = deps
+
+  const normalizeMetalPayload = (payload, requestedCurrency = 'USD', requestedUnit = 'toz') => {
+    const metals = payload?.metals || payload?.rates || {}
+    const sourceCurrency = String(payload?.currency || requestedCurrency || 'USD').toUpperCase()
+    const sourceUnit = String(payload?.unit || requestedUnit || 'toz').toLowerCase()
+    const lookup = (keys) => {
+      for (const key of keys) {
+        const value = metals[key] ?? payload?.[key]
+        const number = Number(value)
+        if (Number.isFinite(number) && number > 0) return number
+      }
+      return 0
+    }
+
+    return {
+      source: payload?.source || 'metals.dev',
+      currency: sourceCurrency,
+      unit: sourceUnit,
+      updatedAt: payload?.timestamp || payload?.updatedAt || new Date(),
+      currencies: payload?.currencies || {},
+      metals: {
+        gold: lookup(['gold', 'XAU', 'xau']),
+        silver: lookup(['silver', 'XAG', 'xag']),
+        platinum: lookup(['platinum', 'XPT', 'xpt']),
+        palladium: lookup(['palladium', 'XPD', 'xpd']),
+      },
+    }
+  }
+
+  const getCurrencyMultiplier = async (fromCurrency, toCurrency) => {
+    const from = String(fromCurrency || 'USD').toUpperCase()
+    const to = String(toCurrency || 'USD').toUpperCase()
+    if (from === to) return 1
+    if (to === 'USD') {
+      const fromDoc = await Currency.findOne({ code: from, isActive: true }).select('exchangeRate')
+      const fromRate = Number(fromDoc?.exchangeRate || 0)
+      return fromRate > 0 ? 1 / fromRate : 1
+    }
+    const targetDoc = await Currency.findOne({ code: to, isActive: true }).select('exchangeRate')
+    const targetRate = Number(targetDoc?.exchangeRate || 0)
+    return targetRate > 0 ? targetRate : 1
+  }
+
+  const buildInventoryMetalPriceMap = async () => {
+    const stockTypeDocs = await InventoryItem.find({
+      isDeleted: { $ne: true },
+      $and: [
+        { category: /mainStock=/i },
+        { category: { $not: /recordType=product/i } },
+      ],
+    }).select('category unitCost currency updatedAt')
+
+    const stockPriceMap = {}
+    stockTypeDocs.forEach((doc) => {
+      const raw = String(doc.category || '')
+      const meta = {}
+      raw.split(';').forEach((pair) => {
+        const [key, ...rest] = pair.split('=')
+        if (!key || rest.length === 0) return
+        meta[String(key).trim()] = rest.join('=').trim()
+      })
+      const metal = String(meta.mainStock || meta.metalType || '').trim().toLowerCase()
+      if (!metal) return
+
+      const price = Number(doc.unitCost || 0)
+      if (!Number.isFinite(price) || price <= 0) return
+
+      const prev = stockPriceMap[metal]
+      if (!prev || new Date(doc.updatedAt || 0) > new Date(prev.updatedAt || 0)) {
+        stockPriceMap[metal] = {
+          price,
+          currency: String(doc.currency || meta.priceCurrency || 'USD').toUpperCase(),
+          unit: String(meta.priceUnit || 'OZ').toUpperCase(),
+          updatedAt: doc.updatedAt || null,
+        }
+      }
+    })
+
+    return stockPriceMap
+  }
+
+  const fetchExternalMetalPrices = async ({ currency = 'USD', unit = 'toz' } = {}) => {
+    const apiKey = String(process.env.METALS_DEV_API_KEY || process.env.METALS_API_KEY || '').trim()
+    const url = new URL(process.env.METALS_MARKET_URL || 'https://api.metals.dev/v1/latest')
+    url.searchParams.set('currency', String(currency || 'USD').toUpperCase())
+    url.searchParams.set('unit', String(unit || 'toz').toLowerCase())
+    if (apiKey) url.searchParams.set('api_key', apiKey)
+
+    const response = await fetch(url, {
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!response.ok) throw new Error(`metals provider returned ${response.status}`)
+    const payload = await response.json()
+    return normalizeMetalPayload(payload, currency, unit)
+  }
+
+  const buildFallbackMetalPrices = async ({ currency = 'USD', unit = 'toz' } = {}) => {
+    const [latestRate, stockPriceMap] = await Promise.all([
+      MetalRate.findOne().sort({ updatedAt: -1 }),
+      buildInventoryMetalPriceMap(),
+    ])
+    const sourceCurrency = stockPriceMap.gold?.currency || stockPriceMap.silver?.currency || (latestRate ? latestRate.priceCurrency : 'USD')
+    const multiplier = await getCurrencyMultiplier(sourceCurrency, currency)
+    const latestStockUpdatedAt = Object.values(stockPriceMap)
+      .map((entry) => entry.updatedAt)
+      .filter(Boolean)
+      .sort((a, b) => new Date(b) - new Date(a))[0] || null
+
+    const perOz = {
+      gold: stockPriceMap.gold?.price || (latestRate ? latestRate.goldPrice : 0),
+      silver: stockPriceMap.silver?.price || (latestRate ? latestRate.silverPrice : 0),
+      platinum: stockPriceMap.platinum?.price || 0,
+      palladium: stockPriceMap.palladium?.price || 0,
+    }
+    const unitFactor = String(unit || 'toz').toLowerCase() === 'g'
+      ? 1 / 31.1034768
+      : String(unit || 'toz').toLowerCase() === 'kg'
+        ? 32.1507465686
+        : 1
+
+    return {
+      source: latestStockUpdatedAt ? 'inventory' : 'local-metal-rate',
+      currency: String(currency || sourceCurrency || 'USD').toUpperCase(),
+      unit: String(unit || 'toz').toLowerCase(),
+      updatedAt: latestStockUpdatedAt || latestRate?.updatedAt || null,
+      metals: Object.fromEntries(Object.entries(perOz).map(([metal, price]) => [metal, toMoney(Number(price || 0) * multiplier * unitFactor)])),
+      stockPrices: stockPriceMap,
+    }
+  }
+
+  const buildMetalRates = async () => {
+    const [latestRate, stockPriceMap] = await Promise.all([
+      MetalRate.findOne().sort({ updatedAt: -1 }),
+      buildInventoryMetalPriceMap(),
+    ])
+    const latestStockUpdatedAt = Object.values(stockPriceMap)
+      .map((entry) => entry.updatedAt)
+      .filter(Boolean)
+      .sort((a, b) => new Date(b) - new Date(a))[0] || null
+
+    return {
+      gold: stockPriceMap.gold?.price || (latestRate ? latestRate.goldPrice : 0),
+      silver: stockPriceMap.silver?.price || (latestRate ? latestRate.silverPrice : 0),
+      platinum: stockPriceMap.platinum?.price || 0,
+      palladium: stockPriceMap.palladium?.price || 0,
+      currency: stockPriceMap.gold?.currency || stockPriceMap.silver?.currency || (latestRate ? latestRate.priceCurrency : 'USD'),
+      updatedAt: latestStockUpdatedAt || (latestRate ? latestRate.updatedAt : null),
+      stockPrices: stockPriceMap,
+    }
+  }
 
 router.get('/reports/trial-balance', protect, async (req, res) => {
   try {
@@ -644,6 +796,32 @@ router.get('/reports/forex-gain-loss', protect, async (req, res) => {
   }
 })
 
+router.get('/reports/market-prices', protect, async (req, res) => {
+  try {
+    if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+
+    const currency = String(req.query.currency || 'USD').trim().toUpperCase()
+    const unit = String(req.query.unit || 'toz').trim().toLowerCase()
+    let market
+
+    try {
+      market = await fetchExternalMetalPrices({ currency, unit })
+    } catch (error) {
+      market = await buildFallbackMetalPrices({ currency, unit })
+      market.warning = error.message
+    }
+
+    res.json({
+      success: true,
+      ...market,
+      generatedAt: new Date(),
+    })
+  } catch (err) {
+    console.error('[reports] market-prices error:', err)
+    res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+})
+
 router.get('/reports/dashboard', protect, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
@@ -823,7 +1001,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
     // --- Customer / Supplier margin: show every created party account ---
     const customerMargins = await Promise.all(customers.map(async (c) => {
       const outstanding = c.ledgerAccountId?._id
-        ? Number((await getAgingForAccount(c.ledgerAccountId._id)).total || 0)
+        ? Number(await getOutstandingForAccount(c.ledgerAccountId._id) || 0)
         : Number(c.outstandingBalance || 0)
       const base = Number(c.creditLimit || 0) > 0
         ? Number(c.creditLimit || 0)
@@ -876,7 +1054,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
       const outstanding = v.ledgerAccountId?._id
         ? Number(await getOutstandingForAccount(v.ledgerAccountId._id) || 0)
         : Number(v.outstanding || 0)
-      const equity = -Math.abs(outstanding)
+      const equity = v.ledgerAccountId?._id ? outstanding : -Math.abs(outstanding)
       const base = Number(v.creditLimit || 0) > 0
         ? Number(v.creditLimit || 0)
         : Math.abs(Number(v.openingBalance || 0))
@@ -968,57 +1146,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
     }))
 
     // --- Metal rates (latest) ---
-    const latestRate = await MetalRate.findOne().sort({ updatedAt: -1 })
-    // Source of truth for dashboard metals: stock type records from Inventory (exclude product rows)
-    const stockTypeDocs = await InventoryItem.find({
-      isDeleted: { $ne: true },
-      $and: [
-        { category: /mainStock=/i },
-        { category: { $not: /recordType=product/i } },
-      ],
-    }).select('category unitCost currency updatedAt')
-
-    const stockPriceMap = {}
-    stockTypeDocs.forEach((doc) => {
-      const raw = String(doc.category || '')
-      const meta = {}
-      raw.split(';').forEach((pair) => {
-        const [key, ...rest] = pair.split('=')
-        if (!key || rest.length === 0) return
-        meta[String(key).trim()] = rest.join('=').trim()
-      })
-      const metal = String(meta.mainStock || meta.metalType || '').trim().toLowerCase()
-      if (!metal) return
-
-      const price = Number(doc.unitCost || 0)
-      if (!Number.isFinite(price) || price <= 0) return
-
-      const prev = stockPriceMap[metal]
-      if (!prev || new Date(doc.updatedAt || 0) > new Date(prev.updatedAt || 0)) {
-        stockPriceMap[metal] = {
-          price,
-          currency: String(doc.currency || meta.priceCurrency || 'USD').toUpperCase(),
-          unit: String(meta.priceUnit || 'OZ').toUpperCase(),
-          updatedAt: doc.updatedAt || null,
-        }
-      }
-    })
-
-    const latestStockUpdatedAt = Object.values(stockPriceMap)
-      .map((entry) => entry.updatedAt)
-      .filter(Boolean)
-      .sort((a, b) => new Date(b) - new Date(a))[0] || null
-
-    const metalRates = {
-      // Prefer inventory stock-type prices; fallback to legacy metal-rates for compatibility.
-      gold: stockPriceMap.gold?.price || (latestRate ? latestRate.goldPrice : 0),
-      silver: stockPriceMap.silver?.price || (latestRate ? latestRate.silverPrice : 0),
-      platinum: stockPriceMap.platinum?.price || 0,
-      palladium: stockPriceMap.palladium?.price || 0,
-      currency: stockPriceMap.gold?.currency || stockPriceMap.silver?.currency || (latestRate ? latestRate.priceCurrency : 'USD'),
-      updatedAt: latestStockUpdatedAt || (latestRate ? latestRate.updatedAt : null),
-      stockPrices: stockPriceMap,
-    }
+    const metalRates = await buildMetalRates()
 
     // --- Vendor compliance / doc expiry ---
     const vendorDocumentExpiry = buildDocumentExpiryBuckets(vendors, today)

@@ -2272,6 +2272,7 @@ function registerErpAccountingRoutes(router) {
     InventoryItem,
     StockMovement,
     MetalRate,
+    Currency,
     toMoney,
     parseBool,
     buildDateQuery,

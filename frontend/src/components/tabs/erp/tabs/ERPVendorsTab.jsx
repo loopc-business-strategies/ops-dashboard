@@ -48,6 +48,24 @@ export default function ERPVendorsTab({
     return parts.length ? parts.join(' | ') : '-'
   }
 
+  const formatMoney = (value, currency = 'USD') => `${currency} ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+  const getVendorOverdueAmount = (vendor) => {
+    if (vendor.nextDue?.alertLevel === 'overdue') return Number(vendor.nextDue?.remaining || 0)
+    return Number(vendor.dueAlerts?.overdue || 0) > 0 ? Number(vendor.dueAmount || 0) : 0
+  }
+
+  const getVendorAlertMeta = (vendor) => {
+    const overdueAmount = getVendorOverdueAmount(vendor)
+    if (overdueAmount > 0) {
+      const days = Math.abs(Number(vendor.nextDue?.daysToDue || 0))
+      return { label: `Overdue${days ? ` ${days} days` : ''}`, color: '#DC2626', bg: '#FEF2F2', icon: '!' }
+    }
+    if (vendor.nextDue?.alertLevel === 'due_soon') return { label: 'Payment due in 7 days', color: '#D97706', bg: '#FFFBEB', icon: '!' }
+    if ((vendor.documents || []).length === 0) return { label: 'New vendor', color: '#2563EB', bg: '#EFF6FF', icon: 'i' }
+    return { label: 'Payment on track', color: '#059669', bg: '#ECFDF5', icon: '✓' }
+  }
+
   const getVendorDueSummary = (vendor) => {
     const nextDue = vendor.nextDue || null
     const overdue = Number(vendor.dueAlerts?.overdue || 0)
@@ -85,7 +103,10 @@ export default function ERPVendorsTab({
       {activeTab === 'vendors' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Vendors Management</h3>
+            <div>
+              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.18rem', fontWeight: '800' }}>Vendors</h3>
+              <p style={{ margin: '0.25rem 0 0', color: C.inkSoft, fontSize: '0.82rem' }}>Manage your vendors and payment obligations</p>
+            </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <button
                 onClick={handleVendorFilterSearch}
@@ -107,33 +128,29 @@ export default function ERPVendorsTab({
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #059669', borderRadius: '0.5rem', padding: '0.85rem' }}>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
               <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Total Vendors</p>
               <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.totalVendors}</p>
             </div>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #0284C7', borderRadius: '0.5rem', padding: '0.85rem' }}>
-              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Total Outstanding</p>
-              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{Number(vendorSummary.totalOutstanding || 0).toLocaleString()}</p>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Total Payable</p>
+              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{formatMoney(vendorSummary.totalOutstanding || 0)}</p>
             </div>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #D97706', borderRadius: '0.5rem', padding: '0.85rem' }}>
-              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Over Limit</p>
-              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.overLimit}</p>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Overdue</p>
+              <p style={{ margin: '0.3rem 0 0', color: '#DC2626', fontWeight: '700', fontSize: '1.25rem' }}>{formatMoney(vendorPaymentCalendar.alerts?.totalDue || 0)}</p>
             </div>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #DC2626', borderRadius: '0.5rem', padding: '0.85rem' }}>
-              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Blacklisted</p>
-              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.blacklisted}</p>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Due This Month</p>
+              <p style={{ margin: '0.3rem 0 0', color: '#EA580C', fontWeight: '700', fontSize: '1.25rem' }}>{formatMoney(vendorPaymentCalendar.alerts?.totalDue || 0)}</p>
             </div>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #8B5CF6', borderRadius: '0.5rem', padding: '0.85rem' }}>
-              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>In Review</p>
-              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.review || 0}</p>
-            </div>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderLeft: '4px solid #D97706', borderRadius: '0.5rem', padding: '0.85rem' }}>
-              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Non-Compliant</p>
-              <p style={{ margin: '0.3rem 0 0', color: C.ink, fontWeight: '700', fontSize: '1.25rem' }}>{vendorSummary.nonCompliant || 0}</p>
+            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <p style={{ margin: 0, color: C.t3, fontSize: '0.78rem' }}>Alerts</p>
+              <p style={{ margin: '0.3rem 0 0', color: '#B45309', fontWeight: '700', fontSize: '1.25rem' }}>{(vendorPaymentCalendar.alerts?.overdue || 0) + (vendorComplianceSummary.summary?.nonCompliant || 0)}</p>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'none', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', marginBottom: '1rem' }}>
             <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '0.45rem', padding: '0.55rem' }}>
               <p style={{ margin: 0, color: '#991B1B', fontSize: '0.76rem' }}>Overdue Dues</p>
               <p style={{ margin: '0.2rem 0 0', color: '#7F1D1D', fontWeight: '700' }}>{vendorPaymentCalendar.alerts?.overdue || 0}</p>
@@ -172,7 +189,7 @@ export default function ERPVendorsTab({
             </div>
           </div>
 
-          <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'none', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem', marginBottom: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.45rem' }}>
               <p style={{ margin: 0, color: C.ink, fontWeight: '700', fontSize: '0.9rem' }}>Overdue Email Queue Payload</p>
               <button onClick={loadVendorOverdueQueue} style={{ padding: '0.3rem 0.6rem', borderRadius: '0.35rem', border: '1px solid #7DD3FC', background: '#E0F2FE', color: '#075985', cursor: 'pointer', fontSize: '0.74rem', fontWeight: '600' }}>Refresh Queue</button>
@@ -287,46 +304,48 @@ export default function ERPVendorsTab({
             </form>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
             <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem', minWidth: '1180px' }}>
                 <thead>
-                  <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Code</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Vendor</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Contact</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Status</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'right' }}>Outstanding</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Pay Due / Overdue</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Next Due Date</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Alert</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Attachments</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'left' }}>Message</th>
-                    <th style={{ padding: '0.6rem', textAlign: 'center' }}>Actions</th>
+                  <tr style={{ borderBottom: `1px solid ${C.p2}`, background: '#F8FAFC' }}>
+                    {['Code', 'Vendor', 'Contact / Contract', 'Status', 'Pay Due', 'Overdue', 'Alerts', 'Next Due Date', 'Monthly (Est.)', 'Attachments', 'Actions'].map((heading) => (
+                      <th key={heading} style={{ padding: '0.75rem 0.7rem', textAlign: heading === 'Pay Due' || heading === 'Overdue' || heading === 'Monthly (Est.)' ? 'right' : heading === 'Actions' ? 'center' : 'left', color: '#334155', fontSize: '0.74rem', fontWeight: '800' }}>{heading}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {vendors.map((v) => {
-                    const due = getVendorDueSummary(v)
                     const latestDoc = (v.documents || [])[0]
+                    const alert = getVendorAlertMeta(v)
+                    const payDue = Number(v.dueAmount || v.nextDue?.remaining || v.outstanding || 0)
+                    const overdue = getVendorOverdueAmount(v)
+                    const currency = v.nextDue?.currency || v.currency || 'USD'
                     return (
                     <tr key={v._id} style={{ borderBottom: `1px solid ${C.p2}`, background: selectedVendorId === v._id ? '#ECFEFF' : 'transparent' }}>
-                      <td style={{ padding: '0.6rem' }}>{v.vendorCode || '-'}</td>
+                      <td style={{ padding: '0.7rem', color: '#334155', fontWeight: '700' }}>{v.vendorCode || '-'}</td>
                       <td style={{ padding: '0.6rem', minWidth: '170px' }}>
                         <div style={{ fontWeight: '700', color: C.ink }}>{v.name}</div>
                         <div style={{ color: C.inkSoft, fontSize: '0.74rem' }}>{v.category || 'general'} | Risk {v.riskLevel || 'medium'}</div>
                       </td>
-                      <td style={{ padding: '0.6rem', minWidth: '170px' }}>{getVendorContact(v)}</td>
+                      <td style={{ padding: '0.6rem', minWidth: '180px' }}>
+                        <div style={{ color: C.ink, fontWeight: '600' }}>{v.contactPerson || '-'}</div>
+                        <div style={{ color: C.inkSoft, fontSize: '0.74rem' }}>{v.email || v.phone || '-'}</div>
+                        <div style={{ color: '#2563EB', fontSize: '0.74rem', fontWeight: '700' }}>{v.contractNo || v.vendorCode || '-'}</div>
+                      </td>
                       <td style={{ padding: '0.6rem' }}>
                         <span style={{ padding: '0.15rem 0.5rem', borderRadius: '999px', background: v.status === 'blacklisted' ? '#FEE2E2' : v.status === 'on_hold' ? '#FEF3C7' : '#DCFCE7', color: v.status === 'blacklisted' ? '#991B1B' : v.status === 'on_hold' ? '#92400E' : '#166534', fontWeight: '700', fontSize: '0.72rem' }}>{v.status || 'active'}</span>
                       </td>
-                      <td style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '700', color: v.isOverLimit ? '#DC2626' : C.ink }}>{Number(v.outstanding || 0).toLocaleString()}</td>
-                      <td style={{ padding: '0.6rem', minWidth: '140px' }}>
-                        <div style={{ color: due.color, fontWeight: '800' }}>{due.label}</div>
-                        <div style={{ color: C.inkSoft, fontSize: '0.72rem' }}>{due.detail}</div>
+                      <td style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '800', color: '#EA580C' }}>{formatMoney(payDue, currency)}</td>
+                      <td style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '800', color: overdue > 0 ? '#DC2626' : '#059669' }}>{formatMoney(overdue, currency)}</td>
+                      <td style={{ padding: '0.6rem', minWidth: '150px' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: alert.color, fontWeight: '700', fontSize: '0.76rem' }}>
+                          <span style={{ width: 16, height: 16, borderRadius: 16, background: alert.bg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem' }}>{alert.icon}</span>
+                          {alert.label}
+                        </span>
                       </td>
-                      <td style={{ padding: '0.6rem' }}>{formatDate(v.nextDue?.dueDate)}</td>
-                      <td style={{ padding: '0.6rem', minWidth: '150px', color: C.inkSoft }}>{getVendorAlertText(v)}</td>
+                      <td style={{ padding: '0.6rem', color: overdue > 0 ? '#DC2626' : C.ink }}>{formatDate(v.nextDue?.dueDate)}</td>
+                      <td style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '700', color: C.ink }}>{formatMoney(payDue || v.outstanding || 0, currency)}</td>
                       <td style={{ padding: '0.6rem' }}>
                         {latestDoc ? (
                           <a href={getVendorDocumentUrl(latestDoc, v._id)} target="_blank" rel="noreferrer" style={{ color: '#1D4ED8', fontWeight: '700', textDecoration: 'none' }}>
@@ -336,7 +355,6 @@ export default function ERPVendorsTab({
                           <span style={{ color: C.inkSoft }}>No file</span>
                         )}
                       </td>
-                      <td style={{ padding: '0.6rem', minWidth: '220px', color: C.inkSoft }}>{getVendorMessage(v)}</td>
                       <td style={{ padding: '0.6rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                           <button onClick={() => handleVendorSelect(v._id)} style={{ padding: '0.25rem 0.55rem', background: '#E0F2FE', border: '1px solid #7DD3FC', borderRadius: '0.3rem', color: '#075985', cursor: 'pointer', fontSize: '0.75rem' }}>View</button>
@@ -351,7 +369,7 @@ export default function ERPVendorsTab({
               {vendors.length === 0 && <p style={{ color: C.inkSoft, margin: '0.8rem', textAlign: 'center' }}>No vendors found for current filters.</p>}
             </div>
 
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem' }}>
+            <div style={{ display: 'none', background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.85rem' }}>
               <h4 style={{ marginTop: 0, marginBottom: '0.6rem', color: C.ink, fontWeight: '700' }}>Vendor Details</h4>
               {!selectedVendorDetails?.vendor ? (
                 <div style={emptyCardStyle}>Select a vendor to view profile, financial metrics, and recent activity.</div>
