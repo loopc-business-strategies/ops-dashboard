@@ -6,6 +6,10 @@
 const express = require('express')
 const { protect, restrictTo } = require('../middleware/auth')
 const { connectTenant } = require('../db/tenantConnections')
+const {
+  planVendorRegistryMaintenance,
+  applyVendorRegistryMaintenance,
+} = require('../services/vendorRegistryMaintenance')
 const router = express.Router()
 
 function envBool(value, defaultValue = false) {
@@ -179,6 +183,47 @@ router.post('/cleanup/exchange-entries', async (req, res) => {
     res.status(500).json({
       ok: false,
       error: error.message
+    })
+  }
+})
+
+router.post('/maintenance/vendor-registry', async (req, res) => {
+  try {
+    const db = await resolveTenantDb(req)
+    const dryRun = req.body?.dryRun !== false && req.body?.apply !== true
+    const purgeDeleted = req.body?.purgeDeleted !== false
+    const removePlaceholders = req.body?.removePlaceholders !== false
+
+    const plan = await planVendorRegistryMaintenance(db, { purgeDeleted, removePlaceholders })
+
+    if (plan.blockedRemovals.length) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Vendor registry maintenance blocked for vendors with ledger or transaction activity',
+        plan,
+      })
+    }
+
+    if (dryRun) {
+      return res.json({
+        ok: true,
+        mode: 'dry_run',
+        plan,
+      })
+    }
+
+    const result = await applyVendorRegistryMaintenance(db, plan)
+    return res.json({
+      ok: true,
+      mode: 'apply',
+      plan,
+      result,
+    })
+  } catch (error) {
+    console.error('[Vendor registry maintenance]', error.message)
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
     })
   }
 })
