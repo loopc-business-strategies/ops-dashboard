@@ -1,4 +1,9 @@
 const { Joi } = require('../../middleware/validate')
+const { restrictTo } = require('../../middleware/auth')
+const {
+  planVendorRegistryMaintenance,
+  applyVendorRegistryMaintenance,
+} = require('../../services/vendorRegistryMaintenance')
 const fs = require('fs')
 const path = require('path')
 
@@ -777,6 +782,39 @@ function registerVendorRoutes(deps) {
       res.json({ success: true, rows, alerts, page, limit, totalVendors })
     } catch {
       res.status(500).json({ success: false, message: 'Server error' })
+    }
+  })
+
+  router.post('/vendors/registry-maintenance', protect, restrictTo('super_admin'), async (req, res) => {
+    try {
+      const db = Vendor.db?.db
+      if (!db) {
+        return res.status(500).json({ success: false, message: 'Tenant database unavailable' })
+      }
+
+      const dryRun = req.body?.dryRun !== false && req.body?.apply !== true
+      const purgeDeleted = req.body?.purgeDeleted !== false
+      const removePlaceholders = req.body?.removePlaceholders !== false
+
+      const plan = await planVendorRegistryMaintenance(db, { purgeDeleted, removePlaceholders })
+
+      if (plan.blockedRemovals.length) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vendor registry maintenance blocked for vendors with ledger or transaction activity',
+          plan,
+        })
+      }
+
+      if (dryRun) {
+        return res.json({ success: true, mode: 'dry_run', plan })
+      }
+
+      const result = await applyVendorRegistryMaintenance(db, plan)
+      return res.json({ success: true, mode: 'apply', plan, result })
+    } catch (error) {
+      console.error('[Vendor registry maintenance]', error.message)
+      return res.status(500).json({ success: false, message: error.message })
     }
   })
 

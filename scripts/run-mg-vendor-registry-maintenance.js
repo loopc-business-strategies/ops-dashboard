@@ -2,8 +2,7 @@
  * Run MG vendor registry maintenance against the deployed API.
  *
  * Env:
- *   MG_ADMIN_EMAIL / MG_ADMIN_PASSWORD (MG super_admin)
- *   CLEANUP_CONFIRM_TOKEN (matches Railway)
+ *   MG_ADMIN_NAME / MG_ADMIN_PASSWORD (or SMOKE_AUTH_NAME_MG / SMOKE_AUTH_PASSWORD_MG)
  *   API_BASE (default https://api.loopcstrategies.com)
  *
  *   node scripts/run-mg-vendor-registry-maintenance.js
@@ -37,31 +36,41 @@ async function request(path, { method = 'GET', body, cookie, headers = {} } = {}
   } catch {
     data = { raw: text }
   }
-  return { status: res.status, data, cookie: parseCookies(res.headers.getSetCookie?.() || res.headers.raw?.()['set-cookie']) }
+  const setCookie = typeof res.headers.getSetCookie === 'function'
+    ? res.headers.getSetCookie()
+    : []
+  return {
+    status: res.status,
+    data,
+    cookie: parseCookies(setCookie),
+    csrf: res.headers.get('x-csrf-token') || data?.csrfToken || '',
+  }
 }
 
 async function main() {
-  const email = process.env.MG_ADMIN_EMAIL || process.env.SMOKE_AUTH_NAME_MG || process.env.SMOKE_AUTH_NAME
+  const name = process.env.MG_ADMIN_NAME || process.env.MG_ADMIN_EMAIL || process.env.SMOKE_AUTH_NAME_MG || process.env.SMOKE_AUTH_NAME
   const password = process.env.MG_ADMIN_PASSWORD || process.env.SMOKE_AUTH_PASSWORD_MG || process.env.SMOKE_AUTH_PASSWORD
-  const confirmToken = process.env.CLEANUP_CONFIRM_TOKEN || ''
 
-  if (!email || !password) {
-    throw new Error('Set MG_ADMIN_EMAIL and MG_ADMIN_PASSWORD (or SMOKE_AUTH_* MG credentials)')
+  if (!name || !password) {
+    throw new Error('Set MG_ADMIN_NAME and MG_ADMIN_PASSWORD (or SMOKE_AUTH_* MG credentials)')
   }
 
   const login = await request('/api/auth/login', {
     method: 'POST',
-    body: { email, password },
+    body: { name, password, company: TENANT },
   })
 
   if (login.status >= 400 || !login.data?.success) {
     throw new Error(`Login failed (${login.status}): ${login.data?.message || 'unknown error'}`)
   }
 
-  const maintenance = await request('/api/admin/maintenance/vendor-registry', {
+  const sessionCookie = login.cookie
+  const csrfToken = login.data?.csrfToken || login.csrf
+
+  const maintenance = await request('/api/erp-accounting/vendors/registry-maintenance', {
     method: 'POST',
-    cookie: login.cookie,
-    headers: confirmToken ? { 'x-cleanup-token': confirmToken } : {},
+    cookie: sessionCookie,
+    headers: { 'X-CSRF-Token': csrfToken },
     body: {
       dryRun: !apply,
       apply,
@@ -78,6 +87,8 @@ async function main() {
 
   if (!apply) {
     console.log('\nDry run complete. Re-run with --apply to execute.')
+  } else {
+    console.log('\nApplied on production MG.')
   }
 }
 
