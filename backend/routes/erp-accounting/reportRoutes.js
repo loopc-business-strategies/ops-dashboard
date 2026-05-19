@@ -820,9 +820,32 @@ router.get('/reports/dashboard', protect, async (req, res) => {
     const totalAR = customerOutstanding.reduce((s, r) => s + Number(r.outstanding || 0), 0)
     const totalAP = vendorOutstanding.reduce((s, r) => s + Number(r.outstanding || 0), 0)
 
-    // --- Customer margin: expenses and cash-flow per customer (no profit/income) ---
+    // --- Customer / Supplier margin: show every created party account ---
     const customerMargins = await Promise.all(customers.map(async (c) => {
-      if (!c.ledgerAccountId?._id) return null
+      const outstanding = c.ledgerAccountId?._id
+        ? Number((await getAgingForAccount(c.ledgerAccountId._id)).total || 0)
+        : Number(c.outstandingBalance || 0)
+      const base = Number(c.creditLimit || 0) > 0
+        ? Number(c.creditLimit || 0)
+        : Math.abs(Number(c.openingBalance || 0))
+      const marginPercent = base > 0 ? (Math.abs(outstanding) / base) * 100 : null
+      const status = outstanding > 0 ? 'POSITIVE' : outstanding < 0 ? 'NEGATIVE' : 'NEUTRAL'
+
+      if (!c.ledgerAccountId?._id) {
+        return {
+          id: c._id,
+          customerName: c.name,
+          accountCode: '',
+          description: `${c.name} customer`,
+          expenses: 0,
+          cashInflow: 0,
+          cashOutflow: 0,
+          netCashFlow: toMoney(outstanding),
+          equity: toMoney(outstanding),
+          status,
+          marginPercent: marginPercent === null ? null : toMoney(marginPercent),
+        }
+      }
       const cLedger = await Ledger.find({
         $or: [{ debitAccountId: c.ledgerAccountId._id }, { creditAccountId: c.ledgerAccountId._id }],
         date: { $gte: periodStart, $lte: periodEnd },
@@ -834,18 +857,48 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         if (e.debitAccountId?.accountType === 'Asset') custCashIn += Number(e.amount || 0)
         if (e.creditAccountId?.accountType === 'Asset') custCashOut += Number(e.amount || 0)
       })
-      if (custExpense === 0 && custCashIn === 0 && custCashOut === 0) return null
       return {
+        id: c._id,
         customerName: c.name,
+        accountCode: c.ledgerAccountId?.accountCode || '',
+        description: c.ledgerAccountId?.accountName || `${c.name} customer`,
         expenses: toMoney(custExpense),
         cashInflow: toMoney(custCashIn),
         cashOutflow: toMoney(custCashOut),
-        netCashFlow: toMoney(custCashIn - custCashOut),
+        netCashFlow: toMoney(outstanding),
+        equity: toMoney(outstanding),
+        status,
+        marginPercent: marginPercent === null ? null : toMoney(marginPercent),
       }
     }))
-    const filteredCustomerMargins = customerMargins.filter(Boolean).slice(0, 10)
 
-    // --- Supplier margins via mapped purchase/sales accounts ---
+    const supplierMarginRows = await Promise.all(vendors.map(async (v) => {
+      const outstanding = v.ledgerAccountId?._id
+        ? Number(await getOutstandingForAccount(v.ledgerAccountId._id) || 0)
+        : Number(v.outstanding || 0)
+      const equity = -Math.abs(outstanding)
+      const base = Number(v.creditLimit || 0) > 0
+        ? Number(v.creditLimit || 0)
+        : Math.abs(Number(v.openingBalance || 0))
+      const marginPercent = base > 0 ? (Math.abs(equity) / base) * 100 : null
+      const status = equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL'
+      return {
+        id: v._id,
+        supplierName: v.name,
+        vendorName: v.name,
+        accountCode: v.ledgerAccountId?.accountCode || '',
+        description: v.ledgerAccountId?.accountName || `${v.name} supplier`,
+        expenses: 0,
+        cashInflow: 0,
+        cashOutflow: 0,
+        netCashFlow: toMoney(equity),
+        equity: toMoney(equity),
+        status,
+        marginPercent: marginPercent === null ? null : toMoney(marginPercent),
+      }
+    }))
+
+    // --- Legacy supplier totals retained for compatibility ---
     const purchaseMappings = await AccountMapping.find({ isActive: true, mappingType: { $in: ['purchase', 'expense', 'vendor_payment'] } })
       .populate('debitAccountId', 'accountCode accountName accountType')
       .populate('creditAccountId', 'accountCode accountName accountType')
@@ -1025,12 +1078,17 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         apCount: vendorOutstanding.filter((x) => x.outstanding > 0).length,
         customerOutstanding: customerOutstanding.filter((x) => x.outstanding > 0).slice(0, 10),
         vendorOutstanding: vendorOutstanding.filter((x) => x.outstanding > 0).slice(0, 10),
+        supplierOutstanding: vendorOutstanding
+          .filter((x) => x.outstanding > 0)
+          .slice(0, 10)
+          .map((x) => ({ supplierName: x.vendorName, outstanding: x.outstanding })),
       },
-      customerMargins: filteredCustomerMargins,
+      customerMargins,
       supplierMargins: {
         expenses: toMoney(supplierExpenseTotal),
         cashOutflow: toMoney(supplierCashOut),
         mappingsCount: purchaseMappings.length,
+        rows: supplierMarginRows,
       },
       fixingPositions,
       volumeTraded,

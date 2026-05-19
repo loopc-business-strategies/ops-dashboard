@@ -14,7 +14,7 @@ export const METAL_UNIT_FACTORS = {
 }
 
 export const ERP_DASH_ALL_WIDGETS = [
-  { id: 'margins', label: 'Customer & Supplier Margins', icon: '📊', color: '#e8f5ef', desc: 'Expense & cash flow by customer/supplier', cols: 2 },
+  { id: 'margins', label: 'Customer & Supplier Margins', icon: '📊', color: '#e8f5ef', desc: 'Equity status and margin by customer/supplier', cols: 2 },
   { id: 'metals', label: 'Current Metal Prices', icon: '🥇', color: '#fef9c3', desc: 'Live gold, silver, platinum prices', cols: 1 },
   { id: 'bank', label: 'Bank & Cash Balances', icon: '🏦', color: '#dbeafe', desc: 'All account balances overview', cols: 1, viewTab: 'bank' },
   { id: 'cashflow', label: 'Cash Flow', icon: '💸', color: '#dcfce7', desc: 'Monthly inflow / outflow bar chart', cols: 2 },

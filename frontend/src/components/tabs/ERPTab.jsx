@@ -171,6 +171,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const [customerMarginCompactView, setCustomerMarginCompactView] = useState(true)
   const [customerMarginSort, setCustomerMarginSort] = useState('margin-desc')
   const [customerMarginContextMenu, setCustomerMarginContextMenu] = useState({ open: false, x: 0, y: 0, row: null })
+  const [supplierMarginSearch, setSupplierMarginSearch] = useState('')
+  const [supplierMarginCompactView, setSupplierMarginCompactView] = useState(true)
+  const [supplierMarginSort, setSupplierMarginSort] = useState('margin-desc')
+  const [supplierMarginContextMenu, setSupplierMarginContextMenu] = useState({ open: false, x: 0, y: 0, row: null })
   const [fixingRegFilter, setFixingRegFilter] = useState({
     metalType: '',
     quantityUnit: 'GOZ',
@@ -2867,10 +2871,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   }, [activeTab])
 
   useEffect(() => {
-    if (!customerMarginContextMenu.open) return undefined
+    if (!customerMarginContextMenu.open && !supplierMarginContextMenu.open) return undefined
 
     const closeMenu = () => {
       setCustomerMarginContextMenu((prev) => (prev.open ? { open: false, x: 0, y: 0, row: null } : prev))
+      setSupplierMarginContextMenu((prev) => (prev.open ? { open: false, x: 0, y: 0, row: null } : prev))
     }
 
     const handleEscape = (event) => {
@@ -2887,7 +2892,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       window.removeEventListener('scroll', closeMenu, true)
       window.removeEventListener('keydown', handleEscape)
     }
-  }, [customerMarginContextMenu.open])
+  }, [customerMarginContextMenu.open, supplierMarginContextMenu.open])
 
   useEffect(() => {
     if (!canAccessERP || !token) {
@@ -2898,6 +2903,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     if (activeTab === 'dashboard') loadDashboard()
     else if (activeTab === 'accounts') loadAccounts()
     else if (activeTab === 'customers' || activeTab === 'customer-margin') loadCustomers()
+    else if (activeTab === 'supplier-margin') loadVendors()
     else if (activeTab === 'ledger') {
       loadLedger()
       loadAccounts({ scope: 'summary' })
@@ -3130,6 +3136,49 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     return rows
   }, [customers, customerMarginSearch, customerMarginSort])
 
+  const supplierMarginRows = useMemo(() => {
+    const query = String(supplierMarginSearch || '').trim().toLowerCase()
+    const rows = (vendors || [])
+      .map((vendor) => {
+        const outstanding = -Math.abs(Number(vendor?.outstanding ?? vendor?.outstandingBalance ?? 0))
+        const opening = Number(vendor?.openingBalance || 0)
+        const creditLimit = Number(vendor?.creditLimit || 0)
+        const status = outstanding > 0 ? 'POSITIVE' : outstanding < 0 ? 'NEGATIVE' : 'NEUTRAL'
+        const base = creditLimit > 0 ? creditLimit : (Math.abs(opening) > 0 ? Math.abs(opening) : 0)
+        const marginPercent = base > 0 ? (Math.abs(outstanding) / base) * 100 : null
+        return {
+          id: vendor?._id,
+          supplierName: String(vendor?.name || '-'),
+          balanceAbs: Math.abs(outstanding),
+          equity: outstanding,
+          rawOutstanding: outstanding,
+          status,
+          marginPercent,
+          accountCode: String(vendor?.ledgerAccountId?.accountCode || ''),
+          description: String(vendor?.ledgerAccountId?.accountName || `${String(vendor?.name || '').trim()} supplier`),
+        }
+      })
+      .filter((row) => (!query ? true : row.supplierName.toLowerCase().includes(query)))
+
+    if (supplierMarginSort === 'margin-asc') {
+      rows.sort((a, b) => {
+        const av = Number.isFinite(a.marginPercent) ? Number(a.marginPercent) : -1
+        const bv = Number.isFinite(b.marginPercent) ? Number(b.marginPercent) : -1
+        return av - bv
+      })
+    } else if (supplierMarginSort === 'name-asc') {
+      rows.sort((a, b) => a.supplierName.localeCompare(b.supplierName))
+    } else {
+      rows.sort((a, b) => {
+        const av = Number.isFinite(a.marginPercent) ? Number(a.marginPercent) : -1
+        const bv = Number.isFinite(b.marginPercent) ? Number(b.marginPercent) : -1
+        return bv - av
+      })
+    }
+
+    return rows
+  }, [vendors, supplierMarginSearch, supplierMarginSort])
+
   const formatCustomerMarginEquity = (row) => {
     const amount = Number(Math.abs(row?.equity || 0)).toLocaleString(undefined, {
       minimumFractionDigits: 2,
@@ -3171,6 +3220,24 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
 
     setCustomerMarginContextMenu({ open: true, x, y, row })
+  }
+
+  const handleSupplierMarginRowContextMenu = (event, row) => {
+    event.preventDefault()
+    const menuWidth = 292
+    const menuHeight = 172
+    const viewportPad = 8
+    let x = event.clientX + 6
+    let y = event.clientY + 6
+
+    if (x + menuWidth > window.innerWidth - viewportPad) {
+      x = Math.max(viewportPad, window.innerWidth - menuWidth - viewportPad)
+    }
+    if (y + menuHeight > window.innerHeight - viewportPad) {
+      y = Math.max(viewportPad, window.innerHeight - menuHeight - viewportPad)
+    }
+
+    setSupplierMarginContextMenu({ open: true, x, y, row })
   }
 
   const FIXING_REG_UNIT_PER_OZ = { GOZ: 1, GRAM: 31.1034768, KG: 0.0311034768, TOLA: 2.66667 }
@@ -5462,6 +5529,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           ...(canViewBalanceEnquiry ? ['enquiry'] : []),
           ...(canViewCustomers ? ['customers'] : []),
           ...(canViewCustomers ? ['customer-margin'] : []),
+          ...(canAccessVendors ? ['supplier-margin'] : []),
           ...(canViewLedger ? ['ledger'] : []),
           ...(canAccessTransactions ? ['transactions'] : []),
           ...(canAccessReports ? ['reports'] : []),
@@ -5504,6 +5572,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                         ? 'Currency Master'
                       : tab === 'customer-margin'
                         ? 'Customer Margin'
+                      : tab === 'supplier-margin'
+                        ? 'Supplier Margin'
                       : tab === 'inventory'
                         ? t('inventory')
                         : tab === 'vouchers'
@@ -5938,6 +6008,130 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           </div>
 
           {customerMarginRows.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No customers available for margin view.</p>}
+        </div>
+      )}
+
+      {/* SUPPLIER MARGIN TAB */}
+      {activeTab === 'supplier-margin' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.9rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                title="Back to ERP Dashboard"
+                style={{ background: 'none', border: '1px solid #A7F3D0', borderRadius: '0.4rem', padding: '0.3rem 0.5rem', cursor: 'pointer', fontSize: '1rem', color: '#1a6647', display: 'flex', alignItems: 'center', lineHeight: 1, fontWeight: '700' }}
+              >â†</button>
+              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Supplier Margin</h3>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <select
+                value={supplierMarginSort}
+                onChange={(e) => setSupplierMarginSort(e.target.value)}
+                style={{ padding: '0.48rem 0.62rem', border: '1px solid #CBD5E1', borderRadius: '0.45rem', background: '#FFFFFF', color: C.ink, fontSize: '0.82rem' }}
+              >
+                <option value="margin-desc">Sort: Margin % (High to Low)</option>
+                <option value="margin-asc">Sort: Margin % (Low to High)</option>
+                <option value="name-asc">Sort: Name (A-Z)</option>
+              </select>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.38rem', color: C.inkSoft, fontSize: '0.82rem', fontWeight: '600' }}>
+                <input
+                  type="checkbox"
+                  checked={supplierMarginCompactView}
+                  onChange={(e) => setSupplierMarginCompactView(e.target.checked)}
+                />
+                Fixed List Area
+              </label>
+              <input
+                placeholder="Search supplier"
+                value={supplierMarginSearch}
+                onChange={(e) => setSupplierMarginSearch(e.target.value)}
+                style={{ width: 'min(320px, 100%)', padding: '0.5rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '0.45rem', background: '#FFFFFF', color: C.ink }}
+              />
+            </div>
+          </div>
+
+          <div style={{ border: '1px solid #BFD0E5', borderRadius: '0.45rem', overflow: 'hidden', background: '#FFFFFF' }}>
+            <div style={{ background: 'linear-gradient(180deg, #E9F3FF 0%, #D7E9FF 100%)', borderBottom: '1px solid #BFD0E5', padding: '0.55rem 0.8rem', fontSize: '1rem', fontWeight: '700', color: '#1E3A8A' }}>
+              Supplier Margin
+            </div>
+            <div style={{ overflowX: 'auto', overflowY: supplierMarginCompactView ? 'auto' : 'visible', maxHeight: supplierMarginCompactView ? '380px' : 'none' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '0.88rem' }}>
+                <colgroup>
+                  <col style={{ width: '46%' }} />
+                  <col style={{ width: '24%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '16%' }} />
+                </colgroup>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #D9E2EC' }}>
+                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'left', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Supplier Name</th>
+                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Equity</th>
+                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Status</th>
+                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Margin %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {supplierMarginRows.map((row, index) => {
+                    const isNegative = row.status === 'NEGATIVE'
+                    const valueColor = isNegative ? '#DC2626' : '#1D4ED8'
+                    return (
+                      <tr
+                        key={row.id || index}
+                        onClick={(event) => handleSupplierMarginRowContextMenu(event, row)}
+                        onContextMenu={(event) => handleSupplierMarginRowContextMenu(event, row)}
+                        title="Click or right click to open details submenu"
+                        style={{ borderBottom: '1px solid #EEF2F7', background: index % 2 === 0 ? '#FFFFFF' : '#FCFDFF', height: '30px', cursor: 'context-menu' }}
+                      >
+                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', color: valueColor, fontWeight: '600', fontSize: '0.85rem', lineHeight: 1.08, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.supplierName}</td>
+                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginEquity(row)}</td>
+                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.8rem', letterSpacing: '0.035em', lineHeight: 1.08 }}>{row.status}</td>
+                        <td style={{ padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPercent(row.marginPercent)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {supplierMarginContextMenu.open && supplierMarginContextMenu.row && (
+            <div
+              onClick={(event) => event.stopPropagation()}
+              onContextMenu={(event) => event.preventDefault()}
+              style={{
+                position: 'fixed',
+                top: `${supplierMarginContextMenu.y}px`,
+                left: `${supplierMarginContextMenu.x}px`,
+                width: '292px',
+                background: '#FDFEFE',
+                border: '1px solid #9DB5D5',
+                boxShadow: '0 10px 24px rgba(15, 23, 42, 0.2)',
+                zIndex: 2000,
+                borderRadius: '0.2rem',
+                overflow: 'hidden',
+              }}
+            >
+              <div style={{ padding: '0.35rem 0.5rem', borderBottom: '1px solid #D7E3F3', background: '#E7EFFA', color: '#15407E', fontSize: '0.76rem', fontWeight: '700', letterSpacing: '0.03em' }}>
+                SUPPLIER MARGIN SUB MENU
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '132px 1fr', fontSize: '0.78rem' }}>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Account Code</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827' }}>{supplierMarginContextMenu.row.accountCode || '-'}</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Description</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{supplierMarginContextMenu.row.description || '-'}</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Excess/Short</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginExcessShort(supplierMarginContextMenu.row)}</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Margin</div>
+                <div style={{ padding: '0.34rem 0.52rem', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPercent(supplierMarginContextMenu.row.marginPercent)}</div>
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginTop: '0.75rem', color: C.inkSoft, fontSize: '0.82rem' }}>
+            Equity shows signed exposure: positive values are favorable, negative values are payable.
+          </div>
+
+          {supplierMarginRows.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No suppliers available for margin view.</p>}
         </div>
       )}
 

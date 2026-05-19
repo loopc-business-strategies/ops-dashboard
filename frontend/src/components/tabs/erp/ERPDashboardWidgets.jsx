@@ -19,24 +19,28 @@ function MarginsWidget({ dashboard, onNavigate }) {
 
   const muted = '#6B7280'; const ink = '#111827'
   const rawCustomers = dashboard?.customerMargins || []
-  const suppExp = Number(dashboard?.supplierMargins?.expenses || 0)
-  const suppCash = Number(dashboard?.supplierMargins?.cashOutflow || 0)
+  const rawSuppliers = dashboard?.supplierMargins?.rows || []
 
-  const mapCustomer = (c) => {
-    const net = Number(c?.netCashFlow || 0)
-    const exp = Number(c?.expenses || 0)
+  const mapMarginRow = (row, nameKey) => {
+    const net = Number(row?.equity ?? row?.netCashFlow ?? 0)
+    const exp = Number(row?.expenses || 0)
     const status = net > 0 ? 'POSITIVE' : net < 0 ? 'NEGATIVE' : 'NEUTRAL'
-    const marginPercent = exp > 0 ? (Math.abs(net) / exp) * 100 : null
+    const rawMargin = row?.marginPercent
+    const marginPercent = Number.isFinite(Number(rawMargin)) ? Number(rawMargin) : (exp > 0 ? (Math.abs(net) / exp) * 100 : null)
     const equityAbs = Math.abs(net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     const equityFmt = net > 0 ? `+${equityAbs}` : net < 0 ? `-${equityAbs}` : equityAbs
     const marginFmt = Number.isFinite(marginPercent) ? `${Number(marginPercent).toFixed(2)} %` : '—'
-    return { name: String(c?.customerName || c?.name || '-'), equity: net, equityFmt, status, marginFmt, marginPercent }
+    return { name: String(row?.[nameKey] || row?.name || '-'), equity: net, equityFmt, status, marginFmt, marginPercent }
   }
-  const customers = rawCustomers.map(mapCustomer)
+  const customers = rawCustomers.map((row) => mapMarginRow(row, 'customerName'))
+  const suppliers = rawSuppliers.map((row) => mapMarginRow(row, 'supplierName'))
+  const activeRows = tab === 'suppliers' ? suppliers : customers
+  const activeLabel = tab === 'suppliers' ? 'supplier' : 'customer'
+  const activeTitle = tab === 'suppliers' ? 'Supplier Margin' : 'Customer Margin'
 
   const modalRows = (() => {
     const q = modalSearch.trim().toLowerCase()
-    const rows = customers.filter(c => !q || c.name.toLowerCase().includes(q))
+    const rows = activeRows.filter(c => !q || c.name.toLowerCase().includes(q))
     if (modalSort === 'margin-asc')    rows.sort((a, b) => (Number.isFinite(a.marginPercent) ? a.marginPercent : -1) - (Number.isFinite(b.marginPercent) ? b.marginPercent : -1))
     else if (modalSort === 'name-asc') rows.sort((a, b) => a.name.localeCompare(b.name))
     else                               rows.sort((a, b) => (Number.isFinite(b.marginPercent) ? b.marginPercent : -1) - (Number.isFinite(a.marginPercent) ? a.marginPercent : -1))
@@ -72,21 +76,20 @@ function MarginsWidget({ dashboard, onNavigate }) {
     <div>
       <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4' }}>
         <div style={tabSt(tab === 'customers')} onClick={() => setTab('customers')}>Customer Margins</div>
-        <div style={tabSt(tab === 'suppliers')} onClick={() => setTab('suppliers')}>Supplier Side</div>
+        <div style={tabSt(tab === 'suppliers')} onClick={() => setTab('suppliers')}>Supplier Margins</div>
       </div>
       <div style={{ padding: '0.75rem 0.8125rem' }}>
-        {tab === 'customers' ? (
-          customers.length === 0
-            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No customer data for period.</p>
+        {activeRows.length === 0
+            ? <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No {activeLabel} data available.</p>
             : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                 <thead><tr style={{ borderBottom: '1px solid #F0FDF4' }}>
-                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left',   fontSize: '0.65rem', fontWeight: '700', color: muted }}>Customer</th>
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left',   fontSize: '0.65rem', fontWeight: '700', color: muted }}>{tab === 'suppliers' ? 'Supplier' : 'Customer'}</th>
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Equity</th>
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontSize: '0.65rem', fontWeight: '700', color: muted }}>Status</th>
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Margin %</th>
                 </tr></thead>
                 <tbody>
-                  {customers.slice(0, 7).map((c, i) => (
+                  {activeRows.map((c, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #F9FAFB' }}>
                       <td style={{ padding: '0.35rem 0.4rem', fontWeight: '500', color: ink }}>{c.name}</td>
                       <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: c.equity > 0 ? '#16A34A' : c.equity < 0 ? '#DC2626' : ink }}>{c.equityFmt}</td>
@@ -96,24 +99,16 @@ function MarginsWidget({ dashboard, onNavigate }) {
                   ))}
                 </tbody>
               </table>
-        ) : (
-          <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem' }}>
-              <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#FEF9C3' }}>
-                <p style={{ fontSize: '0.68rem', color: muted, marginBottom: '0.25rem', fontWeight: '600' }}>Total Expenses</p>
-                <p style={{ fontSize: '1.05rem', fontWeight: '700', color: '#92400E', margin: 0 }}>{fmtMoney(suppExp)}</p>
-              </div>
-              <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#FEE2E2' }}>
-                <p style={{ fontSize: '0.68rem', color: muted, marginBottom: '0.25rem', fontWeight: '600' }}>Cash Outflow</p>
-                <p style={{ fontSize: '1.05rem', fontWeight: '700', color: '#DC2626', margin: 0 }}>{fmtMoney(suppCash)}</p>
-              </div>
-            </div>
-            <p style={{ fontSize: '0.72rem', color: muted, marginTop: '0.75rem', textAlign: 'center' }}>Based on account mappings for the period</p>
-          </div>
-        )}
+        }
         <div style={{ marginTop: '0.6rem', textAlign: 'right' }}>
           <button
-            onClick={() => { setShowModal(true); setModalSearch(''); setModalSort('margin-desc'); setDragPos({ x: 0, y: 0 }) }}
+            onClick={() => {
+              if (onNavigate) {
+                onNavigate(tab === 'suppliers' ? 'supplier-margin' : 'customer-margin')
+                return
+              }
+              setShowModal(true); setModalSearch(''); setModalSort('margin-desc'); setDragPos({ x: 0, y: 0 })
+            }}
             style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}
           >↗ View Full Report</button>
         </div>
@@ -148,8 +143,8 @@ function MarginsWidget({ dashboard, onNavigate }) {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <span style={{ fontSize: '1.1rem' }}>📊</span>
-                <span style={{ color: '#FFFFFF', fontWeight: '700', fontSize: '1rem', letterSpacing: '0.02em' }}>Customer Margin — Full Report</span>
-                <span style={{ background: 'rgba(255,255,255,0.2)', color: '#FFFFFF', fontSize: '0.7rem', fontWeight: '700', borderRadius: '999px', padding: '0.1rem 0.55rem' }}>{modalRows.length} customers</span>
+                <span style={{ color: '#FFFFFF', fontWeight: '700', fontSize: '1rem', letterSpacing: '0.02em' }}>{activeTitle} — Full Report</span>
+                <span style={{ background: 'rgba(255,255,255,0.2)', color: '#FFFFFF', fontSize: '0.7rem', fontWeight: '700', borderRadius: '999px', padding: '0.1rem 0.55rem' }}>{modalRows.length} {activeLabel}s</span>
                 <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.68rem', marginLeft: '0.3rem' }}>⠿ drag</span>
               </div>
               <button
@@ -159,7 +154,7 @@ function MarginsWidget({ dashboard, onNavigate }) {
             </div>
             <div style={{ padding: '0.65rem 1rem', borderBottom: '1px solid #E2E8F0', display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap', background: '#F8FAFC', flexShrink: 0 }}>
               <input
-                placeholder="Search customer…"
+                placeholder={`Search ${activeLabel}...`}
                 value={modalSearch}
                 onChange={(e) => setModalSearch(e.target.value)}
                 style={{ flex: 1, minWidth: '160px', padding: '0.42rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '0.4rem', fontSize: '0.82rem', color: ink, background: '#FFFFFF' }}
@@ -176,11 +171,11 @@ function MarginsWidget({ dashboard, onNavigate }) {
             </div>
             <div style={{ overflowY: 'auto', flex: 1 }}>
               {modalRows.length === 0
-                ? <p style={{ textAlign: 'center', color: '#9CA3AF', padding: '2rem', fontSize: '0.85rem' }}>No customers found.</p>
+                ? <p style={{ textAlign: 'center', color: '#9CA3AF', padding: '2rem', fontSize: '0.85rem' }}>No {activeLabel}s found.</p>
                 : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                     <thead>
                       <tr style={{ background: 'linear-gradient(180deg, #E9F3FF 0%, #D7E9FF 100%)', borderBottom: '1px solid #BFD0E5', position: 'sticky', top: 0, zIndex: 1 }}>
-                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'left',   fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem' }}>Customer Name</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'left',   fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem' }}>{tab === 'suppliers' ? 'Supplier Name' : 'Customer Name'}</th>
                         <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Equity</th>
                         <th style={{ padding: '0.5rem 0.9rem', textAlign: 'center', fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem' }}>Status</th>
                         <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Margin %</th>
