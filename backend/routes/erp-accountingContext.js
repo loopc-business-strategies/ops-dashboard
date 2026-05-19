@@ -18,6 +18,7 @@ const DirectDeal = require('../models/DirectDeal')
 const Employee = require('../models/Employee')
 const Customer = require('../models/Customer')
 const { applyPartyAccountPriority } = require('../utils/transactionPartyAccounts')
+const { getNextPrefixedCode } = require('../utils/sequentialPartyCode')
 const {
   idParam,
   accountCreateSchema,
@@ -1109,13 +1110,8 @@ const nextVendorAccountCode = async () => {
 }
 
 const nextVendorCode = async () => {
-  const latest = await Vendor.findOne({})
-    .sort({ createdAt: -1 })
-    .select('vendorCode')
-
-  const current = String(latest?.vendorCode || '').match(/VEN-(\d+)/)
-  const next = current ? Number(current[1]) + 1 : 1
-  return `VEN-${String(next).padStart(4, '0')}`
+  const rows = await Vendor.find({ vendorCode: /^VEN-\d+$/i }).select('vendorCode').lean()
+  return getNextPrefixedCode(rows.map((row) => row.vendorCode), 'VEN')
 }
 
 const buildVendorSummary = async (vendor) => {

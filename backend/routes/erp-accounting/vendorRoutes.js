@@ -94,7 +94,7 @@ function registerVendorRoutes(deps) {
             select: 'accountCode accountName accountType isActive',
             match: { isActive: true },
           })
-          .sort({ createdAt: -1 })
+          .sort({ vendorCode: 1, name: 1 })
           .skip(skip)
           .limit(limit),
         Vendor.countDocuments(query),
@@ -786,19 +786,38 @@ function registerVendorRoutes(deps) {
         return res.status(403).json({ success: false, message: 'Only Admin/Finance can delete vendors' })
       }
 
-      const vendor = await Vendor.findByIdAndUpdate(req.params.id, {
-        isActive: false,
-        deletedAt: new Date(),
-        updatedBy: req.user._id,
-      }, { returnDocument: 'after' })
+      const vendor = await Vendor.findById(req.params.id)
+      if (!vendor || vendor.deletedAt) return res.status(404).json({ success: false, message: 'Vendor not found' })
 
-      if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' })
+      const [transactionCount, ledgerCount] = await Promise.all([
+        Transaction.countDocuments({ vendorId: vendor._id, isDeleted: { $ne: true } }),
+        vendor.ledgerAccountId
+          ? Ledger.countDocuments({
+              isDeleted: { $ne: true },
+              $or: [{ debitAccountId: vendor.ledgerAccountId }, { creditAccountId: vendor.ledgerAccountId }],
+            })
+          : Promise.resolve(0),
+      ])
+
+      if (transactionCount > 0 || ledgerCount > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot remove vendor with ledger activity or transactions. Deactivate instead or clear postings first.',
+          transactionCount,
+          ledgerCount,
+        })
+      }
+
+      vendor.isActive = false
+      vendor.deletedAt = new Date()
+      vendor.updatedBy = req.user._id
+      await vendor.save()
 
       if (vendor.ledgerAccountId) {
         await ChartOfAccount.findByIdAndUpdate(vendor.ledgerAccountId, { isActive: false })
       }
 
-      res.json({ success: true, message: 'Vendor deactivated', vendor })
+      res.json({ success: true, message: 'Vendor removed', vendor })
     } catch {
       res.status(500).json({ success: false, message: 'Server error' })
     }
