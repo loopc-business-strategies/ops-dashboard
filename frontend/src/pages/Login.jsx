@@ -15,6 +15,264 @@ function hexToRgb(hex) {
   return `${r}, ${g}, ${b}`
 }
 
+function MgLoginShell({
+  name,
+  setName,
+  password,
+  setPassword,
+  error,
+  setError,
+  loading,
+  showPass,
+  setShowPass,
+  handleSubmit,
+  t,
+}) {
+  const inputStyle = {
+    position: 'absolute',
+    width: 410,
+    height: 36,
+    borderRadius: 4,
+    border: 0,
+    background: 'transparent',
+    color: '#E8EDF4',
+    fontSize: 16,
+    lineHeight: '36px',
+    outline: 'none',
+    padding: 0,
+    boxShadow: 'none',
+    zIndex: 2,
+  }
+  const valueMaskStyle = {
+    position: 'absolute',
+    height: 34,
+    background: 'rgba(5, 16, 29, 0.99)',
+    borderRadius: 4,
+    zIndex: 1,
+    pointerEvents: 'none',
+  }
+  const [viewport, setViewport] = useState(() => ({
+    width: typeof window === 'undefined' ? 1600 : window.innerWidth,
+    height: typeof window === 'undefined' ? 1000 : window.innerHeight,
+  }))
+
+  useEffect(() => {
+    const updateViewport = () => setViewport({ width: window.innerWidth, height: window.innerHeight })
+    updateViewport()
+    window.addEventListener('resize', updateViewport)
+    return () => window.removeEventListener('resize', updateViewport)
+  }, [])
+
+  const designWidth = 1600
+  const designHeight = 1000
+  const scale = Math.min(viewport.width / designWidth, viewport.height / designHeight)
+  const stageLeft = (viewport.width - designWidth * scale) / 2
+  const stageTop = (viewport.height - designHeight * scale) / 2
+
+  return (
+    <div
+      className="mg-login-shell"
+      style={{
+        height: '100vh',
+        position: 'relative',
+        overflow: 'hidden',
+        background:
+          'radial-gradient(circle at 22% 42%, rgba(31, 54, 77, 0.62), transparent 26%), radial-gradient(circle at 78% 18%, rgba(25, 55, 86, 0.36), transparent 30%), linear-gradient(135deg, #0b1b2b 0%, #020814 58%, #00040b 100%)',
+        color: '#F8FAFC',
+        fontFamily: 'Inter, sans-serif',
+      }}
+    >
+      <div
+        className="mg-login-stage"
+        style={{
+          position: 'absolute',
+          left: stageLeft,
+          top: stageTop,
+          width: designWidth,
+          height: designHeight,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+          overflow: 'hidden',
+          backgroundImage: 'url(/images/mg-login-reference.png)',
+          backgroundSize: '100% 100%',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
+        <form onSubmit={handleSubmit} style={{ position: 'absolute', inset: 0 }}>
+          {error && (
+            <div
+              style={{
+                position: 'absolute',
+                left: 847,
+                top: 345,
+                width: 558,
+                minHeight: 30,
+                border: '1px solid rgba(248,113,113,0.55)',
+                background: 'rgba(127,29,29,0.72)',
+                color: '#FECACA',
+                borderRadius: 8,
+                padding: '8px 12px',
+                fontSize: 13,
+              }}
+            >
+              {error}
+            </div>
+          )}
+          {name && (
+            <div
+              aria-hidden="true"
+              style={{
+                ...valueMaskStyle,
+                left: 907,
+                top: 368,
+                width: 345,
+                height: 44,
+              }}
+            />
+          )}
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => { setName(e.target.value); setError('') }}
+            placeholder=""
+            style={{
+              ...inputStyle,
+              left: 912,
+              top: 374,
+            }}
+            autoFocus
+            autoComplete="username"
+            disabled={loading}
+            aria-label={t('username')}
+          />
+          {password && (
+            <div
+              aria-hidden="true"
+              style={{
+                ...valueMaskStyle,
+                left: 904,
+                top: 500,
+                width: 372,
+                height: 52,
+              }}
+            />
+          )}
+          <input
+            type={showPass ? 'text' : 'password'}
+            value={password}
+            onChange={(e) => { setPassword(e.target.value); setError('') }}
+            placeholder=""
+            style={{
+              ...inputStyle,
+              width: 330,
+              left: 912,
+              top: 504,
+              height: 44,
+              lineHeight: '44px',
+            }}
+            autoComplete="current-password"
+            disabled={loading}
+            aria-label={t('password')}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPass(!showPass)}
+            style={{
+              position: 'absolute',
+              left: 1290,
+              top: 520,
+              width: 112,
+              height: 69,
+              border: 0,
+              background: 'transparent',
+              color: 'transparent',
+              cursor: 'pointer',
+            }}
+            aria-label={showPass ? 'Hide password' : 'Show password'}
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              position: 'absolute',
+              left: 847,
+              top: 623,
+              width: 558,
+              height: 63,
+              border: 0,
+              borderRadius: 9,
+              background: loading ? 'rgba(255,209,90,0.18)' : 'transparent',
+              color: loading ? '#071422' : 'transparent',
+              fontSize: 16,
+              fontWeight: 900,
+              cursor: loading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {loading ? t('signingIn') : 'SIGN IN'}
+          </button>
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: 690,
+              top: 651,
+              width: 26,
+              height: 20,
+              background: 'rgba(5, 17, 30, 0.96)',
+              borderRadius: 3,
+              pointerEvents: 'none',
+            }}
+          />
+        </form>
+      </div>
+
+      <style>{`
+        .mg-login-shell,
+        .mg-login-shell * {
+          box-sizing: border-box;
+        }
+        .mg-login-shell input::placeholder {
+          color: rgba(226, 232, 240, 0.62);
+        }
+        .mg-login-shell input:-webkit-autofill,
+        .mg-login-shell input:-webkit-autofill:hover,
+        .mg-login-shell input:-webkit-autofill:focus {
+          -webkit-text-fill-color: #e8edf4;
+          caret-color: #e8edf4;
+          box-shadow: 0 0 0 1000px rgba(4, 14, 26, 0.96) inset;
+          transition: background-color 9999s ease-in-out 0s;
+        }
+        @media (max-width: 980px) {
+          .mg-login-stage {
+            position: relative !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            transform: none !important;
+            min-height: 100vh !important;
+          }
+          .mg-login-shell { height: auto !important; min-height: 100vh !important; overflow-y: auto !important; }
+          .mg-login-shell section {
+            position: relative !important;
+            left: auto !important;
+            top: auto !important;
+            width: 100% !important;
+            height: auto !important;
+          }
+          .mg-login-shell section:first-of-type { padding: 88px 24px 20px !important; }
+          .mg-login-shell section:first-of-type img { width: min(220px, 58vw) !important; }
+          .mg-login-shell section:first-of-type div[style*="font-size: 52px"] { font-size: 40px !important; }
+          .mg-login-shell section:nth-of-type(2) { padding: 24px 22px 88px !important; }
+          .mg-login-shell section:nth-of-type(2) > div { width: 100% !important; min-height: 0 !important; padding: 44px 24px 34px !important; }
+          .mg-login-shell section:nth-of-type(2) h1 { font-size: 38px !important; }
+          .mg-login-shell footer { position: relative !important; }
+        }
+      `}</style>
+    </div>
+  )
+}
+
 function Login() {
   const navigate = useNavigate()
   const { login } = useAuth()
@@ -76,6 +334,24 @@ function Login() {
   const circleSmall = bp
   const heroCircleShadow = 'inset 28px 28px 64px rgba(255,255,255,0.18), inset -28px -28px 64px rgba(0,0,0,0.26)'
   const orbShadow = 'inset 16px 16px 36px rgba(255,255,255,0.16), inset -18px -18px 40px rgba(0,0,0,0.24)'
+
+  if (company === 'mg') {
+    return (
+      <MgLoginShell
+        name={name}
+        setName={setName}
+        password={password}
+        setPassword={setPassword}
+        error={error}
+        setError={setError}
+        loading={loading}
+        showPass={showPass}
+        setShowPass={setShowPass}
+        handleSubmit={handleSubmit}
+        t={t}
+      />
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#eef2f6] p-0 md:p-3">
