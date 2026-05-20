@@ -34,10 +34,12 @@ function MarginsWidget({ dashboard, onNavigate }) {
   const rawCustomers = dashboard?.customerMargins || []
   const rawSuppliers = dashboard?.supplierMargins?.rows || []
 
-  const mapMarginRow = (row, nameKey) => {
-    const net = Number(row?.equity ?? row?.netCashFlow ?? 0)
+  const mapMarginRow = (row, nameKey, options = {}) => {
+    const rawNet = Number(row?.equity ?? row?.netCashFlow ?? 0)
     const marginAmount = Number(row?.marginAmount || 0)
-    const excess = Number(row?.marginExcess ?? (net - marginAmount))
+    const rawExcess = Number(row?.marginExcess ?? (rawNet - marginAmount))
+    const net = options.favorableCredit && rawNet < 0 ? Math.abs(rawNet) : rawNet
+    const excess = options.favorableCredit && rawExcess < 0 ? Math.abs(rawExcess) : rawExcess
     const status = String(row?.status || (net > 0 ? 'POSITIVE' : net < 0 ? 'NEGATIVE' : 'NEUTRAL')).toUpperCase()
     const rawMargin = row?.marginPercent
     const marginPercent = Number.isFinite(Number(rawMargin)) ? Number(rawMargin) : (marginAmount > 0 ? (Math.abs(net) / marginAmount) * 100 : 0)
@@ -58,7 +60,7 @@ function MarginsWidget({ dashboard, onNavigate }) {
       marginPercent,
     }
   }
-  const customers = rawCustomers.map((row) => mapMarginRow(row, 'customerName'))
+  const customers = rawCustomers.map((row) => mapMarginRow(row, 'customerName', { favorableCredit: true }))
   const suppliers = rawSuppliers.map((row) => mapMarginRow(row, 'supplierName'))
   const activeRows = tab === 'suppliers' ? suppliers : customers
   const activeLabel = tab === 'suppliers' ? 'supplier' : 'customer'

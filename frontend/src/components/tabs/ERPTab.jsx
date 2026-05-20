@@ -3197,8 +3197,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           marginAmount: fallbackMargin,
         })
         const marginAmount = Number(customer?.marginAmount ?? fallbackMargin)
-        const excess = Number(customer?.marginExcess ?? fallbackMetrics.excess)
-        const equity = Number(customer?.marginEquity ?? fallbackMetrics.netEquity)
+        const rawExcess = Number(customer?.marginExcess ?? fallbackMetrics.excess)
+        const rawEquity = Number(customer?.marginEquity ?? fallbackMetrics.netEquity)
+        const excess = rawExcess < 0 ? Math.abs(rawExcess) : rawExcess
+        const equity = rawEquity < 0 ? Math.abs(rawEquity) : rawEquity
         const marginPercent = Number(customer?.marginPercent ?? fallbackMetrics.marginPercent)
         const status = String(customer?.marginStatus || (equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL')).toUpperCase()
         return {
