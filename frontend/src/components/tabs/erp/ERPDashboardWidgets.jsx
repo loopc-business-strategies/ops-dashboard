@@ -205,134 +205,300 @@ function MarginsWidget({ dashboard, onNavigate }) {
   )
 }
 
-function MetalsMarketWidget({ dashboard }) {
-  const rates = dashboard?.metalRates || {}
-  const initialMetals = {
-    gold: Number(rates?.gold || rates?.stockPrices?.gold?.price || 0),
-    silver: Number(rates?.silver || rates?.stockPrices?.silver?.price || 0),
-    platinum: Number(rates?.platinum || rates?.stockPrices?.platinum?.price || 0),
-    palladium: Number(rates?.palladium || rates?.stockPrices?.palladium?.price || 0),
-  }
-  const [currency, setCurrency] = useState(String(rates?.currency || 'USD').toUpperCase())
-  const [unit, setUnit] = useState('toz')
-  const [quantity, setQuantity] = useState('1')
+const SPOT_METAL_ROWS = [
+  { key: 'gold', label: 'Gold', symbol: 'XAU', color: '#D97706' },
+  { key: 'silver', label: 'Silver', symbol: 'XAG', color: '#64748B' },
+  { key: 'platinum', label: 'Platinum', symbol: 'XPT', color: '#4F46E5' },
+  { key: 'palladium', label: 'Palladium', symbol: 'XPD', color: '#0F766E' },
+]
+
+/** Trading-style spot strip: USD per troy oz, fast refresh, tick flash on change. */
+function SpotMetalsLiveWidget() {
+  const currency = 'USD'
+  const unit = 'toz'
   const [market, setMarket] = useState({
-    metals: initialMetals,
-    currency: String(rates?.currency || 'USD').toUpperCase(),
+    metals: {},
+    currency: 'USD',
     unit: 'toz',
-    source: 'dashboard',
-    updatedAt: rates?.updatedAt || null,
+    source: '',
+    updatedAt: null,
+    warning: '',
+    feedStatus: '',
+    cached: false,
   })
   const [history, setHistory] = useState({})
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [transport, setTransport] = useState('loading')
+  const [tickDir, setTickDir] = useState({})
+  const lastMid = useRef({})
 
-  const loadPrices = async () => {
-    setLoading(true)
-    try {
-      const data = await axios.get(`${BASE}/reports/market-prices`, getAuthConfig(null, { currency, unit }))
-      const payload = data.data || {}
+  useEffect(() => {
+    let cancelled = false
+    let es = null
+    let pollTimer = null
+    let fallbackTimer = null
+    let gotStreamMessage = false
+
+    const applyPayload = (payload, { showSpinner } = { showSpinner: false }) => {
+      if (!payload || payload.success === false) {
+        setError(payload?.message || 'Spot feed unavailable')
+        if (showSpinner) setLoading(false)
+        return
+      }
       const metals = payload.metals || {}
+      const nextDir = {}
+      SPOT_METAL_ROWS.forEach(({ key }) => {
+        const n = Number(metals[key] || 0)
+        const prev = Number(lastMid.current[key])
+        if (Number.isFinite(n) && n > 0 && Number.isFinite(prev) && prev > 0 && n !== prev) {
+          nextDir[key] = n > prev ? 'up' : 'down'
+        }
+      })
+      lastMid.current = {
+        ...lastMid.current,
+        ...Object.fromEntries(SPOT_METAL_ROWS.map(({ key }) => [key, Number(metals[key] || 0)])),
+      }
+      if (Object.keys(nextDir).length) {
+        setTickDir(nextDir)
+        window.setTimeout(() => setTickDir({}), 700)
+      }
+
       setMarket({
         metals,
         currency: payload.currency || currency,
         unit: payload.unit || unit,
-        source: payload.source || 'market',
-        updatedAt: payload.updatedAt || payload.generatedAt || new Date().toISOString(),
+        source: payload.source || '',
+        updatedAt: payload.updatedAt || payload.generatedAt || null,
         warning: payload.warning || '',
+        feedStatus: payload.feedStatus || '',
+        cached: Boolean(payload.cached),
       })
       setHistory((prev) => {
         const next = { ...prev }
         Object.entries(metals).forEach(([metal, price]) => {
           const n = Number(price || 0)
           if (!Number.isFinite(n) || n <= 0) return
-          next[metal] = [...(next[metal] || []), n].slice(-18)
+          const arr = next[metal] || []
+          const last = arr[arr.length - 1]
+          if (Number(last) === n) return
+          next[metal] = [...arr, n].slice(-48)
         })
         return next
       })
       setError('')
-    } catch (err) {
-      setError(err.response?.data?.message || 'Live feed unavailable')
-    } finally {
-      setLoading(false)
+      if (showSpinner) setLoading(false)
     }
-  }
 
-  useEffect(() => {
-    loadPrices()
-    const timer = setInterval(loadPrices, 15000)
-    return () => clearInterval(timer)
+    const pollOnce = async (showSpinner) => {
+      if (cancelled) return
+      if (showSpinner) setLoading(true)
+      try {
+        const { data: payload } = await axios.get(`${BASE}/reports/market-prices`, getAuthConfig(null, { currency, unit }))
+        applyPayload(payload, { showSpinner })
+      } catch (err) {
+        setError(err.response?.data?.message || 'Spot feed unavailable')
+        if (showSpinner) setLoading(false)
+      }
+    }
+
+    const startPolling = () => {
+      if (pollTimer || cancelled) return
+      setTransport('poll')
+      void pollOnce(true)
+      pollTimer = window.setInterval(() => { void pollOnce(false) }, 3200)
+    }
+
+    const cleanup = () => {
+      cancelled = true
+      window.clearTimeout(fallbackTimer)
+      if (es) {
+        es.close()
+        es = null
+      }
+      if (pollTimer) {
+        window.clearInterval(pollTimer)
+        pollTimer = null
+      }
+    }
+
+    if (typeof EventSource === 'undefined') {
+      startPolling()
+      return cleanup
+    }
+
+    const streamUrl = `${BASE}/reports/market-prices/stream?currency=${encodeURIComponent(currency)}&unit=${encodeURIComponent(unit)}`
+    setLoading(true)
+
+    try {
+      es = new EventSource(streamUrl, { withCredentials: true })
+    } catch {
+      startPolling()
+      return cleanup
+    }
+
+    fallbackTimer = window.setTimeout(() => {
+      if (cancelled || gotStreamMessage) return
+      if (es) {
+        es.close()
+        es = null
+      }
+      startPolling()
+    }, 5000)
+
+    let firstSse = true
+    es.onmessage = (ev) => {
+      if (cancelled) return
+      try {
+        gotStreamMessage = true
+        window.clearTimeout(fallbackTimer)
+        applyPayload(JSON.parse(ev.data), { showSpinner: firstSse })
+        firstSse = false
+        setTransport('sse')
+      } catch {
+        /* ignore malformed chunk */
+      }
+    }
+
+    es.onerror = () => {
+      if (cancelled) return
+      if (!gotStreamMessage) return
+      if (es) {
+        es.close()
+        es = null
+      }
+      startPolling()
+    }
+
+    return cleanup
   }, [currency, unit])
 
-  const qty = Math.max(Number(quantity || 1), 0)
-  const metals = [
-    { key: 'gold', label: 'Gold', symbol: 'XAU', color: '#D97706' },
-    { key: 'silver', label: 'Silver', symbol: 'XAG', color: '#64748B' },
-    { key: 'platinum', label: 'Platinum', symbol: 'XPT', color: '#4F46E5' },
-    { key: 'palladium', label: 'Palladium', symbol: 'XPD', color: '#0F766E' },
-  ]
-  const unitLabel = unit === 'g' ? 'gram' : unit === 'kg' ? 'kg' : 'troy oz'
-  const money = (value) => `${market.currency || currency} ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  const spark = (values, color) => {
-    const data = values?.length > 1 ? values : [1, 1.006, 1.002, 1.011, 1.008, 1.014].map((m) => Number(values?.[0] || 1) * m)
+  const live = String(market.feedStatus || '').toLowerCase() === 'live'
+  const money = (value) => `USD ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+  const spark = (values, stroke) => {
+    const data = values?.length > 1 ? values : [1, 1.004, 1.002, 1.006, 1.003, 1.007].map((m) => Number(values?.[0] || 1) * m)
     const min = Math.min(...data)
     const max = Math.max(...data)
     const range = max - min || 1
-    const points = data.map((v, index) => `${(index / (data.length - 1)) * 78},${28 - ((v - min) / range) * 22 + 3}`).join(' ')
-    return <svg width="78" height="34" viewBox="0 0 78 34" aria-hidden="true"><polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+    const points = data.map((v, index) => `${(index / (data.length - 1)) * 88},${30 - ((v - min) / range) * 20 + 4}`).join(' ')
+    return (
+      <svg width="88" height="36" viewBox="0 0 88 36" aria-hidden="true" style={{ flexShrink: 0 }}>
+        <polyline points={points} fill="none" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginBottom: '0.8rem' }}>
-        <div>
-          <p style={{ margin: 0, fontSize: '0.78rem', fontWeight: '800', color: '#111827' }}>Live Market Prices</p>
-          <p style={{ margin: '0.18rem 0 0', fontSize: '0.66rem', color: '#6B7280' }}>
-            {loading ? 'Updating feed...' : `Source: ${market.source || 'market'}${market.updatedAt ? ` · ${new Date(market.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`}
-          </p>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '0.65rem',
+          flexWrap: 'wrap',
+          marginBottom: '0.65rem',
+          padding: '0.5rem 0.55rem',
+          borderRadius: '0.45rem',
+          background: live ? 'linear-gradient(90deg,#052e1a 0%,#0f172a 55%,#0f172a 100%)' : 'linear-gradient(90deg,#422006 0%,#1e293b 100%)',
+          border: `1px solid ${live ? '#14532d' : '#78350f'}`,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+          <span
+            aria-hidden="true"
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 999,
+              background: live ? '#22c55e' : '#f59e0b',
+              boxShadow: live ? '0 0 0 6px rgba(34,197,94,0.18)' : 'none',
+              flexShrink: 0,
+            }}
+          />
+          <div style={{ minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: '800', color: '#f8fafc', letterSpacing: '0.04em' }}>SPOT · USD / troy oz</p>
+            <p style={{ margin: '0.12rem 0 0', fontSize: '0.62rem', color: '#94a3b8', fontWeight: '600' }}>
+              {loading ? 'Updating…' : (
+                <>
+                  {live
+                    ? (transport === 'sse' ? 'Live push (SSE)' : transport === 'poll' ? 'Live (poll)' : 'Connecting…')
+                    : 'Fallback'}
+                  {market.updatedAt ? ` · ${new Date(market.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}
+                </>
+              )}
+            </p>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <input type="number" min="0" step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} style={{ width: 74, height: 32, border: '1px solid #CBD5E1', borderRadius: 6, padding: '0 0.45rem', fontSize: '0.75rem' }} />
-          <select value={unit} onChange={(e) => setUnit(e.target.value)} style={{ height: 32, border: '1px solid #CBD5E1', borderRadius: 6, fontSize: '0.75rem', background: '#FFFFFF' }}>
-            <option value="toz">Ounce</option>
-            <option value="g">Gram</option>
-            <option value="kg">Kg</option>
-          </select>
-          <select value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ height: 32, border: '1px solid #CBD5E1', borderRadius: 6, fontSize: '0.75rem', background: '#FFFFFF' }}>
-            {['USD', 'AED', 'SOM', 'UZS', 'EUR', 'GBP', 'INR'].map((code) => <option key={code} value={code}>{code}</option>)}
-          </select>
+        <div style={{ fontSize: '0.62rem', fontWeight: '700', color: '#e2e8f0', textAlign: 'right', maxWidth: '11rem' }}>
+          {live ? (market.source || 'metals.dev') : (market.source || 'local')}
         </div>
       </div>
-      <div style={{ display: 'grid', gap: '0.45rem' }}>
-        {metals.map((metal) => {
+
+      <div style={{ display: 'grid', gap: '0.2rem' }}>
+        {SPOT_METAL_ROWS.map((metal) => {
           const rawPrice = Number(market.metals?.[metal.key] || 0)
-          const displayPrice = rawPrice
-          const total = displayPrice * qty
-          const values = history[metal.key] || [rawPrice]
-          const previous = Number(values[values.length - 2] || values[0] || rawPrice)
-          const change = previous > 0 ? rawPrice - previous : 0
-          const changePct = previous > 0 ? (change / previous) * 100 : 0
+          const values = history[metal.key] || (rawPrice > 0 ? [rawPrice] : [])
+          const prev = Number(values[values.length - 2] || values[0] || rawPrice)
+          const change = prev > 0 && rawPrice > 0 ? rawPrice - prev : 0
+          const changePct = prev > 0 && rawPrice > 0 ? (change / prev) * 100 : 0
+          const tick = tickDir[metal.key]
           const up = change >= 0
+          const stroke = tick === 'up' ? '#22c55e' : tick === 'down' ? '#ef4444' : up ? '#16a34a' : '#dc2626'
+          const rowBg = tick === 'up' ? 'rgba(34,197,94,0.12)' : tick === 'down' ? 'rgba(239,68,68,0.1)' : 'transparent'
+
           return (
-            <div key={metal.key} style={{ display: 'grid', gridTemplateColumns: 'minmax(86px, 1fr) 82px minmax(105px, auto)', gap: '0.55rem', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid #F1F5F9' }}>
+            <div
+              key={metal.key}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(92px, 1fr) 92px minmax(118px, auto)',
+                gap: '0.5rem',
+                alignItems: 'center',
+                padding: '0.48rem 0.35rem',
+                borderBottom: '1px solid #e2e8f0',
+                borderRadius: '0.35rem',
+                background: rowBg,
+                transition: 'background 0.35s ease',
+              }}
+            >
               <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.42rem' }}>
-                  <span style={{ width: 9, height: 9, borderRadius: 9, background: metal.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.8rem', color: '#111827', fontWeight: '800' }}>{metal.label}</span>
-                  <span style={{ fontSize: '0.62rem', color: '#64748B', fontWeight: '700' }}>{metal.symbol}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 8, background: metal.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.78rem', color: '#0f172a', fontWeight: '800' }}>{metal.label}</span>
+                  <span style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: '800' }}>{metal.symbol}</span>
                 </div>
-                <div style={{ marginTop: 2, fontSize: '0.64rem', color: '#64748B' }}>{qty.toLocaleString()} {unitLabel}</div>
+                <div style={{ marginTop: 2, fontSize: '0.6rem', color: '#64748b', fontWeight: '600' }}>1 troy oz mid</div>
               </div>
-              {spark(values, up ? '#16A34A' : '#DC2626')}
+              {spark(values.length ? values : [rawPrice || 1], stroke)}
               <div style={{ textAlign: 'right' }}>
-                <div style={{ color: rawPrice > 0 ? '#111827' : '#94A3B8', fontWeight: '900', fontSize: '0.85rem', fontVariantNumeric: 'tabular-nums' }}>{rawPrice > 0 ? money(total) : '-'}</div>
-                <div style={{ color: up ? '#16A34A' : '#DC2626', fontSize: '0.66rem', fontWeight: '800' }}>{up ? '+' : ''}{money(change)} · {up ? '+' : ''}{changePct.toFixed(2)}%</div>
+                <div
+                  style={{
+                    color: rawPrice > 0 ? '#0f172a' : '#94a3b8',
+                    fontWeight: '900',
+                    fontSize: '0.92rem',
+                    fontVariantNumeric: 'tabular-nums',
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                    letterSpacing: '-0.02em',
+                  }}
+                >
+                  {rawPrice > 0 ? money(rawPrice) : '—'}
+                </div>
+                <div style={{ color: stroke, fontSize: '0.64rem', fontWeight: '800', fontVariantNumeric: 'tabular-nums' }}>
+                  {rawPrice > 0 && prev > 0 ? `${up ? '+' : ''}${money(change)} · ${up ? '+' : ''}${changePct.toFixed(2)}%` : ' '}
+                </div>
               </div>
             </div>
           )
         })}
       </div>
-      {(error || market.warning) && <p style={{ margin: '0.55rem 0 0', color: '#92400E', fontSize: '0.68rem' }}>{error || 'Using local fallback prices until live provider responds.'}</p>}
+
+      {(error || market.warning) && (
+        <p style={{ margin: '0.55rem 0 0', color: '#b45309', fontSize: '0.68rem', lineHeight: 1.45, fontWeight: '600' }}>
+          {error || market.warning}
+        </p>
+      )}
     </div>
   )
 }
@@ -456,7 +622,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
     case 'metals': {
       return (
         <div style={widgetContainerStyle}>
-          <MetalsMarketWidget dashboard={dashboard} />
+          <SpotMetalsLiveWidget />
         </div>
       )
     }

@@ -36,6 +36,17 @@ require('dotenv').config() // load .env variables FIRST
     console.warn('[startup] WARNING — missing environment variables (service will still start):')
     missing.forEach(k => console.warn(`  • ${k}`))
   }
+
+  if (process.env.NODE_ENV === 'production') {
+    const metalsKey = String(process.env.METALS_DEV_API_KEY || process.env.METALS_API_KEY || '').trim()
+    const customMetalsUrl = String(process.env.METALS_MARKET_URL || '').trim()
+    const defaultMetalsDev = 'https://api.metals.dev/v1/latest'
+    const norm = (u) => String(u || '').trim().replace(/\/+$/, '').toLowerCase()
+    const usesDefaultMetalsHost = !customMetalsUrl || norm(customMetalsUrl) === norm(defaultMetalsDev)
+    if (!metalsKey && usesDefaultMetalsHost) {
+      console.warn('[startup] ERP live spot metals: set METALS_DEV_API_KEY on Railway (sign up at https://metals.dev). Without it, market spot uses inventory / saved metal rates only.')
+    }
+  }
 })()
 // ─────────────────────────────────────────────────────────────────────────────
 

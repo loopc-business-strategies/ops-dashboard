@@ -1,3 +1,10 @@
+/** Short-lived cache so many dashboard clients do not hammer the upstream spot provider. */
+const metalSpotCache = {
+  key: '',
+  payload: null,
+  expiresAt: 0,
+}
+
 function registerReportRoutes(deps) {
   const {
     router,
@@ -31,7 +38,8 @@ function registerReportRoutes(deps) {
     const sourceUnit = String(payload?.unit || requestedUnit || 'toz').toLowerCase()
     const lookup = (keys) => {
       for (const key of keys) {
-        const value = metals[key] ?? payload?.[key]
+        const raw = metals[key] ?? payload?.[key]
+        const value = typeof raw === 'object' && raw !== null && 'price' in raw ? raw.price : raw
         const number = Number(value)
         if (Number.isFinite(number) && number > 0) return number
       }
@@ -107,18 +115,37 @@ function registerReportRoutes(deps) {
 
   const fetchExternalMetalPrices = async ({ currency = 'USD', unit = 'toz' } = {}) => {
     const apiKey = String(process.env.METALS_DEV_API_KEY || process.env.METALS_API_KEY || '').trim()
-    const url = new URL(process.env.METALS_MARKET_URL || 'https://api.metals.dev/v1/latest')
+    const defaultMetalsDev = 'https://api.metals.dev/v1/latest'
+    const configuredUrl = String(process.env.METALS_MARKET_URL || '').trim()
+    const targetUrl = configuredUrl || defaultMetalsDev
+    const norm = (u) => String(u || '').trim().replace(/\/+$/, '').toLowerCase()
+    const usingDefaultMetalsDev = norm(targetUrl) === norm(defaultMetalsDev)
+
+    if (usingDefaultMetalsDev && !apiKey) {
+      throw new Error(
+        'Live spot feed needs METALS_DEV_API_KEY on the backend (see ENV-VARS-QUICK-REFERENCE.md). metals.dev requires a key; until then, inventory or saved metal rates are used.'
+      )
+    }
+
+    const url = new URL(targetUrl)
     url.searchParams.set('currency', String(currency || 'USD').toUpperCase())
     url.searchParams.set('unit', String(unit || 'toz').toLowerCase())
     if (apiKey) url.searchParams.set('api_key', apiKey)
 
     const response = await fetch(url, {
       headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(8000),
     })
     if (!response.ok) throw new Error(`metals provider returned ${response.status}`)
     const payload = await response.json()
-    return normalizeMetalPayload(payload, currency, unit)
+    const normalized = normalizeMetalPayload(payload, currency, unit)
+    const hasAny = Object.values(normalized.metals || {}).some((n) => Number(n) > 0)
+    if (!hasAny) throw new Error('metals provider returned no usable prices')
+
+    return {
+      ...normalized,
+      source: normalized.source || (usingDefaultMetalsDev ? 'metals.dev' : 'external-metals'),
+    }
   }
 
   const buildFallbackMetalPrices = async ({ currency = 'USD', unit = 'toz' } = {}) => {
@@ -796,29 +823,124 @@ router.get('/reports/forex-gain-loss', protect, async (req, res) => {
   }
 })
 
+  const buildMarketPricesBody = async ({ currency, unit, cacheBypass }) => {
+    const cacheKey = `${currency}:${unit}`
+    const now = Date.now()
+
+    if (!cacheBypass && metalSpotCache.key === cacheKey && metalSpotCache.payload && metalSpotCache.expiresAt > now) {
+      return {
+        body: {
+          ...metalSpotCache.payload,
+          generatedAt: new Date(),
+          cached: true,
+        },
+      }
+    }
+
+    let market
+
+    try {
+      market = await fetchExternalMetalPrices({ currency, unit })
+      market.feedStatus = 'live'
+      market.warning = ''
+    } catch (error) {
+      market = await buildFallbackMetalPrices({ currency, unit })
+      market.warning = error.message
+      market.feedStatus = 'fallback'
+    }
+
+    const ttlMs = market.feedStatus === 'live'
+      ? Math.max(1500, Math.min(15000, Number(process.env.METALS_SPOT_CACHE_MS || 2200)))
+      : Math.max(8000, Math.min(120000, Number(process.env.METALS_SPOT_FALLBACK_CACHE_MS || 20000)))
+
+    const body = {
+      success: true,
+      ...market,
+      generatedAt: new Date(),
+    }
+
+    metalSpotCache.key = cacheKey
+    metalSpotCache.payload = body
+    metalSpotCache.expiresAt = now + ttlMs
+
+    return { body, ttlMs }
+  }
+
 router.get('/reports/market-prices', protect, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
     const currency = String(req.query.currency || 'USD').trim().toUpperCase()
     const unit = String(req.query.unit || 'toz').trim().toLowerCase()
-    let market
+    const cacheBypass = String(req.query.nocache || '').toLowerCase() === '1' || String(req.query.fresh || '').toLowerCase() === '1'
 
-    try {
-      market = await fetchExternalMetalPrices({ currency, unit })
-    } catch (error) {
-      market = await buildFallbackMetalPrices({ currency, unit })
-      market.warning = error.message
-    }
-
-    res.json({
-      success: true,
-      ...market,
-      generatedAt: new Date(),
-    })
+    const { body } = await buildMarketPricesBody({ currency, unit, cacheBypass })
+    res.json(body)
   } catch (err) {
     console.error('[reports] market-prices error:', err)
     res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+})
+
+router.get('/reports/market-prices/stream', protect, async (req, res) => {
+  try {
+    if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+
+    const currency = String(req.query.currency || 'USD').trim().toUpperCase()
+    const unit = String(req.query.unit || 'toz').trim().toLowerCase()
+    const pollMs = Math.max(400, Math.min(5000, Number(process.env.METALS_SPOT_SSE_POLL_MS || 900)))
+
+    res.status(200)
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+    res.setHeader('Cache-Control', 'no-cache, no-transform')
+    res.setHeader('Connection', 'keep-alive')
+    res.setHeader('X-Accel-Buffering', 'no')
+    if (typeof res.flushHeaders === 'function') res.flushHeaders()
+
+    let lastSig = ''
+    const writeEvent = (obj) => {
+      res.write(`data: ${JSON.stringify(obj)}\n\n`)
+    }
+
+    const tick = async () => {
+      try {
+        const { body } = await buildMarketPricesBody({ currency, unit, cacheBypass: false })
+        const sig = `${body.feedStatus}|${body.warning || ''}|${JSON.stringify(body.metals || {})}`
+        if (sig !== lastSig) {
+          lastSig = sig
+          writeEvent(body)
+        }
+      } catch (err) {
+        writeEvent({ success: false, message: err.message || 'stream tick failed' })
+      }
+    }
+
+    await tick()
+
+    const interval = setInterval(() => { void tick() }, pollMs)
+    const keepAlive = setInterval(() => {
+      try {
+        res.write(':ka\n\n')
+      } catch {
+        /* ignore */
+      }
+    }, 25000)
+
+    const cleanup = () => {
+      clearInterval(interval)
+      clearInterval(keepAlive)
+      try {
+        res.end()
+      } catch {
+        /* ignore */
+      }
+    }
+
+    req.on('close', cleanup)
+    req.on('aborted', cleanup)
+  } catch (err) {
+    console.error('[reports] market-prices stream error:', err)
+    if (!res.headersSent) res.status(500).json({ success: false, message: 'Internal server error' })
   }
 })
 

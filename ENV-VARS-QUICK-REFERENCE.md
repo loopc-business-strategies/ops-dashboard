@@ -81,6 +81,35 @@ VITE_API_URL=https://api.yourdomain.com
 
 ---
 
+### Live spot metals (ERP dashboard)
+
+The MG/CG/LoopC ERP dashboard **spot metals** widget calls `GET /api/erp-accounting/reports/market-prices` (and optional **SSE** `GET /api/erp-accounting/reports/market-prices/stream`), which use [metals.dev](https://metals.dev) by default.
+
+**Enable live prices on Railway (about two minutes):**
+
+1. Open [metals.dev](https://metals.dev) → sign up or log in → **Dashboard** → copy your **API key**.
+2. Railway → your **backend** service → **Variables** → **New Variable** → name `METALS_DEV_API_KEY` → paste the key → **Deploy** (or wait for auto-redeploy).
+3. Confirm logs: on production boot you should **not** see the warning `ERP live spot metals: set METALS_DEV_API_KEY...`. Open the ERP dashboard spot widget — status should show **Live push (SSE)** or **Live (poll)** with `feedStatus: live`.
+
+Local development: add the same line to `backend/.env` (see `backend/.env.example`).
+
+```
+METALS_DEV_API_KEY=<your metals.dev API key>
+```
+
+Optional tuning:
+
+```
+METALS_MARKET_URL=https://api.metals.dev/v1/latest
+METALS_SPOT_CACHE_MS=2200
+METALS_SPOT_FALLBACK_CACHE_MS=20000
+METALS_SPOT_SSE_POLL_MS=900
+```
+
+If you host a compatible JSON endpoint, set `METALS_MARKET_URL` to that URL; the backend will not require `METALS_DEV_API_KEY` when the default metals.dev host is not used.
+
+---
+
 ## MongoDB Atlas — Network Access
 
 **Location:** MongoDB Atlas → Your Organization → Network Access

@@ -146,6 +146,8 @@ function createApp() {
         'http://127.0.0.1:5173',
         'http://localhost:5174',
         'http://127.0.0.1:5174',
+        'http://localhost:5175',
+        'http://127.0.0.1:5175',
       ]
 
   const allowedOrigins = Array.from(new Set([...rawOrigins, ...devOrigins]))
@@ -162,7 +164,7 @@ function createApp() {
             url.hostname === '127.0.0.1' ||
             url.hostname === '::1' ||
             url.hostname.endsWith('.localhost')
-          const isDevPort = url.port === '5173' || url.port === '5174'
+          const isDevPort = url.port === '5173' || url.port === '5174' || url.port === '5175'
           if (isLocalHost && isDevPort) return callback(null, true)
         } catch {
           // Ignore malformed origins and continue allowlist checks.
@@ -172,7 +174,7 @@ function createApp() {
       callback(new Error(`CORS: origin not allowed — ${origin}`))
     },
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant', 'x-company', 'x-csrf-token', 'x-xsrf-token', 'x-requested-with'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant', 'x-company', 'x-csrf-token', 'x-xsrf-token', 'x-requested-with', 'Last-Event-ID'],
   }))
   app.use(cookieParser())
   app.use(express.json({ limit: REQUEST_BODY_LIMIT }))
