@@ -108,6 +108,8 @@ METALS_SPOT_SSE_POLL_MS=1000
 
 Shorter `METALS_SPOT_CACHE_MS` / `METALS_SPOT_SSE_POLL_MS` refresh the UI more often but **increase calls** to metals.dev (mind the **free plan monthly request cap**).
 
+If the ERP widget shows **Fallback** / **inventory**, open the orange error line: it now includes metals.dev’s **`error_message`** (for example invalid key, quota, or billing). Common fixes: paste `METALS_DEV_API_KEY` **without** wrapping quotes, **no** spaces or line breaks; confirm the key on [metals.dev/dashboard](https://metals.dev/dashboard); check **monthly request limits** on the free plan.
+
 If you host a compatible JSON endpoint, set `METALS_MARKET_URL` to that URL; the backend will not require `METALS_DEV_API_KEY` when the default metals.dev host is not used.
 
 ---

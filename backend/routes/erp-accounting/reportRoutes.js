@@ -113,8 +113,16 @@ function registerReportRoutes(deps) {
     return stockPriceMap
   }
 
+  const normalizeMetalsDevApiKey = (raw) => {
+    let k = String(raw || '').trim()
+    if ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'"))) {
+      k = k.slice(1, -1).trim()
+    }
+    return k.replace(/^\uFEFF/, '').replace(/\r?\n/g, '').replace(/\s+/g, '')
+  }
+
   const fetchExternalMetalPrices = async ({ currency = 'USD', unit = 'toz' } = {}) => {
-    const apiKey = String(process.env.METALS_DEV_API_KEY || process.env.METALS_API_KEY || '').trim()
+    const apiKey = normalizeMetalsDevApiKey(process.env.METALS_DEV_API_KEY || process.env.METALS_API_KEY || '')
     const defaultMetalsDev = 'https://api.metals.dev/v1/latest'
     const configuredUrl = String(process.env.METALS_MARKET_URL || '').trim()
     const targetUrl = configuredUrl || defaultMetalsDev
@@ -127,26 +135,53 @@ function registerReportRoutes(deps) {
       )
     }
 
-    const url = new URL(targetUrl)
-    url.searchParams.set('currency', String(currency || 'USD').toUpperCase())
-    url.searchParams.set('unit', String(unit || 'toz').toLowerCase())
-    if (apiKey) url.searchParams.set('api_key', apiKey)
+    const buildUrl = (includeUnit) => {
+      const u = new URL(targetUrl)
+      u.searchParams.set('currency', String(currency || 'USD').toUpperCase())
+      if (includeUnit) u.searchParams.set('unit', String(unit || 'toz').toLowerCase())
+      if (apiKey) u.searchParams.set('api_key', apiKey)
+      return u.toString()
+    }
 
-    const response = await fetch(url, {
-      // metals.dev authenticates via `api_key` query param only; a Bearer header
-      // with the same key often produces HTTP 400 (invalid auth shape).
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(8000),
-    })
-    const text = await response.text()
-    if (!response.ok) {
-      let detail = text.slice(0, 240).replace(/\s+/g, ' ').trim()
+    const parseMetalsDevError = (bodyText) => {
+      let detail = String(bodyText || '').slice(0, 400).replace(/\s+/g, ' ').trim()
       try {
-        const errJson = JSON.parse(text)
-        detail = String(errJson.message || errJson.error || errJson.status || detail).slice(0, 240)
+        const errJson = JSON.parse(bodyText)
+        const code = errJson.error_code != null ? `[${errJson.error_code}] ` : ''
+        detail = String(
+          errJson.error_message
+            || errJson.message
+            || errJson.error
+            || (errJson.status && errJson.status !== 'failure' ? errJson.status : '')
+            || detail
+        ).trim()
+        if (!detail && errJson.status === 'failure') detail = 'Request rejected (see metals.dev dashboard / quota / API key).'
+        return `${code}${detail}`.slice(0, 400)
       } catch {
-        /* use raw snippet */
+        return detail
       }
+    }
+
+    const fetchOnce = async (urlStr) => {
+      const response = await fetch(urlStr, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(8000),
+      })
+      const text = await response.text()
+      return { response, text }
+    }
+
+    let { response, text } = await fetchOnce(buildUrl(true))
+    if (!response.ok && (response.status === 400 || response.status === 401)) {
+      const retry = await fetchOnce(buildUrl(false))
+      if (retry.response.ok) {
+        response = retry.response
+        text = retry.text
+      }
+    }
+
+    if (!response.ok) {
+      const detail = parseMetalsDevError(text)
       throw new Error(`metals provider returned ${response.status}${detail ? `: ${detail}` : ''}`)
     }
     let payload
@@ -156,7 +191,8 @@ function registerReportRoutes(deps) {
       throw new Error('metals provider returned non-JSON body')
     }
     if (payload && typeof payload === 'object' && String(payload.status || '').toLowerCase() === 'failure') {
-      throw new Error(String(payload.message || payload.error || 'metals.dev returned failure status'))
+      const detail = parseMetalsDevError(text)
+      throw new Error(detail || 'metals.dev returned failure status')
     }
     const normalized = normalizeMetalPayload(payload, currency, unit)
     const hasAny = Object.values(normalized.metals || {}).some((n) => Number(n) > 0)
