@@ -591,19 +591,18 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         const directPartyCodes = directPartyLookups.filter((value) => !mongoose.Types.ObjectId.isValid(value))
         const directPartyAccounts = directPartyLookups.length > 0
           ? await ChartOfAccount.find({
-            isActive: true,
             $or: [
               ...(directPartyObjectIds.length > 0 ? [{ _id: { $in: directPartyObjectIds } }] : []),
               ...(directPartyCodes.length > 0 ? [{ accountCode: { $in: directPartyCodes } }] : []),
             ],
-          }).select('_id accountCode accountName').lean()
+          }).sort({ isActive: -1, createdAt: 1 }).select('_id accountCode accountName isActive').lean()
           : []
         const directPartyAccountByLookup = new Map()
         directPartyAccounts.forEach((account) => {
           const id = String(account._id || '').trim()
           const code = String(account.accountCode || '').trim()
-          if (id) directPartyAccountByLookup.set(id, account)
-          if (code) directPartyAccountByLookup.set(code, account)
+          if (id && !directPartyAccountByLookup.has(id)) directPartyAccountByLookup.set(id, account)
+          if (code && !directPartyAccountByLookup.has(code)) directPartyAccountByLookup.set(code, account)
         })
 
         linkedDocTransactions.forEach((tx) => {

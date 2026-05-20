@@ -84,6 +84,9 @@ beforeAll(async () => {
   process.env.DEFAULT_TENANT = TEST_TENANT
   process.env.TRANSACTION_UPLOAD_DIR = uploadDir
   process.env.SERVER_BASE_URL = 'http://localhost:5000'
+  if (!process.env.DESTRUCTIVE_ADMIN_CONFIRM_TOKEN) {
+    process.env.DESTRUCTIVE_ADMIN_CONFIRM_TOKEN = 'test-destructive-token'
+  }
 
   mongo = await MongoMemoryServer.create()
   const mongoUri = mongo.getUri()
@@ -431,6 +434,101 @@ describe('ERP accounting transactions workflow', () => {
     expect(ledgers[0].referenceType).toBe('purchase')
     expect(String(ledgers[0].debitAccountId)).toBe(String(inventoryAccount._id))
     expect(String(ledgers[0].creditAccountId)).toBe(String(payableAccount._id))
+  })
+
+  test('voiding posted purchase soft-deletes ledgers and reverses inventory', async () => {
+    const financeUser = await createUser({ name: 'Finance Void Purchase' })
+    const payableAccount = await ChartOfAccount.create({
+      accountName: 'Vendor Payable Void',
+      accountCode: '2102',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+    const inventoryAccount = await ChartOfAccount.create({
+      accountName: 'Silver Inventory Void',
+      accountCode: '1303',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const vendor = await Vendor.create({
+      name: 'Void Vendor',
+      ledgerAccountId: payableAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+    const item = await InventoryItem.create({
+      name: 'silver void',
+      sku: 'SILV-VOID',
+      category: 'recordType=product',
+      quantity: 100,
+      unit: 'grams',
+      unitCost: 10,
+      ledgerAccountId: inventoryAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'purchase',
+        amount: 500,
+        description: 'Void me',
+        currency: 'USD',
+        vendorId: vendor._id.toString(),
+        voucherMeta: {
+          vocNo: 'Pur/2026/void-test',
+          lineItems: [
+            {
+              stockCode: item.sku,
+              productType: item.name,
+              grossWeight: 2,
+              amountLC: 500,
+            },
+          ],
+        },
+      })
+    expect(createRes.status).toBe(201)
+    const txId = createRes.body.transaction._id
+
+    await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/submit`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'submit' })
+    await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/approve`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'approve' })
+    const postRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/post`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'post' })
+    expect(postRes.status).toBe(200)
+
+    const afterPost = await InventoryItem.findById(item._id)
+    expect(Number(afterPost.quantity)).toBeGreaterThan(100)
+
+    const voidRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/void`)
+      .set(authHeader(financeUser))
+      .send({
+        reason: 'Remove erroneous purchase voucher completely',
+        confirmToken: process.env.DESTRUCTIVE_ADMIN_CONFIRM_TOKEN,
+      })
+    expect(voidRes.status).toBe(200)
+
+    const afterVoid = await InventoryItem.findById(item._id)
+    expect(Number(afterVoid.quantity)).toBe(100)
+
+    const movements = await StockMovement.find({ itemId: item._id, isDeleted: { $ne: true } })
+    expect(movements).toHaveLength(0)
+
+    const activeLedgers = await Ledger.find({ referenceId: txId, isDeleted: { $ne: true } })
+    expect(activeLedgers).toHaveLength(0)
+
+    const tx = await Transaction.findById(txId)
+    expect(tx.isDeleted).toBe(true)
   })
 
   test('posted purchase credits voucher party payable when it differs from vendor.ledgerAccountId', async () => {

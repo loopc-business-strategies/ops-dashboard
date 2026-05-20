@@ -1729,17 +1729,30 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
   let debitAccountId = tx.debitAccountId || mapping?.debitAccountId || null
   let creditAccountId = tx.creditAccountId || mapping?.creditAccountId || null
   const voucherSettlementAccountId = await resolveVoucherSettlementAccount(user, tx)
-  const directPartyAccountLookup = String(tx?.voucherMeta?.partyAccountId || tx?.voucherMeta?.partyCode || '').trim()
+  const partyAccountIdRaw = String(tx?.voucherMeta?.partyAccountId || '').trim()
+  const partyCodeRaw = String(tx?.voucherMeta?.partyCode || '').trim()
   let directPartyAccount = null
 
-  if (directPartyAccountLookup) {
-    const looksLikeObjectId = /^[a-f\d]{24}$/i.test(directPartyAccountLookup)
-    directPartyAccount = looksLikeObjectId
-      ? await ChartOfAccount.findById(directPartyAccountLookup)
-      : null
+  /**
+   * Resolve voucher party ledger: prefer ObjectId match, then account code.
+   * Do not require isActive — inactive payables must still receive postings or enquiry stays empty.
+   */
+  const resolvePartyChartAccount = async (idOrCode) => {
+    const key = String(idOrCode || '').trim()
+    if (!key) return null
+    if (/^[a-f\d]{24}$/i.test(key)) {
+      const byId = await ChartOfAccount.findById(key)
+      if (byId) return byId
+    }
+    const matches = await ChartOfAccount.find({ accountCode: key })
+      .sort({ isActive: -1, createdAt: 1, _id: 1 })
+    return matches.find((row) => row.isActive) || matches[0] || null
+  }
 
-    if (!directPartyAccount) {
-      directPartyAccount = await ChartOfAccount.findOne({ accountCode: directPartyAccountLookup, isActive: true })
+  if (partyAccountIdRaw || partyCodeRaw) {
+    directPartyAccount = await resolvePartyChartAccount(partyAccountIdRaw)
+    if (!directPartyAccount && partyCodeRaw && partyCodeRaw !== partyAccountIdRaw) {
+      directPartyAccount = await resolvePartyChartAccount(partyCodeRaw)
     }
   }
 
@@ -2369,6 +2382,9 @@ function registerErpAccountingRoutes(router) {
     getRoleTransactionTypes,
     BASE_CURRENCY_CODE,
     applyPartyAccountPriority,
+    StockMovement,
+    InventoryItem,
+    toQty,
   })
   
   registerAttachmentRoutes({

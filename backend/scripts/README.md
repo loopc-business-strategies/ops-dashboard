@@ -39,6 +39,18 @@ Use these as the default maintenance flow:
 4. For production, also require the production override after a backup:
    `ALLOW_PRODUCTION_DESTRUCTIVE_SCRIPT=true NODE_ENV=production CLEANUP_CONFIRM_TOKEN=... node scripts/destructive/example.js --tenant=mg --apply --reason="ticket OPS-123 approved cleanup after backup" --confirm=...`
 
+### `void-metal-voucher-by-voc-no.js`
+
+Voids a single **purchase** or **sale** metal voucher by `voucherMeta.vocNo` (same effect as the app’s Void: soft-delete ledgers, reverse linked stock movements, soft-delete the transaction). Default is dry-run.
+
+```bash
+node scripts/void-metal-voucher-by-voc-no.js --tenant=mg --voc-no=Pur/2026/0001
+node scripts/void-metal-voucher-by-voc-no.js --tenant=mg --apply --voc-no=Pur/2026/0001 \
+  --reason="Void duplicate purchase per OPS-123" --confirm="$DESTRUCTIVE_ADMIN_CONFIRM_TOKEN"
+```
+
+Requires `DESTRUCTIVE_ADMIN_CONFIRM_TOKEN` or `CLEANUP_CONFIRM_TOKEN` in the environment for `--apply`. If more than one transaction matches the voc-no, the script exits without changes.
+
 Do not add new live-data repair scripts to the root of this folder. Put mutating scripts under `destructive/` and require `./_destructive-guard` as the first executable line after imports.
 
 The table below predates the workspace registry and uses a few descriptive labels. Read them as:

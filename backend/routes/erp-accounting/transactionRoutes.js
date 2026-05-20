@@ -1,5 +1,6 @@
 function registerTransactionRoutes(deps) {
   const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
+  const { reverseMetalVoucherStockForVoid } = require('../../utils/metalVoucherStockReversal')
   const {
     router,
     protect,
@@ -41,6 +42,9 @@ function registerTransactionRoutes(deps) {
     getRoleTransactionTypes,
     BASE_CURRENCY_CODE,
     applyPartyAccountPriority,
+    StockMovement,
+    InventoryItem,
+    toQty,
   } = deps
 
 const strictBody = validateBodyStrict || validateBody
@@ -334,6 +338,14 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
           { $set: { isDeleted: true, deletedAt: now, updatedBy: req.user._id } }
         )
       }
+      await reverseMetalVoucherStockForVoid({
+        tx,
+        user: req.user,
+        StockMovement,
+        InventoryItem,
+        toQty,
+        deleteReason: 'Posted transaction edited — inventory reversal',
+      })
       tx.status = 'draft'
       tx.journalEntryId = null
     }
@@ -444,6 +456,15 @@ router.post('/transactions/:id/void', protect, requireTransactionVoidRole, requi
         { $set: { isDeleted: true, deletedAt: now, updatedBy: req.user._id } }
       )
     }
+
+    await reverseMetalVoucherStockForVoid({
+      tx,
+      user: req.user,
+      StockMovement,
+      InventoryItem,
+      toQty,
+      deleteReason: req.destructiveAction?.reason,
+    })
 
     tx.isDeleted = true
     tx.deletedAt = now
