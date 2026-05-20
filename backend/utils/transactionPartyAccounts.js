@@ -20,11 +20,14 @@ function applyPartyAccountPriority({
   }
 
   if (type === 'sale') {
-    return { debitAccountId: debitAccountId || partyAccountId, creditAccountId }
+    // Voucher party is the AR / counterparty ledger — prefer it over a stale customer.ledgerAccountId.
+    return { debitAccountId: partyAccountId || debitAccountId, creditAccountId }
   }
 
   if (type === 'purchase') {
-    return { debitAccountId, creditAccountId: creditAccountId || partyAccountId }
+    // Voucher party is the AP / counterparty ledger — prefer it over a stale vendor.ledgerAccountId
+    // (otherwise postings hit e.g. 2000 while the user views vendor sub-account 2305 and sees zero balance).
+    return { debitAccountId, creditAccountId: partyAccountId || creditAccountId }
   }
 
   return { debitAccountId, creditAccountId }

@@ -5,7 +5,7 @@ Multi-tenant operations and ERP platform for mg, cg, and loopc companies.
 ## Deployment Docs
 - Main deployment checklist: `DEPLOYMENT-CHECKLIST.md`
 - Release/version policy: `RELEASE-VERSIONING-POLICY.md`
-- Live ERP spot metals (Railway): set `METALS_DEV_API_KEY` — see `ENV-VARS-QUICK-REFERENCE.md`
+- Live ERP spot metals (Railway): `METALS_DEV_API_KEY`, or `FRED_API_KEY` / `ALPHA_VANTAGE_API_KEY` as fallbacks; optional **`METALS_SPOT_MOCK_REALTIME=true`** for synthetic SSE ticks in dev — see `ENV-VARS-QUICK-REFERENCE.md`
 
 ## GitHub Actions Setup (One-Shot)
 This repo includes the post-deploy tenant smoke workflow:

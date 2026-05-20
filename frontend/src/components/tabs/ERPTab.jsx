@@ -3102,14 +3102,19 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         const outstanding = Number(customer?.outstandingBalance || 0)
         const opening = Number(customer?.openingBalance || 0)
         const creditLimit = Number(customer?.creditLimit || 0)
-        const status = outstanding > 0 ? 'POSITIVE' : outstanding < 0 ? 'NEGATIVE' : 'NEUTRAL'
+        let equity = outstanding
+        let status = outstanding > 0 ? 'POSITIVE' : outstanding < 0 ? 'NEGATIVE' : 'NEUTRAL'
+        if (outstanding < 0) {
+          equity = Math.abs(outstanding)
+          status = 'POSITIVE'
+        }
         const base = creditLimit > 0 ? creditLimit : (Math.abs(opening) > 0 ? Math.abs(opening) : 0)
         const marginPercent = base > 0 ? (Math.abs(outstanding) / base) * 100 : null
         return {
           id: customer?._id,
           customerName: String(customer?.name || '-'),
           balanceAbs: Math.abs(outstanding),
-          equity: outstanding,
+          equity,
           rawOutstanding: outstanding,
           status,
           marginPercent,

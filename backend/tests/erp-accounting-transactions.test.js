@@ -433,6 +433,99 @@ describe('ERP accounting transactions workflow', () => {
     expect(String(ledgers[0].creditAccountId)).toBe(String(payableAccount._id))
   })
 
+  test('posted purchase credits voucher party payable when it differs from vendor.ledgerAccountId', async () => {
+    const financeUser = await createUser({ name: 'Party Wins Buyer' })
+    const stalePayable = await ChartOfAccount.create({
+      accountName: 'Stale AP',
+      accountCode: '2199',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+    const partyPayable = await ChartOfAccount.create({
+      accountName: 'Vendor Sub AP 2305',
+      accountCode: '2305',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+    const inventoryAccount = await ChartOfAccount.create({
+      accountName: 'Gold Inventory Party Test',
+      accountCode: '1320',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const vendor = await Vendor.create({
+      name: 'Split Ledger Vendor',
+      ledgerAccountId: stalePayable._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+    const stockType = await InventoryItem.create({
+      name: 'Gold Main Stock',
+      sku: 'GOLD',
+      category: 'mainStock=Gold;priceCurrency=USD;priceUnit=OZ',
+      quantity: 0,
+      unit: 'grams',
+      unitCost: 0,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+    const product = await InventoryItem.create({
+      name: 'kilo bar 9999',
+      sku: 'KB9999',
+      category: 'mainStock=Gold;recordType=product;purity=0.9999;grossWeight=1000',
+      quantity: 0,
+      unit: 'grams',
+      unitCost: 0,
+      ledgerAccountId: inventoryAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'purchase',
+        amount: 5000,
+        description: 'Party vs vendor ledger',
+        currency: 'USD',
+        vendorId: vendor._id.toString(),
+        voucherMeta: {
+          vocNo: 'Pur/PartyTest/1',
+          partyCode: partyPayable.accountCode,
+          partyName: partyPayable.accountName,
+          partyAccountId: partyPayable._id.toString(),
+          fixingType: 'fixing',
+          lineItems: [
+            {
+              stockCode: 'GOLD',
+              grossWeight: 1000,
+              purity: 0.9999,
+              amountLC: 5000,
+            },
+          ],
+        },
+      })
+
+    expect(createRes.status).toBe(201)
+    const txId = createRes.body.transaction._id
+
+    await request(app).post(`/api/erp-accounting/transactions/${txId}/submit`).set(authHeader(financeUser)).send({ comment: 's' })
+    await request(app).post(`/api/erp-accounting/transactions/${txId}/approve`).set(authHeader(financeUser)).send({ comment: 'a' })
+    const postRes = await request(app).post(`/api/erp-accounting/transactions/${txId}/post`).set(authHeader(financeUser)).send({ comment: 'p' })
+    expect(postRes.status).toBe(200)
+
+    const main = await Ledger.findOne({ referenceType: 'purchase', referenceId: txId, isDeleted: { $ne: true } })
+    expect(main).toBeTruthy()
+    expect(String(main.creditAccountId)).toBe(String(partyPayable._id))
+    expect(String(main.debitAccountId)).toBe(String(inventoryAccount._id))
+
+    const updatedProduct = await InventoryItem.findById(product._id)
+    expect(Number(updatedProduct.quantity)).toBe(1000)
+    const untouchedStockType = await InventoryItem.findById(stockType._id)
+    expect(Number(untouchedStockType.quantity)).toBe(0)
+  })
+
   test('supports direct chart account party selection through save, approve, and post for all four voucher types', async () => {
     const financeUser = await createUser({ name: 'Direct Party Account Tester' })
 

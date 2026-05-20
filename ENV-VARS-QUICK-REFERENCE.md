@@ -83,7 +83,7 @@ VITE_API_URL=https://api.yourdomain.com
 
 ### Live spot metals (ERP dashboard)
 
-The MG/CG/LoopC ERP dashboard **spot metals** widget calls `GET /api/erp-accounting/reports/market-prices` (and optional **SSE** `GET /api/erp-accounting/reports/market-prices/stream`), which use [metals.dev](https://metals.dev) by default.
+The MG/CG/LoopC ERP dashboard **spot metals** widget calls `GET /api/erp-accounting/reports/market-prices` (and optional **SSE** `GET /api/erp-accounting/reports/market-prices/stream`). If **`METALS_SPOT_MOCK_REALTIME=true`** (see below), the backend uses a **synthetic tick feed** first (for UI / latency testing). Otherwise it tries: **metals.dev** (default) → **FRED** (if `FRED_API_KEY` is set) → **Alpha Vantage** (if `ALPHA_VANTAGE_API_KEY` or `METALS_ALPHA_VANTAGE_API_KEY` is set) → **inventory / saved metal rates** fallback.
 
 **Enable live prices on Railway (about two minutes):**
 
@@ -111,6 +111,49 @@ Shorter `METALS_SPOT_CACHE_MS` / `METALS_SPOT_SSE_POLL_MS` refresh the UI more o
 If the ERP widget shows **Fallback** / **inventory**, open the orange error line: it now includes metals.dev’s **`error_message`** (for example invalid key, quota, or billing). Common fixes: paste `METALS_DEV_API_KEY` **without** wrapping quotes, **no** spaces or line breaks; confirm the key on [metals.dev/dashboard](https://metals.dev/dashboard); check **monthly request limits** on the free plan.
 
 If you host a compatible JSON endpoint, set `METALS_MARKET_URL` to that URL; the backend will not require `METALS_DEV_API_KEY` when the default metals.dev host is not used.
+
+**Alternate free feeds (quota / no metals.dev key):**
+
+1. **FRED (St. Louis Fed)** — [Get an API key](https://fred.stlouisfed.org/docs/api/api_key.html). With only `FRED_API_KEY`, the backend uses **gold** by default (`GOLDPMGBD228NLBM`, London PM USD per troy oz). Set optional series IDs for other metals after you pick them on [fred.stlouisfed.org](https://fred.stlouisfed.org/):
+
+```
+FRED_API_KEY=<your FRED key>
+# FRED_METALS_SERIES_GOLD=GOLDPMGBD228NLBM   # default if omitted
+# FRED_METALS_SERIES_SILVER=
+# FRED_METALS_SERIES_PLATINUM=
+# FRED_METALS_SERIES_PALLADIUM=
+```
+
+2. **Alpha Vantage** — [Free API key](https://www.alphavantage.co/support/#api-key). Uses `GOLD_SILVER_SPOT` for gold/silver and `CURRENCY_EXCHANGE_RATE` for XPT/USD and XPD/USD (availability depends on Alpha’s data). The free tier is **25 requests/day**; use a **large** `METALS_SPOT_CACHE_MS` (for example `3600000`) and a slower `METALS_SPOT_SSE_POLL_MS` so you do not burn the daily cap on dashboard refreshes.
+
+```
+ALPHA_VANTAGE_API_KEY=<key>
+# or: METALS_ALPHA_VANTAGE_API_KEY=<key>
+```
+
+**Synthetic real-time mock (free — for SSE / UI testing only):**
+
+When enabled, the server **does not call** metals.dev, FRED, or Alpha; prices are a **small random walk** in USD/troy oz so the widget can show **live ticks** as fast as `METALS_SPOT_SSE_POLL_MS`. **Off in production** unless you also set `METALS_SPOT_MOCK_REALTIME_ALLOW_PRODUCTION=true` (discouraged).
+
+```
+METALS_SPOT_MOCK_REALTIME=true
+METALS_SPOT_SSE_POLL_MS=500
+# METALS_SPOT_MOCK_REALTIME_ALLOW_PRODUCTION=true
+```
+
+### Maintenance: repair misposted purchase (AP + inventory)
+
+If an older posted purchase credited the wrong payable (e.g. generic AP) while the voucher **party** was a vendor sub-account (e.g. **2305**), or stock was booked on a **stock-type** row instead of a **product**, run from `backend/`:
+
+```bash
+# Preview (no writes)
+node scripts/repair-misposted-purchase-voucher.js --tenant=mg --voc-no=Pur/2026/0001
+
+# Apply (requires destructive guard — see script header)
+node scripts/repair-misposted-purchase-voucher.js --tenant=mg --apply --reason="Repair misposted purchase" --confirm="$DESTRUCTIVE_ADMIN_CONFIRM_TOKEN" --voc-no=Pur/2026/0001
+```
+
+Optional: `REPAIR_SYNC_VENDOR_LEDGER=false` to skip updating `Vendor.ledgerAccountId`.
 
 ---
 

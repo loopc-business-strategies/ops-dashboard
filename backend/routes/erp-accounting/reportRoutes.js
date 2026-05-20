@@ -5,6 +5,15 @@ const metalSpotCache = {
   expiresAt: 0,
 }
 
+const {
+  fetchFredPreciousMetalSpotBundle,
+  fetchAlphaVantagePreciousMetalSpotBundle,
+} = require('../../services/metalSpotFeeds')
+const {
+  isMockRealtimeMetalsSpotEnabled,
+  advanceMockMetals,
+} = require('../../services/metalSpotMockRealtime')
+
 function registerReportRoutes(deps) {
   const {
     router,
@@ -879,11 +888,28 @@ router.get('/reports/forex-gain-loss', protect, async (req, res) => {
   }
 })
 
+  const scaleUsdPerOzMetalsToRequest = async (metalsObj, targetCurrency, targetUnit) => {
+    const mult = await getCurrencyMultiplier('USD', String(targetCurrency || 'USD').toUpperCase())
+    const unitFactor =
+      String(targetUnit || 'toz').toLowerCase() === 'g'
+        ? 1 / 31.1034768
+        : String(targetUnit || 'toz').toLowerCase() === 'kg'
+          ? 32.1507465686
+          : 1
+    const out = {}
+    for (const k of ['gold', 'silver', 'platinum', 'palladium']) {
+      const raw = Number(metalsObj[k] || 0)
+      out[k] = Number.isFinite(raw) && raw > 0 ? toMoney(raw * mult * unitFactor) : 0
+    }
+    return out
+  }
+
   const buildMarketPricesBody = async ({ currency, unit, cacheBypass }) => {
     const cacheKey = `${currency}:${unit}`
     const now = Date.now()
+    const mockRealtime = isMockRealtimeMetalsSpotEnabled()
 
-    if (!cacheBypass && metalSpotCache.key === cacheKey && metalSpotCache.payload && metalSpotCache.expiresAt > now) {
+    if (!cacheBypass && !mockRealtime && metalSpotCache.key === cacheKey && metalSpotCache.payload && metalSpotCache.expiresAt > now) {
       return {
         body: {
           ...metalSpotCache.payload,
@@ -893,16 +919,86 @@ router.get('/reports/forex-gain-loss', protect, async (req, res) => {
       }
     }
 
-    let market
+    const apiKeyMd = normalizeMetalsDevApiKey(process.env.METALS_DEV_API_KEY || process.env.METALS_API_KEY || '')
+    const defaultMetalsDev = 'https://api.metals.dev/v1/latest'
+    const configuredUrl = String(process.env.METALS_MARKET_URL || '').trim()
+    const targetUrl = configuredUrl || defaultMetalsDev
+    const norm = (u) => String(u || '').trim().replace(/\/+$/, '').toLowerCase()
+    const usingDefaultMetalsDev = norm(targetUrl) === norm(defaultMetalsDev)
+    const canTryMetalsDev = !usingDefaultMetalsDev || Boolean(apiKeyMd)
+    const fredKey = String(process.env.FRED_API_KEY || '').trim()
+    const alphaKey = String(process.env.METALS_ALPHA_VANTAGE_API_KEY || process.env.ALPHA_VANTAGE_API_KEY || '').trim()
 
-    try {
-      market = await fetchExternalMetalPrices({ currency, unit })
+    let market
+    const liveErrors = []
+
+    if (mockRealtime) {
+      const { metals: usdTozMetals } = advanceMockMetals()
+      market = {
+        source: 'mock-realtime',
+        currency: 'USD',
+        unit: 'toz',
+        updatedAt: new Date(),
+        metals: { ...usdTozMetals },
+      }
+      market.metals = await scaleUsdPerOzMetalsToRequest(market.metals, currency, unit)
+      market.currency = String(currency || 'USD').toUpperCase()
+      market.unit = String(unit || 'toz').toLowerCase()
+      market.feedStatus = 'live'
+      market.warning =
+        'Synthetic spot (METALS_SPOT_MOCK_REALTIME) — for UI / latency testing only, not real prices.'
+      const ttlMs = 0
+      const body = {
+        success: true,
+        ...market,
+        generatedAt: new Date(),
+      }
+      return { body, ttlMs }
+    }
+
+    if (canTryMetalsDev) {
+      try {
+        market = await fetchExternalMetalPrices({ currency, unit })
+      } catch (e) {
+        liveErrors.push(e.message)
+      }
+    }
+
+    if (!market && fredKey) {
+      try {
+        const rawFred = await fetchFredPreciousMetalSpotBundle()
+        market = {
+          ...rawFred,
+          metals: await scaleUsdPerOzMetalsToRequest(rawFred.metals, currency, unit),
+          currency: String(currency || 'USD').toUpperCase(),
+          unit: String(unit || 'toz').toLowerCase(),
+        }
+      } catch (e) {
+        liveErrors.push(e.message)
+      }
+    }
+
+    if (!market && alphaKey) {
+      try {
+        const rawAv = await fetchAlphaVantagePreciousMetalSpotBundle({ apiKey: alphaKey })
+        market = {
+          ...rawAv,
+          metals: await scaleUsdPerOzMetalsToRequest(rawAv.metals, currency, unit),
+          currency: String(currency || 'USD').toUpperCase(),
+          unit: String(unit || 'toz').toLowerCase(),
+        }
+      } catch (e) {
+        liveErrors.push(e.message)
+      }
+    }
+
+    if (!market) {
+      market = await buildFallbackMetalPrices({ currency, unit })
+      market.feedStatus = 'fallback'
+      market.warning = liveErrors[0] || 'Live feed unavailable'
+    } else {
       market.feedStatus = 'live'
       market.warning = ''
-    } catch (error) {
-      market = await buildFallbackMetalPrices({ currency, unit })
-      market.warning = error.message
-      market.feedStatus = 'fallback'
     }
 
     const ttlMs = market.feedStatus === 'live'
@@ -1180,14 +1276,21 @@ router.get('/reports/dashboard', protect, async (req, res) => {
     // --- Customer / Supplier margin: show every created party account ---
     const customerMargins = await Promise.all(customers.map(async (c) => {
       const opening = Number(c.ledgerAccountId?.openingBalance ?? c.openingBalance ?? 0)
-      const outstanding = c.ledgerAccountId?._id
+      const rawOutstanding = c.ledgerAccountId?._id
         ? opening + Number(await getOutstandingForAccount(c.ledgerAccountId._id) || 0)
         : Number(c.outstandingBalance || 0)
       const base = Number(c.creditLimit || 0) > 0
         ? Number(c.creditLimit || 0)
         : Math.abs(Number(c.openingBalance || 0))
-      const marginPercent = base > 0 ? (Math.abs(outstanding) / base) * 100 : null
-      const status = outstanding > 0 ? 'POSITIVE' : outstanding < 0 ? 'NEGATIVE' : 'NEUTRAL'
+      const marginPercent = base > 0 ? (Math.abs(rawOutstanding) / base) * 100 : null
+      // Signed AR: positive = customer owes (Dr balance), negative = net credit / advance (Cr balance).
+      // Margin widget shows magnitude as equity; net credit is treated as POSITIVE margin (favorable), not red "NEGATIVE".
+      let displayEquity = rawOutstanding
+      let status = rawOutstanding > 0 ? 'POSITIVE' : rawOutstanding < 0 ? 'NEGATIVE' : 'NEUTRAL'
+      if (rawOutstanding < 0) {
+        displayEquity = Math.abs(rawOutstanding)
+        status = 'POSITIVE'
+      }
 
       if (!c.ledgerAccountId?._id) {
         return {
@@ -1198,8 +1301,8 @@ router.get('/reports/dashboard', protect, async (req, res) => {
           expenses: 0,
           cashInflow: 0,
           cashOutflow: 0,
-          netCashFlow: toMoney(outstanding),
-          equity: toMoney(outstanding),
+          netCashFlow: toMoney(displayEquity),
+          equity: toMoney(displayEquity),
           status,
           marginPercent: marginPercent === null ? null : toMoney(marginPercent),
         }
@@ -1223,8 +1326,8 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         expenses: toMoney(custExpense),
         cashInflow: toMoney(custCashIn),
         cashOutflow: toMoney(custCashOut),
-        netCashFlow: toMoney(outstanding),
-        equity: toMoney(outstanding),
+        netCashFlow: toMoney(displayEquity),
+        equity: toMoney(displayEquity),
         status,
         marginPercent: marginPercent === null ? null : toMoney(marginPercent),
       }

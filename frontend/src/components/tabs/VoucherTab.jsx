@@ -350,6 +350,7 @@ const metalTopField = {
 const emptyLine = () => ({
   branch: '',
   acCode: '',
+  inventoryItemId: '',
   stockCode: '',
   productType: '',
   stockGroup: '',
@@ -398,6 +399,12 @@ const emptyLine = () => ({
   narration: '',
   referenceRate: '',
 })
+
+/** Valid Mongo ObjectId string for API / Mongoose line fields; otherwise null (omit bad casts). */
+const normalizeMongoIdField = (value) => {
+  const s = String(value ?? '').trim()
+  return /^[a-f\d]{24}$/i.test(s) ? s : null
+}
 
 const emptyHeader = () => ({
   branch: '',
@@ -720,8 +727,8 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const voucherConfigs = {
     payment: { key: 'payment', label: 'Payment Voucher', short: t('paymentVoucher'), code: 'PAY', docPrefix: 'Pay', icon: '💳', partySelectLabel: 'Vendor', partyPlaceholder: 'Auto from vendor' },
     receipt: { key: 'receipt', label: 'Receipt Voucher', short: t('receiptVoucher'), code: 'REC', docPrefix: 'Rec', icon: '🧾', partySelectLabel: 'Customer', partyPlaceholder: 'Auto from customer' },
-    purchase: { key: 'purchase', label: 'Metal Purchase Voucher', short: 'Metal Purchase', code: 'PUR', docPrefix: 'Pur', icon: '🟫', partySelectLabel: 'Vendor', partyPlaceholder: 'Auto from vendor' },
-    sale: { key: 'sale', label: 'Metal Sale Voucher', short: 'Metal Sale', code: 'SAL', docPrefix: 'Sal', icon: '🟨', partySelectLabel: 'Customer', partyPlaceholder: 'Auto from customer' },
+    purchase: { key: 'purchase', label: 'Metal Purchase Voucher', short: 'Metal Purchase', code: 'PUR', docPrefix: 'Pur', icon: '🟫', partySelectLabel: 'Vendor / Customer', partyPlaceholder: 'Vendor, customer, or account code' },
+    sale: { key: 'sale', label: 'Metal Sale Voucher', short: 'Metal Sale', code: 'SAL', docPrefix: 'Sal', icon: '🟨', partySelectLabel: 'Customer / Vendor', partyPlaceholder: 'Customer, vendor, or account code' },
   }
 
   const voucherPartyMode = voucherType === 'receipt' || voucherType === 'sale'
@@ -732,51 +739,57 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     const lookupValue = normalizeLookupValue(partyCode)
     if (!lookupValue) return null
 
-    // Search vendors first
-    const vendor = vendors.find((item) => {
+    const vendorMatch = vendors.find((item) => {
       if (item.ledgerAccountId && item.ledgerAccountId.isActive === false) return false
       const ledgerCode = normalizeLookupValue(item.ledgerAccountId?.accountCode)
       return lookupValue === normalizeLookupValue(item._id)
         || lookupValue === normalizeLookupValue(item.vendorCode)
         || lookupValue === ledgerCode
     })
-    if (vendor) {
-      return {
-        customerId: '',
-        vendorId: vendor._id,
-        partyName: vendor.name || '',
-        partyCode: vendor.vendorCode || vendor.ledgerAccountId?.accountCode || String(vendor._id),
-        partyId: `vendor:${String(vendor._id)}`,
-        partyType: 'vendor',
-        accountCurrency: String(vendor.ledgerAccountId?.currency || vendor.currency || '').trim().toUpperCase(),
-        email: vendor.email || '',
-        phone: vendor.phone || '',
-        address: formatPartyAddress(vendor.address, vendor.city, vendor.country, vendor.postalCode),
-      }
-    }
 
-    // Then search customers
-    const customer = customers.find((item) => {
+    const customerMatch = customers.find((item) => {
       if (item.ledgerAccountId && item.ledgerAccountId.isActive === false) return false
       const ledgerCode = normalizeLookupValue(item.ledgerAccountId?.accountCode)
       return lookupValue === normalizeLookupValue(item._id) || lookupValue === ledgerCode
     })
 
-    return customer
-      ? {
-          customerId: customer._id,
-          vendorId: '',
-          partyName: customer.name || '',
-          partyCode: customer.ledgerAccountId?.accountCode || String(customer._id),
-          partyId: `customer:${String(customer._id)}`,
-          partyType: 'customer',
-          accountCurrency: String(customer.ledgerAccountId?.currency || customer.currency || '').trim().toUpperCase(),
-          email: customer.email || '',
-          phone: customer.phone || '',
-          address: customer.address || '',
-        }
-      : null
-  }, [customers, vendors])
+    const toVendor = (vendor) => ({
+      customerId: '',
+      vendorId: vendor._id,
+      partyName: vendor.name || '',
+      partyCode: vendor.vendorCode || vendor.ledgerAccountId?.accountCode || String(vendor._id),
+      partyId: `vendor:${String(vendor._id)}`,
+      partyType: 'vendor',
+      accountCurrency: String(vendor.ledgerAccountId?.currency || vendor.currency || '').trim().toUpperCase(),
+      email: vendor.email || '',
+      phone: vendor.phone || '',
+      address: formatPartyAddress(vendor.address, vendor.city, vendor.country, vendor.postalCode),
+    })
+
+    const toCustomer = (customer) => ({
+      customerId: customer._id,
+      vendorId: '',
+      partyName: customer.name || '',
+      partyCode: customer.ledgerAccountId?.accountCode || String(customer._id),
+      partyId: `customer:${String(customer._id)}`,
+      partyType: 'customer',
+      accountCurrency: String(customer.ledgerAccountId?.currency || customer.currency || '').trim().toUpperCase(),
+      email: customer.email || '',
+      phone: customer.phone || '',
+      address: customer.address || '',
+    })
+
+    // Sale/receipt: prefer customer (counterparty is usually buyer). Purchase/payment: prefer vendor (supplier).
+    const preferCustomerFirst = voucherType === 'sale' || voucherType === 'receipt'
+    if (preferCustomerFirst) {
+      if (customerMatch) return toCustomer(customerMatch)
+      if (vendorMatch) return toVendor(vendorMatch)
+    } else {
+      if (vendorMatch) return toVendor(vendorMatch)
+      if (customerMatch) return toCustomer(customerMatch)
+    }
+    return null
+  }, [customers, vendors, voucherType])
 
   const PARTY_TYPE_ORDER = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
   const partyOptions = (Array.isArray(accounts) ? accounts : [])
@@ -813,6 +826,34 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     label: g.type,
     options: g.items.map((item) => ({ value: item.id, label: item.label })),
   }))
+
+  const isMetalVoucherHeader = voucherType === 'purchase' || voucherType === 'sale'
+  const metalPartyComboGroups = (() => {
+    if (!isMetalVoucherHeader) return partyComboGroups
+    const customerOpts = customers
+      .filter((c) => !(c.ledgerAccountId && c.ledgerAccountId.isActive === false))
+      .map((c) => {
+        const code = String(c.ledgerAccountId?.accountCode || '').trim() || String(c._id)
+        const name = String(c.name || '').trim() || 'Customer'
+        return { value: `customer:${String(c._id)}`, label: `${code} — ${name}` }
+      })
+      .filter((o) => o.value && o.label)
+
+    const vendorOpts = vendors
+      .filter((v) => !(v.ledgerAccountId && v.ledgerAccountId.isActive === false))
+      .map((v) => {
+        const code = String(v.vendorCode || v.ledgerAccountId?.accountCode || '').trim() || String(v._id)
+        const name = String(v.name || '').trim() || 'Vendor'
+        return { value: `vendor:${String(v._id)}`, label: `${code} — ${name}` }
+      })
+      .filter((o) => o.value && o.label)
+
+    const out = []
+    if (customerOpts.length) out.push({ label: 'Customers', options: customerOpts })
+    if (vendorOpts.length) out.push({ label: 'Vendors', options: vendorOpts })
+    out.push(...partyComboGroups)
+    return out
+  })()
 
   const findPartyOptionByCode = useCallback((code) => {
     const lookupValue = normalizeLookupValue(code)
@@ -1037,7 +1078,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     const product = inventoryProducts.find(
       (item) => item.name === productName && String(item.category || '').includes('recordType=product')
     )
-    if (!product) return line
+    if (!product) {
+      return { ...line, productType: productName, inventoryItemId: '' }
+    }
 
     const meta = decodeFullMeta(product.category)
     const simMeta = decodeInventoryCategoryMeta(product.category)
@@ -1052,6 +1095,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
     return applyLineAutoCalc({
       ...line,
+      inventoryItemId: String(product._id),
       productType: productName,
       grossWeight: grossWeight > 0 ? String(Number(grossWeight.toFixed(3))) : line.grossWeight,
       purity: rawPurity > 0 ? String(rawPurity) : line.purity,
@@ -1062,10 +1106,15 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
   const handleStockSelection = useCallback((selectedStockCode) => {
     const normalizedStockCode = String(selectedStockCode || '').trim()
+    if (!normalizedStockCode) {
+      setLineForm((prev) => ({ ...prev, stockCode: '', inventoryItemId: '' }))
+      return
+    }
+
     const product = inventoryProducts.find((item) => String(item.sku || '').trim().toLowerCase() === normalizedStockCode.toLowerCase())
 
     if (!product) {
-      setLineForm((prev) => ({ ...prev, stockCode: normalizedStockCode }))
+      setLineForm((prev) => ({ ...prev, stockCode: normalizedStockCode, inventoryItemId: '' }))
       return
     }
 
@@ -1085,6 +1134,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
     setLineForm((prev) => applyLineAutoCalc({
       ...prev,
+      inventoryItemId: String(product._id),
       stockCode: String(product.sku || normalizedStockCode),
       stockGroup,
       metalSymbol: symbol,
@@ -1582,9 +1632,14 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       valueDate: m.valueDate ? m.valueDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
       fixingType: normalizeVoucherFixingType(m.fixingType),
     }
-    const nextPartyId = m.partyAccountId
+    let nextPartyId = m.partyAccountId
       ? `account:${String(m.partyAccountId)}`
-      : (resolvedParty?.partyId || findPartyOptionByCode(m.partyCode || '')?.id || '')
+      : ''
+    const cid = v.customerId && (typeof v.customerId === 'object' && v.customerId._id ? v.customerId._id : v.customerId)
+    const vid = v.vendorId && (typeof v.vendorId === 'object' && v.vendorId._id ? v.vendorId._id : v.vendorId)
+    if (!nextPartyId && cid) nextPartyId = `customer:${String(cid)}`
+    if (!nextPartyId && vid) nextPartyId = `vendor:${String(vid)}`
+    if (!nextPartyId) nextPartyId = resolvedParty?.partyId || findPartyOptionByCode(m.partyCode || '')?.id || ''
     const nextLineItems = (m.lineItems || []).map((line) => {
       const lineCurrency = String(line?.currCode || voucherCurrency || 'USD').trim().toUpperCase()
       const lineRateSource = line?.currRateSource || 'manual'
@@ -1592,6 +1647,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       const normalizedLineRate = backendRateToDisplayRate(lineRate, lineCurrency, isReceiptPaymentVoucher)
       return {
         ...line,
+        inventoryItemId: line.inventoryItemId ? String(line.inventoryItemId._id || line.inventoryItemId) : '',
         type: normalizeLineType(line.type),
         currCode: lineCurrency,
         currRate: normalizedLineRate.toFixed(6),
@@ -1827,10 +1883,22 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     const resolvedParty = resolveVoucherParty(header.partyCode)
     const selectedAccount = findPartyOptionByCode(header.partyCode)
     if (!resolvedParty && !selectedAccount) {
-      setError('Party Code must match an existing chart account')
+      setError('Party must match a customer, vendor, or chart account')
       return
     }
 
+    const partyLedgerIdFromResolved = () => {
+      if (!resolvedParty) return ''
+      if (resolvedParty.partyType === 'customer' && resolvedParty.customerId) {
+        const c = customers.find((x) => String(x._id) === String(resolvedParty.customerId))
+        return c?.ledgerAccountId?._id ? String(c.ledgerAccountId._id) : ''
+      }
+      if (resolvedParty.partyType === 'vendor' && resolvedParty.vendorId) {
+        const vRow = vendors.find((x) => String(x._id) === String(resolvedParty.vendorId))
+        return vRow?.ledgerAccountId?._id ? String(vRow.ledgerAccountId._id) : ''
+      }
+      return ''
+    }
     const normalizedVoucherType = String(voucherType || '').toLowerCase()
     const normalizedHeaderCurrency = String(header.currCode || baseCurrencyCode || 'USD').trim().toUpperCase()
     const isReceiptPayment = ['receipt', 'payment'].includes(normalizedVoucherType)
@@ -1853,7 +1921,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       voucherMeta: {
         partyCode: header.partyCode,
         partyName: header.partyName || resolvedParty?.partyName || '',
-        partyAccountId: selectedAccount?.accountId || '',
+        partyAccountId: selectedAccount?.accountId || partyLedgerIdFromResolved() || '',
         salesman: header.salesman,
         vocNo: header.vocNo,
         docDate: header.docDate || null,
@@ -1867,8 +1935,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         },
         ...(requiresReferenceRate ? { referenceExchangeRate: backendHeaderRate } : {}),
         ...(( voucherType === 'purchase' || voucherType === 'sale') ? { fixingType: normalizeVoucherFixingType(header.fixingType) } : {}),
-        lineItems: effectiveLineItems.map(l => ({
+        lineItems: effectiveLineItems.map((l) => ({
           ...l,
+          inventoryItemId: normalizeMongoIdField(l.inventoryItemId),
           currRateSource: l.currRateSource || 'manual',
           amountFC: parseFloat(l.amountFC) || 0,
           amountLC: parseFloat(l.amountLC) || 0,
@@ -1974,14 +2043,16 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
   const openEditLine = (idx) => {
     setEditingLineIdx(idx)
-    const normalizedType = normalizeLineType(lineItems[idx]?.type)
+    const row = lineItems[idx] || {}
+    const normalizedType = normalizeLineType(row?.type)
     setLineForm({
-      ...lineItems[idx],
+      ...row,
+      inventoryItemId: String(row?.inventoryItemId?._id || row?.inventoryItemId || ''),
       type: normalizedType,
       typeCode: normalizedType.toUpperCase(),
-      rateType: normalizeRateType(lineItems[idx]?.rateType),
-      currRateSource: lineItems[idx]?.currRateSource || 'manual',
-      vatType: lineItems[idx]?.vatType || 'VAT',
+      rateType: normalizeRateType(row?.rateType),
+      currRateSource: row?.currRateSource || 'manual',
+      vatType: row?.vatType || 'VAT',
     })
     setShowLineForm(true)
   }
@@ -2233,7 +2304,40 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   }
 
   const handlePartySelect = (partyId) => {
-    setSelectedPartyId(partyId)
+    setSelectedPartyId(partyId || '')
+    if (!partyId) {
+      setHdr('partyCode', '')
+      setHdr('partyName', '')
+      return
+    }
+    if (String(partyId).startsWith('customer:')) {
+      const id = String(partyId).slice('customer:'.length)
+      const c = customers.find((item) => String(item._id) === id)
+      if (!c) {
+        setHdr('partyCode', '')
+        setHdr('partyName', '')
+        return
+      }
+      const code = String(c.ledgerAccountId?.accountCode || '').trim() || String(c._id)
+      setHdr('partyCode', code)
+      setHdr('partyName', String(c.name || '').trim())
+      applyPartyCurrency(resolveVoucherParty(code))
+      return
+    }
+    if (String(partyId).startsWith('vendor:')) {
+      const id = String(partyId).slice('vendor:'.length)
+      const v = vendors.find((item) => String(item._id) === id)
+      if (!v) {
+        setHdr('partyCode', '')
+        setHdr('partyName', '')
+        return
+      }
+      const code = String(v.vendorCode || v.ledgerAccountId?.accountCode || '').trim() || String(v._id)
+      setHdr('partyCode', code)
+      setHdr('partyName', String(v.name || '').trim())
+      applyPartyCurrency(resolveVoucherParty(code))
+      return
+    }
     const selected = partyOptions.find((item) => item.id === partyId)
     if (!selected) {
       setHdr('partyCode', '')
@@ -2919,10 +3023,10 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                     <div style={metalTopField}>
                       <label style={classicLabel}>Party Account</label>
                       <AccountCombobox
-                        groups={partyComboGroups}
+                        groups={metalPartyComboGroups}
                         value={selectedPartyId}
                         onChange={(val) => handlePartySelect(val)}
-                        placeholder="Type account name or code…"
+                        placeholder="Customer, vendor, or chart account…"
                         style={formReadOnly ? classicReadInput : classicInput}
                         disabled={formReadOnly}
                       />
@@ -3287,9 +3391,13 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                             <select
                               style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }}
                               value={lineForm.productType}
-                              onChange={e => {
+                              onChange={(e) => {
                                 const selectedName = e.target.value
-                                setLineForm(prev => applyProductTypeAutoFill({ ...prev, productType: selectedName }, selectedName))
+                                if (!selectedName) {
+                                  setLineForm((prev) => ({ ...prev, productType: '' }))
+                                  return
+                                }
+                                setLineForm((prev) => applyProductTypeAutoFill({ ...prev, productType: selectedName }, selectedName))
                               }}
                             >
                               <option value="">Select product type</option>

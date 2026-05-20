@@ -109,7 +109,9 @@ function createTransactionPostingService(deps) {
           const purityRatio = purity > 1.2 ? purity / 1000 : purity
           const grossWeight = Number(line.grossWeight || 0)
           const storedPureWeight = Number(line.pureWeight || 0)
-          const pureWeight = storedPureWeight > 0 ? storedPureWeight : (grossWeight * purityRatio)
+          const ozOnly = Number(line.weightInOz || 0)
+          const pureFromOz = ozOnly > 0 ? ozOnly * 31.1034768 : 0
+          const pureWeight = storedPureWeight > 0 ? storedPureWeight : (pureFromOz > 0 ? pureFromOz : (grossWeight * purityRatio))
           const rateType = String(line.rateType || 'OZ').trim().toUpperCase()
           const weightInOz = pureWeight / 31.1034768
           const rateQty = rateType === 'GRAM' ? pureWeight : rateType === 'KG' ? pureWeight / 1000 : weightInOz
