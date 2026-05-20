@@ -832,6 +832,17 @@ const resolveVoucherVatAmount = (tx) => {
   return toMoney(total)
 }
 
+const resolveVoucherNetLineAmount = (tx) => {
+  const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+  if (!lines.length) return 0
+
+  const total = lines.reduce((sum, line) => {
+    const amount = Number(line.totalAmount || line.amountLC || line.metalAmount || 0)
+    return sum + (Number.isFinite(amount) ? amount : 0)
+  }, 0)
+  return toMoney(total)
+}
+
 const resolveVatPostingAccounts = async ({ user, tx, resolvedAccounts }) => {
   const transactionType = String(tx?.type || '').toLowerCase()
 
@@ -840,10 +851,9 @@ const resolveVatPostingAccounts = async ({ user, tx, resolvedAccounts }) => {
       .select('debitAccountId creditAccountId')
       .lean()
 
-    let debitAccountId = resolvedAccounts?.debitAccountId || null
+    let debitAccountId = resolvedAccounts?.debitAccountId || mapping?.debitAccountId || null
     let creditAccountId = mapping?.creditAccountId || null
 
-    if (mapping?.debitAccountId) debitAccountId = mapping.debitAccountId
     if (!debitAccountId) {
       const receivable = await ensureAccountByCode({
         user,
@@ -878,9 +888,8 @@ const resolveVatPostingAccounts = async ({ user, tx, resolvedAccounts }) => {
       .lean()
 
     let debitAccountId = mapping?.debitAccountId || null
-    let creditAccountId = resolvedAccounts?.creditAccountId || null
+    let creditAccountId = resolvedAccounts?.creditAccountId || mapping?.creditAccountId || null
 
-    if (mapping?.creditAccountId) creditAccountId = mapping.creditAccountId
     if (!debitAccountId) {
       const vatReceivable = await ensureAccountByCode({
         user,
@@ -1759,8 +1768,8 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
   if (transactionType === 'sale' || transactionType === 'receipt') {
     const customer = tx.customerId ? await Customer.findById(tx.customerId).populate('ledgerAccountId') : null
     if ((transactionType === 'sale' || transactionType === 'receipt') && customer?.ledgerAccountId) {
-      if (transactionType === 'sale') debitAccountId = debitAccountId || customer.ledgerAccountId._id
-      if (transactionType === 'receipt') creditAccountId = creditAccountId || customer.ledgerAccountId._id
+      if (transactionType === 'sale') debitAccountId = customer.ledgerAccountId._id
+      if (transactionType === 'receipt') creditAccountId = customer.ledgerAccountId._id
     }
 
     if (transactionType === 'sale' && !customer?.ledgerAccountId) {
@@ -1784,8 +1793,8 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
   if (transactionType === 'purchase' || transactionType === 'payment') {
     const vendor = tx.vendorId ? await Vendor.findById(tx.vendorId).populate('ledgerAccountId') : null
     if (vendor?.ledgerAccountId) {
-      if (transactionType === 'purchase') creditAccountId = creditAccountId || vendor.ledgerAccountId._id
-      if (transactionType === 'payment') debitAccountId = debitAccountId || vendor.ledgerAccountId._id
+      if (transactionType === 'purchase') creditAccountId = vendor.ledgerAccountId._id
+      if (transactionType === 'payment') debitAccountId = vendor.ledgerAccountId._id
     }
 
     if (transactionType === 'purchase' && !vendor?.ledgerAccountId) {
@@ -1875,7 +1884,16 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
   const baseCurrencyCode = String(base?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
   const txCurrency = await Currency.findOne({ code: currencyCode, isActive: true })
   const exchangeRate = normalizeExchangeRateValue(transaction.exchangeRate ?? txCurrency?.exchangeRate ?? 1)
-  const amountInBase = normalizeMoneyValue(transaction.amount, 'amount') * exchangeRate
+  const transactionAmount = normalizeMoneyValue(transaction.amount, 'amount')
+  const voucherNetAmount = resolveVoucherNetLineAmount(transaction)
+  const voucherVatAmount = resolveVoucherVatAmount(transaction)
+  const voucherGrossAmount = toMoney(voucherNetAmount + voucherVatAmount)
+  const shouldPostNetMainAmount = ['sale', 'purchase'].includes(String(transaction.type || '').toLowerCase())
+    && voucherNetAmount > 0
+    && voucherVatAmount > 0
+    && Math.abs(transactionAmount - voucherGrossAmount) <= 0.02
+  const postingAmount = shouldPostNetMainAmount ? voucherNetAmount : transactionAmount
+  const amountInBase = postingAmount * exchangeRate
 
   const entry = await Ledger.create({
     date: transaction.voucherMeta?.valueDate || transaction.date || new Date(),

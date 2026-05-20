@@ -74,6 +74,7 @@ const transactionSchema = new mongoose.Schema(
       partyCode: { type: String, trim: true, default: '' },
       partyName: { type: String, trim: true, default: '' },
       salesman: { type: String, trim: true, default: '' },
+      partyAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartOfAccount', default: null },
       vocNo: { type: String, trim: true, default: '' },
       refNo: { type: String, trim: true, default: '' },
       fixingType: { type: String, enum: ['fixing', 'non-fixing', 'non_fixing'], default: 'fixing' },

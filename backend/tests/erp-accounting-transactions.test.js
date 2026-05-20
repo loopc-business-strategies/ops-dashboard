@@ -14,6 +14,7 @@ const InventoryItem = require('../models/InventoryItem')
 const StockMovement = require('../models/StockMovement')
 const Ledger = require('../models/Ledger')
 const ChartOfAccount = require('../models/ChartOfAccount')
+const AccountMapping = require('../models/AccountMapping')
 const Currency = require('../models/Currency')
 const { runWithTenantConnection } = require('../db/tenantModelProxy')
 const { registerAllOnConnection } = require('../db/tenantModelRegistry')
@@ -120,6 +121,7 @@ afterEach(async () => {
     StockMovement.deleteMany({}),
     Ledger.deleteMany({}),
     ChartOfAccount.deleteMany({}),
+    AccountMapping.deleteMany({}),
     Currency.deleteMany({}),
   ])
   fs.rmSync(uploadDir, { recursive: true, force: true })
@@ -551,6 +553,30 @@ describe('ERP accounting transactions workflow', () => {
       accountType: 'Asset',
       createdBy: financeUser._id,
     })
+    const genericPayable = await ChartOfAccount.create({
+      accountName: 'Generic Accounts Payable',
+      accountCode: '2000',
+      accountType: 'Liability',
+      createdBy: financeUser._id,
+    })
+    const vatReceivable = await ChartOfAccount.create({
+      accountName: 'VAT Receivable Party Test',
+      accountCode: '1190',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    await AccountMapping.create({
+      mappingType: 'purchase',
+      debitAccountId: inventoryAccount._id,
+      creditAccountId: genericPayable._id,
+      createdBy: financeUser._id,
+    })
+    await AccountMapping.create({
+      mappingType: 'vat_input',
+      debitAccountId: vatReceivable._id,
+      creditAccountId: genericPayable._id,
+      createdBy: financeUser._id,
+    })
     const vendor = await Vendor.create({
       name: 'Split Ledger Vendor',
       ledgerAccountId: stalePayable._id,
@@ -600,6 +626,7 @@ describe('ERP accounting transactions workflow', () => {
               grossWeight: 1000,
               purity: 0.9999,
               amountLC: 5000,
+              vatAmountLC: 100,
             },
           ],
         },
@@ -617,6 +644,11 @@ describe('ERP accounting transactions workflow', () => {
     expect(main).toBeTruthy()
     expect(String(main.creditAccountId)).toBe(String(partyPayable._id))
     expect(String(main.debitAccountId)).toBe(String(inventoryAccount._id))
+
+    const vatInput = await Ledger.findOne({ referenceType: 'vat_input', referenceId: txId, isDeleted: { $ne: true } })
+    expect(vatInput).toBeTruthy()
+    expect(String(vatInput.creditAccountId)).toBe(String(partyPayable._id))
+    expect(String(vatInput.creditAccountId)).not.toBe(String(genericPayable._id))
 
     const updatedProduct = await InventoryItem.findById(product._id)
     expect(Number(updatedProduct.quantity)).toBe(1000)
