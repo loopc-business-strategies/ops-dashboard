@@ -730,8 +730,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       breakEven: Math.abs(xagBalance) !== 0 ? Math.abs(totalFunds) / Math.abs(xagBalance) : 0,
     },
   ] : []
-  const statementReferenceTypes = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
-  const statementDepartments = Array.from(new Set(rawStatementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean))).sort()
   const isCashOnHandEnquiry = String(accountEnquiryData?.account?.accountCode || '').trim() === '1000'
   const strictCashStatementTypes = new Set([
     'payment',
@@ -767,7 +765,73 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     if (parsedDocNo) return parsedDocNo
     return '-'
   }
-  const filteredStatementEntries = rawStatementEntries.filter((entry) => {
+  const resolveDealSide = (entry) => {
+    const explicit = String(entry?.metalDealType || entry?.sourceTransactionType || '').toLowerCase().trim()
+    if (explicit === 'sale' || explicit === 'purchase') return explicit
+    const referenceType = String(entry?.referenceType || '').toLowerCase().trim()
+    if (referenceType === 'sale' || referenceType === 'purchase') return referenceType
+    return ''
+  }
+  const combineVoucherStatementRows = (entries = []) => {
+    const grouped = new Map()
+    const orderedKeys = []
+
+    entries.forEach((entry, index) => {
+      const dealSide = resolveDealSide(entry)
+      const sourceId = String(entry?.sourceTransactionId || '').trim()
+      const receiptNo = resolveStatementReceiptNo(entry)
+      const canGroup = sourceId && (dealSide === 'sale' || dealSide === 'purchase')
+      const key = canGroup ? `tx:${sourceId}` : `row:${entry?._id || index}`
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          ...entry,
+          _id: key,
+          statementRowIds: [entry?._id].filter(Boolean),
+          debitAmount: 0,
+          creditAmount: 0,
+          signedAmount: 0,
+          sourceTransactionType: entry?.sourceTransactionType || dealSide || entry?.referenceType || '',
+          metalDealType: entry?.metalDealType || dealSide,
+          referenceType: dealSide || entry?.referenceType || '',
+          offsetAccountCode: '',
+          offsetAccountName: '',
+          receiptNo,
+        })
+        orderedKeys.push(key)
+      }
+
+      const row = grouped.get(key)
+      row.debitAmount += Number(entry?.debitAmount || 0)
+      row.creditAmount += Number(entry?.creditAmount || 0)
+      row.signedAmount += Number(entry?.signedAmount || 0)
+      row.statementRowIds = Array.from(new Set([...(row.statementRowIds || []), entry?._id].filter(Boolean)))
+
+      const entryType = String(entry?.referenceType || '').toLowerCase()
+      if (entryType === dealSide || (!row.offsetAccountCode && entry?.offsetAccountCode)) {
+        row.offsetAccountCode = entry?.offsetAccountCode || row.offsetAccountCode
+        row.offsetAccountName = entry?.offsetAccountName || row.offsetAccountName
+      }
+
+      if (!row.sourceTransactionNumber && entry?.sourceTransactionNumber) row.sourceTransactionNumber = entry.sourceTransactionNumber
+      if (!row.metalFixStatus && entry?.metalFixStatus) row.metalFixStatus = entry.metalFixStatus
+      if (!row.metalCode && entry?.metalCode) row.metalCode = entry.metalCode
+      if (!row.isMetalTrade && entry?.isMetalTrade) row.isMetalTrade = entry.isMetalTrade
+      if (!row.metalSignedWeight && entry?.metalSignedWeight) row.metalSignedWeight = entry.metalSignedWeight
+    })
+
+    return orderedKeys.map((key) => {
+      const row = grouped.get(key)
+      row.debitAmount = Number(row.debitAmount.toFixed(2))
+      row.creditAmount = Number(row.creditAmount.toFixed(2))
+      row.signedAmount = Number(row.signedAmount.toFixed(2))
+      return row
+    })
+  }
+  const statementEntries = combineVoucherStatementRows(rawStatementEntries)
+  const statementReferenceTypes = Array.from(new Set(statementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
+  const statementDepartments = Array.from(new Set(statementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean))).sort()
+  const filteredStatementEntries = statementEntries.filter((entry) => {
     if (isCashOnHandEnquiry) {
       const sourceType = String(entry?.sourceTransactionType || '').toLowerCase().trim()
       const referenceType = String(entry?.referenceType || '').toLowerCase().trim()
@@ -816,13 +880,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const modalFundsRows = [
     { currency: 'USD', limits: 0, value: modalTotalFundsDisplay },
   ]
-  const resolveDealSide = (entry) => {
-    const explicit = String(entry?.metalDealType || entry?.sourceTransactionType || '').toLowerCase().trim()
-    if (explicit === 'sale' || explicit === 'purchase') return explicit
-    const referenceType = String(entry?.referenceType || '').toLowerCase().trim()
-    if (referenceType === 'sale' || referenceType === 'purchase') return referenceType
-    return ''
-  }
   const metalFixingEntries = filteredStatementEntries
     .map((entry) => {
       const dealSide = resolveDealSide(entry)
