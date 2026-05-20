@@ -117,6 +117,14 @@ const TRANSACTION_STATUS_STYLES = {
   rejected: { background: '#FEE2E2', color: '#B91C1C' },
 }
 
+const formatDateInputLocal = (date) => {
+  const d = date instanceof Date ? date : new Date(date)
+  if (Number.isNaN(d.getTime())) return ''
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 const C = {
   p1: '#FFFFFF',
@@ -158,7 +166,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const [dashDateFrom, setDashDateFrom] = useState(() => {
     const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
   })
-  const [dashDateTo, setDashDateTo] = useState(() => new Date().toISOString().slice(0, 10))
+  const [dashDateTo, setDashDateTo] = useState(() => formatDateInputLocal(new Date()))
   const [dashAutoRefresh, setDashAutoRefresh] = useState(false)
   const [dashChatMessages, setDashChatMessages] = useState([])
   useEffect(() => {
@@ -181,8 +189,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     quantityUnit: 'GOZ',
     rateUnit: 'GOZ',
     orderBy: 'voucherNo',
-    fromDate: new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10),
-    toDate: new Date().toISOString().slice(0, 10),
+    fromDate: formatDateInputLocal(new Date(new Date().getFullYear(), 0, 1)),
+    toDate: formatDateInputLocal(new Date()),
     groupBy: 'none',
     partyFilter: 'all',
     partySearch: '',
@@ -3599,6 +3607,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         }
 
         rows.sort((a, b) => {
+          const orderBy = fixingRegFilter.orderBy || 'voucherNo'
+          if (orderBy === 'docDate' || orderBy === 'valueDate') {
+            const dateKey = orderBy
+            const dateCompare = new Date(a[dateKey] || 0) - new Date(b[dateKey] || 0)
+            if (dateCompare !== 0) return dateCompare
+          }
           const aVoucher = String(a.voucherNo || '')
           const bVoucher = String(b.voucherNo || '')
           const voucherCompare = aVoucher.localeCompare(bVoucher, undefined, { numeric: true, sensitivity: 'base' })

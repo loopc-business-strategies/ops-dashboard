@@ -668,6 +668,7 @@ function FixingRegisterDashboardWidget({ fixingRegister, onNavigate, fallbackPos
   const rUnit = filter.rateUnit || 'GOZ'
   const metalCodeLabel = String(filter.metalType || '').split('::')[0].toUpperCase() || 'ALL'
   const hasRegisterState = Boolean(fixingRegister)
+  const selectedParty = filter.partyFilter === 'selected'
 
   const updateFilter = (patch) => {
     if (!setFilter) return
@@ -706,27 +707,28 @@ function FixingRegisterDashboardWidget({ fixingRegister, onNavigate, fallbackPos
   const fallbackTotal = fallbackPositions.reduce((s, p) => s + Number(p.amount || 0), 0)
   const fieldStyle = {
     width: '100%',
-    minHeight: 38,
-    padding: '0.45rem 0.65rem',
+    minHeight: 30,
+    padding: '0.32rem 0.5rem',
     border: '1px solid #CBD5E1',
-    borderRadius: '0.35rem',
+    borderRadius: '0.3rem',
     background: '#FFFFFF',
     color: '#1E293B',
-    fontSize: '0.78rem',
+    fontSize: '0.72rem',
+    fontWeight: '700',
     boxSizing: 'border-box',
   }
-  const labelStyle = { display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.68rem', fontWeight: '700' }
-  const head1 = { padding: '0.34rem 0.48rem', border: '1px solid #A7ADB7', background: '#F0CF8D', color: '#263241', fontSize: '0.68rem', fontWeight: '800', textTransform: 'uppercase', whiteSpace: 'nowrap' }
-  const head2 = { ...head1, padding: '0.25rem 0.48rem', background: '#F7E5BD', fontSize: '0.66rem' }
-  const cell = { padding: '0.35rem 0.5rem', border: '1px solid #D5DAE2', color: '#1F2937', background: '#FFFFFF' }
+  const labelStyle = { display: 'grid', gap: '0.18rem', color: '#64748B', fontSize: '0.6rem', fontWeight: '800' }
+  const head1 = { padding: '0.26rem 0.38rem', border: '1px solid #A7ADB7', background: '#F0CF8D', color: '#263241', fontSize: '0.62rem', fontWeight: '800', textTransform: 'uppercase', whiteSpace: 'nowrap' }
+  const head2 = { ...head1, padding: '0.2rem 0.38rem', background: '#F7E5BD', fontSize: '0.6rem' }
+  const cell = { padding: '0.26rem 0.4rem', border: '1px solid #D5DAE2', color: '#1F2937', background: '#FFFFFF' }
   const numCell = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '600' }
   let runningQtyOz = openingQtyOz
   let runningAmount = openingValue
 
   return (
     <div style={{ background: '#FFFFFF' }}>
-      <div style={{ padding: '0.9rem', borderBottom: '1px solid #E5E7EB' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', gap: '0.75rem', alignItems: 'end' }}>
+      <div style={{ padding: '0.55rem 0.7rem', borderBottom: '1px solid #E5E7EB' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '0.45rem', alignItems: 'end' }}>
           <label style={labelStyle}>
             Metal
             <select value={filter.metalType || ''} onChange={(e) => updateFilter({ metalType: e.target.value })} style={fieldStyle} disabled={!hasRegisterState}>
@@ -760,7 +762,7 @@ function FixingRegisterDashboardWidget({ fixingRegister, onNavigate, fallbackPos
             <input type="date" value={filter.toDate || ''} onChange={(e) => updateFilter({ toDate: e.target.value })} style={fieldStyle} disabled={!hasRegisterState} />
           </label>
         </div>
-        <div style={{ marginTop: '0.7rem', display: 'grid', gridTemplateColumns: 'minmax(160px, 0.9fr) minmax(150px, 0.7fr) 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
+        <div style={{ marginTop: '0.45rem', display: 'grid', gridTemplateColumns: '1.15fr 0.9fr 1.45fr 0.75fr auto', gap: '0.45rem', alignItems: 'end' }}>
           <label style={labelStyle}>
             Order By
             <select value={filter.orderBy || 'voucherNo'} onChange={(e) => updateFilter({ orderBy: e.target.value })} style={fieldStyle} disabled={!hasRegisterState}>
@@ -778,56 +780,72 @@ function FixingRegisterDashboardWidget({ fixingRegister, onNavigate, fallbackPos
               <option value="valuedate">Value Date</option>
             </select>
           </label>
-          <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center', flexWrap: 'wrap', paddingBottom: '0.45rem' }}>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#059669', fontSize: '0.78rem', fontWeight: '700' }}>
+          <div style={{ display: 'flex', gap: '0.55rem', alignItems: 'center', flexWrap: 'wrap', paddingBottom: '0.34rem' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: '#059669', fontSize: '0.72rem', fontWeight: '800' }}>
               <input type="radio" name="dashFixingPartyFilter" checked={(filter.partyFilter || 'all') === 'all'} onChange={() => updateFilter({ partyFilter: 'all' })} disabled={!hasRegisterState} />
               All
             </label>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#475569', fontSize: '0.78rem' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: '#475569', fontSize: '0.72rem' }}>
               <input type="radio" name="dashFixingPartyFilter" checked={filter.partyFilter === 'selected'} onChange={() => updateFilter({ partyFilter: 'selected' })} disabled={!hasRegisterState} />
               Selected
             </label>
+            {selectedParty && (
+              <input
+                placeholder="Party name"
+                value={filter.partySearch || ''}
+                onChange={(e) => updateFilter({ partySearch: e.target.value })}
+                style={{ ...fieldStyle, width: 180, minHeight: 28 }}
+                disabled={!hasRegisterState}
+              />
+            )}
           </div>
+          <label style={labelStyle}>
+            Status
+            <select value={filter.status || 'preview'} onChange={(e) => updateFilter({ status: e.target.value })} style={fieldStyle} disabled={!hasRegisterState}>
+              <option value="preview">Preview</option>
+              <option value="final">Final</option>
+            </select>
+          </label>
           <button
             type="button"
             onClick={refresh}
             disabled={!refresh || loading}
-            style={{ minHeight: 38, padding: '0.45rem 0.9rem', borderRadius: '0.35rem', border: '1px solid #7DD3C7', background: loading ? '#CCFBF1' : '#ECFDF5', color: '#0F766E', fontWeight: '800', fontSize: '0.78rem', cursor: refresh && !loading ? 'pointer' : 'default' }}
+            style={{ minHeight: 30, padding: '0.3rem 0.72rem', borderRadius: '0.35rem', border: '1px solid #7DD3C7', background: loading ? '#CCFBF1' : '#ECFDF5', color: '#0F766E', fontWeight: '800', fontSize: '0.72rem', cursor: refresh && !loading ? 'pointer' : 'default' }}
           >
             {loading ? 'Loading...' : 'Refresh'}
           </button>
         </div>
-        <div style={{ marginTop: '0.7rem', display: 'flex', gap: '1.1rem', alignItems: 'center', flexWrap: 'wrap', color: '#64748B', fontSize: '0.76rem' }}>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#334155' }}>
+        <div style={{ marginTop: '0.42rem', display: 'flex', gap: '0.9rem', alignItems: 'center', flexWrap: 'wrap', color: '#64748B', fontSize: '0.68rem' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: '#334155' }}>
             <input type="checkbox" checked={Boolean(filter.excludeOpeningBalance)} onChange={(e) => updateFilter({ excludeOpeningBalance: e.target.checked })} disabled={!hasRegisterState} />
             Exclude Opening Balance
           </label>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#334155' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: '#334155' }}>
             <input type="checkbox" checked={Boolean(filter.excludeFutures)} onChange={(e) => updateFilter({ excludeFutures: e.target.checked })} disabled={!hasRegisterState} />
             Exclude Futures
           </label>
           <span>Unfixing rows affect USD amount balance only; XAU position balance is unchanged.</span>
         </div>
-        {error && <div style={{ marginTop: '0.7rem', padding: '0.5rem 0.65rem', borderRadius: '0.35rem', background: '#FEE2E2', color: '#991B1B', fontSize: '0.78rem', fontWeight: '600' }}>{error}</div>}
+        {error && <div style={{ marginTop: '0.45rem', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', background: '#FEE2E2', color: '#991B1B', fontSize: '0.72rem', fontWeight: '600' }}>{error}</div>}
       </div>
 
-      <div style={{ padding: '0.9rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '0.8rem' }}>
+      <div style={{ padding: '0.62rem 0.7rem 0.55rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.45rem', marginBottom: '0.52rem' }}>
           {[
             { label: 'Total Buy', value: `${fmtQty(totalBuyOz, qUnit)} ${qUnit}`, bg: '#DCFCE7', color: '#15803D' },
             { label: 'Total Sell', value: `${fmtQty(totalSellOz, qUnit)} ${qUnit}`, bg: '#FEE2E2', color: '#DC2626' },
             { label: 'Net Position', value: `${netOz >= 0 ? '+' : '-'}${fmtQty(Math.abs(netOz), qUnit)} ${qUnit}`, bg: '#DBEAFE', color: netOz >= 0 ? '#1D4ED8' : '#B45309' },
             { label: 'Records', value: String(results.length), bg: '#F3F4F6', color: '#111827' },
           ].map((card) => (
-            <div key={card.label} style={{ padding: '0.65rem 0.75rem', borderRadius: '0.45rem', background: card.bg, minWidth: 0 }}>
-              <div style={{ fontSize: '0.65rem', color: '#64748B', fontWeight: '800', textTransform: 'uppercase', marginBottom: '0.25rem' }}>{card.label}</div>
-              <div style={{ color: card.color, fontSize: '1rem', fontWeight: '900', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.value}</div>
+            <div key={card.label} style={{ padding: '0.45rem 0.55rem', borderRadius: '0.38rem', background: card.bg, minWidth: 0 }}>
+              <div style={{ fontSize: '0.58rem', color: '#64748B', fontWeight: '800', textTransform: 'uppercase', marginBottom: '0.18rem' }}>{card.label}</div>
+              <div style={{ color: card.color, fontSize: '0.82rem', fontWeight: '900', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.value}</div>
             </div>
           ))}
         </div>
 
-        <div style={{ overflow: 'auto', border: '1px solid #9AA4B2', borderRadius: '0.25rem', maxHeight: '360px', background: '#FFFFFF' }}>
-          <table style={{ width: '100%', minWidth: '1120px', borderCollapse: 'collapse', fontSize: '0.76rem', fontVariantNumeric: 'tabular-nums' }}>
+        <div style={{ overflow: 'auto', border: '1px solid #9AA4B2', borderRadius: '0.25rem', maxHeight: '230px', background: '#FFFFFF' }}>
+          <table style={{ width: '100%', minWidth: '1040px', borderCollapse: 'collapse', fontSize: '0.68rem', fontVariantNumeric: 'tabular-nums' }}>
             <thead>
               <tr>
                 <th rowSpan={2} style={{ ...head1, textAlign: 'right' }}>#</th>
@@ -863,7 +881,7 @@ function FixingRegisterDashboardWidget({ fixingRegister, onNavigate, fallbackPos
                 <td style={numCell}>{fmtSignedAmt(openingValue)}</td>
                 <td style={numCell}>{runningQtyOz !== 0 ? fmtSignedRate(runningAmount / runningQtyOz) : '-'}</td>
               </tr>
-              {results.slice(0, 8).map((row, idx) => {
+              {results.slice(0, 5).map((row, idx) => {
                 const qtyOz = Number(row.qty || 0)
                 const isBuy = String(row.direction || '').toLowerCase() === 'buy'
                 const signedQtyOz = isQtyImpactRow(row) ? (isBuy ? qtyOz : -qtyOz) : 0
@@ -877,7 +895,10 @@ function FixingRegisterDashboardWidget({ fixingRegister, onNavigate, fallbackPos
                     <td style={cell}>{fmtDate(row.docDate)}</td>
                     <td style={cell}>{fmtDate(row.valueDate)}</td>
                     <td style={{ ...cell, fontWeight: '800' }}>{row.voucherNo || '-'}</td>
-                    <td style={{ ...cell, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.remarks || `${row.sourceType || ''} ${row.customerName || ''}`.trim() || '-'}</td>
+                    <td style={{ ...cell, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {filter.groupBy && filter.groupBy !== 'none' && row.groupKey && <span style={{ color: '#0F766E', fontWeight: '800', marginRight: '0.3rem' }}>[{row.groupKey}]</span>}
+                      {row.remarks || `${row.sourceType || ''} ${row.customerName || ''}`.trim() || '-'}
+                    </td>
                     <td style={numCell}>{isBuy && qtyOz > 0 ? fmtQty(qtyOz, qUnit) : '-'}</td>
                     <td style={numCell}>{!isBuy && qtyOz > 0 ? fmtQty(qtyOz, qUnit) : '-'}</td>
                     <td style={numCell}>{fmtSignedQty(runningQtyOz)}</td>
@@ -913,8 +934,9 @@ function FixingRegisterDashboardWidget({ fixingRegister, onNavigate, fallbackPos
           </table>
         </div>
         {onNavigate && (
-          <div style={{ marginTop: '0.65rem', textAlign: 'right' }}>
-            <button onClick={() => onNavigate('fixing-register')} style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '700', padding: 0, textDecoration: 'underline' }}>Open full register</button>
+          <div style={{ marginTop: '0.45rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', color: '#64748B', fontSize: '0.66rem' }}>
+            <span>{results.length > 5 ? `Showing first 5 of ${results.length} rows` : `${results.length} row${results.length === 1 ? '' : 's'}`}</span>
+            <button onClick={() => onNavigate('fixing-register')} style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.72rem', fontWeight: '800', padding: 0, textDecoration: 'underline' }}>View full statement</button>
           </div>
         )}
       </div>
