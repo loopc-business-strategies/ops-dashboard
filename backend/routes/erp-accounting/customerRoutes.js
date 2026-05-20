@@ -11,6 +11,9 @@ function registerCustomerRoutes(deps) {
     Customer,
     Ledger,
     ChartOfAccount,
+    Transaction,
+    getLatestMetalRate,
+    DEFAULT_METAL_RATES,
     canViewCustomers,
     canManageCustomers,
     parsePagination,
@@ -21,6 +24,29 @@ function registerCustomerRoutes(deps) {
   } = deps
 
   const strictBody = validateBodyStrict || validateBody
+  const isUnfixedFixingType = (value) => {
+    const normalized = String(value || '').trim().toLowerCase()
+    return ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(normalized)
+  }
+
+  const roundPosition = (value) => Number(Number(value || 0).toFixed(6))
+  const calculateCustomerMargin = ({ totalFunds, goldPosition, silverPosition, goldPrice, silverPrice }) => {
+    const funds = Number(totalFunds || 0)
+    const revaluation = (Number(goldPosition || 0) * Number(goldPrice || 0)) + (Number(silverPosition || 0) * Number(silverPrice || 0))
+    const margin = Math.abs(revaluation) * 0.02
+    const equity = funds + revaluation
+    const excess = equity - margin
+    const marginPercent = margin > 0 ? (Math.abs(funds) / margin) * 100 : 0
+    return {
+      totalFunds: toMoney(funds),
+      revaluation: toMoney(revaluation),
+      margin: toMoney(margin),
+      equity: toMoney(equity),
+      excess: toMoney(excess),
+      marginPercent: toMoney(marginPercent),
+      status: equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL',
+    }
+  }
 
   router.get('/customers', protect, async (req, res) => {
     try {
@@ -42,7 +68,8 @@ function registerCustomerRoutes(deps) {
       ])
 
       const accountIds = customers.map((customer) => customer.ledgerAccountId?._id).filter(Boolean)
-      const [debitAggs, creditAggs] = await Promise.all([
+      const customerIds = customers.map((customer) => customer._id).filter(Boolean)
+      const [debitAggs, creditAggs, latestRate, metalTxs] = await Promise.all([
         accountIds.length
           ? Ledger.aggregate([
               { $match: { debitAccountId: { $in: accountIds }, isDeleted: { $ne: true } } },
@@ -55,20 +82,79 @@ function registerCustomerRoutes(deps) {
               { $group: { _id: '$creditAccountId', total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
             ])
           : Promise.resolve([]),
+        typeof getLatestMetalRate === 'function' ? getLatestMetalRate() : Promise.resolve(null),
+        customerIds.length && Transaction
+          ? Transaction.find({
+              customerId: { $in: customerIds },
+              type: { $in: ['sale', 'purchase'] },
+              status: 'posted',
+              isDeleted: { $ne: true },
+            }).select('customerId type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+          : Promise.resolve([]),
       ])
       const debitMap = new Map(debitAggs.map((row) => [String(row._id), row.total]))
       const creditMap = new Map(creditAggs.map((row) => [String(row._id), row.total]))
+      const rates = latestRate
+        ? {
+            goldPrice: Number(latestRate.goldPrice || 0),
+            silverPrice: Number(latestRate.silverPrice || 0),
+          }
+        : DEFAULT_METAL_RATES || { goldPrice: 0, silverPrice: 0 }
+      const metalPositionMap = new Map()
+      ;(metalTxs || []).forEach((tx) => {
+        const customerId = String(tx.customerId || '')
+        if (!customerId) return
+        const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
+        if (!isUnfixedFixingType(fixingType)) return
+        const position = metalPositionMap.get(customerId) || { goldPosition: 0, silverPosition: 0 }
+        const sign = tx.type === 'purchase' ? 1 : -1
+        const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+        lines.forEach((line) => {
+          const pureWeight = Number(line?.pureWeight || 0)
+          if (!Number.isFinite(pureWeight) || pureWeight === 0) return
+          const stockCode = String(line?.stockCode || '').toUpperCase()
+          if (stockCode.includes('XAG') || stockCode.includes('SILV')) {
+            position.silverPosition += sign * pureWeight
+          } else {
+            position.goldPosition += sign * pureWeight
+          }
+        })
+        metalPositionMap.set(customerId, position)
+      })
 
       const data = customers.map((customer) => {
         const accountId = String(customer.ledgerAccountId?._id || '')
+        const customerId = String(customer._id || '')
         const debit = debitMap.get(accountId) || 0
         const credit = creditMap.get(accountId) || 0
         const opening = Number(customer.ledgerAccountId?.openingBalance ?? customer.openingBalance ?? 0)
         const net = opening + (debit - credit)
         const outstanding = toMoney(net)
+        const metalPosition = metalPositionMap.get(customerId) || { goldPosition: 0, silverPosition: 0 }
+        const goldPosition = roundPosition(metalPosition.goldPosition)
+        const silverPosition = roundPosition(metalPosition.silverPosition)
+        const margin = calculateCustomerMargin({
+          totalFunds: net,
+          goldPosition,
+          silverPosition,
+          goldPrice: rates.goldPrice,
+          silverPrice: rates.silverPrice,
+        })
         return {
           ...customer.toObject(),
           outstandingBalance: outstanding,
+          goldPosition,
+          silverPosition,
+          marginAmount: margin.margin,
+          marginExcess: margin.excess,
+          marginEquity: margin.equity,
+          marginPercent: margin.marginPercent,
+          marginStatus: margin.status,
+          marginRevaluation: margin.revaluation,
+          metalRates: {
+            goldPrice: Number(rates.goldPrice || 0),
+            silverPrice: Number(rates.silverPrice || 0),
+          },
           aging: {
             bucket0to30: 0,
             bucket31to60: 0,

@@ -3184,22 +3184,32 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const rows = (customers || [])
       .map((customer) => {
         const outstanding = Number(customer?.outstandingBalance || 0)
-        const opening = Number(customer?.openingBalance || 0)
-        const creditLimit = Number(customer?.creditLimit || 0)
-        let equity = outstanding
-        let status = outstanding > 0 ? 'POSITIVE' : outstanding < 0 ? 'NEGATIVE' : 'NEUTRAL'
-        if (outstanding < 0) {
-          equity = Math.abs(outstanding)
-          status = 'POSITIVE'
-        }
-        const base = creditLimit > 0 ? creditLimit : (Math.abs(opening) > 0 ? Math.abs(opening) : 0)
-        const marginPercent = base > 0 ? (Math.abs(outstanding) / base) * 100 : null
+        const goldPosition = Number(customer?.goldPosition || 0)
+        const silverPosition = Number(customer?.silverPosition || 0)
+        const goldPrice = Number(customer?.metalRates?.goldPrice || goldPriceUSD || 0)
+        const silverPrice = Number(customer?.metalRates?.silverPrice || silverPriceUSD || 0)
+        const fallbackRevaluation = (goldPosition * goldPrice) + (silverPosition * silverPrice)
+        const fallbackMargin = Math.abs(fallbackRevaluation) * 0.02
+        const fallbackMetrics = calculateAccountSummaryMetrics({
+          totalFunds: outstanding,
+          revaluation: fallbackRevaluation,
+          marginAmount: fallbackMargin,
+        })
+        const marginAmount = Number(customer?.marginAmount ?? fallbackMargin)
+        const excess = Number(customer?.marginExcess ?? fallbackMetrics.excess)
+        const equity = Number(customer?.marginEquity ?? fallbackMetrics.netEquity)
+        const marginPercent = Number(customer?.marginPercent ?? fallbackMetrics.marginPercent)
+        const status = String(customer?.marginStatus || (equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL')).toUpperCase()
         return {
           id: customer?._id,
           customerName: String(customer?.name || '-'),
-          balanceAbs: Math.abs(outstanding),
+          balanceAbs: Math.abs(excess),
           equity,
           rawOutstanding: outstanding,
+          goldPosition,
+          silverPosition,
+          marginAmount,
+          excess,
           status,
           marginPercent,
           accountCode: String(customer?.ledgerAccountId?.accountCode || ''),
@@ -3225,7 +3235,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
 
     return rows
-  }, [customers, customerMarginSearch, customerMarginSort])
+  }, [customers, customerMarginSearch, customerMarginSort, goldPriceUSD, silverPriceUSD])
 
   const supplierMarginRows = useMemo(() => {
     const query = String(supplierMarginSearch || '').trim().toLowerCase()
@@ -3285,20 +3295,38 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     return `${Number(value).toFixed(2)} %`
   }
 
-  const formatCustomerMarginExcessShort = (row) => {
-    const amount = Number(row?.balanceAbs || 0).toLocaleString(undefined, {
+  const formatCustomerMarginPosition = (value) => {
+    const amount = Number(value || 0)
+    if (!Number.isFinite(amount)) return '-'
+    return amount.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6,
+    })
+  }
+
+  const formatCustomerMarginAmount = (value) => {
+    const amount = Number(value || 0)
+    if (!Number.isFinite(amount)) return '-'
+    return amount.toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })
-    if (Number(row?.rawOutstanding || 0) > 0) return `Excess ${amount}`
-    if (Number(row?.rawOutstanding || 0) < 0) return `Short ${amount}`
+  }
+
+  const formatCustomerMarginExcessShort = (row) => {
+    const amount = Number(Math.abs(row?.excess ?? row?.balanceAbs ?? 0)).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+    if (Number(row?.excess || 0) > 0) return `Excess ${amount}`
+    if (Number(row?.excess || 0) < 0) return `Short ${amount}`
     return '-'
   }
 
   const handleCustomerMarginRowContextMenu = (event, row) => {
     event.preventDefault()
     const menuWidth = 292
-    const menuHeight = 172
+    const menuHeight = 242
     const viewportPad = 8
     let x = event.clientX + 6
     let y = event.clientY + 6
@@ -6024,15 +6052,23 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
             <div style={{ overflowX: 'auto', overflowY: customerMarginCompactView ? 'auto' : 'visible', maxHeight: customerMarginCompactView ? '380px' : 'none' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '0.88rem' }}>
                 <colgroup>
-                  <col style={{ width: '46%' }} />
-                  <col style={{ width: '24%' }} />
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '28%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '8%' }} />
                 </colgroup>
                 <thead>
                   <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #D9E2EC' }}>
                     <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'left', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Customer Name</th>
+                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Gold Position</th>
+                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Silver Position</th>
                     <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Equity</th>
+                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Margin</th>
+                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Excess</th>
                     <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Status</th>
                     <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Margin %</th>
                   </tr>
@@ -6041,6 +6077,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   {customerMarginRows.map((row, index) => {
                     const isNegative = row.status === 'NEGATIVE'
                     const valueColor = isNegative ? '#DC2626' : '#1D4ED8'
+                    const excessColor = Number(row.excess || 0) < 0 ? '#DC2626' : '#1D4ED8'
                     return (
                       <tr
                         key={row.id || index}
@@ -6050,7 +6087,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                         style={{ borderBottom: '1px solid #EEF2F7', background: index % 2 === 0 ? '#FFFFFF' : '#FCFDFF', height: '30px', cursor: 'context-menu' }}
                       >
                         <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', color: valueColor, fontWeight: '600', fontSize: '0.85rem', lineHeight: 1.08, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.customerName}</td>
+                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: Number(row.goldPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(row.goldPosition)}</td>
+                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: Number(row.silverPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(row.silverPosition)}</td>
                         <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginEquity(row)}</td>
+                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: '#1D4ED8', fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginAmount(row.marginAmount)}</td>
+                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: excessColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginEquity({ equity: row.excess })}</td>
                         <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.8rem', letterSpacing: '0.035em', lineHeight: 1.08 }}>{row.status}</td>
                         <td style={{ padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPercent(row.marginPercent)}</td>
                       </tr>
@@ -6086,9 +6127,15 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                 <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827' }}>{customerMarginContextMenu.row.accountCode || '-'}</div>
                 <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Description</div>
                 <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{customerMarginContextMenu.row.description || '-'}</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Gold Position</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(customerMarginContextMenu.row.goldPosition)}</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Silver Position</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(customerMarginContextMenu.row.silverPosition)}</div>
                 <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Excess/Short</div>
                 <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginExcessShort(customerMarginContextMenu.row)}</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Margin</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Margin</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginAmount(customerMarginContextMenu.row.marginAmount)}</div>
+                <div style={{ padding: '0.34rem 0.52rem', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Margin %</div>
                 <div style={{ padding: '0.34rem 0.52rem', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPercent(customerMarginContextMenu.row.marginPercent)}</div>
               </div>
             </div>

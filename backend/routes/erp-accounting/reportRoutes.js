@@ -23,11 +23,14 @@ function registerReportRoutes(deps) {
     AccountMapping,
     Customer,
     Vendor,
+    Transaction,
     DirectDeal,
     InventoryItem,
     StockMovement,
     MetalRate,
     Currency,
+    getLatestMetalRate,
+    DEFAULT_METAL_RATES,
     toMoney,
     parseBool,
     buildDateQuery,
@@ -40,6 +43,29 @@ function registerReportRoutes(deps) {
     evaluateVendorCompliance,
     canAccessReports,
   } = deps
+
+  const isUnfixedFixingType = (value) => {
+    const normalized = String(value || '').trim().toLowerCase()
+    return ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(normalized)
+  }
+  const roundPosition = (value) => Number(Number(value || 0).toFixed(6))
+  const calculateMarginMetrics = ({ totalFunds, goldPosition, silverPosition, goldPrice, silverPrice }) => {
+    const funds = Number(totalFunds || 0)
+    const revaluation = (Number(goldPosition || 0) * Number(goldPrice || 0)) + (Number(silverPosition || 0) * Number(silverPrice || 0))
+    const margin = Math.abs(revaluation) * 0.02
+    const equity = funds + revaluation
+    const excess = equity - margin
+    const marginPercent = margin > 0 ? (Math.abs(funds) / margin) * 100 : 0
+    return {
+      totalFunds: toMoney(funds),
+      revaluation: toMoney(revaluation),
+      margin: toMoney(margin),
+      equity: toMoney(equity),
+      excess: toMoney(excess),
+      marginPercent: toMoney(marginPercent),
+      status: equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL',
+    }
+  }
 
   const normalizeMetalPayload = (payload, requestedCurrency = 'USD', requestedUnit = 'toz') => {
     const metals = payload?.metals || payload?.rates || {}
@@ -1274,23 +1300,61 @@ router.get('/reports/dashboard', protect, async (req, res) => {
     const totalAP = vendorOutstanding.reduce((s, r) => s + Number(r.outstanding || 0), 0)
 
     // --- Customer / Supplier margin: show every created party account ---
+    const customerIdsForMargin = customers.map((c) => c._id).filter(Boolean)
+    const [latestMarginRate, customerMetalTxs] = await Promise.all([
+      typeof getLatestMetalRate === 'function' ? getLatestMetalRate() : Promise.resolve(null),
+      customerIdsForMargin.length && Transaction
+        ? Transaction.find({
+            customerId: { $in: customerIdsForMargin },
+            type: { $in: ['sale', 'purchase'] },
+            status: 'posted',
+            isDeleted: { $ne: true },
+          }).select('customerId type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+        : Promise.resolve([]),
+    ])
+    const marginRates = latestMarginRate
+      ? {
+          goldPrice: Number(latestMarginRate.goldPrice || 0),
+          silverPrice: Number(latestMarginRate.silverPrice || 0),
+        }
+      : DEFAULT_METAL_RATES || { goldPrice: 0, silverPrice: 0 }
+    const marginMetalPositionMap = new Map()
+    ;(customerMetalTxs || []).forEach((tx) => {
+      const customerId = String(tx.customerId || '')
+      if (!customerId) return
+      const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
+      if (!isUnfixedFixingType(fixingType)) return
+      const position = marginMetalPositionMap.get(customerId) || { goldPosition: 0, silverPosition: 0 }
+      const sign = tx.type === 'purchase' ? 1 : -1
+      const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+      lines.forEach((line) => {
+        const pureWeight = Number(line?.pureWeight || 0)
+        if (!Number.isFinite(pureWeight) || pureWeight === 0) return
+        const stockCode = String(line?.stockCode || '').toUpperCase()
+        if (stockCode.includes('XAG') || stockCode.includes('SILV')) {
+          position.silverPosition += sign * pureWeight
+        } else {
+          position.goldPosition += sign * pureWeight
+        }
+      })
+      marginMetalPositionMap.set(customerId, position)
+    })
+
     const customerMargins = await Promise.all(customers.map(async (c) => {
       const opening = Number(c.ledgerAccountId?.openingBalance ?? c.openingBalance ?? 0)
       const rawOutstanding = c.ledgerAccountId?._id
         ? opening + Number(await getOutstandingForAccount(c.ledgerAccountId._id) || 0)
         : Number(c.outstandingBalance || 0)
-      const base = Number(c.creditLimit || 0) > 0
-        ? Number(c.creditLimit || 0)
-        : Math.abs(Number(c.openingBalance || 0))
-      const marginPercent = base > 0 ? (Math.abs(rawOutstanding) / base) * 100 : null
-      // Signed AR: positive = customer owes (Dr balance), negative = net credit / advance (Cr balance).
-      // Margin widget shows magnitude as equity; net credit is treated as POSITIVE margin (favorable), not red "NEGATIVE".
-      let displayEquity = rawOutstanding
-      let status = rawOutstanding > 0 ? 'POSITIVE' : rawOutstanding < 0 ? 'NEGATIVE' : 'NEUTRAL'
-      if (rawOutstanding < 0) {
-        displayEquity = Math.abs(rawOutstanding)
-        status = 'POSITIVE'
-      }
+      const rawPosition = marginMetalPositionMap.get(String(c._id || '')) || { goldPosition: 0, silverPosition: 0 }
+      const goldPosition = roundPosition(rawPosition.goldPosition)
+      const silverPosition = roundPosition(rawPosition.silverPosition)
+      const marginMetrics = calculateMarginMetrics({
+        totalFunds: rawOutstanding,
+        goldPosition,
+        silverPosition,
+        goldPrice: marginRates.goldPrice,
+        silverPrice: marginRates.silverPrice,
+      })
 
       if (!c.ledgerAccountId?._id) {
         return {
@@ -1301,10 +1365,15 @@ router.get('/reports/dashboard', protect, async (req, res) => {
           expenses: 0,
           cashInflow: 0,
           cashOutflow: 0,
-          netCashFlow: toMoney(displayEquity),
-          equity: toMoney(displayEquity),
-          status,
-          marginPercent: marginPercent === null ? null : toMoney(marginPercent),
+          netCashFlow: marginMetrics.equity,
+          equity: marginMetrics.equity,
+          status: marginMetrics.status,
+          marginPercent: marginMetrics.marginPercent,
+          goldPosition,
+          silverPosition,
+          marginAmount: marginMetrics.margin,
+          marginExcess: marginMetrics.excess,
+          marginRevaluation: marginMetrics.revaluation,
         }
       }
       const cLedger = await Ledger.find({
@@ -1326,10 +1395,15 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         expenses: toMoney(custExpense),
         cashInflow: toMoney(custCashIn),
         cashOutflow: toMoney(custCashOut),
-        netCashFlow: toMoney(displayEquity),
-        equity: toMoney(displayEquity),
-        status,
-        marginPercent: marginPercent === null ? null : toMoney(marginPercent),
+        netCashFlow: marginMetrics.equity,
+        equity: marginMetrics.equity,
+        status: marginMetrics.status,
+        marginPercent: marginMetrics.marginPercent,
+        goldPosition,
+        silverPosition,
+        marginAmount: marginMetrics.margin,
+        marginExcess: marginMetrics.excess,
+        marginRevaluation: marginMetrics.revaluation,
       }
     }))
 
