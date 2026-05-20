@@ -1,3 +1,5 @@
+import { useMemo, useState } from 'react'
+
 export default function ERPTransactionsTab({
   activeTab,
   C,
@@ -85,6 +87,31 @@ export default function ERPTransactionsTab({
   const getTransactionAttachmentLabel = (tx) => {
     const count = (tx.attachments || []).length
     return count ? `${count} file${count === 1 ? '' : 's'}` : 'No file'
+  }
+
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState('')
+  const typeFilterOptions = [
+    { value: '', label: 'All' },
+    { value: 'payment', label: 'Payment' },
+    { value: 'receipt', label: 'Receipt' },
+    { value: 'purchase', label: 'Metal Purchase' },
+    { value: 'sale', label: 'Metal Sale' },
+  ]
+  const filteredTransactions = useMemo(() => {
+    if (!selectedTypeFilter) return transactions
+    return transactions.filter((tx) => String(tx.type || '').toLowerCase() === selectedTypeFilter)
+  }, [transactions, selectedTypeFilter])
+  const allFilteredTransactionsSelected = filteredTransactions.length > 0
+    && filteredTransactions.every((tx) => selectedTransactionIds.includes(tx._id))
+  const toggleFilteredTransactionSelection = () => {
+    const visibleIds = filteredTransactions.map((tx) => tx._id)
+    if (!visibleIds.length) return
+    setSelectedTransactionIds((prev) => {
+      const visibleIdSet = new Set(visibleIds)
+      const allSelected = visibleIds.every((id) => prev.includes(id))
+      if (allSelected) return prev.filter((id) => !visibleIdSet.has(id))
+      return Array.from(new Set([...prev, ...visibleIds]))
+    })
   }
 
   return (
@@ -341,12 +368,43 @@ export default function ERPTransactionsTab({
             </div>
           )}
 
+          <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.75rem 1rem', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div>
+              <p style={{ margin: 0, color: C.ink, fontWeight: '800' }}>Transaction Type Filter</p>
+              <p style={{ margin: '0.18rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Filter the current transaction table by type.</p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+              {typeFilterOptions.map((option) => {
+                const active = selectedTypeFilter === option.value
+                return (
+                  <button
+                    key={option.value || 'all'}
+                    type="button"
+                    onClick={() => setSelectedTypeFilter(option.value)}
+                    style={{
+                      padding: '0.42rem 0.72rem',
+                      borderRadius: '0.35rem',
+                      border: active ? `1px solid ${C.s1}` : '1px solid #D1D5DB',
+                      background: active ? C.s1 : '#fff',
+                      color: active ? '#fff' : C.ink,
+                      cursor: 'pointer',
+                      fontWeight: '700',
+                      fontSize: '0.8rem',
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
                   <th style={{ padding: '0.65rem', textAlign: 'center' }}>
-                    <input type="checkbox" checked={allVisibleTransactionsSelected} onChange={toggleVisibleTransactionSelection} />
+                    <input type="checkbox" checked={selectedTypeFilter ? allFilteredTransactionsSelected : allVisibleTransactionsSelected} onChange={selectedTypeFilter ? toggleFilteredTransactionSelection : toggleVisibleTransactionSelection} />
                   </th>
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>Date</th>
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>Type</th>
@@ -359,7 +417,7 @@ export default function ERPTransactionsTab({
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((tx) => (
+                {filteredTransactions.map((tx) => (
                   <tr id={`erp-transaction-row-${tx._id}`} key={tx._id} onClick={() => setSelectedTransactionId(tx._id)} style={{ borderBottom: `1px solid ${C.p2}`, background: selectedTransactionId === tx._id ? '#ECFDF5' : 'transparent', outline: selectedTransactionId === tx._id ? '2px solid #10B981' : 'none', outlineOffset: '-2px', cursor: 'pointer' }}>
                     <td style={{ padding: '0.65rem', textAlign: 'center' }}>
                       <input type="checkbox" checked={selectedTransactionIds.includes(tx._id)} onChange={(e) => { e.stopPropagation(); toggleTransactionSelection(tx._id) }} onClick={(e) => e.stopPropagation()} />
@@ -396,7 +454,7 @@ export default function ERPTransactionsTab({
                     </td>
                   </tr>
                 ))}
-                {!transactions.length && (
+                {!filteredTransactions.length && (
                   <tr>
                     <td colSpan={9} style={{ padding: '1rem', textAlign: 'center', color: C.inkSoft }}>No transactions match the current filters.</td>
                   </tr>
@@ -405,7 +463,7 @@ export default function ERPTransactionsTab({
             </table>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.85rem' }}>
-            <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>Showing {Number(transactions.length || 0).toLocaleString()} entries · {Number(transactionMeta.total || 0).toLocaleString()} total transactions</p>
+            <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>Showing {Number(filteredTransactions.length || 0).toLocaleString()} entries · {Number(transactionMeta.total || 0).toLocaleString()} total transactions</p>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button
                 type="button"

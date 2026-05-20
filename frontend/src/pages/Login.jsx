@@ -249,7 +249,7 @@ function MgLoginShell({
               zIndex: 3,
             }}
           >
-            © 2025 Moder Gold Jewerly. All rights reserved by loopc company
+            © 2025 LoopC Business Strategies. All rights reserved.
           </div>
         </form>
       </div>
