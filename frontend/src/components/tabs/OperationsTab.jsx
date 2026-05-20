@@ -6,6 +6,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import { useAuth } from '../../context/AuthContext'
 import erpAPI from '../../api/erp'
+import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -1518,30 +1519,25 @@ export default function OperationsTab() {
   const shared = { suppliers, setSuppliers, gold, setGold, routes, setRoutes, secVendors, setSecVendors, incidents, setIncidents, vendors, setVendors, inventory, setInventory, tasks, setTasks, checklist, setChecklist, canEdit, isAdmin, isHead, isMgmt, isUser, isExternal, showToast, setModal }
 
   return (
-    <div style={{ fontFamily:'inherit', color:C.t1 }}>
+    <ModuleTabColumn style={{ fontFamily: 'inherit', color: C.t1 }}>
       <style>{`
         @keyframes tabPingOps { 0%,100%{opacity:1} 50%{opacity:.5} }
       `}</style>
 
-      {/* Sub-tab bar + notification bell */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:`1px solid ${C.border}`, marginBottom:22, flexWrap:'wrap', gap:4 }}>
-        <div style={{ display:'flex', gap:2, flexWrap:'wrap' }}>
-          {TABS.map(t => {
-            const active = t.id === activeTab
-            return (
-              <button key={t.id} onClick={() => setActiveTab(t.id)}
-                style={{ padding:'10px 14px', fontSize:12, fontWeight: active ? 700 : 600, cursor:'pointer', border:'none', background:'transparent', color: active ? 'var(--purple)' : C.t3, borderBottom: active ? '2px solid var(--purple)' : '2px solid transparent', transition:'all .15s', fontFamily:'inherit', whiteSpace:'nowrap', flexShrink:0, marginBottom:-1 }}>
-                {t.label}
-              </button>
-            )
-          })}
-        </div>
-        {/* Bell */}
-        <button onClick={() => setNotifOpen(true)} style={{ position:'relative', width:36, height:36, borderRadius:8, background:'rgba(var(--purple-rgb),.1)', border:`1px solid rgba(var(--purple-rgb),.25)`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:17, flexShrink:0, marginBottom:4 }}>
-          🔔
-          {unreadCount > 0 && <span style={{ position:'absolute', top:-5, right:-5, width:18, height:18, borderRadius:'50%', background:C.red, color:'#fff', fontSize:9, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #13131f' }}>{unreadCount}</span>}
-        </button>
-      </div>
+      <ModuleSubTabRow
+        right={(
+          <button onClick={() => setNotifOpen(true)} style={{ position: 'relative', width: 36, height: 36, borderRadius: 8, background: 'rgba(var(--purple-rgb),.1)', border: '1px solid rgba(var(--purple-rgb),.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 17, flexShrink: 0 }}>
+            🔔
+            {unreadCount > 0 && <span style={{ position: 'absolute', top: -5, right: -5, width: 18, height: 18, borderRadius: '50%', background: C.red, color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #f3f4f6' }}>{unreadCount}</span>}
+          </button>
+        )}
+      >
+        {TABS.map((t) => (
+          <ErpSubTabButton key={t.id} active={t.id === activeTab} onClick={() => setActiveTab(t.id)}>
+            {t.label}
+          </ErpSubTabButton>
+        ))}
+      </ModuleSubTabRow>
 
       {activeTab === 'kpi'       && <TabKPI       {...shared} />}
       {activeTab === 'checklist' && <TabChecklist  {...shared} />}
@@ -1576,6 +1572,6 @@ export default function OperationsTab() {
       {notifOpen && <NotifPanel notifs={notifs} setNotifs={setNotifs} onClose={() => setNotifOpen(false)} />}
 
       <Toast t={toast} />
-    </div>
+    </ModuleTabColumn>
   )
 }

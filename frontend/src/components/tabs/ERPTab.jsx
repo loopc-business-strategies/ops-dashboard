@@ -3188,10 +3188,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         const silverPosition = Number(customer?.silverPosition || 0)
         const goldPrice = Number(customer?.metalRates?.goldPrice || goldPriceUSD || 0)
         const silverPrice = Number(customer?.metalRates?.silverPrice || silverPriceUSD || 0)
+        const customerFunds = outstanding < 0 ? Math.abs(outstanding) : outstanding
         const fallbackRevaluation = (goldPosition * goldPrice) + (silverPosition * silverPrice)
         const fallbackMargin = Math.abs(fallbackRevaluation) * 0.02
         const fallbackMetrics = calculateAccountSummaryMetrics({
-          totalFunds: outstanding,
+          totalFunds: customerFunds,
           revaluation: fallbackRevaluation,
           marginAmount: fallbackMargin,
         })
@@ -5647,7 +5648,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   }
 
   return (
-    <div style={{ padding: '1.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* <h2 style={{ marginBottom: '1.5rem', color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>
         📊 ERP Accounting System
       </h2> */}
@@ -8407,7 +8408,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                         <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.1rem' }}>{formatStatementValue(modalMarginPctDisplay, 2)}%</span>
                       </div>
                       <p style={{ margin: '0.45rem 0 0', color: '#6B7280', fontSize: '0.72rem', lineHeight: 1.45 }}>
-                        Debit exposure is favorable; Credit exposure is payable. Customer Margin negative equity matches Credit (Cr) balances here.
+                        Customer credit balances are treated as favorable in Customer Margin; supplier credit balances remain payable.
                       </p>
                     </div>
 

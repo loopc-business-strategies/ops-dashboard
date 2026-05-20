@@ -7,6 +7,7 @@ import authAPI from '../../api/auth'
 import hrAPI from '../../api/hr'
 import attendanceAPI from '../../api/attendance'
 import messagesAPI from '../../api/messages'
+import { ModuleTabColumn } from '../layout/ModuleTabChrome'
 
 const resolveApiOrigin = () => {
   const configured = String(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -201,22 +202,18 @@ function getSeverityTone(severity) {
   return 'text-yellow-800 border-yellow-300 bg-yellow-100'
 }
 
-function KpiCard({ title, value, hint, tone = 'green', onClick, readOnly }) {
-  const toneClass = tone === 'red'
-    ? 'bg-red-500'
-    : tone === 'yellow'
-      ? 'bg-amber-500'
-      : 'bg-emerald-500'
+function KpiCard({ title, value, hint, tone: _tone = 'green', onClick, readOnly }) {
   return (
     <button
       onClick={onClick}
+      type="button"
       className={`relative overflow-hidden text-left bg-white border border-gray-200 rounded-xl px-4 py-4 min-h-[128px] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md shadow-sm ${onClick ? '' : 'cursor-default'}`}
-      style={{ minHeight: 132, padding: '16px', borderRadius: 12, borderColor: '#e5e7eb' }}
+      style={{ minHeight: 128, padding: '16px 18px', borderRadius: '0.75rem', borderColor: '#e5e7eb', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}
       disabled={!onClick}
     >
-      <span className={`absolute left-0 top-0 h-1.5 w-full ${toneClass}`} />
-      <p className="text-[11px] text-gray-500 tracking-[0.14em] uppercase mt-1">{title}</p>
-      <p className="text-[36px] leading-[1.08] font-bold text-gray-900 mt-2">{value}</p>
+      <span aria-hidden className="absolute left-0 top-0 right-0 h-0.5 w-full bg-gradient-to-r from-violet-500 via-purple-500 to-emerald-500" />
+      <p className="text-[11px] text-gray-500 tracking-[0.14em] uppercase mt-1.5">{title}</p>
+      <p className="text-[32px] sm:text-[36px] leading-[1.08] font-bold text-gray-900 mt-2">{value}</p>
       <p className="text-xs text-gray-600 mt-2">{hint}{readOnly ? ' - read only' : ''}</p>
     </button>
   )
@@ -225,11 +222,12 @@ function KpiCard({ title, value, hint, tone = 'green', onClick, readOnly }) {
 function Section({ title, action, children }) {
   return (
     <section
-      className="bg-white border border-gray-200 rounded-xl p-5 sm:p-6 shadow-[0_1px_4px_rgba(0,0,0,0.04)]"
-      style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '20px 22px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
+      className="relative overflow-hidden bg-white border border-gray-200 rounded-xl p-5 sm:p-6"
+      style={{ borderRadius: '0.75rem', padding: '18px 20px', borderColor: '#e5e7eb', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}
     >
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-5 pb-3 border-b border-gray-100">
-        <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-gray-900 leading-tight sm:whitespace-nowrap">{title}</h2>
+      <div aria-hidden className="pointer-events-none absolute left-0 top-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 via-purple-500 to-emerald-500" />
+      <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-5 pb-3 border-b border-gray-100">
+        <h2 className="text-base sm:text-lg font-bold tracking-tight text-gray-900 leading-tight sm:whitespace-nowrap">{title}</h2>
         {action && <div className="w-full sm:w-auto flex justify-start sm:justify-end">{action}</div>}
       </div>
       {children}
@@ -1034,7 +1032,7 @@ function OverviewTab({ onNavigate }) {
   }
 
   return (
-    <div className="space-y-5 sm:space-y-6 pb-8 px-2 sm:px-3 lg:px-4" style={{ padding: '0 14px 32px' }}>
+    <ModuleTabColumn className="pb-2">
       {toast && (
         <div className="fixed top-3 right-3 left-3 sm:left-auto sm:top-4 sm:right-4 z-50 px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-100 text-emerald-800 text-sm">
           {toast}
@@ -1653,7 +1651,7 @@ function OverviewTab({ onNavigate }) {
       {(loadingEmployees || loadingTasks) && (
         <p className="text-xs text-gray-600">Syncing live data...</p>
       )}
-    </div>
+    </ModuleTabColumn>
   )
 }
 

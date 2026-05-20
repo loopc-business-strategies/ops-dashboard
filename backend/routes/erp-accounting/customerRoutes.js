@@ -31,7 +31,8 @@ function registerCustomerRoutes(deps) {
 
   const roundPosition = (value) => Number(Number(value || 0).toFixed(6))
   const calculateCustomerMargin = ({ totalFunds, goldPosition, silverPosition, goldPrice, silverPrice }) => {
-    const funds = Number(totalFunds || 0)
+    const rawFunds = Number(totalFunds || 0)
+    const funds = rawFunds < 0 ? Math.abs(rawFunds) : rawFunds
     const revaluation = (Number(goldPosition || 0) * Number(goldPrice || 0)) + (Number(silverPosition || 0) * Number(silverPrice || 0))
     const margin = Math.abs(revaluation) * 0.02
     const equity = funds + revaluation

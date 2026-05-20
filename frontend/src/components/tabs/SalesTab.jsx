@@ -41,6 +41,7 @@ import {
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
+import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
 const C = {
   bg: '#f4f7f6',
@@ -95,24 +96,6 @@ function Button({ children, onClick, variant = 'primary', disabled = false }) {
       fontWeight: 600,
       cursor: disabled ? 'not-allowed' : 'pointer',
       opacity: disabled ? 0.6 : 1,
-      fontFamily: 'inherit',
-    }}>
-      {children}
-    </button>
-  )
-}
-
-function TabBtn({ active, onClick, children }) {
-  return (
-    <button onClick={onClick} style={{
-      border: active ? `1px solid ${C.primary}` : `1px solid ${C.borderStrong}`,
-      background: active ? 'rgba(0,104,74,0.08)' : '#fff',
-      color: active ? C.primary : C.text,
-      borderRadius: 999,
-      padding: '7px 12px',
-      fontWeight: 700,
-      fontSize: 12,
-      cursor: 'pointer',
       fontFamily: 'inherit',
     }}>
       {children}
@@ -597,9 +580,9 @@ function CloseDealModal({ open, onClose, onSave, deal }) {
   }, [open, deal])
   return (
     <Modal open={open} onClose={onClose} title='CLOSE DEAL' width={700}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-        <TabBtn active={outcome === 'won'} onClick={() => setOutcome('won')}>Won</TabBtn>
-        <TabBtn active={outcome === 'lost'} onClick={() => setOutcome('lost')}>Lost</TabBtn>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+        <ErpSubTabButton active={outcome === 'won'} onClick={() => setOutcome('won')}>Won</ErpSubTabButton>
+        <ErpSubTabButton active={outcome === 'lost'} onClick={() => setOutcome('lost')}>Lost</ErpSubTabButton>
       </div>
       {outcome === 'won' ? (
         <FormGrid>
@@ -698,9 +681,13 @@ function ContactProfile({ contact, tab, setTab, activities, deals, canSeeKyc, on
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        {['Overview', 'Activity Timeline', 'Deals & Pipeline', 'Documents', 'Notes', 'KYC & Compliance'].map((t) => {
-          if (t === 'KYC & Compliance' && !canSeeKyc) return null
-          return <TabBtn key={t} active={tab === t} onClick={() => setTab(t)}>{t}</TabBtn>
+        {['Overview', 'Activity Timeline', 'Deals & Pipeline', 'Documents', 'Notes', 'KYC & Compliance'].map((sub) => {
+          if (sub === 'KYC & Compliance' && !canSeeKyc) return null
+          return (
+            <ErpSubTabButton key={sub} active={tab === sub} onClick={() => setTab(sub)}>
+              {sub}
+            </ErpSubTabButton>
+          )
         })}
       </div>
 
@@ -1162,28 +1149,36 @@ export default function SalesTab() {
     return true
   })
 
-  if (!canViewSalesCRM) return <Card><div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 8 }}>Sales CRM</div><div style={{ color: C.sub, fontSize: 13 }}>You do not have access to Sales CRM.</div></Card>
+  if (!canViewSalesCRM) {
+    return (
+      <ModuleTabColumn style={{ fontFamily: 'inherit' }}>
+        <Card>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 8 }}>Sales CRM</div>
+          <div style={{ color: C.sub, fontSize: 13 }}>You do not have access to Sales CRM.</div>
+        </Card>
+      </ModuleTabColumn>
+    )
+  }
 
   return (
-    <div style={{ background: C.bg, borderRadius: 14, padding: 12 }}>
+    <ModuleTabColumn style={{ fontFamily: 'inherit' }}>
       {msg && <div style={{ marginBottom: 10, background: 'rgba(0,104,74,0.08)', border: `1px solid ${C.border}`, color: C.primary, padding: '8px 10px', borderRadius: 8, fontSize: 12 }}>{msg}</div>}
 
-      <Card style={{ marginBottom: 12 }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <TabBtn active={section === 'dashboard'} onClick={() => setSection('dashboard')}>{t('crmDashboard')}</TabBtn>
-            <TabBtn active={section === 'contacts'} onClick={() => setSection('contacts')}>{t('contacts')}</TabBtn>
-            <TabBtn active={section === 'leads'} onClick={() => setSection('leads')}>{t('leads')}</TabBtn>
-            <TabBtn active={section === 'companies'} onClick={() => setSection('companies')}>{t('companies')}</TabBtn>
-            <TabBtn active={section === 'deals'} onClick={() => setSection('deals')}>{t('deals')}</TabBtn>
-            <TabBtn active={section === 'activities'} onClick={() => setSection('activities')}>{t('activities')}</TabBtn>
-            <TabBtn active={section === 'followups'} onClick={() => setSection('followups')}>{t('followups')}</TabBtn>
-          </div>
+      <ModuleSubTabRow
+        right={(
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {quickActions.map((a) => <Button key={a.label} onClick={a.onClick}>{a.label}</Button>)}
           </div>
-        </div>
-      </Card>
+        )}
+      >
+        <ErpSubTabButton active={section === 'dashboard'} onClick={() => setSection('dashboard')}>{t('crmDashboard')}</ErpSubTabButton>
+        <ErpSubTabButton active={section === 'contacts'} onClick={() => setSection('contacts')}>{t('contacts')}</ErpSubTabButton>
+        <ErpSubTabButton active={section === 'leads'} onClick={() => setSection('leads')}>{t('leads')}</ErpSubTabButton>
+        <ErpSubTabButton active={section === 'companies'} onClick={() => setSection('companies')}>{t('companies')}</ErpSubTabButton>
+        <ErpSubTabButton active={section === 'deals'} onClick={() => setSection('deals')}>{t('deals')}</ErpSubTabButton>
+        <ErpSubTabButton active={section === 'activities'} onClick={() => setSection('activities')}>{t('activities')}</ErpSubTabButton>
+        <ErpSubTabButton active={section === 'followups'} onClick={() => setSection('followups')}>{t('followups')}</ErpSubTabButton>
+      </ModuleSubTabRow>
 
       {section === 'dashboard' && (
         <>
@@ -1209,7 +1204,11 @@ export default function SalesTab() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-              {CONTACT_TYPES.map((t) => <TabBtn key={t} active={filters.type === t} onClick={() => setFilters((p) => ({ ...p, type: t }))}>{t === 'All' ? 'All Contacts' : `${t}s`} ({contactTypeCounts[t] || 0})</TabBtn>)}
+              {CONTACT_TYPES.map((ct) => (
+                <ErpSubTabButton key={ct} active={filters.type === ct} onClick={() => setFilters((p) => ({ ...p, type: ct }))}>
+                  {ct === 'All' ? 'All Contacts' : `${ct}s`} ({contactTypeCounts[ct] || 0})
+                </ErpSubTabButton>
+              ))}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 2fr', gap: 8, marginBottom: 10 }}>
               <Select value={filters.type} onChange={(e) => setFilters((p) => ({ ...p, type: e.target.value }))} options={CONTACT_TYPES} />
@@ -1272,10 +1271,10 @@ export default function SalesTab() {
         <Card>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontWeight: 800, color: C.text, fontSize: 16 }}>Lead Pipeline</div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <Button onClick={() => { setLeadEditing(null); setLeadModal(true) }}>+ Add Lead</Button>
-              <TabBtn active={leadView === 'List'} onClick={() => setLeadView('List')}>List View</TabBtn>
-              <TabBtn active={leadView === 'Kanban'} onClick={() => setLeadView('Kanban')}>Kanban View</TabBtn>
+              <ErpSubTabButton active={leadView === 'List'} onClick={() => setLeadView('List')}>List View</ErpSubTabButton>
+              <ErpSubTabButton active={leadView === 'Kanban'} onClick={() => setLeadView('Kanban')}>Kanban View</ErpSubTabButton>
             </div>
           </div>
           {leadView === 'Kanban' ? (
@@ -1394,6 +1393,6 @@ export default function SalesTab() {
       <CsvGuideModal kind={csvGuideKind} onClose={() => setCsvGuideKind('')} />
 
       {busy && <div style={{ position: 'fixed', right: 12, bottom: 12, background: C.primary, color: '#fff', padding: '7px 10px', borderRadius: 8, fontSize: 12 }}>Loading CRM...</div>}
-    </div>
+    </ModuleTabColumn>
   )
 }

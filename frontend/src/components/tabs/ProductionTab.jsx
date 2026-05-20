@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext'
 import erpAPI from '../../api/erp'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
+import { ErpSubTabButton, ModulePageHeading, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
 // ── Design tokens ─────────────────────────────────
 const C = {
@@ -1792,55 +1793,42 @@ export default function ProductionTab() {
   }
 
   return (
-      <>  
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-white">Production Control Center</h2>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {LINES.filter(l => l.state === 'running').length} lines running · {DEFAULT_ALERTS.filter(a => !a.ack).length} active alerts
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {isReadOnly && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400 text-xs font-medium">
-              🔒 Read-only view
-            </div>
-          )}
-          <div className="notif-bell" onClick={() => setNotifOpen(true)} title={`${unreadCount} unread notifications`}>
-            🔔
-            {unreadCount > 0 && (
-              <span className="notif-count">{unreadCount > 9 ? '9+' : unreadCount}</span>
+    <>
+    <ModuleTabColumn>
+      <ModulePageHeading
+        title="Production Control Center"
+        subtitle={`${LINES.filter(l => l.state === 'running').length} lines running · ${DEFAULT_ALERTS.filter(a => !a.ack).length} active alerts`}
+        right={(
+          <div className="flex items-center gap-3">
+            {isReadOnly && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-xs font-medium">
+                🔒 Read-only view
+              </div>
             )}
+            <div className="notif-bell" onClick={() => setNotifOpen(true)} title={`${unreadCount} unread notifications`}>
+              🔔
+              {unreadCount > 0 && (
+                <span className="notif-count">{unreadCount > 9 ? '9+' : unreadCount}</span>
+              )}
+            </div>
           </div>
-        </div>
-      </div>
+        )}
+      />
 
-      {/* Sub-tab Nav */}
-      <div className="flex gap-1 overflow-x-auto border-b border-gray-800 pb-0 scrollbar-hide">
-        {SUB_TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
-              activeTab === tab.id
-                ? 'border-violet-500 text-violet-400'
-                : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-600'
-            }`}
-          >
+      <ModuleSubTabRow>
+        {SUB_TABS.map((tab) => (
+          <ErpSubTabButton key={tab.id} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)}>
             {tab.label}
-          </button>
+          </ErpSubTabButton>
         ))}
-      </div>
+      </ModuleSubTabRow>
 
-      {/* Tab Content */}
       <div className="min-h-[400px]">
         {renderTab()}
       </div>
 
       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </ModuleTabColumn>
 
     <NotificationsPanel
       open={notifOpen}

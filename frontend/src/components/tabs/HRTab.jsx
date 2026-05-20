@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import hrAPI from '../../api/hr'
 import { useLanguage } from '../../context/LanguageContext'
+import { ErpSubTabButton, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
 function getHRSubTabs(t) {
   return [
@@ -382,26 +383,16 @@ export default function HRTab() {
   }
 
   return (
-    <div>
-      {/* Sub-tab bar */}
-      <div className="flex gap-2 mb-6 border-b border-gray-800 pb-3 overflow-x-auto">
-        {HR_SUB_TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setSubTab(tab.id)}
-            className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-all leading-none ${
-              subTab === tab.id
-                ? 'text-emerald-700 border-b-2 border-emerald-700'
-                : 'text-gray-400 hover:text-gray-900 border-b-2 border-transparent'
-            }`}
-          >
+    <ModuleTabColumn>
+      <div className="flex gap-2 flex-wrap">
+        {HR_SUB_TABS.map((tab) => (
+          <ErpSubTabButton key={tab.id} active={subTab === tab.id} onClick={() => setSubTab(tab.id)}>
             {tab.label}
-          </button>
+          </ErpSubTabButton>
         ))}
       </div>
 
-      {/* Sub-tab content */}
       {renderSubTab()}
-    </div>
+    </ModuleTabColumn>
   )
 }

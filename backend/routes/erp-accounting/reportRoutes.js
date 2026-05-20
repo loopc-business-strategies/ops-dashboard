@@ -1349,7 +1349,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
       const goldPosition = roundPosition(rawPosition.goldPosition)
       const silverPosition = roundPosition(rawPosition.silverPosition)
       const marginMetrics = calculateMarginMetrics({
-        totalFunds: rawOutstanding,
+        totalFunds: rawOutstanding < 0 ? Math.abs(rawOutstanding) : rawOutstanding,
         goldPosition,
         silverPosition,
         goldPrice: marginRates.goldPrice,

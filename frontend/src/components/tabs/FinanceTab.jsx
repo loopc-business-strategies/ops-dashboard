@@ -9,6 +9,7 @@ import financeAPI from '../../api/finance'
 import erpAccountingAPI from '../../api/erp-accounting'
 import AccountCombobox from '../AccountCombobox'
 import { Modal } from '../ui-components'
+import { ErpSubTabButton, ModulePageHeading, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
 // ─── Design tokens ────────────────────────────────────────────
 const C = {
@@ -1566,13 +1567,11 @@ export default function FinanceTab() {
 
   return (
     <>
-      <div className="space-y-5">
-        {/* Tab header bar */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', paddingBottom:4 }}>
-          <div>
-            <div style={{ fontSize:18, fontWeight:800, color:C.t1, letterSpacing:'-.3px' }}>Finance & Accounts</div>
-            <div style={{ fontSize:11, color:C.t3, marginTop:2 }}>April 2026</div>
-          </div>
+    <ModuleTabColumn>
+      <ModulePageHeading
+        title="Finance & Accounts"
+        subtitle="April 2026"
+        right={(
           <div
             className="notif-bell"
             onClick={() => setNotifOpen(true)}
@@ -1583,29 +1582,19 @@ export default function FinanceTab() {
               <span className="notif-count">{unreadCount > 9 ? '9+' : unreadCount}</span>
             )}
           </div>
-        </div>
+        )}
+      />
 
-        {/* Sub-tab row */}
-        <div style={{ display:'flex', gap:0, borderBottom:`1px solid ${C.border}`, overflowX:'auto', scrollbarWidth:'none', flexShrink:0, marginBottom:4 }}>
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
-              padding:'10px 14px', fontSize:12, fontWeight:600,
-              background:'transparent', border:'none',
-              borderBottom: activeTab===t.id ? '2px solid var(--purple)' : '2px solid transparent',
-              color: activeTab===t.id ? 'var(--purple)' : C.t3,
-              cursor:'pointer', whiteSpace:'nowrap', fontFamily:'inherit',
-              marginBottom:-1, transition:'all .15s',
-            }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
+      <ModuleSubTabRow>
+        {TABS.map((t) => (
+          <ErpSubTabButton key={t.id} active={activeTab === t.id} onClick={() => setActiveTab(t.id)}>
+            {t.label}
+          </ErpSubTabButton>
+        ))}
+      </ModuleSubTabRow>
 
-        {/* Active sub-tab */}
-        {renderTab()}
-      </div>
-
-      {/* ── Modals ── */}
+      {renderTab()}
+    </ModuleTabColumn>
       <InvoiceModal
         open={modal==='invoice'}
         onClose={() => setModal(null)}

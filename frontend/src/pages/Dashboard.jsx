@@ -966,10 +966,20 @@ function Dashboard({
           </div>
         </header>
 
-        {/* Page content */}
-        <main className={`flex-1 ${activeTab === 'chat' ? 'overflow-hidden' : 'p-4 lg:p-5 overflow-y-auto'}`}
-          style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-          {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, setLatestMetalRates)}
+        {/* Page content — 1.5rem inset matches ERP module padding; chat stays full-bleed inside scroll area */}
+        <main
+          className={`flex-1 flex flex-col min-h-0 ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto'}`}
+          style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}
+        >
+          {activeTab === 'chat' ? (
+            <div className="flex-1 min-h-0 flex flex-col">
+              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, setLatestMetalRates)}
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0" style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
+              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, setLatestMetalRates)}
+            </div>
+          )}
         </main>
 
       </div>

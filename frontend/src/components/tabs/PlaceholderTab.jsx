@@ -6,30 +6,27 @@
 //   with its real content.
 
 import { useLanguage } from '../../context/LanguageContext'
+import { ModulePageHeading, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
 function PlaceholderTab({ title, icon, description, subTabs = [] }) {
   const { t } = useLanguage()
   return (
-    <div className="space-y-8 pt-1">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center text-xl border border-gray-700">
-          {icon}
-        </div>
-        <div>
-          <h3 className="text-base font-semibold text-white leading-tight">{title}</h3>
-          <p className="text-gray-500 text-sm leading-relaxed mt-0.5">{description}</p>
-        </div>
-      </div>
+    <ModuleTabColumn>
+      <ModulePageHeading
+        title={title}
+        subtitle={description}
+        right={icon ? <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-xl shadow-sm">{icon}</div> : null}
+      />
 
-      {/* Planned sub-tabs preview */}
       {subTabs.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider leading-none">{t('plannedSections')}</p>
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">{t('plannedSections')}</p>
           <div className="flex flex-wrap gap-2">
             {subTabs.map((st, i) => (
-              <span key={i}
-                className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-xs text-gray-400 leading-none">
+              <span
+                key={i}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-800"
+              >
                 {st}
               </span>
             ))}
@@ -37,24 +34,25 @@ function PlaceholderTab({ title, icon, description, subTabs = [] }) {
         </div>
       )}
 
-      {/* Content placeholder grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="bg-gray-800/40 border border-gray-700/50 rounded-xl p-5 border-dashed">
-            <div className="w-8 h-8 bg-gray-700 rounded-lg mb-3 animate-pulse" />
-            <div className="h-3 bg-gray-700 rounded w-3/4 mb-2 animate-pulse" />
-            <div className="h-3 bg-gray-700/60 rounded w-1/2 animate-pulse" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+          >
+            <div aria-hidden className="absolute left-0 right-0 top-0 h-0.5 bg-gradient-to-r from-violet-500 via-purple-500 to-emerald-500" />
+            <div className="mb-3 h-8 w-8 animate-pulse rounded-lg bg-gray-100" />
+            <div className="mb-2 h-3 w-3/4 animate-pulse rounded bg-gray-100" />
+            <div className="h-3 w-1/2 animate-pulse rounded bg-gray-100/80" />
           </div>
         ))}
       </div>
 
-      <div className="p-6 bg-emerald-700/5 border border-emerald-700/20 rounded-xl text-center">
-        <p className="text-violet-400 font-medium text-sm leading-tight">🔧 {t('moduleUnderConstruction')}</p>
-        <p className="text-gray-500 text-xs mt-1 leading-relaxed">
-          {t('builtAsRequired')}
-        </p>
+      <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-6 text-center shadow-sm">
+        <p className="text-sm font-medium leading-tight text-violet-900">🔧 {t('moduleUnderConstruction')}</p>
+        <p className="mt-1 text-xs leading-relaxed text-gray-600">{t('builtAsRequired')}</p>
       </div>
-    </div>
+    </ModuleTabColumn>
   )
 }
 

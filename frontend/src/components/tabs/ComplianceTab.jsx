@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import complianceAPI from '../../api/compliance'
+import { ErpSubTabButton, ModulePageHeading, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
 const C = {
   bg: '#f4f7f6',
@@ -74,27 +75,6 @@ function Button({ children, onClick, variant = 'primary', disabled = false }) {
         fontFamily: 'inherit',
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.65 : 1,
-      }}
-    >
-      {children}
-    </button>
-  )
-}
-
-function TabBtn({ active, onClick, children }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        border: active ? `1px solid ${C.primary}` : `1px solid ${C.borderStrong}`,
-        background: active ? 'rgba(0,104,74,0.08)' : '#fff',
-        color: active ? C.primary : C.text,
-        borderRadius: 999,
-        padding: '7px 12px',
-        fontWeight: 700,
-        fontSize: 12,
-        fontFamily: 'inherit',
-        cursor: 'pointer',
       }}
     >
       {children}
@@ -386,16 +366,16 @@ function ComplianceTab() {
   }
 
   return (
-    <div style={{ display: 'grid', gap: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-        <div>
-          <h2 style={{ margin: 0, color: C.text, fontSize: 22 }}>Government & Compliance</h2>
-          <div style={{ marginTop: 4, color: C.sub, fontSize: 13 }}>Role-based compliance control center with actionable records and audit-ready data.</div>
-        </div>
-        <div style={{ background: readOnlyByRole ? 'rgba(148,163,184,0.18)' : 'rgba(0,104,74,0.12)', color: readOnlyByRole ? '#556273' : C.primary, border: `1px solid ${readOnlyByRole ? 'rgba(100,116,139,0.3)' : C.borderStrong}`, borderRadius: 999, padding: '6px 11px', fontSize: 12, fontWeight: 700 }}>
-          {readOnlyByRole ? 'Read Only Access' : 'Edit Access Enabled'}
-        </div>
-      </div>
+    <ModuleTabColumn style={{ fontFamily: 'inherit' }}>
+      <ModulePageHeading
+        title="Government & Compliance"
+        subtitle="Role-based compliance control center with actionable records and audit-ready data."
+        right={(
+          <div style={{ background: readOnlyByRole ? 'rgba(148,163,184,0.18)' : 'rgba(0,104,74,0.12)', color: readOnlyByRole ? '#556273' : C.primary, border: `1px solid ${readOnlyByRole ? 'rgba(100,116,139,0.3)' : C.borderStrong}`, borderRadius: 999, padding: '6px 11px', fontSize: 12, fontWeight: 700 }}>
+            {readOnlyByRole ? 'Read Only Access' : 'Edit Access Enabled'}
+          </div>
+        )}
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 10 }}>
         {metric('Pending Approvals', kpi.pendingApprovals, C.blue)}
@@ -404,9 +384,13 @@ function ComplianceTab() {
         {metric('Renewals Required', kpi.renewals, C.primary)}
       </div>
 
-      <Card style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {TABS.map(t => <TabBtn key={t.id} active={tab === t.id} onClick={() => setTab(t.id)}>{t.label}</TabBtn>)}
-      </Card>
+      <div className="flex gap-2 flex-wrap">
+        {TABS.map((tabItem) => (
+          <ErpSubTabButton key={tabItem.id} active={tab === tabItem.id} onClick={() => setTab(tabItem.id)}>
+            {tabItem.label}
+          </ErpSubTabButton>
+        ))}
+      </div>
 
       {tab === 'eligibility' && (
         <Card>
@@ -634,9 +618,9 @@ function ComplianceTab() {
       </Modal>
 
       {toast && (
-        <div style={{ position: 'fixed', right: 16, bottom: 16, background: '#102027', color: '#fff', border: `1px solid ${C.borderStrong}`, borderRadius: 10, padding: '10px 12px', fontSize: 12, zIndex: 90 }}>{toast}</div>
+        <div style={{ position: 'fixed', right: 16, bottom: 16, background: '#fff', color: C.text, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', fontSize: 12, zIndex: 90, boxShadow: '0 4px 14px rgba(0,0,0,0.08)' }}>{toast}</div>
       )}
-    </div>
+    </ModuleTabColumn>
   )
 }
 
