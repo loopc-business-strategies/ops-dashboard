@@ -3397,7 +3397,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const handleFixingRegProceed = async () => {
     setFixingRegError('')
     setFixingRegLoading(true)
-    setFixingRegShown(false)
     try {
       const today = new Date(); today.setHours(23, 59, 59, 999)
       const fromDate = fixingRegFilter.fromDate ? new Date(`${fixingRegFilter.fromDate}T00:00:00`) : null
@@ -6320,20 +6319,30 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
             style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', width: '2rem', height: '2rem', borderRadius: '0.4rem', border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#1E3A5F', fontSize: '1rem', cursor: 'pointer' }}
           >←</button>
           {/* Filter card */}
-          <div style={{ borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid #CBD5E1', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', maxWidth: '860px', marginBottom: '1.8rem', position: 'relative', transform: `translate(${fixingRegPanelOffset.x}px, ${fixingRegPanelOffset.y}px)`, transition: fixingRegPanelDrag.active ? 'none' : 'transform 120ms ease-out' }}>
+          <div style={{ borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid #CBD5E1', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', maxWidth: 'min(1200px, 100%)', marginBottom: '1.25rem', position: 'relative', transform: `translate(${fixingRegPanelOffset.x}px, ${fixingRegPanelOffset.y}px)`, transition: fixingRegPanelDrag.active ? 'none' : 'transform 120ms ease-out' }}>
             {/* Header */}
             <div onMouseDown={beginFixingRegPanelDrag} style={{ background: 'var(--purple)', padding: '0.85rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.75rem', position: 'sticky', top: 0, zIndex: 3, cursor: fixingRegPanelDrag.active ? 'grabbing' : 'grab', userSelect: 'none' }}>
-              <span style={{ fontSize: '1rem', fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.03em' }}>📊 Fixing position register</span>
-              <span style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.7)', fontSize: '0.73rem', letterSpacing: '0.04em' }}>drag</span>
+              <span style={{ fontSize: '1rem', fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.03em' }}>Fixing Position Summary + Register</span>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleFixingRegProceed() }}
+                disabled={fixingRegLoading}
+                style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.85rem', borderRadius: '0.35rem', border: 'none', background: fixingRegLoading ? 'rgba(255,255,255,0.35)' : '#22C55E', color: '#FFFFFF', fontSize: '0.82rem', fontWeight: '700', cursor: fixingRegLoading ? 'default' : 'pointer' }}
+                title="Reload using current filters"
+              >
+                ↻ Refresh
+              </button>
+              <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.73rem', letterSpacing: '0.04em' }}>drag</span>
             </div>
             {/* Form body */}
             <div style={{ background: '#F8FAFC', padding: '1.25rem 1.2rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              {/* Row 1: Metal | Quantity | Rate */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+              <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '600', color: '#475569', letterSpacing: '0.02em' }}>Filter and get statement</p>
+              {/* Row 1: Metal | Quantity unit | Rate unit | From | To */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.75rem' }}>
                 {[
                   { label: 'Metal', field: 'metalType', opts: fixingRegisterStockTypeOptions.map((option) => [option.value, option.label]) },
-                  { label: 'Quantity', field: 'quantityUnit', opts: [['GOZ', 'GOZ — Troy Oz'], ['GRAM', 'Gram'], ['KG', 'KG'], ['TOLA', 'Tola']] },
-                  { label: 'Rate', field: 'rateUnit', opts: [['GOZ', 'GOZ — per Troy Oz'], ['GRAM', 'per Gram'], ['KG', 'per KG'], ['TOLA', 'per Tola']] },
+                  { label: 'Quantity Unit', field: 'quantityUnit', opts: [['GOZ', 'GOZ — Troy Oz'], ['GRAM', 'Gram'], ['KG', 'KG'], ['TOLA', 'Tola']] },
+                  { label: 'Rate Unit', field: 'rateUnit', opts: [['GOZ', 'GOZ — per Troy Oz'], ['GRAM', 'per Gram'], ['KG', 'per KG'], ['TOLA', 'per Tola']] },
                 ].map(({ label, field, opts }) => {
                   const resolvedOpts = field === 'metalType' && !opts.length
                     ? [
@@ -6356,19 +6365,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                     </select>
                   </div>
                 )})}
-              </div>
-              {/* Row 2: Order By | From | To */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
-                <div>
-                  <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Order By</label>
-                  <select
-                    value={fixingRegFilter.orderBy}
-                    onChange={(e) => setFixingRegFilter(f => ({ ...f, orderBy: e.target.value }))}
-                    style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.84rem' }}
-                  >
-                    <option value="voucherNo">Voucher Number</option>
-                  </select>
-                </div>
                 <div>
                   <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>From Date</label>
                   <input type="date" value={fixingRegFilter.fromDate}
@@ -6384,8 +6380,18 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   />
                 </div>
               </div>
-              {/* Row 3: Group By */}
-              <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '0.75rem', alignItems: 'flex-end' }}>
+              {/* Row 2: Order By | Group By | All / Selected */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(140px, 1fr) minmax(160px, 1fr) minmax(0, 2fr)', gap: '0.75rem', alignItems: 'end' }}>
+                <div>
+                  <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Order By</label>
+                  <select
+                    value={fixingRegFilter.orderBy}
+                    onChange={(e) => setFixingRegFilter(f => ({ ...f, orderBy: e.target.value }))}
+                    style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.84rem' }}
+                  >
+                    <option value="voucherNo">Voucher Number</option>
+                  </select>
+                </div>
                 <div>
                   <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Group By</label>
                   <select
@@ -6399,7 +6405,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                     <option value="valuedate">Value Date</option>
                   </select>
                 </div>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', paddingBottom: '0.12rem' }}>
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', paddingBottom: '0.12rem', flexWrap: 'wrap' }}>
                   {[['all', 'All'], ['selected', 'Selected']].map(([v, lbl]) => (
                     <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#374151', fontSize: '0.83rem', cursor: 'pointer' }}>
                       <input type="radio" name="fixingPartyFilter" value={v} checked={fixingRegFilter.partyFilter === v}
@@ -6415,12 +6421,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                       placeholder="Search party…"
                       value={fixingRegFilter.partySearch}
                       onChange={(e) => setFixingRegFilter(f => ({ ...f, partySearch: e.target.value }))}
-                      style={{ flex: 1, padding: '0.38rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.83rem' }}
+                      style={{ flex: 1, minWidth: '140px', padding: '0.38rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.83rem' }}
                     />
                   )}
                 </div>
               </div>
-              {/* Row 4: Checkboxes + Status */}
+              {/* Row 3: Checkboxes + Status */}
               <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 {[
                   ['excludeOpeningBalance', 'Exclude Opening Balance'],
@@ -6449,24 +6455,32 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   </select>
                 </div>
               </div>
-              {/* Row 5: Buttons */}
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '0.2rem' }}>
+              {/* Row 4: Load (applies filters) + back */}
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', paddingTop: '0.25rem' }}>
                 <button
+                  type="button"
                   onClick={() => { setFixingRegShown(false); setFixingRegResults([]); setFixingRegError(''); setActiveTab('dashboard') }}
                   style={{ padding: '0.48rem 1.4rem', background: 'transparent', color: '#6B7280', border: '1px solid #CBD5E1', borderRadius: '0.4rem', cursor: 'pointer', fontSize: '0.87rem', fontWeight: '600' }}
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={handleFixingRegProceed}
                   disabled={fixingRegLoading}
-                  style={{ padding: '0.48rem 1.6rem', background: fixingRegLoading ? 'rgba(var(--purple-rgb),0.5)' : 'var(--purple)', color: '#FFFFFF', border: 'none', borderRadius: '0.4rem', cursor: fixingRegLoading ? 'default' : 'pointer', fontSize: '0.87rem', fontWeight: '700', letterSpacing: '0.02em' }}
+                  style={{ padding: '0.52rem 1.75rem', background: fixingRegLoading ? '#86EFAC' : '#16A34A', color: '#FFFFFF', border: 'none', borderRadius: '0.4rem', cursor: fixingRegLoading ? 'default' : 'pointer', fontSize: '0.9rem', fontWeight: '700', letterSpacing: '0.02em', boxShadow: fixingRegLoading ? 'none' : '0 1px 3px rgba(22,163,74,0.35)' }}
                 >
-                  {fixingRegLoading ? 'Loading…' : 'Proceed'}
+                  {fixingRegLoading ? 'Loading…' : 'Load'}
                 </button>
               </div>
             </div>
           </div>
+
+          {fixingRegLoading && (
+            <div style={{ maxWidth: 'min(1200px, 100%)', marginBottom: '0.75rem', padding: '0.85rem 1rem', borderRadius: '0.45rem', border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1E3A8A', fontSize: '0.88rem', fontWeight: '600' }}>
+              Loading fixing register…
+            </div>
+          )}
 
           {/* Error */}
           {fixingRegError && (
@@ -6565,31 +6579,41 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
             let runningAmount = openingValue
 
             return (
-              <div style={{ ...modalBackdropStyle, padding: 0 }} onClick={() => setFixingRegShown(false)}>
-                <div style={{ ...modalCardStyle, width: '100vw', maxWidth: '100vw', height: '100vh', maxHeight: '100vh', borderRadius: 0, padding: '1rem', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.8rem', gap: '0.8rem', position: 'sticky', top: 0, zIndex: 3, background: '#FFFFFF', paddingBottom: '0.35rem' }}>
-                    <div>
-                      <h4 style={{ margin: 0, color: C.ink, fontSize: '1.05rem' }}>Fixing Register Transactions Window</h4>
-                      <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Metal sale, purchase, and direct deal entries between selected dates ordered by voucher number.</p>
-                    </div>
-                    <button onClick={() => setFixingRegShown(false)} style={{ padding: '0.42rem 0.75rem', border: '1px solid #D1D5DB', background: '#FFFFFF', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.8rem' }}>Close</button>
+              <div style={{ marginTop: '1rem', borderRadius: '0.5rem', border: '1px solid #CBD5E1', background: '#FFFFFF', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', overflow: 'hidden', maxWidth: 'min(1200px, 100%)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', gap: '0.75rem', flexWrap: 'wrap', borderBottom: '1px solid #E5E7EB', background: '#FFFBF0' }}>
+                  <div>
+                    <h4 style={{ margin: 0, color: C.ink, fontSize: '1.05rem', fontWeight: '700' }}>Fixing Position Summary</h4>
+                    <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Sale, purchase, and direct deal lines for the current filter set.</p>
                   </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={handleFixingRegProceed}
+                      disabled={fixingRegLoading}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.42rem 0.9rem', borderRadius: '0.35rem', border: 'none', background: fixingRegLoading ? '#86EFAC' : '#16A34A', color: '#FFFFFF', fontSize: '0.82rem', fontWeight: '700', cursor: fixingRegLoading ? 'default' : 'pointer' }}
+                    >
+                      ↻ Refresh
+                    </button>
+                    <button type="button" onClick={() => setFixingRegShown(false)} style={{ padding: '0.42rem 0.75rem', border: '1px solid #D1D5DB', background: '#FFFFFF', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' }}>Close</button>
+                  </div>
+                </div>
 
-                  <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '0.8rem', flexWrap: 'wrap' }}>
+                <div style={{ padding: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
                     {[
-                      { label: 'Total Buy', value: `${fixingRegFmtQty(totalBuyOz, qUnit)} ${qUnit}`, bg: '#DCFCE7', color: '#166534' },
-                      { label: 'Total Sell', value: `${fixingRegFmtQty(totalSellOz, qUnit)} ${qUnit}`, bg: '#FEE2E2', color: '#991B1B' },
-                      { label: 'Net Position', value: `${netOz >= 0 ? '+' : '-'}${fixingRegFmtQty(Math.abs(netOz), qUnit)} ${qUnit}`, bg: '#EFF6FF', color: netOz >= 0 ? '#1D4ED8' : '#B45309' },
-                      { label: 'Records', value: String(fixingRegResults.length), bg: '#F3F4F6', color: '#374151' },
+                      { label: 'Total Buy', value: `${fixingRegFmtQty(totalBuyOz, qUnit)} ${qUnit}`, bg: '#DCFCE7', color: '#15803D' },
+                      { label: 'Total Sell', value: `${fixingRegFmtQty(totalSellOz, qUnit)} ${qUnit}`, bg: '#FEE2E2', color: '#DC2626' },
+                      { label: 'Net Position', value: `${netOz >= 0 ? '+' : '-'}${fixingRegFmtQty(Math.abs(netOz), qUnit)} ${qUnit}`, bg: '#DBEAFE', color: netOz >= 0 ? '#1D4ED8' : '#B45309' },
+                      { label: 'Records', value: String(fixingRegResults.length), bg: '#F3F4F6', color: '#111827' },
                     ].map((card) => (
-                      <div key={card.label} style={{ background: card.bg, padding: '0.42rem 0.72rem', borderRadius: '0.38rem', minWidth: '145px' }}>
-                        <div style={{ fontSize: '0.68rem', color: '#6B7280', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{card.label}</div>
-                        <div style={{ fontSize: '0.95rem', fontWeight: '700', color: card.color }}>{card.value}</div>
+                      <div key={card.label} style={{ background: card.bg, padding: '0.75rem 0.9rem', borderRadius: '0.45rem', border: '1px solid rgba(0,0,0,0.04)', minWidth: 0 }}>
+                        <div style={{ fontSize: '0.7rem', color: '#6B7280', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.35rem' }}>{card.label}</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: '800', color: card.color, lineHeight: 1.2 }}>{card.value}</div>
                       </div>
                     ))}
                   </div>
 
-                  <div style={{ overflow: 'auto', border: '1px solid #8F98A6', borderRadius: '0.24rem', flex: 1, background: '#FCFCFC' }}>
+                  <div style={{ overflow: 'auto', border: '1px solid #8F98A6', borderRadius: '0.24rem', background: '#FCFCFC', maxHeight: 'min(70vh, 720px)' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', minWidth: '1320px', fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif', fontVariantNumeric: 'tabular-nums' }}>
                       <colgroup>
                         <col style={{ width: '40px' }} />
