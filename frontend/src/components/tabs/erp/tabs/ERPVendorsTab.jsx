@@ -34,6 +34,7 @@ export default function ERPVendorsTab({
   setVendorWorkflowReason,
   handleVendorWorkflowStatus,
   handleAddVendorDocument,
+  handleVendorTableDocumentUpload,
   setVendorDocumentForm,
   handleDeleteVendorDocument,
 }) {
@@ -347,13 +348,30 @@ export default function ERPVendorsTab({
                       <td style={{ padding: '0.6rem', color: overdue > 0 ? '#DC2626' : C.ink }}>{formatDate(v.nextDue?.dueDate)}</td>
                       <td style={{ padding: '0.6rem', textAlign: 'right', fontWeight: '700', color: C.ink }}>{formatMoney(payDue || v.outstanding || 0, currency)}</td>
                       <td style={{ padding: '0.6rem' }}>
-                        {latestDoc ? (
-                          <a href={getVendorDocumentUrl(latestDoc, v._id)} target="_blank" rel="noreferrer" style={{ color: '#1D4ED8', fontWeight: '700', textDecoration: 'none' }}>
-                            {(v.documents || []).length} file{(v.documents || []).length === 1 ? '' : 's'}
-                          </a>
-                        ) : (
-                          <span style={{ color: C.inkSoft }}>No file</span>
-                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.35rem', minWidth: '82px' }}>
+                          {latestDoc ? (
+                            <a href={getVendorDocumentUrl(latestDoc, v._id)} target="_blank" rel="noreferrer" style={{ color: '#1D4ED8', fontWeight: '700', textDecoration: 'none', fontSize: '0.78rem' }}>
+                              {(v.documents || []).length} file{(v.documents || []).length === 1 ? '' : 's'}
+                            </a>
+                          ) : (
+                            <span style={{ color: C.inkSoft }}>No file</span>
+                          )}
+                          {vendorPermissions.canUpdateOperational && (
+                            <label style={{ padding: '0.28rem 0.55rem', background: '#E0F2FE', border: '1px solid #7DD3FC', borderRadius: '0.3rem', color: '#075985', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '0.75rem', fontWeight: '700', opacity: saving ? 0.6 : 1 }}>
+                              Upload
+                              <input
+                                type="file"
+                                disabled={saving}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0]
+                                  if (file) handleVendorTableDocumentUpload(v, file)
+                                  e.target.value = ''
+                                }}
+                                style={{ display: 'none' }}
+                              />
+                            </label>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: '0.6rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap' }}>

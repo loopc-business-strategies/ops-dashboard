@@ -63,18 +63,21 @@ function MgLoginShell({
     return () => window.removeEventListener('resize', updateViewport)
   }, [])
 
-  const designWidth = 1600
-  const designHeight = 1000
-  const scale = Math.min(viewport.width / designWidth, viewport.height / designHeight)
-  const stageLeft = (viewport.width - designWidth * scale) / 2
-  const stageTop = (viewport.height - designHeight * scale) / 2
+  const designWidth = 1718
+  const designHeight = 916
+  const scaleX = viewport.width / designWidth
+  const scaleY = viewport.height / designHeight
+  const sx = (value) => value * scaleX
+  const sy = (value) => value * scaleY
 
   return (
     <div
       className="mg-login-shell"
       style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
         height: '100vh',
-        position: 'relative',
         overflow: 'hidden',
         background:
           'radial-gradient(circle at 22% 42%, rgba(31, 54, 77, 0.62), transparent 26%), radial-gradient(circle at 78% 18%, rgba(25, 55, 86, 0.36), transparent 30%), linear-gradient(135deg, #0b1b2b 0%, #020814 58%, #00040b 100%)',
@@ -86,15 +89,13 @@ function MgLoginShell({
         className="mg-login-stage"
         style={{
           position: 'absolute',
-          left: stageLeft,
-          top: stageTop,
-          width: designWidth,
-          height: designHeight,
-          transform: `scale(${scale})`,
-          transformOrigin: 'top left',
+          inset: 0,
+          width: '100%',
+          height: '100%',
           overflow: 'hidden',
           backgroundImage: 'url(/images/mg-login-reference.png)',
           backgroundSize: '100% 100%',
+          backgroundPosition: 'center center',
           backgroundRepeat: 'no-repeat',
         }}
       >
@@ -103,10 +104,10 @@ function MgLoginShell({
             <div
               style={{
                 position: 'absolute',
-                left: 847,
-                top: 345,
-                width: 558,
-                minHeight: 30,
+                left: sx(968),
+                top: sy(318),
+                width: sx(455),
+                minHeight: sy(30),
                 border: '1px solid rgba(248,113,113,0.55)',
                 background: 'rgba(127,29,29,0.72)',
                 color: '#FECACA',
@@ -123,10 +124,10 @@ function MgLoginShell({
               aria-hidden="true"
               style={{
                 ...valueMaskStyle,
-                left: 907,
-                top: 368,
-                width: 345,
-                height: 44,
+                left: sx(1026),
+                top: sy(372),
+                width: sx(300),
+                height: sy(34),
               }}
             />
           )}
@@ -137,8 +138,12 @@ function MgLoginShell({
             placeholder=""
             style={{
               ...inputStyle,
-              left: 912,
-              top: 374,
+              width: sx(300),
+              height: sy(34),
+              left: sx(1028),
+              top: sy(372),
+              fontSize: sx(16),
+              lineHeight: `${sy(34)}px`,
             }}
             autoFocus
             autoComplete="username"
@@ -150,10 +155,10 @@ function MgLoginShell({
               aria-hidden="true"
               style={{
                 ...valueMaskStyle,
-                left: 904,
-                top: 500,
-                width: 372,
-                height: 52,
+                left: sx(1026),
+                top: sy(484),
+                width: sx(300),
+                height: sy(34),
               }}
             />
           )}
@@ -164,11 +169,12 @@ function MgLoginShell({
             placeholder=""
             style={{
               ...inputStyle,
-              width: 330,
-              left: 912,
-              top: 504,
-              height: 44,
-              lineHeight: '44px',
+              width: sx(300),
+              left: sx(1028),
+              top: sy(484),
+              height: sy(34),
+              fontSize: sx(16),
+              lineHeight: `${sy(34)}px`,
             }}
             autoComplete="current-password"
             disabled={loading}
@@ -179,10 +185,10 @@ function MgLoginShell({
             onClick={() => setShowPass(!showPass)}
             style={{
               position: 'absolute',
-              left: 1290,
-              top: 520,
-              width: 112,
-              height: 69,
+              left: sx(1344),
+              top: sy(468),
+              width: sx(82),
+              height: sy(60),
               border: 0,
               background: 'transparent',
               color: 'transparent',
@@ -195,10 +201,10 @@ function MgLoginShell({
             disabled={loading}
             style={{
               position: 'absolute',
-              left: 847,
-              top: 623,
-              width: 558,
-              height: 63,
+              left: sx(968),
+              top: sy(551),
+              width: sx(455),
+              height: sy(55),
               border: 0,
               borderRadius: 9,
               background: loading ? 'rgba(255,209,90,0.18)' : 'transparent',
@@ -214,15 +220,37 @@ function MgLoginShell({
             aria-hidden="true"
             style={{
               position: 'absolute',
-              left: 690,
-              top: 651,
-              width: 26,
-              height: 20,
+              left: sx(625),
+              top: sy(596),
+              width: sx(24),
+              height: sy(18),
               background: 'rgba(5, 17, 30, 0.96)',
               borderRadius: 3,
               pointerEvents: 'none',
+              zIndex: 3,
             }}
           />
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: sx(610),
+              top: sy(872),
+              width: sx(500),
+              height: sy(32),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(3, 12, 24, 0.94)',
+              color: '#9CA3AF',
+              fontSize: sx(14),
+              letterSpacing: 0,
+              pointerEvents: 'none',
+              zIndex: 3,
+            }}
+          >
+            © 2025 Moder Gold Jewerly. All rights reserved by loopc company
+          </div>
         </form>
       </div>
 
@@ -436,7 +464,6 @@ function Login() {
               <div className="text-[26px] leading-none font-extrabold tracking-tight mb-3">
                 <span style={{ color: '#7bc3ff' }}>Nexa</span>
                 <span style={{ color: '#0f172a' }}>Ops</span>
-                <span style={{ color: '#0f172a', fontSize: '15px', verticalAlign: 'super', marginLeft: 2 }}>TM</span>
               </div>
               <p className="text-[14px] leading-8 text-white/82 max-w-[290px]">
                 Unified platform for metal trading, ERP,

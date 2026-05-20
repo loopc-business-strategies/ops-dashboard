@@ -2329,6 +2329,33 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
   }
 
+  const handleVendorTableDocumentUpload = async (vendor, file) => {
+    if (!vendor?._id || !file) return
+    if (!vendorPermissions.canUpdateOperational) {
+      setError('You are not allowed to upload vendor documents')
+      return
+    }
+    try {
+      setSaving(true)
+      await erpAccountingAPI.uploadVendorDocument(token, vendor._id, {
+        docType: 'other',
+        title: file.name || 'Vendor attachment',
+        status: 'active',
+        verified: false,
+      }, file)
+      await Promise.all([
+        loadVendors(vendorFilters),
+        loadVendorComplianceSummary(),
+        selectedVendorId === vendor._id ? loadVendorDetails(vendor._id) : Promise.resolve(),
+      ])
+      showNotification('✅ Vendor attachment uploaded')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to upload vendor attachment')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleDeleteVendorDocument = async (documentId) => {
     if (!selectedVendorId) return
     if (!window.confirm('Delete this vendor document?')) return
@@ -7046,6 +7073,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         setVendorWorkflowReason={setVendorWorkflowReason}
         handleVendorWorkflowStatus={handleVendorWorkflowStatus}
         handleAddVendorDocument={handleAddVendorDocument}
+        handleVendorTableDocumentUpload={handleVendorTableDocumentUpload}
         setVendorDocumentForm={setVendorDocumentForm}
         handleDeleteVendorDocument={handleDeleteVendorDocument}
       />
