@@ -133,11 +133,31 @@ function registerReportRoutes(deps) {
     if (apiKey) url.searchParams.set('api_key', apiKey)
 
     const response = await fetch(url, {
-      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      // metals.dev authenticates via `api_key` query param only; a Bearer header
+      // with the same key often produces HTTP 400 (invalid auth shape).
+      headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(8000),
     })
-    if (!response.ok) throw new Error(`metals provider returned ${response.status}`)
-    const payload = await response.json()
+    const text = await response.text()
+    if (!response.ok) {
+      let detail = text.slice(0, 240).replace(/\s+/g, ' ').trim()
+      try {
+        const errJson = JSON.parse(text)
+        detail = String(errJson.message || errJson.error || errJson.status || detail).slice(0, 240)
+      } catch {
+        /* use raw snippet */
+      }
+      throw new Error(`metals provider returned ${response.status}${detail ? `: ${detail}` : ''}`)
+    }
+    let payload
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      throw new Error('metals provider returned non-JSON body')
+    }
+    if (payload && typeof payload === 'object' && String(payload.status || '').toLowerCase() === 'failure') {
+      throw new Error(String(payload.message || payload.error || 'metals.dev returned failure status'))
+    }
     const normalized = normalizeMetalPayload(payload, currency, unit)
     const hasAny = Object.values(normalized.metals || {}).some((n) => Number(n) > 0)
     if (!hasAny) throw new Error('metals provider returned no usable prices')

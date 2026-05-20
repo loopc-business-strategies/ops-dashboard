@@ -91,7 +91,7 @@ The MG/CG/LoopC ERP dashboard **spot metals** widget calls `GET /api/erp-account
 2. Railway → your **backend** service → **Variables** → **New Variable** → name `METALS_DEV_API_KEY` → paste the key → **Deploy** (or wait for auto-redeploy).
 3. Confirm logs: on production boot you should **not** see the warning `ERP live spot metals: set METALS_DEV_API_KEY...`. Open the ERP dashboard spot widget — status should show **Live push (SSE)** or **Live (poll)** with `feedStatus: live`.
 
-Local development: add the same line to `backend/.env` (see `backend/.env.example`).
+Local development: add the same line to `backend/.env` (see `backend/.env.example`). The backend sends **only** the `api_key` query parameter (no `Authorization: Bearer` header), which matches the [official examples](https://www.metals.dev/docs) and avoids HTTP 400 from metals.dev.
 
 ```
 METALS_DEV_API_KEY=<your metals.dev API key>
