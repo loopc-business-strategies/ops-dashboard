@@ -850,7 +850,7 @@ router.get('/reports/forex-gain-loss', protect, async (req, res) => {
     }
 
     const ttlMs = market.feedStatus === 'live'
-      ? Math.max(1500, Math.min(15000, Number(process.env.METALS_SPOT_CACHE_MS || 2200)))
+      ? Math.max(1000, Math.min(15000, Number(process.env.METALS_SPOT_CACHE_MS || 1500)))
       : Math.max(8000, Math.min(120000, Number(process.env.METALS_SPOT_FALLBACK_CACHE_MS || 20000)))
 
     const body = {
@@ -888,7 +888,7 @@ router.get('/reports/market-prices/stream', protect, async (req, res) => {
 
     const currency = String(req.query.currency || 'USD').trim().toUpperCase()
     const unit = String(req.query.unit || 'toz').trim().toLowerCase()
-    const pollMs = Math.max(400, Math.min(5000, Number(process.env.METALS_SPOT_SSE_POLL_MS || 900)))
+    const pollMs = Math.max(400, Math.min(5000, Number(process.env.METALS_SPOT_SSE_POLL_MS || 1000)))
 
     res.status(200)
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
@@ -897,7 +897,7 @@ router.get('/reports/market-prices/stream', protect, async (req, res) => {
     res.setHeader('X-Accel-Buffering', 'no')
     if (typeof res.flushHeaders === 'function') res.flushHeaders()
 
-    let lastSig = ''
+    let streamSeq = 0
     const writeEvent = (obj) => {
       res.write(`data: ${JSON.stringify(obj)}\n\n`)
     }
@@ -905,11 +905,12 @@ router.get('/reports/market-prices/stream', protect, async (req, res) => {
     const tick = async () => {
       try {
         const { body } = await buildMarketPricesBody({ currency, unit, cacheBypass: false })
-        const sig = `${body.feedStatus}|${body.warning || ''}|${JSON.stringify(body.metals || {})}`
-        if (sig !== lastSig) {
-          lastSig = sig
-          writeEvent(body)
-        }
+        streamSeq += 1
+        writeEvent({
+          ...body,
+          streamSeq,
+          streamAt: Date.now(),
+        })
       } catch (err) {
         writeEvent({ success: false, message: err.message || 'stream tick failed' })
       }

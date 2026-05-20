@@ -101,10 +101,12 @@ Optional tuning:
 
 ```
 METALS_MARKET_URL=https://api.metals.dev/v1/latest
-METALS_SPOT_CACHE_MS=2200
+METALS_SPOT_CACHE_MS=1500
 METALS_SPOT_FALLBACK_CACHE_MS=20000
-METALS_SPOT_SSE_POLL_MS=900
+METALS_SPOT_SSE_POLL_MS=1000
 ```
+
+Shorter `METALS_SPOT_CACHE_MS` / `METALS_SPOT_SSE_POLL_MS` refresh the UI more often but **increase calls** to metals.dev (mind the **free plan monthly request cap**).
 
 If you host a compatible JSON endpoint, set `METALS_MARKET_URL` to that URL; the backend will not require `METALS_DEV_API_KEY` when the default metals.dev host is not used.
 

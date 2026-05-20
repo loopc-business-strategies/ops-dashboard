@@ -225,6 +225,8 @@ function SpotMetalsLiveWidget() {
     warning: '',
     feedStatus: '',
     cached: false,
+    streamSeq: 0,
+    streamAt: null,
   })
   const [history, setHistory] = useState({})
   const [loading, setLoading] = useState(true)
@@ -273,16 +275,19 @@ function SpotMetalsLiveWidget() {
         warning: payload.warning || '',
         feedStatus: payload.feedStatus || '',
         cached: Boolean(payload.cached),
+        streamSeq: Number(payload.streamSeq || 0),
+        streamAt: payload.streamAt != null ? Number(payload.streamAt) : null,
       })
       setHistory((prev) => {
         const next = { ...prev }
+        const forceTape = Number(payload.streamSeq || 0) > 0
         Object.entries(metals).forEach(([metal, price]) => {
           const n = Number(price || 0)
           if (!Number.isFinite(n) || n <= 0) return
           const arr = next[metal] || []
           const last = arr[arr.length - 1]
-          if (Number(last) === n) return
-          next[metal] = [...arr, n].slice(-48)
+          if (!forceTape && Number(last) === n) return
+          next[metal] = [...arr, n].slice(-64)
         })
         return next
       })
@@ -374,14 +379,33 @@ function SpotMetalsLiveWidget() {
   }, [currency, unit])
 
   const live = String(market.feedStatus || '').toLowerCase() === 'live'
-  const money = (value) => `USD ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const spotDecimals = live ? 4 : 2
+  const money = (value) =>
+    `USD ${Number(value || 0).toLocaleString('en-US', {
+      minimumFractionDigits: spotDecimals,
+      maximumFractionDigits: spotDecimals,
+    })}`
 
   const spark = (values, stroke) => {
-    const data = values?.length > 1 ? values : [1, 1.004, 1.002, 1.006, 1.003, 1.007].map((m) => Number(values?.[0] || 1) * m)
+    const data = (values || []).filter((v) => Number.isFinite(v) && v > 0)
+    if (data.length === 0) {
+      return (
+        <svg width="88" height="36" viewBox="0 0 88 36" aria-hidden="true" style={{ flexShrink: 0 }}>
+          <line x1="4" y1="18" x2="84" y2="18" stroke="#cbd5e1" strokeWidth="1.2" strokeDasharray="4 3" strokeLinecap="round" />
+        </svg>
+      )
+    }
+    if (data.length === 1) {
+      return (
+        <svg width="88" height="36" viewBox="0 0 88 36" aria-hidden="true" style={{ flexShrink: 0 }}>
+          <line x1="4" y1="18" x2="84" y2="18" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      )
+    }
     const min = Math.min(...data)
     const max = Math.max(...data)
-    const range = max - min || 1
-    const points = data.map((v, index) => `${(index / (data.length - 1)) * 88},${30 - ((v - min) / range) * 20 + 4}`).join(' ')
+    const range = max - min || Math.max(Math.abs(max) * 0.0001, 1e-9)
+    const points = data.map((v, index) => `${(index / (data.length - 1)) * 88},${30 - ((v - min) / range) * 22 + 4}`).join(' ')
     return (
       <svg width="88" height="36" viewBox="0 0 88 36" aria-hidden="true" style={{ flexShrink: 0 }}>
         <polyline points={points} fill="none" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -425,7 +449,12 @@ function SpotMetalsLiveWidget() {
                   {live
                     ? (transport === 'sse' ? 'Live push (SSE)' : transport === 'poll' ? 'Live (poll)' : 'Connecting…')
                     : 'Fallback'}
-                  {market.updatedAt ? ` · ${new Date(market.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}
+                  {(() => {
+                    const t = market.streamAt != null ? new Date(market.streamAt) : market.updatedAt ? new Date(market.updatedAt) : null
+                    if (!t) return null
+                    return ` · ${t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+                  })()}
+                  {live && market.streamSeq ? ` · #${market.streamSeq}` : ''}
                 </>
               )}
             </p>
@@ -440,9 +469,9 @@ function SpotMetalsLiveWidget() {
         {SPOT_METAL_ROWS.map((metal) => {
           const rawPrice = Number(market.metals?.[metal.key] || 0)
           const values = history[metal.key] || (rawPrice > 0 ? [rawPrice] : [])
-          const prev = Number(values[values.length - 2] || values[0] || rawPrice)
-          const change = prev > 0 && rawPrice > 0 ? rawPrice - prev : 0
-          const changePct = prev > 0 && rawPrice > 0 ? (change / prev) * 100 : 0
+          const base = Number(values[0] || rawPrice)
+          const change = base > 0 && rawPrice > 0 ? rawPrice - base : 0
+          const changePct = base > 0 && rawPrice > 0 ? (change / base) * 100 : 0
           const tick = tickDir[metal.key]
           const up = change >= 0
           const stroke = tick === 'up' ? '#22c55e' : tick === 'down' ? '#ef4444' : up ? '#16a34a' : '#dc2626'
@@ -469,9 +498,9 @@ function SpotMetalsLiveWidget() {
                   <span style={{ fontSize: '0.78rem', color: '#0f172a', fontWeight: '800' }}>{metal.label}</span>
                   <span style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: '800' }}>{metal.symbol}</span>
                 </div>
-                <div style={{ marginTop: 2, fontSize: '0.6rem', color: '#64748b', fontWeight: '600' }}>1 troy oz mid</div>
+                <div style={{ marginTop: 2, fontSize: '0.6rem', color: '#64748b', fontWeight: '600' }}>1 troy oz mid · strip {values.length}×</div>
               </div>
-              {spark(values.length ? values : [rawPrice || 1], stroke)}
+              {spark(values.length ? values : [], stroke)}
               <div style={{ textAlign: 'right' }}>
                 <div
                   style={{
@@ -486,7 +515,9 @@ function SpotMetalsLiveWidget() {
                   {rawPrice > 0 ? money(rawPrice) : '—'}
                 </div>
                 <div style={{ color: stroke, fontSize: '0.64rem', fontWeight: '800', fontVariantNumeric: 'tabular-nums' }}>
-                  {rawPrice > 0 && prev > 0 ? `${up ? '+' : ''}${money(change)} · ${up ? '+' : ''}${changePct.toFixed(2)}%` : ' '}
+                  {rawPrice > 0 && base > 0 && values.length >= 2
+                    ? `${up ? '+' : ''}${money(change)} · ${up ? '+' : ''}${changePct.toFixed(3)}% strip`
+                    : ' '}
                 </div>
               </div>
             </div>
