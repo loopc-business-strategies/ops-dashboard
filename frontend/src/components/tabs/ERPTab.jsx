@@ -5782,7 +5782,24 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                 const rawCols = dashWidgetCols[wid] ?? meta.cols
                 const span = Math.min(Math.max(Number(rawCols) || 1, 1), 3)
                 const isHovered = dashHoveredWid === wid
-                const edgeToEdge = wid === 'margins' || wid === 'apar'
+                const edgeToEdge = wid === 'margins' || wid === 'apar' || wid === 'fixing'
+                const widgetOptions = wid === 'fixing'
+                  ? {
+                    fixingRegister: {
+                      filter: fixingRegFilter,
+                      setFilter: setFixingRegFilter,
+                      metalOptions: fixingRegisterStockTypeOptions,
+                      results: fixingRegResults,
+                      opening: fixingRegOpening,
+                      loading: fixingRegLoading,
+                      error: fixingRegError,
+                      onRefresh: handleFixingRegProceed,
+                      formatQty: fixingRegFmtQty,
+                      formatRate: fixingRegFmtRate,
+                      formatAmount: fixingRegFmtAmt,
+                    },
+                  }
+                  : {}
                 return (
                   <div
                     key={wid}
@@ -5848,10 +5865,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                     {/* Widget body */}
                     {edgeToEdge
                       ? <div style={{ fontSize: '0.82rem', color: C.inkSoft }}>
-                          {renderERP_DashWidget(wid, dashboard, dashChatMessages, (tab) => setActiveTab(tab), onNavigateMain)}
+                          {renderERP_DashWidget(wid, dashboard, dashChatMessages, (tab) => setActiveTab(tab), onNavigateMain, widgetOptions)}
                         </div>
                       : <div style={{ padding: '12px 13px', fontSize: '0.82rem', color: C.inkSoft }}>
-                          {renderERP_DashWidget(wid, dashboard, dashChatMessages, (tab) => setActiveTab(tab), onNavigateMain)}
+                          {renderERP_DashWidget(wid, dashboard, dashChatMessages, (tab) => setActiveTab(tab), onNavigateMain, widgetOptions)}
                         </div>
                     }
                   </div>

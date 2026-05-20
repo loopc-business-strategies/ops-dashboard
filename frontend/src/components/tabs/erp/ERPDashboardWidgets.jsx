@@ -652,7 +652,277 @@ function APARWidget({ dashboard, onNavigate }) {
 }
 
 
-function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = null, onNavigateMain = null) {
+function FixingRegisterDashboardWidget({ fixingRegister, onNavigate, fallbackPositions = [] }) {
+  const filter = fixingRegister?.filter || {}
+  const setFilter = fixingRegister?.setFilter
+  const results = Array.isArray(fixingRegister?.results) ? fixingRegister.results : []
+  const opening = fixingRegister?.opening || { qtyOz: 0, value: 0 }
+  const loading = Boolean(fixingRegister?.loading)
+  const error = fixingRegister?.error || ''
+  const options = Array.isArray(fixingRegister?.metalOptions) ? fixingRegister.metalOptions : []
+  const refresh = fixingRegister?.onRefresh
+  const fmtQty = fixingRegister?.formatQty || ((value) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 4 }))
+  const fmtRate = fixingRegister?.formatRate || ((value) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }))
+  const fmtAmt = fixingRegister?.formatAmount || ((value) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+  const qUnit = filter.quantityUnit || 'GOZ'
+  const rUnit = filter.rateUnit || 'GOZ'
+  const metalCodeLabel = String(filter.metalType || '').split('::')[0].toUpperCase() || 'ALL'
+  const hasRegisterState = Boolean(fixingRegister)
+
+  const updateFilter = (patch) => {
+    if (!setFilter) return
+    setFilter((prev) => ({ ...prev, ...patch }))
+  }
+  const isQtyImpactRow = (row) => String(row?.fixingMode || '').trim().toLowerCase() !== 'unfixing'
+  const totalBuyOz = results.filter((r) => r.direction === 'buy' && isQtyImpactRow(r)).reduce((s, r) => s + Number(r.qty || 0), 0)
+  const totalSellOz = results.filter((r) => r.direction === 'sell' && isQtyImpactRow(r)).reduce((s, r) => s + Number(r.qty || 0), 0)
+  const netOz = totalBuyOz - totalSellOz
+  const openingQtyOz = filter.excludeOpeningBalance ? 0 : Number(opening.qtyOz || 0)
+  const openingValue = filter.excludeOpeningBalance ? 0 : Number(opening.value || 0)
+  const getRowSignedValue = (row) => {
+    const amount = Number(row?.amount || 0)
+    if (String(row?.fixingMode || '').trim().toLowerCase() === 'unfixing') return amount
+    return String(row?.direction || '').toLowerCase() === 'buy' ? amount : -amount
+  }
+  const txnNetValue = results.reduce((sum, row) => sum + getRowSignedValue(row), 0)
+  const closingQtyOz = openingQtyOz + netOz
+  const closingValue = openingValue + txnNetValue
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '-'
+  const fmtSignedAmt = (v) => {
+    const n = Number(v || 0)
+    const abs = fmtAmt(Math.abs(n))
+    return n < 0 ? `(${abs})` : abs
+  }
+  const fmtSignedQty = (v) => {
+    const n = Number(v || 0)
+    const abs = fmtQty(Math.abs(n), qUnit)
+    return n < 0 ? `(${abs})` : abs
+  }
+  const fmtSignedRate = (v) => {
+    const n = Number(v || 0)
+    const abs = fmtRate(Math.abs(n), rUnit)
+    return n < 0 ? `(${abs})` : abs
+  }
+  const fallbackTotal = fallbackPositions.reduce((s, p) => s + Number(p.amount || 0), 0)
+  const fieldStyle = {
+    width: '100%',
+    minHeight: 38,
+    padding: '0.45rem 0.65rem',
+    border: '1px solid #CBD5E1',
+    borderRadius: '0.35rem',
+    background: '#FFFFFF',
+    color: '#1E293B',
+    fontSize: '0.78rem',
+    boxSizing: 'border-box',
+  }
+  const labelStyle = { display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.68rem', fontWeight: '700' }
+  const head1 = { padding: '0.34rem 0.48rem', border: '1px solid #A7ADB7', background: '#F0CF8D', color: '#263241', fontSize: '0.68rem', fontWeight: '800', textTransform: 'uppercase', whiteSpace: 'nowrap' }
+  const head2 = { ...head1, padding: '0.25rem 0.48rem', background: '#F7E5BD', fontSize: '0.66rem' }
+  const cell = { padding: '0.35rem 0.5rem', border: '1px solid #D5DAE2', color: '#1F2937', background: '#FFFFFF' }
+  const numCell = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '600' }
+  let runningQtyOz = openingQtyOz
+  let runningAmount = openingValue
+
+  return (
+    <div style={{ background: '#FFFFFF' }}>
+      <div style={{ padding: '0.9rem', borderBottom: '1px solid #E5E7EB' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', gap: '0.75rem', alignItems: 'end' }}>
+          <label style={labelStyle}>
+            Metal
+            <select value={filter.metalType || ''} onChange={(e) => updateFilter({ metalType: e.target.value })} style={fieldStyle} disabled={!hasRegisterState}>
+              {options.length ? options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>) : <option value="">All Metals</option>}
+            </select>
+          </label>
+          <label style={labelStyle}>
+            Quantity Unit
+            <select value={qUnit} onChange={(e) => updateFilter({ quantityUnit: e.target.value })} style={fieldStyle} disabled={!hasRegisterState}>
+              <option value="GOZ">GOZ - Troy Oz</option>
+              <option value="GRAM">GRAM</option>
+              <option value="KG">KG</option>
+              <option value="TOLA">TOLA</option>
+            </select>
+          </label>
+          <label style={labelStyle}>
+            Rate Unit
+            <select value={rUnit} onChange={(e) => updateFilter({ rateUnit: e.target.value })} style={fieldStyle} disabled={!hasRegisterState}>
+              <option value="GOZ">GOZ - per Troy Oz</option>
+              <option value="GRAM">GRAM</option>
+              <option value="KG">KG</option>
+              <option value="TOLA">TOLA</option>
+            </select>
+          </label>
+          <label style={labelStyle}>
+            From Date
+            <input type="date" value={filter.fromDate || ''} onChange={(e) => updateFilter({ fromDate: e.target.value })} style={fieldStyle} disabled={!hasRegisterState} />
+          </label>
+          <label style={labelStyle}>
+            To Date
+            <input type="date" value={filter.toDate || ''} onChange={(e) => updateFilter({ toDate: e.target.value })} style={fieldStyle} disabled={!hasRegisterState} />
+          </label>
+        </div>
+        <div style={{ marginTop: '0.7rem', display: 'grid', gridTemplateColumns: 'minmax(160px, 0.9fr) minmax(150px, 0.7fr) 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
+          <label style={labelStyle}>
+            Order By
+            <select value={filter.orderBy || 'voucherNo'} onChange={(e) => updateFilter({ orderBy: e.target.value })} style={fieldStyle} disabled={!hasRegisterState}>
+              <option value="voucherNo">Voucher Number</option>
+              <option value="docDate">Doc Date</option>
+              <option value="valueDate">Value Date</option>
+            </select>
+          </label>
+          <label style={labelStyle}>
+            Group By
+            <select value={filter.groupBy || 'none'} onChange={(e) => updateFilter({ groupBy: e.target.value })} style={fieldStyle} disabled={!hasRegisterState}>
+              <option value="none">- None -</option>
+              <option value="customer">Customer</option>
+              <option value="branch">Branch</option>
+              <option value="valuedate">Value Date</option>
+            </select>
+          </label>
+          <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center', flexWrap: 'wrap', paddingBottom: '0.45rem' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#059669', fontSize: '0.78rem', fontWeight: '700' }}>
+              <input type="radio" name="dashFixingPartyFilter" checked={(filter.partyFilter || 'all') === 'all'} onChange={() => updateFilter({ partyFilter: 'all' })} disabled={!hasRegisterState} />
+              All
+            </label>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#475569', fontSize: '0.78rem' }}>
+              <input type="radio" name="dashFixingPartyFilter" checked={filter.partyFilter === 'selected'} onChange={() => updateFilter({ partyFilter: 'selected' })} disabled={!hasRegisterState} />
+              Selected
+            </label>
+          </div>
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={!refresh || loading}
+            style={{ minHeight: 38, padding: '0.45rem 0.9rem', borderRadius: '0.35rem', border: '1px solid #7DD3C7', background: loading ? '#CCFBF1' : '#ECFDF5', color: '#0F766E', fontWeight: '800', fontSize: '0.78rem', cursor: refresh && !loading ? 'pointer' : 'default' }}
+          >
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
+        <div style={{ marginTop: '0.7rem', display: 'flex', gap: '1.1rem', alignItems: 'center', flexWrap: 'wrap', color: '#64748B', fontSize: '0.76rem' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#334155' }}>
+            <input type="checkbox" checked={Boolean(filter.excludeOpeningBalance)} onChange={(e) => updateFilter({ excludeOpeningBalance: e.target.checked })} disabled={!hasRegisterState} />
+            Exclude Opening Balance
+          </label>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#334155' }}>
+            <input type="checkbox" checked={Boolean(filter.excludeFutures)} onChange={(e) => updateFilter({ excludeFutures: e.target.checked })} disabled={!hasRegisterState} />
+            Exclude Futures
+          </label>
+          <span>Unfixing rows affect USD amount balance only; XAU position balance is unchanged.</span>
+        </div>
+        {error && <div style={{ marginTop: '0.7rem', padding: '0.5rem 0.65rem', borderRadius: '0.35rem', background: '#FEE2E2', color: '#991B1B', fontSize: '0.78rem', fontWeight: '600' }}>{error}</div>}
+      </div>
+
+      <div style={{ padding: '0.9rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '0.8rem' }}>
+          {[
+            { label: 'Total Buy', value: `${fmtQty(totalBuyOz, qUnit)} ${qUnit}`, bg: '#DCFCE7', color: '#15803D' },
+            { label: 'Total Sell', value: `${fmtQty(totalSellOz, qUnit)} ${qUnit}`, bg: '#FEE2E2', color: '#DC2626' },
+            { label: 'Net Position', value: `${netOz >= 0 ? '+' : '-'}${fmtQty(Math.abs(netOz), qUnit)} ${qUnit}`, bg: '#DBEAFE', color: netOz >= 0 ? '#1D4ED8' : '#B45309' },
+            { label: 'Records', value: String(results.length), bg: '#F3F4F6', color: '#111827' },
+          ].map((card) => (
+            <div key={card.label} style={{ padding: '0.65rem 0.75rem', borderRadius: '0.45rem', background: card.bg, minWidth: 0 }}>
+              <div style={{ fontSize: '0.65rem', color: '#64748B', fontWeight: '800', textTransform: 'uppercase', marginBottom: '0.25rem' }}>{card.label}</div>
+              <div style={{ color: card.color, fontSize: '1rem', fontWeight: '900', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ overflow: 'auto', border: '1px solid #9AA4B2', borderRadius: '0.25rem', maxHeight: '360px', background: '#FFFFFF' }}>
+          <table style={{ width: '100%', minWidth: '1120px', borderCollapse: 'collapse', fontSize: '0.76rem', fontVariantNumeric: 'tabular-nums' }}>
+            <thead>
+              <tr>
+                <th rowSpan={2} style={{ ...head1, textAlign: 'right' }}>#</th>
+                <th rowSpan={2} style={{ ...head1, textAlign: 'left' }}>Doc Date</th>
+                <th rowSpan={2} style={{ ...head1, textAlign: 'left' }}>Val Date</th>
+                <th rowSpan={2} style={{ ...head1, textAlign: 'left' }}>Doc No</th>
+                <th rowSpan={2} style={{ ...head1, textAlign: 'left' }}>Description</th>
+                <th colSpan={3} style={{ ...head1, textAlign: 'center' }}>{`${metalCodeLabel} (${qUnit})`}</th>
+                <th colSpan={3} style={{ ...head1, textAlign: 'center' }}>Amount (USD)</th>
+                <th rowSpan={2} style={{ ...head1, textAlign: 'right' }}>Average</th>
+              </tr>
+              <tr>
+                <th style={{ ...head2, textAlign: 'right' }}>In</th>
+                <th style={{ ...head2, textAlign: 'right' }}>Out</th>
+                <th style={{ ...head2, textAlign: 'right' }}>Balance</th>
+                <th style={{ ...head2, textAlign: 'right' }}>{`Rate (${rUnit})`}</th>
+                <th style={{ ...head2, textAlign: 'right' }}>Value</th>
+                <th style={{ ...head2, textAlign: 'right' }}>Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ ...cell, textAlign: 'right', color: '#64748B' }}>-</td>
+                <td style={cell}>-</td>
+                <td style={cell}>-</td>
+                <td style={{ ...cell, fontWeight: '800' }}>Opening C/F</td>
+                <td style={cell}>Opening Carry Forward</td>
+                <td style={numCell}>-</td>
+                <td style={numCell}>-</td>
+                <td style={numCell}>{fmtSignedQty(openingQtyOz)}</td>
+                <td style={numCell}>-</td>
+                <td style={numCell}>-</td>
+                <td style={numCell}>{fmtSignedAmt(openingValue)}</td>
+                <td style={numCell}>{runningQtyOz !== 0 ? fmtSignedRate(runningAmount / runningQtyOz) : '-'}</td>
+              </tr>
+              {results.slice(0, 8).map((row, idx) => {
+                const qtyOz = Number(row.qty || 0)
+                const isBuy = String(row.direction || '').toLowerCase() === 'buy'
+                const signedQtyOz = isQtyImpactRow(row) ? (isBuy ? qtyOz : -qtyOz) : 0
+                const signedValue = getRowSignedValue(row)
+                runningQtyOz += signedQtyOz
+                runningAmount += signedValue
+                const avgRate = runningQtyOz !== 0 ? runningAmount / runningQtyOz : null
+                return (
+                  <tr key={row.rowId || `${row.voucherNo}-${idx}`} style={{ background: idx % 2 === 0 ? '#FFFFFF' : '#FCFAF4' }}>
+                    <td style={{ ...cell, textAlign: 'right', color: '#64748B' }}>{idx + 1}</td>
+                    <td style={cell}>{fmtDate(row.docDate)}</td>
+                    <td style={cell}>{fmtDate(row.valueDate)}</td>
+                    <td style={{ ...cell, fontWeight: '800' }}>{row.voucherNo || '-'}</td>
+                    <td style={{ ...cell, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.remarks || `${row.sourceType || ''} ${row.customerName || ''}`.trim() || '-'}</td>
+                    <td style={numCell}>{isBuy && qtyOz > 0 ? fmtQty(qtyOz, qUnit) : '-'}</td>
+                    <td style={numCell}>{!isBuy && qtyOz > 0 ? fmtQty(qtyOz, qUnit) : '-'}</td>
+                    <td style={numCell}>{fmtSignedQty(runningQtyOz)}</td>
+                    <td style={numCell}>{fmtRate(Number(row.price || 0), rUnit)}</td>
+                    <td style={numCell}>{fmtSignedAmt(signedValue)}</td>
+                    <td style={numCell}>{fmtSignedAmt(runningAmount)}</td>
+                    <td style={numCell}>{avgRate === null ? '-' : fmtSignedRate(avgRate)}</td>
+                  </tr>
+                )
+              })}
+              <tr style={{ background: '#FFF7E6' }}>
+                <td style={{ ...cell, textAlign: 'right', color: '#B45309', fontWeight: '800' }}>-</td>
+                <td style={{ ...cell, color: '#B45309', fontWeight: '800' }}>-</td>
+                <td style={{ ...cell, color: '#B45309', fontWeight: '800' }}>-</td>
+                <td style={{ ...cell, color: '#B45309', fontWeight: '800' }}>Closing C/F</td>
+                <td style={{ ...cell, color: '#B45309', fontWeight: '800' }}>Closing Carry Forward</td>
+                <td style={{ ...numCell, color: '#B45309' }}>{fmtQty(totalBuyOz, qUnit)}</td>
+                <td style={{ ...numCell, color: '#B45309' }}>{fmtQty(totalSellOz, qUnit)}</td>
+                <td style={{ ...numCell, color: '#B45309' }}>{fmtSignedQty(closingQtyOz)}</td>
+                <td style={{ ...numCell, color: '#B45309' }}>-</td>
+                <td style={{ ...numCell, color: '#B45309' }}>{fmtSignedAmt(txnNetValue)}</td>
+                <td style={{ ...numCell, color: '#B45309' }}>{fmtSignedAmt(closingValue)}</td>
+                <td style={{ ...numCell, color: '#B45309' }}>{closingQtyOz !== 0 ? fmtSignedRate(closingValue / closingQtyOz) : '-'}</td>
+              </tr>
+              {!results.length && (
+                <tr>
+                  <td colSpan={12} style={{ padding: '1rem', textAlign: 'center', color: '#94A3B8', border: '1px solid #D5DAE2' }}>
+                    {hasRegisterState ? 'Click Refresh to load fixing register rows for the selected filters.' : `No fixing positions in period. Current exposure: ${fmtMoney(fallbackTotal)}`}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {onNavigate && (
+          <div style={{ marginTop: '0.65rem', textAlign: 'right' }}>
+            <button onClick={() => onNavigate('fixing-register')} style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '700', padding: 0, textDecoration: 'underline' }}>Open full register</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = null, onNavigateMain = null, options = {}) {
   const bdr = '1px solid #F0FDF4'
   const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: bdr, fontSize: '0.82rem' }
   const muted = '#6B7280'
@@ -882,46 +1152,9 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
       return <div style={widgetContainerStyle}><APARWidget dashboard={dashboard} onNavigate={onNavigate} /></div>
 
     case 'fixing': {
-      const positions = dashboard?.fixingPositions || []
-      const METALS_DEF = ['Gold', 'Silver', 'Platinum']
-      const totalAmt = positions.reduce((s, p) => s + Number(p.amount || 0), 0)
-      const byMetal = METALS_DEF.map(m => {
-        const p = positions.find(p => p.metal === m)
-        return { metal: m, oz: Number(p?.qty || 0), usd: Number(p?.amount || 0), color: METAL_COLORS[m] || '#9CA3AF' }
-      })
-      // Custom onNavigate handler for Fixing Position Summary "View" button
-      const handleViewRegister = () => {
-        if (onNavigate) {
-          onNavigate('fixing-register')
-        }
-      }
       return (
-        <div style={widgetContainerStyle}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.5rem', marginBottom: '0.75rem' }}>
-            {byMetal.map(f => (
-              <div key={f.metal} style={{ background: '#F9FAFB', borderRadius: '0.5rem', padding: '0.6rem', textAlign: 'center', border: '1px solid #F0FDF4' }}>
-                <p style={{ fontSize: '0.62rem', color: muted, marginBottom: '0.2rem' }}>{f.metal}</p>
-                <p style={{ fontSize: '0.88rem', fontWeight: '700', color: ink, margin: 0 }}>{f.oz.toLocaleString()} oz</p>
-                <p style={{ fontSize: '0.65rem', color: '#059669', fontWeight: '500', marginTop: '1px' }}>{fmtMoney(f.usd)}</p>
-                <div style={{ height: '4px', background: '#E8F5EF', borderRadius: '2px', marginTop: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: totalAmt > 0 ? `${(f.usd / totalAmt) * 100}%` : '0%', height: '100%', background: f.color, borderRadius: '2px' }} />
-                </div>
-              </div>
-            ))}
-          </div>
-          {positions.length > 0 ? (
-            <>
-              <p style={{ fontSize: '0.7rem', color: muted, marginBottom: '0.3rem' }}>Total fixing value exposure</p>
-              <div style={{ height: '7px', background: '#E8F5EF', borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: '100%', height: '100%', background: '#059669', borderRadius: '3px' }} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#9CA3AF', marginTop: '3px' }}>
-                <span>$0</span><span>{fmtMoney(totalAmt)}</span>
-              </div>
-            </>
-          ) : (
-            <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>No fixing positions in period.</p>
-          )}
+        <div style={{ ...widgetContainerStyle, padding: 0, overflow: 'hidden' }}>
+          <FixingRegisterDashboardWidget fixingRegister={options.fixingRegister} onNavigate={onNavigate} fallbackPositions={dashboard?.fixingPositions || []} />
         </div>
       )
     }

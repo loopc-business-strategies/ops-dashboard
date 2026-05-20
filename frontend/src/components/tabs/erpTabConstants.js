@@ -21,7 +21,7 @@ export const ERP_DASH_ALL_WIDGETS = [
   { id: 'expenses', label: 'Expenses', icon: '📋', color: '#fee2e2', desc: 'Expense breakdown by category', cols: 1 },
   { id: 'volume', label: 'Total Volume Traded', icon: '📦', color: '#e8f5ef', desc: 'Trade volume by metal type', cols: 1 },
   { id: 'apar', label: 'Accounts Payable & Receivable', icon: '⚖️', color: '#fef3c7', desc: 'Live AP / AR with outstanding breakdown', cols: 3, viewTab: 'apar' },
-  { id: 'fixing', label: 'Fixing Position Summary', icon: '📌', color: '#f0fdf4', desc: 'Open fixing positions by metal', cols: 2, viewTab: 'fixing-register' },
+  { id: 'fixing', label: 'Fixing Position Summary', icon: '📌', color: '#f0fdf4', desc: 'Open fixing positions by metal', cols: 3, viewTab: 'fixing-register' },
   { id: 'chat', label: 'Chat', icon: '💬', color: '#eff6ff', desc: 'Recent team messages', cols: 1, viewTab: 'chat' },
   { id: 'notif', label: 'Notifications & Alerts', icon: '🔔', color: '#fff7ed', desc: 'System alerts and reminders', cols: 1, viewTab: 'notif' },
 ]
