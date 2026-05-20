@@ -5,6 +5,8 @@ Multi-tenant operations and ERP platform for mg, cg, and loopc companies.
 ## Deployment Docs
 - Main deployment checklist: `DEPLOYMENT-CHECKLIST.md`
 - Release/version policy: `RELEASE-VERSIONING-POLICY.md`
+
+**Normal releases:** With the repo connected to **Vercel** and **Railway**, pushing to **`main`** is enough—both platforms pick up the commit automatically. You do not need local `npx vercel` or `railway` for day-to-day deploys. Use those CLIs only for manual redeploys or when setting up CI with `VERCEL_TOKEN` / a fresh `railway login`; headless environments (e.g. some agent sandboxes) often lack OAuth, which is why CLI deploy can fail there even when GitHub integrations succeed.
 - Live ERP spot metals (Railway): `METALS_DEV_API_KEY`, or `FRED_API_KEY` / `ALPHA_VANTAGE_API_KEY` as fallbacks; optional **`METALS_SPOT_MOCK_REALTIME=true`** for synthetic SSE ticks in dev — see `ENV-VARS-QUICK-REFERENCE.md`
 
 ## GitHub Actions Setup (One-Shot)
