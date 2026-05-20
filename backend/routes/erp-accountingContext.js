@@ -2305,6 +2305,8 @@ function registerErpAccountingRoutes(router) {
     Ledger,
     Transaction,
     ChartOfAccount,
+    getLatestMetalRate,
+    DEFAULT_METAL_RATES,
     canAccessVendors,
     canManageVendors,
     canUpdateVendorOperational,

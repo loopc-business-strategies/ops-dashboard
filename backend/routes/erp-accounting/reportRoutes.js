@@ -1407,16 +1407,52 @@ router.get('/reports/dashboard', protect, async (req, res) => {
       }
     }))
 
+    const vendorIdsForMargin = vendors.map((v) => v._id).filter(Boolean)
+    const supplierMetalTxs = vendorIdsForMargin.length && Transaction
+      ? await Transaction.find({
+          vendorId: { $in: vendorIdsForMargin },
+          type: { $in: ['sale', 'purchase'] },
+          status: 'posted',
+          isDeleted: { $ne: true },
+        }).select('vendorId type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+      : []
+    const supplierMetalPositionMap = new Map()
+    ;(supplierMetalTxs || []).forEach((tx) => {
+      const vendorId = String(tx.vendorId || '')
+      if (!vendorId) return
+      const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
+      if (!isUnfixedFixingType(fixingType)) return
+      const position = supplierMetalPositionMap.get(vendorId) || { goldPosition: 0, silverPosition: 0 }
+      const sign = tx.type === 'purchase' ? 1 : -1
+      const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+      lines.forEach((line) => {
+        const pureWeight = Number(line?.pureWeight || 0)
+        if (!Number.isFinite(pureWeight) || pureWeight === 0) return
+        const stockCode = String(line?.stockCode || '').toUpperCase()
+        if (stockCode.includes('XAG') || stockCode.includes('SILV')) {
+          position.silverPosition += sign * pureWeight
+        } else {
+          position.goldPosition += sign * pureWeight
+        }
+      })
+      supplierMetalPositionMap.set(vendorId, position)
+    })
+
     const supplierMarginRows = await Promise.all(vendors.map(async (v) => {
       const outstanding = v.ledgerAccountId?._id
         ? Number(await getOutstandingForAccount(v.ledgerAccountId._id) || 0)
         : Number(v.outstanding || 0)
       const equity = v.ledgerAccountId?._id ? outstanding : -Math.abs(outstanding)
-      const base = Number(v.creditLimit || 0) > 0
-        ? Number(v.creditLimit || 0)
-        : Math.abs(Number(v.openingBalance || 0))
-      const marginPercent = base > 0 ? (Math.abs(equity) / base) * 100 : null
-      const status = equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL'
+      const rawPosition = supplierMetalPositionMap.get(String(v._id || '')) || { goldPosition: 0, silverPosition: 0 }
+      const goldPosition = roundPosition(rawPosition.goldPosition)
+      const silverPosition = roundPosition(rawPosition.silverPosition)
+      const marginMetrics = calculateMarginMetrics({
+        totalFunds: equity,
+        goldPosition,
+        silverPosition,
+        goldPrice: marginRates.goldPrice,
+        silverPrice: marginRates.silverPrice,
+      })
       return {
         id: v._id,
         supplierName: v.name,
@@ -1426,10 +1462,15 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         expenses: 0,
         cashInflow: 0,
         cashOutflow: 0,
-        netCashFlow: toMoney(equity),
-        equity: toMoney(equity),
-        status,
-        marginPercent: marginPercent === null ? null : toMoney(marginPercent),
+        netCashFlow: marginMetrics.equity,
+        equity: marginMetrics.equity,
+        status: marginMetrics.status,
+        marginPercent: marginMetrics.marginPercent,
+        goldPosition,
+        silverPosition,
+        marginAmount: marginMetrics.margin,
+        marginExcess: marginMetrics.excess,
+        marginRevaluation: marginMetrics.revaluation,
       }
     }))
 

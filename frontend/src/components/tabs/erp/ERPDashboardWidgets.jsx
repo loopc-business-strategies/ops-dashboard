@@ -8,6 +8,18 @@ function fmtMoney(val, currency = '') {
   return currency ? `${currency} ${formatted}` : formatted
 }
 
+function fmtSigned(val) {
+  const n = Number(val || 0)
+  const formatted = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  if (n > 0) return `+${formatted}`
+  if (n < 0) return `-${formatted}`
+  return formatted
+}
+
+function fmtPosition(val) {
+  return Number(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })
+}
+
 function MarginsWidget({ dashboard, onNavigate }) {
   const [tab, setTab] = useState('customers')
   const [showModal, setShowModal] = useState(false)
@@ -24,14 +36,27 @@ function MarginsWidget({ dashboard, onNavigate }) {
 
   const mapMarginRow = (row, nameKey) => {
     const net = Number(row?.equity ?? row?.netCashFlow ?? 0)
-    const exp = Number(row?.expenses || 0)
+    const marginAmount = Number(row?.marginAmount || 0)
+    const excess = Number(row?.marginExcess ?? (net - marginAmount))
     const status = String(row?.status || (net > 0 ? 'POSITIVE' : net < 0 ? 'NEGATIVE' : 'NEUTRAL')).toUpperCase()
     const rawMargin = row?.marginPercent
-    const marginPercent = Number.isFinite(Number(rawMargin)) ? Number(rawMargin) : (exp > 0 ? (Math.abs(net) / exp) * 100 : null)
-    const equityAbs = Math.abs(net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    const equityFmt = net > 0 ? `+${equityAbs}` : net < 0 ? `-${equityAbs}` : equityAbs
+    const marginPercent = Number.isFinite(Number(rawMargin)) ? Number(rawMargin) : (marginAmount > 0 ? (Math.abs(net) / marginAmount) * 100 : 0)
+    const equityFmt = fmtSigned(net)
     const marginFmt = Number.isFinite(marginPercent) ? `${Number(marginPercent).toFixed(2)} %` : '—'
-    return { name: String(row?.[nameKey] || row?.name || '-'), equity: net, equityFmt, status, marginFmt, marginPercent }
+    return {
+      name: String(row?.[nameKey] || row?.name || '-'),
+      equity: net,
+      equityFmt,
+      status,
+      marginAmount,
+      marginAmountFmt: fmtMoney(marginAmount),
+      excess,
+      excessFmt: fmtSigned(excess),
+      goldPosition: Number(row?.goldPosition || 0),
+      silverPosition: Number(row?.silverPosition || 0),
+      marginFmt,
+      marginPercent,
+    }
   }
   const customers = rawCustomers.map((row) => mapMarginRow(row, 'customerName'))
   const suppliers = rawSuppliers.map((row) => mapMarginRow(row, 'supplierName'))
@@ -85,7 +110,11 @@ function MarginsWidget({ dashboard, onNavigate }) {
             : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                 <thead><tr style={{ borderBottom: '1px solid #F0FDF4' }}>
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left',   fontSize: '0.65rem', fontWeight: '700', color: muted }}>{tab === 'suppliers' ? 'Supplier' : 'Customer'}</th>
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Gold Position</th>
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Silver Position</th>
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Equity</th>
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Margin</th>
+                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Excess</th>
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontSize: '0.65rem', fontWeight: '700', color: muted }}>Status</th>
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Margin %</th>
                 </tr></thead>
@@ -93,7 +122,11 @@ function MarginsWidget({ dashboard, onNavigate }) {
                   {activeRows.map((c, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #F9FAFB' }}>
                       <td style={{ padding: '0.35rem 0.4rem', fontWeight: '500', color: ink }}>{c.name}</td>
+                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '600', color: Number(c.goldPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{fmtPosition(c.goldPosition)}</td>
+                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '600', color: Number(c.silverPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{fmtPosition(c.silverPosition)}</td>
                       <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: c.equity > 0 ? '#16A34A' : c.equity < 0 ? '#DC2626' : ink }}>{c.equityFmt}</td>
+                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.marginAmountFmt}</td>
+                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: c.excess < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.excessFmt}</td>
                       <td style={{ padding: '0.35rem 0.4rem', textAlign: 'center', fontWeight: '700', fontSize: '0.68rem', color: statusColor(c.status) }}>{c.status}</td>
                       <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', color: muted }}>{c.marginFmt}</td>
                     </tr>
@@ -129,7 +162,7 @@ function MarginsWidget({ dashboard, onNavigate }) {
               position: 'absolute',
               top: '50%', left: '50%',
               transform: `translate(calc(-50% + ${dragPos.x}px), calc(-50% + ${dragPos.y}px))`,
-              width: 'min(700px, 94vw)', maxHeight: '82vh',
+              width: 'min(1080px, 96vw)', maxHeight: '82vh',
               display: 'flex', flexDirection: 'column',
               background: '#FFFFFF',
               borderRadius: '0.7rem',
@@ -177,7 +210,11 @@ function MarginsWidget({ dashboard, onNavigate }) {
                     <thead>
                       <tr style={{ background: 'linear-gradient(180deg, #E9F3FF 0%, #D7E9FF 100%)', borderBottom: '1px solid #BFD0E5', position: 'sticky', top: 0, zIndex: 1 }}>
                         <th style={{ padding: '0.5rem 0.9rem', textAlign: 'left',   fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem' }}>{tab === 'suppliers' ? 'Supplier Name' : 'Customer Name'}</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Gold Position</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Silver Position</th>
                         <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Equity</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Margin</th>
+                        <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Excess</th>
                         <th style={{ padding: '0.5rem 0.9rem', textAlign: 'center', fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem' }}>Status</th>
                         <th style={{ padding: '0.5rem 0.9rem', textAlign: 'right',  fontWeight: '700', color: '#1E3A8A', fontSize: '0.78rem', fontFamily: 'Consolas, monospace' }}>Margin %</th>
                       </tr>
@@ -186,7 +223,11 @@ function MarginsWidget({ dashboard, onNavigate }) {
                       {modalRows.map((c, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid #EEF2F7', background: i % 2 === 0 ? '#FFFFFF' : '#FCFDFF' }}>
                           <td style={{ padding: '0.42rem 0.9rem', fontWeight: '600', color: c.equity < 0 ? '#DC2626' : '#1D4ED8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '220px' }}>{c.name}</td>
+                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: Number(c.goldPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{fmtPosition(c.goldPosition)}</td>
+                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: Number(c.silverPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{fmtPosition(c.silverPosition)}</td>
                           <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: c.equity > 0 ? '#16A34A' : c.equity < 0 ? '#DC2626' : ink, fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.equityFmt}</td>
+                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.marginAmountFmt}</td>
+                          <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: c.excess < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.excessFmt}</td>
                           <td style={{ padding: '0.42rem 0.9rem', textAlign: 'center', fontWeight: '700', fontSize: '0.75rem', color: statusColor(c.status) }}>{c.status}</td>
                           <td style={{ padding: '0.42rem 0.9rem', textAlign: 'right', fontWeight: '700', color: c.equity < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.marginFmt}</td>
                         </tr>

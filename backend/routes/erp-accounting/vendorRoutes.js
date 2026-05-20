@@ -42,6 +42,8 @@ function registerVendorRoutes(deps) {
     Ledger,
     Transaction,
     ChartOfAccount,
+    getLatestMetalRate,
+    DEFAULT_METAL_RATES,
     canAccessVendors,
     canManageVendors,
     canUpdateVendorOperational,
@@ -63,6 +65,27 @@ function registerVendorRoutes(deps) {
   } = deps
 
   const strictBody = validateBodyStrict || validateBody
+  const isUnfixedFixingType = (value) => {
+    const normalized = String(value || '').trim().toLowerCase()
+    return ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(normalized)
+  }
+  const roundPosition = (value) => Number(Number(value || 0).toFixed(6))
+  const calculateVendorMargin = ({ totalFunds, goldPosition, silverPosition, goldPrice, silverPrice }) => {
+    const funds = Number(totalFunds || 0)
+    const revaluation = (Number(goldPosition || 0) * Number(goldPrice || 0)) + (Number(silverPosition || 0) * Number(silverPrice || 0))
+    const margin = Math.abs(revaluation) * 0.02
+    const equity = funds + revaluation
+    const excess = equity - margin
+    const marginPercent = margin > 0 ? (Math.abs(funds) / margin) * 100 : 0
+    return {
+      revaluation: toMoney(revaluation),
+      margin: toMoney(margin),
+      equity: toMoney(equity),
+      excess: toMoney(excess),
+      marginPercent: toMoney(marginPercent),
+      status: equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL',
+    }
+  }
 
   router.get('/vendors', protect, async (req, res) => {
     try {
@@ -105,16 +128,81 @@ function registerVendorRoutes(deps) {
         Vendor.countDocuments(query),
       ])
 
-      const [summaries, paymentSchedules] = await Promise.all([
+      const vendorIds = vendors.map((vendor) => vendor._id).filter(Boolean)
+      const [summaries, paymentSchedules, latestRate, metalTxs] = await Promise.all([
         batchVendorSummaries(vendors),
         Promise.all(vendors.map((vendor) => buildVendorPaymentCalendar(vendor, { horizonDays: 45 }))),
+        typeof getLatestMetalRate === 'function' ? getLatestMetalRate() : Promise.resolve(null),
+        vendorIds.length && Transaction
+          ? Transaction.find({
+              vendorId: { $in: vendorIds },
+              type: { $in: ['sale', 'purchase'] },
+              status: 'posted',
+              isDeleted: { $ne: true },
+            }).select('vendorId type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+          : Promise.resolve([]),
       ])
+      const rates = latestRate
+        ? {
+            goldPrice: Number(latestRate.goldPrice || 0),
+            silverPrice: Number(latestRate.silverPrice || 0),
+          }
+        : DEFAULT_METAL_RATES || { goldPrice: 0, silverPrice: 0 }
+      const metalPositionMap = new Map()
+      ;(metalTxs || []).forEach((tx) => {
+        const vendorId = String(tx.vendorId || '')
+        if (!vendorId) return
+        const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
+        if (!isUnfixedFixingType(fixingType)) return
+        const position = metalPositionMap.get(vendorId) || { goldPosition: 0, silverPosition: 0 }
+        const sign = tx.type === 'purchase' ? 1 : -1
+        const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+        lines.forEach((line) => {
+          const pureWeight = Number(line?.pureWeight || 0)
+          if (!Number.isFinite(pureWeight) || pureWeight === 0) return
+          const stockCode = String(line?.stockCode || '').toUpperCase()
+          if (stockCode.includes('XAG') || stockCode.includes('SILV')) {
+            position.silverPosition += sign * pureWeight
+          } else {
+            position.goldPosition += sign * pureWeight
+          }
+        })
+        metalPositionMap.set(vendorId, position)
+      })
       const data = vendors.map((vendor, index) => ({
-        ...vendor.toObject(),
-        ...summaries[index],
-        nextDue: paymentSchedules[index]?.calendar?.[0] || null,
-        dueAlerts: paymentSchedules[index]?.alertCounts || { overdue: 0, due_soon: 0, upcoming: 0, later: 0 },
-        dueAmount: paymentSchedules[index]?.totalDue || 0,
+        ...(() => {
+          const summary = summaries[index] || {}
+          const rawPosition = metalPositionMap.get(String(vendor._id || '')) || { goldPosition: 0, silverPosition: 0 }
+          const goldPosition = roundPosition(rawPosition.goldPosition)
+          const silverPosition = roundPosition(rawPosition.silverPosition)
+          const outstanding = Number(summary.outstanding ?? summary.outstandingBalance ?? 0)
+          const margin = calculateVendorMargin({
+            totalFunds: -Math.abs(outstanding),
+            goldPosition,
+            silverPosition,
+            goldPrice: rates.goldPrice,
+            silverPrice: rates.silverPrice,
+          })
+          return {
+            ...vendor.toObject(),
+            ...summary,
+            goldPosition,
+            silverPosition,
+            marginAmount: margin.margin,
+            marginExcess: margin.excess,
+            marginEquity: margin.equity,
+            marginPercent: margin.marginPercent,
+            marginStatus: margin.status,
+            marginRevaluation: margin.revaluation,
+            metalRates: {
+              goldPrice: Number(rates.goldPrice || 0),
+              silverPrice: Number(rates.silverPrice || 0),
+            },
+            nextDue: paymentSchedules[index]?.calendar?.[0] || null,
+            dueAlerts: paymentSchedules[index]?.alertCounts || { overdue: 0, due_soon: 0, upcoming: 0, later: 0 },
+            dueAmount: paymentSchedules[index]?.totalDue || 0,
+          }
+        })(),
       }))
 
       const totals = data.reduce((acc, row) => {
