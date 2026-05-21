@@ -1,3 +1,5 @@
+const { computeMarginMetricsRaw, shouldSuppressSpotMetalMtmForCustomerDashboard } = require('../../services/erpAccounting/metalMarginPolicy')
+
 function registerCustomerRoutes(deps) {
   const {
     router,
@@ -31,23 +33,23 @@ function registerCustomerRoutes(deps) {
 
   const roundPosition = (value) => Number(Number(value || 0).toFixed(6))
   const calculateCustomerMargin = ({ totalFunds, goldPosition, silverPosition, goldPrice, silverPrice, suppressMetalSpotMtm = false }) => {
-    const rawFunds = Number(totalFunds || 0)
-    const funds = rawFunds < 0 ? Math.abs(rawFunds) : rawFunds
-    const revaluation = suppressMetalSpotMtm
-      ? 0
-      : (Number(goldPosition || 0) * Number(goldPrice || 0)) + (Number(silverPosition || 0) * Number(silverPrice || 0))
-    const margin = Math.abs(revaluation) * 0.02
-    const equity = funds + revaluation
-    const excess = equity - margin
-    const marginPercent = margin > 0 ? (Math.abs(funds) / margin) * 100 : 0
+    const raw = computeMarginMetricsRaw({
+      totalFunds,
+      goldPosition,
+      silverPosition,
+      goldPrice,
+      silverPrice,
+      suppressMetalSpotMtm,
+      fundsMode: 'customerAbsIfNegative',
+    })
     return {
-      totalFunds: toMoney(funds),
-      revaluation: toMoney(revaluation),
-      margin: toMoney(margin),
-      equity: toMoney(equity),
-      excess: toMoney(excess),
-      marginPercent: toMoney(marginPercent),
-      status: equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL',
+      totalFunds: toMoney(raw.funds),
+      revaluation: toMoney(raw.revaluation),
+      margin: toMoney(raw.margin),
+      equity: toMoney(raw.equity),
+      excess: toMoney(raw.excess),
+      marginPercent: toMoney(raw.marginPercent),
+      status: raw.status,
     }
   }
 
@@ -136,7 +138,7 @@ function registerCustomerRoutes(deps) {
         const metalPosition = metalPositionMap.get(customerId) || { goldPosition: 0, silverPosition: 0 }
         const goldPosition = roundPosition(metalPosition.goldPosition)
         const silverPosition = roundPosition(metalPosition.silverPosition)
-        const suppressMetalSpotMtm = String(customer.ledgerAccountId?.accountType || '').toLowerCase() === 'liability'
+        const suppressMetalSpotMtm = shouldSuppressSpotMetalMtmForCustomerDashboard(customer.ledgerAccountId?.accountType)
         const margin = calculateCustomerMargin({
           totalFunds: net,
           goldPosition,

@@ -351,6 +351,7 @@ export default function ERPInventoryTab({
                   </div>
                 )
                 : (() => {
+                  const STOCK_MOVEMENTS_UI_CAP = 200
                   const filtered = stockMovementsFilter.trim()
                     ? stockMovements.filter(m =>
                         String(m.itemName || '').toLowerCase().includes(stockMovementsFilter.toLowerCase()) ||
@@ -358,7 +359,14 @@ export default function ERPInventoryTab({
                         String(m.actorName || '').toLowerCase().includes(stockMovementsFilter.toLowerCase())
                       )
                     : stockMovements
+                  const shown = filtered.slice(0, STOCK_MOVEMENTS_UI_CAP)
                   return (
+                    <div>
+                      {filtered.length > STOCK_MOVEMENTS_UI_CAP && (
+                        <p style={{ margin: '0 0 0.5rem', color: C.inkSoft, fontSize: '0.82rem' }}>
+                          Showing first {STOCK_MOVEMENTS_UI_CAP} of {filtered.length} movements (UI cap). Refine filter to narrow results.
+                        </p>
+                      )}
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                         <thead>
@@ -369,7 +377,7 @@ export default function ERPInventoryTab({
                           </tr>
                         </thead>
                         <tbody>
-                          {filtered.slice(0, 200).map((m, i) => {
+                          {shown.map((m, i) => {
                             const isIn = Number(m.change || 0) > 0
                             return (
                               <tr key={m._id || i} style={{ borderBottom: '1px solid #F1F5F9' }}>
@@ -393,7 +401,7 @@ export default function ERPInventoryTab({
                           })}
                         </tbody>
                       </table>
-                      {filtered.length > 200 && <p style={{ textAlign: 'center', color: C.inkSoft, fontSize: '0.8rem', marginTop: '0.5rem' }}>Showing 200 of {filtered.length} entries</p>}
+                    </div>
                     </div>
                   )
                 })()

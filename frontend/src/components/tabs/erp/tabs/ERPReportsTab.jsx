@@ -36,6 +36,18 @@ export default function ERPReportsTab({
   handleOpenVoucherSource,
   handleJumpToTransaction,
 }) {
+  const TRIAL_BALANCE_UI_ROW_CAP = 500
+  const DAY_BOOK_UI_ROW_CAP = 600
+
+  const trialBalanceFiltered = (reports.trialBalance?.trialBalance || []).filter((row) => {
+    const q = String(reportFilters.search || '').toLowerCase().trim()
+    if (!q) return true
+    return String(row.accountCode || '').toLowerCase().includes(q) || String(row.accountName || '').toLowerCase().includes(q)
+  })
+  const trialBalanceShown = trialBalanceFiltered.slice(0, TRIAL_BALANCE_UI_ROW_CAP)
+  const dayBookEntries = reports.dayBook?.entries || []
+  const dayBookShown = dayBookEntries.slice(0, DAY_BOOK_UI_ROW_CAP)
+
   return (
     <>
       {/* REPORTS TAB */}
@@ -163,6 +175,11 @@ export default function ERPReportsTab({
                 <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>Trial Balance Detailed</p>
                 <input placeholder="Search account code/name" value={reportFilters.search} onChange={(e) => setReportFilters((prev) => ({ ...prev, search: e.target.value }))} style={{ ...modalInputStyle, marginBottom: 0, width: '260px' }} />
               </div>
+              {trialBalanceFiltered.length > TRIAL_BALANCE_UI_ROW_CAP && (
+                <p style={{ margin: '0 0 0.5rem', color: C.inkSoft, fontSize: '0.82rem' }}>
+                  Showing first {TRIAL_BALANCE_UI_ROW_CAP} of {trialBalanceFiltered.length} matching rows (UI cap). Narrow search or export for the full set.
+                </p>
+              )}
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
                   <thead>
@@ -177,14 +194,7 @@ export default function ERPReportsTab({
                     </tr>
                   </thead>
                   <tbody>
-                    {(reports.trialBalance?.trialBalance || [])
-                      .filter((row) => {
-                        const q = String(reportFilters.search || '').toLowerCase().trim()
-                        if (!q) return true
-                        return String(row.accountCode || '').toLowerCase().includes(q) || String(row.accountName || '').toLowerCase().includes(q)
-                      })
-                      .slice(0, 500)
-                      .map((row) => (
+                    {trialBalanceShown.map((row) => (
                         <tr key={`${row.accountCode}-${row.accountType}`} style={{ borderBottom: `1px solid ${C.p2}` }}>
                           <td style={{ padding: '0.6rem', fontWeight: '700' }}>{row.accountCode}</td>
                           <td style={{ padding: '0.6rem' }}>{row.accountName}</td>
@@ -317,6 +327,11 @@ export default function ERPReportsTab({
               <p style={{ margin: '0 0 0.5rem', color: C.inkSoft, fontSize: '0.84rem' }}>
                 Total Entries: {reports.dayBook?.totals?.count || 0} | Debit: {Number(reports.dayBook?.totals?.debit || 0).toLocaleString()} | Credit: {Number(reports.dayBook?.totals?.credit || 0).toLocaleString()}
               </p>
+              {dayBookEntries.length > DAY_BOOK_UI_ROW_CAP && (
+                <p style={{ margin: '0 0 0.5rem', color: C.inkSoft, fontSize: '0.82rem' }}>
+                  Showing first {DAY_BOOK_UI_ROW_CAP} of {dayBookEntries.length} rows (UI cap). Export or narrow the report period for the full list.
+                </p>
+              )}
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                   <thead>
@@ -330,7 +345,7 @@ export default function ERPReportsTab({
                     </tr>
                   </thead>
                   <tbody>
-                    {(reports.dayBook?.entries || []).slice(0, 600).map((entry) => (
+                    {dayBookShown.map((entry) => (
                       <tr key={entry._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
                         <td style={{ padding: '0.5rem' }}>{new Date(entry.date).toLocaleString()}</td>
                         <td style={{ padding: '0.5rem', textTransform: 'capitalize' }}>{entry.referenceType}</td>

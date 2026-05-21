@@ -69,6 +69,7 @@ import {
   resolveStatementMetalBalance,
   resolveStatementMetalCode,
 } from './erp/statementHelpers'
+import { shouldSuppressSpotMetalMtmForAccountEnquiry } from './erp/metalMarginPolicy'
 import {
   JV_MODE_META,
   buildJvDocNo as buildNextJvDocNo,
@@ -867,18 +868,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const xagBalance = apiSilverBal !== 0 ? apiSilverBal : statementUnfixedMetalBalances.silver
   const modalTotalFunds = totalFunds
   // Vendor/creditor AP is booked in currency; spot × grams is a trading margin view and is misleading here.
-  const accountTypeLower = String(accountEnquiryData?.account?.accountType || '').trim().toLowerCase()
-  const acctName = String(accountEnquiryData?.account?.accountName || '')
-  const acctDesc = String(accountEnquiryData?.account?.description || '')
   const enquirySuppressMetalSpotMtm = Boolean(
-    accountEnquiryData
-      && accountTypeLower === 'liability'
-      && (
-        /\(creditor\)/i.test(acctName)
-        || /\bcreditor\b/i.test(acctName)
-        || /\bvendor\b/i.test(acctDesc)
-        || /payable account for vendor/i.test(`${acctName} ${acctDesc}`.toLowerCase())
-      ),
+    accountEnquiryData && shouldSuppressSpotMetalMtmForAccountEnquiry(accountEnquiryData.account),
   )
   const statementUnfixedVoucherRevaluationByMetal = statementEntries.reduce((acc, entry) => {
     if (resolveFixStatus(entry) !== 'unfixed') return acc

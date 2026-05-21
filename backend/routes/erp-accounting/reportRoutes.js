@@ -13,6 +13,10 @@ const {
   isMockRealtimeMetalsSpotEnabled,
   advanceMockMetals,
 } = require('../../services/metalSpotMockRealtime')
+const {
+  computeMarginMetricsRaw,
+  shouldSuppressSpotMetalMtmForCustomerDashboard,
+} = require('../../services/erpAccounting/metalMarginPolicy')
 
 function registerReportRoutes(deps) {
   const {
@@ -58,24 +62,24 @@ function registerReportRoutes(deps) {
     suppressMetalSpotMtm = false,
     revaluationOverride = null,
   }) => {
-    const funds = Number(totalFunds || 0)
-    const revaluation = revaluationOverride !== null && revaluationOverride !== undefined
-      ? Number(revaluationOverride || 0)
-      : suppressMetalSpotMtm
-      ? 0
-      : (Number(goldPosition || 0) * Number(goldPrice || 0)) + (Number(silverPosition || 0) * Number(silverPrice || 0))
-    const margin = Math.abs(revaluation) * 0.02
-    const equity = funds + revaluation
-    const excess = equity - margin
-    const marginPercent = margin > 0 ? (Math.abs(funds) / margin) * 100 : 0
+    const raw = computeMarginMetricsRaw({
+      totalFunds,
+      goldPosition,
+      silverPosition,
+      goldPrice,
+      silverPrice,
+      suppressMetalSpotMtm,
+      revaluationOverride,
+      fundsMode: 'asIs',
+    })
     return {
-      totalFunds: toMoney(funds),
-      revaluation: toMoney(revaluation),
-      margin: toMoney(margin),
-      equity: toMoney(equity),
-      excess: toMoney(excess),
-      marginPercent: toMoney(marginPercent),
-      status: equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL',
+      totalFunds: toMoney(raw.funds),
+      revaluation: toMoney(raw.revaluation),
+      margin: toMoney(raw.margin),
+      equity: toMoney(raw.equity),
+      excess: toMoney(raw.excess),
+      marginPercent: toMoney(raw.marginPercent),
+      status: raw.status,
     }
   }
 
@@ -1366,7 +1370,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         silverPosition,
         goldPrice: marginRates.goldPrice,
         silverPrice: marginRates.silverPrice,
-        suppressMetalSpotMtm: String(c.ledgerAccountId?.accountType || '').toLowerCase() === 'liability',
+        suppressMetalSpotMtm: shouldSuppressSpotMetalMtmForCustomerDashboard(c.ledgerAccountId?.accountType),
       })
 
       if (!c.ledgerAccountId?._id) {

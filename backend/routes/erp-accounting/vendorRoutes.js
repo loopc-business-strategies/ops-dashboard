@@ -6,6 +6,7 @@ const {
 } = require('../../services/vendorRegistryMaintenance')
 const fs = require('fs')
 const path = require('path')
+const { computeMarginMetricsRaw } = require('../../services/erpAccounting/metalMarginPolicy')
 
 const vendorDocumentParamSchema = Joi.object({
   id: Joi.string().hex().length(24).required(),
@@ -71,20 +72,22 @@ function registerVendorRoutes(deps) {
   }
   const roundPosition = (value) => Number(Number(value || 0).toFixed(6))
   const calculateVendorMargin = ({ totalFunds, goldPosition, silverPosition, goldPrice, silverPrice }) => {
-    const funds = Number(totalFunds || 0)
-    // Supplier AP is stated in currency; unfixed metal grams are operational only — do not add spot MTM here.
-    const revaluation = 0
-    const margin = Math.abs(revaluation) * 0.02
-    const equity = funds + revaluation
-    const excess = equity - margin
-    const marginPercent = margin > 0 ? (Math.abs(funds) / margin) * 100 : 0
+    const raw = computeMarginMetricsRaw({
+      totalFunds,
+      goldPosition,
+      silverPosition,
+      goldPrice,
+      silverPrice,
+      suppressMetalSpotMtm: true,
+      fundsMode: 'asIs',
+    })
     return {
-      revaluation: toMoney(revaluation),
-      margin: toMoney(margin),
-      equity: toMoney(equity),
-      excess: toMoney(excess),
-      marginPercent: toMoney(marginPercent),
-      status: equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL',
+      revaluation: toMoney(raw.revaluation),
+      margin: toMoney(raw.margin),
+      equity: toMoney(raw.equity),
+      excess: toMoney(raw.excess),
+      marginPercent: toMoney(raw.marginPercent),
+      status: raw.status,
     }
   }
 
