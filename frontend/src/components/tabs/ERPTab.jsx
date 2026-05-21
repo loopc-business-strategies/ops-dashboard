@@ -654,12 +654,19 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const silverPriceUSD = accountEnquiryData ? Number(accountEnquiryData.metals?.silverPrice || 0) : 0
   const totalFunds = accountEnquiryData ? Number(accountEnquiryData.balances?.netBalance || 0) : 0
   const modalStatementCurrency = 'USD'  // Trading platform uses USD
+  const rawUnfixedMetalDedupeKeys = new Set()
   const rawUnfixedStatementMetalHint = rawStatementEntries.reduce((acc, entry) => {
     if (resolveFixStatus(entry) !== 'unfixed') return acc
     const st = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
     if (!(entry.isMetalTrade || st === 'sale' || st === 'purchase')) return acc
     const w = Number(entry.metalSignedWeight || 0)
     if (!Number.isFinite(w) || w === 0) return acc
+    const tx = String(entry?.sourceTransactionId || '').trim()
+    if (tx) {
+      const dedupeKey = `${tx}:${Math.round(w * 1e6)}`
+      if (rawUnfixedMetalDedupeKeys.has(dedupeKey)) return acc
+      rawUnfixedMetalDedupeKeys.add(dedupeKey)
+    }
     const mc = resolveStatementMetalCode(entry)
     if (mc === 'XAG') acc.silver += w
     else if (mc && mc !== '-') acc.gold += w
@@ -806,7 +813,22 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (!row.metalFixStatus && entry?.metalFixStatus) row.metalFixStatus = entry.metalFixStatus
       if (!row.metalCode && entry?.metalCode) row.metalCode = entry.metalCode
       if (!row.isMetalTrade && entry?.isMetalTrade) row.isMetalTrade = entry.isMetalTrade
-      row.metalSignedWeight = Number(row.metalSignedWeight || 0) + Number(entry?.metalSignedWeight || 0)
+      // Multi-leg vouchers often repeat the same metalSignedWeight on each ledger line; sum would double grams.
+      const incomingMetalW = Number(entry?.metalSignedWeight || 0)
+      if (Number.isFinite(incomingMetalW) && incomingMetalW !== 0) {
+        const cur = Number(row.metalSignedWeight || 0)
+        if (!cur) {
+          row.metalSignedWeight = incomingMetalW
+        } else {
+          const maxAbs = Math.max(Math.abs(cur), Math.abs(incomingMetalW))
+          const sameWithinGram = maxAbs > 0 && (Math.abs(cur - incomingMetalW) / maxAbs) < 1e-5
+          if (sameWithinGram) {
+            // Duplicate weight on another leg for the same voucher — keep a single physical weight.
+          } else {
+            row.metalSignedWeight = cur + incomingMetalW
+          }
+        }
+      }
     })
 
     return orderedKeys.map((key) => {
