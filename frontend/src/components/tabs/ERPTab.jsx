@@ -857,11 +857,25 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const xauBalance = apiGoldBal !== 0 ? apiGoldBal : statementUnfixedMetalBalances.gold
   const xagBalance = apiSilverBal !== 0 ? apiSilverBal : statementUnfixedMetalBalances.silver
   const modalTotalFunds = totalFunds
-  const xauCurrentValue = xauBalance * goldPriceUSD
-  const xagCurrentValue = xagBalance * silverPriceUSD
+  // Vendor/creditor AP is booked in currency; spot × grams is a trading margin view and is misleading here.
+  const accountTypeLower = String(accountEnquiryData?.account?.accountType || '').trim().toLowerCase()
+  const acctName = String(accountEnquiryData?.account?.accountName || '')
+  const acctDesc = String(accountEnquiryData?.account?.description || '')
+  const enquirySuppressMetalSpotMtm = Boolean(
+    accountEnquiryData
+      && accountTypeLower === 'liability'
+      && (
+        /\(creditor\)/i.test(acctName)
+        || /\bcreditor\b/i.test(acctName)
+        || /\bvendor\b/i.test(acctDesc)
+        || /payable account for vendor/i.test(`${acctName} ${acctDesc}`.toLowerCase())
+      ),
+  )
+  const xauCurrentValue = enquirySuppressMetalSpotMtm ? 0 : xauBalance * goldPriceUSD
+  const xagCurrentValue = enquirySuppressMetalSpotMtm ? 0 : xagBalance * silverPriceUSD
   const modalRevaluation = xauCurrentValue + xagCurrentValue
   const modalMarginAmt = Math.abs(modalRevaluation) * 0.02
-  const breakEvenPrice = Math.abs(xauBalance) !== 0 ? Math.abs(totalFunds) / Math.abs(xauBalance) : 0
+  const breakEvenPrice = enquirySuppressMetalSpotMtm || Math.abs(xauBalance) === 0 ? 0 : Math.abs(totalFunds) / Math.abs(xauBalance)
   const modalPositionRows = accountEnquiryData ? [
     {
       key: 'xau',
@@ -879,7 +893,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       balance: xagBalance,
       price: silverPriceUSD,
       currentValue: xagCurrentValue,
-      breakEven: Math.abs(xagBalance) !== 0 ? Math.abs(totalFunds) / Math.abs(xagBalance) : 0,
+      breakEven: enquirySuppressMetalSpotMtm || Math.abs(xagBalance) === 0 ? 0 : Math.abs(totalFunds) / Math.abs(xagBalance),
     },
   ] : []
   const buildPureWeightRunningBalancesByEntryKey = (entries, selectedMetalCode) => {
@@ -8501,6 +8515,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                       </div>
                       <p style={{ margin: '0.45rem 0 0', color: '#6B7280', fontSize: '0.72rem', lineHeight: 1.45 }}>
                         Customer credit balances are treated as favorable in Customer Margin; supplier credit balances remain payable.
+                        {enquirySuppressMetalSpotMtm && (
+                          <span>
+                            {' '}
+                            For creditor/vendor payables, spot revaluation and position current value use booked currency only (grams remain for reference).
+                          </span>
+                        )}
                       </p>
                     </div>
 
