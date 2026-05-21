@@ -298,7 +298,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         { _id: { $in: referenceIds } },
       ],
     })
-      .select('_id journalEntryId type voucherMeta.vocNo voucherMeta.refNo voucherMeta.fixingType voucherMeta.lineItems.vatNumber voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration voucherMeta.lineItems.pureWeight voucherMeta.lineItems.grossWeight voucherMeta.lineItems.purity')
+      .select('_id journalEntryId type amount exchangeRate voucherMeta.grandTotal voucherMeta.vocNo voucherMeta.refNo voucherMeta.fixingType voucherMeta.lineItems.vatNumber voucherMeta.lineItems.stockCode voucherMeta.lineItems.productType voucherMeta.lineItems.narration voucherMeta.lineItems.pureWeight voucherMeta.lineItems.grossWeight voucherMeta.lineItems.purity')
       .lean()
 
     const transactionByLedgerId = new Map()
@@ -317,6 +317,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const metalCode = resolveMetalCodeFromLines(tx.voucherMeta?.lineItems)
       const hasVoucherLines = Array.isArray(tx.voucherMeta?.lineItems) && tx.voucherMeta.lineItems.length > 0
       const isMetalTrade = ['sale', 'purchase'].includes(txType) && Boolean(metalCode || hasVoucherLines)
+      const voucherAmount = Number(tx.amount || tx.voucherMeta?.grandTotal || 0) * Number(tx.exchangeRate || 1)
       const metalSignedWeight = (isMetalTrade && fixingStatus === 'unfixed')
         ? resolveSignedPureWeight(txType, tx.voucherMeta?.lineItems, metalCode)
         : 0
@@ -328,6 +329,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         metalCode,
         isMetalTrade,
         metalSignedWeight,
+        unfixedVoucherAmount: isMetalTrade && fixingStatus === 'unfixed' ? Number(voucherAmount.toFixed(2)) : 0,
       }
       if (tx.journalEntryId) transactionByLedgerId.set(String(tx.journalEntryId), txRef)
       transactionById.set(String(tx._id), txRef)
@@ -728,6 +730,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         metalCode: linkedTx?.metalCode || '',
         isMetalTrade: Boolean(linkedTx?.isMetalTrade),
         metalSignedWeight: Number(linkedTx?.metalSignedWeight || 0),
+        unfixedVoucherAmount: Number(linkedTx?.unfixedVoucherAmount || 0),
       }
       runningBalance -= signedAmount
       return row

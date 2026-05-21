@@ -793,6 +793,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           offsetAccountName: '',
           receiptNo,
           metalSignedWeight: 0,
+          unfixedVoucherAmount: 0,
         })
         orderedKeys.push(key)
       }
@@ -802,6 +803,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       row.creditAmount += Number(entry?.creditAmount || 0)
       row.signedAmount += Number(entry?.signedAmount || 0)
       row.statementRowIds = Array.from(new Set([...(row.statementRowIds || []), entry?._id].filter(Boolean)))
+      const incomingVoucherAmount = Number(entry?.unfixedVoucherAmount || 0)
+      if (Number.isFinite(incomingVoucherAmount) && Math.abs(incomingVoucherAmount) > Math.abs(Number(row.unfixedVoucherAmount || 0))) {
+        row.unfixedVoucherAmount = incomingVoucherAmount
+      }
 
       const entryType = String(entry?.referenceType || '').toLowerCase()
       if (entryType === dealSide || (!row.offsetAccountCode && entry?.offsetAccountCode)) {
@@ -836,6 +841,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       row.debitAmount = Number(row.debitAmount.toFixed(2))
       row.creditAmount = Number(row.creditAmount.toFixed(2))
       row.signedAmount = Number(row.signedAmount.toFixed(2))
+      row.unfixedVoucherAmount = Number(Number(row.unfixedVoucherAmount || 0).toFixed(2))
       return row
     })
   }
@@ -871,9 +877,37 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         || /payable account for vendor/i.test(`${acctName} ${acctDesc}`.toLowerCase())
       ),
   )
-  const xauCurrentValue = enquirySuppressMetalSpotMtm ? 0 : xauBalance * goldPriceUSD
-  const xagCurrentValue = enquirySuppressMetalSpotMtm ? 0 : xagBalance * silverPriceUSD
-  const modalRevaluation = xauCurrentValue + xagCurrentValue
+  const statementUnfixedVoucherRevaluationByMetal = statementEntries.reduce((acc, entry) => {
+    if (resolveFixStatus(entry) !== 'unfixed') return acc
+    const st = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
+    if (!(entry.isMetalTrade || st === 'sale' || st === 'purchase')) return acc
+    const voucherAmount = Math.abs(Number(entry.unfixedVoucherAmount || 0))
+    if (!Number.isFinite(voucherAmount) || voucherAmount <= 0) return acc
+    const postedAmount = Math.abs(Number(entry.signedAmount || entry.debitAmount || entry.creditAmount || 0))
+    const unpricedAmount = Number(Math.max(voucherAmount - postedAmount, 0).toFixed(2))
+    if (unpricedAmount <= 0) return acc
+    const exposureSign = Number(entry.signedAmount || 0) < 0 ? -1 : 1
+    const signedUnpricedAmount = unpricedAmount * exposureSign
+    const metalCode = resolveStatementMetalCode(entry)
+    if (metalCode === 'XAG') acc.silver += signedUnpricedAmount
+    else if (metalCode === 'XAU') acc.gold += signedUnpricedAmount
+    else acc.other += signedUnpricedAmount
+    return acc
+  }, { gold: 0, silver: 0, other: 0 })
+  const statementUnfixedVoucherRevaluation =
+    statementUnfixedVoucherRevaluationByMetal.gold
+    + statementUnfixedVoucherRevaluationByMetal.silver
+    + statementUnfixedVoucherRevaluationByMetal.other
+  const useVoucherRevaluation = Math.abs(statementUnfixedVoucherRevaluation) > 0.000001
+  const xauSpotValue = xauBalance * goldPriceUSD
+  const xagSpotValue = xagBalance * silverPriceUSD
+  const xauCurrentValue = useVoucherRevaluation
+    ? statementUnfixedVoucherRevaluationByMetal.gold
+    : (enquirySuppressMetalSpotMtm ? 0 : xauSpotValue)
+  const xagCurrentValue = useVoucherRevaluation
+    ? statementUnfixedVoucherRevaluationByMetal.silver
+    : (enquirySuppressMetalSpotMtm ? 0 : xagSpotValue)
+  const modalRevaluation = useVoucherRevaluation ? statementUnfixedVoucherRevaluation : (xauCurrentValue + xagCurrentValue)
   const modalMarginAmt = Math.abs(modalRevaluation) * 0.02
   const breakEvenPrice = enquirySuppressMetalSpotMtm || Math.abs(xauBalance) === 0 ? 0 : Math.abs(totalFunds) / Math.abs(xauBalance)
   const modalPositionRows = accountEnquiryData ? [
