@@ -55,6 +55,12 @@ export function resolveStatementMetalBalance(metals = {}, selectedMetalCode, ent
   }, 0)
 }
 
+export function normalizeStatementCurrencyCode(value = '') {
+  const code = String(value || '').trim().toUpperCase()
+  if (['SOM', 'SOMS', 'SUM'].includes(code)) return 'UZS'
+  return code
+}
+
 export function buildStatementCurrencyOptions({
   currencies = [],
   accountCurrency = '',
@@ -73,7 +79,7 @@ export function buildStatementCurrencyOptions({
   ]
 
   return Array.from(new Set(values
-    .map((value) => String(value || '').trim().toUpperCase())
+    .map((value) => normalizeStatementCurrencyCode(value))
     .filter(Boolean)))
 }
 

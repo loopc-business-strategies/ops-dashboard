@@ -62,6 +62,7 @@ import {
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
   calculateAccountSummaryMetrics,
+  normalizeStatementCurrencyCode,
   resolveExposureDirection,
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
@@ -689,7 +690,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     ? resolveMetalCodeFromStockName(statementFilters.metalCommodity)
     : defaultStatementMetalCode
   const statementSelectedMetalLabel = statementFilters.metalCommodity || (statementSelectedMetalCode === 'XAG' ? 'Silver' : statementSelectedMetalCode === 'OTHER' ? 'Other' : 'Gold')
-  const statementDisplayCurrency = String(
+  const statementDisplayCurrency = normalizeStatementCurrencyCode(
     statementFilters.showAmountIn
     || accountEnquiryData?.balances?.rateCurrency
     || accountEnquiryData?.account?.currency
@@ -980,8 +981,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (statementFilters.fixStatus === 'unknown' && fixStatus !== 'unknown') return false
     }
     if (statementFilters.foreignCurrency) {
-      const entryCurrency = String(entry.currency || '').toUpperCase().trim()
-      if (entryCurrency !== statementFilters.foreignCurrency.toUpperCase().trim()) return false
+      const entryCurrency = normalizeStatementCurrencyCode(entry.currency)
+      const selectedCurrency = normalizeStatementCurrencyCode(statementFilters.foreignCurrency)
+      if (entryCurrency !== selectedCurrency) return false
     }
     if (statementMetalCommodityEnabled && statementFilters.metalCommodity) {
       if (!matchesStatementMetal(entry, statementFilters.metalCommodity)) return false
@@ -5248,11 +5250,29 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         return entryHead === docNo
       })
       : [entry]
+    const entryMode = String(entry?.referenceType || '').toLowerCase() === 'bank_jv' ? 'bank_jv' : 'journal'
+    const docMatchedEntries = (docNo && hasDocPrefix)
+      ? ledger.filter((e) => String(e?.description || '').includes(docNo))
+      : relatedEntries
+    const reversedEntryIds = new Set(
+      docMatchedEntries
+        .filter((e) => String(e?.referenceType || '').toLowerCase() === 'reversal')
+        .map((e) => String(e?.referenceId || String(e?.description || '').match(/REVERSAL of Entry\s+([a-f0-9]{24})/i)?.[1] || '').trim())
+        .filter(Boolean)
+    )
+    const entryDateKey = entry?.date ? new Date(entry.date).toISOString().slice(0, 10) : ''
+    const editableEntries = docMatchedEntries.filter((e) => {
+      const refType = String(e?.referenceType || '').toLowerCase()
+      if (refType !== entryMode) return false
+      const rowDateKey = e?.date ? new Date(e.date).toISOString().slice(0, 10) : ''
+      if (entryDateKey && rowDateKey !== entryDateKey) return false
+      return !reversedEntryIds.has(String(e?._id || ''))
+    })
 
     // Reconstruct JV lines by grouping debit and credit sides by account
     const debitMap = new Map()
     const creditMap = new Map()
-    relatedEntries.forEach((e) => {
+    editableEntries.forEach((e) => {
       const drId = e.debitAccountId?._id
       const crId = e.creditAccountId?._id
       if (drId) {
@@ -5279,15 +5299,14 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       ...Array.from(creditMap.values()).map((c) => ({ id: id++, accountId: c.accountId, accountInput: c.accountInput, description: c.description, debit: '', credit: c.credit })),
     ]
 
-    const narration = relatedEntries[0].notes || ''
-    const entryMode = String(entry?.referenceType || '').toLowerCase() === 'bank_jv' ? 'bank_jv' : 'journal'
+    const narration = editableEntries[0]?.notes || ''
     const headerDocNo = (docNo && hasDocPrefix) ? docNo : `${resolveJvModeMeta(entryMode).prefix}-EDIT-${entry._id.slice(-6)}`
 
     setJvMode(entryMode)
-    setJvEditEntryIds(relatedEntries.map((e) => e._id))
+    setJvEditEntryIds(editableEntries.map((e) => e._id))
     setJvLines(lines)
     setNextJvLineId(id)
-    setJvHeader({ docNo: headerDocNo, date: new Date(relatedEntries[0].date).toISOString().slice(0, 10), narration, currency: relatedEntries[0].currency || baseCurrencyCode })
+    setJvHeader({ docNo: headerDocNo, date: new Date((editableEntries[0] || entry).date).toISOString().slice(0, 10), narration, currency: (editableEntries[0] || entry).currency || baseCurrencyCode })
     setJvModalOffset({ x: 0, y: 0 })
     setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
     setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })

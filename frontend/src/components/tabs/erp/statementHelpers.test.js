@@ -3,6 +3,7 @@ import {
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
   calculateAccountSummaryMetrics,
+  normalizeStatementCurrencyCode,
   resolveExposureDirection,
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
@@ -33,9 +34,10 @@ describe('statement helpers', () => {
     })
 
     expect(options[0]).toBe('ALL')
-    expect(options).toContain('SOMS')
     expect(options).toContain('USD')
     expect(options).toContain('UZS')
+    expect(options).not.toContain('SOMS')
+    expect(normalizeStatementCurrencyCode('SOMS')).toBe('UZS')
   })
 
   test('always includes standard and other metal choices', () => {
