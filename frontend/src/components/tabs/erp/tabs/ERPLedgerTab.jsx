@@ -51,7 +51,6 @@ export default function ERPLedgerTab({
   loadLedger,
   handleEditJv,
   handleEditLedger,
-  handleReconcileLedger,
   handleReverseLedger,
 }) {
   return (
@@ -426,9 +425,6 @@ export default function ERPLedgerTab({
                             <span style={{ background: '#DBEAFE', color: '#1E40AF', padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '700' }}>🏦 Bank JV</span>
                             {entry.autoTxNo && <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '0.15rem' }}>{entry.autoTxNo}</div>}
                             {entry.chequeNo && <div style={{ fontSize: '0.7rem', color: '#64748B' }}>Chq: {entry.chequeNo}</div>}
-                            <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.3rem', borderRadius: '0.25rem', background: entry.bankReconciled ? '#DCFCE7' : '#FEF3C7', color: entry.bankReconciled ? '#166534' : '#92400E', fontWeight: '600' }}>
-                              {entry.bankReconciled ? '✓ Reconciled' : '⏳ Unreconciled'}
-                            </span>
                           </div>
                         ) : entry.referenceType}
                       </td>
@@ -448,11 +444,6 @@ export default function ERPLedgerTab({
                           >
                             Edit
                           </button>
-                          {entry.referenceType === 'bank_jv' && (
-                            <button onClick={() => handleReconcileLedger(entry)} title={entry.bankReconciled ? 'Unreconcile' : 'Reconcile'} style={{ padding: '0.35rem 0.5rem', background: entry.bankReconciled ? '#92400E' : '#15803D', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>
-                              {entry.bankReconciled ? 'Unreconcile' : 'Reconcile'}
-                            </button>
-                          )}
                           {entry.attachmentUrl && (
                             <a href={`${(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')}${entry.attachmentUrl}`} target="_blank" rel="noreferrer" style={{ padding: '0.35rem 0.5rem', background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'none' }}>Slip</a>
                           )}
