@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'vitest'
 import {
   buildJvDocNo,
+  convertJvAmountBetweenCurrencies,
   createJvHeader,
   emptyJvLine,
+  normalizeJvCurrencyCode,
   resolveJvModeMeta,
 } from './journalVoucherHelpers'
 
@@ -44,5 +46,16 @@ describe('journal voucher helpers', () => {
       narration: '',
       currency: 'AED',
     })
+  })
+
+  test('normalizes SOMS aliases to UZS for JV currency conversion', () => {
+    const currencies = [
+      { code: 'USD', exchangeRate: 1 },
+      { code: 'UZS', exchangeRate: 0.000078 },
+    ]
+
+    expect(normalizeJvCurrencyCode('SOMS')).toBe('UZS')
+    expect(convertJvAmountBetweenCurrencies(100000, 'SOMS', 'USD', currencies, 'USD')).toBe(7.8)
+    expect(convertJvAmountBetweenCurrencies(7.8, 'USD', 'SOMS', currencies, 'USD')).toBe(100000)
   })
 })

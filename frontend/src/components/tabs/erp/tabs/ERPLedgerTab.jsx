@@ -202,8 +202,8 @@ export default function ERPLedgerTab({
                       <th style={{ padding: '0.45rem 0.5rem', textAlign: 'center', width: '36px', fontWeight: '600', fontSize: '0.75rem' }}>#</th>
                       <th style={{ padding: '0.45rem 0.6rem', textAlign: 'left', minWidth: '240px', fontWeight: '600', fontSize: '0.75rem' }}>Account</th>
                       <th style={{ padding: '0.45rem 0.6rem', textAlign: 'left', fontWeight: '600', fontSize: '0.75rem' }}>Description (optional)</th>
-                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', width: '160px', fontWeight: '600', fontSize: '0.75rem', color: '#93C5FD' }}>Debit ({baseCurrencyCode})</th>
-                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', width: '160px', fontWeight: '600', fontSize: '0.75rem', color: '#FCA5A5' }}>Credit ({baseCurrencyCode})</th>
+                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', width: '160px', fontWeight: '600', fontSize: '0.75rem', color: '#93C5FD' }}>Debit (Line Curr)</th>
+                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', width: '160px', fontWeight: '600', fontSize: '0.75rem', color: '#FCA5A5' }}>Credit (Line Curr)</th>
                       <th style={{ padding: '0.45rem 0.4rem', width: '36px' }}></th>
                     </tr>
                   </thead>

@@ -71,8 +71,10 @@ import {
 import {
   JV_MODE_META,
   buildJvDocNo as buildNextJvDocNo,
+  convertJvAmountBetweenCurrencies,
   createJvHeader as createNextJvHeader,
   emptyJvLine,
+  normalizeJvCurrencyCode,
   resolveJvModeMeta,
 } from './erp/journalVoucherHelpers'
 
@@ -1603,7 +1605,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const account = entryAccountOptions.find((item) => String(item?._id) === String(accountId || ''))
     if (!account) return baseCurrencyCode
 
-    const explicitCurrency = String(account.currency || account.currencyCode || '').trim().toUpperCase()
+    const explicitCurrency = normalizeJvCurrencyCode(account.currency || account.currencyCode || '')
     if (explicitCurrency) return explicitCurrency
 
     const hint = `${String(account.accountCode || '').toUpperCase()} ${String(account.accountName || '').toUpperCase()}`
@@ -1613,20 +1615,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   }
 
   const convertJvAmount = (amount, fromCurrency, toCurrency) => {
-    const value = Number(amount || 0)
-    if (!Number.isFinite(value)) return null
-    const from = String(fromCurrency || baseCurrencyCode).toUpperCase()
-    const to = String(toCurrency || baseCurrencyCode).toUpperCase()
-    if (from === to) return value
-
-    const fromRate = Number(currencies.find((currency) => String(currency.code || '').toUpperCase() === from)?.exchangeRate || 0)
-    const toRate = Number(currencies.find((currency) => String(currency.code || '').toUpperCase() === to)?.exchangeRate || 0)
-
-    const valueInBase = from === baseCurrencyCode ? value : (fromRate > 0 ? value * fromRate : NaN)
-    if (!Number.isFinite(valueInBase)) return null
-    const converted = to === baseCurrencyCode ? valueInBase : (toRate > 0 ? valueInBase / toRate : NaN)
-    if (!Number.isFinite(converted)) return null
-    return Number(converted.toFixed(2))
+    return convertJvAmountBetweenCurrencies(amount, fromCurrency, toCurrency, currencies, baseCurrencyCode)
   }
 
   useEffect(() => {
@@ -5143,7 +5132,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const activeLines = []
     let totalDebit = 0
     let totalCredit = 0
-    const isBankJV = jvMode === 'bank_jv'
 
     lines.forEach((line, index) => {
       const debit = Number(line.debit || 0)
@@ -5157,7 +5145,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
 
       let debitValue = debitRawValue
       let creditValue = creditRawValue
-      if (isBankJV && accountId) {
+      if (accountId) {
         const accountCurrency = inferJvAccountCurrency(accountId)
         if (debitRawValue > 0) {
           const normalizedDebit = convertJvAmount(debitRawValue, accountCurrency, baseCurrencyCode)
@@ -5179,7 +5167,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
 
       if (debitValue > 0 && creditValue > 0) {
         lineIssuesById[line.id] = `Row ${index + 1}: Only one side allowed per row`
-      } else if (hasTyped && !hasAmount && !(isBankJV && isExchangeLine(line))) {
+      } else if (hasTyped && !hasAmount && !(jvMode === 'bank_jv' && isExchangeLine(line))) {
         lineIssuesById[line.id] = `Row ${index + 1}: Enter debit or credit amount`
       } else if (hasAmount && !accountId) {
         lineIssuesById[line.id] = `Row ${index + 1}: Account is required`
@@ -5268,16 +5256,20 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const drId = e.debitAccountId?._id
       const crId = e.creditAccountId?._id
       if (drId) {
+        const displayDebit = convertJvAmount(e.amount, baseCurrencyCode, inferJvAccountCurrency(drId))
+        const debitAmount = Number.isFinite(Number(displayDebit)) ? Number(displayDebit) : Number(e.amount || 0)
         if (!debitMap.has(drId)) {
           debitMap.set(drId, { accountId: drId, accountInput: `${e.debitAccountId.accountCode} - ${e.debitAccountId.accountName}`, debit: 0, description: '' })
         }
-        debitMap.get(drId).debit = Number((debitMap.get(drId).debit + e.amount).toFixed(2))
+        debitMap.get(drId).debit = Number((debitMap.get(drId).debit + debitAmount).toFixed(2))
       }
       if (crId) {
+        const displayCredit = convertJvAmount(e.amount, baseCurrencyCode, inferJvAccountCurrency(crId))
+        const creditAmount = Number.isFinite(Number(displayCredit)) ? Number(displayCredit) : Number(e.amount || 0)
         if (!creditMap.has(crId)) {
           creditMap.set(crId, { accountId: crId, accountInput: `${e.creditAccountId.accountCode} - ${e.creditAccountId.accountName}`, credit: 0, description: '' })
         }
-        creditMap.get(crId).credit = Number((creditMap.get(crId).credit + e.amount).toFixed(2))
+        creditMap.get(crId).credit = Number((creditMap.get(crId).credit + creditAmount).toFixed(2))
       }
     })
 
@@ -5333,7 +5325,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const logoMarkup = await buildBrandingLogoTag(branding, 'margin-left:auto;')
     const rows = (validation.activeLines.length ? validation.activeLines : jvLines)
       .map((line, index) => {
-        const account = resolveJvLineAccount(line)
+        const account = getJvAccountById(line.accountId)
         const accountText = account
           ? `${account.accountCode || ''} - ${account.accountName || ''}`
           : (line.accountInput || line.accountId || '')
