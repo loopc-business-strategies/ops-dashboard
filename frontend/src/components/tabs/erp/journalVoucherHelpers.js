@@ -90,6 +90,54 @@ const extractLedgerJvDetailFromDescription = (description = '') => {
   return parts.slice(1).join(' - ').trim()
 }
 
+/** Narration hints that the economic currency was som / UZS (legacy rows often stored as base + rate 1). */
+const SOM_NARRATION_RE = /(?:\d[\d,]*\s*)?(?:k|m|mil|million)\s*soms?\b|\b\d[\d,]*\s*soms?\b|\bsoms?\b|\buzs\b|\bsum\b(?!\w)/i
+
+const pickFcFromCoaTally = (tally) => {
+  if (!tally || tally.size === 0) return null
+  if (tally.size === 1) return [...tally.keys()][0]
+  const sorted = [...tally.entries()].sort((a, b) => b[1] - a[1])
+  return sorted[0][1] > sorted[1][1] ? sorted[0][0] : null
+}
+
+/**
+ * For journal/bank_jv lines still stored as base currency + exchangeRate 1, infer which FC
+ * the voucher was meant in (COA leg majority, then narration) so the UI can show soms etc.
+ */
+const inferLegacyJvBatchDisplayFc = (entries, baseCurrencyCode = 'USD') => {
+  const base = normalizeJvCurrencyCode(baseCurrencyCode || 'USD') || 'USD'
+  if (!Array.isArray(entries) || !entries.length) return null
+  const modeOk = (e) => ['journal', 'bank_jv'].includes(String(e?.referenceType || '').toLowerCase())
+  if (!entries.every(modeOk)) return null
+
+  for (const e of entries) {
+    const cur = normalizeJvCurrencyCode(e?.currency || base)
+    const rate = Number(e?.exchangeRate ?? 1)
+    if (cur !== base) return cur
+    if (Number.isFinite(rate) && Math.abs(rate - 1) > 1e-9) return null
+  }
+
+  const tally = new Map()
+  for (const e of entries) {
+    for (const side of [e?.debitAccountId, e?.creditAccountId]) {
+      const raw = side?.currency
+      if (raw == null || !String(raw).trim()) continue
+      const code = normalizeJvCurrencyCode(raw)
+      if (code === base) continue
+      tally.set(code, (tally.get(code) || 0) + 1)
+    }
+  }
+  const fromCoa = pickFcFromCoaTally(tally)
+  if (fromCoa) return fromCoa
+
+  const blob = entries.map((e) => `${e?.description || ''} ${e?.notes || ''}`).join('\n')
+  if (SOM_NARRATION_RE.test(blob)) return 'UZS'
+  return null
+}
+
+const inferLegacyJvRowDisplayFc = (entry, baseCurrencyCode = 'USD') =>
+  inferLegacyJvBatchDisplayFc(entry ? [entry] : [], baseCurrencyCode)
+
 export {
   JV_MODE_META,
   convertJvAmountBetweenCurrencies,
@@ -100,4 +148,6 @@ export {
   createJvHeader,
   extractLedgerJvDocNoFromDescription,
   extractLedgerJvDetailFromDescription,
+  inferLegacyJvBatchDisplayFc,
+  inferLegacyJvRowDisplayFc,
 }

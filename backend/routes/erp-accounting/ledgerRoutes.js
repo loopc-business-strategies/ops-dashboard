@@ -1,4 +1,5 @@
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
+const { runJvLedgerFxBackfillOnNativeDb } = require('../../services/jvLedgerFxBackfill')
 const { Joi, validateBodyStrict, validateParams } = require('../../middleware/validate')
 
 const objectId = Joi.string().hex().length(24)
@@ -177,8 +178,8 @@ router.get('/ledger', protect, async (req, res) => {
       const skip = (safePage - 1) * safeLimit
       const [entries, total] = await Promise.all([
         TenantLedger.find(query)
-          .populate('debitAccountId', 'accountName accountCode')
-          .populate('creditAccountId', 'accountName accountCode')
+          .populate('debitAccountId', 'accountName accountCode currency')
+          .populate('creditAccountId', 'accountName accountCode currency')
           .populate('createdBy', 'name')
           .sort({ date: -1, _id: -1 })
           .skip(skip)
@@ -214,8 +215,8 @@ router.get('/ledger', protect, async (req, res) => {
     }
 
     const rows = await TenantLedger.find(query)
-      .populate('debitAccountId', 'accountName accountCode')
-      .populate('creditAccountId', 'accountName accountCode')
+      .populate('debitAccountId', 'accountName accountCode currency')
+      .populate('creditAccountId', 'accountName accountCode currency')
       .populate('createdBy', 'name')
       .sort({ date: -1, _id: -1 })
       .limit(safeLimit + 1)
@@ -505,6 +506,75 @@ router.put('/ledger/:id/reconcile', protect, validateParams(idParamSchema), asyn
     console.error('[reconcile] error:', error.message, error.stack)
     console.error('[ledger] error:', error)
     res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+})
+
+/** Finance: preview JV/bank_jv rows that would move from base+1 to FC+rate (no writes). */
+router.post('/ledger/repair-jv-fx/preview', protect, async (req, res) => {
+  try {
+    if (!canViewLedger(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    if (!isFinance(req.user)) return res.status(403).json({ success: false, message: 'Finance role required' })
+    const TenantLedger = await Ledger.getTenantModel(req.tenant)
+    const db = TenantLedger.db
+    const mode = String(req.body?.mode || 'coa').toLowerCase()
+    const forceCurrency = String(req.body?.forceCurrency || '').trim().toUpperCase()
+    const result = await runJvLedgerFxBackfillOnNativeDb(db, {
+      dryRun: true,
+      mode,
+      forceCurrency,
+      verbose: Boolean(req.body?.verbose),
+    })
+    return res.json({ success: true, ...result })
+  } catch (e) {
+    if (e.code === 'FORCE_CURRENCY_REQUIRED') {
+      return res.status(400).json({ success: false, message: 'mode=force requires forceCurrency (e.g. UZS)' })
+    }
+    if (e.code === 'INVALID_MODE') {
+      return res.status(400).json({ success: false, message: 'mode must be coa or force' })
+    }
+    console.error('[ledger/repair-jv-fx/preview]', e)
+    return res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
+/** Finance + destructive token: apply JV/bank_jv FX backfill for this tenant. */
+router.post('/ledger/repair-jv-fx/apply', protect, requireDestructiveAdminGuard('ledger/repair-jv-fx-apply'), async (req, res) => {
+  try {
+    if (!isFinance(req.user)) return res.status(403).json({ success: false, message: 'Finance role required' })
+    const TenantLedger = await Ledger.getTenantModel(req.tenant)
+    const db = TenantLedger.db
+    const mode = String(req.body?.mode || 'coa').toLowerCase()
+    const forceCurrency = String(req.body?.forceCurrency || '').trim().toUpperCase()
+    const result = await runJvLedgerFxBackfillOnNativeDb(db, {
+      dryRun: false,
+      mode,
+      forceCurrency,
+      verbose: false,
+    })
+    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
+        realtimeServer.broadcastLedgerUpdate(tenantKey, {
+          action: 'jv_fx_repair',
+          updated: result.updated,
+          skipped: result.skipped,
+        })
+      }
+    })
+    return res.json({
+      success: true,
+      message: `Updated ${result.updated} ledger postings (${result.skipped} skip line-events).`,
+      ...result,
+    })
+  } catch (e) {
+    if (e.code === 'FORCE_CURRENCY_REQUIRED') {
+      return res.status(400).json({ success: false, message: 'mode=force requires forceCurrency (e.g. UZS)' })
+    }
+    if (e.code === 'INVALID_MODE') {
+      return res.status(400).json({ success: false, message: 'mode must be coa or force' })
+    }
+    console.error('[ledger/repair-jv-fx/apply]', e)
+    return res.status(500).json({ success: false, message: 'Server error' })
   }
 })
 

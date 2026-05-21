@@ -1,6 +1,11 @@
 import { Fragment } from 'react'
 import AccountCombobox from '../../../AccountCombobox'
-import { extractLedgerJvDetailFromDescription, extractLedgerJvDocNoFromDescription } from '../journalVoucherHelpers'
+import {
+  extractLedgerJvDetailFromDescription,
+  extractLedgerJvDocNoFromDescription,
+  inferLegacyJvRowDisplayFc,
+  normalizeJvCurrencyCode,
+} from '../journalVoucherHelpers'
 
 export default function ERPLedgerTab({
   activeTab,
@@ -53,6 +58,9 @@ export default function ERPLedgerTab({
   handleEditJv,
   handleEditLedger,
   handleReverseLedger,
+  isFinance,
+  handleRepairJvFxPreview,
+  handleRepairJvFxApply,
 }) {
   return (
     <>
@@ -85,6 +93,48 @@ export default function ERPLedgerTab({
                 )
               })}
             </div>
+            {isFinance && (
+              <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => { void handleRepairJvFxPreview() }}
+                  title="Dry-run: how many legacy journal/bank_jv rows would get UZS + rate"
+                  style={{
+                    padding: '0.45rem 0.75rem',
+                    borderRadius: '0.4rem',
+                    border: '1px solid #94A3B8',
+                    background: '#F1F5F9',
+                    color: '#0F172A',
+                    fontWeight: '700',
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    fontSize: '0.78rem',
+                    opacity: saving ? 0.65 : 1,
+                  }}
+                >
+                  Preview JV FX repair
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => { void handleRepairJvFxApply() }}
+                  title="Writes UZS + exchangeRate on legacy rows (needs maintenance token)"
+                  style={{
+                    padding: '0.45rem 0.75rem',
+                    borderRadius: '0.4rem',
+                    border: '1px solid #B45309',
+                    background: '#FFFBEB',
+                    color: '#92400E',
+                    fontWeight: '700',
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    fontSize: '0.78rem',
+                    opacity: saving ? 0.65 : 1,
+                  }}
+                >
+                  Apply JV FX repair
+                </button>
+              </div>
+            )}
             {canManageAccounts && (
               <button
                 onClick={() => { if (!showLedgerForm) void openJvModal(ledgerVoucherTab) }}
@@ -395,7 +445,8 @@ export default function ERPLedgerTab({
                   if (sorting.ledger.by === 'date') {
                     return sorting.ledger.asc ? new Date(a.date) - new Date(b.date) : new Date(b.date) - new Date(a.date)
                   } else if (sorting.ledger.by === 'amount') {
-                    return sorting.ledger.asc ? a.amount - b.amount : b.amount - a.amount
+                    const baseVal = (x) => Number(x.amount || 0) * Number(x.exchangeRate || 1)
+                    return sorting.ledger.asc ? baseVal(a) - baseVal(b) : baseVal(b) - baseVal(a)
                   }
                   return 0
                 })
@@ -428,20 +479,49 @@ export default function ERPLedgerTab({
                       <td style={{ padding: '0.75rem', color: C.t2 }}>{entry.creditAccountId?.accountCode}</td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>
                         {(() => {
+                          const baseSym = String(baseCurrencyCode || '').trim().toUpperCase() || 'USD'
                           const amt = Number(entry.amount || 0)
                           const rate = Number(entry.exchangeRate || 1)
                           const baseEq = amt * rate
-                          const sym = String(entry.currency || '').trim().toUpperCase()
-                          const isFc = sym && sym !== String(baseCurrencyCode || '').trim().toUpperCase()
+                          const storedSym = String(entry.currency || '').trim().toUpperCase()
+                          const storedNorm = normalizeJvCurrencyCode(storedSym || baseSym)
+
+                          const legacyFc = inferLegacyJvRowDisplayFc(entry, baseCurrencyCode)
+                          const fxRow = legacyFc
+                            ? (currencies || []).find((c) => normalizeJvCurrencyCode(c?.code) === normalizeJvCurrencyCode(legacyFc))
+                            : null
+                          const dispRate = fxRow ? Number(fxRow.exchangeRate || 0) : 0
+                          const useLegacyFc = Boolean(
+                            legacyFc
+                            && dispRate > 0
+                            && storedNorm === baseSym
+                            && Math.abs(rate - 1) < 1e-9,
+                          )
+
+                          let displayAmt = amt
+                          let displaySym = storedSym || baseSym
+                          let displayRate = rate
+                          if (useLegacyFc) {
+                            displaySym = normalizeJvCurrencyCode(legacyFc)
+                            displayRate = dispRate
+                            const rawFc = baseEq / dispRate
+                            displayAmt = dispRate < 0.001 ? Math.round(rawFc) : Number(rawFc.toFixed(2))
+                          }
+
+                          const isFc = displaySym && normalizeJvCurrencyCode(displaySym) !== baseSym
+                          const title = useLegacyFc
+                            ? `Ledger row stored as ${baseEq.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${baseSym} × 1; shown as ${displaySym} using master rate ${dispRate}. Run DB backfill to store FC on the row.`
+                            : (isFc ? `Booked: ${amt} ${storedSym} × ${rate}` : '')
+
                           return (
-                            <div>
-                              <span>{amt.toLocaleString()}</span>
-                              {sym ? (
-                                <span style={{ marginLeft: '0.25rem', fontSize: '0.72rem', color: C.inkSoft, fontWeight: '600' }}>{sym}</span>
+                            <div title={title || undefined}>
+                              <span>{displayAmt.toLocaleString()}</span>
+                              {displaySym ? (
+                                <span style={{ marginLeft: '0.25rem', fontSize: '0.72rem', color: C.inkSoft, fontWeight: '600' }}>{displaySym}</span>
                               ) : null}
                               {isFc ? (
-                                <div style={{ fontSize: '0.68rem', color: C.inkSoft, marginTop: '0.12rem', fontWeight: '600' }} title={`Booked: ${amt} ${sym} × ${rate}`}>
-                                  ≈ {baseEq.toLocaleString(undefined, { maximumFractionDigits: 2 })} {baseCurrencyCode}
+                                <div style={{ fontSize: '0.68rem', color: C.inkSoft, marginTop: '0.12rem', fontWeight: '600' }}>
+                                  ≈ {baseEq.toLocaleString(undefined, { maximumFractionDigits: 2 })} {baseSym}
                                 </div>
                               ) : null}
                             </div>

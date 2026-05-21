@@ -76,6 +76,7 @@ import {
   convertJvAmountBetweenCurrencies,
   createJvHeader as createNextJvHeader,
   emptyJvLine,
+  inferLegacyJvBatchDisplayFc,
   normalizeJvCurrencyCode,
   resolveJvModeMeta,
 } from './erp/journalVoucherHelpers'
@@ -5329,17 +5330,67 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
 
     const narration = editableEntries[0]?.notes || ''
     const headerDocNo = (docNo && hasDocPrefix) ? docNo : `${resolveJvModeMeta(entryMode).prefix}-EDIT-${entry._id.slice(-6)}`
+    const legacyBatchFc = inferLegacyJvBatchDisplayFc(editableEntries, baseCurrencyCode)
+    const headerCurrency = legacyBatchFc
+      || normalizeJvCurrencyCode((editableEntries[0] || entry).currency || baseCurrencyCode)
 
     setJvMode(entryMode)
     setJvEditEntryIds(editableEntries.map((e) => e._id))
     setJvLines(lines)
     setNextJvLineId(id)
-    setJvHeader({ docNo: headerDocNo, date: new Date((editableEntries[0] || entry).date).toISOString().slice(0, 10), narration, currency: (editableEntries[0] || entry).currency || baseCurrencyCode })
+    setJvHeader({ docNo: headerDocNo, date: new Date((editableEntries[0] || entry).date).toISOString().slice(0, 10), narration, currency: headerCurrency })
     setJvModalOffset({ x: 0, y: 0 })
     setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
     setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
     setJvModalSize(JV_MODAL_DEFAULT_SIZE)
     setShowLedgerForm(true)
+  }
+
+  const handleRepairJvFxPreview = async () => {
+    if (!isFinance || !token) return
+    setSaving(true)
+    try {
+      const data = await erpAccountingAPI.repairJvFxPreview(token, { mode: 'coa' })
+      const msg = `Preview: ${data.updated} postings would update (${data.candidateRows} base+1 candidates). Skipped line-events: ${data.skipped}.`
+      showNotification(msg)
+      if (Array.isArray(data.skipSamples) && data.skipSamples.length) {
+        console.info('[repairJvFx preview skip samples]', data.skipSamples)
+      }
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'JV FX repair preview failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRepairJvFxApply = async () => {
+    if (!isFinance || !token) return
+    const reason = window.prompt('Maintenance reason (min 8 characters)', 'JV ledger backfill store UZS and FX rate')
+    if (!reason || String(reason).trim().length < 8) {
+      showNotification('Apply cancelled: reason must be at least 8 characters.')
+      return
+    }
+    const confirmToken = window.prompt('Enter server DESTRUCTIVE_ADMIN_CONFIRM_TOKEN (production also needs ENABLE_DESTRUCTIVE_ADMIN_API=true)')
+    if (!confirmToken?.trim()) {
+      showNotification('Apply cancelled.')
+      return
+    }
+    setSaving(true)
+    try {
+      const data = await erpAccountingAPI.repairJvFxApply(token, {
+        mode: 'coa',
+        confirmToken: String(confirmToken).trim(),
+        reason: String(reason).trim(),
+      })
+      showNotification(data.message || `Updated ${data.updated} ledger postings`)
+      setError('')
+      await loadLedger()
+    } catch (e) {
+      setError(e.response?.data?.message || 'JV FX repair apply failed')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const closeJvModal = () => {
@@ -7057,6 +7108,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         handleEditLedger={handleEditLedger}
         handleReconcileLedger={handleReconcileLedger}
         handleReverseLedger={handleReverseLedger}
+        isFinance={isFinance}
+        handleRepairJvFxPreview={handleRepairJvFxPreview}
+        handleRepairJvFxApply={handleRepairJvFxApply}
       />
 
       {/* ACCOUNT MAPPINGS TAB */}

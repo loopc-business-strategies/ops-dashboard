@@ -8,6 +8,14 @@ const updateLedgerEntry = async (token, id, payload) => (await axios.put(`${BASE
 const deleteLedgerEntry = async (token, id) => (await axios.delete(`${BASE}/ledger/${id}`, getAuthConfig(token))).data
 const reconcileLedgerEntry = async (token, id) => (await axios.put(`${BASE}/ledger/${id}/reconcile`, {}, getAuthConfig(token))).data
 
+/** Finance: dry-run count of legacy JV rows that would get FC + rate (see backend docs). */
+const repairJvFxPreview = async (token, body = {}) =>
+  (await axios.post(`${BASE}/ledger/repair-jv-fx/preview`, body, getAuthConfig(token))).data
+
+/** Finance + destructive confirm: persist FC + exchangeRate on legacy journal/bank_jv rows. */
+const repairJvFxApply = async (token, body = {}) =>
+  (await axios.post(`${BASE}/ledger/repair-jv-fx/apply`, body, getAuthConfig(token))).data
+
 export const ledgerApi = {
   getLedger,
   getNextJvDocNo,
@@ -16,4 +24,6 @@ export const ledgerApi = {
   updateLedgerEntry,
   deleteLedgerEntry,
   reconcileLedgerEntry,
+  repairJvFxPreview,
+  repairJvFxApply,
 }
