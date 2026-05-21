@@ -1537,25 +1537,72 @@ router.get('/reports/dashboard', protect, async (req, res) => {
       })
     }
 
-    // --- Fixing positions from DirectDeal ---
+    // --- Fixing net positions from posted metal vouchers + confirmed DirectDeal rows ---
+    const resolveDashboardMetalCode = (value = '') => {
+      const raw = String(value || '').trim().toUpperCase()
+      if (!raw) return ''
+      if (raw.includes('XAU') || raw.includes('GOLD')) return 'XAU'
+      if (raw.includes('XAG') || raw.includes('SILV')) return 'XAG'
+      if (raw.includes('XPT') || raw.includes('PLAT')) return 'XPT'
+      if (raw.includes('XPD') || raw.includes('PALL')) return 'XPD'
+      return raw
+    }
+    const resolveVoucherPureWeightOz = (line = {}) => {
+      const explicitOz = Number(line?.weightInOz || 0)
+      if (Number.isFinite(explicitOz) && explicitOz > 0) return explicitOz
+      const pureWeight = Number(line?.pureWeight || 0)
+      if (Number.isFinite(pureWeight) && pureWeight > 0) return pureWeight / 31.1034768
+      const grossWeight = Number(line?.grossWeight || 0)
+      const purity = Number(line?.purity || 0)
+      const purityRatio = purity > 1.2 ? purity / 1000 : purity
+      if (Number.isFinite(grossWeight) && grossWeight > 0 && Number.isFinite(purityRatio) && purityRatio > 0) {
+        return (grossWeight * purityRatio) / 31.1034768
+      }
+      return 0
+    }
+    const fixingByMetal = {
+      XAU: { metal: 'Gold', code: 'XAU', netPosition: 0 },
+      XAG: { metal: 'Silver', code: 'XAG', netPosition: 0 },
+      XPT: { metal: 'Platinum', code: 'XPT', netPosition: 0 },
+    }
+    const fixingVoucherTxs = await Transaction.find({
+      type: { $in: ['sale', 'purchase'] },
+      status: 'posted',
+      isDeleted: { $ne: true },
+      date: { $gte: periodStart, $lte: periodEnd },
+    }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+    fixingVoucherTxs.forEach((tx) => {
+      const fixingType = String(tx?.voucherMeta?.fixingType || tx?.metalFixStatus || '').trim().toLowerCase()
+      if (isUnfixedFixingType(fixingType)) return
+      const sign = tx.type === 'purchase' ? 1 : -1
+      const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+      lines.forEach((line) => {
+        const metalCode = resolveDashboardMetalCode(`${line?.stockCode || ''} ${line?.productType || ''} ${line?.narration || ''}`)
+        if (!fixingByMetal[metalCode]) return
+        fixingByMetal[metalCode].netPosition += sign * resolveVoucherPureWeightOz(line)
+      })
+    })
+
     const fixingDeals = await DirectDeal.find({
       entryType: 'fixing',
       isDeleted: { $ne: true },
       docDate: { $gte: periodStart, $lte: periodEnd },
+      status: 'confirmed',
     })
-    const fixingByMetal = {}
     fixingDeals.forEach((deal) => {
       deal.lineItems.forEach((line) => {
-        const metal = line.metal || 'XAU'
-        if (!fixingByMetal[metal]) fixingByMetal[metal] = { qty: 0, amount: 0 }
-        fixingByMetal[metal].qty += Number(line.eqOz || line.qty || 0)
-        fixingByMetal[metal].amount += Number(line.amount || 0)
+        const metalCode = resolveDashboardMetalCode(line.metal || 'XAU')
+        if (!fixingByMetal[metalCode]) return
+        const qty = Number(line.eqOz || line.qty || 0)
+        const sign = String(line.direction || '').trim().toLowerCase() === 'buy' ? 1 : -1
+        fixingByMetal[metalCode].netPosition += sign * (Number.isFinite(qty) ? qty : 0)
       })
     })
-    const fixingPositions = Object.entries(fixingByMetal).map(([metal, data]) => ({
-      metal,
-      qty: toMoney(data.qty),
-      amount: toMoney(data.amount),
+    const fixingPositions = Object.values(fixingByMetal).map((row) => ({
+      metal: row.metal,
+      code: row.code,
+      unit: 'GOZ',
+      netPosition: toMoney(row.netPosition),
     }))
 
     // --- Volume traded from StockMovement + DirectDeal lines ---

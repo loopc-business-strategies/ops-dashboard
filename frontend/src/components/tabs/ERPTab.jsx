@@ -2967,7 +2967,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         referenceType: '',
         department: '',
         fixStatus: '',
-        foreignCurrency: String(data.account?.currency || '').toUpperCase(),
+        foreignCurrency: '',
         metalCommodity: '',
         showAmountIn: '',
       })

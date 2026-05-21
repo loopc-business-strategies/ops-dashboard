@@ -23,6 +23,21 @@ describe('statement helpers', () => {
     expect(options).toEqual(['ALL', 'AED', 'USD', 'EUR', 'UZS'])
   })
 
+  test('keeps the all-currencies statement option available for mixed-currency bank accounts', () => {
+    const options = buildStatementCurrencyOptions({
+      includeAll: true,
+      accountCurrency: 'SOMS',
+      rateCurrency: 'USD',
+      baseCurrency: 'USD',
+      currencies: [{ code: 'USD' }, { code: 'UZS' }],
+    })
+
+    expect(options[0]).toBe('ALL')
+    expect(options).toContain('SOMS')
+    expect(options).toContain('USD')
+    expect(options).toContain('UZS')
+  })
+
   test('always includes standard and other metal choices', () => {
     const options = buildStatementMetalOptions([
       { mainStock: 'Gold' },
