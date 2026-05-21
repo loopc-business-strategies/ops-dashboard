@@ -1481,7 +1481,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
       const outstanding = v.ledgerAccountId?._id
         ? Number(await getOutstandingForAccount(v.ledgerAccountId._id) || 0)
         : Number(v.outstanding || 0)
-      const equity = v.ledgerAccountId?._id ? outstanding : -Math.abs(outstanding)
+      const equity = -Math.abs(outstanding)
       const rawPosition = supplierMetalPositionMap.get(String(v._id || '')) || { goldPosition: 0, silverPosition: 0 }
       const goldPosition = roundPosition(rawPosition.goldPosition)
       const silverPosition = roundPosition(rawPosition.silverPosition)
