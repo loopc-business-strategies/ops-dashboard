@@ -2204,6 +2204,35 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
   }
 
+  const handleSendTransactionChat = async (transactionId, message, mentionedNames = []) => {
+    if (!transactionId) {
+      setError('Select a transaction first')
+      return false
+    }
+    if (!String(message || '').trim()) {
+      setError('Enter a message first')
+      return false
+    }
+
+    try {
+      setSaving(true)
+      const data = await erpAccountingAPI.addTransactionComment(token, transactionId, {
+        message,
+        mentionedNames,
+      })
+      if (data.transaction) {
+        setTransactions((prev) => prev.map((tx) => (tx._id === transactionId ? data.transaction : tx)))
+      }
+      showNotification('Transaction chat sent')
+      return true
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to send transaction chat')
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleUploadTransactionAttachment = async (file, transactionId = selectedTransactionId) => {
     if (!transactionId) {
       setError('Select a transaction first')
@@ -7261,6 +7290,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         transactionCommentDraft={transactionCommentDraft}
         setTransactionCommentDraft={setTransactionCommentDraft}
         handleAddTransactionComment={handleAddTransactionComment}
+        handleSendTransactionChat={handleSendTransactionChat}
         formatTransactionCommentKind={formatTransactionCommentKind}
         formatTransactionAuditEntry={formatTransactionAuditEntry}
         TRANSACTION_ACTION_LABELS={TRANSACTION_ACTION_LABELS}

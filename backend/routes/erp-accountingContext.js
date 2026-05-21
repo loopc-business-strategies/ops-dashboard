@@ -1082,6 +1082,8 @@ const populateTransactionQuery = (query) => query
   .populate('postedBy', 'name')
   .populate('attachments.uploadedBy', 'name')
   .populate('comments.createdBy', 'name')
+  .populate('comments.mentionedUsers', 'name email role')
+  .populate('comments.readBy.userId', 'name')
   .populate('auditTrail.actorId', 'name')
 
 const applyTransactionWorkflowAction = async (tx, user, action, options = {}) => {

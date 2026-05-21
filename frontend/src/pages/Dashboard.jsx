@@ -24,6 +24,7 @@ import { useLanguage, LANGUAGES } from '../context/LanguageContext'
 import { getTenantBranding } from '../config/tenantBranding'
 import BuildInfoBadge from '../components/BuildInfoBadge'
 import axios from '../api/client'
+import { startUserNotifications } from '../utils/realtimeSocket'
 
 // Import tab content components
 import OverviewTab     from '../components/tabs/OverviewTab'
@@ -216,7 +217,7 @@ function Dashboard({
   palladiumPrice = 0,
   metalRatesUpdatedAt = null,
 }) {
-  const { user, logout, company } = useAuth()
+  const { user, token, logout, company } = useAuth()
   const perms = usePermissions()
   const navigate = useNavigate()
   const { t, isRTL, switchLanguage, langMeta } = useLanguage()
@@ -384,6 +385,31 @@ function Dashboard({
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [accountMenuOpen])
+
+  useEffect(() => {
+    if (!user) return undefined
+
+    return startUserNotifications({
+      token,
+      onNotification: (payload) => {
+        const data = payload?.data || {}
+        const isTransactionChatMention = payload?.type === 'transaction_chat_mention'
+        setNotifications((prev) => [
+          {
+            id: `rt-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            title: isTransactionChatMention ? 'Transaction chat mention' : 'New notification',
+            msg: isTransactionChatMention
+              ? `${data.senderName || 'A user'} mentioned you: ${data.message || ''}`
+              : data.message || payload?.type || 'Notification received',
+            time: 'Just now',
+            read: false,
+            dotColor: isTransactionChatMention ? 'bg-blue-400' : 'bg-green-400',
+          },
+          ...prev,
+        ])
+      },
+    })
+  }, [token, user])
 
   useEffect(() => {
     let mounted = true
@@ -765,6 +791,7 @@ function Dashboard({
                     {notifications.map((n) => (
                       <div key={n.id} style={{ padding: '10px 12px', borderBottom: '1px solid #F3F4F6' }}>
                         <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827' }}>{n.title}</p>
+                        {n.msg && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#4B5563' }}>{n.msg}</p>}
                         <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7280' }}>{n.time}</p>
                       </div>
                     ))}

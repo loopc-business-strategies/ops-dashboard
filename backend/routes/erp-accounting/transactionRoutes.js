@@ -1,6 +1,7 @@
 function registerTransactionRoutes(deps) {
   const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
   const { reverseMetalVoucherStockForVoid } = require('../../utils/metalVoucherStockReversal')
+  const User = require('../../models/User')
   const {
     router,
     protect,
@@ -79,6 +80,37 @@ const emitRealtime = (req, cb) => {
   const realtimeServer = req.app.get('realtimeServer')
   if (!realtimeServer || typeof cb !== 'function') return
   try { cb(realtimeServer) } catch {}
+}
+
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const extractMentionNames = (message) => {
+  const matches = String(message || '').matchAll(/@([A-Za-z0-9._-]+)/g)
+  return Array.from(new Set(Array.from(matches).map((match) => String(match[1] || '').trim()).filter(Boolean)))
+}
+
+const resolveMentionedUsers = async (message, payload = {}) => {
+  const requestedIds = Array.isArray(payload.mentionedUserIds)
+    ? payload.mentionedUserIds.map((id) => String(id || '').trim()).filter((id) => /^[a-f\d]{24}$/i.test(id))
+    : []
+  const requestedNames = [
+    ...extractMentionNames(message),
+    ...(Array.isArray(payload.mentionedNames) ? payload.mentionedNames : []),
+  ]
+    .map((name) => String(name || '').replace(/^@/, '').trim())
+    .filter(Boolean)
+
+  const or = []
+  if (requestedIds.length) or.push({ _id: { $in: requestedIds } })
+  requestedNames.forEach((name) => {
+    const exact = new RegExp(`^${escapeRegex(name)}$`, 'i')
+    or.push({ name: exact }, { fullName: exact }, { employeeCode: exact }, { email: exact })
+  })
+  if (!or.length) return []
+
+  return User.find({ isDeleted: { $ne: true }, isActive: { $ne: false }, $or: or })
+    .select('_id name email role')
+    .limit(20)
 }
 
 router.get('/transactions', protect, async (req, res) => {
@@ -679,13 +711,36 @@ router.post('/transactions/:id/comments', protect, async (req, res) => {
     const message = normalizeTransactionNote(req.body?.message)
     if (!message) return res.status(400).json({ success: false, message: 'Comment is required' })
 
+    const mentionedUsers = await resolveMentionedUsers(message, req.body)
     appendTransactionComment(tx, req.user, message, 'comment')
+    const comment = tx.comments[tx.comments.length - 1]
+    if (comment) {
+      comment.mentionedUsers = mentionedUsers.map((mentionedUser) => mentionedUser._id)
+      comment.readBy = [{ userId: req.user._id, readAt: new Date() }]
+    }
     appendTransactionAudit(tx, req.user, 'comment', { fromStatus: tx.status, toStatus: tx.status, comment: message })
     tx.updatedBy = req.user._id
     await tx.save()
 
+    emitRealtime(req, (realtimeServer) => {
+      if (typeof realtimeServer.sendUserNotification !== 'function') return
+      mentionedUsers.forEach((mentionedUser) => {
+        const mentionedUserId = String(mentionedUser._id)
+        if (mentionedUserId === String(req.user._id)) return
+        realtimeServer.sendUserNotification(mentionedUserId, 'transaction_chat_mention', {
+          transactionId: String(tx._id),
+          commentId: String(comment?._id || ''),
+          message,
+          senderId: String(req.user._id),
+          senderName: String(req.user?.name || ''),
+          type: tx.type,
+          createdAt: new Date().toISOString(),
+        })
+      })
+    })
+
     const populated = await populateTransactionQuery(Transaction.findById(tx._id))
-    res.json({ success: true, transaction: populated })
+    res.json({ success: true, transaction: populated, comment: populated.comments?.[populated.comments.length - 1] || null })
   } catch (e) {
     console.error('Add transaction comment error:', e)
     res.status(500).json({ success: false, message: 'Server error' })

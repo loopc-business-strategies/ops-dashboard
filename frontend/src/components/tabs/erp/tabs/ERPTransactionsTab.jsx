@@ -46,6 +46,7 @@ export default function ERPTransactionsTab({
   transactionCommentDraft,
   setTransactionCommentDraft,
   handleAddTransactionComment,
+  handleSendTransactionChat,
   formatTransactionCommentKind,
   formatTransactionAuditEntry,
   TRANSACTION_ACTION_LABELS,
@@ -90,6 +91,7 @@ export default function ERPTransactionsTab({
   }
 
   const [selectedTypeFilter, setSelectedTypeFilter] = useState('')
+  const [transactionChatDrafts, setTransactionChatDrafts] = useState({})
   const typeFilterOptions = [
     { value: '', label: 'All' },
     { value: 'payment', label: 'Payment' },
@@ -112,6 +114,26 @@ export default function ERPTransactionsTab({
       if (allSelected) return prev.filter((id) => !visibleIdSet.has(id))
       return Array.from(new Set([...prev, ...visibleIds]))
     })
+  }
+  const extractMentionNames = (message) => Array.from(new Set(
+    Array.from(String(message || '').matchAll(/@([A-Za-z0-9._-]+)/g))
+      .map((match) => String(match[1] || '').trim())
+      .filter(Boolean)
+  ))
+  const handleChatDraftChange = (transactionId, value) => {
+    setTransactionChatDrafts((prev) => ({ ...prev, [transactionId]: value }))
+  }
+  const handleChatSend = async (transactionId) => {
+    const message = String(transactionChatDrafts[transactionId] || '').trim()
+    if (!message || !handleSendTransactionChat) return
+    const sent = await handleSendTransactionChat(transactionId, message, extractMentionNames(message))
+    if (sent) {
+      setTransactionChatDrafts((prev) => {
+        const next = { ...prev }
+        delete next[transactionId]
+        return next
+      })
+    }
   }
 
   return (
@@ -413,7 +435,7 @@ export default function ERPTransactionsTab({
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>Status</th>
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>Description</th>
                   <th style={{ padding: '0.65rem', textAlign: 'left' }}>Attachments</th>
-                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Actions</th>
+                  <th style={{ padding: '0.65rem', textAlign: 'left' }}>Chat</th>
                 </tr>
               </thead>
               <tbody>
@@ -441,15 +463,50 @@ export default function ERPTransactionsTab({
                         </label>
                       </div>
                     </td>
-                    <td style={{ padding: '0.65rem' }}>
-                      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                        {tx.status !== 'posted' && <button onClick={(e) => { e.stopPropagation(); populateTransactionForm(tx) }} style={{ padding: '0.3rem 0.5rem', border: '1px solid #D1D5DB', borderRadius: '0.3rem', background: '#fff', color: C.ink, cursor: 'pointer' }}>Edit</button>}
-                        {['draft', 'returned', 'rejected'].includes(tx.status) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('submit', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#F59E0B', color: '#111827', cursor: 'pointer' }}>Submit</button>}
-                        {tx.status === 'submitted' && (isSuperAdmin || isFinance) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('approve', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#0EA5E9', color: '#fff', cursor: 'pointer' }}>Approve</button>}
-                        {['submitted', 'approved'].includes(tx.status) && (isSuperAdmin || isFinance) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('return', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#FBCFE8', color: '#9D174D', cursor: 'pointer' }}>Return</button>}
-                        {['submitted', 'approved', 'returned'].includes(tx.status) && (isSuperAdmin || isFinance) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('reject', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer' }}>Reject</button>}
-                        {['submitted', 'approved'].includes(tx.status) && (isSuperAdmin || isFinance) && <button onClick={(e) => { e.stopPropagation(); handleTransactionAction('post', tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: C.s1, color: '#fff', cursor: 'pointer' }}>Post</button>}
-                        {tx.status !== 'posted' && <button onClick={(e) => { e.stopPropagation(); handleDeleteTransaction(tx._id) }} style={{ padding: '0.3rem 0.5rem', border: 'none', borderRadius: '0.3rem', background: '#FEE2E2', color: '#B91C1C', cursor: 'pointer' }}>Delete</button>}
+                    <td style={{ padding: '0.65rem', minWidth: '280px' }}>
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}
+                      >
+                        <input
+                          type="text"
+                          value={transactionChatDrafts[tx._id] || ''}
+                          onChange={(e) => handleChatDraftChange(tx._id, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              handleChatSend(tx._id)
+                            }
+                          }}
+                          placeholder="@name message"
+                          style={{
+                            flex: '1 1 190px',
+                            minWidth: '160px',
+                            padding: '0.42rem 0.55rem',
+                            border: `1px solid ${C.p2}`,
+                            borderRadius: '0.35rem',
+                            color: C.ink,
+                            background: '#fff',
+                            outline: 'none',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          disabled={saving || !String(transactionChatDrafts[tx._id] || '').trim()}
+                          onClick={() => handleChatSend(tx._id)}
+                          style={{
+                            padding: '0.42rem 0.7rem',
+                            border: 'none',
+                            borderRadius: '0.35rem',
+                            background: C.s1,
+                            color: '#fff',
+                            cursor: saving || !String(transactionChatDrafts[tx._id] || '').trim() ? 'not-allowed' : 'pointer',
+                            fontWeight: '700',
+                            opacity: saving || !String(transactionChatDrafts[tx._id] || '').trim() ? 0.65 : 1,
+                          }}
+                        >
+                          Send
+                        </button>
                       </div>
                     </td>
                   </tr>

@@ -40,6 +40,13 @@ const transactionSchema = new mongoose.Schema(
         message: { type: String, trim: true, required: true },
         kind: { type: String, enum: ['comment', 'submit_note', 'approval_note', 'posting_note', 'return_note', 'reject_note'], default: 'comment' },
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        mentionedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+        readBy: [
+          {
+            userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+            readAt: { type: Date, default: Date.now },
+          },
+        ],
         createdAt: { type: Date, default: Date.now },
       },
     ],

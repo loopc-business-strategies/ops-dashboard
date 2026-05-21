@@ -57,3 +57,15 @@ export const startERPRealtimeFeeds = ({ token, tenant, onLedgerUpdate, onTransac
     transactionSocket.disconnect()
   }
 }
+
+export const startUserNotifications = ({ token, onNotification }) => {
+  if (typeof onNotification !== 'function') return () => {}
+
+  const notificationSocket = createSocket('/notifications', token)
+  notificationSocket.on('notification', onNotification)
+
+  return () => {
+    notificationSocket.off('notification', onNotification)
+    notificationSocket.disconnect()
+  }
+}
