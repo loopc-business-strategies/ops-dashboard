@@ -14,6 +14,9 @@ require('./destructive/_destructive-guard')({ scriptName: __filename })
  * Examples:
  *   node scripts/backfill-ledger-exchange-rates.js --tenant mg
  *   node scripts/backfill-ledger-exchange-rates.js --tenant mg --dry-run
+ *
+ * Related: journal/bank_jv rows stored as base + rate 1 (amount already in base)
+ * are fixed by `backfill-jv-ledger-base-to-fc.js` (COA- or force-currency inference).
  */
 require('dotenv').config()
 const dns = require('dns')

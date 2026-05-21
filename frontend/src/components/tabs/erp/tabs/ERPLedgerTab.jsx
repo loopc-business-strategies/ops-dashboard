@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 import AccountCombobox from '../../../AccountCombobox'
+import { extractLedgerJvDetailFromDescription, extractLedgerJvDocNoFromDescription } from '../journalVoucherHelpers'
 
 export default function ERPLedgerTab({
   activeTab,
@@ -86,7 +87,7 @@ export default function ERPLedgerTab({
             </div>
             {canManageAccounts && (
               <button
-                onClick={() => { if (!showLedgerForm) openJvModal(ledgerVoucherTab) }}
+                onClick={() => { if (!showLedgerForm) void openJvModal(ledgerVoucherTab) }}
                 disabled={showLedgerForm}
                 style={{
                   padding: '0.5rem 1rem',
@@ -149,7 +150,7 @@ export default function ERPLedgerTab({
                     <button
                       key={`jv-mode-${mode}`}
                       type="button"
-                      onClick={() => switchJvMode(mode)}
+                      onClick={() => { void switchJvMode(mode) }}
                       disabled={jvEditEntryIds.length > 0}
                       style={{
                         padding: '0.35rem 0.7rem',
@@ -404,6 +405,8 @@ export default function ERPLedgerTab({
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
                   <th onClick={() => setSorting({...sorting, ledger: {by: 'date', asc: !sorting.ledger.asc}})} style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.ledger.by === 'date' ? C.p2 : 'transparent' }}>Date {sorting.ledger.by === 'date' && (sorting.ledger.asc ? '▲' : '▼')}</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', minWidth: '110px' }}>Voucher No.</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', maxWidth: '220px' }}>Narration / detail</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Debit Account</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Credit Account</th>
                   <th onClick={() => setSorting({...sorting, ledger: {by: 'amount', asc: !sorting.ledger.asc}})} style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.ledger.by === 'amount' ? C.p2 : 'transparent' }}>Amount {sorting.ledger.by === 'amount' && (sorting.ledger.asc ? '▲' : '▼')}</th>
@@ -413,12 +416,38 @@ export default function ERPLedgerTab({
               </thead>
               <tbody>
                 {pagedLedgerEntries
-                  .map((entry) => (
+                  .map((entry) => {
+                    const voucherNo = extractLedgerJvDocNoFromDescription(entry.description) || (entry.referenceType === 'bank_jv' && entry.autoTxNo ? entry.autoTxNo : '—')
+                    const narrDetail = extractLedgerJvDetailFromDescription(entry.description) || (entry.notes || '—')
+                    return (
                     <tr key={entry._id} style={{ borderBottom: `1px solid ${C.p2}`, background: entry.referenceType === 'bank_jv' ? '#F0F9FF' : 'transparent' }}>
                       <td style={{ padding: '0.75rem', color: C.t2 }}>{new Date(entry.date).toLocaleDateString()}</td>
+                      <td style={{ padding: '0.75rem', color: C.t1, fontWeight: '700', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>{voucherNo}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2, fontSize: '0.78rem', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={narrDetail}>{narrDetail}</td>
                       <td style={{ padding: '0.75rem', color: C.t2 }}>{entry.debitAccountId?.accountCode}</td>
                       <td style={{ padding: '0.75rem', color: C.t2 }}>{entry.creditAccountId?.accountCode}</td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>{entry.amount?.toLocaleString()}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>
+                        {(() => {
+                          const amt = Number(entry.amount || 0)
+                          const rate = Number(entry.exchangeRate || 1)
+                          const baseEq = amt * rate
+                          const sym = String(entry.currency || '').trim().toUpperCase()
+                          const isFc = sym && sym !== String(baseCurrencyCode || '').trim().toUpperCase()
+                          return (
+                            <div>
+                              <span>{amt.toLocaleString()}</span>
+                              {sym ? (
+                                <span style={{ marginLeft: '0.25rem', fontSize: '0.72rem', color: C.inkSoft, fontWeight: '600' }}>{sym}</span>
+                              ) : null}
+                              {isFc ? (
+                                <div style={{ fontSize: '0.68rem', color: C.inkSoft, marginTop: '0.12rem', fontWeight: '600' }} title={`Booked: ${amt} ${sym} × ${rate}`}>
+                                  ≈ {baseEq.toLocaleString(undefined, { maximumFractionDigits: 2 })} {baseCurrencyCode}
+                                </div>
+                              ) : null}
+                            </div>
+                          )
+                        })()}
+                      </td>
                       <td style={{ padding: '0.75rem', color: C.t2 }}>
                         {entry.referenceType === 'bank_jv' ? (
                           <div>
@@ -434,7 +463,7 @@ export default function ERPLedgerTab({
                             onClick={() => {
                               const entryType = String(entry.referenceType || '').toLowerCase()
                               if (entryType === 'journal' || entryType === 'bank_jv') {
-                                handleEditJv(entry)
+                                void handleEditJv(entry)
                                 return
                               }
                               handleEditLedger(entry)
@@ -451,7 +480,8 @@ export default function ERPLedgerTab({
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
               </tbody>
             </table>
               )

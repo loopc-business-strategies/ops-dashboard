@@ -11,6 +11,7 @@ const ledgerPatchSchema = Joi.object({
   description: Joi.string().trim().allow('').max(1000).optional(),
   referenceType: Joi.string().trim().allow('').max(80).optional(),
   currency: Joi.string().trim().allow('').max(10).optional(),
+  exchangeRate: Joi.number().positive().optional(),
 }).min(1)
 
 function registerLedgerRoutes(deps) {
@@ -46,17 +47,104 @@ const encodeCursor = (doc) => {
   return Buffer.from(JSON.stringify({ date: doc.date, id: String(doc._id) })).toString('base64')
 }
 
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const JV_MODE_PREFIX = {
+  journal: { prefix: 'Jv', referenceType: 'journal' },
+  bank_jv: { prefix: 'BnkJV', referenceType: 'bank_jv' },
+}
+
 const emitRealtime = (req, cb) => {
   const realtimeServer = req.app.get('realtimeServer')
   if (!realtimeServer || typeof cb !== 'function') return
   try { cb(realtimeServer) } catch {}
 }
 
+const normalizeLedgerCurrency = (code) => {
+  const u = String(code || '').trim().toUpperCase()
+  if (['SOM', 'SOMS', 'SUM'].includes(u)) return 'UZS'
+  return u
+}
+
+/**
+ * Ledger convention (matches customer/vendor aggregates): base equivalent = amount * exchangeRate.
+ * amount is in `currency`; exchangeRate is from Currency master (foreign → base) when not base.
+ */
+const resolveLedgerPostingFx = async (Currency, BASE_CURRENCY_CODE, requestedCurrency, requestedRate, amount) => {
+  const baseRow = await Currency.findOne({ baseCurrency: true, isActive: true })
+  const baseCurrencyCode = String(baseRow?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+  const cur = normalizeLedgerCurrency(requestedCurrency) || baseCurrencyCode
+  const amt = Number(amount)
+  if (!Number.isFinite(amt) || amt < 0) {
+    const err = new Error('INVALID_AMOUNT')
+    throw err
+  }
+  if (cur === baseCurrencyCode) {
+    return { currency: baseCurrencyCode, exchangeRate: 1, amount: amt }
+  }
+  let exchangeRate = Number(requestedRate)
+  if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
+    const doc = await Currency.findOne({ code: cur, isActive: true }).select('exchangeRate').lean()
+    exchangeRate = Number(doc?.exchangeRate || 0)
+  }
+  if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
+    throw new Error(`MISSING_FX:${cur}`)
+  }
+  return { currency: cur, exchangeRate, amount: amt }
+}
+
+router.get('/ledger/next-voucher-no', protect, async (req, res) => {
+  try {
+    if (!canViewLedger(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    const TenantLedger = await Ledger.getTenantModel(req.tenant)
+    const ref = String(req.query.referenceType || 'journal').toLowerCase() === 'bank_jv' ? 'bank_jv' : 'journal'
+    const { prefix } = JV_MODE_PREFIX[ref] || JV_MODE_PREFIX.journal
+    const year = new Date().getFullYear()
+    const yearStart = new Date(`${year}-01-01T00:00:00.000Z`)
+    const yearEnd = new Date(`${year}-12-31T23:59:59.999Z`)
+
+    const rows = await TenantLedger.find({
+      isDeleted: { $ne: true },
+      referenceType: ref,
+      date: { $gte: yearStart, $lte: yearEnd },
+    })
+      .select('description')
+      .limit(8000)
+      .lean()
+
+    let maxSeq = 0
+    const formattedRe = new RegExp(`^(${prefix})/(${year})/(\\d+)`, 'i')
+    const legacyRe = new RegExp(`^(${prefix})-(\\d+)`, 'i')
+
+    for (const row of rows || []) {
+      const rawDesc = String(row?.description || '')
+      const head = (rawDesc.includes(' — ') ? rawDesc.split(' — ')[0] : rawDesc.split(' - ')[0]).trim()
+      const fm = head.match(formattedRe)
+      if (fm) {
+        const n = Number(fm[3])
+        if (Number.isFinite(n) && n > maxSeq) maxSeq = n
+        continue
+      }
+      const lm = head.match(legacyRe)
+      if (lm) {
+        const n = Number(lm[2])
+        if (Number.isFinite(n) && n > maxSeq) maxSeq = n
+      }
+    }
+
+    const docNo = `${prefix}/${year}/${String(maxSeq + 1).padStart(4, '0')}`
+    return res.json({ success: true, docNo, referenceType: ref, year })
+  } catch (e) {
+    console.error('[ledger/next-voucher-no]', e)
+    return res.status(500).json({ success: false, message: 'Server error' })
+  }
+})
+
 router.get('/ledger', protect, async (req, res) => {
   try {
     if (!canViewLedger(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const TenantLedger = await Ledger.getTenantModel(req.tenant)
-    const { startDate, endDate, accountId, department, referenceType, limit = 100, page } = req.query
+    const { startDate, endDate, accountId, department, referenceType, limit = 100, page, docNoPrefix, referenceId } = req.query
     const safeLimit = Math.min(500, Math.max(1, Number(limit) || 100))
     const query = { isDeleted: { $ne: true } }
 
@@ -73,6 +161,14 @@ router.get('/ledger', protect, async (req, res) => {
     }
     if (referenceType) {
       query.referenceType = referenceType
+    }
+    const rid = String(referenceId || '').trim()
+    if (rid && /^[a-fA-F0-9]{24}$/.test(rid)) {
+      query.referenceId = rid
+    }
+    const dnp = String(docNoPrefix || '').trim()
+    if (dnp && dnp.length <= 120) {
+      query.description = new RegExp(`^${escapeRegex(dnp)}(\\s|$|—)`, 'i')
     }
 
     const useOffset = page && !req.query.cursor
@@ -146,7 +242,7 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { date, debitAccountId, creditAccountId, amount, description, referenceType, referenceId,
-      txRefNo, chequeNo, bankRemarks, paymentType } = req.body
+      txRefNo, chequeNo, bankRemarks, paymentType, currency: bodyCurrency, exchangeRate: bodyExchangeRate } = req.body
     if (!debitAccountId || !creditAccountId || !amount) return res.status(400).json({ success: false, message: 'Required fields missing' })
     // Validation: debit account cannot equal credit account
     if (debitAccountId === creditAccountId) return res.status(400).json({ success: false, message: 'Debit and Credit accounts must be different' })
@@ -154,8 +250,19 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
     if (!canCreateTransactionFor(req.user, referenceType || 'journal')) {
       return res.status(403).json({ success: false, message: `Your department cannot post ${referenceType} transactions` })
     }
-    const base = await Currency.findOne({ baseCurrency: true, isActive: true })
-    const baseCurrencyCode = String(base?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
+
+    let posting
+    try {
+      posting = await resolveLedgerPostingFx(Currency, BASE_CURRENCY_CODE, bodyCurrency, bodyExchangeRate, amount)
+    } catch (e) {
+      const msg = String(e.message || '')
+      if (msg === 'INVALID_AMOUNT') return res.status(400).json({ success: false, message: 'Invalid amount' })
+      if (msg.startsWith('MISSING_FX')) {
+        const cur = msg.split(':')[1] || ''
+        return res.status(400).json({ success: false, message: `Missing or invalid exchange rate for ${cur}. Add the currency in Currencies (active, exchangeRate > 0).` })
+      }
+      throw e
+    }
 
     const isBankJV = referenceType === 'bank_jv'
 
@@ -179,12 +286,12 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
       date: new Date(date),
       debitAccountId,
       creditAccountId,
-      amount,
+      amount: posting.amount,
       description,
       referenceType,
       referenceId,
-      currency: baseCurrencyCode,
-      exchangeRate: 1,
+      currency: posting.currency,
+      exchangeRate: posting.exchangeRate,
       createdBy: req.user._id,
       department: req.user.department,
       ...(isBankJV && {
@@ -241,13 +348,29 @@ router.put('/ledger/:id', protect, validateParams(idParamSchema), validateBodySt
     if (date !== undefined) updates.date = new Date(date)
     if (debitAccountId !== undefined) updates.debitAccountId = debitAccountId
     if (creditAccountId !== undefined) updates.creditAccountId = creditAccountId
-    if (amount !== undefined) updates.amount = amount
     if (description !== undefined) updates.description = description
     if (referenceType !== undefined) updates.referenceType = referenceType
-    if (req.body.currency !== undefined) {
-      const base = await Currency.findOne({ baseCurrency: true, isActive: true })
-      updates.currency = String(base?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
-      updates.exchangeRate = 1
+    if (req.body.currency !== undefined || req.body.exchangeRate !== undefined || req.body.amount !== undefined) {
+      try {
+        const post = await resolveLedgerPostingFx(
+          Currency,
+          BASE_CURRENCY_CODE,
+          req.body.currency !== undefined ? req.body.currency : entry.currency,
+          req.body.exchangeRate !== undefined ? req.body.exchangeRate : entry.exchangeRate,
+          req.body.amount !== undefined ? req.body.amount : entry.amount,
+        )
+        updates.amount = post.amount
+        updates.currency = post.currency
+        updates.exchangeRate = post.exchangeRate
+      } catch (e) {
+        const msg = String(e.message || '')
+        if (msg === 'INVALID_AMOUNT') return res.status(400).json({ success: false, message: 'Invalid amount' })
+        if (msg.startsWith('MISSING_FX')) {
+          const cur = msg.split(':')[1] || ''
+          return res.status(400).json({ success: false, message: `Missing or invalid exchange rate for ${cur}` })
+        }
+        throw e
+      }
     }
     const updated = await TenantLedger.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' })
     const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')

@@ -5222,34 +5222,70 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
   }
 
-  const resetJvForm = (mode = 'journal') => {
+  const resetJvForm = async (mode = 'journal') => {
     setJvMode(mode)
     setJvLines([emptyJvLine(1), emptyJvLine(2)])
-    setJvHeader(createJvHeader(baseCurrencyCode, mode))
     setNextJvLineId(3)
     setJvEditEntryIds([])
+    let docNo = buildJvDocNo(mode)
+    const refType = resolveJvModeMeta(mode).referenceType
+    try {
+      if (token) {
+        const data = await erpAccountingAPI.getNextJvDocNo(token, refType)
+        if (data?.success && data.docNo) docNo = data.docNo
+      }
+    } catch (_) { /* keep client-side sequence from current page */ }
+    setJvHeader({
+      docNo,
+      date: new Date().toISOString().slice(0, 10),
+      narration: '',
+      currency: baseCurrencyCode,
+    })
   }
 
-  const handleEditJv = (entry) => {
-    // Find all ledger entries belonging to the same JV document by docNo prefix in description
-    const descParts = (entry.description || '').split(' — ')
-    const docNo = descParts[0]
+  const handleEditJv = async (entry) => {
+    const rawDesc = String(entry.description || '')
+    const docNoHead = (rawDesc.includes(' — ') ? rawDesc.split(' — ') : rawDesc.split(' - '))[0]?.trim() || ''
+    const docNo = docNoHead
     const hasDocPrefix = /^(jv|bnkjv)[/-]/i.test(String(docNo || ''))
-    const relatedEntries = (docNo && hasDocPrefix)
-      ? ledger.filter((e) => {
-        const entryHead = String(e.description || '').split(' — ')[0].trim()
-        return entryHead === docNo
-      })
-      : [entry]
     const entryMode = String(entry?.referenceType || '').toLowerCase() === 'bank_jv' ? 'bank_jv' : 'journal'
-    const docMatchedEntries = (docNo && hasDocPrefix)
-      ? ledger.filter((e) => String(e?.description || '').includes(docNo))
-      : relatedEntries
+    const refTypeFilter = entryMode
+
+    let docMatchedEntries = [entry]
+
+    try {
+      const batchId = entry.referenceId ? String(entry.referenceId).trim() : ''
+      if (batchId && /^[a-fA-F0-9]{24}$/.test(batchId)) {
+        const data = await erpAccountingAPI.getLedger(token, {
+          referenceType: refTypeFilter,
+          referenceId: batchId,
+          limit: 300,
+          page: 1,
+        })
+        if (Array.isArray(data?.entries) && data.entries.length) {
+          docMatchedEntries = data.entries
+        }
+      } else if (docNo && hasDocPrefix) {
+        const data = await erpAccountingAPI.getLedger(token, {
+          referenceType: refTypeFilter,
+          docNoPrefix: docNo,
+          limit: 300,
+          page: 1,
+        })
+        if (Array.isArray(data?.entries) && data.entries.length) {
+          docMatchedEntries = data.entries
+        }
+      }
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load JV lines for editing')
+      return
+    }
+
     const reversedEntryIds = new Set(
       docMatchedEntries
         .filter((e) => String(e?.referenceType || '').toLowerCase() === 'reversal')
         .map((e) => String(e?.referenceId || String(e?.description || '').match(/REVERSAL of Entry\s+([a-f0-9]{24})/i)?.[1] || '').trim())
-        .filter(Boolean)
+        .filter(Boolean),
     )
     const entryDateKey = entry?.date ? new Date(entry.date).toISOString().slice(0, 10) : ''
     const editableEntries = docMatchedEntries.filter((e) => {
@@ -5264,10 +5300,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const debitMap = new Map()
     const creditMap = new Map()
     editableEntries.forEach((e) => {
+      const entryCur = normalizeJvCurrencyCode(e.currency || baseCurrencyCode)
       const drId = e.debitAccountId?._id
       const crId = e.creditAccountId?._id
       if (drId) {
-        const displayDebit = convertJvAmount(e.amount, baseCurrencyCode, inferJvAccountCurrency(drId))
+        const displayDebit = convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(drId))
         const debitAmount = Number.isFinite(Number(displayDebit)) ? Number(displayDebit) : Number(e.amount || 0)
         if (!debitMap.has(drId)) {
           debitMap.set(drId, { accountId: drId, accountInput: `${e.debitAccountId.accountCode} - ${e.debitAccountId.accountName}`, debit: 0, description: '' })
@@ -5275,7 +5312,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         debitMap.get(drId).debit = Number((debitMap.get(drId).debit + debitAmount).toFixed(2))
       }
       if (crId) {
-        const displayCredit = convertJvAmount(e.amount, baseCurrencyCode, inferJvAccountCurrency(crId))
+        const displayCredit = convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(crId))
         const creditAmount = Number.isFinite(Number(displayCredit)) ? Number(displayCredit) : Number(e.amount || 0)
         if (!creditMap.has(crId)) {
           creditMap.set(crId, { accountId: crId, accountInput: `${e.creditAccountId.accountCode} - ${e.creditAccountId.accountName}`, credit: 0, description: '' })
@@ -5307,15 +5344,15 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
 
   const closeJvModal = () => {
     setShowLedgerForm(false)
-    resetJvForm(ledgerVoucherTab)
+    void resetJvForm(ledgerVoucherTab)
     setJvModalOffset({ x: 0, y: 0 })
     setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
     setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
     setJvModalSize(JV_MODAL_DEFAULT_SIZE)
   }
 
-  const openJvModal = (mode = ledgerVoucherTab) => {
-    resetJvForm(mode)
+  const openJvModal = async (mode = ledgerVoucherTab) => {
+    await resetJvForm(mode)
     setJvModalOffset({ x: 0, y: 0 })
     setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
     setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
@@ -5323,10 +5360,17 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     setShowLedgerForm(true)
   }
 
-  const switchJvMode = (mode) => {
+  const switchJvMode = async (mode) => {
     if (jvEditEntryIds.length > 0) return
     setJvMode(mode)
-    setJvHeader((prev) => ({ ...prev, docNo: buildJvDocNo(mode) }))
+    let docNo = buildJvDocNo(mode)
+    try {
+      if (token) {
+        const data = await erpAccountingAPI.getNextJvDocNo(token, resolveJvModeMeta(mode).referenceType)
+        if (data?.success && data.docNo) docNo = data.docNo
+      }
+    } catch (_) { /* keep client fallback */ }
+    setJvHeader((prev) => ({ ...prev, docNo }))
   }
 
   const handlePrintJvVoucher = async () => {
@@ -5444,6 +5488,33 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
 
     const isBankJV = jvMode === 'bank_jv'
     const sharedDesc = [jvHeader.docNo, jvHeader.narration].filter(Boolean).join(' — ') || 'Manual JV'
+    const makeJvGroupObjectId = () => {
+      const hex = '0123456789abcdef'
+      let s = ''
+      for (let i = 0; i < 24; i += 1) s += hex[Math.floor(Math.random() * 16)]
+      return s
+    }
+    const jvGroupId = makeJvGroupObjectId()
+
+    const headerCur = normalizeJvCurrencyCode(jvHeader.currency || baseCurrencyCode)
+    const baseCur = normalizeJvCurrencyCode(baseCurrencyCode)
+    let headerFxRate = 1
+    if (headerCur !== baseCur) {
+      const curRow = currencies.find((c) => normalizeJvCurrencyCode(c?.code) === headerCur)
+      headerFxRate = Number(curRow?.exchangeRate || 0)
+      if (!Number.isFinite(headerFxRate) || headerFxRate <= 0) {
+        setError(`Cannot post in ${headerCur}: add an active ${headerCur} currency with exchangeRate (vs ${baseCur}) in Master → Currencies.`)
+        return
+      }
+      for (const row of entries) {
+        const fcRaw = Number(row.amount) / headerFxRate
+        const postAmt = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
+        if (!Number.isFinite(postAmt) || postAmt <= 0) {
+          setError('A JV line would round to zero in the header currency; adjust amounts or the FX rate.')
+          return
+        }
+      }
+    }
 
     setSaving(true)
     try {
@@ -5452,16 +5523,30 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (jvEditEntryIds.length > 0) {
         await Promise.all(jvEditEntryIds.map((id) => erpAccountingAPI.deleteLedgerEntry(token, id)))
       }
-      await Promise.all(entries.map((entry) => erpAccountingAPI.createLedgerEntry(token, {
-        date: jvHeader.date,
-        description: entry.lineDesc ? `${sharedDesc} — ${entry.lineDesc}` : sharedDesc,
-        notes: jvHeader.narration || '',
-        referenceType: isBankJV ? 'bank_jv' : 'journal',
-        currency: jvHeader.currency || baseCurrencyCode,
-        debitAccountId: entry.debitAccountId,
-        creditAccountId: entry.creditAccountId,
-        amount: entry.amount,
-      })))
+      await Promise.all(entries.map((entry) => {
+        const pairBase = Number(entry.amount)
+        let postAmount = pairBase
+        let postCurrency = baseCur
+        let postRate = 1
+        if (headerCur !== baseCur) {
+          const fcRaw = pairBase / headerFxRate
+          postAmount = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
+          postCurrency = headerCur
+          postRate = headerFxRate
+        }
+        return erpAccountingAPI.createLedgerEntry(token, {
+          date: jvHeader.date,
+          description: entry.lineDesc ? `${sharedDesc} — ${entry.lineDesc}` : sharedDesc,
+          notes: jvHeader.narration || '',
+          referenceType: isBankJV ? 'bank_jv' : 'journal',
+          referenceId: jvGroupId,
+          currency: postCurrency,
+          exchangeRate: postRate,
+          debitAccountId: entry.debitAccountId,
+          creditAccountId: entry.creditAccountId,
+          amount: postAmount,
+        })
+      }))
       const isEdit = jvEditEntryIds.length > 0
       const voucherLabel = isBankJV ? 'Bank JV' : 'Journal Voucher'
       closeJvModal()

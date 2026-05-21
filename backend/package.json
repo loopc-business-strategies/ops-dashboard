@@ -25,7 +25,9 @@
     "test:integration:tenant-isolation": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest --testTimeout=120000 tests/tenant-db-isolation.test.js",
     "test:integration:erp": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest --testTimeout=120000 tests/erp-accounting-transactions.test.js",
     "test:watch": "jest --watch",
-    "cleanup:safe": "node scripts/safe-cleanup-cli.js"
+    "cleanup:safe": "node scripts/safe-cleanup-cli.js",
+    "backfill:jv-ledger-fc:dry": "node scripts/backfill-jv-ledger-base-to-fc.js --dry-run",
+    "backfill:jv-ledger-fc:apply": "node scripts/backfill-jv-ledger-base-to-fc.js --apply"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -75,6 +75,7 @@ The table below predates the workspace registry and uses a few descriptive label
 | `backfill-fx-journals-all-tenants.js` | dry-run/apply or writes data | See script source before use. |
 | `backfill-fx-journals-missing.js` | dry-run/apply or writes data | See script source before use. |
 | `backfill-ledger-exchange-rates.js` | dry-run/apply or writes data | See script source before use. |
+| `backfill-jv-ledger-base-to-fc.js` | dry-run/apply or writes data | COA/majority inference: JV & bank_jv rows stored as base+rate 1 → FC+master rate. See `docs/erp-backfill-jv-ledger-fx.md`. |
 | `backfill-mapping-departments.js` | dry-run/apply or writes data | See script source before use. |
 | `backfill-missing-metal-ledger.js` | dry-run/apply or writes data | See script source before use. |
 | `backfill-transaction-type-all-tenants.js` | dry-run/apply or writes data | See script source before use. |

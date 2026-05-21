@@ -13,6 +13,12 @@ const normalizeJvCurrencyCode = (value = '') => {
   return code
 }
 
+/** First segment of stored JV description (doc no + optional narration tail). */
+const jvDescriptionHead = (description) => {
+  const raw = String(description || '')
+  return (raw.includes(' — ') ? raw.split(' — ')[0] : raw.split(' - ')[0]).trim()
+}
+
 const convertJvAmountBetweenCurrencies = (amount, fromCurrency, toCurrency, currencies = [], baseCurrencyCode = 'USD') => {
   const value = Number(amount || 0)
   if (!Number.isFinite(value)) return null
@@ -37,7 +43,7 @@ const buildJvDocNo = (ledger = [], mode = 'journal', now = new Date()) => {
   const year = now.getFullYear()
   const maxExisting = (ledger || []).reduce((max, entry) => {
     if (String(entry?.referenceType || '').toLowerCase() !== String(referenceType || '').toLowerCase()) return max
-    const head = String(entry?.description || '').split(' — ')[0].trim()
+    const head = jvDescriptionHead(entry?.description)
 
     const formattedMatch = head.match(/^([A-Z]+)\/(\d{4})\/(\d+)$/i)
     if (formattedMatch) {
@@ -67,6 +73,23 @@ const createJvHeader = (ledger = [], currencyCode = 'USD', mode = 'journal', now
   currency: currencyCode,
 })
 
+const extractLedgerJvDocNoFromDescription = (description = '') => {
+  const head = jvDescriptionHead(description)
+  return /^(jv|bnkjv)[/-]/i.test(head) ? head : ''
+}
+
+const extractLedgerJvDetailFromDescription = (description = '') => {
+  const raw = String(description || '')
+  if (raw.includes(' — ')) {
+    const parts = raw.split(' — ')
+    if (parts.length <= 1) return ''
+    return parts.slice(1).join(' — ').trim()
+  }
+  const parts = raw.split(' - ')
+  if (parts.length <= 1) return ''
+  return parts.slice(1).join(' - ').trim()
+}
+
 export {
   JV_MODE_META,
   convertJvAmountBetweenCurrencies,
@@ -75,4 +98,6 @@ export {
   resolveJvModeMeta,
   buildJvDocNo,
   createJvHeader,
+  extractLedgerJvDocNoFromDescription,
+  extractLedgerJvDetailFromDescription,
 }
