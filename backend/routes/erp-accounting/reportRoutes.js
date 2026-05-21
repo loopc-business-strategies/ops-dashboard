@@ -49,9 +49,18 @@ function registerReportRoutes(deps) {
     return ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(normalized)
   }
   const roundPosition = (value) => Number(Number(value || 0).toFixed(6))
-  const calculateMarginMetrics = ({ totalFunds, goldPosition, silverPosition, goldPrice, silverPrice }) => {
+  const calculateMarginMetrics = ({
+    totalFunds,
+    goldPosition,
+    silverPosition,
+    goldPrice,
+    silverPrice,
+    suppressMetalSpotMtm = false,
+  }) => {
     const funds = Number(totalFunds || 0)
-    const revaluation = (Number(goldPosition || 0) * Number(goldPrice || 0)) + (Number(silverPosition || 0) * Number(silverPrice || 0))
+    const revaluation = suppressMetalSpotMtm
+      ? 0
+      : (Number(goldPosition || 0) * Number(goldPrice || 0)) + (Number(silverPosition || 0) * Number(silverPrice || 0))
     const margin = Math.abs(revaluation) * 0.02
     const equity = funds + revaluation
     const excess = equity - margin
@@ -1285,7 +1294,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
     ])
 
     // --- AP & AR (via customer / vendor ledger accounts) ---
-    const customers = await Customer.find({ isActive: true }).populate('ledgerAccountId', 'accountCode accountName openingBalance')
+    const customers = await Customer.find({ isActive: true }).populate('ledgerAccountId', 'accountCode accountName accountType openingBalance')
     const vendors = await Vendor.find({ isActive: true, deletedAt: null }).populate('ledgerAccountId', 'accountCode accountName')
 
     const customerOutstanding = await Promise.all(customers.map(async (c) => {
@@ -1354,6 +1363,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         silverPosition,
         goldPrice: marginRates.goldPrice,
         silverPrice: marginRates.silverPrice,
+        suppressMetalSpotMtm: String(c.ledgerAccountId?.accountType || '').toLowerCase() === 'liability',
       })
 
       if (!c.ledgerAccountId?._id) {
@@ -1452,6 +1462,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         silverPosition,
         goldPrice: marginRates.goldPrice,
         silverPrice: marginRates.silverPrice,
+        suppressMetalSpotMtm: true,
       })
       return {
         id: v._id,

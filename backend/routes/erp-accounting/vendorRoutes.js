@@ -72,7 +72,8 @@ function registerVendorRoutes(deps) {
   const roundPosition = (value) => Number(Number(value || 0).toFixed(6))
   const calculateVendorMargin = ({ totalFunds, goldPosition, silverPosition, goldPrice, silverPrice }) => {
     const funds = Number(totalFunds || 0)
-    const revaluation = (Number(goldPosition || 0) * Number(goldPrice || 0)) + (Number(silverPosition || 0) * Number(silverPrice || 0))
+    // Supplier AP is stated in currency; unfixed metal grams are operational only — do not add spot MTM here.
+    const revaluation = 0
     const margin = Math.abs(revaluation) * 0.02
     const equity = funds + revaluation
     const excess = equity - margin

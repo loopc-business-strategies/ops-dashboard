@@ -30,10 +30,12 @@ function registerCustomerRoutes(deps) {
   }
 
   const roundPosition = (value) => Number(Number(value || 0).toFixed(6))
-  const calculateCustomerMargin = ({ totalFunds, goldPosition, silverPosition, goldPrice, silverPrice }) => {
+  const calculateCustomerMargin = ({ totalFunds, goldPosition, silverPosition, goldPrice, silverPrice, suppressMetalSpotMtm = false }) => {
     const rawFunds = Number(totalFunds || 0)
     const funds = rawFunds < 0 ? Math.abs(rawFunds) : rawFunds
-    const revaluation = (Number(goldPosition || 0) * Number(goldPrice || 0)) + (Number(silverPosition || 0) * Number(silverPrice || 0))
+    const revaluation = suppressMetalSpotMtm
+      ? 0
+      : (Number(goldPosition || 0) * Number(goldPrice || 0)) + (Number(silverPosition || 0) * Number(silverPrice || 0))
     const margin = Math.abs(revaluation) * 0.02
     const equity = funds + revaluation
     const excess = equity - margin
@@ -134,12 +136,14 @@ function registerCustomerRoutes(deps) {
         const metalPosition = metalPositionMap.get(customerId) || { goldPosition: 0, silverPosition: 0 }
         const goldPosition = roundPosition(metalPosition.goldPosition)
         const silverPosition = roundPosition(metalPosition.silverPosition)
+        const suppressMetalSpotMtm = String(customer.ledgerAccountId?.accountType || '').toLowerCase() === 'liability'
         const margin = calculateCustomerMargin({
           totalFunds: net,
           goldPosition,
           silverPosition,
           goldPrice: rates.goldPrice,
           silverPrice: rates.silverPrice,
+          suppressMetalSpotMtm,
         })
         return {
           ...customer.toObject(),

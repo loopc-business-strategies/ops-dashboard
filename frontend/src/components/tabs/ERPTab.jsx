@@ -3275,7 +3275,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         const goldPrice = Number(customer?.metalRates?.goldPrice || goldPriceUSD || 0)
         const silverPrice = Number(customer?.metalRates?.silverPrice || silverPriceUSD || 0)
         const customerFunds = outstanding < 0 ? Math.abs(outstanding) : outstanding
-        const fallbackRevaluation = (goldPosition * goldPrice) + (silverPosition * silverPrice)
+        const isLiabilityCustomerLedger = String(customer?.ledgerAccountId?.accountType || '').toLowerCase() === 'liability'
+        const fallbackRevaluation = isLiabilityCustomerLedger
+          ? 0
+          : (goldPosition * goldPrice) + (silverPosition * silverPrice)
         const fallbackMargin = Math.abs(fallbackRevaluation) * 0.02
         const fallbackMetrics = calculateAccountSummaryMetrics({
           totalFunds: customerFunds,
@@ -3333,10 +3336,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         const outstanding = -Math.abs(Number(vendor?.outstanding ?? vendor?.outstandingBalance ?? 0))
         const goldPosition = Number(vendor?.goldPosition || 0)
         const silverPosition = Number(vendor?.silverPosition || 0)
-        const goldPrice = Number(vendor?.metalRates?.goldPrice || goldPriceUSD || 0)
-        const silverPrice = Number(vendor?.metalRates?.silverPrice || silverPriceUSD || 0)
-        const fallbackRevaluation = (goldPosition * goldPrice) + (silverPosition * silverPrice)
-        const fallbackMargin = Math.abs(fallbackRevaluation) * 0.02
+        const fallbackRevaluation = 0
+        const fallbackMargin = 0
         const fallbackMetrics = calculateAccountSummaryMetrics({
           totalFunds: outstanding,
           revaluation: fallbackRevaluation,
@@ -3382,7 +3383,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
 
     return rows
-  }, [vendors, supplierMarginSearch, supplierMarginSort, goldPriceUSD, silverPriceUSD])
+  }, [vendors, supplierMarginSearch, supplierMarginSort])
 
   const formatCustomerMarginEquity = (row) => {
     const amount = Number(Math.abs(row?.equity || 0)).toLocaleString(undefined, {
