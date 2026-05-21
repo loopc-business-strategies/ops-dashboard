@@ -299,7 +299,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const [metalUnit, setMetalUnit] = useState('gram')
   const [showEnquiryModal, setShowEnquiryModal] = useState(false)
   const [showEnquiryLookupMenu, setShowEnquiryLookupMenu] = useState(false)
-  const [accountSummaryView, setAccountSummaryView] = useState('position')
   const [enquiryModalOffset, setEnquiryModalOffset] = useState({ x: 0, y: 0 })
   const [enquiryModalDrag, setEnquiryModalDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
   const [detailsPanel, setDetailsPanel] = useState({
@@ -641,33 +640,42 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       ]
   const selectedTransaction = transactions.find((tx) => tx._id === selectedTransactionId) || null
   const rawStatementEntries = accountEnquiryData?.statement?.entries || []
-  
-  // Trading platform calculations (metal price driven)
-  const xauBalance = accountEnquiryData ? Number(accountEnquiryData.metals?.goldBalance || 0) : 0
-  const xagBalance = accountEnquiryData ? Number(accountEnquiryData.metals?.silverBalance || 0) : 0
+
+  const resolveFixStatus = (entry) => {
+    const explicit = String(entry?.metalFixStatus || '').trim().toLowerCase()
+    if (explicit === 'fixed' || explicit === 'unfixed') return explicit
+    const text = `${String(entry?.description || '')} ${String(entry?.referenceType || '')}`.toLowerCase()
+    if (/non[\s-_]?fix|unfix|unfixed/.test(text)) return 'unfixed'
+    if (/fixing|fixed|price[\s-_]?fix/.test(text)) return 'fixed'
+    return 'unknown'
+  }
+
   const goldPriceUSD = accountEnquiryData ? Number(accountEnquiryData.metals?.goldPrice || 0) : 0
   const silverPriceUSD = accountEnquiryData ? Number(accountEnquiryData.metals?.silverPrice || 0) : 0
   const totalFunds = accountEnquiryData ? Number(accountEnquiryData.balances?.netBalance || 0) : 0
-  
-  // Derived calculations
-  const xauCurrentValue = xauBalance * goldPriceUSD
-  const xagCurrentValue = xagBalance * silverPriceUSD
-  const modalRevaluation = xauCurrentValue + xagCurrentValue
-  const modalTotalFunds = totalFunds
-  const modalMarginAmt = Math.abs(modalRevaluation) * 0.02
-  const breakEvenPrice = Math.abs(xauBalance) !== 0 ? Math.abs(totalFunds) / Math.abs(xauBalance) : 0
   const modalStatementCurrency = 'USD'  // Trading platform uses USD
-  const resolvePreferredStatementMetalCode = (entries = []) => {
+  const rawUnfixedStatementMetalHint = rawStatementEntries.reduce((acc, entry) => {
+    if (resolveFixStatus(entry) !== 'unfixed') return acc
+    const st = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
+    if (!(entry.isMetalTrade || st === 'sale' || st === 'purchase')) return acc
+    const w = Number(entry.metalSignedWeight || 0)
+    if (!Number.isFinite(w) || w === 0) return acc
+    const mc = resolveStatementMetalCode(entry)
+    if (mc === 'XAG') acc.silver += w
+    else if (mc && mc !== '-') acc.gold += w
+    return acc
+  }, { gold: 0, silver: 0 })
+  const resolvePreferredStatementMetalCode = (entries = [], hint = { gold: 0, silver: 0 }) => {
     const explicitMetal = entries.find((entry) => {
       const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
       return metalCode === 'XAU' || metalCode === 'XAG'
     })
     if (explicitMetal?.metalCode) return String(explicitMetal.metalCode).trim().toUpperCase()
-    const goldAbs = Math.abs(Number(accountEnquiryData?.metals?.goldBalance || 0))
-    const silverAbs = Math.abs(Number(accountEnquiryData?.metals?.silverBalance || 0))
+    const goldAbs = Math.abs(Number(accountEnquiryData?.metals?.goldBalance || 0)) || Math.abs(hint.gold || 0)
+    const silverAbs = Math.abs(Number(accountEnquiryData?.metals?.silverBalance || 0)) || Math.abs(hint.silver || 0)
     return silverAbs > goldAbs ? 'XAG' : 'XAU'
   }
-  const defaultStatementMetalCode = resolvePreferredStatementMetalCode(rawStatementEntries)
+  const defaultStatementMetalCode = resolvePreferredStatementMetalCode(rawStatementEntries, rawUnfixedStatementMetalHint)
   const statementSelectedMetalCode = statementFilters.metalCommodity
     ? resolveMetalCodeFromStockName(statementFilters.metalCommodity)
     : defaultStatementMetalCode
@@ -718,26 +726,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const num = Number(value || 0)
     return num >= 0 ? '#111827' : '#c0392b'  // Red for negative
   }
-  const modalPositionRows = accountEnquiryData ? [
-    {
-      key: 'xau',
-      type: 'XAU',
-      limits: 0,
-      balance: xauBalance,
-      price: goldPriceUSD,
-      currentValue: xauCurrentValue,
-      breakEven: breakEvenPrice,
-    },
-    {
-      key: 'xag',
-      type: 'XAG',
-      limits: 0,
-      balance: xagBalance,
-      price: silverPriceUSD,
-      currentValue: xagBalance * silverPriceUSD,
-      breakEven: Math.abs(xagBalance) !== 0 ? Math.abs(totalFunds) / Math.abs(xagBalance) : 0,
-    },
-  ] : []
   const isCashOnHandEnquiry = String(accountEnquiryData?.account?.accountCode || '').trim() === '1000'
   const strictCashStatementTypes = new Set([
     'payment',
@@ -751,14 +739,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     'bank_jv',
     'bank-jv',
   ])
-  const resolveFixStatus = (entry) => {
-    const explicit = String(entry?.metalFixStatus || '').trim().toLowerCase()
-    if (explicit === 'fixed' || explicit === 'unfixed') return explicit
-    const text = `${String(entry?.description || '')} ${String(entry?.referenceType || '')}`.toLowerCase()
-    if (/non[\s-_]?fix|unfix|unfixed/.test(text)) return 'unfixed'
-    if (/fixing|fixed|price[\s-_]?fix/.test(text)) return 'fixed'
-    return 'unknown'
-  }
   const resolveMetalCode = resolveStatementMetalCode
   const isLikelyMongoId = (value) => /^[a-f0-9]{24}$/i.test(String(value || '').trim())
   const resolveStatementReceiptNo = (entry = {}) => {
@@ -805,6 +785,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           offsetAccountCode: '',
           offsetAccountName: '',
           receiptNo,
+          metalSignedWeight: 0,
         })
         orderedKeys.push(key)
       }
@@ -825,7 +806,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (!row.metalFixStatus && entry?.metalFixStatus) row.metalFixStatus = entry.metalFixStatus
       if (!row.metalCode && entry?.metalCode) row.metalCode = entry.metalCode
       if (!row.isMetalTrade && entry?.isMetalTrade) row.isMetalTrade = entry.isMetalTrade
-      if (!row.metalSignedWeight && entry?.metalSignedWeight) row.metalSignedWeight = entry.metalSignedWeight
+      row.metalSignedWeight = Number(row.metalSignedWeight || 0) + Number(entry?.metalSignedWeight || 0)
     })
 
     return orderedKeys.map((key) => {
@@ -837,6 +818,68 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     })
   }
   const statementEntries = combineVoucherStatementRows(rawStatementEntries)
+  const deriveStatementUnfixedMetalBalances = (entries) => entries.reduce((acc, entry) => {
+    if (resolveFixStatus(entry) !== 'unfixed') return acc
+    const st = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
+    if (!(entry.isMetalTrade || st === 'sale' || st === 'purchase')) return acc
+    const w = Number(entry.metalSignedWeight || 0)
+    if (!Number.isFinite(w) || w === 0) return acc
+    const mc = resolveStatementMetalCode(entry)
+    if (mc === 'XAG') acc.silver += w
+    else if (mc && mc !== '-') acc.gold += w
+    return acc
+  }, { gold: 0, silver: 0 })
+  const statementUnfixedMetalBalances = deriveStatementUnfixedMetalBalances(statementEntries)
+  const apiGoldBal = accountEnquiryData ? Number(accountEnquiryData.metals?.goldBalance || 0) : 0
+  const apiSilverBal = accountEnquiryData ? Number(accountEnquiryData.metals?.silverBalance || 0) : 0
+  const xauBalance = apiGoldBal !== 0 ? apiGoldBal : statementUnfixedMetalBalances.gold
+  const xagBalance = apiSilverBal !== 0 ? apiSilverBal : statementUnfixedMetalBalances.silver
+  const modalTotalFunds = totalFunds
+  const xauCurrentValue = xauBalance * goldPriceUSD
+  const xagCurrentValue = xagBalance * silverPriceUSD
+  const modalRevaluation = xauCurrentValue + xagCurrentValue
+  const modalMarginAmt = Math.abs(modalRevaluation) * 0.02
+  const breakEvenPrice = Math.abs(xauBalance) !== 0 ? Math.abs(totalFunds) / Math.abs(xauBalance) : 0
+  const modalPositionRows = accountEnquiryData ? [
+    {
+      key: 'xau',
+      type: 'XAU',
+      limits: 0,
+      balance: xauBalance,
+      price: goldPriceUSD,
+      currentValue: xauCurrentValue,
+      breakEven: breakEvenPrice,
+    },
+    {
+      key: 'xag',
+      type: 'XAG',
+      limits: 0,
+      balance: xagBalance,
+      price: silverPriceUSD,
+      currentValue: xagCurrentValue,
+      breakEven: Math.abs(xagBalance) !== 0 ? Math.abs(totalFunds) / Math.abs(xagBalance) : 0,
+    },
+  ] : []
+  const buildPureWeightRunningBalancesByEntryKey = (entries, selectedMetalCode) => {
+    const selected = String(selectedMetalCode || '').trim().toUpperCase()
+    const isMetalRowForPureWt = (entry) => {
+      const sourceType = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
+      const entryMetalCode = resolveStatementMetalCode(entry)
+      return (entry.isMetalTrade || sourceType === 'sale' || sourceType === 'purchase') && entryMetalCode === selected
+    }
+    let closing = entries.reduce((sum, entry) => {
+      if (!isMetalRowForPureWt(entry)) return sum
+      return sum + Number(entry.metalSignedWeight || 0)
+    }, 0)
+    const map = new Map()
+    for (const entry of entries) {
+      if (!isMetalRowForPureWt(entry)) continue
+      map.set(entry._id, closing)
+      closing -= Number(entry.metalSignedWeight || 0)
+    }
+    return map
+  }
+  const pureWeightRunningByEntryKey = buildPureWeightRunningBalancesByEntryKey(statementEntries, statementSelectedMetalCode)
   const statementReferenceTypes = Array.from(new Set(statementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
   const statementDepartments = Array.from(new Set(statementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean))).sort()
   const filteredStatementEntries = statementEntries.filter((entry) => {
@@ -2819,7 +2862,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, { statementLimit: 1000 })
       setAccountEnquiryCode(cleanCode)
       setAccountEnquiryData(data)
-      setAccountSummaryView('position')
       setStatementFilters({
         startDate: '',
         endDate: '',
@@ -8293,107 +8335,78 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                         </div>
                       </div>
 
-                      {/* Position Table with Tabs */}
+                      {/* Metal position (grams) + unfixed activity */}
                       <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', overflow: 'hidden', background: '#FFFFFF' }}>
-                        {/* Tab Header */}
-                        <div style={{ background: '#3F4B2E', padding: '0', display: 'flex', borderBottom: '1px solid #2D3620' }}>
-                          <button
-                            type="button"
-                            onClick={() => setAccountSummaryView('position')}
-                            style={{
-                              flex: 1,
-                              padding: '0.7rem 1rem',
-                              color: accountSummaryView === 'position' ? '#FFFFFF' : '#6B7280',
-                              background: accountSummaryView === 'position' ? '#3F4B2E' : '#EEEEEE',
-                              border: 'none',
-                              fontWeight: accountSummaryView === 'position' ? '700' : '600',
-                              fontSize: '0.95rem',
-                              cursor: 'pointer',
-                              borderRight: '1px solid #2D3620',
-                            }}
-                          >
-                            Position
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setAccountSummaryView('unfixed')}
-                            style={{
-                              flex: 1,
-                              padding: '0.7rem 1rem',
-                              color: accountSummaryView === 'unfixed' ? '#FFFFFF' : '#6B7280',
-                              background: accountSummaryView === 'unfixed' ? '#3F4B2E' : '#EEEEEE',
-                              border: 'none',
-                              fontWeight: accountSummaryView === 'unfixed' ? '700' : '600',
-                              fontSize: '0.95rem',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Unfixed
-                          </button>
+                        <div style={{ background: '#3F4B2E', padding: '0.7rem 1rem', borderBottom: '1px solid #2D3620' }}>
+                          <span style={{ color: '#FFFFFF', fontWeight: '700', fontSize: '0.95rem' }}>Position</span>
+                          <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: '0.78rem', marginLeft: '0.5rem', fontWeight: '600' }}>(pure weight, grams — includes unfixed)</span>
                         </div>
-                        
-                        {/* Position / Unfixed Table */}
+
                         <div style={{ overflowX: 'auto' }}>
-                          {accountSummaryView === 'position' ? (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                              <thead>
-                                <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
-                                  <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Type</th>
-                                  <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Limits</th>
-                                  <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Balance</th>
-                                  <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Price</th>
-                                  <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Current Value</th>
-                                  <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Break Even</th>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                            <thead>
+                              <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
+                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Type</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Limits</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Balance</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Price</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Current Value</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Break Even</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {modalPositionRows.map((row, index) => (
+                                <tr key={row.key} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                                  <td style={{ padding: '0.7rem', fontWeight: '700', color: '#111827' }}>{row.type}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.limits, 0)}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.balance), fontWeight: '600' }}>{formatStatementValue(row.balance, 6)}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.price, 4)}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.currentValue), fontWeight: '700' }}>{formatStatementValue(row.currentValue, 2)}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.breakEven, 4)}</td>
                                 </tr>
-                              </thead>
-                              <tbody>
-                                {modalPositionRows.map((row, index) => (
-                                  <tr key={row.key} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                                    <td style={{ padding: '0.7rem', fontWeight: '700', color: '#111827' }}>{row.type}</td>
-                                    <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.limits, 0)}</td>
-                                    <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.balance), fontWeight: '600' }}>{formatStatementValue(row.balance, 6)}</td>
-                                    <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.price, 4)}</td>
-                                    <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.currentValue), fontWeight: '700' }}>{formatStatementValue(row.currentValue, 2)}</td>
-                                    <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.breakEven, 4)}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                              <thead>
-                                <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
-                                  <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Date</th>
-                                  <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Deal</th>
-                                  <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Metal</th>
-                                  <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Amount</th>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div style={{ borderTop: '1px solid #CBD5E0', background: '#FAFBFC', padding: '0.55rem 0.75rem' }}>
+                          <p style={{ margin: 0, color: '#374151', fontWeight: '800', fontSize: '0.82rem' }}>Unfixed metal sales & purchases</p>
+                          <p style={{ margin: '0.2rem 0 0', color: '#64748B', fontSize: '0.72rem', lineHeight: 1.4 }}>Rows below reflect the same filters as the statement. Amounts are absolute signed cash effect.</p>
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                            <thead>
+                              <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
+                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Date</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Deal</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Metal</th>
+                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {unfixedMetalEntries.length ? unfixedMetalEntries.slice(0, 8).map((row, index) => (
+                                <tr key={row._id || `${row.date}-${index}`} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                                  <td style={{ padding: '0.7rem', color: '#111827' }}>{formatStatementDate(row.date)}</td>
+                                  <td style={{ padding: '0.7rem', color: '#111827', fontWeight: '600', textTransform: 'capitalize' }}>{row.dealSide}</td>
+                                  <td style={{ padding: '0.7rem', color: '#111827' }}>{row.metalCode}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#111827', fontWeight: '700' }}>{formatStatementValue(row.amount, 2)}</td>
                                 </tr>
-                              </thead>
-                              <tbody>
-                                {unfixedMetalEntries.length ? unfixedMetalEntries.slice(0, 8).map((row, index) => (
-                                  <tr key={row._id || `${row.date}-${index}`} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                                    <td style={{ padding: '0.7rem', color: '#111827' }}>{formatStatementDate(row.date)}</td>
-                                    <td style={{ padding: '0.7rem', color: '#111827', fontWeight: '600', textTransform: 'capitalize' }}>{row.dealSide}</td>
-                                    <td style={{ padding: '0.7rem', color: '#111827' }}>{row.metalCode}</td>
-                                    <td style={{ padding: '0.7rem', textAlign: 'right', color: '#111827', fontWeight: '700' }}>{formatStatementValue(row.amount, 2)}</td>
-                                  </tr>
-                                )) : (
-                                  <tr>
-                                    <td colSpan={4} style={{ padding: '0.8rem', textAlign: 'center', color: '#6B7280', fontSize: '0.86rem' }}>
-                                      No unfixed metal sale/purchase rows found in the selected filters.
-                                    </td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
-                          )}
+                              )) : (
+                                <tr>
+                                  <td colSpan={4} style={{ padding: '0.8rem', textAlign: 'center', color: '#6B7280', fontSize: '0.86rem' }}>
+                                    No unfixed metal sale/purchase rows match the selected filters.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
 
                       <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', background: '#F8FAFC', padding: '0.85rem 0.95rem' }}>
                         <p style={{ margin: 0, color: '#111827', fontWeight: '800', fontSize: '0.92rem' }}>Fixing / Unfixing Metal Sales & Purchases</p>
                         <p style={{ margin: '0.3rem 0 0', color: '#475569', fontSize: '0.8rem', lineHeight: 1.45 }}>
-                          Fixed means price locked and finalized. Unfixed means price is pending and should remain in the Unfixed tab until fixed.
+                          Fixed means price locked and finalized. Unfixed means price is still pending; those flows are included in the Position balance and listed above under unfixed activity.
                         </p>
                         <div style={{ marginTop: '0.65rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem' }}>
                           <div style={{ border: '1px solid #BBF7D0', background: '#ECFDF5', borderRadius: '0.45rem', padding: '0.55rem' }}>
@@ -8669,11 +8682,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                               </td>
                             </tr>
                           ) : (
-                            (() => {
-                              let runningPureWeight = statementSelectedMetalCode === 'XAG'
-                                ? Number(accountEnquiryData?.metals?.silverBalance || 0)
-                                : Number(accountEnquiryData?.metals?.goldBalance || 0)
-                              return filteredStatementEntries.map((entry, index) => {
+                            filteredStatementEntries.map((entry, index) => {
                               const receiptNo = resolveStatementReceiptNo(entry)
                               // Account enquiry statement amounts are already in base currency from API.
                               const debitUsd = Number(entry.debitAmount || 0)
@@ -8688,8 +8697,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                               const signedPureWeight = Number(entry.metalSignedWeight || 0)
                               const debitPureWeight = isMetalRow && signedPureWeight > 0 ? signedPureWeight : (isMetalRow ? 0 : null)
                               const creditPureWeight = isMetalRow && signedPureWeight < 0 ? Math.abs(signedPureWeight) : (isMetalRow ? 0 : null)
-                              const balancePureWeight = isMetalRow ? runningPureWeight : null
-                              if (isMetalRow) runningPureWeight -= signedPureWeight
+                              const balancePureWeight = isMetalRow ? (pureWeightRunningByEntryKey.get(entry._id) ?? null) : null
                               return (
                                 <tr key={entry._id || `${entry.date}-${index}`} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                                   <td style={{ padding: '0.6rem', color: '#374151' }}>{formatStatementDate(entry.date)}</td>
@@ -8718,8 +8726,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                                   </td>
                                 </tr>
                               )
-                              })
-                            })()
+                            })
                           )}
                         </tbody>
                       </table>

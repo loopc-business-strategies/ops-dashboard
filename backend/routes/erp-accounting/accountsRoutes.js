@@ -146,20 +146,13 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     // netBalance is already aggregated in base currency (amount * exchangeRate).
     const convertedToRateCurrency = Number(netBalance)
 
-    // Metal position: sum pureWeight from actual UNFIXED metal sale/purchase transactions for this account's customer.
+    // Metal position: sum pureWeight from UNFIXED metal sale/purchase transactions for this ledger's
+    // linked customer and/or vendor (AP/creditor accounts use vendor linkage).
     // Fixed deals must affect value only, while unfixed deals affect metal balance.
     // Do NOT derive metal position from cash balance — that produces fabricated metal positions.
     let goldBalance = 0
     let silverBalance = 0
-    const linkedCustomer = await Customer.findOne({ ledgerAccountId: account._id, isActive: true }).lean()
-    if (linkedCustomer) {
-      const metalTxs = await Transaction.find({
-        customerId: linkedCustomer._id,
-        type: { $in: ['sale', 'purchase'] },
-        status: 'posted',
-        isDeleted: { $ne: true },
-      }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
-
+    const accumulateUnfixedMetalFromTransactions = (metalTxs) => {
       for (const tx of metalTxs) {
         const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
         if (!isUnfixedFixingType(fixingType)) continue
@@ -177,6 +170,28 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
           }
         }
       }
+    }
+
+    const linkedCustomer = await Customer.findOne({ ledgerAccountId: account._id, isActive: true }).lean()
+    if (linkedCustomer) {
+      const metalTxs = await Transaction.find({
+        customerId: linkedCustomer._id,
+        type: { $in: ['sale', 'purchase'] },
+        status: 'posted',
+        isDeleted: { $ne: true },
+      }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+      accumulateUnfixedMetalFromTransactions(metalTxs)
+    }
+
+    const linkedVendor = await Vendor.findOne({ ledgerAccountId: account._id, deletedAt: null }).lean()
+    if (linkedVendor) {
+      const vendorMetalTxs = await Transaction.find({
+        vendorId: linkedVendor._id,
+        type: { $in: ['sale', 'purchase'] },
+        status: 'posted',
+        isDeleted: { $ne: true },
+      }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+      accumulateUnfixedMetalFromTransactions(vendorMetalTxs)
     }
 
     const ledgerEntries = await Ledger.find({
