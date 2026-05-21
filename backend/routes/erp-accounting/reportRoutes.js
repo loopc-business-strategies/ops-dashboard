@@ -56,9 +56,12 @@ function registerReportRoutes(deps) {
     goldPrice,
     silverPrice,
     suppressMetalSpotMtm = false,
+    revaluationOverride = null,
   }) => {
     const funds = Number(totalFunds || 0)
-    const revaluation = suppressMetalSpotMtm
+    const revaluation = revaluationOverride !== null && revaluationOverride !== undefined
+      ? Number(revaluationOverride || 0)
+      : suppressMetalSpotMtm
       ? 0
       : (Number(goldPosition || 0) * Number(goldPrice || 0)) + (Number(silverPosition || 0) * Number(silverPrice || 0))
     const margin = Math.abs(revaluation) * 0.02
@@ -1424,9 +1427,25 @@ router.get('/reports/dashboard', protect, async (req, res) => {
           type: { $in: ['sale', 'purchase'] },
           status: 'posted',
           isDeleted: { $ne: true },
-        }).select('vendorId type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+        }).select('vendorId type amount exchangeRate metalFixStatus voucherMeta.grandTotal voucherMeta.fixingType voucherMeta.lineItems').lean()
       : []
     const supplierMetalPositionMap = new Map()
+    const supplierUnfixedRevaluationMap = new Map()
+    const calculateUnfixedPremiumAmount = (lines = []) => (Array.isArray(lines) ? lines : []).reduce((sum, line) => {
+      const premiumVal = Number(line?.premiumValue || 0)
+      if (!premiumVal) return sum
+      const purity = Number(line?.purity || 0)
+      const purityRatio = purity > 1.2 ? purity / 1000 : purity
+      const grossWeight = Number(line?.grossWeight || 0)
+      const storedPureWeight = Number(line?.pureWeight || 0)
+      const ozOnly = Number(line?.weightInOz || 0)
+      const pureFromOz = ozOnly > 0 ? ozOnly * 31.1034768 : 0
+      const pureWeight = storedPureWeight > 0 ? storedPureWeight : (pureFromOz > 0 ? pureFromOz : (grossWeight * purityRatio))
+      const rateType = String(line?.rateType || 'OZ').trim().toUpperCase()
+      const weightInOz = pureWeight / 31.1034768
+      const rateQty = rateType === 'GRAM' ? pureWeight : rateType === 'KG' ? pureWeight / 1000 : weightInOz
+      return sum + (premiumVal * rateQty)
+    }, 0)
     ;(supplierMetalTxs || []).forEach((tx) => {
       const vendorId = String(tx.vendorId || '')
       if (!vendorId) return
@@ -1446,6 +1465,16 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         }
       })
       supplierMetalPositionMap.set(vendorId, position)
+      const voucherAmount = Math.abs(Number(tx.amount || tx.voucherMeta?.grandTotal || 0) * Number(tx.exchangeRate || 1))
+      const premiumAmount = Math.abs(calculateUnfixedPremiumAmount(lines) * Number(tx.exchangeRate || 1))
+      const unpricedAmount = Number(Math.max(voucherAmount - premiumAmount, 0).toFixed(2))
+      if (unpricedAmount > 0) {
+        const signedRevaluation = tx.type === 'purchase' ? -unpricedAmount : unpricedAmount
+        supplierUnfixedRevaluationMap.set(
+          vendorId,
+          Number(((supplierUnfixedRevaluationMap.get(vendorId) || 0) + signedRevaluation).toFixed(2))
+        )
+      }
     })
 
     const supplierMarginRows = await Promise.all(vendors.map(async (v) => {
@@ -1463,6 +1492,7 @@ router.get('/reports/dashboard', protect, async (req, res) => {
         goldPrice: marginRates.goldPrice,
         silverPrice: marginRates.silverPrice,
         suppressMetalSpotMtm: true,
+        revaluationOverride: supplierUnfixedRevaluationMap.get(String(v._id || '')) || 0,
       })
       return {
         id: v._id,
