@@ -29,10 +29,17 @@ ERP_BRIDGE_URL=https://api.loopcstrategies.com/api/erp-accounting/metal-rates/br
 ERP_TENANT=mg
 METAL_RATES_BRIDGE_TOKEN=change-this-to-the-same-token-as-backend
 POLL_SECONDS=1
+MT5_INITIALIZE_TIMEOUT_MS=180000
 
 MT5_GOLD_SYMBOL=XAUUSD
 MT5_SILVER_SYMBOL=XAGUSD
 MT5_PLATINUM_SYMBOL=XPTUSD
+```
+
+The launcher auto-detects a running `terminal64.exe` process. If MT5 is open but the bridge prints `MT5 initialize failed`, add the terminal path:
+
+```env
+MT5_TERMINAL_PATH=C:\Program Files\Your Broker MT5 Terminal\terminal64.exe
 ```
 
 If your broker uses suffixes, set them exactly, for example:
@@ -62,6 +69,8 @@ If the top bar says `waiting MT5`, the bridge has not posted a valid live tick y
 ```
 
 If it prints `waiting for gold and silver ticks...`, your MT5 symbol names are different. Check Market Watch in MT5 and update `MT5_GOLD_SYMBOL`, `MT5_SILVER_SYMBOL`, and `MT5_PLATINUM_SYMBOL`.
+
+If it prints `MT5 initialize failed` with `IPC timeout`, MT5 is blocking Python automation. In MT5, open **Tools > Options > Community**, enable **Python integration**, restart MT5, then run `.\run-mt5-bridge.ps1` again.
 
 ## Notes
 

@@ -50,6 +50,18 @@ if (-not $pythonCommand) {
   exit 1
 }
 
+$existingTerminalPath = [Environment]::GetEnvironmentVariable('MT5_TERMINAL_PATH', 'Process')
+if (-not $existingTerminalPath) {
+  $runningTerminal = Get-Process -Name 'terminal64' -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path } |
+    Select-Object -First 1
+
+  if ($runningTerminal -and $runningTerminal.Path) {
+    $env:MT5_TERMINAL_PATH = $runningTerminal.Path
+    Write-Host "Using running MT5 terminal: $($runningTerminal.Path)" -ForegroundColor Cyan
+  }
+}
+
 Write-Host 'Installing/updating bridge Python package...' -ForegroundColor Cyan
 & $pythonCommand @pythonArgs -m pip install -r requirements.txt
 Write-Host 'Starting MT5 live price bridge...' -ForegroundColor Green

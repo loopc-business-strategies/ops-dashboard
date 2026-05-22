@@ -20,6 +20,18 @@ DEFAULT_SYMBOLS = {
 }
 
 
+def mt5_error_message(action):
+    code, message = mt5.last_error()
+    detail = f"{action} failed: ({code}, {message!r})"
+    if code == -10005:
+        detail += (
+            ". MT5 did not answer the Python IPC handshake. In MT5, open "
+            "Tools > Options > Community, enable Python integration, restart MT5, "
+            "then run the bridge again."
+        )
+    return detail
+
+
 def load_dotenv(path=".env"):
     if not os.path.exists(path):
         return
@@ -62,19 +74,17 @@ def connect_mt5():
     login = env("MT5_LOGIN")
     password = env("MT5_PASSWORD")
     server = env("MT5_SERVER")
+    timeout = max(60000, int(float(env("MT5_INITIALIZE_TIMEOUT_MS", "180000"))))
 
-    kwargs = {}
+    kwargs = {"timeout": timeout}
     if path:
-        kwargs["path"] = path
-    if login:
-        kwargs["login"] = int(login)
-    if password:
-        kwargs["password"] = password
-    if server:
-        kwargs["server"] = server
+        kwargs["path"] = path.replace("\\", "/")
 
     if not mt5.initialize(**kwargs):
-        raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
+        raise RuntimeError(mt5_error_message("MT5 initialize"))
+
+    if login and not mt5.login(int(login), password=password or None, server=server or None, timeout=timeout):
+        raise RuntimeError(mt5_error_message("MT5 login"))
 
 
 def select_symbols(symbols):
