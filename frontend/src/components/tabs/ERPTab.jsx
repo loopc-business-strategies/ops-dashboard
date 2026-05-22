@@ -18,6 +18,7 @@ import {
   ERP_DASH_ALL_WIDGETS,
   ERP_DASH_DEFAULT,
   sanitizeDashWidgets,
+  sanitizeDashWidgetsPreserveOrder,
 } from './erpTabConstants'
 import { formatTransactionAuditEntry, formatTransactionCommentKind, getTransactionBulkSelectionLabel } from './transactionWorkflow'
 import ChartOfAccountsTree from './ChartOfAccountsTree'
@@ -166,8 +167,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const [dashAutoRefresh, setDashAutoRefresh] = useState(false)
   const [dashChatMessages, setDashChatMessages] = useState([])
   useEffect(() => {
-    try { localStorage.setItem(dashStorageKey, JSON.stringify(sanitizeDashWidgets(dashWidgets))) } catch { void 0 }
-  }, [dashWidgets, dashStorageKey])
+    try {
+      const payload = dashEditMode ? sanitizeDashWidgetsPreserveOrder(dashWidgets) : sanitizeDashWidgets(dashWidgets)
+      localStorage.setItem(dashStorageKey, JSON.stringify(payload))
+    } catch { void 0 }
+  }, [dashWidgets, dashStorageKey, dashEditMode])
   const [accounts, setAccounts] = useState([])
   const [summaryAccounts, setSummaryAccounts] = useState([])
   const [customers, setCustomers] = useState([])

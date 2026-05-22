@@ -39,7 +39,19 @@ export const ERP_DASH_WIDGET_COUNT = ERP_DASH_ALL_WIDGETS.length
 
 const ERP_DASH_VALID_IDS = new Set(ERP_DASH_ALL_WIDGETS.map((widget) => widget.id))
 
-export const sanitizeDashWidgets = (value) => {
+/** Keep Customer & Supplier Margins first and Fixing Position Summary immediately to its right when both are enabled. */
+export function ensureMarginsThenFixingOrder(ids) {
+  const list = Array.isArray(ids) ? ids : []
+  const hasM = list.includes('margins')
+  const hasF = list.includes('fixing')
+  if (!hasM && !hasF) return [...list]
+  const rest = list.filter((id) => id !== 'margins' && id !== 'fixing')
+  const head = [...(hasM ? ['margins'] : []), ...(hasF ? ['fixing'] : [])]
+  return [...head, ...rest]
+}
+
+/** Valid ids + dedupe + legacy strip; preserves list order (no margins/fixing pin). Used while persisting during Arrange. */
+export const sanitizeDashWidgetsPreserveOrder = (value) => {
   const raw = Array.isArray(value) ? value.filter((id) => id !== 'metals') : value
   const source = Array.isArray(raw) ? raw : ERP_DASH_DEFAULT
   const seen = new Set()
@@ -54,3 +66,5 @@ export const sanitizeDashWidgets = (value) => {
 
   return normalized.length ? normalized : [...ERP_DASH_DEFAULT]
 }
+
+export const sanitizeDashWidgets = (value) => ensureMarginsThenFixingOrder(sanitizeDashWidgetsPreserveOrder(value))

@@ -1,6 +1,6 @@
 import { ERPDashboardTabContainer } from '../ERPTabContainers'
 import { renderERP_DashWidget } from '../ERPDashboardWidgets'
-import { ERP_DASH_GRID_COLUMNS, ERP_DASH_WIDGET_COUNT } from '../../erpTabConstants'
+import { ERP_DASH_DEFAULT, ERP_DASH_GRID_COLUMNS, ERP_DASH_WIDGET_COUNT, ensureMarginsThenFixingOrder } from '../../erpTabConstants'
 
 export default function ERPDashboardTab({
   activeTab,
@@ -44,7 +44,12 @@ export default function ERPDashboardTab({
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
               {/* Arrange and Customize buttons only */}
               <button
-                onClick={() => setDashEditMode(v => !v)}
+                onClick={() => {
+                  if (dashEditMode) {
+                    setDashWidgets((prev) => ensureMarginsThenFixingOrder(prev))
+                  }
+                  setDashEditMode((v) => !v)
+                }}
                 style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', fontWeight: '600', border: `1px solid ${dashEditMode ? C.s1 : '#D1D5DB'}`, borderRadius: '0.375rem', background: dashEditMode ? '#DCFCE7' : C.p1, color: dashEditMode ? C.s2 : C.inkSoft, cursor: 'pointer' }}
               >
                 ⠿ {dashEditMode ? 'Done' : 'Arrange'}
@@ -62,7 +67,7 @@ export default function ERPDashboardTab({
           {dashEditMode && (
             <div style={{ background: 'linear-gradient(90deg,#DCFCE7,#F0FDF4)', border: `1px solid #A7F3D0`, borderRadius: '0.5rem', padding: '0.6rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: C.s2 }}>
               <span style={{ fontSize: '1rem' }}>↕</span>
-              <span>Drag widgets to rearrange. Click <strong>✕</strong> to remove a widget. Click <strong>Done</strong> when finished.</span>
+              <span>Drag widgets to rearrange. Margins and fixing are pinned to the front when you click <strong>Done</strong> or <strong>Customize → Apply</strong>. Click <strong>✕</strong> to remove a widget.</span>
             </div>
           )}
 
@@ -98,14 +103,39 @@ export default function ERPDashboardTab({
                   <div
                     key={wid}
                     draggable={dashEditMode}
-                    onDragStart={() => { dashDragSrc.current = idx }}
-                    onDragOver={e => e.preventDefault()}
-                    onDrop={() => {
-                      const src = dashDragSrc.current
+                    onDragStart={(e) => {
+                      dashDragSrc.current = idx
+                      try {
+                        e.dataTransfer.effectAllowed = 'move'
+                        e.dataTransfer.setData('text/plain', String(idx))
+                      } catch { void 0 }
+                    }}
+                    onDragOver={(e) => {
+                      if (!dashEditMode) return
+                      e.preventDefault()
+                      try {
+                        e.dataTransfer.dropEffect = 'move'
+                      } catch { void 0 }
+                    }}
+                    onDragEnd={() => {
+                      dashDragSrc.current = null
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      if (!dashEditMode) return
+                      let src = dashDragSrc.current
+                      if (src == null) {
+                        try {
+                          const parsed = Number(e.dataTransfer.getData('text/plain'))
+                          if (!Number.isNaN(parsed)) src = parsed
+                        } catch { void 0 }
+                      }
                       if (src == null || src === idx) return
                       const next = [...dashWidgets]
+                      const moved = next[src]
+                      if (moved == null) return
                       next.splice(src, 1)
-                      next.splice(idx, 0, wid)
+                      next.splice(idx, 0, moved)
                       setDashWidgets(next)
                       dashDragSrc.current = null
                     }}
@@ -137,11 +167,17 @@ export default function ERPDashboardTab({
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: (isHovered || dashEditMode) ? 1 : 0, transition: 'opacity 0.15s' }}>
                         {meta.viewTab && (
                           <button
+                            type="button"
+                            draggable={false}
+                            onDragStart={(ev) => ev.stopPropagation()}
                             onClick={() => setActiveTab(meta.viewTab)}
                             style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '2px 7px', borderRadius: '5px', border: '1px solid #A7F3D0', background: '#F0FDF4', fontSize: '0.68rem', fontWeight: '500', color: C.s2, cursor: 'pointer' }}
                           >→ View</button>
                         )}
                         <button
+                          type="button"
+                          draggable={false}
+                          onDragStart={(ev) => ev.stopPropagation()}
                           onClick={() => {
                             const cur = dashWidgetCols[wid] ?? meta.cols
                             const next = cur >= ERP_DASH_GRID_COLUMNS ? 1 : Number(cur) + 1
@@ -151,6 +187,9 @@ export default function ERPDashboardTab({
                           style={{ padding: '2px 6px', border: '1px solid #E5E7EB', borderRadius: '5px', background: '#F9FAFB', cursor: 'pointer', fontSize: '0.75rem', color: C.inkSoft, lineHeight: 1 }}
                         >⤢</button>
                         <button
+                          type="button"
+                          draggable={false}
+                          onDragStart={(ev) => ev.stopPropagation()}
                           onClick={() => setDashWidgets(prev => prev.filter(w => w !== wid))}
                           style={{ background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: '0.85rem', padding: '0 2px', lineHeight: 1 }}
                         >✕</button>
@@ -207,14 +246,12 @@ export default function ERPDashboardTab({
                   <button onClick={() => setDashCustomizeOpen(false)} style={{ padding: '0.5rem 1rem', background: C.p2, color: C.inkSoft, border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>Cancel</button>
                   <button
                     onClick={() => {
-                      const ordered = [...dashPickSelected].sort((a, b) => {
-                        const ai = dashWidgets.indexOf(a), bi = dashWidgets.indexOf(b)
-                        if (ai !== -1 && bi !== -1) return ai - bi
-                        if (ai !== -1) return -1
-                        if (bi !== -1) return 1
-                        return ERP_DASH_ALL_WIDGETS.findIndex(w => w.id === a) - ERP_DASH_ALL_WIDGETS.findIndex(w => w.id === b)
-                      })
-                      setDashWidgets(ordered)
+                      const orderIx = (id) => {
+                        const i = ERP_DASH_DEFAULT.indexOf(id)
+                        return i === -1 ? 999 : i
+                      }
+                      const ordered = [...dashPickSelected].sort((a, b) => orderIx(a) - orderIx(b) || String(a).localeCompare(String(b)))
+                      setDashWidgets(ensureMarginsThenFixingOrder(ordered))
                       setDashCustomizeOpen(false)
                     }}
                     style={{ padding: '0.5rem 1.25rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
