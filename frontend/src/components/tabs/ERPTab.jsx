@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import AccountCombobox from '../AccountCombobox'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
@@ -143,14 +143,15 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const TRANSACTION_ACTION_LABELS = getTransactionActionLabels(t)
   const { activeTab, setActiveTab } = useERPTabStateAdapter(focusTab)
   const dashStorageKey = `erp_dash_${user?.name || 'default'}`
-  const [dashWidgets, setDashWidgets] = useState(() => {
+  const [dashWidgets, setDashWidgets] = useState(() => [...ERP_DASH_DEFAULT])
+  useLayoutEffect(() => {
     try {
-      const s = localStorage.getItem(`erp_dash_${user?.name || 'default'}`)
-      return sanitizeDashWidgets(s ? JSON.parse(s) : ERP_DASH_DEFAULT)
+      const raw = localStorage.getItem(dashStorageKey)
+      setDashWidgets(sanitizeDashWidgets(raw ? JSON.parse(raw) : ERP_DASH_DEFAULT))
     } catch {
-      return [...ERP_DASH_DEFAULT]
+      setDashWidgets([...ERP_DASH_DEFAULT])
     }
-  })
+  }, [dashStorageKey])
   const [dashEditMode, setDashEditMode] = useState(false)
   const [dashHoveredWid, setDashHoveredWid] = useState(null)
   const [dashWidgetCols, setDashWidgetCols] = useState({})

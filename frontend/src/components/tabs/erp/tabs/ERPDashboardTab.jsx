@@ -1,5 +1,6 @@
 import { ERPDashboardTabContainer } from '../ERPTabContainers'
 import { renderERP_DashWidget } from '../ERPDashboardWidgets'
+import { ERP_DASH_GRID_COLUMNS, ERP_DASH_WIDGET_COUNT } from '../../erpTabConstants'
 
 export default function ERPDashboardTab({
   activeTab,
@@ -34,7 +35,10 @@ export default function ERPDashboardTab({
               <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>📊 My Dashboard</h3>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: C.inkSoft }}>
                 {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                {' · '}{dashWidgets.length} widget{dashWidgets.length !== 1 ? 's' : ''}
+                {' · '}
+                {dashWidgets.length === ERP_DASH_WIDGET_COUNT
+                  ? `${ERP_DASH_WIDGET_COUNT} widgets`
+                  : `${dashWidgets.length} of ${ERP_DASH_WIDGET_COUNT} widgets`}
               </p>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -75,14 +79,20 @@ export default function ERPDashboardTab({
               </button>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.875rem' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${ERP_DASH_GRID_COLUMNS}, minmax(0, 1fr))`,
+                gap: '0.875rem',
+              }}
+            >
               {dashWidgets.map((wid, idx) => {
                 const meta = ERP_DASH_ALL_WIDGETS.find(w => w.id === wid)
                 if (!meta) return null
                 const rawCols = dashWidgetCols[wid] ?? meta.cols
-                const span = Math.min(Math.max(Number(rawCols) || 1, 1), 3)
+                const span = Math.min(Math.max(Number(rawCols) || 1, 1), ERP_DASH_GRID_COLUMNS)
                 const isHovered = dashHoveredWid === wid
-                const edgeToEdge = wid === 'margins' || wid === 'apar'
+                const edgeToEdge = wid === 'margins' || wid === 'apar' || wid === 'fixing'
                 const widgetOptions = {}
                 return (
                   <div
@@ -134,10 +144,10 @@ export default function ERPDashboardTab({
                         <button
                           onClick={() => {
                             const cur = dashWidgetCols[wid] ?? meta.cols
-                            const next = cur >= 3 ? 1 : Number(cur) + 1
+                            const next = cur >= ERP_DASH_GRID_COLUMNS ? 1 : Number(cur) + 1
                             setDashWidgetCols(prev => ({ ...prev, [wid]: next }))
                           }}
-                          title="Resize widget"
+                          title="Resize widget (column span)"
                           style={{ padding: '2px 6px', border: '1px solid #E5E7EB', borderRadius: '5px', background: '#F9FAFB', cursor: 'pointer', fontSize: '0.75rem', color: C.inkSoft, lineHeight: 1 }}
                         >⤢</button>
                         <button
