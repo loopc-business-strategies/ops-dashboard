@@ -20,15 +20,14 @@ function fmtMoveRow(delta, prevPrice) {
   return {
     up,
     arrow: up ? '▲' : '▼',
-    prevStr: fmtSpot(prev),
     rest: `${dvStr} (${pctSign}${pct.toFixed(2)}%)`,
   }
 }
 
 const METALS = [
-  { key: 'gold', label: 'Gold', swatch: '#FACC15', sym: 'Au' },
-  { key: 'silver', label: 'Silver', swatch: '#CBD5E1', sym: 'Ag' },
-  { key: 'platinum', label: 'Platinum', swatch: '#A855F7', sym: 'Pt' },
+  { key: 'gold', label: 'Gold', swatch: '#FACC15', sym: 'Au', labelColor: '#FDE047' },
+  { key: 'silver', label: 'Silver', swatch: '#CBD5E1', sym: 'Ag', labelColor: 'rgba(248, 250, 252, 0.88)' },
+  { key: 'platinum', label: 'Platinum', swatch: '#A855F7', sym: 'Pt', labelColor: '#FDE68A' },
 ]
 
 /**
@@ -101,8 +100,8 @@ export default function MgTopbarMetalTickers({ token }) {
   }
 
   return (
-    <div className="flex items-center justify-center gap-2 min-w-0 flex-wrap" style={{ rowGap: 6 }}>
-      {METALS.map(({ key, label, swatch, sym }) => {
+    <div className="flex items-center justify-end gap-2 min-w-0 flex-wrap" style={{ rowGap: 6 }}>
+      {METALS.map(({ key, label, swatch, sym, labelColor }) => {
         const price = snapshot[key]
         const move = snapshot.deltas && snapshot.prevPoll
           ? fmtMoveRow(snapshot.deltas[key], snapshot.prevPoll[key])
@@ -136,7 +135,7 @@ export default function MgTopbarMetalTickers({ token }) {
             </span>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', flexWrap: 'wrap', lineHeight: 1.15 }}>
-                <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.02em' }}>{label}</span>
+                <span style={{ fontSize: '0.68rem', fontWeight: 600, color: labelColor || 'rgba(255,255,255,0.55)', letterSpacing: '0.02em' }}>{label}</span>
                 <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff' }}>{fmtSpot(price)}</span>
               </div>
               <div
@@ -150,7 +149,6 @@ export default function MgTopbarMetalTickers({ token }) {
               >
                 {move ? (
                   <>
-                    <span style={{ color: 'rgba(255,255,255,0.78)', marginRight: '0.2rem' }}>{move.prevStr}</span>
                     <span>{move.arrow}</span>
                     <span style={{ marginLeft: '0.15rem' }}>{move.rest}</span>
                   </>

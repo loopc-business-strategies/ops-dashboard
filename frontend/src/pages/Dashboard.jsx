@@ -612,14 +612,13 @@ function Dashboard() {
               </div>
             </div>
 
-            {branding.key === 'mg' && (
-              <div className="hidden md:flex flex-1 min-w-0 justify-center px-1 overflow-hidden">
-                <MgTopbarMetalTickers token={token} />
-              </div>
-            )}
-
-            {/* Right side of header */}
-            <div className="ml-auto flex items-center justify-end gap-1 flex-nowrap flex-shrink-0">
+            {/* Right side of header (MG: metal tickers sit here before notif / language / user) */}
+            <div className="flex items-center justify-end gap-2 flex-nowrap flex-shrink-0 min-w-0">
+              {branding.key === 'mg' && (
+                <div className="hidden md:flex items-center shrink-0 min-w-0 overflow-hidden">
+                  <MgTopbarMetalTickers token={token} />
+                </div>
+              )}
               {branding.key !== 'mg' && <BuildInfoBadge className="hidden md:inline-flex" />}
 
               {/* Read-only badge */}
