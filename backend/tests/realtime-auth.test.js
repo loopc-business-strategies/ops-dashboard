@@ -5,7 +5,11 @@ jest.mock('../models/User', () => ({
 }))
 
 const User = require('../models/User')
-const { authenticateSocket, getSocketToken } = require('../realtime/RealtimeServer')
+const {
+  authenticateSocket,
+  getSocketToken,
+  resolveSocketTenantSubscription,
+} = require('../realtime/RealtimeServer')
 
 const buildSocket = ({ token, cookie, host = 'api.loopcstrategies.com', tenant = 'loopc' } = {}) => ({
   handshake: {
@@ -68,5 +72,11 @@ describe('realtime socket authentication', () => {
 
     await expect(authenticateSocket(socket)).rejects.toThrow(/tenant does not match/i)
     expect(User.getTenantModel).not.toHaveBeenCalled()
+  })
+
+  test('uses authenticated tenant for realtime room subscriptions', () => {
+    expect(resolveSocketTenantSubscription({ tenant: 'mg' }, 'mg')).toBe('mg')
+    expect(resolveSocketTenantSubscription({ tenant: 'mg' }, '')).toBe('mg')
+    expect(() => resolveSocketTenantSubscription({ tenant: 'mg' }, 'cg')).toThrow(/does not match/i)
   })
 })

@@ -228,7 +228,7 @@ function Dashboard({
   const [deptOpen,     setDeptOpen]     = useState(true)
   const [erpOpen,      setErpOpen]      = useState(true)
   const [erpSubTab,    setErpSubTab]    = useState('dashboard')
-  const [chatUnread,   setChatUnread]   = useState(3) // matches seed data initial unread
+  const [chatUnread,   setChatUnread]   = useState(0)
   const [langMenuOpen, setLangMenuOpen] = useState(false)
   const [metalMenuOpen, setMetalMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
@@ -243,11 +243,7 @@ function Dashboard({
     palladiumPrice: null,
     updatedAt: null,
   })
-  const [notifications, setNotifications] = useState([
-    { id: 1, title: 'Gold price updated', msg: 'XAU moved to USD 4,555', time: '2m ago', read: false, dotColor: 'bg-yellow-400' },
-    { id: 2, title: 'Voucher submitted', msg: 'Payment #12 awaiting approval', time: '15m ago', read: false, dotColor: 'bg-blue-400' },
-    { id: 3, title: 'System sync complete', msg: 'All accounts updated', time: '1h ago', read: true, dotColor: 'bg-green-400' },
-  ])
+  const [notifications, setNotifications] = useState([])
   const langMenuRef = useRef(null)
   const metalMenuRef = useRef(null)
   const notifMenuRef = useRef(null)
@@ -422,6 +418,13 @@ function Dashboard({
           gold: Number(rates.goldPrice || 0),
           silver: Number(rates.silverPrice || 0),
           platinum: Number(rates.platinumPrice || rates.platinum || 0),
+        })
+        setLatestMetalRates({
+          goldPrice: rates.goldPrice ?? null,
+          silverPrice: rates.silverPrice ?? null,
+          platinumPrice: rates.platinumPrice ?? null,
+          palladiumPrice: rates.palladiumPrice ?? null,
+          updatedAt: rates.updatedAt ?? null,
         })
       } catch {
         // Keep fallback values if endpoint is unavailable.
@@ -788,7 +791,11 @@ function Dashboard({
                     <div style={{ padding: '10px 12px', borderBottom: '1px solid #E5E7EB', fontWeight: 700, color: '#111827' }}>
                       Notifications
                     </div>
-                    {notifications.map((n) => (
+                    {notifications.length === 0 ? (
+                      <div style={{ padding: '14px 12px', color: '#6B7280', fontSize: 12 }}>
+                        No notifications yet.
+                      </div>
+                    ) : notifications.map((n) => (
                       <div key={n.id} style={{ padding: '10px 12px', borderBottom: '1px solid #F3F4F6' }}>
                         <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827' }}>{n.title}</p>
                         {n.msg && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#4B5563' }}>{n.msg}</p>}

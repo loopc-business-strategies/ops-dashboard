@@ -1,6 +1,3 @@
-const fs = require('fs')
-const path = require('path')
-const multer = require('multer')
 const { protect } = require('../middleware/auth')
 const { validateBody, validateBodyStrict, validateParams } = require('../middleware/validate')
 const Ledger = require('../models/Ledger')
@@ -72,12 +69,21 @@ const {
 } = require('./erp-accounting/transactionHelpers')
 const { createFxRevaluationService } = require('../services/erpAccounting/fxRevaluationService')
 const { createTransactionPostingService } = require('../services/erpAccounting/transactionPostingService')
+const {
+  populateTransactionQuery,
+  createTransactionWorkflowAction,
+} = require('../services/erpAccounting/transactionWorkflowService')
 const { createCurrencyBootstrapService } = require('../services/erpAccounting/currencyBootstrapService')
 const { createReportSummaryService } = require('../services/erpAccounting/reportSummaryService')
+const {
+  normalizeDirectDealStockCode,
+  directDealEqOzFromQtyAndStock,
+} = require('../services/erpAccounting/directDealUnits')
 const {
   TRANSACTION_ATTACHMENT_MIME_TYPES,
   validateAttachmentContent,
 } = require('../services/erpAccounting/attachmentValidationService')
+const { createErpUploadMiddleware } = require('../services/erpAccounting/uploadMiddleware')
 const {
   storeUploadedAttachment,
   storeTransactionAttachment,
@@ -138,20 +144,8 @@ const validateFxReferenceRateRequirement = fxRevaluationService.validateFxRefere
 
 let transactionPostingService = null
 
-const DIRECT_DEAL_STOCK_TO_OZ = {
-  OZ: 1,
-  GRAM: 0.0321507,
-  KG: 32.1507,
-}
-
 const MAX_ACCOUNT_CODE_GENERATION_ATTEMPTS = Number(process.env.MAX_ACCOUNT_CODE_GENERATION_ATTEMPTS || 1000)
 const MAX_ACCOUNT_HIERARCHY_DEPTH = Number(process.env.MAX_ACCOUNT_HIERARCHY_DEPTH || 10)
-
-const normalizeDirectDealStockCode = (value) => String(value || 'OZ').trim().toUpperCase()
-const directDealEqOzFromQtyAndStock = (qty, stockCode) => {
-  const ratio = DIRECT_DEAL_STOCK_TO_OZ[normalizeDirectDealStockCode(stockCode)] || 1
-  return Number(qty || 0) * ratio
-}
 
 const currencyBootstrapService = createCurrencyBootstrapService({
   Currency,
@@ -1013,141 +1007,23 @@ const ensurePaymentAdvanceConfirmed = async ({ tx, resolvedAccounts, confirmed }
   }
 }
 
-const transactionUploadDir = path.resolve(process.env.TRANSACTION_UPLOAD_DIR || path.join(__dirname, '../uploads/transactions'))
-fs.mkdirSync(transactionUploadDir, { recursive: true })
-
-const bankSlipUploadDir = path.resolve(process.env.BANK_SLIP_UPLOAD_DIR || path.join(__dirname, '../uploads/bank-slips'))
-fs.mkdirSync(bankSlipUploadDir, { recursive: true })
-
-const vendorDocumentUploadDir = path.resolve(process.env.VENDOR_DOCUMENT_UPLOAD_DIR || path.join(__dirname, '../uploads/vendor-documents'))
-fs.mkdirSync(vendorDocumentUploadDir, { recursive: true })
-
-const bankSlipUpload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, bankSlipUploadDir),
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname || '')
-      cb(null, `bankslip-${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`)
-    },
-  }),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const allowed = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp']
-    if (allowed.includes(file.mimetype)) return cb(null, true)
-    cb(new Error('Only PDF, PNG, JPG, WEBP files are allowed for bank slips'))
-  },
+const {
+  bankSlipUpload,
+  transactionUpload,
+  vendorDocumentUpload,
+  vendorDocumentUploadDir,
+} = createErpUploadMiddleware({
+  transactionAttachmentMimeTypes: TRANSACTION_ATTACHMENT_MIME_TYPES,
 })
 
-const transactionUpload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, transactionUploadDir),
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname || '')
-      const base = path.basename(file.originalname || 'attachment', ext).replace(/[^a-zA-Z0-9-_]+/g, '-').slice(0, 48) || 'attachment'
-      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${base}${ext}`)
-    },
-  }),
-  limits: { fileSize: Number(process.env.TRANSACTION_ATTACHMENT_MAX_BYTES || 10 * 1024 * 1024) },
-  fileFilter: (_req, file, cb) => {
-    if (TRANSACTION_ATTACHMENT_MIME_TYPES.includes(file.mimetype)) return cb(null, true)
-    cb(new Error('Unsupported attachment type'))
-  },
+const applyTransactionWorkflowAction = createTransactionWorkflowAction({
+  normalizeTransactionNote,
+  appendTransactionComment,
+  appendTransactionAudit,
+  isSuperAdmin,
+  isFinance,
+  getTransactionPostingService: () => transactionPostingService,
 })
-
-const vendorDocumentUpload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, vendorDocumentUploadDir),
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname || '')
-      const base = path.basename(file.originalname || 'vendor-document', ext).replace(/[^a-zA-Z0-9-_]+/g, '-').slice(0, 48) || 'vendor-document'
-      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${base}${ext}`)
-    },
-  }),
-  limits: { fileSize: Number(process.env.VENDOR_DOCUMENT_MAX_BYTES || 10 * 1024 * 1024) },
-  fileFilter: (_req, file, cb) => {
-    if (TRANSACTION_ATTACHMENT_MIME_TYPES.includes(file.mimetype)) return cb(null, true)
-    cb(new Error('Unsupported attachment type'))
-  },
-})
-
-const populateTransactionQuery = (query) => query
-  .populate('customerId', 'name')
-  .populate('vendorId', 'name')
-  .populate('inventoryItemId', 'name sku')
-  .populate('debitAccountId', 'accountCode accountName')
-  .populate('creditAccountId', 'accountCode accountName')
-  .populate('mappingId', 'mappingType description')
-  .populate('createdBy', 'name')
-  .populate('approvedBy', 'name')
-  .populate('postedBy', 'name')
-  .populate('attachments.uploadedBy', 'name')
-  .populate('comments.createdBy', 'name')
-  .populate('comments.mentionedUsers', 'name email role')
-  .populate('comments.readBy.userId', 'name')
-  .populate('auditTrail.actorId', 'name')
-
-const applyTransactionWorkflowAction = async (tx, user, action, options = {}) => {
-  const note = normalizeTransactionNote(options.comment)
-  const fromStatus = tx.status
-
-  if (action === 'submit') {
-    if (!['draft', 'returned', 'rejected'].includes(tx.status)) throw new Error('Only draft, returned, or rejected transactions can be submitted')
-    tx.status = 'submitted'
-    tx.updatedBy = user._id
-    appendTransactionComment(tx, user, note, 'submit_note')
-    appendTransactionAudit(tx, user, 'submit', { fromStatus, toStatus: 'submitted', comment: note })
-    await tx.save()
-    return { transaction: tx }
-  }
-
-  if (action === 'approve') {
-    if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can approve transactions')
-    if (tx.status !== 'submitted') throw new Error('Only submitted transactions can be approved')
-    tx.status = 'approved'
-    tx.approvedBy = user._id
-    tx.updatedBy = user._id
-    appendTransactionComment(tx, user, note, 'approval_note')
-    appendTransactionAudit(tx, user, 'approve', { fromStatus, toStatus: 'approved', comment: note })
-    await tx.save()
-    return { transaction: tx }
-  }
-
-  if (action === 'return') {
-    if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can return transactions for edit')
-    if (!['submitted', 'approved'].includes(tx.status)) throw new Error('Only submitted or approved transactions can be returned for edit')
-    if (!note) throw new Error('Return reason is required')
-    tx.status = 'returned'
-    tx.updatedBy = user._id
-    appendTransactionComment(tx, user, note, 'return_note')
-    appendTransactionAudit(tx, user, 'return', { fromStatus, toStatus: 'returned', comment: note })
-    await tx.save()
-    return { transaction: tx }
-  }
-
-  if (action === 'reject') {
-    if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can reject transactions')
-    if (!['submitted', 'approved', 'returned'].includes(tx.status)) throw new Error('Only submitted, approved, or returned transactions can be rejected')
-    if (!note) throw new Error('Rejection reason is required')
-    tx.status = 'rejected'
-    tx.updatedBy = user._id
-    appendTransactionComment(tx, user, note, 'reject_note')
-    appendTransactionAudit(tx, user, 'reject', { fromStatus, toStatus: 'rejected', comment: note })
-    await tx.save()
-    return { transaction: tx }
-  }
-
-  if (action === 'post') {
-    return transactionPostingService.executePostWorkflowAction({
-      tx,
-      user,
-      note,
-      fromStatus,
-      options,
-    })
-  }
-
-  throw new Error('Unsupported transaction action')
-}
 
 // Customers
 const canViewCustomers = (user) => isSuperAdmin(user) || isFinance(user) || isSales(user)
@@ -2415,8 +2291,6 @@ function registerErpAccountingRoutes(router) {
   registerAttachmentRoutes({
     router,
     protect,
-    path,
-    fs,
     Transaction,
     Ledger,
     canAccessTransactions,

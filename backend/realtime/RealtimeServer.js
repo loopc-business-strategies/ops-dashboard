@@ -8,6 +8,21 @@ const jwt = require('jsonwebtoken')
 const User = require('../models/User')
 const { normalizeTenant, resolveTenantFromHost } = require('../config/tenants')
 
+function resolveSocketTenantSubscription(socket, requestedTenant) {
+  const authenticatedTenant = normalizeTenant(socket?.tenant)
+  const normalizedRequestedTenant = normalizeTenant(requestedTenant)
+
+  if (!authenticatedTenant) {
+    throw new Error('Authenticated tenant is missing')
+  }
+
+  if (normalizedRequestedTenant && normalizedRequestedTenant !== authenticatedTenant) {
+    throw new Error('Requested tenant does not match authenticated session')
+  }
+
+  return authenticatedTenant
+}
+
 function parseCookies(cookieHeader = '') {
   return String(cookieHeader || '')
     .split(';')
@@ -149,8 +164,13 @@ class RealtimeServer {
     ledgerNamespace.use(this.authMiddleware)
     ledgerNamespace.on('connection', (socket) => {
       socket.on('subscribe:tenant', (tenant) => {
-        socket.join(`ledger:tenant:${tenant}`)
-        socket.emit('subscribed', { namespace: '/ledger', tenant })
+        try {
+          const subscriptionTenant = resolveSocketTenantSubscription(socket, tenant)
+          socket.join(`ledger:tenant:${subscriptionTenant}`)
+          socket.emit('subscribed', { namespace: '/ledger', tenant: subscriptionTenant })
+        } catch {
+          socket.emit('subscription:error', { namespace: '/ledger', message: 'Tenant subscription denied' })
+        }
       })
 
       // Subscribe to account ledger updates
@@ -170,8 +190,13 @@ class RealtimeServer {
     transactionsNamespace.use(this.authMiddleware)
     transactionsNamespace.on('connection', (socket) => {
       socket.on('subscribe:tenant', (tenant) => {
-        socket.join(`transactions:tenant:${tenant}`)
-        socket.emit('subscribed', { namespace: '/transactions', tenant })
+        try {
+          const subscriptionTenant = resolveSocketTenantSubscription(socket, tenant)
+          socket.join(`transactions:tenant:${subscriptionTenant}`)
+          socket.emit('subscribed', { namespace: '/transactions', tenant: subscriptionTenant })
+        } catch {
+          socket.emit('subscription:error', { namespace: '/transactions', message: 'Tenant subscription denied' })
+        }
       })
     })
 
@@ -281,3 +306,4 @@ class RealtimeServer {
 module.exports = RealtimeServer
 module.exports.authenticateSocket = authenticateSocket
 module.exports.getSocketToken = getSocketToken
+module.exports.resolveSocketTenantSubscription = resolveSocketTenantSubscription

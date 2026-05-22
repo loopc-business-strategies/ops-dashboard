@@ -413,7 +413,58 @@ router.delete('/users/:id', protect, restrictTo('super_admin'), validateParams(u
 // SUPER ADMIN only
 // ==========================================
 const updatePermissionsSchema = Joi.object({
-  modulePermissions: Joi.any().required(),
+  modulePermissions: Joi.object()
+    .pattern(
+      Joi.string().valid(
+        'overview',
+        'chat',
+        'admin',
+        'production',
+        'hr',
+        'finance',
+        'government',
+        'sales',
+        'operations',
+        'training',
+        'erp'
+      ),
+      Joi.object({
+        on: Joi.boolean().required(),
+        view: Joi.boolean().optional(),
+        edit: Joi.boolean().optional(),
+        subs: Joi.object()
+          .pattern(
+            Joi.string().valid(
+              'dashboard',
+              'accounts',
+              'mappings',
+              'settings',
+              'currencies',
+              'enquiry',
+              'customers',
+              'customer-margin',
+              'supplier-margin',
+              'ledger',
+              'transactions',
+              'reports',
+              'vendors',
+              'inventory',
+              'vouchers',
+              'direct-deals',
+              'fixing-register'
+            ),
+            Joi.object({
+              on: Joi.boolean().optional(),
+              view: Joi.boolean().optional(),
+              edit: Joi.boolean().optional(),
+            }).min(1).unknown(false)
+          )
+          .unknown(false)
+          .optional(),
+      }).min(1).unknown(false)
+    )
+    .unknown(false)
+    .required(),
 })
 
 router.put('/users/:id/permissions', protect, restrictTo('super_admin'), validateParams(userIdParamSchema), validateBody(updatePermissionsSchema), async (req, res) => {

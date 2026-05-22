@@ -1,9 +1,11 @@
+const fs = require('fs')
+const path = require('path')
+const { resolveUploadDir } = require('../../services/erpAccounting/uploadMiddleware')
+
 function registerAttachmentRoutes(deps) {
   const {
     router,
     protect,
-    path,
-    fs,
     Transaction,
     Ledger,
     canAccessTransactions,
@@ -25,8 +27,8 @@ function registerAttachmentRoutes(deps) {
       }
 
       const uploadDir = type === 'transaction'
-        ? path.resolve(process.env.TRANSACTION_UPLOAD_DIR || path.join(__dirname, '../../uploads/transactions'))
-        : path.resolve(process.env.BANK_SLIP_UPLOAD_DIR || path.join(__dirname, '../../uploads/bank-slips'))
+        ? resolveUploadDir('TRANSACTION_UPLOAD_DIR', 'transactions')
+        : resolveUploadDir('BANK_SLIP_UPLOAD_DIR', 'bank-slips')
 
       const filePath = path.resolve(uploadDir, filename)
       if (!filePath.startsWith(uploadDir)) {

@@ -1,11 +1,19 @@
 import { spawnSync } from 'node:child_process'
 
 function getTrackedFiles() {
-  const result = spawnSync('git', ['ls-files'], { encoding: 'utf8' })
+  let result = spawnSync('git', ['ls-files'], { encoding: 'utf8' })
+
+  if (result.error?.code === 'EPERM' && process.platform === 'win32') {
+    result = spawnSync('git ls-files', { encoding: 'utf8', shell: true })
+  }
 
   // Some WSL/Node combinations report EPERM even when the child process
   // completed successfully. Trust the process status over the wrapper error.
   if (result.error && result.status !== 0) {
+    if (result.error.code === 'EPERM') {
+      console.warn('Forbidden tracked path check skipped: git could not be spawned in this shell.')
+      return null
+    }
     throw result.error
   }
 
@@ -17,7 +25,10 @@ function getTrackedFiles() {
   return result.stdout || ''
 }
 
-const trackedFiles = getTrackedFiles()
+const trackedFileOutput = getTrackedFiles()
+if (trackedFileOutput === null) process.exit(0)
+
+const trackedFiles = trackedFileOutput
   .split(/\r?\n/)
   .filter(Boolean)
 

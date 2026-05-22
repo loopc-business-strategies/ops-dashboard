@@ -7,6 +7,7 @@
     "dev:legacy": "concurrently \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
+    "lint": "npm run check:tracked-paths && npm run check:destructive-guards && npm run check:risk-guardrails && npm run check:vercel-rewrites",
     "check:tracked-paths": "node scripts/check-forbidden-tracked-paths.mjs",
     "check:destructive-guards": "node scripts/check-destructive-script-guards.mjs",
     "check:frontend-bundle": "node scripts/check-frontend-bundle-budget.mjs",

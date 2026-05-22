@@ -7,51 +7,14 @@
 //   /        → Redirects to /dashboard
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
 import { AuthProvider } from './context/AuthContext'
 import { LanguageProvider } from './context/LanguageContext'
 import ProtectedRoute  from './components/ProtectedRoute'
 import Login           from './pages/Login'
 import Setup           from './pages/Setup'
 import Dashboard       from './pages/Dashboard'
-import erpAccountingAPI from './api/erp-accounting'
 
 function App() {
-  const [metalRates, setMetalRates] = useState({
-    goldPrice: null,
-    silverPrice: null,
-    platinumPrice: null,
-    palladiumPrice: null,
-    updatedAt: null,
-  })
-
-  useEffect(() => {
-    let mounted = true
-
-    const loadMetalRates = async () => {
-      try {
-        const data = await erpAccountingAPI.getMetalRates()
-        const rates = data?.rates || data || {}
-        if (!mounted) return
-        setMetalRates({
-          goldPrice: rates.goldPrice ?? null,
-          silverPrice: rates.silverPrice ?? null,
-          platinumPrice: rates.platinumPrice ?? null,
-          palladiumPrice: rates.palladiumPrice ?? null,
-          updatedAt: rates.updatedAt ?? null,
-        })
-      } catch {
-        if (!mounted) return
-      }
-    }
-
-    loadMetalRates()
-
-    return () => {
-      mounted = false
-    }
-  }, [])
-
   return (
     <LanguageProvider>
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -64,13 +27,7 @@ function App() {
           {/* Protected — requires login */}
           <Route path="/dashboard" element={
             <ProtectedRoute>
-              <Dashboard
-                goldPrice={metalRates?.goldPrice}
-                silverPrice={metalRates?.silverPrice}
-                platinumPrice={metalRates?.platinumPrice}
-                palladiumPrice={metalRates?.palladiumPrice}
-                metalRatesUpdatedAt={metalRates?.updatedAt}
-              />
+              <Dashboard />
             </ProtectedRoute>
           } />
 

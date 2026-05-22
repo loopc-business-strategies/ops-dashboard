@@ -1,4 +1,4 @@
-import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import AccountCombobox from '../AccountCombobox'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
@@ -23,11 +23,9 @@ import { formatTransactionAuditEntry, formatTransactionCommentKind, getTransacti
 import ChartOfAccountsTree from './ChartOfAccountsTree'
 import DirectDealsTab from './DirectDealsTab'
 import { MiniBarChart } from './erp/ERPTabCharts'
-import { renderERP_DashWidget } from './erp/ERPDashboardWidgets'
 import { useERPTabStateAdapter } from './erp/useERPTabStateAdapter'
 import { deriveErpAccessPolicy } from './erp/accessPolicy'
 import {
-  ERPDashboardTabContainer,
   ERPAccountsTabContainer,
   ERPEnquiryTabContainer,
   ERPVouchersTabContainer,
@@ -53,9 +51,11 @@ import {
 } from './erp/erpTabUtils'
 import ERPInventoryTab from './erp/tabs/ERPInventoryTab'
 import ERPVendorsTab from './erp/tabs/ERPVendorsTab'
+import ERPDashboardTab from './erp/tabs/ERPDashboardTab'
 import ERPLedgerTab from './erp/tabs/ERPLedgerTab'
 import ERPTransactionsTab from './erp/tabs/ERPTransactionsTab'
 import ERPReportsTab from './erp/tabs/ERPReportsTab'
+import ERPFixingRegisterTab from './erp/tabs/ERPFixingRegisterTab'
 import { startERPRealtimeFeeds } from '../../utils/realtimeSocket'
 import { createHtmlExportRoot, downloadBlob, downloadCsv } from './erp/exportHelpers'
 import {
@@ -80,7 +80,6 @@ import {
   normalizeJvCurrencyCode,
   resolveJvModeMeta,
 } from './erp/journalVoucherHelpers'
-
 const VoucherTab = lazy(() => import('./VoucherTab'))
 import {
   DEFAULT_BRANDING,
@@ -94,12 +93,10 @@ import {
   isSupportedLogoUpload,
 } from './erp/ERPBrandingUtils'
 import { resolveDocumentBranding } from './erp/documentBranding'
-
 const loadExcel = async () => {
   const mod = await import('exceljs')
   return mod.default || mod
 }
-
 const loadPdfTools = async () => {
   const [{ default: jsPDF }, autoTableMod] = await Promise.all([
     import('jspdf'),
@@ -107,12 +104,10 @@ const loadPdfTools = async () => {
   ])
   return { jsPDF, autoTable: autoTableMod.default || autoTableMod }
 }
-
 const loadHtmlToPdf = async () => {
   const mod = await import('html2pdf.js')
   return mod.default || mod
 }
-
 const TRANSACTION_STATUS_STYLES = {
   draft: { background: '#FEF3C7', color: '#92400E' },
   submitted: { background: '#DBEAFE', color: '#1D4ED8' },
@@ -121,7 +116,6 @@ const TRANSACTION_STATUS_STYLES = {
   returned: { background: '#FCE7F3', color: '#9D174D' },
   rejected: { background: '#FEE2E2', color: '#B91C1C' },
 }
-
 const formatDateInputLocal = (date) => {
   const d = date instanceof Date ? date : new Date(date)
   if (Number.isNaN(d.getTime())) return ''
@@ -130,7 +124,6 @@ const formatDateInputLocal = (date) => {
   const day = String(d.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
-
 const C = {
   p1: '#FFFFFF',
   p2: '#F3F4F6',
@@ -143,14 +136,12 @@ const C = {
   t3: '#334155',
   danger: '#DC2626',
 }
-
 function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const { user, token } = useAuth()
   const { t } = useLanguage()
   const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
   const TRANSACTION_ACTION_LABELS = getTransactionActionLabels(t)
   const { activeTab, setActiveTab } = useERPTabStateAdapter(focusTab)
-
   const dashStorageKey = `erp_dash_${user?.name || 'default'}`
   const [dashWidgets, setDashWidgets] = useState(() => {
     try {
@@ -166,7 +157,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const [dashCustomizeOpen, setDashCustomizeOpen] = useState(false)
   const [dashPickSelected, setDashPickSelected] = useState([])
   const dashDragSrc = useRef(null)
-
   // Dashboard date-range filter
   const [dashDateFrom, setDashDateFrom] = useState(() => {
     const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
@@ -177,7 +167,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   useEffect(() => {
     try { localStorage.setItem(dashStorageKey, JSON.stringify(sanitizeDashWidgets(dashWidgets))) } catch {}
   }, [dashWidgets, dashStorageKey])
-
   const [accounts, setAccounts] = useState([])
   const [summaryAccounts, setSummaryAccounts] = useState([])
   const [customers, setCustomers] = useState([])
@@ -237,7 +226,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     paymentType: 'bank',
     bankAttachment: null,
   })
-
   // ─── Multi-line Journal Voucher state ─────────────────────────────────────
   const buildJvDocNo = (mode = 'journal') => buildNextJvDocNo(ledger, mode)
   const createJvHeader = (currencyCode = 'USD', mode = 'journal') => createNextJvHeader(ledger, currencyCode, mode)
@@ -427,16 +415,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const inventoryProductModalDragRef = useRef({ moveHandler: null, upHandler: null })
   const [inventoryStockCodeSettings, setInventoryStockCodeSettings] = useState(DEFAULT_INVENTORY_STOCK_CODE_SETTINGS)
   const inventoryStockCodeSettingsKey = `${INVENTORY_STOCK_CODE_SETTINGS_STORAGE_KEY}:${String(user?._id || user?.email || 'anonymous')}`
-
-
-
   const ITEMS_PER_PAGE = 25
   const statementTableRef = useRef(null)
   const showNotification = (msg) => {
     setSuccess(msg)
     setTimeout(() => setSuccess(''), 3000)
   }
-
   // Check if user is logged in
   if (!token) {
     return (
@@ -445,7 +429,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       </div>
     )
   }
-
   // Role-based permissions
   const {
     isSuperAdmin,
@@ -555,7 +538,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (normalized === 'xpd' || normalized === 'palladium') return null
       return String(rawValue || '').trim().toUpperCase()
     }
-
     const stockTypeOptions = inventoryMappingProducts.map((item) => {
       const meta = decodeInventoryCategoryMeta(item.category)
       const source = meta.metalType || meta.mainStock || item.name
@@ -569,14 +551,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         label: `${labelName}${puritySuffix}`,
       }
     }).filter((option) => Boolean(option.metalCode))
-
     if (stockTypeOptions.length) {
       return [
         { id: 'all-metals', value: 'ALL::all', metalCode: 'ALL', label: 'All Metals' },
         ...stockTypeOptions,
       ]
     }
-
     // Legacy fallback for older datasets where stock types were not encoded in mapping records.
     const legacyProductOptions = inventoryCatalogProducts.map((item) => {
       const meta = decodeInventoryCategoryPairs(item.category)
@@ -591,14 +571,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         label: `${productLabel}${puritySuffix}`,
       }
     }).filter((option) => Boolean(option.metalCode))
-
     if (legacyProductOptions.length) {
       return [
         { id: 'all-metals', value: 'ALL::all', metalCode: 'ALL', label: 'All Metals' },
         ...legacyProductOptions,
       ]
     }
-
     // Final fallback: allow fixing register to work even when no inventory stock type/product records exist.
     return [
       { id: 'all-metals', value: 'ALL::all', metalCode: 'ALL', label: 'All Metals' },
@@ -645,7 +623,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       ]
   const selectedTransaction = transactions.find((tx) => tx._id === selectedTransactionId) || null
   const rawStatementEntries = accountEnquiryData?.statement?.entries || []
-
   const resolveFixStatus = (entry) => {
     const explicit = String(entry?.metalFixStatus || '').trim().toLowerCase()
     if (explicit === 'fixed' || explicit === 'unfixed') return explicit
@@ -654,7 +631,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     if (/fixing|fixed|price[\s-_]?fix/.test(text)) return 'fixed'
     return 'unknown'
   }
-
   const goldPriceUSD = accountEnquiryData ? Number(accountEnquiryData.metals?.goldPrice || 0) : 0
   const silverPriceUSD = accountEnquiryData ? Number(accountEnquiryData.metals?.silverPrice || 0) : 0
   const totalFunds = accountEnquiryData ? Number(accountEnquiryData.balances?.netBalance || 0) : 0
@@ -733,7 +709,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
     return formatStatementValue(value, digits)
   }
-
   const getSignedColor = (value) => {
     const num = Number(value || 0)
     return num >= 0 ? '#111827' : '#c0392b'  // Red for negative
@@ -759,7 +734,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const match = text.match(/\b((?:Pay|Rec|Pur|Sal|BnkJV|JV|Jv)[/-]\d{4}[/-]\d{1,6})\b/i)
       return String(match?.[1] || '').trim()
     })()
-
     const sourceNo = String(entry.sourceTransactionNumber || '').trim()
     if (sourceNo && !isLikelyMongoId(sourceNo)) return sourceNo
     if (parsedDocNo) return parsedDocNo
@@ -775,14 +749,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const combineVoucherStatementRows = (entries = []) => {
     const grouped = new Map()
     const orderedKeys = []
-
     entries.forEach((entry, index) => {
       const dealSide = resolveDealSide(entry)
       const sourceId = String(entry?.sourceTransactionId || '').trim()
       const receiptNo = resolveStatementReceiptNo(entry)
       const canGroup = sourceId && (dealSide === 'sale' || dealSide === 'purchase')
       const key = canGroup ? `tx:${sourceId}` : `row:${entry?._id || index}`
-
       if (!grouped.has(key)) {
         grouped.set(key, {
           ...entry,
@@ -802,7 +774,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         })
         orderedKeys.push(key)
       }
-
       const row = grouped.get(key)
       row.debitAmount += Number(entry?.debitAmount || 0)
       row.creditAmount += Number(entry?.creditAmount || 0)
@@ -812,13 +783,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (Number.isFinite(incomingVoucherAmount) && Math.abs(incomingVoucherAmount) > Math.abs(Number(row.unfixedVoucherAmount || 0))) {
         row.unfixedVoucherAmount = incomingVoucherAmount
       }
-
       const entryType = String(entry?.referenceType || '').toLowerCase()
       if (entryType === dealSide || (!row.offsetAccountCode && entry?.offsetAccountCode)) {
         row.offsetAccountCode = entry?.offsetAccountCode || row.offsetAccountCode
         row.offsetAccountName = entry?.offsetAccountName || row.offsetAccountName
       }
-
       if (!row.sourceTransactionNumber && entry?.sourceTransactionNumber) row.sourceTransactionNumber = entry.sourceTransactionNumber
       if (!row.metalFixStatus && entry?.metalFixStatus) row.metalFixStatus = entry.metalFixStatus
       if (!row.metalCode && entry?.metalCode) row.metalCode = entry.metalCode
@@ -840,7 +809,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         }
       }
     })
-
     return orderedKeys.map((key) => {
       const row = grouped.get(key)
       row.debitAmount = Number(row.debitAmount.toFixed(2))
@@ -1050,7 +1018,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const transactionPageCount = Math.max(1, Math.ceil(Number(transactionMeta.total || 0) / Number(transactionMeta.limit || 25)))
   const isTransactionEditMode = Boolean(editingTransactionId)
   const allVisibleTransactionsSelected = Boolean(transactions.length) && transactions.every((tx) => selectedTransactionIds.includes(tx._id))
-
   const emptyCardStyle = {
     background: '#F9FAFB',
     border: '1px dashed #D1D5DB',
@@ -1059,7 +1026,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     color: C.inkSoft,
     fontSize: '0.875rem',
   }
-
   const modalBackdropStyle = {
     position: 'fixed',
     inset: 0,
@@ -1070,7 +1036,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     zIndex: 60,
     padding: '1rem',
   }
-
   const modalCardStyle = {
     width: 'min(540px, 100%)',
     background: '#FFFFFF',
@@ -1078,7 +1043,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     boxShadow: '0 18px 50px rgba(15, 23, 42, 0.2)',
     padding: '1.25rem',
   }
-
   const modalInputStyle = {
     display: 'block',
     width: '100%',
@@ -1089,9 +1053,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     color: C.ink,
     borderRadius: '0.5rem',
   }
-
   const detailsPanelIsFloating = detailsPanel.floating || detailsPanel.pinned
-
   const getCurrentDetailsPanelGeometry = () => {
     const rect = detailsPanelRef.current?.getBoundingClientRect()
     if (!rect) {
@@ -1102,7 +1064,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         height: detailsPanel.height,
       }
     }
-
     return {
       x: rect.left,
       y: rect.top,
@@ -1110,7 +1071,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       height: rect.height,
     }
   }
-
   const beginDetailsPanelDrag = (event) => {
     if (event.button !== 0) return
     event.preventDefault()
@@ -1131,7 +1091,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       startY: geometry.y,
     })
   }
-
   const beginDetailsPanelResize = (event) => {
     if (event.button !== 0) return
     event.preventDefault()
@@ -1144,7 +1103,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       startH: detailsPanel.height,
     })
   }
-
   const handleCloseDetailsPanel = () => {
     setDetailsPanel((prev) => ({
       ...prev,
@@ -1156,9 +1114,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       height: 520,
     }))
   }
-
   const enquiryBackdropColor = enquiryModalDrag.active ? 'rgba(15, 23, 42, 0.12)' : 'rgba(15, 23, 42, 0.45)'
-
   const beginEnquiryModalDrag = (event) => {
     if (event.button !== 0) return
     event.preventDefault()
@@ -1170,7 +1126,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       startY: enquiryModalOffset.y,
     })
   }
-
   const beginFixingRegPanelDrag = (event) => {
     if (event.button !== 0) return
     event.preventDefault()
@@ -1182,7 +1137,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       startY: fixingRegPanelOffset.y,
     })
   }
-
   const beginJvModalDrag = (event) => {
     if (event.button !== 0) return
     event.preventDefault()
@@ -1194,7 +1148,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       startY: jvModalOffset.y,
     })
   }
-
   const beginJvModalResize = (event) => {
     if (event.button !== 0) return
     event.preventDefault()
@@ -1207,7 +1160,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       startH: jvModalSize.height,
     })
   }
-
   useEffect(() => {
     if (!showEnquiryModal) {
       setEnquiryModalOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
@@ -1217,29 +1169,23 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       })
       return undefined
     }
-
     if (!enquiryModalDrag.active) return undefined
-
     const handlePointerMove = (event) => {
       setEnquiryModalOffset({
         x: enquiryModalDrag.startX + (event.clientX - enquiryModalDrag.pointerX),
         y: enquiryModalDrag.startY + (event.clientY - enquiryModalDrag.pointerY),
       })
     }
-
     const handlePointerUp = () => {
       setEnquiryModalDrag((prev) => ({ ...prev, active: false }))
     }
-
     window.addEventListener('mousemove', handlePointerMove)
     window.addEventListener('mouseup', handlePointerUp)
-
     return () => {
       window.removeEventListener('mousemove', handlePointerMove)
       window.removeEventListener('mouseup', handlePointerUp)
     }
   }, [showEnquiryModal, enquiryModalDrag])
-
   useEffect(() => {
     if (!showLedgerForm) {
       setJvModalOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
@@ -1254,51 +1200,40 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setJvModalSize((prev) => (prev.width === JV_MODAL_DEFAULT_SIZE.width && prev.height === JV_MODAL_DEFAULT_SIZE.height ? prev : JV_MODAL_DEFAULT_SIZE))
       return undefined
     }
-
     if (!jvModalDrag.active) return undefined
-
     const onMouseMove = (event) => {
       setJvModalOffset({
         x: jvModalDrag.startX + (event.clientX - jvModalDrag.pointerX),
         y: jvModalDrag.startY + (event.clientY - jvModalDrag.pointerY),
       })
     }
-
     const onMouseUp = () => {
       setJvModalDrag((prev) => ({ ...prev, active: false }))
     }
-
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
-
     return () => {
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
     }
   }, [showLedgerForm, jvModalDrag])
-
   useEffect(() => {
     if (!showLedgerForm || !jvModalResize.active) return undefined
-
     const onMouseMove = (event) => {
       const nextWidth = Math.max(860, Math.min(window.innerWidth - 24, jvModalResize.startW + (event.clientX - jvModalResize.pointerX)))
       const nextHeight = Math.max(500, Math.min(window.innerHeight - 24, jvModalResize.startH + (event.clientY - jvModalResize.pointerY)))
       setJvModalSize({ width: nextWidth, height: nextHeight })
     }
-
     const onMouseUp = () => {
       setJvModalResize((prev) => ({ ...prev, active: false }))
     }
-
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
-
     return () => {
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
     }
   }, [showLedgerForm, jvModalResize])
-
   useEffect(() => {
     if (activeTab !== 'fixing-register') {
       setFixingRegPanelOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
@@ -1308,29 +1243,23 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       })
       return undefined
     }
-
     if (!fixingRegPanelDrag.active) return undefined
-
     const onMouseMove = (event) => {
       setFixingRegPanelOffset({
         x: fixingRegPanelDrag.startX + (event.clientX - fixingRegPanelDrag.pointerX),
         y: fixingRegPanelDrag.startY + (event.clientY - fixingRegPanelDrag.pointerY),
       })
     }
-
     const onMouseUp = () => {
       setFixingRegPanelDrag((prev) => ({ ...prev, active: false }))
     }
-
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
-
     return () => {
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
     }
   }, [activeTab, fixingRegPanelDrag])
-
   useEffect(() => {
     try {
       const raw = localStorage.getItem(ENQUIRY_DETAILS_PANEL_STORAGE_KEY)
@@ -1350,10 +1279,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       // ignore malformed local settings
     }
   }, [])
-
   useEffect(() => {
     if (!detailsPanelDrag.active && !detailsPanelResize.active) return undefined
-
     const onMouseMove = (event) => {
       if (detailsPanelDrag.active) {
         setDetailsPanel((prev) => ({
@@ -1362,19 +1289,16 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           y: detailsPanelDrag.startY + (event.clientY - detailsPanelDrag.pointerY),
         }))
       }
-
       if (detailsPanelResize.active) {
         const nextWidth = Math.max(380, detailsPanelResize.startW + (event.clientX - detailsPanelResize.pointerX))
         const nextHeight = Math.max(360, detailsPanelResize.startH + (event.clientY - detailsPanelResize.pointerY))
         setDetailsPanel((prev) => ({ ...prev, width: nextWidth, height: nextHeight }))
       }
     }
-
     const onMouseUp = () => {
       setDetailsPanelDrag((prev) => ({ ...prev, active: false }))
       setDetailsPanelResize((prev) => ({ ...prev, active: false }))
     }
-
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
     return () => {
@@ -1382,11 +1306,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       window.removeEventListener('mouseup', onMouseUp)
     }
   }, [detailsPanelDrag, detailsPanelResize])
-
   useEffect(() => {
     localStorage.setItem(ENQUIRY_DETAILS_PANEL_STORAGE_KEY, JSON.stringify(detailsPanel))
   }, [detailsPanel])
-
   useEffect(() => {
     setStatementAuditPreferenceReady(false)
     try {
@@ -1398,7 +1320,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setStatementAuditPreferenceReady(true)
     }
   }, [statementAuditPreferenceKey])
-
   useEffect(() => {
     if (!statementAuditPreferenceReady) return
     try {
@@ -1407,7 +1328,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       // ignore local preference save errors
     }
   }, [statementAuditPreferenceReady, statementAuditPreferenceKey, showStatementAuditIds])
-
   useEffect(() => {
     try {
       const raw = localStorage.getItem(inventoryStockCodeSettingsKey)
@@ -1423,7 +1343,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setInventoryStockCodeSettings(DEFAULT_INVENTORY_STOCK_CODE_SETTINGS)
     }
   }, [inventoryStockCodeSettingsKey])
-
   useEffect(() => {
     try {
       localStorage.setItem(inventoryStockCodeSettingsKey, JSON.stringify(inventoryStockCodeSettings))
@@ -1431,7 +1350,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       // ignore local preference save errors
     }
   }, [inventoryStockCodeSettingsKey, inventoryStockCodeSettings])
-
   const loadDashboard = async () => {
     if (!canViewAccounts) return
     setLoading(true)
@@ -1459,7 +1377,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     setLoading(false)
   }
-
   const loadAccounts = async (params = {}) => {
     const isSummaryScope = params.scope === 'summary'
     if (!canViewAccounts && !(isSummaryScope && canViewBalanceEnquiry)) return
@@ -1470,7 +1387,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         let page = 1
         let total = 0
         let merged = []
-
         do {
           const data = await erpAccountingAPI.getAccounts(token, { ...params, page, limit: pageSize })
           const rows = data.accounts || []
@@ -1479,7 +1395,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           page += 1
           if (!rows.length) break
         } while (merged.length < total)
-
         const uniqueById = new Map()
         merged.forEach((item) => {
           if (item?._id) uniqueById.set(item._id, item)
@@ -1495,29 +1410,23 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     setLoading(false)
   }
-
   const formatSummaryAccountLabel = (account) => {
     const code = String(account?.accountCode || '').trim()
     const name = String(account?.accountName || '').trim()
     const type = String(account?.accountType || '').trim()
     return [code, name, type].filter(Boolean).join(' - ')
   }
-
   const resolveAccountEnquiryCodeInput = (input) => {
     const cleanInput = String(input || '').trim()
     if (!cleanInput) return ''
-
     const exactAccount = summaryAccounts.find((account) => String(account?.accountCode || '').trim().toLowerCase() === cleanInput.toLowerCase())
     if (exactAccount?.accountCode) return String(exactAccount.accountCode).trim()
-
     const matchedLabel = summaryAccounts.find((account) => formatSummaryAccountLabel(account).toLowerCase() === cleanInput.toLowerCase())
     if (matchedLabel?.accountCode) return String(matchedLabel.accountCode).trim()
-
     const labelPrefixMatch = cleanInput.match(/^([^\s-][^-]*?)(?:\s*-\s*.*)?$/)
     const candidateCode = String(labelPrefixMatch?.[1] || cleanInput).trim()
     return candidateCode
   }
-
   const groupedSummaryAccounts = summaryAccounts
     .slice()
     .sort((a, b) => {
@@ -1538,7 +1447,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       else groups.push({ type, accounts: [account] })
       return groups
     }, [])
-
   const baseEntryAccountOptions = summaryAccounts.length ? summaryAccounts : accounts
   const customerVendorLedgerOptions = [...(Array.isArray(customers) ? customers : []), ...(Array.isArray(vendors) ? vendors : [])]
     .map((party) => party?.ledgerAccountId)
@@ -1565,7 +1473,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         .map((a) => ({ value: String(a._id), label: `${a.accountCode || ''} - ${a.accountName || ''}` })),
     }])
     .filter((g) => g.options.length > 0)
-
   const isBankJvEligibleAccount = (account) => {
     const code = String(account?.accountCode || '').trim().toUpperCase()
     const name = String(account?.accountName || '').trim().toUpperCase()
@@ -1578,7 +1485,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     if (name.includes('BANK')) return true
     return /^101\d{0,3}$/.test(code)
   }
-
   const bankJvEntryAccountOptions = entryAccountOptions.filter(isBankJvEligibleAccount)
   const bankJvComboGroups = ACCOUNT_TYPE_ORDER
     .map((type) => ({
@@ -1594,24 +1500,19 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         .map((a) => ({ value: String(a._id), label: `${a.accountCode || ''} - ${a.accountName || ''}` })),
     }])
     .filter((g) => g.options.length > 0)
-
   const inferJvAccountCurrency = (accountId) => {
     const account = entryAccountOptions.find((item) => String(item?._id) === String(accountId || ''))
     if (!account) return baseCurrencyCode
-
     const explicitCurrency = normalizeJvCurrencyCode(account.currency || account.currencyCode || '')
     if (explicitCurrency) return explicitCurrency
-
     const hint = `${String(account.accountCode || '').toUpperCase()} ${String(account.accountName || '').toUpperCase()}`
     if (hint.includes('USD')) return 'USD'
     if (hint.includes('UZS') || hint.includes('SOMS') || hint.includes('SOM')) return 'UZS'
     return baseCurrencyCode
   }
-
   const convertJvAmount = (amount, fromCurrency, toCurrency) => {
     return convertJvAmountBetweenCurrencies(amount, fromCurrency, toCurrency, currencies, baseCurrencyCode)
   }
-
   useEffect(() => {
     setLedgerForm((prev) => (prev.currency === baseCurrencyCode ? prev : { ...prev, currency: baseCurrencyCode }))
     setJvHeader((prev) => {
@@ -1619,7 +1520,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       return prev.currency === nextCurrency ? prev : { ...prev, currency: nextCurrency }
     })
   }, [baseCurrencyCode])
-
   const filteredGroupedSummaryAccounts = groupedSummaryAccounts
     .map((group) => {
       const lookup = String(accountEnquiryCode || '').trim().toLowerCase()
@@ -1631,7 +1531,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       return { ...group, accounts: filteredAccounts }
     })
     .filter((group) => group.accounts.length > 0)
-
   const loadLedger = async (options = {}) => {
     if (!canViewLedger) return
     setLoading(true)
@@ -1667,7 +1566,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     setLoading(false)
   }
-
   const loadCustomers = async (params) => {
     if (!canViewCustomers) return
     setLoading(true)
@@ -1680,7 +1578,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     setLoading(false)
   }
-
   const loadMappings = async (params = mappingFilters) => {
     if (!canViewAccounts) return
     setLoading(true)
@@ -1698,7 +1595,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     setLoading(false)
   }
-
   const loadCurrencies = async () => {
     setLoading(true)
     try {
@@ -1710,7 +1606,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     setLoading(false)
   }
-
   const loadReportBranding = async (brandingKey = selectedBrandingKey || DEFAULT_BRANDING.key) => {
     try {
       const data = await erpAccountingAPI.getReportBranding(token, { key: brandingKey })
@@ -1724,7 +1619,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError(e.response?.data?.message || 'Failed to load report branding')
     }
   }
-
   const loadMetalRates = async () => {
     try {
       const data = await erpAccountingAPI.getMetalRates(token)
@@ -1740,14 +1634,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError(e.response?.data?.message || 'Failed to load metal rates')
     }
   }
-
   const loadAllVendors = async (baseFilters = {}) => {
     const pageSize = 100
     let page = 1
     let total = Number.POSITIVE_INFINITY
     let merged = []
     let permissions = { canManage: false, canUpdateOperational: false }
-
     while (merged.length < total) {
       const data = await erpAccountingAPI.getVendors(token, { ...baseFilters, page, limit: pageSize })
       const rows = data.vendors || []
@@ -1757,13 +1649,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (!rows.length) break
       page += 1
     }
-
     const uniqueById = new Map()
     merged.forEach((item) => {
       if (item?._id) uniqueById.set(item._id, item)
     })
     const vendors = Array.from(uniqueById.values())
-
     const summaryTotals = vendors.reduce((acc, row) => {
       acc.count += 1
       acc.outstanding += Number(row.outstanding || 0)
@@ -1773,7 +1663,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       acc.nonCompliant += row.compliance?.compliant ? 0 : 1
       return acc
     }, { count: 0, outstanding: 0, overLimit: 0, blacklisted: 0, onHold: 0, nonCompliant: 0 })
-
     return {
       vendors,
       permissions,
@@ -1787,7 +1676,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       },
     }
   }
-
   const loadTransactions = async (overrides = {}) => {
     if (!canAccessTransactions) return
     setLoading(true)
@@ -1797,7 +1685,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const cursorHistory = Array.isArray(overrides.cursorHistory)
         ? overrides.cursorHistory
         : (cursor ? transactionMeta.cursorHistory || [] : [])
-
       const params = {
         limit: overrides.limit || transactionMeta.limit,
         ...(cursor ? { cursor } : {}),
@@ -1807,11 +1694,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         ...((overrides.startDate ?? transactionFilters.startDate) ? { startDate: overrides.startDate ?? transactionFilters.startDate } : {}),
         ...((overrides.endDate ?? transactionFilters.endDate) ? { endDate: overrides.endDate ?? transactionFilters.endDate } : {}),
       }
-
       if (!hasCursorOverride && overrides.page) {
         params.page = overrides.page
       }
-
       const [data, customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
         erpAccountingAPI.getTransactions(token, params),
         canViewCustomers ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
@@ -1821,7 +1706,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         canViewAccounts ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
         canViewAccounts ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
       ])
-
       setTransactions(data.transactions || [])
       setTransactionSummary(data.summary || { totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
       setTransactionMeta((prev) => ({
@@ -1846,7 +1730,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     setLoading(false)
   }
-
   const resetTransactionComposer = () => {
     setEditingTransactionId('')
     setTransactionForm({
@@ -1855,11 +1738,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       exchangeRate: '1',
     })
   }
-
   const toggleTransactionSelection = (id) => {
     setSelectedTransactionIds((prev) => prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id])
   }
-
   const toggleVisibleTransactionSelection = () => {
     setSelectedTransactionIds((prev) => {
       if (allVisibleTransactionsSelected) {
@@ -1868,7 +1749,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       return Array.from(new Set([...prev, ...transactions.map((tx) => tx._id)]))
     })
   }
-
   const populateTransactionForm = (tx) => {
     setEditingTransactionId(tx._id)
     setSelectedTransactionId(tx._id)
@@ -1888,7 +1768,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       creditAccountId: tx.creditAccountId?._id || tx.creditAccountId || '',
     })
   }
-
   const getTransactionValidationMessage = () => {
     if (!transactionForm.type || !transactionForm.amount) return 'Transaction type and amount are required'
     if (Number(transactionForm.amount) <= 0) return 'Amount must be greater than zero'
@@ -1896,11 +1775,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     if (['purchase', 'payment'].includes(transactionForm.type) && !transactionForm.vendorId) return 'Vendor is required for purchases and payments'
     return ''
   }
-
   useEffect(() => {
     const normalizedType = String(transactionForm.type || '').toLowerCase()
     if (!['receipt', 'payment'].includes(normalizedType)) return
-
     let selectedAccountCurrency = ''
     if (normalizedType === 'receipt' && transactionForm.customerId) {
       const customer = customers.find((item) => String(item._id) === String(transactionForm.customerId))
@@ -1910,10 +1787,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const vendor = vendors.find((item) => String(item._id) === String(transactionForm.vendorId))
       selectedAccountCurrency = String(vendor?.ledgerAccountId?.currency || vendor?.currency || '').trim().toUpperCase()
     }
-
     if (!selectedAccountCurrency) return
     if (String(transactionForm.currency || '').toUpperCase() === selectedAccountCurrency) return
-
     const matchedCurrency = currencies.find((currency) => String(currency.code || '').toUpperCase() === selectedAccountCurrency)
     const nextRate = Number(matchedCurrency?.exchangeRate || 1)
     setTransactionForm((prev) => ({
@@ -1922,7 +1797,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       exchangeRate: Number.isFinite(nextRate) && nextRate > 0 ? String(nextRate) : prev.exchangeRate,
     }))
   }, [transactionForm.type, transactionForm.customerId, transactionForm.vendorId, customers, vendors, currencies])
-
   const loadVendors = async (filters = vendorFilters) => {
     if (!canAccessVendors) return
     setLoading(true)
@@ -1937,7 +1811,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     setLoading(false)
   }
-
   const loadVendorDetails = async (id) => {
     if (!id) {
       setSelectedVendorDetails(null)
@@ -1952,7 +1825,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError(e.response?.data?.message || 'Failed to load vendor details')
     }
   }
-
   const loadVendorPaymentCalendar = async () => {
     try {
       const data = await erpAccountingAPI.getVendorPaymentCalendar(token, { horizonDays: 45 })
@@ -1961,7 +1833,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError(e.response?.data?.message || 'Failed to load vendor payment calendar')
     }
   }
-
   const loadVendorComplianceSummary = async () => {
     try {
       const data = await erpAccountingAPI.getVendorComplianceSummary(token)
@@ -1974,7 +1845,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError(e.response?.data?.message || 'Failed to load vendor compliance summary')
     }
   }
-
   const loadVendorOverdueQueue = async () => {
     try {
       const data = await erpAccountingAPI.getVendorOverdueAlertQueue(token, { horizonDays: 120 })
@@ -1986,7 +1856,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError(e.response?.data?.message || 'Failed to load overdue alert queue')
     }
   }
-
   const loadInventory = async () => {
     if (!canAccessInventory) return
     setLoading(true)
@@ -1999,7 +1868,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     setLoading(false)
   }
-
   const loadStockLedger = async () => {
     if (!canAccessInventory) return
     setStockMovementsLoading(true)
@@ -2012,7 +1880,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setStockMovementsLoading(false)
     }
   }
-
   const loadReports = async () => {
     if (!canAccessReports) return
     setLoading(true)
@@ -2021,10 +1888,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
       const startOfYear = new Date(now.getFullYear(), 0, 1)
-
       let startDate = ''
       let endDate = ''
-
       if (reportFilters.period === 'today') {
         startDate = now.toISOString().slice(0, 10)
         endDate = startDate
@@ -2038,12 +1903,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         startDate = reportFilters.startDate || ''
         endDate = reportFilters.endDate || ''
       }
-
       const commonRange = {
         ...(startDate ? { startDate } : {}),
         ...(endDate ? { endDate } : {}),
       }
-
       const [trial, pnl, bs, dayBook, custOut, venOut, forex] = await Promise.all([
         erpAccountingAPI.getTrialBalance(token, {
           ...commonRange,
@@ -2084,7 +1947,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     setLoading(false)
   }
-
   const loadLedgerReport = async (accountId) => {
     if (!accountId) {
       setLedgerReportRows([])
@@ -2096,7 +1958,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
       let startDate = ''
       let endDate = ''
-
       if (reportFilters.period === 'today') {
         startDate = now.toISOString().slice(0, 10)
         endDate = startDate
@@ -2110,7 +1971,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         startDate = reportFilters.startDate || ''
         endDate = reportFilters.endDate || ''
       }
-
       const data = await erpAccountingAPI.getLedgerReport(token, {
         accountId,
         ...(startDate ? { startDate } : {}),
@@ -2121,7 +1981,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError(e.response?.data?.message || 'Failed to load ledger report')
     }
   }
-
   const handleCreateTransaction = async (e) => {
     e.preventDefault()
     const validationMessage = getTransactionValidationMessage()
@@ -2138,11 +1997,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         amount: Number(transactionForm.amount),
         ...(['sale', 'purchase'].includes(String(transactionForm.type || '').toLowerCase()) ? { metalFixStatus: transactionForm.metalFixStatus || 'fixed' } : {}),
       }
-
       const response = isTransactionEditMode
         ? await erpAccountingAPI.updateTransaction(token, editingTransactionId, payload)
         : await erpAccountingAPI.createTransaction(token, payload)
-
       resetTransactionComposer()
       setSelectedTransactionId(response.transaction?._id || '')
       await loadTransactions({ cursor: null, cursorHistory: [] })
@@ -2153,7 +2010,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleDeleteTransaction = async (id) => {
     if (typeof window !== 'undefined' && !window.confirm('Delete this transaction?')) return
     try {
@@ -2170,7 +2026,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleTransactionAction = async (action, id) => {
     try {
       setSaving(true)
@@ -2198,7 +2053,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleAddTransactionComment = async () => {
     if (!selectedTransactionId) {
       setError('Select a transaction first')
@@ -2220,7 +2074,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleSendTransactionChat = async (transactionId, message, mentionedNames = []) => {
     if (!transactionId) {
       setError('Select a transaction first')
@@ -2230,7 +2083,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError('Enter a message first')
       return false
     }
-
     try {
       setSaving(true)
       const data = await erpAccountingAPI.addTransactionComment(token, transactionId, {
@@ -2249,14 +2101,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleUploadTransactionAttachment = async (file, transactionId = selectedTransactionId) => {
     if (!transactionId) {
       setError('Select a transaction first')
       return
     }
     if (!file) return
-
     try {
       setSaving(true)
       setSelectedTransactionId(transactionId)
@@ -2270,7 +2120,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleDeleteTransactionAttachment = async (attachmentId) => {
     if (!selectedTransactionId || !attachmentId) return
     try {
@@ -2284,7 +2133,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleBulkTransactionAction = async (action) => {
     if (!selectedTransactionIds.length) {
       setError('Select at least one transaction')
@@ -2316,7 +2164,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleCreateVendor = async (e) => {
     e.preventDefault()
     if (!canManageVendors && !editingVendorId) {
@@ -2337,7 +2184,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         rating: Number(vendorForm.rating || 3),
         tags: String(vendorForm.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean),
       }
-
       if (editingVendorId) {
         await erpAccountingAPI.updateVendor(token, editingVendorId, payload)
         showNotification('✅ Vendor updated')
@@ -2345,7 +2191,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         await erpAccountingAPI.createVendor(token, payload)
         showNotification('✅ Vendor created')
       }
-
       setVendorForm({
         vendorCode: '',
         name: '',
@@ -2386,22 +2231,18 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleVendorFilterSearch = async () => {
     await loadVendors(vendorFilters)
   }
-
   const handleVendorSelect = async (vendorId) => {
     setSelectedVendorId(vendorId)
     await loadVendorDetails(vendorId)
   }
-
   const handleEditVendor = (vendor) => {
     if (!vendorPermissions.canUpdateOperational) {
       setError('You are not allowed to edit vendors')
       return
     }
-
     setEditingVendorId(vendor._id)
     setShowVendorForm(true)
     setVendorForm({
@@ -2433,7 +2274,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       currency: vendor.currency || 'USD',
     })
   }
-
   const handleDeleteVendor = async (vendor) => {
     if (!vendorPermissions.canManage) {
       setError('Only Admin/Finance can deactivate vendors')
@@ -2459,7 +2299,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleVendorWorkflowStatus = async (status) => {
     if (!selectedVendorId) return
     try {
@@ -2483,7 +2322,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleAddVendorDocument = async (e) => {
     e.preventDefault()
     if (!selectedVendorId) {
@@ -2518,7 +2356,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleVendorTableDocumentUpload = async (vendor, file) => {
     if (!vendor?._id || !file) return
     if (!vendorPermissions.canUpdateOperational) {
@@ -2545,7 +2382,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleDeleteVendorDocument = async (documentId) => {
     if (!selectedVendorId) return
     if (!window.confirm('Delete this vendor document?')) return
@@ -2563,7 +2399,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const resetInventoryMappingForm = () => {
     setEditingProductId('')
     setInventoryMappingForm(createInventoryMappingForm())
@@ -2572,7 +2407,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     setInventoryModalDragging(false)
     setShowInventoryMappingModal(false)
   }
-
   const resetInventoryProductForm = () => {
     setEditingInventoryProductId('')
     setInventoryProductForm(createInventoryProductForm())
@@ -2580,7 +2414,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     setInventoryProductModalDragging(false)
     setShowInventoryProductModal(false)
   }
-
   const stopInventoryModalDrag = () => {
     const { moveHandler, upHandler } = inventoryModalDragRef.current
     if (moveHandler) {
@@ -2592,7 +2425,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     inventoryModalDragRef.current = { moveHandler: null, upHandler: null }
     setInventoryModalDragging(false)
   }
-
   const handleInventoryModalDragStart = (event) => {
     if (event.button !== 0) return
     event.preventDefault()
@@ -2600,24 +2432,20 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const startY = event.clientY
     const originX = inventoryModalOffset.x
     const originY = inventoryModalOffset.y
-
     const moveHandler = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX
       const deltaY = moveEvent.clientY - startY
       setInventoryModalOffset({ x: originX + deltaX, y: originY + deltaY })
     }
-
     const upHandler = () => {
       stopInventoryModalDrag()
     }
-
     stopInventoryModalDrag()
     setInventoryModalDragging(true)
     inventoryModalDragRef.current = { moveHandler, upHandler }
     window.addEventListener('mousemove', moveHandler)
     window.addEventListener('mouseup', upHandler)
   }
-
   const stopInventoryProductModalDrag = () => {
     const { moveHandler, upHandler } = inventoryProductModalDragRef.current
     if (moveHandler) {
@@ -2629,7 +2457,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     inventoryProductModalDragRef.current = { moveHandler: null, upHandler: null }
     setInventoryProductModalDragging(false)
   }
-
   const handleInventoryProductModalDragStart = (event) => {
     if (event.button !== 0) return
     event.preventDefault()
@@ -2637,29 +2464,24 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const startY = event.clientY
     const originX = inventoryProductModalOffset.x
     const originY = inventoryProductModalOffset.y
-
     const moveHandler = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX
       const deltaY = moveEvent.clientY - startY
       setInventoryProductModalOffset({ x: originX + deltaX, y: originY + deltaY })
     }
-
     const upHandler = () => {
       stopInventoryProductModalDrag()
     }
-
     stopInventoryProductModalDrag()
     setInventoryProductModalDragging(true)
     inventoryProductModalDragRef.current = { moveHandler, upHandler }
     window.addEventListener('mousemove', moveHandler)
     window.addEventListener('mouseup', upHandler)
   }
-
   useEffect(() => () => {
     stopInventoryModalDrag()
     stopInventoryProductModalDrag()
   }, [])
-
   useEffect(() => {
     if (!showInventoryMappingModal) return
     if (isSuperAdmin && inventoryStockCodeManualOverride) return
@@ -2667,7 +2489,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const nextCode = buildUniqueStockCode(baseCode, inventoryMappingProducts, editingProductId)
     setInventoryMappingForm((prev) => (prev.stockCode === nextCode ? prev : { ...prev, stockCode: nextCode }))
   }, [showInventoryMappingModal, inventoryMappingForm.mainStock, inventoryMappingForm.customMainStock, inventoryMappingForm.metalType, inventoryMappingProducts, editingProductId, inventoryStockCodeSettings, isSuperAdmin, inventoryStockCodeManualOverride])
-
   const buildInventoryPayloadFromForm = (form, includeOpeningQty = true) => {
     const mainStockValue = resolveMainStockValueFromForm(form)
     const normalizedMetalType = String(form.metalType || '').trim().toLowerCase()
@@ -2678,12 +2499,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       priceCurrency: form.priceCurrency || 'USD',
     })
     const label = titleCaseWords(mainStockValue || normalizedMetalType || 'Main Stock')
-
     const autoSku = buildUniqueStockCode(buildAutoStockCode(form, inventoryStockCodeSettings), inventoryMappingProducts, editingProductId)
     const resolvedSku = isSuperAdmin
       ? (String(form.stockCode || '').trim().toUpperCase() || autoSku)
       : autoSku
-
     const priceValue = parseFloat(form.currentPrice) || 0
     const payload = {
       sku: resolvedSku,
@@ -2695,14 +2514,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       currency: form.priceCurrency || 'USD',
       description: priceValue > 0 ? `${priceValue} ${form.priceCurrency || 'USD'}/${form.priceUnit || 'OZ'}` : undefined,
     }
-
     if (includeOpeningQty) {
       payload.quantity = Number(form.openingQty || 0)
     }
-
     return payload
   }
-
   const handleCreateProduct = async (e) => {
     e.preventDefault()
     const mainStockValue = resolveMainStockValueFromForm(inventoryMappingForm)
@@ -2740,7 +2556,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleEditProduct = (p) => {
     const meta = decodeInventoryCategoryMeta(p.category)
     const resolvedMainStock = meta.mainStock || meta.metalType || ''
@@ -2761,7 +2576,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     setInventoryModalOffset({ x: 0, y: 0 })
     setShowInventoryMappingModal(true)
   }
-
   const handleDeleteProduct = async (p) => {
     if (!window.confirm(`Delete product "${p.name}"? This cannot be undone.`)) return
     try {
@@ -2775,27 +2589,23 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleCreateInventoryCatalogProduct = async (e) => {
     e.preventDefault()
     if (!inventoryProductForm.name.trim()) {
       setError('Product name is required')
       return
     }
-
     // For new products, stock type is required. For editing, allow if category is already set
     if (!inventoryProductForm.stockTypeId && !editingInventoryProductId) {
       setError('Product category is required')
       return
     }
-
     const selectedStockType = inventoryMappingProducts.find((item) => item._id === inventoryProductForm.stockTypeId)
     // For new products, selectedStockType is required. For editing, use existing or matched
     if (!selectedStockType && !editingInventoryProductId) {
       setError('Product category is required')
       return
     }
-
     // For editing, extract baseCategory from existing product if selectedStockType not found
     let baseCategory = ''
     if (selectedStockType) {
@@ -2807,7 +2617,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         baseCategory = String(existingProduct.category || '').replace(/;recordType=product.*$/gi, '')
       }
     }
-
     const sanitizeMetaText = (value) => String(value || '').replace(/[;\n\r]/g, ' ').trim()
     const categoryName = sanitizeMetaText(inventoryProductForm.categoryName || selectedInventoryStockType?.mainStock || '')
     const productDescription = sanitizeMetaText(inventoryProductForm.description)
@@ -2820,7 +2629,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       ? Number(vatPercentRaw.toFixed(2))
       : 0
     const productPurityWeight = Number(inventoryProductPurityWeight || 0)
-
     try {
       setSaving(true)
       const payload = {
@@ -2832,7 +2640,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         sellingPrice: 0,
         currency: 'USD',
       }
-
       if (editingInventoryProductId) {
         await erpAccountingAPI.updateInventoryProduct(token, editingInventoryProductId, payload)
         showNotification('✅ Product updated')
@@ -2848,11 +2655,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleEditInventoryCatalogProduct = (productItem, productMeta) => {
     // Try to match stock type - first by category string, then by product metadata
     let matchedStockType = inventoryMappingProducts.find((stockTypeItem) => String(productItem.category || '').startsWith(`${String(stockTypeItem.category || '')};recordType=product`))
-    
     // Fallback: try matching by main stock name from product metadata
     if (!matchedStockType && productMeta?.mainStock) {
       const mainStockLower = String(productMeta.mainStock).toLowerCase().trim()
@@ -2863,7 +2668,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         return stockName === mainStockLower || stockMainLower === mainStockLower
       })
     }
-
     setEditingInventoryProductId(productItem._id)
     setInventoryProductForm({
       stockTypeId: matchedStockType?._id || '',
@@ -2879,7 +2683,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     setInventoryProductModalOffset({ x: 0, y: 0 })
     setShowInventoryProductModal(true)
   }
-
   const handleDeleteInventoryCatalogProduct = async (productItem) => {
     if (!window.confirm(`Delete product "${productItem?.name || 'Unnamed'}"? This cannot be undone.`)) return
     try {
@@ -2896,7 +2699,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const loadEnquiryHistory = () => {
     try {
       const raw = localStorage.getItem(ENQUIRY_HISTORY_STORAGE_KEY)
@@ -2909,12 +2711,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setEnquiryHistory([])
     }
   }
-
   const persistEnquiryHistory = (nextHistory) => {
     setEnquiryHistory(nextHistory)
     localStorage.setItem(ENQUIRY_HISTORY_STORAGE_KEY, JSON.stringify(nextHistory))
   }
-
   const pushEnquiryHistory = (account) => {
     if (!account?.accountCode) return
     const nextItem = {
@@ -2926,7 +2726,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const nextHistory = [nextItem, ...deduped].slice(0, 10)
     persistEnquiryHistory(nextHistory)
   }
-
   const fetchAccountEnquiryByCode = async (accountCode, options = {}) => {
     const cleanCode = resolveAccountEnquiryCodeInput(accountCode)
     const shouldOpenModal = Boolean(options.openModal)
@@ -2935,7 +2734,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setEnquiryStatus({ type: 'error', message: 'Please enter account number' })
       return
     }
-
     try {
       if (shouldOpenModal) setShowEnquiryModal(true)
       setEnquiryLoading(true)
@@ -2968,37 +2766,31 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setEnquiryLoading(false)
     }
   }
-
   const handleOpenAccountSummaryFromTree = async (account) => {
     if (!account?.accountCode) return
     setActiveTab('enquiry')
     setAccountEnquiryCode(account.accountCode)
     await fetchAccountEnquiryByCode(account.accountCode)
   }
-
   const handleAccountEnquiry = async (e) => {
     e.preventDefault()
     await fetchAccountEnquiryByCode(accountEnquiryCode, { openModal: true })
   }
-
   const handleUpdateMetalRates = async (e) => {
     e.preventDefault()
     if (!canUpdateMetalRates) {
       setError('You do not have permission to update rates')
       return
     }
-
     const payload = {
       goldPrice: Number(metalRateForm.goldPrice),
       silverPrice: Number(metalRateForm.silverPrice),
       priceCurrency: String(metalRateForm.priceCurrency || 'USD').toUpperCase(),
     }
-
     if (!payload.goldPrice || payload.goldPrice <= 0 || !payload.silverPrice || payload.silverPrice <= 0) {
       setError('Gold and silver rates must be greater than zero')
       return
     }
-
     try {
       setSaving(true)
       const data = await erpAccountingAPI.updateMetalRates(token, payload)
@@ -3011,7 +2803,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       })
       setError('')
       showNotification('✅ Gold/Silver rates updated')
-
       if (accountEnquiryData?.account?.accountCode) {
         const refreshed = await erpAccountingAPI.getAccountEnquiry(token, accountEnquiryData.account.accountCode, { statementLimit: 1000 })
         setAccountEnquiryData(refreshed)
@@ -3023,11 +2814,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   useEffect(() => {
     loadEnquiryHistory()
   }, [])
-
   useEffect(() => {
     setSelectedTransactionIds((prev) => {
       const next = prev.filter((id) => transactions.some((tx) => tx._id === id))
@@ -3040,35 +2829,28 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSelectedTransactionId('')
     }
   }, [transactions, selectedTransactionId])
-
   useEffect(() => {
     let cancelled = false
-
     const updatePreviewLogo = async () => {
       if (!brandingForm.logoUrl) {
         setBrandingPreviewLogo('')
         return
       }
-
       const nextLogo = await createLogoRenderAsset(
         brandingForm.logoUrl,
         brandingForm.logoWidth,
         brandingForm.logoHeight,
         brandingForm.logoFit
       )
-
       if (!cancelled) {
         setBrandingPreviewLogo(nextLogo)
       }
     }
-
     updatePreviewLogo()
-
     return () => {
       cancelled = true
     }
   }, [brandingForm.logoFit, brandingForm.logoHeight, brandingForm.logoUrl, brandingForm.logoWidth])
-
   useEffect(() => {
     if (activeTab !== 'transactions' || !selectedTransactionId || !transactions.length) return
     const target = document.getElementById(`erp-transaction-row-${selectedTransactionId}`)
@@ -3076,29 +2858,23 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       target.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }, [activeTab, selectedTransactionId, transactions])
-
   useEffect(() => {
     if (activeTab !== 'vendors' || !selectedVendorId) return
     loadVendorDetails(selectedVendorId)
   }, [activeTab, selectedVendorId])
-
   useEffect(() => {
     // Prevent stale error banners from one ERP section leaking into another.
     setError((prev) => (prev ? '' : prev))
   }, [activeTab])
-
   useEffect(() => {
     if (!customerMarginContextMenu.open && !supplierMarginContextMenu.open) return undefined
-
     const closeMenu = () => {
       setCustomerMarginContextMenu((prev) => (prev.open ? { open: false, x: 0, y: 0, row: null } : prev))
       setSupplierMarginContextMenu((prev) => (prev.open ? { open: false, x: 0, y: 0, row: null } : prev))
     }
-
     const handleEscape = (event) => {
       if (event.key === 'Escape') closeMenu()
     }
-
     window.addEventListener('click', closeMenu)
     window.addEventListener('resize', closeMenu)
     window.addEventListener('scroll', closeMenu, true)
@@ -3110,13 +2886,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       window.removeEventListener('keydown', handleEscape)
     }
   }, [customerMarginContextMenu.open, supplierMarginContextMenu.open])
-
   useEffect(() => {
     if (!canAccessERP || !token) {
       setError('You do not have access to the ERP Accounting module.')
       return
     }
-
     if (activeTab === 'dashboard') loadDashboard()
     else if (activeTab === 'accounts') loadAccounts()
     else if (activeTab === 'customer-margin') loadCustomers({ limit: 200 })
@@ -3181,10 +2955,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     reportFilters.minAmount,
     selectedReportAccountId,
   ])
-
   useEffect(() => {
     if (!token || !canAccessERP) return undefined
-
     const stopRealtime = startERPRealtimeFeeds({
       token,
       tenant: user?.tenant,
@@ -3199,18 +2971,15 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         }
       },
     })
-
     return () => {
       stopRealtime()
     }
   }, [token, user?.tenant, canAccessERP, activeTab])
-
   // Re-load dashboard when date range changes
   useEffect(() => {
     if (activeTab === 'dashboard' && canViewAccounts && token) loadDashboard()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dashDateFrom, dashDateTo])
-
   // Auto-refresh every 30 seconds when enabled and on dashboard tab
   useEffect(() => {
     if (!dashAutoRefresh || activeTab !== 'dashboard') return
@@ -3220,7 +2989,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dashAutoRefresh, activeTab])
-
   useEffect(() => {
     if (activeTab !== 'vouchers' || !token) return
     if (!customers.length) loadCustomers({ limit: 200 })
@@ -3228,19 +2996,16 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     if (!currencies.length) loadCurrencies()
     if (!accounts.length) loadAccounts()
   }, [activeTab, token, customers.length, vendors.length, currencies.length, accounts.length])
-
   useEffect(() => {
     if (activeTab !== 'direct-deals' || !token) return
     if (!customers.length) loadCustomers({ limit: 200 })
     if (!currencies.length) loadCurrencies()
   }, [activeTab, token, customers.length, currencies.length])
-
   useEffect(() => {
     if (activeTab !== 'fixing-register' || !token) return
     if (!customers.length) loadCustomers({ limit: 200 })
     if (!inventoryProducts.length) loadInventory()
   }, [activeTab, token, customers.length, inventoryProducts.length])
-
   useEffect(() => {
     if (!fixingRegisterStockTypeOptions.length) return
     const fallbackMetalType = fixingRegisterStockTypeOptions[0]?.value || ''
@@ -3249,12 +3014,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setFixingRegFilter((prev) => (prev.metalType === fallbackMetalType ? prev : { ...prev, metalType: fallbackMetalType }))
     }
   }, [fixingRegisterStockTypeOptions, fixingRegFilter.metalType])
-
   const convertMetalBalanceByUnit = (valueInGram) => {
     const factor = METAL_UNIT_FACTORS[metalUnit] || 1
     return Number(valueInGram || 0) / factor
   }
-
   const formatMoney = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
   const formatMoneyAbs = (value) => Math.abs(Number(value || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })
   const formatReportDirectionalBalance = (row, fallbackDirection = '') => (
@@ -3268,29 +3031,24 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (Number.isNaN(d.getTime())) return String(value)
       return d.toLocaleDateString()
     }
-
     if (reportFilters.period === 'today') {
       const today = now.toISOString().slice(0, 10)
       return `Today (${formatDate(today)})`
     }
-
     if (reportFilters.period === 'month') {
       const start = new Date(now.getFullYear(), now.getMonth(), 1)
       const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
       return `This Month (${formatDate(start)} - ${formatDate(end)})`
     }
-
     if (reportFilters.period === 'ytd') {
       const start = new Date(now.getFullYear(), 0, 1)
       return `Year To Date (${formatDate(start)} - ${formatDate(now)})`
     }
-
     if (reportFilters.period === 'custom') {
       const start = reportFilters.startDate || '-'
       const end = reportFilters.endDate || '-'
       return `Custom Range (${formatDate(start)} - ${formatDate(end)})`
     }
-
     return 'Period: Not set'
   }
   const normalizeBalanceDirection = (direction) => {
@@ -3355,7 +3113,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         }
       })
       .filter((row) => (!query ? true : row.customerName.toLowerCase().includes(query)))
-
     if (customerMarginSort === 'margin-asc') {
       rows.sort((a, b) => {
         const av = Number.isFinite(a.marginPercent) ? Number(a.marginPercent) : -1
@@ -3371,10 +3128,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         return bv - av
       })
     }
-
     return rows
   }, [customers, customerMarginSearch, customerMarginSort, goldPriceUSD, silverPriceUSD])
-
   const supplierMarginRows = useMemo(() => {
     const query = String(supplierMarginSearch || '').trim().toLowerCase()
     const rows = (vendors || [])
@@ -3411,7 +3166,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         }
       })
       .filter((row) => (!query ? true : row.supplierName.toLowerCase().includes(query)))
-
     if (supplierMarginSort === 'margin-asc') {
       rows.sort((a, b) => {
         const av = Number.isFinite(a.marginPercent) ? Number(a.marginPercent) : -1
@@ -3427,10 +3181,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         return bv - av
       })
     }
-
     return rows
   }, [vendors, supplierMarginSearch, supplierMarginSort])
-
   const formatCustomerMarginEquity = (row) => {
     const amount = Number(Math.abs(row?.equity || 0)).toLocaleString(undefined, {
       minimumFractionDigits: 2,
@@ -3440,12 +3192,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     if (Number(row?.equity || 0) < 0) return `-${amount}`
     return amount
   }
-
   const formatCustomerMarginPercent = (value) => {
     if (!Number.isFinite(Number(value))) return '-'
     return `${Number(value).toFixed(2)} %`
   }
-
   const formatCustomerMarginPosition = (value) => {
     const amount = Number(value || 0)
     if (!Number.isFinite(amount)) return '-'
@@ -3454,7 +3204,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       maximumFractionDigits: 6,
     })
   }
-
   const formatCustomerMarginAmount = (value) => {
     const amount = Number(value || 0)
     if (!Number.isFinite(amount)) return '-'
@@ -3463,7 +3212,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       maximumFractionDigits: 2,
     })
   }
-
   const formatCustomerMarginExcessShort = (row) => {
     const amount = Number(Math.abs(row?.excess ?? row?.balanceAbs ?? 0)).toLocaleString(undefined, {
       minimumFractionDigits: 2,
@@ -3473,7 +3221,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     if (Number(row?.excess || 0) < 0) return `Short ${amount}`
     return '-'
   }
-
   const handleCustomerMarginRowContextMenu = (event, row) => {
     event.preventDefault()
     const menuWidth = 292
@@ -3481,17 +3228,14 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const viewportPad = 8
     let x = event.clientX + 6
     let y = event.clientY + 6
-
     if (x + menuWidth > window.innerWidth - viewportPad) {
       x = Math.max(viewportPad, window.innerWidth - menuWidth - viewportPad)
     }
     if (y + menuHeight > window.innerHeight - viewportPad) {
       y = Math.max(viewportPad, window.innerHeight - menuHeight - viewportPad)
     }
-
     setCustomerMarginContextMenu({ open: true, x, y, row })
   }
-
   const handleSupplierMarginRowContextMenu = (event, row) => {
     event.preventDefault()
     const menuWidth = 292
@@ -3499,17 +3243,14 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const viewportPad = 8
     let x = event.clientX + 6
     let y = event.clientY + 6
-
     if (x + menuWidth > window.innerWidth - viewportPad) {
       x = Math.max(viewportPad, window.innerWidth - menuWidth - viewportPad)
     }
     if (y + menuHeight > window.innerHeight - viewportPad) {
       y = Math.max(viewportPad, window.innerHeight - menuHeight - viewportPad)
     }
-
     setSupplierMarginContextMenu({ open: true, x, y, row })
   }
-
   const FIXING_REG_UNIT_PER_OZ = { GOZ: 1, GRAM: 31.1034768, KG: 0.0311034768, TOLA: 2.66667 }
   const fixingRegNormalizeUnit = (unit) => {
     const normalized = String(unit || 'GOZ').trim().toUpperCase()
@@ -3526,7 +3267,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const fixingRegFmtQty = (oz, unit) => fixingRegConvertQty(oz, unit).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 4 })
   const fixingRegFmtRate = (p, unit) => fixingRegConvertRate(p, unit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })
   const fixingRegFmtAmt = (v) => Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
   const handleFixingRegProceed = async () => {
     setFixingRegError('')
     setFixingRegLoading(true)
@@ -3558,7 +3298,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         } while (allRows.length < total)
         return allRows
       }
-
       const baseTxParams = {
         startDate: fixingRegFilter.fromDate,
         endDate: fixingRegFilter.toDate,
@@ -3568,7 +3307,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       } : null
       if (fixingRegFilter.status === 'final') baseTxParams.status = 'posted'
       if (openingTxParams && fixingRegFilter.status === 'final') openingTxParams.status = 'posted'
-
       const [saleTxs, purchaseTxs, deals, openingSaleTxs, openingPurchaseTxs, openingDeals] = await Promise.all([
         fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...baseTxParams, ...p, type: 'sale' }), 'transactions', 200),
         fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...baseTxParams, ...p, type: 'purchase' }), 'transactions', 200),
@@ -3592,29 +3330,24 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           }), 'deals', 100)
           : Promise.resolve([]),
       ])
-
       const buildRows = ({ txSales = [], txPurchases = [], directDeals = [] }) => {
         const rows = []
-
         const toValidNumber = (value) => {
           if (value === null || value === undefined || value === '') return null
           const parsed = Number(value)
           return Number.isFinite(parsed) ? parsed : null
         }
-
         const resolveUnfixAmount = (line = {}) => {
           const premium = toValidNumber(line.premiumAmount)
             ?? toValidNumber(line.premiumAmt)
             ?? toValidNumber(line.premium)
             ?? toValidNumber(line.premiumValueAmount)
           if (premium !== null) return premium
-
           const total = toValidNumber(line.totalAmount) ?? toValidNumber(line.amountLC)
           const metal = toValidNumber(line.metalAmount)
           if (total !== null && metal !== null) return total - metal
           return 0
         }
-
         const txRows = [...txSales, ...txPurchases]
         for (const tx of txRows) {
           const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
@@ -3625,12 +3358,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           const partyName = tx?.customerId?.name || tx?.vendorId?.name || tx?.voucherMeta?.partyName || '—'
           const docDate = tx?.voucherMeta?.docDate || tx?.date || null
           const valueDate = tx?.voucherMeta?.valueDate || tx?.date || null
-
           if (fixingRegFilter.excludeFutures && valueDate && new Date(valueDate) > today) continue
           if (fixingRegFilter.partyFilter === 'selected' && fixingRegFilter.partySearch.trim()) {
             if (!partyName.toLowerCase().includes(fixingRegFilter.partySearch.trim().toLowerCase())) continue
           }
-
           if (!lines.length) {
             if (!isAllMetalSelection) continue
             if (fixingRegFilter.excludeOpeningBalance && /opening/i.test(String(tx?.description || ''))) continue
@@ -3654,7 +3385,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
             })
             continue
           }
-
           lines.forEach((line, idx) => {
             const lineMetal = resolveVoucherLineMetalCode(line)
             if (!matchesSelectedMetal(lineMetal)) return
@@ -3684,7 +3414,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
             })
           })
         }
-
         for (const deal of directDeals) {
           if (deal.isDeleted) continue
           if (fixingRegFilter.status === 'final' && deal.status !== 'confirmed') continue
@@ -3730,7 +3459,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
             })
           }
         }
-
         rows.sort((a, b) => {
           const orderBy = fixingRegFilter.orderBy || 'voucherNo'
           if (orderBy === 'docDate' || orderBy === 'valueDate') {
@@ -3744,10 +3472,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           if (voucherCompare !== 0) return voucherCompare
           return new Date(a.docDate || 0) - new Date(b.docDate || 0)
         })
-
         return rows
       }
-
       const resolveVoucherLineMetalCode = (line = {}) => {
         const raw = String(line.stockCode || line.productType || line.narration || '').trim().toUpperCase()
         if (!raw) return ''
@@ -3757,7 +3483,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         if (raw.includes('XPD') || raw.includes('PALLADIUM')) return 'XPD'
         return ''
       }
-
       const resolveDirectDealMetalCode = (value) => {
         const raw = String(value || '').trim().toUpperCase()
         if (!raw) return ''
@@ -3767,12 +3492,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         if (raw === 'XPD' || raw.includes('PALL')) return 'XPD'
         return raw
       }
-
       const openingRows = fixingRegFilter.excludeOpeningBalance
         ? []
         : buildRows({ txSales: openingSaleTxs, txPurchases: openingPurchaseTxs, directDeals: openingDeals })
       const rows = buildRows({ txSales: saleTxs, txPurchases: purchaseTxs, directDeals: deals })
-
       const openingQtyOz = openingRows.reduce((sum, row) => {
         const mode = String(row?.fixingMode || '').trim().toLowerCase()
         if (mode === 'unfixing') return sum
@@ -3790,7 +3513,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const openingValue = openingRows.reduce((sum, row) => {
         return sum + getRowSignedAmount(row)
       }, 0)
-
       setFixingRegOpening({ qtyOz: openingQtyOz, value: openingValue })
       setFixingRegResults(rows)
       setFixingRegShown(true)
@@ -3812,7 +3534,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const tenantBranding = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)
   const branding = resolveDocumentBranding({ reportBranding, user, tenantBranding })
   const brandingPreview = { ...DEFAULT_BRANDING, ...brandingForm }
-
   const buildBrandingLogoTag = async (brandingConfig, extraStyle = '') => {
     const logoAsset = await createLogoRenderAsset(
       brandingConfig.logoUrl,
@@ -3820,21 +3541,17 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       brandingConfig.logoHeight,
       brandingConfig.logoFit
     )
-
     if (!logoAsset) return ''
-
     const width = clampBrandingDimension(brandingConfig.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
     const height = clampBrandingDimension(brandingConfig.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
     return `<img src="${logoAsset}" alt="Company Logo" style="width:${width}px;height:${height}px;object-fit:contain;display:block;${extraStyle}" />`
   }
-
   const openPrintWindow = (title, bodyHtml) => {
     const w = window.open('', '_blank')
     if (!w) {
       setError('Popup blocked. Please allow popups for statement printing')
       return
     }
-
     w.document.write(`
       <html>
         <head>
@@ -3877,14 +3594,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     w.focus()
     w.print()
   }
-
   const escapeHtml = (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
-
   const handleBrandingLogoFile = async (file) => {
     if (!file) return
     if (!isSupportedLogoUpload(file)) {
@@ -3902,7 +3617,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     reader.readAsDataURL(file)
   }
-
   const handleSaveBranding = async (e) => {
     e.preventDefault()
     try {
@@ -3927,13 +3641,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleSelectBrandingProfile = async (key) => {
     const nextKey = normalizeBrandingKey(key)
     setSelectedBrandingKey(nextKey)
     await loadReportBranding(nextKey)
   }
-
   const handleCreateBrandingDraft = () => {
     const timestamp = Date.now().toString().slice(-6)
     const nextDraft = {
@@ -3950,10 +3662,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     setSelectedBrandingKey(nextDraft.key)
     setBrandingForm(nextDraft)
   }
-
   const buildEnquiryExportRows = () => {
     if (!accountEnquiryData) return []
-
     const now = new Date().toLocaleString()
     return [
       ['Generated At', now],
@@ -3974,32 +3684,26 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       ['Silver Balance', Number(convertMetalBalanceByUnit(accountEnquiryData.metals.silverBalance || 0)).toFixed(6)],
     ]
   }
-
   const handleExportEnquiryExcel = () => {
     if (!accountEnquiryData) {
       setError('Load an account summary first to export')
       return
     }
-
     const rows = buildEnquiryExportRows()
     const stamp = new Date().toISOString().slice(0, 10)
     downloadCsv(rows, `account-summary-${accountEnquiryData.account.accountCode}-${stamp}.csv`)
     showNotification('✅ Excel file exported')
   }
-
   const generateStatementHtml = async () => {
     if (!accountEnquiryData) return null
-
     const exportEntries = [...filteredStatementEntries].sort((left, right) => {
       const leftDate = left?.date ? new Date(left.date).getTime() : 0
       const rightDate = right?.date ? new Date(right.date).getTime() : 0
       if (leftDate !== rightDate) return leftDate - rightDate
       return String(resolveStatementReceiptNo(left)).localeCompare(String(resolveStatementReceiptNo(right)), undefined, { numeric: true, sensitivity: 'base' })
     })
-
     const statementMetalCode = statementSelectedMetalCode || resolvePreferredStatementMetalCode(exportEntries)
     const exportDisplayCurrency = statementDisplayCurrency
-
     const endingPureWeight = resolveStatementMetalBalance(accountEnquiryData?.metals, statementMetalCode, rawStatementEntries)
     const totalPureWeightMovement = exportEntries.reduce((sum, entry) => {
       const signedWeight = Number(entry?.metalSignedWeight || 0)
@@ -4008,17 +3712,14 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       return sum + signedWeight
     }, 0)
     const openingPureWeight = endingPureWeight - totalPureWeightMovement
-
     const firstEntry = exportEntries[0] || null
     const firstSignedAmount = Number(firstEntry?.signedAmount || 0)
     const firstRunningBalance = Number(firstEntry?.runningBalance || 0)
     const openingUsdBalance = firstEntry
       ? (firstRunningBalance - firstSignedAmount)
       : Number(accountEnquiryData?.balances?.netBalance || 0)
-
     let runningUsdBalance = openingUsdBalance
     let runningPureWeight = openingPureWeight
-
     const formatDateForHeader = (value) => {
       if (!value) return ''
       const date = new Date(value)
@@ -4047,7 +3748,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         : ''
       return [reference, offset].filter(Boolean).join(' - ') || 'Statement entry'
     }
-
     const bodyRows = exportEntries.map((entry) => {
       const debitUsd = Number(entry?.debitAmount || 0)
       const creditUsd = Number(entry?.creditAmount || 0)
@@ -4055,10 +3755,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const isSelectedMetalEntry = matchesStatementMetal(entry, statementMetalCode)
       const debitPure = isSelectedMetalEntry && signedPureWeight > 0 ? signedPureWeight : 0
       const creditPure = isSelectedMetalEntry && signedPureWeight < 0 ? Math.abs(signedPureWeight) : 0
-
       runningUsdBalance += Number(entry?.signedAmount || (debitUsd - creditUsd))
       if (isSelectedMetalEntry) runningPureWeight += signedPureWeight
-
       return `
         <tr>
           <td>${escapeHtml(resolveStatementReceiptNo(entry) || '-')}</td>
@@ -4073,7 +3771,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         </tr>
       `
     }).join('')
-
     const totalDebitUsd = exportEntries.reduce((sum, entry) => sum + Number(entry?.debitAmount || 0), 0)
     const totalCreditUsd = exportEntries.reduce((sum, entry) => sum + Number(entry?.creditAmount || 0), 0)
     const totalDebitPure = exportEntries.reduce((sum, entry) => {
@@ -4086,7 +3783,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }, 0)
     const closingUsdBalance = openingUsdBalance + (totalDebitUsd - totalCreditUsd)
     const closingPureWeight = openingPureWeight + (totalDebitPure - totalCreditPure)
-
     const tenantIdentity = [
       tenantBranding?.key,
       tenantBranding?.displayName,
@@ -4125,7 +3821,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const logoMarkup = processedLogo
       ? `<img src="${processedLogo}" alt="Company Logo" style="width:${logoWidth}px;height:${logoHeight}px;object-fit:contain;display:block;" />`
       : ''
-
     const html = `
       <html>
         <head>
@@ -4250,14 +3945,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     `
     return { html, accountCode: accountEnquiryData.account.accountCode }
   }
-
   const handleViewStatement = async () => {
     const w = window.open('', '_blank')
     if (!w) {
       setError('Popup blocked. Please allow popups for statement preview')
       return
     }
-
     w.document.open()
     w.document.write(`
       <html>
@@ -4268,14 +3961,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       </html>
     `)
     w.document.close()
-
     try {
       const htmlData = await generateStatementHtml()
       if (!htmlData) {
         w.close()
         return
       }
-
       w.document.open()
       w.document.write(htmlData.html)
       w.document.close()
@@ -4296,15 +3987,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError('Failed to open statement preview.')
     }
   }
-
   const handlePrintStatement = async () => {
     try {
       const htmlData = await generateStatementHtml()
       if (!htmlData) return
-
       const html2pdf = await loadHtmlToPdf()
       const exportRoot = createHtmlExportRoot(htmlData.html)
-
       const stamp = new Date().toISOString().slice(0, 10)
       const fileName = `Statement-${htmlData.accountCode}-${stamp}.pdf`
       const worker = html2pdf().set({
@@ -4323,22 +4011,18 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           orientation: 'landscape',
         },
       }).from(exportRoot).toPdf()
-
       const blobUrl = await worker.outputPdf('bloburl')
       document.body.removeChild(exportRoot)
-
       const w = window.open(blobUrl, '_blank')
       if (!w) {
         URL.revokeObjectURL(blobUrl)
         setError('Popup blocked. Please allow popups for print')
         return
       }
-
       setTimeout(() => {
         w.focus()
         w.print()
       }, 700)
-
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
       setExportOptionsOpen(false)
       showNotification('✅ Color PDF opened for printing')
@@ -4347,15 +4031,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError('Failed to prepare a color PDF for printing.')
     }
   }
-
   const handleDownloadStatementPdf = async () => {
     try {
       const htmlData = await generateStatementHtml()
       if (!htmlData) return
-
       const html2pdf = await loadHtmlToPdf()
       const exportRoot = createHtmlExportRoot(htmlData.html)
-
       const stamp = new Date().toISOString().slice(0, 10)
       await html2pdf().set({
         margin: 0,
@@ -4373,7 +4054,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           orientation: 'landscape',
         },
       }).from(exportRoot).save()
-
       document.body.removeChild(exportRoot)
       setExportOptionsOpen(false)
       showNotification('✅ Color PDF downloaded')
@@ -4382,7 +4062,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError('Failed to generate PDF. Please try again.')
     }
   }
-
   const handleExportEnquiryPdf = () => {
     if (!accountEnquiryData) {
       setError('Load an account summary first to export')
@@ -4390,7 +4069,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     setExportOptionsOpen(true)
   }
-
   const downloadXlsx = async (rows, fileName, sheetName = 'Report') => {
     const ExcelJS = await loadExcel()
     const workbook = new ExcelJS.Workbook()
@@ -4402,14 +4080,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     downloadBlob(blob, fileName)
   }
-
   const buildTransactionExportPayload = () => {
     const scope = selectedTransactionIds.length
       ? transactions.filter((tx) => selectedTransactionIds.includes(tx._id))
       : transactions
-
     if (!scope.length) return null
-
     const stamp = new Date().toISOString().slice(0, 10)
     const rows = [
       ['Ops Dashboard ERP Transactions'],
@@ -4418,7 +4093,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       [],
       ['Date', 'Type', 'Party', 'Amount', 'Currency', 'Status', 'Description', 'Debit Account', 'Credit Account', 'Created By', 'Approved By', 'Posted By', 'Comments', 'Audit Events'],
     ]
-
     scope.forEach((tx) => {
       rows.push([
         tx.date ? new Date(tx.date).toLocaleString() : '',
@@ -4437,10 +4111,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         Number(tx.auditTrail?.length || 0),
       ])
     })
-
     return { rows, fileBase: `transactions-${stamp}`, sheetName: 'Transactions' }
   }
-
   const handleExportTransactionsCsv = () => {
     const payload = buildTransactionExportPayload()
     if (!payload) {
@@ -4450,7 +4122,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     downloadCsv(payload.rows, `${payload.fileBase}.csv`)
     showNotification('✅ Transactions CSV exported')
   }
-
   const handleExportTransactionsXlsx = async () => {
     const payload = buildTransactionExportPayload()
     if (!payload) {
@@ -4460,17 +4131,14 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     await downloadXlsx(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
     showNotification('✅ Transactions XLSX exported')
   }
-
   const handleExportTransactionsPdf = async () => {
     const scope = selectedTransactionIds.length
       ? transactions.filter((tx) => selectedTransactionIds.includes(tx._id))
       : transactions
-
     if (!scope.length) {
       setError('No transactions available to export')
       return
     }
-
     const { jsPDF, autoTable } = await loadPdfTools()
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
     doc.setFont('helvetica', 'bold')
@@ -4480,7 +4148,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     doc.setFontSize(9)
     doc.text(`Generated: ${new Date().toLocaleString()}`, 36, 54)
     doc.text(`Scope: ${selectedTransactionIds.length ? 'Selected transactions' : 'Current visible transactions'}`, 36, 68)
-
     autoTable(doc, {
       head: [['Date', 'Type', 'Party', 'Amount', 'Status', 'Description', 'Comments', 'Audit']],
       body: scope.map((tx) => [
@@ -4499,11 +4166,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       alternateRowStyles: { fillColor: [249, 250, 251] },
       margin: { left: 24, right: 24 },
     })
-
     doc.save(`transactions-${new Date().toISOString().slice(0, 10)}.pdf`)
     showNotification('✅ Transactions PDF exported')
   }
-
   const buildReportExportPayload = () => {
     if (!reports.trialBalance) return null
     const stamp = new Date().toISOString().slice(0, 10)
@@ -4515,7 +4180,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       [branding.reportFooter || DEFAULT_BRANDING.reportFooter],
       [],
     ]
-
     if (reportView === 'trial' || reportView === 'summary') {
       const rows = [...brandingRows, ['Account Code', 'Account Name', 'Type', 'Debit', 'Credit', 'Net']]
       ;(reports.trialBalance?.trialBalance || []).forEach((row) => {
@@ -4523,7 +4187,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       })
       return { rows, fileBase: `trial-balance-${stamp}`, sheetName: 'Trial Balance', successLabel: 'Trial balance' }
     }
-
     if (reportView === 'pnl') {
       const rows = [...brandingRows, ['Section', 'Account Code', 'Account Name', 'Amount']]
       ;(reports.profitLoss?.incomeBreakdown || []).forEach((row) => rows.push(['Income', row.accountCode, row.accountName, row.amount]))
@@ -4531,7 +4194,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       ;(reports.profitLoss?.monthlyComparison || []).forEach((row) => rows.push(['Monthly', row.label, 'Net Profit', row.netProfit]))
       return { rows, fileBase: `profit-loss-${stamp}`, sheetName: 'Profit Loss', successLabel: 'Profit & loss' }
     }
-
     if (reportView === 'balanceSheet') {
       const rows = [...brandingRows, ['Section', 'Account Code', 'Account Name', 'Balance', 'Direction', 'Reclassified']]
       ;(reports.balanceSheet?.assets || []).forEach((row) => rows.push(['Asset', row.accountCode, row.accountName, row.balance, row.direction || 'Dr', row.isReclassified ? 'Yes' : 'No']))
@@ -4540,7 +4202,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       ;(reports.balanceSheet?.monthlyComparison || []).forEach((row) => rows.push(['Monthly', row.label, 'Working Capital', row.workingCapital]))
       return { rows, fileBase: `balance-sheet-${stamp}`, sheetName: 'Balance Sheet', successLabel: 'Balance sheet' }
     }
-
     if (reportView === 'dayBook') {
       const rows = [...brandingRows, ['Date', 'Type', 'Description', 'Debit Account', 'Credit Account', 'Amount', 'Currency']]
       ;(reports.dayBook?.entries || []).forEach((row) => {
@@ -4556,7 +4217,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       })
       return { rows, fileBase: `day-book-${stamp}`, sheetName: 'Day Book', successLabel: 'Day book' }
     }
-
     if (reportView === 'outstanding') {
       const rows = [...brandingRows, ['Category', 'Name', 'Ledger Code', 'Outstanding', '0-30', '31-60', '61-90', '90+', 'Limit Exceeded']]
       ;(reports.customerOutstanding?.rows || []).forEach((row) => {
@@ -4567,7 +4227,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       })
       return { rows, fileBase: `outstanding-${stamp}`, sheetName: 'Outstanding', successLabel: 'Outstanding' }
     }
-
     if (reportView === 'ledger') {
       const rows = [...brandingRows, ['Voucher', 'Date', 'Type', 'Description', 'Debit', 'Credit', 'Running Balance']]
       ledgerReportRows.forEach((row) => {
@@ -4575,16 +4234,13 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       })
       return { rows, fileBase: `account-ledger-${stamp}`, sheetName: 'Ledger', successLabel: 'Ledger drilldown' }
     }
-
     if (reportView === 'forex') {
       const rows = [...brandingRows, ['Currency', 'Entries', 'Impact']]
       Object.entries(reports.forex?.byCurrency || {}).forEach(([currency, row]) => rows.push([currency, row.count || 0, row.impact || 0]))
       return { rows, fileBase: `forex-impact-${stamp}`, sheetName: 'Forex', successLabel: 'Forex report' }
     }
-
     return null
   }
-
   const handleExportReportCsv = () => {
     const payload = buildReportExportPayload()
     if (!payload) {
@@ -4594,7 +4250,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     downloadCsv(payload.rows, `${payload.fileBase}.csv`)
     showNotification(`✅ ${payload.successLabel} CSV exported`)
   }
-
   const handleExportReportXlsx = async () => {
     const payload = buildReportExportPayload()
     if (!payload) {
@@ -4604,19 +4259,15 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     await downloadXlsx(payload.rows, `${payload.fileBase}.xlsx`, payload.sheetName)
     showNotification(`✅ ${payload.successLabel} XLSX exported`)
   }
-
   const handlePrintCurrentReport = async () => {
     if (!reports.trialBalance) {
       setError('Load reports first before printing')
       return
     }
-
     const periodText = reports.trialBalance?.period?.startDate
       ? `${reports.trialBalance.period.startDate} to ${reports.trialBalance.period.endDate || reports.trialBalance.period.startDate}`
       : `As on ${new Date().toLocaleDateString()}`
-
     const logoMarkup = await buildBrandingLogoTag(branding, 'margin-bottom:10px;')
-
     const head = `
       <div class="brandbar"></div>
       <div class="head">
@@ -4630,7 +4281,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         <p class="meta">Generated: ${new Date().toLocaleString()}</p>
       </div>
     `
-
     const signatureBlock = `
       <div class="signatures">
         <div class="sign-box">${branding.preparedByTitle || DEFAULT_BRANDING.preparedByTitle}<br />${branding.preparedByName || user?.name || DEFAULT_BRANDING.preparedByName}</div>
@@ -4642,7 +4292,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         <span>${branding.reportFooter || DEFAULT_BRANDING.reportFooter}</span>
       </div>
     `
-
     let body = ''
     if (reportView === 'pnl') {
       body = `
@@ -4682,17 +4331,14 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         ${signatureBlock}
       `
     }
-
     openPrintWindow('ERP Financial Statement', body)
     showNotification('✅ Statement print layout opened')
   }
-
   const handleExportReportPdf = async () => {
     if (!reports.trialBalance) {
       setError('Load reports first before exporting PDF')
       return
     }
-
     const { jsPDF, autoTable } = await loadPdfTools()
     const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
     const titleMap = {
@@ -4707,11 +4353,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     const title = titleMap[reportView] || 'ERP Report'
     const generatedAt = new Date().toLocaleString()
-
     const logoWidth = clampBrandingDimension(branding.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
     const logoHeight = clampBrandingDimension(branding.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
     const processedLogo = await createLogoRenderAsset(branding.logoUrl, logoWidth, logoHeight, branding.logoFit)
-
     doc.setFillColor(0, 104, 74)
     doc.rect(28, 24, 539, 10, 'F')
     if (processedLogo && String(processedLogo).startsWith('data:image/')) {
@@ -4734,10 +4378,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     doc.text(`${branding.entityName || DEFAULT_BRANDING.entityName}${branding.branchName ? ` / ${branding.branchName}` : ''}`, 40, branding.legalName ? 78 : 64)
     doc.text(String(branding.reportSubtitle || DEFAULT_BRANDING.reportSubtitle), 40, branding.legalName ? 92 : 78)
     doc.text(`Generated: ${generatedAt}`, 40, branding.legalName ? 106 : 92)
-
     let head = []
     let body = []
-
     if (reportView === 'trial' || reportView === 'summary') {
       head = [['Code', 'Account', 'Type', 'Debit', 'Credit', 'Net']]
       body = (reports.trialBalance?.trialBalance || []).map((row) => [
@@ -4793,7 +4435,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         formatMoney(row.runningBalance),
       ])
     }
-
     autoTable(doc, {
       head,
       body,
@@ -4803,7 +4444,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       alternateRowStyles: { fillColor: [249, 250, 251] },
       margin: { left: 28, right: 28 },
     })
-
     const finalY = doc.lastAutoTable?.finalY || 110
     const signatureY = Math.min(Math.max(finalY + 36, 680), 740)
     doc.setDrawColor(156, 163, 175)
@@ -4821,12 +4461,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     doc.setTextColor(107, 114, 128)
     doc.text(`${branding.companyName || DEFAULT_BRANDING.companyName} Reporting Suite`, 40, signatureY + 52)
     doc.text(String(branding.reportFooter || DEFAULT_BRANDING.reportFooter), 420, signatureY + 52)
-
     const stamp = new Date().toISOString().slice(0, 10)
     doc.save(`${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${stamp}.pdf`)
     showNotification('✅ PDF exported')
   }
-
   const handleTrialAccountDrilldown = async (accountCode) => {
     const match = accounts.find((acc) => acc.accountCode === accountCode)
     if (!match?._id) return
@@ -4835,7 +4473,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     setReportView('ledger')
     await loadLedgerReport(match._id)
   }
-
   const handleReportAccountDrilldown = async (accountId, accountCode) => {
     if (!accountId) return
     setSelectedReportAccountId(String(accountId))
@@ -4843,7 +4480,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     setReportView('ledger')
     await loadLedgerReport(String(accountId))
   }
-
   const handleOpenVoucherSource = async (ledgerId) => {
     if (!ledgerId) return
     try {
@@ -4857,7 +4493,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setVoucherSourceLoading(false)
     }
   }
-
   const handleJumpToTransaction = async (transactionId) => {
     if (!transactionId) return
     setSelectedTransactionId(transactionId)
@@ -4870,7 +4505,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     showNotification('✅ Jumped to linked transaction')
   }
-
   if (!canAccessERP) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: C.t2 }}>
@@ -4878,7 +4512,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       </div>
     )
   }
-
   const handleCreateAccount = async (e) => {
     e.preventDefault()
     if (!form.accountName || !form.accountCode || !form.accountType) {
@@ -4895,24 +4528,20 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError(e.response?.data?.message || 'Failed to create account')
     }
   }
-
   const handleCreateLedgerEntry = async (e) => {
     e.preventDefault()
     const resolvedDebitAccountId = resolveAccountIdFromInput(ledgerForm.debitAccountInput, entryAccountOptions) || ledgerForm.debitAccountId
     const resolvedCreditAccountId = resolveAccountIdFromInput(ledgerForm.creditAccountInput, entryAccountOptions) || ledgerForm.creditAccountId
     const debitAmount = Number(ledgerForm.debitAmount || 0)
     const creditAmount = Number(ledgerForm.creditAmount || 0)
-
     if (!resolvedDebitAccountId || !resolvedCreditAccountId || !debitAmount || !creditAmount) {
       setError('Debit account, credit account, debit amount, and credit amount are required')
       return
     }
-
     if (debitAmount !== creditAmount) {
       setError('Debit and credit amounts must be equal for a journal entry')
       return
     }
-
     const isBankJV = ledgerForm.referenceType === 'bank_jv'
     setSaving(true)
     try {
@@ -4968,23 +4597,19 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   // ─── Multi-line Journal Voucher helpers ──────────────────────────────────────
   const getJvAccountById = (accountId) => entryAccountOptions.find((item) => String(item?._id) === String(accountId || '')) || null
   const getJvAccountCode = (accountId) => String(getJvAccountById(accountId)?.accountCode || '').trim().toUpperCase()
   const isExchangeAccountCode = (code) => ['4190', '5190'].includes(String(code || '').trim().toUpperCase())
   const isExchangeLine = (line) => isExchangeAccountCode(getJvAccountCode(line?.accountId))
-
   const applyBankJvExchangeBalancing = (lines) => {
     if (jvMode !== 'bank_jv') return lines
-
     const hasManualFxEntry = lines.some((line) => {
       if (!isExchangeLine(line)) return false
       const hasAmount = Number(line.debit || 0) > 0 || Number(line.credit || 0) > 0
       return hasAmount && !line.autoFx
     })
     if (hasManualFxEntry) return lines
-
     const withoutFxAmounts = lines.map((line) => (
       isExchangeLine(line) && line.autoFx
         ? { ...line, debit: '', credit: '' }
@@ -4992,17 +4617,14 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     ))
     const nonFxLines = withoutFxAmounts.filter((line) => String(line.accountId || '').trim() && !isExchangeLine(line))
     if (nonFxLines.length < 2) return withoutFxAmounts
-
     let baseDebit = 0
     let baseCredit = 0
-
     for (const line of nonFxLines) {
       const accountCurrency = inferJvAccountCurrency(line.accountId)
       const debitRaw = Number(line.debit || 0)
       const creditRaw = Number(line.credit || 0)
       const debitValue = Number.isFinite(debitRaw) && debitRaw > 0 ? debitRaw : 0
       const creditValue = Number.isFinite(creditRaw) && creditRaw > 0 ? creditRaw : 0
-
       if (debitValue > 0) {
         const normalizedDebit = convertJvAmount(debitValue, accountCurrency, baseCurrencyCode)
         if (!Number.isFinite(normalizedDebit)) return withoutFxAmounts
@@ -5014,15 +4636,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         baseCredit += normalizedCredit
       }
     }
-
     const difference = Number((baseDebit - baseCredit).toFixed(2))
     if (Math.abs(difference) < 0.005) return withoutFxAmounts
-
     const needsDebitFx = difference < 0
     const targetCode = needsDebitFx ? '5190' : '4190'
     const targetAccount = entryAccountOptions.find((item) => String(item?.accountCode || '').trim().toUpperCase() === targetCode)
     if (!targetAccount?._id) return withoutFxAmounts
-
     let workingLines = withoutFxAmounts
     let targetLine = withoutFxAmounts.find((line) => getJvAccountCode(line.accountId) === targetCode)
       || withoutFxAmounts.find((line) => isExchangeLine(line))
@@ -5032,18 +4651,15 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         const hasNarration = String(line.description || '').trim().length > 0
         return !hasAccount && !hasAmount && !hasNarration
       })
-
     // If user filled both bank rows and there is no free/FX row, auto-add one for instant balancing.
     if (!targetLine) {
       const nextId = Math.max(0, ...withoutFxAmounts.map((line) => Number(line.id || 0))) + 1
       targetLine = { id: nextId, accountId: '', accountInput: '', description: '', debit: '', credit: '', autoFx: true }
       workingLines = [...withoutFxAmounts, targetLine]
     }
-
     const targetCurrency = inferJvAccountCurrency(targetAccount._id)
     const fxAmount = convertJvAmount(Math.abs(difference), baseCurrencyCode, targetCurrency)
     if (!Number.isFinite(fxAmount) || fxAmount <= 0) return workingLines
-
     return workingLines.map((line) => {
       if (line.id !== targetLine.id) return line
       return {
@@ -5056,7 +4672,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       }
     })
   }
-
   const updateJvLine = (id, field, value) => {
     setJvLines((prev) => {
       const withEdited = prev.map((line) => {
@@ -5065,16 +4680,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         if (field === 'credit') return { ...line, credit: value, debit: '', autoFx: false, autoSync: false }
         return { ...line, [field]: value, autoFx: false, autoSync: false }
       })
-
       if (jvMode !== 'bank_jv' || !['debit', 'credit'].includes(field)) return withEdited
-
       const enteredAmount = Number(value || 0)
       if (!Number.isFinite(enteredAmount) || enteredAmount <= 0) return applyBankJvExchangeBalancing(withEdited)
-
       const sourceLine = withEdited.find((line) => line.id === id)
       if (!sourceLine?.accountId) return applyBankJvExchangeBalancing(withEdited)
       if (isExchangeLine(sourceLine) && enteredAmount > 0) return withEdited
-
       const targetField = field === 'debit' ? 'credit' : 'debit'
       const targetLine = withEdited.find((line) => {
         if (line.id === id) return false
@@ -5083,7 +4694,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         return true
       })
       if (!targetLine) return applyBankJvExchangeBalancing(withEdited)
-
       const existingTargetValue = Number(targetLine[targetField] || 0)
       const preserveManualTarget = Number.isFinite(existingTargetValue)
         && existingTargetValue > 0
@@ -5091,12 +4701,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (preserveManualTarget) {
         return applyBankJvExchangeBalancing(withEdited)
       }
-
       const sourceCurrency = inferJvAccountCurrency(sourceLine.accountId)
       const targetCurrency = inferJvAccountCurrency(targetLine.accountId)
       const convertedAmount = convertJvAmount(enteredAmount, sourceCurrency, targetCurrency)
       if (!Number.isFinite(convertedAmount) || convertedAmount <= 0) return applyBankJvExchangeBalancing(withEdited)
-
       const withSyncedPair = withEdited.map((line) => {
         if (line.id !== targetLine.id) return line
         return targetField === 'debit'
@@ -5106,7 +4714,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       return applyBankJvExchangeBalancing(withSyncedPair)
     })
   }
-
   const resolveJvLineAccount = (lineId, value, label = '') => {
     const resolvedId = resolveAccountIdFromInput(value, entryAccountOptions)
     const account = resolvedId ? entryAccountOptions.find((a) => String(a._id) === String(resolvedId)) : null
@@ -5120,13 +4727,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       return applyBankJvExchangeBalancing(withResolved)
     })
   }
-
   const getJvValidation = (lines) => {
     const lineIssuesById = {}
     const activeLines = []
     let totalDebit = 0
     let totalCredit = 0
-
     lines.forEach((line, index) => {
       const debit = Number(line.debit || 0)
       const credit = Number(line.credit || 0)
@@ -5136,7 +4741,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const hasNarration = String(line.description || '').trim().length > 0
       const hasAmount = debitRawValue > 0 || creditRawValue > 0
       const hasTyped = hasAmount || hasNarration || accountId
-
       let debitValue = debitRawValue
       let creditValue = creditRawValue
       if (accountId) {
@@ -5158,7 +4762,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           }
         }
       }
-
       if (debitValue > 0 && creditValue > 0) {
         lineIssuesById[line.id] = `Row ${index + 1}: Only one side allowed per row`
       } else if (hasTyped && !hasAmount && !(jvMode === 'bank_jv' && isExchangeLine(line))) {
@@ -5166,10 +4769,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       } else if (hasAmount && !accountId) {
         lineIssuesById[line.id] = `Row ${index + 1}: Account is required`
       }
-
       totalDebit += debitValue
       totalCredit += creditValue
-
       if (!lineIssuesById[line.id] && hasAmount && accountId) {
         activeLines.push({
           id: line.id,
@@ -5180,14 +4781,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         })
       }
     })
-
     const difference = Number((totalDebit - totalCredit).toFixed(2))
     const hasLineIssues = Object.keys(lineIssuesById).length > 0
     const hasDebit = totalDebit > 0
     const hasCredit = totalCredit > 0
     const isBalanced = hasDebit && hasCredit && Math.abs(difference) < 0.005
     const canSave = !hasLineIssues && isBalanced && activeLines.length > 1
-
     return {
       activeLines,
       lineIssuesById,
@@ -5199,30 +4798,25 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       hasLineIssues,
     }
   }
-
   const addJvLine = () => {
     setJvLines((prev) => [...prev, emptyJvLine(nextJvLineId)])
     setNextJvLineId((n) => n + 1)
   }
-
   const removeJvLine = (id) => {
     setJvLines((prev) => prev.filter((l) => l.id !== id))
   }
-
   const handleJvLineKeyDown = (e, idx) => {
     if (e.key === 'Enter') {
       e.preventDefault()
       if (idx === jvLines.length - 1) addJvLine()
     }
   }
-
   const handleJvAccountKeyDown = (e, idx) => {
     if (e.key === 'Enter') {
       e.preventDefault()
       if (idx === jvLines.length - 1) addJvLine()
     }
   }
-
   const resetJvForm = async (mode = 'journal') => {
     setJvMode(mode)
     setJvLines([emptyJvLine(1), emptyJvLine(2)])
@@ -5243,7 +4837,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       currency: baseCurrencyCode,
     })
   }
-
   const handleEditJv = async (entry) => {
     const rawDesc = String(entry.description || '')
     const docNoHead = (rawDesc.includes(' — ') ? rawDesc.split(' — ') : rawDesc.split(' - '))[0]?.trim() || ''
@@ -5251,9 +4844,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     const hasDocPrefix = /^(jv|bnkjv)[/-]/i.test(String(docNo || ''))
     const entryMode = String(entry?.referenceType || '').toLowerCase() === 'bank_jv' ? 'bank_jv' : 'journal'
     const refTypeFilter = entryMode
-
     let docMatchedEntries = [entry]
-
     try {
       const batchId = entry.referenceId ? String(entry.referenceId).trim() : ''
       if (batchId && /^[a-fA-F0-9]{24}$/.test(batchId)) {
@@ -5281,7 +4872,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError(e.response?.data?.message || 'Failed to load JV lines for editing')
       return
     }
-
     const reversedEntryIds = new Set(
       docMatchedEntries
         .filter((e) => String(e?.referenceType || '').toLowerCase() === 'reversal')
@@ -5296,7 +4886,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       if (entryDateKey && rowDateKey !== entryDateKey) return false
       return !reversedEntryIds.has(String(e?._id || ''))
     })
-
     // Reconstruct JV lines by grouping debit and credit sides by account
     const debitMap = new Map()
     const creditMap = new Map()
@@ -5321,19 +4910,16 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         creditMap.get(crId).credit = Number((creditMap.get(crId).credit + creditAmount).toFixed(2))
       }
     })
-
     let id = 1
     const lines = [
       ...Array.from(debitMap.values()).map((d) => ({ id: id++, accountId: d.accountId, accountInput: d.accountInput, description: d.description, debit: d.debit, credit: '' })),
       ...Array.from(creditMap.values()).map((c) => ({ id: id++, accountId: c.accountId, accountInput: c.accountInput, description: c.description, debit: '', credit: c.credit })),
     ]
-
     const narration = editableEntries[0]?.notes || ''
     const headerDocNo = (docNo && hasDocPrefix) ? docNo : `${resolveJvModeMeta(entryMode).prefix}-EDIT-${entry._id.slice(-6)}`
     const legacyBatchFc = inferLegacyJvBatchDisplayFc(editableEntries, baseCurrencyCode)
     const headerCurrency = legacyBatchFc
       || normalizeJvCurrencyCode((editableEntries[0] || entry).currency || baseCurrencyCode)
-
     setJvMode(entryMode)
     setJvEditEntryIds(editableEntries.map((e) => e._id))
     setJvLines(lines)
@@ -5345,7 +4931,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     setJvModalSize(JV_MODAL_DEFAULT_SIZE)
     setShowLedgerForm(true)
   }
-
   const handleRepairJvFxPreview = async () => {
     if (!isFinance || !token) return
     setSaving(true)
@@ -5363,7 +4948,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleRepairJvFxApply = async () => {
     if (!isFinance || !token) return
     const reason = window.prompt('Maintenance reason (min 8 characters)', 'JV ledger backfill store UZS and FX rate')
@@ -5392,7 +4976,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const closeJvModal = () => {
     setShowLedgerForm(false)
     void resetJvForm(ledgerVoucherTab)
@@ -5401,7 +4984,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
     setJvModalSize(JV_MODAL_DEFAULT_SIZE)
   }
-
   const openJvModal = async (mode = ledgerVoucherTab) => {
     await resetJvForm(mode)
     setJvModalOffset({ x: 0, y: 0 })
@@ -5410,7 +4992,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     setJvModalSize(JV_MODAL_DEFAULT_SIZE)
     setShowLedgerForm(true)
   }
-
   const switchJvMode = async (mode) => {
     if (jvEditEntryIds.length > 0) return
     setJvMode(mode)
@@ -5423,7 +5004,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     } catch (_) { /* keep client fallback */ }
     setJvHeader((prev) => ({ ...prev, docNo }))
   }
-
   const handlePrintJvVoucher = async () => {
     const validation = getJvValidation(jvLines)
     const modeMeta = resolveJvModeMeta(jvMode)
@@ -5445,7 +5025,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         `
       })
       .join('')
-
     const body = `
       <div class="doc-head">
         <div>
@@ -5478,7 +5057,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     openPrintWindow(modeMeta.badge, body)
     showNotification('JV print layout opened')
   }
-
   const handleSaveMultiLineJV = async () => {
     const validation = getJvValidation(jvLines)
     if (validation.hasLineIssues) {
@@ -5494,19 +5072,16 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError('Debit and Credit totals are not balanced')
       return
     }
-
     const debitQueue = validation.activeLines
       .filter((line) => line.debit > 0)
       .map((line) => ({ ...line, remaining: Number(line.debit.toFixed(2)) }))
     const creditQueue = validation.activeLines
       .filter((line) => line.credit > 0)
       .map((line) => ({ ...line, remaining: Number(line.credit.toFixed(2)) }))
-
     if (!debitQueue.length || !creditQueue.length) {
       setError('JV requires at least one debit row and one credit row')
       return
     }
-
     const entries = []
     let drIndex = 0
     let crIndex = 0
@@ -5514,7 +5089,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       const debitLine = debitQueue[drIndex]
       const creditLine = creditQueue[crIndex]
       const pairAmount = Math.min(debitLine.remaining, creditLine.remaining)
-
       if (pairAmount > 0) {
         entries.push({
           debitAccountId: debitLine.accountId,
@@ -5523,20 +5097,17 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           lineDesc: [debitLine.description, creditLine.description].filter(Boolean).join(' | '),
         })
       }
-
       debitLine.remaining = Number((debitLine.remaining - pairAmount).toFixed(2))
       creditLine.remaining = Number((creditLine.remaining - pairAmount).toFixed(2))
       if (debitLine.remaining <= 0.004) drIndex += 1
       if (creditLine.remaining <= 0.004) crIndex += 1
     }
-
     const debitRemainder = debitQueue.reduce((sum, line) => sum + Math.max(0, line.remaining), 0)
     const creditRemainder = creditQueue.reduce((sum, line) => sum + Math.max(0, line.remaining), 0)
     if (debitRemainder > 0.01 || creditRemainder > 0.01) {
       setError('Failed to allocate JV lines into balanced ledger entries')
       return
     }
-
     const isBankJV = jvMode === 'bank_jv'
     const sharedDesc = [jvHeader.docNo, jvHeader.narration].filter(Boolean).join(' — ') || 'Manual JV'
     const makeJvGroupObjectId = () => {
@@ -5546,7 +5117,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       return s
     }
     const jvGroupId = makeJvGroupObjectId()
-
     const headerCur = normalizeJvCurrencyCode(jvHeader.currency || baseCurrencyCode)
     const baseCur = normalizeJvCurrencyCode(baseCurrencyCode)
     let headerFxRate = 1
@@ -5566,7 +5136,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         }
       }
     }
-
     setSaving(true)
     try {
       // If editing an existing JV, reverse old entries first and post replacements.
@@ -5610,7 +5179,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
   }
   // ─────────────────────────────────────────────────────────────────────────────
-
   const handleCreateCustomer = async (e) => {
     e.preventDefault()
     if (!customerForm.name) {
@@ -5646,7 +5214,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const openEditModal = (type, record) => {
     let formState = {}
     if (type === 'account') {
@@ -5690,11 +5257,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     }
     setEditState({ type, record, form: formState })
   }
-
   const closeEditModal = () => {
     setEditState({ type: '', record: null, form: {} })
   }
-
   const handleSaveEdit = async (e) => {
     e.preventDefault()
     if (editState.type === 'ledger') {
@@ -5735,7 +5300,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleCreateCurrency = async (e) => {
     e.preventDefault()
     if (!currencyForm.code || !currencyForm.name || !currencyForm.symbol) {
@@ -5758,7 +5322,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleSyncCurrencyMaster = async () => {
     setSaving(true)
     try {
@@ -5771,7 +5334,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleCreateMapping = async (e) => {
     e.preventDefault()
     if (!mappingForm.mappingType || !mappingForm.debitAccountId || !mappingForm.creditAccountId) {
@@ -5791,9 +5353,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleEditAccount = (account) => openEditModal('account', account)
-
   const handleDeleteAccount = async (account) => {
     if (!window.confirm(`Deactivate account ${account.accountCode} - ${account.accountName}?`)) return
     try {
@@ -5803,9 +5363,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError(e.response?.data?.message || 'Failed to delete account')
     }
   }
-
   const handleEditMapping = (mapping) => openEditModal('mapping', mapping)
-
   const handleDeleteMapping = async (mapping) => {
     if (!window.confirm(`Deactivate mapping ${mapping.mappingType}?`)) return
     try {
@@ -5815,12 +5373,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError(e.response?.data?.message || 'Failed to delete mapping')
     }
   }
-
   const handleEditCurrency = (currency) => openEditModal('currency', currency)
-
   const handleLedgerMappingChange = (mappingId) => {
     const selectedMapping = mappings.find((mapping) => mapping._id === mappingId)
-
     if (!mappingId || !selectedMapping) {
       setLedgerForm((prev) => ({
         ...prev,
@@ -5832,15 +5387,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       }))
       return
     }
-
     const mappedDebit = entryAccountOptions.find((account) => String(account._id) === String(selectedMapping?.debitAccountId?._id || ''))
     const mappedCredit = entryAccountOptions.find((account) => String(account._id) === String(selectedMapping?.creditAccountId?._id || ''))
-
     // Check if either account is a bank account for auto-detection
     const debitIsBank = /bank/i.test(mappedDebit?.accountName || '')
     const creditIsBank = /bank/i.test(mappedCredit?.accountName || '')
     const shouldAutoDetectBank = debitIsBank || creditIsBank
-
     setLedgerForm((prev) => ({
       ...prev,
       mappingId,
@@ -5852,7 +5404,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       ...(shouldAutoDetectBank && prev.referenceType !== 'bank_jv' ? { referenceType: 'bank_jv' } : {}),
     }))
   }
-
   const handleDeleteCurrency = async (currency) => {
     if (!window.confirm(`Delete currency ${currency.code}?`)) return
     try {
@@ -5862,9 +5413,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError(e.response?.data?.message || 'Failed to delete currency')
     }
   }
-
   const handleEditCustomer = (customer) => openEditModal('customer', customer)
-
   const handleDeleteCustomer = async (customer) => {
     if (!window.confirm(`Deactivate customer ${customer.name}?`)) return
     try {
@@ -5874,7 +5423,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setError(e.response?.data?.message || 'Failed to delete customer')
     }
   }
-
   const handleEditLedger = (entry) => {
     setEditState({
       type: 'ledger',
@@ -5890,7 +5438,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       },
     })
   }
-
   const handleReverseLedger = async (entry) => {
     if (!window.confirm(`Reverse ledger entry ${entry.referenceType} (${entry.amount})? This will create an offsetting entry.`)) return
     try {
@@ -5905,7 +5452,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleReconcileLedger = async (entry) => {
     try {
       setSaving(true)
@@ -5918,7 +5464,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   const handleSaveEditLedger = async () => {
     if (!editState.form.debitAccountId || !editState.form.creditAccountId || !editState.form.amount) {
       setError('All fields required')
@@ -5941,293 +5486,46 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setSaving(false)
     }
   }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* <h2 style={{ marginBottom: '1.5rem', color: C.t1, fontSize: '1.5rem', fontWeight: '700' }}>
         📊 ERP Accounting System
       </h2> */}
-
       {error && <div style={{ background: C.danger, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>{error}</div>}
       {success && <div style={{ background: C.s1, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>{success}</div>}
-
-      {/* TAB NAVIGATION */}
-      {(() => {
-        const visibleTabs = [
-          'dashboard',
-          ...(canViewAccounts ? ['accounts', 'mappings', 'settings', 'currencies'] : []),
-          ...(canViewBalanceEnquiry ? ['enquiry'] : []),
-          ...(canViewCustomers ? ['customers'] : []),
-          ...(canViewCustomers ? ['customer-margin'] : []),
-          ...(canAccessVendors ? ['supplier-margin'] : []),
-          ...(canViewLedger ? ['ledger'] : []),
-          ...(canAccessTransactions ? ['transactions'] : []),
-          ...(canAccessReports ? ['reports'] : []),
-          ...(canAccessVendors ? ['vendors'] : []),
-          ...(canAccessInventory ? ['inventory'] : []),
-          ...(canAccessVouchers ? ['vouchers'] : []),
-          ...(canAccessDirectDeals ? ['direct-deals'] : []),
-          ...(canAccessDirectDeals ? ['fixing-register'] : []),
-        ]
-        const uniqueTabs = Array.from(new Set(visibleTabs))
-        return (
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem', paddingBottom: '1rem', flexWrap: 'wrap' , display:"none" }}>
-        {uniqueTabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              padding: '0.625rem 1.25rem',
-              background: activeTab === tab ? C.s1 : 'transparent',
-              color: activeTab === tab ? '#FFFFFF' : '#1F1F1F',
-              border: activeTab === tab ? 'none' : `1px solid #D1D5DB`,
-              borderRadius: '0.375rem',
-              cursor: 'pointer',
-              fontWeight: activeTab === tab ? '700' : '600',
-              textTransform: 'capitalize',
-              fontSize: '0.9rem',
-              transition: 'all 0.25s ease',
-              boxShadow: activeTab === tab ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            }}
-          >
-              {tab === 'enquiry'
-                ? t('accountSummary')
-                : tab === 'transactions'
-                  ? t('transactions')
-                  : tab === 'reports'
-                    ? t('reports')
-                    : tab === 'vendors'
-                      ? t('vendors')
-                      : tab === 'currencies'
-                        ? 'Currency Master'
-                      : tab === 'customer-margin'
-                        ? 'Customer Margin'
-                      : tab === 'supplier-margin'
-                        ? 'Supplier Margin'
-                      : tab === 'inventory'
-                        ? t('inventory')
-                        : tab === 'vouchers'
-                          ? `💳 ${t('vouchers')}`
-                          : tab === 'direct-deals'
-                            ? t('directDeals')
-                          : tab === 'fixing-register'
-                            ? 'Fixing Register'
-                          : tab.charAt(0).toUpperCase() + tab.slice(1)}
-          </button>
-        ))}
-      </div>
-        )
-      })()}
-
-      {/* DASHBOARD TAB */}
-      <ERPDashboardTabContainer activeTab={activeTab}>
-        <div>
-          {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-            <div>
-              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>📊 My Dashboard</h3>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: C.inkSoft }}>
-                {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                {' · '}{dashWidgets.length} widget{dashWidgets.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              {/* Arrange and Customize buttons only */}
-              <button
-                onClick={() => setDashEditMode(v => !v)}
-                style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', fontWeight: '600', border: `1px solid ${dashEditMode ? C.s1 : '#D1D5DB'}`, borderRadius: '0.375rem', background: dashEditMode ? '#DCFCE7' : C.p1, color: dashEditMode ? C.s2 : C.inkSoft, cursor: 'pointer' }}
-              >
-                ⠿ {dashEditMode ? 'Done' : 'Arrange'}
-              </button>
-              <button
-                onClick={() => { setDashPickSelected([...dashWidgets]); setDashCustomizeOpen(true) }}
-                style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem', fontWeight: '600', border: 'none', borderRadius: '0.375rem', background: C.s1, color: '#fff', cursor: 'pointer' }}
-              >
-                + Customize
-              </button>
-            </div>
-          </div>
-
-          {/* Edit mode banner */}
-          {dashEditMode && (
-            <div style={{ background: 'linear-gradient(90deg,#DCFCE7,#F0FDF4)', border: `1px solid #A7F3D0`, borderRadius: '0.5rem', padding: '0.6rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: C.s2 }}>
-              <span style={{ fontSize: '1rem' }}>↕</span>
-              <span>Drag widgets to rearrange. Click <strong>✕</strong> to remove a widget. Click <strong>Done</strong> when finished.</span>
-            </div>
-          )}
-
-          {/* Widget grid */}
-          {dashWidgets.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem 1rem', background: C.p2, borderRadius: '0.75rem' }}>
-              <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</p>
-              <p style={{ color: C.inkSoft, fontSize: '0.9rem', marginBottom: '1rem' }}>No widgets on your dashboard yet.</p>
-              <button
-                onClick={() => { setDashPickSelected([...dashWidgets]); setDashCustomizeOpen(true) }}
-                style={{ padding: '0.5rem 1.25rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}
-              >
-                + Add Widgets
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.875rem' }}>
-              {dashWidgets.map((wid, idx) => {
-                const meta = ERP_DASH_ALL_WIDGETS.find(w => w.id === wid)
-                if (!meta) return null
-                const rawCols = dashWidgetCols[wid] ?? meta.cols
-                const span = Math.min(Math.max(Number(rawCols) || 1, 1), 3)
-                const isHovered = dashHoveredWid === wid
-                const edgeToEdge = wid === 'margins' || wid === 'apar' || wid === 'fixing'
-                const widgetOptions = wid === 'fixing'
-                  ? {
-                    fixingRegister: {
-                      filter: fixingRegFilter,
-                      setFilter: setFixingRegFilter,
-                      metalOptions: fixingRegisterStockTypeOptions,
-                      results: fixingRegResults,
-                      opening: fixingRegOpening,
-                      loading: fixingRegLoading,
-                      error: fixingRegError,
-                      onRefresh: handleFixingRegProceed,
-                      formatQty: fixingRegFmtQty,
-                      formatRate: fixingRegFmtRate,
-                      formatAmount: fixingRegFmtAmt,
-                    },
-                  }
-                  : {}
-                return (
-                  <div
-                    key={wid}
-                    draggable={dashEditMode}
-                    onDragStart={() => { dashDragSrc.current = idx }}
-                    onDragOver={e => e.preventDefault()}
-                    onDrop={() => {
-                      const src = dashDragSrc.current
-                      if (src == null || src === idx) return
-                      const next = [...dashWidgets]
-                      next.splice(src, 1)
-                      next.splice(idx, 0, wid)
-                      setDashWidgets(next)
-                      dashDragSrc.current = null
-                    }}
-                    onMouseEnter={() => setDashHoveredWid(wid)}
-                    onMouseLeave={() => setDashHoveredWid(null)}
-                    style={{
-                      gridColumn: `span ${span}`,
-                      background: C.p1,
-                      borderRadius: '12px',
-                      overflow: 'hidden',
-                      border: dashEditMode ? `2px dashed #A7F3D0` : `1px solid #E5E7EB`,
-                      boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
-                      cursor: dashEditMode ? 'grab' : 'default',
-                      position: 'relative',
-                    }}
-                  >
-                    {/* Drag handle overlay — visible on hover in edit mode */}
-                    {dashEditMode && isHovered && (
-                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: '1.75rem', color: 'rgba(0,0,0,0.18)', pointerEvents: 'none', userSelect: 'none', zIndex: 2 }}>⠿</div>
-                    )}
-                    {/* Widget header */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 13px', borderBottom: '1px solid #E5E7EB' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: 28, height: 28, borderRadius: '6px', background: meta.color || '#E8F5EF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', flexShrink: 0 }}>
-                          {meta.icon}
-                        </div>
-                        <span style={{ fontSize: '0.8rem', fontWeight: '600', color: C.ink }}>{meta.label}</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: (isHovered || dashEditMode) ? 1 : 0, transition: 'opacity 0.15s' }}>
-                        {meta.viewTab && (
-                          <button
-                            onClick={() => setActiveTab(meta.viewTab)}
-                            style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '2px 7px', borderRadius: '5px', border: '1px solid #A7F3D0', background: '#F0FDF4', fontSize: '0.68rem', fontWeight: '500', color: C.s2, cursor: 'pointer' }}
-                          >→ View</button>
-                        )}
-                        <button
-                          onClick={() => {
-                            const cur = dashWidgetCols[wid] ?? meta.cols
-                            const next = cur >= 3 ? 1 : Number(cur) + 1
-                            setDashWidgetCols(prev => ({ ...prev, [wid]: next }))
-                          }}
-                          title="Resize widget"
-                          style={{ padding: '2px 6px', border: '1px solid #E5E7EB', borderRadius: '5px', background: '#F9FAFB', cursor: 'pointer', fontSize: '0.75rem', color: C.inkSoft, lineHeight: 1 }}
-                        >⤢</button>
-                        <button
-                          onClick={() => setDashWidgets(prev => prev.filter(w => w !== wid))}
-                          style={{ background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: '0.85rem', padding: '0 2px', lineHeight: 1 }}
-                        >✕</button>
-                      </div>
-                    </div>
-                    {/* Widget body */}
-                    {edgeToEdge
-                      ? <div style={{ fontSize: '0.82rem', color: C.inkSoft }}>
-                          {renderERP_DashWidget(wid, dashboard, dashChatMessages, (tab) => setActiveTab(tab), onNavigateMain, widgetOptions)}
-                        </div>
-                      : <div style={{ padding: '12px 13px', fontSize: '0.82rem', color: C.inkSoft }}>
-                          {renderERP_DashWidget(wid, dashboard, dashChatMessages, (tab) => setActiveTab(tab), onNavigateMain, widgetOptions)}
-                        </div>
-                    }
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Customize modal */}
-          {dashCustomizeOpen && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ background: '#fff', borderRadius: '0.75rem', width: '560px', maxWidth: '95vw', maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
-                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <h4 style={{ margin: 0, color: C.ink, fontSize: '1rem', fontWeight: '700' }}>Customize Dashboard</h4>
-                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: C.inkSoft }}>{dashPickSelected.length} widget{dashPickSelected.length !== 1 ? 's' : ''} selected</p>
-                  </div>
-                  <button onClick={() => setDashCustomizeOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.1rem', color: C.inkSoft, cursor: 'pointer' }}>✕</button>
-                </div>
-                <div style={{ padding: '1rem 1.5rem', overflowY: 'auto', flex: 1 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
-                    {ERP_DASH_ALL_WIDGETS.map(w => {
-                      const on = dashPickSelected.includes(w.id)
-                      return (
-                        <div
-                          key={w.id}
-                          onClick={() => setDashPickSelected(prev => on ? prev.filter(x => x !== w.id) : [...prev, w.id])}
-                          style={{ padding: '0.75rem', borderRadius: '0.5rem', border: `2px solid ${on ? C.s1 : '#E5E7EB'}`, background: on ? '#F0FDF4' : '#FAFAFA', cursor: 'pointer', display: 'flex', gap: '0.625rem', alignItems: 'flex-start' }}
-                        >
-                          <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{w.icon}</span>
-                          <div>
-                            <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: '600', color: C.ink }}>{w.label}</p>
-                            <p style={{ margin: '0.15rem 0 0', fontSize: '0.72rem', color: C.inkSoft }}>{w.desc}</p>
-                          </div>
-                          {on && <span style={{ marginLeft: 'auto', color: C.s1, fontSize: '0.9rem', flexShrink: 0 }}>✓</span>}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-                <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #F3F4F6', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                  <button onClick={() => setDashCustomizeOpen(false)} style={{ padding: '0.5rem 1rem', background: C.p2, color: C.inkSoft, border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>Cancel</button>
-                  <button
-                    onClick={() => {
-                      const ordered = [...dashPickSelected].sort((a, b) => {
-                        const ai = dashWidgets.indexOf(a), bi = dashWidgets.indexOf(b)
-                        if (ai !== -1 && bi !== -1) return ai - bi
-                        if (ai !== -1) return -1
-                        if (bi !== -1) return 1
-                        return ERP_DASH_ALL_WIDGETS.findIndex(w => w.id === a) - ERP_DASH_ALL_WIDGETS.findIndex(w => w.id === b)
-                      })
-                      setDashWidgets(ordered)
-                      setDashCustomizeOpen(false)
-                    }}
-                    style={{ padding: '0.5rem 1.25rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </ERPDashboardTabContainer>
-
+      <ERPDashboardTab
+        activeTab={activeTab}
+        C={C}
+        dashWidgets={dashWidgets}
+        setDashWidgets={setDashWidgets}
+        dashEditMode={dashEditMode}
+        setDashEditMode={setDashEditMode}
+        dashHoveredWid={dashHoveredWid}
+        setDashHoveredWid={setDashHoveredWid}
+        dashWidgetCols={dashWidgetCols}
+        setDashWidgetCols={setDashWidgetCols}
+        dashCustomizeOpen={dashCustomizeOpen}
+        setDashCustomizeOpen={setDashCustomizeOpen}
+        dashPickSelected={dashPickSelected}
+        setDashPickSelected={setDashPickSelected}
+        dashDragSrc={dashDragSrc}
+        ERP_DASH_ALL_WIDGETS={ERP_DASH_ALL_WIDGETS}
+        fixingRegFilter={fixingRegFilter}
+        setFixingRegFilter={setFixingRegFilter}
+        fixingRegisterStockTypeOptions={fixingRegisterStockTypeOptions}
+        fixingRegResults={fixingRegResults}
+        fixingRegOpening={fixingRegOpening}
+        fixingRegLoading={fixingRegLoading}
+        fixingRegError={fixingRegError}
+        handleFixingRegProceed={handleFixingRegProceed}
+        fixingRegFmtQty={fixingRegFmtQty}
+        fixingRegFmtRate={fixingRegFmtRate}
+        fixingRegFmtAmt={fixingRegFmtAmt}
+        dashboard={dashboard}
+        dashChatMessages={dashChatMessages}
+        setActiveTab={setActiveTab}
+        onNavigateMain={onNavigateMain}
+      />
       {/* CHART OF ACCOUNTS TAB */}
       <ERPAccountsTabContainer activeTab={activeTab}>
         <div>
@@ -6240,7 +5538,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           <ChartOfAccountsTree canManageAccounts={canManageAccounts} onOpenSummary={handleOpenAccountSummaryFromTree} />
         </div>
       </ERPAccountsTabContainer>
-
       {/* LEDGER TAB */}
       {activeTab === 'customers' && (
         <div>
@@ -6263,7 +5560,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </button>
             )}
           </div>
-
           {showCustomerForm && (
             <form onSubmit={handleCreateCustomer} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
               <input placeholder="Customer Name" value={customerForm.name} onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
@@ -6276,7 +5572,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               <input type="number" placeholder="Payment Terms (Days)" value={customerForm.paymentTermsDays} onChange={(e) => setCustomerForm({ ...customerForm, paymentTermsDays: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
               <input placeholder="Currency (e.g. USD)" value={customerForm.currency} onChange={(e) => setCustomerForm({ ...customerForm, currency: e.target.value.toUpperCase() })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
               <input placeholder="Notes" value={customerForm.notes} onChange={(e) => setCustomerForm({ ...customerForm, notes: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.75rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
-
               <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', marginRight: '0.5rem' }}>
                 {saving ? 'Saving...' : 'Create Customer'}
               </button>
@@ -6285,7 +5580,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </button>
             </form>
           )}
-
           <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
@@ -6329,11 +5623,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </tbody>
             </table>
           </div>
-
           {customers.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No customers added yet.</p>}
         </div>
       )}
-
       {/* CUSTOMER MARGIN TAB */}
       {activeTab === 'customer-margin' && (
         <div>
@@ -6372,7 +5664,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               />
             </div>
           </div>
-
           <div style={{ border: '1px solid #BFD0E5', borderRadius: '0.45rem', overflow: 'hidden', background: '#FFFFFF' }}>
             <div style={{ background: 'linear-gradient(180deg, #E9F3FF 0%, #D7E9FF 100%)', borderBottom: '1px solid #BFD0E5', padding: '0.55rem 0.8rem', fontSize: '1rem', fontWeight: '700', color: '#1E3A8A' }}>
               Customer Margin
@@ -6429,7 +5720,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </table>
             </div>
           </div>
-
           {customerMarginContextMenu.open && customerMarginContextMenu.row && (
             <div
               onClick={(event) => event.stopPropagation()}
@@ -6468,15 +5758,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </div>
             </div>
           )}
-
           <div style={{ marginTop: '0.75rem', color: C.inkSoft, fontSize: '0.82rem' }}>
             Equity shows signed exposure: positive values are favorable, negative values are payable.
           </div>
-
           {customerMarginRows.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No customers available for margin view.</p>}
         </div>
       )}
-
       {/* SUPPLIER MARGIN TAB */}
       {activeTab === 'supplier-margin' && (
         <div>
@@ -6515,7 +5802,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               />
             </div>
           </div>
-
           <div style={{ border: '1px solid #BFD0E5', borderRadius: '0.45rem', overflow: 'hidden', background: '#FFFFFF' }}>
             <div style={{ background: 'linear-gradient(180deg, #E9F3FF 0%, #D7E9FF 100%)', borderBottom: '1px solid #BFD0E5', padding: '0.55rem 0.8rem', fontSize: '1rem', fontWeight: '700', color: '#1E3A8A' }}>
               Supplier Margin
@@ -6572,7 +5858,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </table>
             </div>
           </div>
-
           {supplierMarginContextMenu.open && supplierMarginContextMenu.row && (
             <div
               onClick={(event) => event.stopPropagation()}
@@ -6611,448 +5896,35 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </div>
             </div>
           )}
-
           <div style={{ marginTop: '0.75rem', color: C.inkSoft, fontSize: '0.82rem' }}>
             Equity shows signed exposure: positive values are favorable, negative values are payable.
           </div>
-
           {supplierMarginRows.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No suppliers available for margin view.</p>}
         </div>
       )}
-
-      {/* FIXING POSITION REGISTER TAB */}
-      {activeTab === 'fixing-register' && (
-        <div>
-          {/* Back to ERP Dashboard */}
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            title="Back to ERP Dashboard"
-            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', width: '2rem', height: '2rem', borderRadius: '0.4rem', border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#1E3A5F', fontSize: '1rem', cursor: 'pointer' }}
-          >←</button>
-          {/* Filter card */}
-          <div style={{ borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid #CBD5E1', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', maxWidth: 'min(1200px, 100%)', marginBottom: '1.25rem', position: 'relative', transform: `translate(${fixingRegPanelOffset.x}px, ${fixingRegPanelOffset.y}px)`, transition: fixingRegPanelDrag.active ? 'none' : 'transform 120ms ease-out' }}>
-            {/* Header */}
-            <div onMouseDown={beginFixingRegPanelDrag} style={{ background: 'var(--purple)', padding: '0.85rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.75rem', position: 'sticky', top: 0, zIndex: 3, cursor: fixingRegPanelDrag.active ? 'grabbing' : 'grab', userSelect: 'none' }}>
-              <span style={{ fontSize: '1rem', fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.03em' }}>Fixing Position Summary + Register</span>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); handleFixingRegProceed() }}
-                disabled={fixingRegLoading}
-                style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.85rem', borderRadius: '0.35rem', border: 'none', background: fixingRegLoading ? 'rgba(255,255,255,0.35)' : '#22C55E', color: '#FFFFFF', fontSize: '0.82rem', fontWeight: '700', cursor: fixingRegLoading ? 'default' : 'pointer' }}
-                title="Reload using current filters"
-              >
-                ↻ Refresh
-              </button>
-              <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.73rem', letterSpacing: '0.04em' }}>drag</span>
-            </div>
-            {/* Form body */}
-            <div style={{ background: '#F8FAFC', padding: '1.25rem 1.2rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: '600', color: '#475569', letterSpacing: '0.02em' }}>Filter and get statement</p>
-              {/* Row 1: Metal | Quantity unit | Rate unit | From | To */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.75rem' }}>
-                {[
-                  { label: 'Metal', field: 'metalType', opts: fixingRegisterStockTypeOptions.map((option) => [option.value, option.label]) },
-                  { label: 'Quantity Unit', field: 'quantityUnit', opts: [['GOZ', 'GOZ — Troy Oz'], ['GRAM', 'Gram'], ['KG', 'KG'], ['TOLA', 'Tola']] },
-                  { label: 'Rate Unit', field: 'rateUnit', opts: [['GOZ', 'GOZ — per Troy Oz'], ['GRAM', 'per Gram'], ['KG', 'per KG'], ['TOLA', 'per Tola']] },
-                ].map(({ label, field, opts }) => {
-                  const resolvedOpts = field === 'metalType' && !opts.length
-                    ? [
-                      ['ALL::all', 'All Metals'],
-                      ['XAU::fallback-gold', 'Gold (XAU)'],
-                      ['XAG::fallback-silver', 'Silver (XAG)'],
-                      ['OTHER::fallback-other', 'Other Metals'],
-                    ]
-                    : opts
-                  return (
-                  <div key={field}>
-                    <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
-                    <select
-                      value={fixingRegFilter[field]}
-                      onChange={(e) => setFixingRegFilter(f => ({ ...f, [field]: e.target.value }))}
-                      style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.84rem' }}
-                      disabled={false}
-                    >
-                      {resolvedOpts.map(([v, lbl]) => <option key={v} value={v}>{lbl}</option>)}
-                    </select>
-                  </div>
-                )})}
-                <div>
-                  <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>From Date</label>
-                  <input type="date" value={fixingRegFilter.fromDate}
-                    onChange={(e) => setFixingRegFilter(f => ({ ...f, fromDate: e.target.value }))}
-                    style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.84rem', boxSizing: 'border-box' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>To Date</label>
-                  <input type="date" value={fixingRegFilter.toDate}
-                    onChange={(e) => setFixingRegFilter(f => ({ ...f, toDate: e.target.value }))}
-                    style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.84rem', boxSizing: 'border-box' }}
-                  />
-                </div>
-              </div>
-              {/* Row 2: Order By | Group By | All / Selected */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(140px, 1fr) minmax(160px, 1fr) minmax(0, 2fr)', gap: '0.75rem', alignItems: 'end' }}>
-                <div>
-                  <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Order By</label>
-                  <select
-                    value={fixingRegFilter.orderBy}
-                    onChange={(e) => setFixingRegFilter(f => ({ ...f, orderBy: e.target.value }))}
-                    style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.84rem' }}
-                  >
-                    <option value="voucherNo">Voucher Number</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', color: '#64748B', fontSize: '0.72rem', marginBottom: '0.28rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Group By</label>
-                  <select
-                    value={fixingRegFilter.groupBy}
-                    onChange={(e) => setFixingRegFilter(f => ({ ...f, groupBy: e.target.value }))}
-                    style={{ width: '100%', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.84rem' }}
-                  >
-                    <option value="none">— None —</option>
-                    <option value="customer">Customer</option>
-                    <option value="branch">Branch</option>
-                    <option value="valuedate">Value Date</option>
-                  </select>
-                </div>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', paddingBottom: '0.12rem', flexWrap: 'wrap' }}>
-                  {[['all', 'All'], ['selected', 'Selected']].map(([v, lbl]) => (
-                    <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#374151', fontSize: '0.83rem', cursor: 'pointer' }}>
-                      <input type="radio" name="fixingPartyFilter" value={v} checked={fixingRegFilter.partyFilter === v}
-                        onChange={() => setFixingRegFilter(f => ({ ...f, partyFilter: v }))}
-                        style={{ accentColor: '#2563EB' }}
-                      />
-                      {lbl}
-                    </label>
-                  ))}
-                  {fixingRegFilter.partyFilter === 'selected' && (
-                    <input
-                      type="text"
-                      placeholder="Search party…"
-                      value={fixingRegFilter.partySearch}
-                      onChange={(e) => setFixingRegFilter(f => ({ ...f, partySearch: e.target.value }))}
-                      style={{ flex: 1, minWidth: '140px', padding: '0.38rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.83rem' }}
-                    />
-                  )}
-                </div>
-              </div>
-              {/* Row 3: Checkboxes + Status */}
-              <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                {[
-                  ['excludeOpeningBalance', 'Exclude Opening Balance'],
-                  ['excludeFutures', 'Exclude Futures'],
-                ].map(([field, lbl]) => (
-                  <label key={field} style={{ display: 'flex', alignItems: 'center', gap: '0.38rem', color: '#374151', fontSize: '0.84rem', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={fixingRegFilter[field]}
-                      onChange={(e) => setFixingRegFilter(f => ({ ...f, [field]: e.target.checked }))}
-                      style={{ width: '1rem', height: '1rem', accentColor: '#2563EB' }}
-                    />
-                    {lbl}
-                  </label>
-                ))}
-                <div style={{ color: '#64748B', fontSize: '0.76rem', lineHeight: 1.35 }}>
-                  Unfixing rows affect USD amount balance only; XAU position balance is unchanged.
-                </div>
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <label style={{ color: '#64748B', fontSize: '0.72rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</label>
-                  <select
-                    value={fixingRegFilter.status}
-                    onChange={(e) => setFixingRegFilter(f => ({ ...f, status: e.target.value }))}
-                    style={{ padding: '0.38rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#1E293B', fontSize: '0.83rem' }}
-                  >
-                    <option value="preview">Preview (All)</option>
-                    <option value="final">Final (Confirmed only)</option>
-                  </select>
-                </div>
-              </div>
-              {/* Row 4: Load (applies filters) + back */}
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', paddingTop: '0.25rem' }}>
-                <button
-                  type="button"
-                  onClick={() => { setFixingRegShown(false); setFixingRegResults([]); setFixingRegError(''); setActiveTab('dashboard') }}
-                  style={{ padding: '0.48rem 1.4rem', background: 'transparent', color: '#6B7280', border: '1px solid #CBD5E1', borderRadius: '0.4rem', cursor: 'pointer', fontSize: '0.87rem', fontWeight: '600' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleFixingRegProceed}
-                  disabled={fixingRegLoading}
-                  style={{ padding: '0.52rem 1.75rem', background: fixingRegLoading ? '#86EFAC' : '#16A34A', color: '#FFFFFF', border: 'none', borderRadius: '0.4rem', cursor: fixingRegLoading ? 'default' : 'pointer', fontSize: '0.9rem', fontWeight: '700', letterSpacing: '0.02em', boxShadow: fixingRegLoading ? 'none' : '0 1px 3px rgba(22,163,74,0.35)' }}
-                >
-                  {fixingRegLoading ? 'Loading…' : 'Load'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {fixingRegLoading && (
-            <div style={{ maxWidth: 'min(1200px, 100%)', marginBottom: '0.75rem', padding: '0.85rem 1rem', borderRadius: '0.45rem', border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1E3A8A', fontSize: '0.88rem', fontWeight: '600' }}>
-              Loading fixing register…
-            </div>
-          )}
-
-          {/* Error */}
-          {fixingRegError && (
-            <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.6rem 0.9rem', borderRadius: '0.4rem', marginBottom: '1rem', fontSize: '0.87rem' }}>
-              {fixingRegError}
-            </div>
-          )}
-
-          {/* Results */}
-          {fixingRegShown && !fixingRegLoading && (() => {
-            const qUnit = fixingRegFilter.quantityUnit
-            const rUnit = fixingRegFilter.rateUnit
-            const metalCodeLabel = String(fixingRegFilter.metalType || '').split('::')[0].toUpperCase() || 'ALL'
-            const isQtyImpactRow = (row) => {
-              const mode = String(row?.fixingMode || '').trim().toLowerCase()
-              if (mode === 'unfixing') return false
-              return true
-            }
-            const totalBuyOz = fixingRegResults
-              .filter((r) => r.direction === 'buy' && isQtyImpactRow(r))
-              .reduce((s, r) => s + Number(r.qty || 0), 0)
-            const totalSellOz = fixingRegResults
-              .filter((r) => r.direction === 'sell' && isQtyImpactRow(r))
-              .reduce((s, r) => s + Number(r.qty || 0), 0)
-            const netOz = totalBuyOz - totalSellOz
-            const openingQtyOz = fixingRegFilter.excludeOpeningBalance ? 0 : Number(fixingRegOpening.qtyOz || 0)
-            const openingValue = fixingRegFilter.excludeOpeningBalance ? 0 : Number(fixingRegOpening.value || 0)
-            const closingQtyOz = openingQtyOz + netOz
-            const getRowSignedValue = (row) => {
-              const amount = Number(row?.amount || 0)
-              const mode = String(row?.fixingMode || '').trim().toLowerCase()
-              if (mode === 'unfixing') return amount
-              return String(row?.direction || '').toLowerCase() === 'buy' ? amount : -amount
-            }
-            const txnNetValue = fixingRegResults.reduce((sum, row) => {
-              return sum + getRowSignedValue(row)
-            }, 0)
-            const closingValue = openingValue + txnNetValue
-            const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '-'
-            const fmtSignedAmt = (v) => {
-              const amount = Number(v || 0)
-              const abs = fixingRegFmtAmt(Math.abs(amount))
-              if (amount < 0) return `(${abs})`
-              return abs
-            }
-            const fmtSignedQty = (v) => {
-              const value = Number(v || 0)
-              const abs = fixingRegFmtQty(Math.abs(value), qUnit)
-              if (value < 0) return `(${abs})`
-              return abs
-            }
-            const fmtSignedRate = (v) => {
-              const value = Number(v || 0)
-              const abs = fixingRegFmtRate(Math.abs(value), rUnit)
-              if (value < 0) return `(${abs})`
-              return abs
-            }
-            const legacyHead1 = {
-              padding: '0.24rem 0.38rem',
-              border: '1px solid #8F949B',
-              color: '#2F3A44',
-              fontWeight: '700',
-              fontSize: '0.69rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.03em',
-              whiteSpace: 'nowrap',
-              background: '#E5C183',
-              lineHeight: 1.05,
-            }
-            const legacyHead2 = {
-              padding: '0.2rem 0.38rem',
-              border: '1px solid #9BA1A9',
-              color: '#2F3A44',
-              fontWeight: '700',
-              fontSize: '0.67rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.03em',
-              background: '#F2DEB5',
-              lineHeight: 1.05,
-            }
-            const legacyCell = {
-              padding: '0.24rem 0.4rem',
-              border: '1px solid #C6CBD2',
-              color: '#1F2937',
-              lineHeight: 1.1,
-            }
-            const numericCell = {
-              ...legacyCell,
-              textAlign: 'right',
-              fontWeight: '600',
-              color: '#0F172A',
-              fontVariantNumeric: 'tabular-nums',
-              fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif',
-            }
-            let runningQtyOz = openingQtyOz
-            let runningAmount = openingValue
-
-            return (
-              <div style={{ marginTop: '1rem', borderRadius: '0.5rem', border: '1px solid #CBD5E1', background: '#FFFFFF', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', overflow: 'hidden', maxWidth: 'min(1200px, 100%)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', gap: '0.75rem', flexWrap: 'wrap', borderBottom: '1px solid #E5E7EB', background: '#FFFBF0' }}>
-                  <div>
-                    <h4 style={{ margin: 0, color: C.ink, fontSize: '1.05rem', fontWeight: '700' }}>Fixing Position Summary</h4>
-                    <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Sale, purchase, and direct deal lines for the current filter set.</p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={handleFixingRegProceed}
-                      disabled={fixingRegLoading}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.42rem 0.9rem', borderRadius: '0.35rem', border: 'none', background: fixingRegLoading ? '#86EFAC' : '#16A34A', color: '#FFFFFF', fontSize: '0.82rem', fontWeight: '700', cursor: fixingRegLoading ? 'default' : 'pointer' }}
-                    >
-                      ↻ Refresh
-                    </button>
-                    <button type="button" onClick={() => setFixingRegShown(false)} style={{ padding: '0.42rem 0.75rem', border: '1px solid #D1D5DB', background: '#FFFFFF', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' }}>Close</button>
-                  </div>
-                </div>
-
-                <div style={{ padding: '1rem' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-                    {[
-                      { label: 'Total Buy', value: `${fixingRegFmtQty(totalBuyOz, qUnit)} ${qUnit}`, bg: '#DCFCE7', color: '#15803D' },
-                      { label: 'Total Sell', value: `${fixingRegFmtQty(totalSellOz, qUnit)} ${qUnit}`, bg: '#FEE2E2', color: '#DC2626' },
-                      { label: 'Net Position', value: `${netOz >= 0 ? '+' : '-'}${fixingRegFmtQty(Math.abs(netOz), qUnit)} ${qUnit}`, bg: '#DBEAFE', color: netOz >= 0 ? '#1D4ED8' : '#B45309' },
-                      { label: 'Records', value: String(fixingRegResults.length), bg: '#F3F4F6', color: '#111827' },
-                    ].map((card) => (
-                      <div key={card.label} style={{ background: card.bg, padding: '0.75rem 0.9rem', borderRadius: '0.45rem', border: '1px solid rgba(0,0,0,0.04)', minWidth: 0 }}>
-                        <div style={{ fontSize: '0.7rem', color: '#6B7280', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.35rem' }}>{card.label}</div>
-                        <div style={{ fontSize: '1.1rem', fontWeight: '800', color: card.color, lineHeight: 1.2 }}>{card.value}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ overflow: 'auto', border: '1px solid #8F98A6', borderRadius: '0.24rem', background: '#FCFCFC', maxHeight: 'min(70vh, 720px)' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', minWidth: '1320px', fontFamily: '"Segoe UI", Tahoma, Arial, sans-serif', fontVariantNumeric: 'tabular-nums' }}>
-                      <colgroup>
-                        <col style={{ width: '40px' }} />
-                        <col style={{ width: '110px' }} />
-                        <col style={{ width: '110px' }} />
-                        <col style={{ width: '120px' }} />
-                        <col style={{ width: '360px' }} />
-                        <col style={{ width: '90px' }} />
-                        <col style={{ width: '90px' }} />
-                        <col style={{ width: '110px' }} />
-                        <col style={{ width: '110px' }} />
-                        <col style={{ width: '130px' }} />
-                        <col style={{ width: '130px' }} />
-                        <col style={{ width: '95px' }} />
-                      </colgroup>
-                      <thead>
-                        <tr style={{ background: '#EBC788' }}>
-                          <th rowSpan={2} style={{ ...legacyHead1, textAlign: 'right' }}>#</th>
-                          <th rowSpan={2} style={{ ...legacyHead1, textAlign: 'left' }}>Doc Date</th>
-                          <th rowSpan={2} style={{ ...legacyHead1, textAlign: 'left' }}>Val Date</th>
-                          <th rowSpan={2} style={{ ...legacyHead1, textAlign: 'left' }}>Doc No</th>
-                          <th rowSpan={2} style={{ ...legacyHead1, textAlign: 'left' }}>Description</th>
-                          <th colSpan={3} style={{ ...legacyHead1, textAlign: 'center' }}>{`${metalCodeLabel} (${qUnit})`}</th>
-                          <th colSpan={3} style={{ ...legacyHead1, textAlign: 'center' }}>Amount (USD)</th>
-                          <th rowSpan={2} style={{ ...legacyHead1, textAlign: 'right' }}>Average</th>
-                        </tr>
-                        <tr style={{ background: '#F6E2BA' }}>
-                          <th style={{ ...legacyHead2, textAlign: 'right' }}>In</th>
-                          <th style={{ ...legacyHead2, textAlign: 'right' }}>Out</th>
-                          <th style={{ ...legacyHead2, textAlign: 'right' }}>Balance</th>
-                          <th style={{ ...legacyHead2, textAlign: 'right' }}>{`Rate (${rUnit})`}</th>
-                          <th style={{ ...legacyHead2, textAlign: 'right' }}>Value</th>
-                          <th style={{ ...legacyHead2, textAlign: 'right' }}>Balance</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr style={{ background: '#FBF4E5' }}>
-                          <td style={{ ...legacyCell, textAlign: 'right', color: '#64748B' }}>-</td>
-                          <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>-</td>
-                          <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>-</td>
-                          <td style={{ ...legacyCell, color: '#111827', fontWeight: '700' }}>Opening C/F</td>
-                          <td style={{ ...legacyCell, color: '#4B5563' }}>Opening Carry Forward</td>
-                          <td style={{ ...numericCell, color: '#6B7280' }}>-</td>
-                          <td style={{ ...numericCell, color: '#6B7280' }}>-</td>
-                          <td style={numericCell}>{fmtSignedQty(openingQtyOz)}</td>
-                          <td style={{ ...numericCell, color: '#6B7280' }}>-</td>
-                          <td style={{ ...numericCell, color: '#6B7280' }}>-</td>
-                          <td style={numericCell}>{fmtSignedAmt(openingValue)}</td>
-                          <td style={numericCell}>{runningQtyOz !== 0 ? fmtSignedRate(runningAmount / runningQtyOz) : '-'}</td>
-                        </tr>
-                        {fixingRegResults.map((row, idx) => (
-                          (() => {
-                            const qtyOz = Number(row.qty || 0)
-                            const amount = Number(row.amount || 0)
-                            const isBuy = String(row.direction || '').toLowerCase() === 'buy'
-                            const isQtyImpactEnabled = isQtyImpactRow(row)
-                            const qtyInOz = isBuy ? qtyOz : 0
-                            const qtyOutOz = isBuy ? 0 : qtyOz
-                            const signedQtyOz = isQtyImpactEnabled ? (isBuy ? qtyOz : -qtyOz) : 0
-                            const signedValue = getRowSignedValue(row)
-                            runningQtyOz += signedQtyOz
-                            runningAmount += signedValue
-                            const avgRate = runningQtyOz !== 0 ? (runningAmount / runningQtyOz) : null
-                            return (
-                          <tr key={row.rowId || `${row.voucherNo}-${idx}`} style={{ background: idx % 2 === 0 ? '#FFFFFF' : '#FCFAF4' }}>
-                            <td style={{ ...legacyCell, textAlign: 'right', color: '#64748B' }}>{idx + 1}</td>
-                            <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.docDate)}</td>
-                            <td style={{ ...legacyCell, color: '#374151', whiteSpace: 'nowrap' }}>{fmtDate(row.valueDate)}</td>
-                            <td style={{ ...legacyCell, color: '#111827', fontWeight: '700' }}>{row.voucherNo || '-'}</td>
-                            <td style={{ ...legacyCell, color: '#4B5563', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              <span
-                                style={{
-                                  display: 'inline-block',
-                                  padding: '0.02rem 0.34rem',
-                                  marginRight: '0.32rem',
-                                  borderRadius: '0.2rem',
-                                  fontSize: '0.64rem',
-                                  fontWeight: '700',
-                                  background: row.fixingMode === 'Unfixing' ? '#FEF3C7' : '#DCFCE7',
-                                  color: row.fixingMode === 'Unfixing' ? '#92400E' : '#166534',
-                                  border: row.fixingMode === 'Unfixing' ? '1px solid #FCD34D' : '1px solid #86EFAC',
-                                  verticalAlign: 'middle',
-                                }}
-                              >
-                                {row.fixingMode || 'Fixing'}
-                              </span>
-                              {row.remarks || `${row.sourceType || ''} ${row.customerName || ''}`.trim() || '-'}
-                            </td>
-                            <td style={numericCell}>{qtyInOz > 0 ? fixingRegFmtQty(qtyInOz, qUnit) : '-'}</td>
-                            <td style={numericCell}>{qtyOutOz > 0 ? fixingRegFmtQty(qtyOutOz, qUnit) : '-'}</td>
-                            <td style={numericCell}>{fmtSignedQty(runningQtyOz)}</td>
-                            <td style={numericCell}>{fixingRegFmtRate(Number(row.price || 0), rUnit)}</td>
-                            <td style={numericCell}>{fmtSignedAmt(signedValue)}</td>
-                            <td style={numericCell}>{fmtSignedAmt(runningAmount)}</td>
-                            <td style={numericCell}>{avgRate === null ? '-' : fmtSignedRate(avgRate)}</td>
-                          </tr>
-                            )
-                          })()
-                        ))}
-                        <tr style={{ background: '#F4D9A3' }}>
-                          <td style={{ ...legacyCell, textAlign: 'right', color: '#78350F', fontWeight: '700' }}>-</td>
-                          <td style={{ ...legacyCell, color: '#78350F', whiteSpace: 'nowrap', fontWeight: '700' }}>-</td>
-                          <td style={{ ...legacyCell, color: '#78350F', whiteSpace: 'nowrap', fontWeight: '700' }}>-</td>
-                          <td style={{ ...legacyCell, color: '#78350F', fontWeight: '700' }}>Closing C/F</td>
-                          <td style={{ ...legacyCell, color: '#78350F', fontWeight: '700' }}>Closing Carry Forward</td>
-                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalBuyOz, qUnit)}</td>
-                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fixingRegFmtQty(totalSellOz, qUnit)}</td>
-                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fmtSignedQty(closingQtyOz)}</td>
-                          <td style={{ ...numericCell, color: '#78350F', fontWeight: '700' }}>-</td>
-                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(txnNetValue)}</td>
-                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{fmtSignedAmt(closingValue)}</td>
-                          <td style={{ ...numericCell, fontWeight: '700', color: '#78350F' }}>{closingQtyOz !== 0 ? fmtSignedRate(closingValue / closingQtyOz) : '-'}</td>
-                        </tr>
-                        {fixingRegResults.length === 0 && (
-                          <tr>
-                            <td colSpan={12} style={{ padding: '0.8rem', textAlign: 'center', color: C.inkSoft }}>No transactions found for selected date range and filters.</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )
-          })()}
-        </div>
-      )}
-
+      <ERPFixingRegisterTab
+        activeTab={activeTab}
+        C={C}
+        setActiveTab={setActiveTab}
+        fixingRegPanelOffset={fixingRegPanelOffset}
+        fixingRegPanelDrag={fixingRegPanelDrag}
+        beginFixingRegPanelDrag={beginFixingRegPanelDrag}
+        handleFixingRegProceed={handleFixingRegProceed}
+        fixingRegLoading={fixingRegLoading}
+        fixingRegFilter={fixingRegFilter}
+        setFixingRegFilter={setFixingRegFilter}
+        fixingRegisterStockTypeOptions={fixingRegisterStockTypeOptions}
+        setFixingRegShown={setFixingRegShown}
+        setFixingRegResults={setFixingRegResults}
+        setFixingRegError={setFixingRegError}
+        fixingRegError={fixingRegError}
+        fixingRegShown={fixingRegShown}
+        fixingRegOpening={fixingRegOpening}
+        fixingRegResults={fixingRegResults}
+        fixingRegFmtQty={fixingRegFmtQty}
+        fixingRegFmtRate={fixingRegFmtRate}
+        fixingRegFmtAmt={fixingRegFmtAmt}
+      />
       <ERPLedgerTab
         activeTab={activeTab}
         C={C}
@@ -7112,7 +5984,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         handleRepairJvFxPreview={handleRepairJvFxPreview}
         handleRepairJvFxApply={handleRepairJvFxApply}
       />
-
       {/* ACCOUNT MAPPINGS TAB */}
       {activeTab === 'mappings' && (
         <div>
@@ -7274,7 +6145,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </tbody>
             </table>
           </div>
-
           {/* Pagination for Mappings */}
           {Math.ceil(mappings.length / ITEMS_PER_PAGE) > 1 && (
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
@@ -7285,11 +6155,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               <button onClick={() => setPagination({...pagination, mappings: Math.min(Math.ceil(mappings.length / ITEMS_PER_PAGE), pagination.mappings + 1)})} disabled={pagination.mappings === Math.ceil(mappings.length / ITEMS_PER_PAGE)} style={{padding: '0.4rem 0.8rem', background: pagination.mappings === Math.ceil(mappings.length / ITEMS_PER_PAGE) ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.mappings === Math.ceil(mappings.length / ITEMS_PER_PAGE) ? 'default' : 'pointer', borderRadius: '0.35rem'}}>Next →</button>
             </div>
           )}
-
           {mappings.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No mappings configured yet.</p>}
         </div>
       )}
-
       {/* ACCOUNT SUMMARY TAB */}
       <ERPEnquiryTabContainer activeTab={activeTab}>
         <div>
@@ -7303,7 +6171,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               <span style={{ padding: '0.4rem 0.7rem', borderRadius: '999px', background: '#EFF6FF', color: '#1D4ED8', fontSize: '0.78rem', fontWeight: '700' }}>Role Based</span>
             </div>
           </div>
-
           {!canViewBalanceEnquiry ? (
             <div style={{ ...emptyCardStyle, borderStyle: 'solid', background: '#FEF2F2', color: '#991B1B' }}>⛔ Account summary access restricted. Super Admin, Finance, or Department Head with mapped-account visibility only.</div>
           ) : (
@@ -7362,13 +6229,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                       {enquiryStatus.message}
                     </p>
                   )}
-
                   {!summaryAccounts.length && (
                     <p style={{ margin: '0.7rem 0 0', color: '#92400E', fontSize: '0.82rem', fontWeight: '600' }}>
                       No accounts available for your role. Department heads only see mapped accounts in Account Summary.
                     </p>
                   )}
-
                   <div style={{ marginTop: '0.9rem', paddingTop: '0.85rem', borderTop: '1px solid #E5E7EB' }}>
                     <p style={{ margin: '0 0 0.5rem', color: '#6B7280', fontWeight: '700', fontSize: '0.78rem' }}>Quick Accounts</p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
@@ -7394,7 +6259,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   </div>
                 </form>
               </div>
-
               {enquiryHistory.length > 0 && (
                 <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem', marginBottom: '1rem' }}>
                   <p style={{ margin: 0, color: C.ink, fontWeight: '700', marginBottom: '0.55rem' }}>Recent Account Summary History</p>
@@ -7413,12 +6277,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   </div>
                 </div>
               )}
-
             </>
           )}
         </div>
       </ERPEnquiryTabContainer>
-
       <ERPTransactionsTab
         activeTab={activeTab}
         C={C}
@@ -7479,7 +6341,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         transactionPageCount={transactionPageCount}
         loading={loading}
       />
-
       <ERPReportsTab
         activeTab={activeTab}
         C={C}
@@ -7625,14 +6486,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         handleCreateProduct={handleCreateProduct}
         handleInventoryModalDragStart={handleInventoryModalDragStart}
       />
-
       {/* SETTINGS TAB */}
       {activeTab === 'settings' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
             <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Settings</h3>
           </div>
-
           <div style={{ marginBottom: '1.25rem', background: C.p1, padding: '1rem', borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
             <h4 style={{ color: C.ink, marginTop: 0, marginBottom: '0.4rem', fontWeight: '700' }}>Logo Settings</h4>
             <p style={{ marginTop: 0, marginBottom: '0.75rem', color: C.inkSoft, fontSize: '0.82rem' }}>
@@ -7686,13 +6545,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </button>
             </div>
           </div>
-
           <div style={{ marginBottom: '1.25rem', background: C.p1, padding: '1rem', borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
             <h4 style={{ color: C.ink, marginTop: 0, marginBottom: '0.4rem', fontWeight: '700' }}>Inventory Stock Code Format</h4>
             <p style={{ marginTop: 0, marginBottom: '0.75rem', color: C.inkSoft, fontSize: '0.82rem' }}>
               Configure auto stock-code format used in ERP Inventory mapping.
             </p>
-
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.65rem' }}>
               <select
                 value={inventoryStockCodeSettings.format}
@@ -7710,12 +6567,10 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                 style={inventoryStockCodeSettings.format !== 'prefix-metal-purity' ? { ...modalInputStyle, background: '#F8FAFC', color: C.inkSoft } : modalInputStyle}
               />
             </div>
-
             <p style={{ margin: '0.6rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>
               Preview: {buildAutoStockCode({ mainStock: 'gold', customMainStock: '', metalType: 'gold', purity: '999.9' }, inventoryStockCodeSettings)}
             </p>
           </div>
-
           <div style={{ marginBottom: '2rem' }}>
             <h4 style={{ color: C.ink, marginBottom: '1rem', fontWeight: '700' }}>Report Branding</h4>
             <form onSubmit={handleSaveBranding} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', border: `1px solid ${C.p2}`, marginBottom: '1rem' }}>
@@ -7744,14 +6599,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   Set as default entity
                 </label>
               </div>
-
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
                 <button type="button" onClick={handleCreateBrandingDraft} style={{ padding: '0.45rem 0.85rem', background: '#ECFDF5', color: '#065F46', border: '1px solid #A7F3D0', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600' }}>
                   + New Entity Profile
                 </button>
                 <span style={{ color: C.inkSoft, fontSize: '0.82rem', alignSelf: 'center' }}>Each profile can represent a separate legal entity, branch, or reporting unit.</span>
               </div>
-
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
                 <input
                   placeholder="Entity Name"
@@ -7808,7 +6661,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   style={modalInputStyle}
                 />
               </div>
-
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.75rem', alignItems: 'start', marginBottom: '0.75rem' }}>
                 <input
                   placeholder="Logo URL or paste data URL"
@@ -7827,7 +6679,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                 </label>
               </div>
               <p style={{ margin: '-0.35rem 0 0.75rem', color: C.inkSoft, fontSize: '0.78rem' }}>Supported logo files: PNG and SVG up to 3 MB.</p>
-
               {brandingForm.logoUrl && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
                   <div style={{ padding: '0.75rem', border: `1px dashed ${C.p2}`, borderRadius: '0.5rem', background: '#FFFDF7' }}>
@@ -7842,7 +6693,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   </div>
                 </div>
               )}
-
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
                 <input
                   type="number"
@@ -7872,7 +6722,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   <option value="fill">Fill / Stretch</option>
                 </select>
               </div>
-
               <div style={{ marginBottom: '1rem', padding: '1rem', borderRadius: '0.75rem', border: `1px solid ${C.p2}`, background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)' }}>
                 <p style={{ marginTop: 0, marginBottom: '0.75rem', color: C.ink, fontWeight: '700' }}>Company Profile Preview</p>
                 <div style={{ height: '10px', background: 'var(--grad-brand)', borderRadius: '999px', marginBottom: '14px' }} />
@@ -7903,7 +6752,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   <span>{brandingPreview.reportFooter || DEFAULT_BRANDING.reportFooter}</span>
                 </div>
               </div>
-
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
                 <input
                   placeholder="Prepared By Title"
@@ -7942,7 +6790,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   style={modalInputStyle}
                 />
               </div>
-
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 <button type="submit" disabled={saving || !canManageAccounts} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: canManageAccounts ? 'pointer' : 'not-allowed', opacity: canManageAccounts ? 1 : 0.65 }}>
                   {saving ? 'Saving...' : 'Save Branding'}
@@ -7953,9 +6800,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                 <span style={{ color: C.inkSoft, fontSize: '0.82rem' }}>Use separate profiles per branch or legal entity. Uploaded logos give the most reliable PDF result.</span>
               </div>
             </form>
-
           </div>
-
           <div style={{ background: C.p1, padding: '1.5rem', borderRadius: '0.5rem', borderLeft: `4px solid ${C.s1}` }}>
             <h4 style={{ color: C.t1, marginBottom: '1rem', fontWeight: '600' }}>📋 System Information</h4>
             <ul style={{ color: C.t2, fontSize: '0.875rem', listStyle: 'none', padding: 0 }}>
@@ -7968,7 +6813,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           </div>
         </div>
       )}
-
       {/* CURRENCIES TAB */}
       {activeTab === 'currencies' && (
         <div>
@@ -8005,7 +6849,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </button>
             </div>
           </div>
-
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
             <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
               <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>Exchange Difference Accounts</h4>
@@ -8052,7 +6895,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </p>
             </div>
           </div>
-
           {showCurrencyForm && (
             <form onSubmit={handleCreateCurrency} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem', border: `1px solid ${C.p2}` }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
@@ -8102,7 +6944,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </div>
             </form>
           )}
-
           <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
@@ -8138,11 +6979,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </tbody>
             </table>
           </div>
-
           {currencies.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No currencies configured yet.</p>}
         </div>
       )}
-
       {editState.record && (
         <div style={modalBackdropStyle} onClick={closeEditModal}>
           <div style={modalCardStyle} onClick={(e) => e.stopPropagation()}>
@@ -8391,7 +7230,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           </div>
         </div>
       )}
-
       {/* VOUCHERS TAB */}
       <ERPVouchersTabContainer activeTab={activeTab}>
         <Suspense fallback={<div style={{ padding: '1rem', color: C.inkSoft }}>Loading vouchers...</div>}>
@@ -8406,7 +7244,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           />
         </Suspense>
       </ERPVouchersTabContainer>
-
       {/* DIRECT DEALS TAB */}
       {activeTab === 'direct-deals' && (
         <DirectDealsTab
@@ -8417,7 +7254,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           isSuperAdmin={isSuperAdmin}
         />
       )}
-
       {/* TEST MAPPING MODAL */}
       {showMappingTest && testMapping && (
         <div style={modalBackdropStyle} onClick={() => setShowMappingTest(false)}>
@@ -8463,7 +7299,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           </div>
         </div>
       )}
-
       {/* ACCOUNT SUMMARY POPUP MODAL - TRADING PLATFORM STYLE */}
       {showEnquiryModal && (
         <div
@@ -8471,7 +7306,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
           style={{ position: 'fixed', inset: 0, background: enquiryBackdropColor, transition: 'background 120ms ease', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}
         >
           <div style={{ background: '#fff', borderRadius: '8px', width: 'min(1100px, 100%)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 42px rgba(0,0,0,0.35)', transform: `translate(${enquiryModalOffset.x}px, ${enquiryModalOffset.y}px)` }}>
-
             {/* Header - Dark Green Bar */}
             <div
               onMouseDown={beginEnquiryModalDrag}
@@ -8483,10 +7317,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               </div>
               <button onClick={() => setShowEnquiryModal(false)} style={{ background: 'transparent', border: 'none', color: '#FFFFFF', cursor: 'pointer', fontSize: '20px', padding: '0', lineHeight: 1 }}>✕</button>
             </div>
-
             {/* Scrollable Content Area */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '1.2rem 1.5rem' }}>
-
               {/* Account lookup row */}
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1.2rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -8549,11 +7381,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   </button>
                 </div>
               </div>
-
               {enquiryStatus.message && !enquiryLoading && (
                 <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: enquiryStatus.type === 'success' ? '#047857' : '#c0392b', fontWeight: '600' }}>{enquiryStatus.message}</p>
               )}
-
               {!accountEnquiryData ? (
                 <div style={{ border: '1px solid #E5E7EB', borderRadius: '0.6rem', background: '#F9FAFB', padding: '1.5rem', color: '#6B7280', fontSize: '0.95rem', textAlign: 'center' }}>
                   {enquiryLoading ? '⟳ Loading account statement...' : '→ Enter account number and click Load Summary to view position'}
@@ -8562,10 +7392,8 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                 <>
                   {/* 2-Column Layout */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-
                     {/* LEFT COLUMN - Account Details Box with Position Table */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-
                       {/* Account Details Panel */}
                       <div style={{ border: '2px solid #3F4B2E', borderRadius: '0.6rem', background: '#F5F7F0', padding: '1rem', position: 'relative' }}>
                         <div style={{ borderBottom: '1px solid #D1D5DB', paddingBottom: '0.8rem', marginBottom: '0.8rem' }}>
@@ -8576,14 +7404,12 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                           )}
                         </div>
                       </div>
-
                       {/* Metal position (grams) + unfixed activity */}
                       <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', overflow: 'hidden', background: '#FFFFFF' }}>
                         <div style={{ background: '#3F4B2E', padding: '0.7rem 1rem', borderBottom: '1px solid #2D3620' }}>
                           <span style={{ color: '#FFFFFF', fontWeight: '700', fontSize: '0.95rem' }}>Position</span>
                           <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: '0.78rem', marginLeft: '0.5rem', fontWeight: '600' }}>(pure weight, grams — includes unfixed)</span>
                         </div>
-
                         <div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                             <thead>
@@ -8610,7 +7436,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                             </tbody>
                           </table>
                         </div>
-
                         <div style={{ borderTop: '1px solid #CBD5E0', background: '#FAFBFC', padding: '0.55rem 0.75rem' }}>
                           <p style={{ margin: 0, color: '#374151', fontWeight: '800', fontSize: '0.82rem' }}>Unfixed metal sales & purchases</p>
                           <p style={{ margin: '0.2rem 0 0', color: '#64748B', fontSize: '0.72rem', lineHeight: 1.4 }}>Rows below reflect the same filters as the statement. Amounts are absolute signed cash effect.</p>
@@ -8644,7 +7469,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                           </table>
                         </div>
                       </div>
-
                       <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', background: '#F8FAFC', padding: '0.85rem 0.95rem' }}>
                         <p style={{ margin: 0, color: '#111827', fontWeight: '800', fontSize: '0.92rem' }}>Fixing / Unfixing Metal Sales & Purchases</p>
                         <p style={{ margin: '0.3rem 0 0', color: '#475569', fontSize: '0.8rem', lineHeight: 1.45 }}>
@@ -8668,9 +7492,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                           </p>
                         )}
                       </div>
-
                     </div>
-
                     {/* RIGHT COLUMN - Financial Metrics */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem', background: '#F9FAFB', borderRadius: '0.6rem', border: '1px solid #E5E7EB' }}>
                       {/* Total Funds */}
@@ -8680,13 +7502,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                           {formatDirectionalBalance(modalTotalFundsDisplay, { preferredDirection: accountEnquiryData?.balances?.netDirection })}
                         </span>
                       </div>
-
                       {/* Revaluation */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Revaluation</span>
                         <span style={{ color: getSignedColor(modalRevaluation), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalRevaluation, 2)}</span>
                       </div>
-
                       {/* Net Equity */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Net Equity</span>
@@ -8694,13 +7514,11 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                           {formatDirectionalBalance(modalNetEquityDisplay, { preferredDirection: resolveExposureDirection(modalNetEquityDisplay) })}
                         </span>
                       </div>
-
                       {/* Margin Amt @ 2% */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin Amt @ 2.0%</span>
                         <span style={{ color: getSignedColor(modalMarginAmt), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalMarginAmt, 2)}</span>
                       </div>
-
                       {/* Excess with Currency Dropdown */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <label style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Excess</label>
@@ -8713,7 +7531,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                           </span>
                         </div>
                       </div>
-
                       {/* Margin % */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.4rem' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin %</span>
@@ -8729,9 +7546,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                         )}
                       </p>
                     </div>
-
                   </div>
-
                   {/* Full Statement Table */}
                   <div style={{ marginTop: '1.25rem', border: '1px solid #CBD5E0', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF' }}>
                     <div style={{ padding: '0.85rem 1rem', background: '#F5F7F0', borderBottom: '1px solid #D1D5DB', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -8748,7 +7563,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                         </div>
                       )}
                     </div>
-
                     <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #E5E7EB', background: '#FAFBFC' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.55rem' }}>
                         <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Filter</span>
@@ -8898,7 +7712,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                         Show Transaction ID
                       </label>
                     </div>
-
                     <div ref={statementTableRef} tabIndex={-1} style={{ overflowX: 'auto' }} data-statement-table="true">
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
                         <thead>
@@ -8982,9 +7795,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
                   </div>
                 </>
               )}
-
             </div>
-
             {/* Footer */}
             <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               {canExportAccountSummary && accountEnquiryData && (
@@ -8995,11 +7806,9 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
               )}
               <button onClick={() => setShowEnquiryModal(false)} style={{ padding: '0.6rem 1.2rem', background: '#6B7280', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Close</button>
             </div>
-
           </div>
         </div>
       )}
-
       {/* Export Options Modal */}
       {exportOptionsOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
@@ -9068,5 +7877,4 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
     </div>
   )
 }
-
 export default ERPTab
