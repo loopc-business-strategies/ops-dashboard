@@ -2,7 +2,7 @@
   "$schema": "https://railway.com/railway.schema.json",
   "deploy": {
     "buildCommand": "node scripts/write-backend-build-meta.mjs && npm install --prefix frontend && npm --prefix frontend run build && if [ -d backend ]; then cd backend; fi; npm install --omit=dev",
-    "startCommand": "if [ -d backend ]; then cd backend; fi; node server.js",
+    "startCommand": "if [ -d backend ]; then cd backend; fi; export UPLOAD_STORAGE_ROOT=\"${UPLOAD_STORAGE_ROOT:-${RAILWAY_VOLUME_MOUNT_PATH:-/app/uploads}}\"; mkdir -p \"$UPLOAD_STORAGE_ROOT/transactions\" \"$UPLOAD_STORAGE_ROOT/bank-slips\" \"$UPLOAD_STORAGE_ROOT/vendor-documents\" \"$UPLOAD_STORAGE_ROOT/crm-contacts\"; node server.js",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 120,
     "restartPolicyType": "on_failure",

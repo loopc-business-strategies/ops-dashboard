@@ -77,10 +77,11 @@ CLIENT_URLS=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yo
 
 ### 2.4 Deploy Backend
 
-1. Railway should auto-deploy on Git push
-2. Wait for deployment to complete (green checkmark)
-3. Railway will generate a public URL like: `https://ops-dashboard-backend-prod-...railway.app`
-4. You will add a custom domain in Step 4
+1. Add a **persistent volume** on the Railway service (recommended mount: `/app/uploads`) and set **`UPLOAD_STORAGE_ROOT=/app/uploads`** (see `ENV-VARS-QUICK-REFERENCE.md`). Without a volume, uploaded files are lost on redeploy.
+2. Railway should auto-deploy on Git push
+3. Wait for deployment to complete (green checkmark)
+4. Railway will generate a public URL like: `https://ops-dashboard-backend-prod-...railway.app`
+5. You will add a custom domain in Step 4
 
 ### 2.5 MongoDB Network Access
 

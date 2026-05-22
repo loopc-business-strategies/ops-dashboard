@@ -1,4 +1,6 @@
 function registerTransactionRoutes(deps) {
+  const fs = require('fs')
+  const path = require('path')
   const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
   const { reverseMetalVoucherStockForVoid } = require('../../utils/metalVoucherStockReversal')
   const User = require('../../models/User')
@@ -10,6 +12,7 @@ function registerTransactionRoutes(deps) {
     transactionCreateSchema,
     transactionPatchSchema,
     transactionUpload,
+    transactionUploadDir,
     TRANSACTION_STATUSES,
     Transaction,
     Ledger,
@@ -79,7 +82,7 @@ const parseDateBoundary = (value, endOfDay = false) => {
 const emitRealtime = (req, cb) => {
   const realtimeServer = req.app.get('realtimeServer')
   if (!realtimeServer || typeof cb !== 'function') return
-  try { cb(realtimeServer) } catch {}
+  try { cb(realtimeServer) } catch { void 0 }
 }
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

@@ -98,12 +98,12 @@ describe('ERPBrandingUtils – createLogoRenderAsset', () => {
 
   test('returns empty string when document is undefined (SSR/test env)', async () => {
     // jsdom defines document, so temporarily undefine it
-    const origDocument = global.document
-    // eslint-disable-next-line no-global-assign
-    Object.defineProperty(global, 'document', { value: undefined, configurable: true, writable: true })
+    const origDocument = globalThis.document
+
+    Object.defineProperty(globalThis, 'document', { value: undefined, configurable: true, writable: true })
     const result = await createLogoRenderAsset('http://example.com/logo.png', 180, 56)
     expect(result).toBe('')
-    Object.defineProperty(global, 'document', { value: origDocument, configurable: true, writable: true })
+    Object.defineProperty(globalThis, 'document', { value: origDocument, configurable: true, writable: true })
   })
 })
 

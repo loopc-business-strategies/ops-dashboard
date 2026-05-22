@@ -30,6 +30,21 @@ const resolveApiOrigin = () => {
 const API_ORIGIN = resolveApiOrigin()
 const REALTIME_URL = `${API_ORIGIN}/api/realtime/events`
 
+/** Demo chats / roster only when explicitly enabled in local dev (never in production builds). */
+const USE_SEED_DATA =
+  !import.meta.env.PROD
+  && import.meta.env.DEV
+  && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
+
+function senderKeyFromName(name) {
+  const raw = String(name || 'member')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'member'
+  return `name:${raw}`
+}
+
 // ─────────────────────────────────────────────────────────
 // DESIGN TOKENS (matching prototype exactly)
 // ─────────────────────────────────────────────────────────
@@ -47,19 +62,19 @@ const C = {
 }
 
 // ─────────────────────────────────────────────────────────
-// SEED DATA
+// Optional demo roster / chats (VITE_ENABLE_SEED_DATA=true in dev only)
 // ─────────────────────────────────────────────────────────
-const SEED_USERS = [
+const SEED_USERS = USE_SEED_DATA ? [
   { id: 'sa',       name: 'Admin',        dept: 'Admin',      color: 'var(--purple)', initials: 'SA' },
   { id: 'ali',      name: 'Ali Hassan',   dept: 'Production', color: '#60a5fa', initials: 'AH' },
   { id: 'sara',     name: 'Sara Ahmed',   dept: 'Compliance', color: '#c084fc', initials: 'SA' },
   { id: 'fatima',   name: 'Fatima Noor',  dept: 'HR',         color: '#2dd4bf', initials: 'FN' },
   { id: 'omar',     name: 'Omar Khan',    dept: 'Operations', color: '#fbbf24', initials: 'OK' },
   { id: 'investor', name: 'Mr. Investor', dept: 'Management', color: '#94a3b8', initials: 'MI' },
-]
+] : []
 
 const T = Date.now()
-const INITIAL_CHATS = [
+const INITIAL_CHATS = USE_SEED_DATA ? [
   {
     id: 'g1', type: 'group', name: 'All Departments', dept: 'All',
     members: ['sa','ali','sara','fatima','omar'], unread: 2, muted: false,
@@ -112,7 +127,7 @@ const INITIAL_CHATS = [
       { id:'m16', from:'sa',       text:"Of course — dashboard access has been updated. You can view all reports.",     time: new Date(T - 3*86400000 + 600000).toISOString(), file: null },
     ],
   },
-]
+] : []
 
 const AUTO_REPLIES = [
   "Got it, thanks! I'll update the dashboard shortly.",
@@ -134,7 +149,18 @@ function msgTime(iso) {
   if (diff < 7) return d.toLocaleDateString([], { weekday:'short' })
   return d.toLocaleDateString([], { day:'numeric', month:'short' })
 }
-function getUser(id) { return SEED_USERS.find(u => u.id === id) }
+
+function getUser(id) {
+  const seeded = SEED_USERS.find((u) => u.id === id)
+  if (seeded) return seeded
+  if (String(id).startsWith('name:')) {
+    const slug = String(id).slice(5)
+    const name = slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim() || 'Team member'
+    const initials = name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || 'TM'
+    return { id, name, dept: '', color: '#64748b', initials }
+  }
+  return { id: String(id), name: 'Team member', dept: '', color: '#64748b', initials: 'TM' }
+}
 
 // ─────────────────────────────────────────────────────────
 // SVG ICONS
@@ -238,11 +264,29 @@ function ChatTab({ onUnreadChange, onBack }) {
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior:'smooth' }) }, [activeChatId, chats])
   useEffect(() => { if (activeChatId) setTimeout(() => inputRef.current?.focus(), 60) }, [activeChatId])
 
+  const myAuthId = String(user?._id || user?.id || 'me')
+
+  const myId = USE_SEED_DATA
+    ? (() => {
+        if (perms.isSuperAdmin) return 'sa'
+        if (perms.isManagement) return 'investor'
+        if (perms.isDepartmentHead) {
+          const d = user?.department
+          if (d === 'production') return 'ali'
+          if (d === 'government') return 'sara'
+          if (d === 'hr') return 'fatima'
+          return 'ali'
+        }
+        return 'omar'
+      })()
+    : myAuthId
+
   const senderToSeedId = (senderName = '') => {
-    const byName = SEED_USERS.find(u => u.name.toLowerCase() === String(senderName).toLowerCase())
+    const byName = SEED_USERS.find((u) => u.name.toLowerCase() === String(senderName).toLowerCase())
     if (byName) return byName.id
     if ((user?.name || '').toLowerCase() === String(senderName).toLowerCase()) return myId
-    return 'sa'
+    if (USE_SEED_DATA) return 'sa'
+    return senderKeyFromName(senderName)
   }
 
   async function loadLatestFromApi(showIncomingToast = false) {
@@ -266,7 +310,21 @@ function ChatTab({ onUnreadChange, onBack }) {
       const hasNew = latestSeenRef.current && latestSeenRef.current !== latestId
       latestSeenRef.current = latestId
 
-      setChats(prev => prev.map(c => c.id === 'g1' ? { ...c, messages: rows } : c))
+      setChats((prev) => {
+        const shell = prev.length
+          ? prev
+          : [{
+              id: 'g1',
+              type: 'group',
+              name: 'Team',
+              dept: 'All',
+              members: [],
+              unread: 0,
+              muted: false,
+              messages: [],
+            }]
+        return shell.map((c) => (c.id === 'g1' ? { ...c, messages: rows } : c))
+      })
 
       if (showIncomingToast && hasNew) {
         const m = rows[rows.length - 1]
@@ -296,20 +354,6 @@ function ChatTab({ onUnreadChange, onBack }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
-
-  // Map real role → seed user
-  const myId = (() => {
-    if (perms.isSuperAdmin)     return 'sa'
-    if (perms.isManagement)     return 'investor'
-    if (perms.isDepartmentHead) {
-      const d = user?.department
-      if (d === 'production') return 'ali'
-      if (d === 'government') return 'sara'
-      if (d === 'hr')         return 'fatima'
-      return 'ali'
-    }
-    return 'omar'
-  })()
 
   const canCreateGroup = perms.isSuperAdmin || perms.isDepartmentHead
   const activeChat     = chats.find(c => c.id === activeChatId)
@@ -341,8 +385,9 @@ function ChatTab({ onUnreadChange, onBack }) {
       recipientNames: currentChat?.type === 'direct' ? [currentChat?.name].filter(Boolean) : [],
     }).catch(() => {
       setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: c.messages.filter(m => m.id !== newMsg.id) } : c))
-      showToast('Send failed', 'Message could not be delivered. Please try again.', C.red)
+      showToast('Send failed', 'Message could not be delivered. Please try again.', '#DC2626')
     })
+    if (!USE_SEED_DATA) return
     const chat = chats.find(c => c.id === chatId)
     if (chat?.type !== 'direct') return
     const otherId = chat.otherId
@@ -367,6 +412,10 @@ function ChatTab({ onUnreadChange, onBack }) {
   function sendFile(type) {
     setShowAttach(false)
     if (!activeChatId) return
+    if (!USE_SEED_DATA) {
+      showToast('Attachments', 'File attachments use real storage in production; demo files are disabled.')
+      return
+    }
     const files = {
       PDF:  { name:'project_report.pdf',   size:'312 KB', ext:'pdf'  },
       DOC:  { name:'status_update.docx',   size:'128 KB', ext:'docx' },

@@ -705,75 +705,6 @@ function FixingRegisterDashboardWidget({ fixingRegister, onNavigate, fallbackPos
     return n < 0 ? `(${abs})` : abs
   }
   const fallbackTotal = fallbackPositions.reduce((s, p) => s + Number(p.amount || 0), 0)
-  const normaliseMetalCode = (position = {}) => {
-    const raw = String(position.code || position.metal || '').trim().toUpperCase()
-    if (raw.includes('XAU') || raw.includes('GOLD')) return 'XAU'
-    if (raw.includes('XAG') || raw.includes('SILV')) return 'XAG'
-    if (raw.includes('XPT') || raw.includes('PLAT')) return 'XPT'
-    return raw
-  }
-  const positionByMetal = new Map(
-    fallbackPositions
-      .map((position) => [normaliseMetalCode(position), position])
-      .filter(([code]) => ['XAU', 'XAG', 'XPT'].includes(code))
-  )
-  const summaryRows = [
-    { code: 'XAU', metal: 'Gold' },
-    { code: 'XAG', metal: 'Silver' },
-    { code: 'XPT', metal: 'Platinum' },
-  ].map((row) => {
-    const position = positionByMetal.get(row.code) || {}
-    const netPosition = Number(position.netPosition ?? position.qty ?? 0)
-    return {
-      ...row,
-      unit: position.unit || 'GOZ',
-      netPosition: Number.isFinite(netPosition) ? netPosition : 0,
-    }
-  })
-  const fmtNetPosition = (value, unit = 'GOZ') => {
-    const n = Number(value || 0)
-    const rounded = Math.abs(n) < 0.0005 ? 0 : n
-    const abs = Math.abs(rounded).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 4 })
-    const sign = rounded > 0 ? '+' : rounded < 0 ? '-' : ''
-    return `${sign}${abs} ${unit}`
-  }
-
-  return (
-    <div style={{ background: '#FFFFFF', padding: '0.7rem' }}>
-      <div style={{ display: 'grid', gap: '0.5rem' }}>
-        {summaryRows.map((row) => {
-          const isPositive = row.netPosition > 0.0005
-          const isNegative = row.netPosition < -0.0005
-          return (
-            <div
-              key={row.code}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) auto',
-                alignItems: 'center',
-                gap: '0.8rem',
-                padding: '0.65rem 0.75rem',
-                border: '1px solid #D8E0EA',
-                borderRadius: '0.45rem',
-                background: '#F8FAFC',
-              }}
-            >
-              <div>
-                <div style={{ color: '#0F172A', fontSize: '0.82rem', fontWeight: '800' }}>{row.metal}</div>
-                <div style={{ color: '#64748B', fontSize: '0.66rem', fontWeight: '700', marginTop: '0.12rem' }}>{row.code}</div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ color: isPositive ? '#047857' : isNegative ? '#DC2626' : '#334155', fontSize: '0.9rem', fontWeight: '900', fontVariantNumeric: 'tabular-nums' }}>
-                  {fmtNetPosition(row.netPosition, row.unit)}
-                </div>
-                <div style={{ color: '#94A3B8', fontSize: '0.62rem', fontWeight: '800', marginTop: '0.12rem', textTransform: 'uppercase' }}>Net Position</div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
 
   const fieldStyle = {
     width: '100%',
@@ -1016,19 +947,10 @@ function FixingRegisterDashboardWidget({ fixingRegister, onNavigate, fallbackPos
 
 function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = null, onNavigateMain = null, options = {}) {
   const bdr = '1px solid #F0FDF4'
-  const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: bdr, fontSize: '0.82rem' }
   const muted = '#6B7280'
   const ink = '#111827'
 
-  const METAL_COLORS = { Gold: '#F59E0B', Silver: '#9CA3AF', Platinum: '#6366F1' }
   const VOL_COLORS = ['#F59E0B', '#9CA3AF', '#6366F1', '#EC4899', '#059669']
-
-  // Inline sparkline helper
-  const sparkLine = (data, clr) => {
-    const mn = Math.min(...data), mx = Math.max(...data), rg = mx - mn || 1
-    const pts = data.map((v, i) => `${(i / (data.length - 1)) * 52},${24 - ((v - mn) / rg) * 20 + 2}`).join(' ')
-    return <svg width="52" height="26" style={{ flexShrink: 0 }}><polyline points={pts} fill="none" stroke={clr} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-  }
 
   // Responsive widget container style
   const widgetContainerStyle = {

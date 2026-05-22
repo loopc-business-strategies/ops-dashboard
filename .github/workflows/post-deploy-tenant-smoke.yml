@@ -52,6 +52,20 @@ jobs:
       - name: Run tenant smoke checks
         run: npm run smoke:tenants
 
+      - name: Run production smoke (API + optional authenticated ERP)
+        env:
+          SMOKE_AUTH_NAME: ${{ secrets.SMOKE_AUTH_NAME }}
+          SMOKE_AUTH_PASSWORD: ${{ secrets.SMOKE_AUTH_PASSWORD }}
+          SMOKE_AUTH_TOKEN: ${{ secrets.SMOKE_AUTH_TOKEN }}
+          SMOKE_SESSION_COOKIE: ${{ secrets.SMOKE_SESSION_COOKIE }}
+          SMOKE_AUTH_NAME_MG: ${{ secrets.SMOKE_AUTH_NAME_MG }}
+          SMOKE_AUTH_PASSWORD_MG: ${{ secrets.SMOKE_AUTH_PASSWORD_MG }}
+          SMOKE_AUTH_NAME_CG: ${{ secrets.SMOKE_AUTH_NAME_CG }}
+          SMOKE_AUTH_PASSWORD_CG: ${{ secrets.SMOKE_AUTH_PASSWORD_CG }}
+          SMOKE_AUTH_NAME_LOOPC: ${{ secrets.SMOKE_AUTH_NAME_LOOPC }}
+          SMOKE_AUTH_PASSWORD_LOOPC: ${{ secrets.SMOKE_AUTH_PASSWORD_LOOPC }}
+          SMOKE_REQUIRE_AUTH: ${{ vars.SMOKE_REQUIRE_AUTH }}
+        run: npm run smoke:prod
       - name: Notify Slack on smoke failure
         if: failure() && secrets.SMOKE_SLACK_WEBHOOK_URL != ''
         env:

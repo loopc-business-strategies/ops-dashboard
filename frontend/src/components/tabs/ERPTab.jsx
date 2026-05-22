@@ -165,7 +165,7 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
   const [dashAutoRefresh, setDashAutoRefresh] = useState(false)
   const [dashChatMessages, setDashChatMessages] = useState([])
   useEffect(() => {
-    try { localStorage.setItem(dashStorageKey, JSON.stringify(sanitizeDashWidgets(dashWidgets))) } catch {}
+    try { localStorage.setItem(dashStorageKey, JSON.stringify(sanitizeDashWidgets(dashWidgets))) } catch { void 0 }
   }, [dashWidgets, dashStorageKey])
   const [accounts, setAccounts] = useState([])
   const [summaryAccounts, setSummaryAccounts] = useState([])

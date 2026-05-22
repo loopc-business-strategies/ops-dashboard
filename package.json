@@ -8,6 +8,7 @@
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "lint": "npm run check:tracked-paths && npm run check:destructive-guards && npm run check:risk-guardrails && npm run check:vercel-rewrites",
+    "lint:eslint": "eslint frontend/src",
     "check:tracked-paths": "node scripts/check-forbidden-tracked-paths.mjs",
     "check:destructive-guards": "node scripts/check-destructive-script-guards.mjs",
     "check:frontend-bundle": "node scripts/check-frontend-bundle-budget.mjs",
@@ -24,6 +25,14 @@
     "cleanup:safe": "npm --prefix backend run cleanup:safe"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "@babel/core": "^7.29.0",
+    "@babel/eslint-parser": "^7.28.6",
+    "@babel/preset-react": "^7.28.5",
+    "@eslint/js": "^9.15.0",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.15.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0"
   }
 }

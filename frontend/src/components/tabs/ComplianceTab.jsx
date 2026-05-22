@@ -158,7 +158,10 @@ function ComplianceTab() {
   const perms = usePermissions()
   const { t } = useLanguage()
   const TABS = useMemo(() => getComplianceTabs(t), [t])
-  const USE_SEED_DATA = import.meta.env.DEV && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
+  const USE_SEED_DATA =
+    !import.meta.env.PROD
+    && import.meta.env.DEV
+    && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
 
   const [tab, setTab] = useState('eligibility')
   const [toast, setToast] = useState('')

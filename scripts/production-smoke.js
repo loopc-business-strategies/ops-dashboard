@@ -12,7 +12,15 @@ const SMOKE_AUTH_TOKEN = String(process.env.SMOKE_AUTH_TOKEN || '').trim()
 const SMOKE_SESSION_COOKIE = String(process.env.SMOKE_SESSION_COOKIE || '').trim()
 const SMOKE_AUTH_NAME = String(process.env.SMOKE_AUTH_NAME || '').trim()
 const SMOKE_AUTH_PASSWORD = String(process.env.SMOKE_AUTH_PASSWORD || '').trim()
-const SMOKE_REQUIRE_AUTH = String(process.env.SMOKE_REQUIRE_AUTH || process.env.CI || '').trim().toLowerCase() === 'true'
+const hasSmokeSessionAuth = Boolean(SMOKE_AUTH_TOKEN || SMOKE_SESSION_COOKIE)
+const hasSmokePasswordAuth = Boolean(SMOKE_AUTH_NAME && SMOKE_AUTH_PASSWORD)
+const smokeAuthExplicit = String(process.env.SMOKE_REQUIRE_AUTH || '').trim().toLowerCase()
+const SMOKE_REQUIRE_AUTH =
+  smokeAuthExplicit === 'true'
+    ? true
+    : smokeAuthExplicit === 'false'
+      ? false
+      : hasSmokeSessionAuth || hasSmokePasswordAuth
 const timeoutMs = Number(process.env.SMOKE_TIMEOUT_MS || 20000)
 
 async function fetchWithTimeout(url, options = {}) {

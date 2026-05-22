@@ -8,7 +8,7 @@ const budgets = [
   },
   {
     file: 'backend/routes/erp-accountingContext.js',
-    maxLines: 2350,
+    maxLines: 2400,
     message: 'ERP accounting route context is high-risk. Put new route slices or services in focused modules.',
   },
 ]

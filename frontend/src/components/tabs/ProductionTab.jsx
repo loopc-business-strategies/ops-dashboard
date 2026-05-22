@@ -8,6 +8,11 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import { ErpSubTabButton, ModulePageHeading, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
+const USE_SEED_DATA =
+  !import.meta.env.PROD
+  && import.meta.env.DEV
+  && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
+
 // ── Design tokens ─────────────────────────────────
 const C = {
   acc:  'var(--purple)',
@@ -157,6 +162,8 @@ const LINES = [
   { id: 'L3', name: 'Line 3 — Alloy Pressing',  state: 'running',     oee: 71, output: 2100, target: 2600, quality: 96.8, speed: 82, temp: 450,  operator: 'Reza Ahmadi' },
   { id: 'L4', name: 'Line 4 — Finishing',       state: 'idle',        oee: 0,  output: 560,  target: 800,  quality: 99.1, speed: 0,  temp: 25,   operator: 'Mina Hosseini' },
 ]
+
+const linesForUi = USE_SEED_DATA ? LINES : []
 
 const STATE_COLORS = {
   running:     { badge: 'green',  label: '● Running' },
@@ -340,31 +347,45 @@ const COST_DATA = [
 
 // ── KPI Overview ──────────────────────────────────
 function KPIOverview() {
-  const totalOutput = LINES.reduce((s, l) => s + l.output, 0)
-  const totalTarget = LINES.reduce((s, l) => s + l.target, 0)
-  const activeLines = LINES.filter(l => l.state === 'running').length
-  const avgOEE = Math.round(LINES.filter(l => l.oee > 0).reduce((s, l) => s + l.oee, 0) / LINES.filter(l => l.oee > 0).length)
-  const avgQuality = (LINES.reduce((s, l) => s + l.quality, 0) / LINES.length).toFixed(1)
+  const totalOutput = linesForUi.reduce((s, l) => s + l.output, 0)
+  const totalTarget = linesForUi.reduce((s, l) => s + l.target, 0)
+  const activeLines = linesForUi.filter((l) => l.state === 'running').length
+  const oeePositive = linesForUi.filter((l) => l.oee > 0)
+  const avgOEE = oeePositive.length
+    ? Math.round(oeePositive.reduce((s, l) => s + l.oee, 0) / oeePositive.length)
+    : 0
+  const avgQuality = linesForUi.length
+    ? (linesForUi.reduce((s, l) => s + l.quality, 0) / linesForUi.length).toFixed(1)
+    : '0.0'
+  const seedWorkOpen = USE_SEED_DATA ? DEFAULT_WORK_ORDERS.filter((w) => w.status !== 'closed').length : 0
+  const seedAlertsOpen = USE_SEED_DATA ? DEFAULT_ALERTS.filter((a) => !a.ack).length : 0
+  const seedOrdersActive = USE_SEED_DATA ? DEFAULT_ORDERS.filter((o) => o.status === 'in-progress').length : 0
 
   return (
     <div className="space-y-6">
       <SectionHeader title="KPI Overview" sub="Real-time status across all production lines" />
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <StatCard icon="🏭" label="Lines Running"    value={`${activeLines}/${LINES.length}`} color="#22c55e" trend={0} />
+        <StatCard icon="🏭" label="Lines Running"    value={`${activeLines}/${linesForUi.length}`} color="#22c55e" trend={0} />
         <StatCard icon="📦" label="Total Output"     value={totalOutput.toLocaleString()} sub={`Target: ${totalTarget.toLocaleString()}`} color="var(--purple)" trend={-4} />
         <StatCard icon="⚡" label="Avg OEE"          value={`${avgOEE}%`}  sub="Overall Equipment Effectiveness" color="#3b82f6" trend={2} />
         <StatCard icon="🎯" label="Quality Rate"     value={`${avgQuality}%`} color="#22c55e" trend={1} />
-        <StatCard icon="🔧" label="Open Work Orders" value={DEFAULT_WORK_ORDERS.filter(w => w.status !== 'closed').length} color="#eab308" />
+        <StatCard icon="🔧" label="Open Work Orders" value={seedWorkOpen} color="#eab308" />
       </div>
 
+      {USE_SEED_DATA ? (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <StatCard icon="⚠️" label="Active Alerts"   value={DEFAULT_ALERTS.filter(a => !a.ack).length} color="#ef4444" />
-        <StatCard icon="📋" label="Active Orders"    value={DEFAULT_ORDERS.filter(o => o.status === 'in-progress').length} color="var(--purple)" />
+        <StatCard icon="⚠️" label="Active Alerts"   value={seedAlertsOpen} color="#ef4444" />
+        <StatCard icon="📋" label="Active Orders"    value={seedOrdersActive} color="var(--purple)" />
         <StatCard icon="🕐" label="Downtime Today"   value="2h 14m"  sub="Line 2 maintenance" color="#f59e0b" />
         <StatCard icon="📈" label="Efficiency"       value="81.4%" sub="vs 79.2% last week" color="#22c55e" trend={2.8} />
         <StatCard icon="🔄" label="Shift Changes"    value="3"  sub="Next: 14:00" color="#3b82f6" />
       </div>
+      ) : (
+      <p className="text-sm text-gray-500 px-1">
+        Connect production data sources to populate KPIs; demo metrics are hidden outside local seed mode.
+      </p>
+      )}
 
       <div
         className="rounded-2xl p-5"
@@ -376,7 +397,10 @@ function KPIOverview() {
       >
         <h4 className="text-sm font-semibold text-white mb-4 leading-tight">Production Line Status</h4>
         <div className="space-y-3">
-          {LINES.map(line => {
+          {linesForUi.length === 0 ? (
+            <p className="text-sm text-gray-400">No line data yet. Enable local demo data with VITE_ENABLE_SEED_DATA=true or connect production feeds.</p>
+          ) : (
+          linesForUi.map(line => {
             const pct = Math.round((line.output / line.target) * 100)
             const sc  = STATE_COLORS[line.state]
             return (
@@ -411,7 +435,8 @@ function KPIOverview() {
                 </div>
               </div>
             )
-          })}
+          })
+          )}
         </div>
       </div>
       </div>
@@ -428,7 +453,7 @@ function LiveMonitor({ canEdit, showToast }) {
       <SectionHeader title="Live Production Monitor" sub="Real-time status across all production lines" />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {LINES.map(line => {
+        {linesForUi.map(line => {
           const sc = STATE_COLORS[line.state]
           const pct = Math.round((line.output / line.target) * 100)
           return (
@@ -484,7 +509,7 @@ function LiveMonitor({ canEdit, showToast }) {
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
         <h4 className="text-sm font-semibold text-white mb-4 leading-tight">Today's Production Timeline</h4>
         <div className="space-y-3">
-          {LINES.map(line => (
+          {linesForUi.map(line => (
             <div key={line.id} className="flex items-center gap-3">
               <span className="text-xs text-gray-400 w-32 shrink-0 truncate">{line.id}</span>
               <div className="flex-1 h-6 bg-gray-800 rounded-md overflow-hidden flex">
@@ -565,7 +590,7 @@ function LiveMonitor({ canEdit, showToast }) {
 
 // ── Equipment ─────────────────────────────────────
 function Equipment({ canEdit, showToast }) {
-  const [equipment, setEquipment] = useState(DEFAULT_EQUIPMENT)
+  const [equipment, setEquipment] = useState(USE_SEED_DATA ? DEFAULT_EQUIPMENT : [])
   const [modal, setModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [form, setForm] = useState({ name: '', line: 'L1', type: '', status: 'operational', lastMaint: '', nextMaint: '', age: '' })
@@ -651,7 +676,7 @@ function Equipment({ canEdit, showToast }) {
           </Field>
           <Field label="Line">
             <select className="input-field" value={form.line} onChange={set('line')}>
-              {LINES.map(l => <option key={l.id} value={l.id}>{l.id} — {l.name.split('—')[1]?.trim()}</option>)}
+              {linesForUi.map(l => <option key={l.id} value={l.id}>{l.id} — {l.name.split('—')[1]?.trim()}</option>)}
             </select>
           </Field>
           <Field label="Equipment Type">
@@ -689,7 +714,7 @@ function Equipment({ canEdit, showToast }) {
 
 // ── Maintenance ───────────────────────────────────
 function Maintenance({ canEdit, showToast }) {
-  const [orders, setOrders] = useState(DEFAULT_WORK_ORDERS)
+  const [orders, setOrders] = useState(USE_SEED_DATA ? DEFAULT_WORK_ORDERS : [])
   const [modal, setModal]   = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ equipment: '', type: 'preventive', priority: 'medium', status: 'open', assignee: '', scheduled: '', desc: '' })
@@ -890,7 +915,7 @@ function Maintenance({ canEdit, showToast }) {
 
 // ── Quality Control ───────────────────────────────
 function QualityControl({ canEdit, showToast }) {
-  const [checks, setChecks] = useState(DEFAULT_QC)
+  const [checks, setChecks] = useState(USE_SEED_DATA ? DEFAULT_QC : [])
   const [modal, setModal]   = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ product: '', line: 'L1', batch: '', inspector: '', passed: '', failed: '' })
@@ -1029,7 +1054,7 @@ function QualityControl({ canEdit, showToast }) {
           </Field>
           <Field label="Line">
             <select className="input-field" value={form.line} onChange={set('line')}>
-              {LINES.map(l => <option key={l.id} value={l.id}>{l.id}</option>)}
+              {linesForUi.map(l => <option key={l.id} value={l.id}>{l.id}</option>)}
             </select>
           </Field>
           <Field label="Inspector">
@@ -1055,7 +1080,7 @@ function QualityControl({ canEdit, showToast }) {
 
 // ── Shift Management ──────────────────────────────
 function ShiftManagement({ canEdit, showToast }) {
-  const [grid, setGrid] = useState(DEFAULT_SHIFT_GRID)
+  const [grid, setGrid] = useState(USE_SEED_DATA ? DEFAULT_SHIFT_GRID : {})
 
   const shiftColor = s => s === 0 ? 'bg-blue-500/20 text-blue-400' : s === 1 ? 'bg-green-500/20 text-green-400' : s === 2 ? 'bg-violet-500/20 text-violet-400' : 'bg-gray-800/50 text-gray-600'
   const shiftLabel = s => s === null ? 'Off' : SHIFTS[s].split(' ')[0]
@@ -1071,7 +1096,7 @@ function ShiftManagement({ canEdit, showToast }) {
   const autoBalance = () => {
     if (!canEdit) return
     const rows = {}
-    LINES.forEach((line, li) => {
+    linesForUi.forEach((line, li) => {
       rows[line.id] = {}
       DAYS.forEach((d, di) => {
         rows[line.id][d] = di === 6 ? null : (li + di) % 3
@@ -1102,7 +1127,7 @@ function ShiftManagement({ canEdit, showToast }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800/50">
-            {LINES.map(line => (
+            {linesForUi.map(line => (
               <tr key={line.id}>
                 <td className="py-3 pr-4">
                   <p className="text-xs font-medium text-white">{line.id}</p>
@@ -1348,7 +1373,7 @@ function Planning({ canEdit, showToast }) {
           </div>
           <Field label="Production Line">
             <select className="input-field" value={form.line} onChange={set('line')}>
-              {LINES.map(l => <option key={l.id} value={l.id}>{l.id} — {l.name.split('—')[1]?.trim()}</option>)}
+              {linesForUi.map(l => <option key={l.id} value={l.id}>{l.id} — {l.name.split('—')[1]?.trim()}</option>)}
             </select>
           </Field>
           <div />
@@ -1380,7 +1405,7 @@ function Planning({ canEdit, showToast }) {
 
 // ── Alerts & Reports ──────────────────────────────
 function AlertsReports({ canEdit, showToast }) {
-  const [alerts, setAlerts] = useState(DEFAULT_ALERTS)
+  const [alerts, setAlerts] = useState(USE_SEED_DATA ? DEFAULT_ALERTS : [])
   const [filter, setFilter] = useState('all')
   const [modal, setModal]   = useState(false)
   const [editId, setEditId] = useState(null)
@@ -1516,7 +1541,7 @@ function AlertsReports({ canEdit, showToast }) {
             </Field>
             <Field label="Production Line">
               <select className="input-field" value={form.line} onChange={set('line')}>
-                {LINES.map(l => <option key={l.id} value={l.id}>{l.id}</option>)}
+                {linesForUi.map(l => <option key={l.id} value={l.id}>{l.id}</option>)}
               </select>
             </Field>
           </div>
@@ -1554,14 +1579,19 @@ function CostTracking({ canViewCosts }) {
     )
   }
 
-  const totalBudget = COST_DATA.reduce((s, c) => s + c.budget, 0)
-  const totalActual = COST_DATA.reduce((s, c) => s + c.actual, 0)
-  const totalVar    = ((totalActual - totalBudget) / totalBudget * 100).toFixed(1)
+  const costRows = USE_SEED_DATA ? COST_DATA : []
+  const totalBudget = costRows.reduce((s, c) => s + c.budget, 0)
+  const totalActual = costRows.reduce((s, c) => s + c.actual, 0)
+  const totalVar = totalBudget > 0 ? ((totalActual - totalBudget) / totalBudget * 100).toFixed(1) : '0.0'
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Cost Tracking" sub="April 2026 — Budget vs. Actual" />
+      <SectionHeader title="Cost Tracking" sub={USE_SEED_DATA ? 'April 2026 — Budget vs. Actual' : 'Budget vs. actual (connect data)'} />
 
+      {!USE_SEED_DATA ? (
+        <p className="text-sm text-gray-500">No cost data loaded. Demo cost rows are available only with VITE_ENABLE_SEED_DATA=true in local dev.</p>
+      ) : (
+      <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard icon="📊" label="Total Budget"  value={`$${(totalBudget/1000).toFixed(0)}K`} color="var(--purple)" />
         <StatCard icon="💵" label="Total Actual"  value={`$${(totalActual/1000).toFixed(0)}K`} color={totalActual > totalBudget ? '#ef4444' : '#22c55e'} />
@@ -1579,7 +1609,7 @@ function CostTracking({ canViewCosts }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800/50">
-            {COST_DATA.map(c => {
+            {costRows.map(c => {
               const varPct = c.variance
               const usagePct = Math.round((c.actual / c.budget) * 100)
               return (
@@ -1651,6 +1681,8 @@ function CostTracking({ canViewCosts }) {
           </div>
         ))}
       </div>
+      </>
+      )}
     </div>
   )
 }
@@ -1745,7 +1777,7 @@ export default function ProductionTab() {
   const [activeTab, setActiveTab] = useState('kpi')
   const [toast, setToast] = useState(null)
   const [notifOpen, setNotifOpen]         = useState(false)
-  const [notifications, setNotifications] = useState(NOTIFICATIONS_DATA)
+  const [notifications, setNotifications] = useState(USE_SEED_DATA ? NOTIFICATIONS_DATA : [])
   const [notifFilter, setNotifFilter]     = useState('all')
 
   // Edit access: super_admin and department_head can edit all production modules.
@@ -1797,7 +1829,7 @@ export default function ProductionTab() {
     <ModuleTabColumn>
       <ModulePageHeading
         title="Production Control Center"
-        subtitle={`${LINES.filter(l => l.state === 'running').length} lines running · ${DEFAULT_ALERTS.filter(a => !a.ack).length} active alerts`}
+        subtitle={`${linesForUi.filter((l) => l.state === 'running').length} lines running${USE_SEED_DATA ? ` · ${DEFAULT_ALERTS.filter((a) => !a.ack).length} active alerts` : ''}`}
         right={(
           <div className="flex items-center gap-3">
             {isReadOnly && (

@@ -1012,6 +1012,7 @@ const {
   transactionUpload,
   vendorDocumentUpload,
   vendorDocumentUploadDir,
+  transactionUploadDir,
 } = createErpUploadMiddleware({
   transactionAttachmentMimeTypes: TRANSACTION_ATTACHMENT_MIME_TYPES,
 })
@@ -1911,11 +1912,21 @@ const resolveExchangeAdjustmentAccounts = async ({ user, isGain, transactionType
   if (!arApAccountId) {
     if (isReceipt) {
       // For receipt: AR (Accounts Receivable)
-      const arAccount = await ensureAccount({ name: 'Accounts Receivable', code: '1100', type: 'Asset' })
+      const arAccount = await ensureAccountByCode({
+        user,
+        code: '1100',
+        name: 'Accounts Receivable',
+        accountType: 'Asset',
+      })
       arApAccountId = arAccount._id
     } else {
       // For payment: AP (Accounts Payable)
-      const apAccount = await ensureAccount({ name: 'Accounts Payable', code: '2000', type: 'Liability' })
+      const apAccount = await ensureAccountByCode({
+        user,
+        code: '2000',
+        name: 'Accounts Payable',
+        accountType: 'Liability',
+      })
       arApAccountId = apAccount._id
     }
   }
@@ -2250,6 +2261,7 @@ function registerErpAccountingRoutes(router) {
     transactionCreateSchema,
     transactionPatchSchema,
     transactionUpload,
+    transactionUploadDir,
     TRANSACTION_STATUSES,
     Transaction,
     Ledger,

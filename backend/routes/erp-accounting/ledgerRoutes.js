@@ -58,7 +58,7 @@ const JV_MODE_PREFIX = {
 const emitRealtime = (req, cb) => {
   const realtimeServer = req.app.get('realtimeServer')
   if (!realtimeServer || typeof cb !== 'function') return
-  try { cb(realtimeServer) } catch {}
+  try { cb(realtimeServer) } catch { void 0 }
 }
 
 const normalizeLedgerCurrency = (code) => {
@@ -483,7 +483,7 @@ router.put('/ledger/:id/reconcile', protect, validateParams(idParamSchema), asyn
     if (!entry) return res.status(404).json({ success: false, message: 'Ledger entry not found' })
     if (entry.referenceType !== 'bank_jv') return res.status(400).json({ success: false, message: 'Only Bank JV entries can be reconciled' })
 
-    const nextReconciled = !Boolean(entry.bankReconciled)
+    const nextReconciled = !entry.bankReconciled
     await TenantLedger.updateOne(
       { _id: entry._id },
       { $set: { bankReconciled: nextReconciled, updatedBy: req.user._id } }

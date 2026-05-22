@@ -17,6 +17,16 @@ DEFAULT_TENANT=loopc
 JWT_SECRET=<GENERATE-A-RANDOM-STRING-32-CHARS-MIN>
 ```
 
+### Persistent uploads (Railway volume)
+
+Attach a **persistent volume** to the backend service (for example mount path `/app/uploads`), then set:
+
+```
+UPLOAD_STORAGE_ROOT=/app/uploads
+```
+
+The deploy `startCommand` creates `transactions`, `bank-slips`, `vendor-documents`, and `crm-contacts` under this root. Optional overrides per type: `TRANSACTION_UPLOAD_DIR`, `BANK_SLIP_UPLOAD_DIR`, `VENDOR_DOCUMENT_UPLOAD_DIR`, `CRM_CONTACT_UPLOAD_DIR` (see `backend/services/erpAccounting/uploadMiddleware.js`).
+
 **⚠️ Generate secure JWT_SECRET:**
 ```bash
 # On your local machine, run:
@@ -171,6 +181,34 @@ Get Railway's outbound IP and add:
 ```
 Allow from: <RAILWAY-OUTBOUND-IP>/32
 ```
+
+---
+
+## GitHub Actions — Post-deploy smoke (`post-deploy-tenant-smoke.yml`)
+
+**Location:** GitHub repo → **Settings** → **Secrets and variables** → **Actions**
+
+### Repository variables (defaults for `smoke:tenants` / `smoke:prod`)
+
+Names match the workflow `env` block and `scripts/production-smoke.js`:
+
+| Variable | Purpose |
+|----------|---------|
+| `SMOKE_BASE_DOMAIN` | Host suffix for `mg` / `cg` / `loopc` portal checks |
+| `SMOKE_API_BASE` | API origin (no trailing slash), e.g. `https://api.yourdomain.com` |
+| `SMOKE_WAIT_SECONDS` | Seconds to sleep before smoke (deploy propagation) |
+| `SMOKE_REQUIRE_AUTH` | Optional. `true` = fail if ERP smoke credentials are missing |
+
+### Repository secrets (optional ERP probe + notifications)
+
+| Secret | Purpose |
+|--------|---------|
+| `SMOKE_AUTH_TOKEN` | Bearer token for read-only ERP route (no login) |
+| `SMOKE_SESSION_COOKIE` | Session cookie header value for the probe |
+| `SMOKE_AUTH_NAME` / `SMOKE_AUTH_PASSWORD` | Shared login for password-based probe |
+| `SMOKE_AUTH_NAME_MG` / `SMOKE_AUTH_PASSWORD_MG` | Per-tenant overrides (`_CG`, `_LOOPC` same pattern) |
+| `SMOKE_SLACK_WEBHOOK_URL` | Notify on smoke failure |
+| `SMOKE_TEAMS_WEBHOOK_URL` | Notify on smoke failure |
 
 ---
 

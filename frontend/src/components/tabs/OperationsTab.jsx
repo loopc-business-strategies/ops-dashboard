@@ -501,7 +501,7 @@ function TabSupply({ suppliers, setSuppliers, canEdit, isExternal, isMgmt, showT
       {detail && (
         <Modal title={`${detail.name} — Supplier Detail`} sub="Full order history and supplier information" onClose={() => setDetail(null)} onSave={() => setDetail(null)} saveLabel="Close">
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:11, marginBottom:14 }}>
-            {[['Status', <Badge s={detail.st} />],['QC Status',<Badge s={detail.qc}/>],['Payment',<Badge s={detail.pay}/>],['Category',<span style={{fontWeight:700,color:C.t1}}>{detail.cat}</span>]].map(([lbl,val]) => (
+            {[['Status', <Badge key="st" s={detail.st} />],['QC Status',<Badge key="qc" s={detail.qc}/>],['Payment',<Badge key="pay" s={detail.pay}/>],['Category',<span key="cat" style={{fontWeight:700,color:C.t1}}>{detail.cat}</span>]].map(([lbl,val]) => (
               <div key={lbl} style={{ background:C.card2, border:`1px solid ${C.border}`, borderRadius:8, padding:'12px 14px' }}>
                 <div style={{ fontSize:10, fontWeight:700, color:C.t3, textTransform:'uppercase', marginBottom:6 }}>{lbl}</div>
                 {val}
@@ -1499,15 +1499,15 @@ export default function OperationsTab() {
     erpAPI.updateInventoryItem(token, f.id, payload)
       .then(res => { setInventory(p => p.map(x => x.id===f.id ? invToRow({ ...x, ...payload, _id: f.id, updatedAt: new Date().toISOString() }) : x)); closeModal(); showToast('Item Updated', f.item + ' updated') })
       .catch(() => showToast('Error', 'Failed to update inventory item'))
-    async function deleteInventoryItem(row) {
-      if (!window.confirm(`Delete ${row.item}?`)) return
-      try {
-        await erpAPI.deleteInventoryItem(token, row.id)
-        setInventory(p => p.filter(x => x.id !== row.id))
-        showToast('Deleted', `${row.item} removed`)
-      } catch {
-        showToast('Error', 'Failed to delete item')
-      }
+  }
+  async function deleteInventoryItem(row) {
+    if (!window.confirm(`Delete ${row.item}?`)) return
+    try {
+      await erpAPI.deleteInventoryItem(token, row.id)
+      setInventory(p => p.filter(x => x.id !== row.id))
+      showToast('Deleted', `${row.item} removed`)
+    } catch {
+      showToast('Error', 'Failed to delete item')
     }
   }
   function addChecklistItem(f) {

@@ -25,6 +25,10 @@ backend/build-meta.json
 # Optional coverage output
 coverage/
 
+# Local ESLint JSON reports
+eslint-report.json
+eslint-report*.json
+
 # Generated endpoint mapping artifacts (local analysis output)
 PROJECT-ENDPOINT-ROWMAP.csv
 PROJECT-ENDPOINT-ROWMAP.md

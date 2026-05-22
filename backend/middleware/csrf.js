@@ -1,4 +1,4 @@
-const crypto = require('crypto')
+const nodeCrypto = require('crypto')
 
 const CSRF_COOKIE_NAME = 'csrfToken'
 const CSRF_HEADER_NAME = 'x-csrf-token'
@@ -20,7 +20,7 @@ const csrfCookieOptions = {
 }
 
 function generateCsrfToken() {
-  return crypto.randomBytes(32).toString('hex')
+  return nodeCrypto.randomBytes(32).toString('hex')
 }
 
 function setCsrfCookie(res, token = generateCsrfToken()) {
