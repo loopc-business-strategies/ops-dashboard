@@ -1979,6 +1979,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const mgLineItems = Array.isArray(effectiveLineItems) ? effectiveLineItems : []
   const mgPrimaryLine = mgLineItems[0] || {}
   const mgSelectedParty = findPartyOptionByCode(voucher?.partyAccount)
+  const mgResolvedParty = resolveVoucherParty(String(header?.partyCode || '').trim())
+  const mgPartyPrintPhone = String(mgResolvedParty?.phone || '').trim()
+  const mgPartyPrintAddress = String(mgResolvedParty?.address || '').trim()
   const mgPartyAccountCode = String(voucher?.partyAccount || mgSelectedParty?.partyCode || '').trim()
   const mgPartyAccountName = String(voucher?.partyName || mgSelectedParty?.partyName || accountNameByCode(mgPartyAccountCode) || '').trim()
   const mgAccountDescription = () => {
@@ -3241,6 +3244,8 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           totals={totals}
           amountWords={mgAmountWords}
           partyName={voucher?.partyName}
+          partyAddress={mgPartyPrintAddress}
+          partyPhone={mgPartyPrintPhone}
           normalizeLineType={normalizeLineType}
           fmt={fmt}
         />

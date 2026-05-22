@@ -18,6 +18,8 @@ export default function MGVoucherPrintLayout({
   totals,
   amountWords,
   partyName,
+  partyAddress,
+  partyPhone,
   normalizeLineType,
   fmt,
 }) {
@@ -77,8 +79,12 @@ export default function MGVoucherPrintLayout({
           <div style={{ minHeight: '29px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '13px' }}>
             {accountDescription()}
           </div>
-          <div style={{ borderTop: dashedBorder, height: '24px' }} />
-          <div style={{ borderTop: dashedBorder, height: '24px' }} />
+          <div style={{ borderTop: dashedBorder, minHeight: '24px', padding: '3px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', lineHeight: 1.25, textAlign: 'center', whiteSpace: 'pre-wrap' }}>
+            {partyAddress || ''}
+          </div>
+          <div style={{ borderTop: dashedBorder, minHeight: '24px', padding: '3px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', lineHeight: 1.25, textAlign: 'center', whiteSpace: 'pre-wrap' }}>
+            {partyPhone ? `Tel: ${partyPhone}` : ''}
+          </div>
           <div style={{ borderTop: dashedBorder, height: '27px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}>
             TRN {trnValue ? `- ${trnValue}` : '-'}
           </div>
@@ -112,16 +118,24 @@ export default function MGVoucherPrintLayout({
           </tr>
         </thead>
         <tbody>
-          {rows.map((line, idx) => (
-            <tr key={`mg-print-line-${idx}`} style={{ height: lineItems.length <= 1 ? '148px' : '42px' }}>
+          {rows.map((line, idx) => {
+            const lineNarration = String(line?.narration || line?.remarks || line?.exp || '').trim()
+            return (
+              <tr key={`mg-print-line-${idx}`} style={{ height: lineItems.length <= 1 ? '148px' : '42px' }}>
               <td style={{ border, padding: '9px 5px', textAlign: 'center', verticalAlign: 'top' }}>{idx + 1}</td>
               <td style={{ border, padding: '9px 5px', verticalAlign: 'top' }}>{line?.branch || branch}</td>
-              <td style={{ border, padding: '9px 10px', verticalAlign: 'top' }}>{accountDescription()}</td>
+              <td style={{ border, padding: '9px 10px', verticalAlign: 'top' }}>
+                <div>{accountDescription()}</div>
+                {lineNarration ? (
+                  <div style={{ fontSize: '9px', marginTop: '6px', fontWeight: '700', lineHeight: 1.35, whiteSpace: 'pre-wrap' }}>{lineNarration}</div>
+                ) : null}
+              </td>
               <td style={{ border, padding: '9px 7px', verticalAlign: 'top' }}>{normalizeLineType(line?.type) || ''}</td>
               <td style={{ border, padding: '9px 7px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountFC || 0)}</td>
               <td style={{ border, padding: '9px 7px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountLC || line?.amountFC || 0)}</td>
             </tr>
-          ))}
+            )
+          })}
           <tr>
             <td colSpan={3} style={{ border, padding: '7px 6px' }}>({recordCount} Record)</td>
             <td colSpan={2} style={{ border, padding: '7px 6px', textAlign: 'right', fontWeight: '900' }}>{`Total (${currencyLabel || 'USD'})`}</td>
