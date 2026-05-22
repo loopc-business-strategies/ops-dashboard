@@ -213,11 +213,16 @@ function registerCurrencyRoutes(deps) {
     try {
       if (!canViewAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
-      const latest = await getLatestMetalRate()
-      const source = String(latest?.source || '').toLowerCase()
-      const isBridgeRate = Boolean(latest && source && !['manual', 'default', 'inventory'].includes(source))
+      // Do not use getLatestMetalRate() alone: a newer *manual* row shadows the MT5 bridge row
+      // (both exist with different `source`). Live tickers need the latest external feed document.
+      const NON_FEED_SOURCES = ['manual', 'default', 'inventory']
+      const latestFeed = await MetalRate.findOne({
+        source: { $nin: NON_FEED_SOURCES },
+        goldPrice: { $gt: 0 },
+        silverPrice: { $gt: 0 },
+      }).sort({ updatedAt: -1 })
 
-      if (!isBridgeRate) {
+      if (!latestFeed) {
         return res.json({
           success: true,
           live: false,
@@ -238,7 +243,7 @@ function registerCurrencyRoutes(deps) {
       res.json({
         success: true,
         live: true,
-        rates: buildMetalRatesResponse(latest),
+        rates: buildMetalRatesResponse(latestFeed),
         canUpdate: canManageAccounts(req.user),
       })
     } catch {

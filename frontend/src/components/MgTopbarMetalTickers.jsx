@@ -82,9 +82,19 @@ export default function MgTopbarMetalTickers({ token, tenant }) {
   const load = useCallback(async () => {
     if (!token) return
     try {
-      const data = await currenciesApi.getLiveMetalRates(token)
-      if (!data?.success || !data.rates) return
-      applyRates(data.rates)
+      const live = await currenciesApi.getLiveMetalRates(token)
+      const liveRates = live?.rates
+      const g = Number(liveRates?.goldPrice) || 0
+      const s = Number(liveRates?.silverPrice) || 0
+      if (live?.success && liveRates && g > 0 && s > 0) {
+        applyRates(liveRates)
+        return
+      }
+      // Bridge offline or not configured: show last saved / inventory / defaults from standard endpoint
+      const saved = await currenciesApi.getMetalRates(token)
+      if (saved?.success && saved.rates) {
+        applyRates(saved.rates)
+      }
     } catch {
       void 0
     }
@@ -169,7 +179,16 @@ export default function MgTopbarMetalTickers({ token, tenant }) {
                     <span style={{ marginLeft: '0.15rem' }}>{move.rest}</span>
                   </>
                 ) : (
-                  <span>{price > 0 ? `${snapshot.currency}/${snapshot.unit || 'G'}` : 'waiting MT5'}</span>
+                  <span>
+                    {price > 0
+                      ? (() => {
+                          const cur = `${snapshot.currency}/${snapshot.unit || 'G'}`
+                          const src = String(snapshot.source || '').toLowerCase()
+                          const fromSaved = ['manual', 'inventory', 'default'].includes(src)
+                          return fromSaved ? `${cur} · saved` : cur
+                        })()
+                      : 'waiting MT5'}
+                  </span>
                 )}
               </div>
             </div>
