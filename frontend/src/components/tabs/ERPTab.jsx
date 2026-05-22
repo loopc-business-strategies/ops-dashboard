@@ -136,7 +136,7 @@ const C = {
   t3: '#334155',
   danger: '#DC2626',
 }
-function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
+function ERPTab({ focusTab, onNavigateMain }) {
   const { user, token } = useAuth()
   const { t } = useLanguage()
   const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
@@ -1361,17 +1361,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
       setDashboard(data)
       setDashChatMessages(chatData?.messages || chatData || [])
       setError('')
-      // Push live metal prices to the header badge immediately
-      if (typeof onMetalRatesChange === 'function') {
-        const rates = data?.metalRates
-        onMetalRatesChange({
-          goldPrice: Number(rates?.gold || 0),
-          silverPrice: Number(rates?.silver || 0),
-          platinumPrice: Number(rates?.platinum || rates?.stockPrices?.platinum?.price || 0),
-          palladiumPrice: Number(rates?.palladium || rates?.stockPrices?.palladium?.price || 0),
-          updatedAt: rates?.updatedAt || null,
-        })
-      }
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load dashboard')
     }
@@ -5510,17 +5499,6 @@ function ERPTab({ focusTab, onNavigateMain, onMetalRatesChange }) {
         setDashPickSelected={setDashPickSelected}
         dashDragSrc={dashDragSrc}
         ERP_DASH_ALL_WIDGETS={ERP_DASH_ALL_WIDGETS}
-        fixingRegFilter={fixingRegFilter}
-        setFixingRegFilter={setFixingRegFilter}
-        fixingRegisterStockTypeOptions={fixingRegisterStockTypeOptions}
-        fixingRegResults={fixingRegResults}
-        fixingRegOpening={fixingRegOpening}
-        fixingRegLoading={fixingRegLoading}
-        fixingRegError={fixingRegError}
-        handleFixingRegProceed={handleFixingRegProceed}
-        fixingRegFmtQty={fixingRegFmtQty}
-        fixingRegFmtRate={fixingRegFmtRate}
-        fixingRegFmtAmt={fixingRegFmtAmt}
         dashboard={dashboard}
         dashChatMessages={dashChatMessages}
         setActiveTab={setActiveTab}

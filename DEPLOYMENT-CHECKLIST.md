@@ -65,7 +65,7 @@ In Railway dashboard, go to **Variables** and add:
 | `CLIENT_URL` | (optional legacy fallback) | Single origin or same comma-separated list |
 | `BACKEND_BUILD_TIME` | (recommended: Railway deployment timestamp) | `2026-05-09T12:00:00Z` |
 | `RAILWAY_DEPLOYMENT_TIMESTAMP` | (optional fallback for build badge) | `2026-05-09T12:00:00Z` |
-| `METALS_DEV_API_KEY` | **Recommended:** live spot metals (XAU/XAG/XPT/XPD) for the ERP dashboard | Create a free account at [metals.dev](https://metals.dev) → Dashboard → copy **API key** → paste in Railway. Without this, spot prices fall back to inventory / saved metal rates. See `ENV-VARS-QUICK-REFERENCE.md`. |
+| `METALS_DEV_API_KEY` | *(Optional)* External spot feed for **server-side** market price routes / reports | Only if you use metals.dev-backed endpoints. The ERP home dashboard no longer includes a live spot widget. See `ENV-VARS-QUICK-REFERENCE.md`. |
 
 ### 2.3 Set CORS and Frontend Origins
 

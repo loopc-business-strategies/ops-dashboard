@@ -91,59 +91,23 @@ VITE_API_URL=https://api.yourdomain.com
 
 ---
 
-### Live spot metals (ERP dashboard)
+### Optional: server-side metal market prices (API / reports)
 
-The MG/CG/LoopC ERP dashboard **spot metals** widget calls `GET /api/erp-accounting/reports/market-prices` (and optional **SSE** `GET /api/erp-accounting/reports/market-prices/stream`). If **`METALS_SPOT_MOCK_REALTIME=true`** (see below), the backend uses a **synthetic tick feed** first (for UI / latency testing). Otherwise it tries: **metals.dev** (default) → **FRED** (if `FRED_API_KEY` is set) → **Alpha Vantage** (if `ALPHA_VANTAGE_API_KEY` or `METALS_ALPHA_VANTAGE_API_KEY` is set) → **inventory / saved metal rates** fallback.
+The **ERP home dashboard** no longer shows a live spot-metals card or header ticker. Backend routes such as `GET /api/erp-accounting/reports/market-prices` (and optional SSE) may still use external feeds for **reports, margins, and saved metal rates**.
 
-**Enable live prices on Railway (about two minutes):**
+If you call the default **metals.dev** host, set **`METALS_DEV_API_KEY`** (or **`METALS_API_KEY`**) in Railway / `backend/.env`. Otherwise the service falls back to **FRED** (`FRED_API_KEY`), **Alpha Vantage** (`ALPHA_VANTAGE_API_KEY` or `METALS_ALPHA_VANTAGE_API_KEY`), then **inventory / saved metal rates**.
 
-1. Open [metals.dev](https://metals.dev) → sign up or log in → **Dashboard** → copy your **API key**.
-2. Railway → your **backend** service → **Variables** → **New Variable** → name `METALS_DEV_API_KEY` → paste the key → **Deploy** (or wait for auto-redeploy).
-3. Confirm logs: on production boot you should **not** see the warning `ERP live spot metals: set METALS_DEV_API_KEY...`. Open the ERP dashboard spot widget — status should show **Live push (SSE)** or **Live (poll)** with `feedStatus: live`.
-
-Local development: add the same line to `backend/.env` (see `backend/.env.example`). The backend sends **only** the `api_key` query parameter (no `Authorization: Bearer` header), which matches the [official examples](https://www.metals.dev/docs) and avoids HTTP 400 from metals.dev.
+If you previously set **`METALS_DEV_API_KEY`** only for the old ERP dashboard spot widget, you can **delete that variable** in Railway; keep it only if you still rely on metals.dev-backed **server** routes (reports, etc.).
 
 ```
-METALS_DEV_API_KEY=<your metals.dev API key>
+METALS_DEV_API_KEY=<optional — only if you use metals.dev-backed market routes>
 ```
 
-Optional tuning:
+Optional tuning (cache intervals, custom `METALS_MARKET_URL`, etc.) is unchanged — see previous internal docs or `backend/routes/erp-accounting/reportRoutes.js`.
 
-```
-METALS_MARKET_URL=https://api.metals.dev/v1/latest
-METALS_SPOT_CACHE_MS=1500
-METALS_SPOT_FALLBACK_CACHE_MS=20000
-METALS_SPOT_SSE_POLL_MS=1000
-```
+**Synthetic real-time mock (dev / load testing only):**
 
-Shorter `METALS_SPOT_CACHE_MS` / `METALS_SPOT_SSE_POLL_MS` refresh the UI more often but **increase calls** to metals.dev (mind the **free plan monthly request cap**).
-
-If the ERP widget shows **Fallback** / **inventory**, open the orange error line: it now includes metals.dev’s **`error_message`** (for example invalid key, quota, or billing). Common fixes: paste `METALS_DEV_API_KEY` **without** wrapping quotes, **no** spaces or line breaks; confirm the key on [metals.dev/dashboard](https://metals.dev/dashboard); check **monthly request limits** on the free plan.
-
-If you host a compatible JSON endpoint, set `METALS_MARKET_URL` to that URL; the backend will not require `METALS_DEV_API_KEY` when the default metals.dev host is not used.
-
-**Alternate free feeds (quota / no metals.dev key):**
-
-1. **FRED (St. Louis Fed)** — [Get an API key](https://fred.stlouisfed.org/docs/api/api_key.html). With only `FRED_API_KEY`, the backend uses **gold** by default (`GOLDPMGBD228NLBM`, London PM USD per troy oz). Set optional series IDs for other metals after you pick them on [fred.stlouisfed.org](https://fred.stlouisfed.org/):
-
-```
-FRED_API_KEY=<your FRED key>
-# FRED_METALS_SERIES_GOLD=GOLDPMGBD228NLBM   # default if omitted
-# FRED_METALS_SERIES_SILVER=
-# FRED_METALS_SERIES_PLATINUM=
-# FRED_METALS_SERIES_PALLADIUM=
-```
-
-2. **Alpha Vantage** — [Free API key](https://www.alphavantage.co/support/#api-key). Uses `GOLD_SILVER_SPOT` for gold/silver and `CURRENCY_EXCHANGE_RATE` for XPT/USD and XPD/USD (availability depends on Alpha’s data). The free tier is **25 requests/day**; use a **large** `METALS_SPOT_CACHE_MS` (for example `3600000`) and a slower `METALS_SPOT_SSE_POLL_MS` so you do not burn the daily cap on dashboard refreshes.
-
-```
-ALPHA_VANTAGE_API_KEY=<key>
-# or: METALS_ALPHA_VANTAGE_API_KEY=<key>
-```
-
-**Synthetic real-time mock (free — for SSE / UI testing only):**
-
-When enabled, the server **does not call** metals.dev, FRED, or Alpha; prices are a **small random walk** in USD/troy oz so the widget can show **live ticks** as fast as `METALS_SPOT_SSE_POLL_MS`. **Off in production** unless you also set `METALS_SPOT_MOCK_REALTIME_ALLOW_PRODUCTION=true` (discouraged).
+When enabled, the server **does not call** metals.dev, FRED, or Alpha; prices are a **small random walk** in USD/troy oz. **Off in production** unless you also set `METALS_SPOT_MOCK_REALTIME_ALLOW_PRODUCTION=true` (discouraged).
 
 ```
 METALS_SPOT_MOCK_REALTIME=true

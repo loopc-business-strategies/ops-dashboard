@@ -38,23 +38,13 @@ require('dotenv').config() // load .env variables FIRST
   }
 
   if (process.env.NODE_ENV === 'production') {
-    const metalsKey = String(process.env.METALS_DEV_API_KEY || process.env.METALS_API_KEY || '').trim()
-    const customMetalsUrl = String(process.env.METALS_MARKET_URL || '').trim()
-    const defaultMetalsDev = 'https://api.metals.dev/v1/latest'
-    const norm = (u) => String(u || '').trim().replace(/\/+$/, '').toLowerCase()
-    const usesDefaultMetalsHost = !customMetalsUrl || norm(customMetalsUrl) === norm(defaultMetalsDev)
-    const fredKey = String(process.env.FRED_API_KEY || '').trim()
-    const alphaKey = String(process.env.METALS_ALPHA_VANTAGE_API_KEY || process.env.ALPHA_VANTAGE_API_KEY || '').trim()
-    if (!metalsKey && usesDefaultMetalsHost && !fredKey && !alphaKey) {
-      console.warn('[startup] ERP live spot metals: set METALS_DEV_API_KEY on Railway (sign up at https://metals.dev), or set FRED_API_KEY / ALPHA_VANTAGE_API_KEY for alternate feeds — see ENV-VARS-QUICK-REFERENCE.md. Without any of these, spot uses inventory / saved metal rates only.')
-    }
     const mockSpot = String(process.env.METALS_SPOT_MOCK_REALTIME || '').trim().toLowerCase()
     if (mockSpot === '1' || mockSpot === 'true' || mockSpot === 'yes') {
       const prod = String(process.env.NODE_ENV || '').toLowerCase() === 'production'
       const allowMockProd = String(process.env.METALS_SPOT_MOCK_REALTIME_ALLOW_PRODUCTION || '').trim().toLowerCase()
       const allow = allowMockProd === '1' || allowMockProd === 'true' || allowMockProd === 'yes'
       if (!prod || allow) {
-        console.warn('[startup] METALS_SPOT_MOCK_REALTIME is on — ERP spot widget uses synthetic prices (not real market data).')
+        console.warn('[startup] METALS_SPOT_MOCK_REALTIME is on — synthetic metal prices for API/market routes (not real market data).')
       }
     }
   }

@@ -23,7 +23,6 @@ import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage, LANGUAGES } from '../context/LanguageContext'
 import { getTenantBranding } from '../config/tenantBranding'
 import BuildInfoBadge from '../components/BuildInfoBadge'
-import axios from '../api/client'
 import { startUserNotifications } from '../utils/realtimeSocket'
 
 // Import tab content components
@@ -143,7 +142,7 @@ function getNavItems(perms, t, chatUnread = 0, branding) {
 }
 
 // ── Render the content for each tab ────────────
-function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, onErpMetalRatesChange) {
+function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab) {
   switch (tabId) {
     case 'overview':
       return <OverviewTab onNavigate={setActiveTab} />
@@ -176,7 +175,7 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, onErpMetalRate
       return <TrainingTab />
 
     case 'erp':
-      return <ERPTab focusTab={erpSubTab} onNavigateMain={setActiveTab} onMetalRatesChange={onErpMetalRatesChange} />
+      return <ERPTab focusTab={erpSubTab} onNavigateMain={setActiveTab} />
 
     case 'procurement-plus':
       return (
@@ -197,11 +196,11 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, onErpMetalRate
   }
 }
 
-function renderTabContent(tabId, setActiveTab, setChatUnread, erpSubTab, onErpMetalRatesChange) {
+function renderTabContent(tabId, setActiveTab, setChatUnread, erpSubTab) {
   return (
     <TabErrorBoundary resetKey={tabId}>
       <Suspense fallback={<TabLoadingFallback />}>
-        {renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, onErpMetalRatesChange)}
+        {renderTab(tabId, setActiveTab, setChatUnread, erpSubTab)}
       </Suspense>
     </TabErrorBoundary>
   )
@@ -210,13 +209,7 @@ function renderTabContent(tabId, setActiveTab, setChatUnread, erpSubTab, onErpMe
 // ══════════════════════════════════════════════
 // MAIN DASHBOARD COMPONENT
 // ══════════════════════════════════════════════
-function Dashboard({
-  goldPrice = 0,
-  silverPrice = 0,
-  platinumPrice = 0,
-  palladiumPrice = 0,
-  metalRatesUpdatedAt = null,
-}) {
+function Dashboard() {
   const { user, token, logout, company } = useAuth()
   const perms = usePermissions()
   const navigate = useNavigate()
@@ -230,22 +223,10 @@ function Dashboard({
   const [erpSubTab,    setErpSubTab]    = useState('dashboard')
   const [chatUnread,   setChatUnread]   = useState(0)
   const [langMenuOpen, setLangMenuOpen] = useState(false)
-  const [metalMenuOpen, setMetalMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
-  const [selectedMetal, setSelectedMetal] = useState('gold')
-  const [metalRates, setMetalRates] = useState({ gold: 0, silver: 0, platinum: 0 })
-  const [showMetalDropdown, setShowMetalDropdown] = useState(false)
-  const [latestMetalRates, setLatestMetalRates] = useState({
-    goldPrice: null,
-    silverPrice: null,
-    platinumPrice: null,
-    palladiumPrice: null,
-    updatedAt: null,
-  })
   const [notifications, setNotifications] = useState([])
   const langMenuRef = useRef(null)
-  const metalMenuRef = useRef(null)
   const notifMenuRef = useRef(null)
   const accountMenuRef = useRef(null)
 
@@ -286,14 +267,6 @@ function Dashboard({
       root.style.setProperty('--grad-bar', prevGradBar)
     }
   }, [branding])
-
-  useEffect(() => {
-    const handleClickOutside = () => {
-      setShowMetalDropdown(false)
-    }
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [])
 
   const clearHideTimer = () => {
     if (hideTimerRef.current) {
@@ -350,17 +323,6 @@ function Dashboard({
   }, [langMenuOpen])
 
   useEffect(() => {
-    if (!metalMenuOpen) return
-    const handler = (e) => {
-      if (metalMenuRef.current && !metalMenuRef.current.contains(e.target)) {
-        setMetalMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [metalMenuOpen])
-
-  useEffect(() => {
     if (!notifOpen) return
     const handler = (e) => {
       if (notifMenuRef.current && !notifMenuRef.current.contains(e.target)) {
@@ -406,33 +368,6 @@ function Dashboard({
       },
     })
   }, [token, user])
-
-  useEffect(() => {
-    let mounted = true
-    const fetchMetalRates = async () => {
-      try {
-        const res = await axios.get('/api/erp-accounting/metal-rates', { withCredentials: true })
-        const rates = res.data?.rates || {}
-        if (!mounted) return
-        setMetalRates({
-          gold: Number(rates.goldPrice || 0),
-          silver: Number(rates.silverPrice || 0),
-          platinum: Number(rates.platinumPrice || rates.platinum || 0),
-        })
-        setLatestMetalRates({
-          goldPrice: rates.goldPrice ?? null,
-          silverPrice: rates.silverPrice ?? null,
-          platinumPrice: rates.platinumPrice ?? null,
-          palladiumPrice: rates.palladiumPrice ?? null,
-          updatedAt: rates.updatedAt ?? null,
-        })
-      } catch {
-        // Keep fallback values if endpoint is unavailable.
-      }
-    }
-    fetchMetalRates()
-    return () => { mounted = false }
-  }, [])
 
   // Sync active tab from URL search params
   useEffect(() => {
@@ -486,20 +421,7 @@ function Dashboard({
   const deptItems  = navItems.filter(n => n.group === 'departments')
   const erpItems   = navItems.filter(n => n.group === 'erp')
 
-  const headerGoldPrice = Number(latestMetalRates?.goldPrice || goldPrice || 0)
-  const headerSilverPrice = Number(latestMetalRates?.silverPrice || silverPrice || 0)
-  const headerPlatinumPrice = Number(latestMetalRates?.platinumPrice || platinumPrice || 0)
-  const headerPalladiumPrice = Number(latestMetalRates?.palladiumPrice || palladiumPrice || 0)
-  const headerMetalRatesUpdatedAt = latestMetalRates?.updatedAt || metalRatesUpdatedAt || null
-
   const handleLogout = () => { logout(); navigate('/login') }
-
-  const metalOptions = [
-    { key: 'gold', label: 'Gold', color: '#FACC15' },
-    { key: 'silver', label: 'Silver', color: '#D1D5DB' },
-    { key: 'platinum', label: 'Platinum', color: '#9CA3AF' },
-  ]
-  const selectedMetalOption = metalOptions.find((m) => m.key === selectedMetal) || metalOptions[0]
   const languageCode = (langMeta?.code || 'en').toUpperCase()
   const tenantShortCode = (branding.displayName || user?.company || company || 'NA')
     .replace(/[^A-Za-z]/g, '')
@@ -701,61 +623,6 @@ function Dashboard({
                 </span>
               )}
 
-              {/* Metal price dropdown */}
-              <div className="relative" ref={metalMenuRef}>
-                <button
-                  onClick={() => setMetalMenuOpen(v => !v)}
-                  className="flex items-center gap-1 px-2 h-7 rounded-lg text-xs transition-all"
-                  style={{
-                    background: metalMenuOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    color: '#ffffff',
-                  }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 999, background: selectedMetalOption.color }} />
-                  <span className="hidden lg:inline" style={{ fontWeight: 700, fontSize: 11 }}>{selectedMetalOption.label}</span>
-                  <span style={{ fontWeight: 700, fontSize: 11 }}>
-                    {Number(metalRates[selectedMetal] || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                  </span>
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{ opacity: 0.5, marginTop: 1 }}>
-                    <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
-
-                {metalMenuOpen && (
-                  <div
-                    className="absolute mt-1 py-1 rounded-xl shadow-2xl"
-                    style={{
-                      right: 0,
-                      top: '100%',
-                      minWidth: 200,
-                      zIndex: 9999,
-                      background: '#1e293b',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
-                    }}>
-                    {metalOptions.map((m) => (
-                      <button
-                        key={m.key}
-                        onClick={() => { setSelectedMetal(m.key); setMetalMenuOpen(false) }}
-                        className="w-full flex items-center justify-between gap-2.5 px-3 py-2.5 text-sm transition-all"
-                        style={{
-                          color: m.key === selectedMetal ? '#a78bfa' : 'rgba(255,255,255,0.88)',
-                          background: m.key === selectedMetal ? 'rgba(139,92,246,0.15)' : 'transparent',
-                          textAlign: 'left',
-                        }}>
-                        <span className="flex items-center gap-2">
-                          <span style={{ width: 8, height: 8, borderRadius: 999, background: m.color }} />
-                          <span>{m.label}</span>
-                        </span>
-                        <span style={{ fontWeight: 700 }}>
-                          {Number(metalRates[m.key] || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
               {/* Notification dropdown */}
               <div className="relative" ref={notifMenuRef}>
                 <button
@@ -931,71 +798,6 @@ function Dashboard({
                 )}
               </div>
 
-              {/* Show ONLY on ERP Dashboard tab */}
-              {activeTab === 'erp' && erpSubTab === 'dashboard' && (
-                <>
-                  {/* ── GOLD PRICE BADGE ── */}
-                  <div className="relative right-0" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => setShowMetalDropdown(prev => !prev)}
-                      className="flex items-center gap-1.5 bg-gray-900 border border-yellow-500
-                                 rounded-lg px-3 py-1.5 cursor-pointer text-yellow-500
-                                 text-xs font-bold hover:bg-gray-800 transition-colors"
-                    >
-                      🥇 Gold
-                      <span className="text-white font-semibold">
-                        {headerGoldPrice > 0
-                          ? `USD ${Number(headerGoldPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
-                          : '---'}
-                      </span>
-                      <span className="text-gray-500 text-[9px]">▼</span>
-                    </button>
-
-                    {showMetalDropdown && (
-                      <div className="absolute top-[110%] right-0 bg-gray-900 border border-gray-700
-                                      rounded-xl p-4 min-w-[240px] z-[9999]
-                                      shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
-                        <p className="text-[10px] text-gray-500 font-bold tracking-widest
-                                       uppercase mb-3">
-                          Live Metal Prices
-                        </p>
-                        {[
-                          { label: 'Gold',      symbol: 'XAU', price: headerGoldPrice,      color: 'text-yellow-400', dot: 'bg-yellow-400' },
-                          { label: 'Silver',    symbol: 'XAG', price: headerSilverPrice,    color: 'text-gray-300',   dot: 'bg-gray-400'   },
-                          { label: 'Platinum',  symbol: 'XPT', price: headerPlatinumPrice,  color: 'text-blue-400',   dot: 'bg-blue-400'   },
-                          { label: 'Palladium', symbol: 'XPD', price: headerPalladiumPrice, color: 'text-pink-400',   dot: 'bg-pink-400'   },
-                        ].map(m => (
-                          <div key={m.symbol}
-                            className="flex justify-between items-center py-2 border-b border-gray-700 last:border-0">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${m.dot}`} />
-                              <span className={`${m.color} font-bold text-xs`}>{m.label}</span>
-                              <span className="text-gray-500 text-[10px]">{m.symbol}</span>
-                            </div>
-                            <span className="text-white font-bold text-xs">
-                              {m.price && Number(m.price) > 0
-                                ? `USD ${Number(m.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
-                                : '---'}
-                            </span>
-                          </div>
-                        ))}
-                        <div className="mt-3 pt-2 border-t border-gray-700 flex justify-between items-center">
-                          <span className="text-[9px] text-gray-600">Source: Live Feed</span>
-                          <span className="text-[9px] text-gray-500">
-                            {headerMetalRatesUpdatedAt
-                              ? `Updated ${new Date(headerMetalRatesUpdatedAt).toLocaleString('en-US', {
-                                  day: 'numeric', month: 'numeric', year: 'numeric',
-                                  hour: '2-digit', minute: '2-digit'
-                                })}`
-                              : 'Updates every 60s'}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                </>
-              )}
             </div>
           </div>
         </header>
@@ -1007,11 +809,11 @@ function Dashboard({
         >
           {activeTab === 'chat' ? (
             <div className="flex-1 min-h-0 flex flex-col">
-              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, setLatestMetalRates)}
+              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab)}
             </div>
           ) : (
             <div className="flex-1 min-h-0" style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
-              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, setLatestMetalRates)}
+              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab)}
             </div>
           )}
         </main>

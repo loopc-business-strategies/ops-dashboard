@@ -18,17 +18,6 @@ export default function ERPDashboardTab({
   setDashPickSelected,
   dashDragSrc,
   ERP_DASH_ALL_WIDGETS,
-  fixingRegFilter,
-  setFixingRegFilter,
-  fixingRegisterStockTypeOptions,
-  fixingRegResults,
-  fixingRegOpening,
-  fixingRegLoading,
-  fixingRegError,
-  handleFixingRegProceed,
-  fixingRegFmtQty,
-  fixingRegFmtRate,
-  fixingRegFmtAmt,
   dashboard,
   dashChatMessages,
   setActiveTab,
@@ -93,24 +82,8 @@ export default function ERPDashboardTab({
                 const rawCols = dashWidgetCols[wid] ?? meta.cols
                 const span = Math.min(Math.max(Number(rawCols) || 1, 1), 3)
                 const isHovered = dashHoveredWid === wid
-                const edgeToEdge = wid === 'margins' || wid === 'apar' || wid === 'fixing'
-                const widgetOptions = wid === 'fixing'
-                  ? {
-                    fixingRegister: {
-                      filter: fixingRegFilter,
-                      setFilter: setFixingRegFilter,
-                      metalOptions: fixingRegisterStockTypeOptions,
-                      results: fixingRegResults,
-                      opening: fixingRegOpening,
-                      loading: fixingRegLoading,
-                      error: fixingRegError,
-                      onRefresh: handleFixingRegProceed,
-                      formatQty: fixingRegFmtQty,
-                      formatRate: fixingRegFmtRate,
-                      formatAmount: fixingRegFmtAmt,
-                    },
-                  }
-                  : {}
+                const edgeToEdge = wid === 'margins' || wid === 'apar'
+                const widgetOptions = {}
                 return (
                   <div
                     key={wid}

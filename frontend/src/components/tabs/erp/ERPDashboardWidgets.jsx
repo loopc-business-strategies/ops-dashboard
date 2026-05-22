@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { DonutChart } from './ERPTabCharts'
-import { BASE, axios, getAuthConfig } from '../../../api/erp-accounting/client'
 
 function fmtMoney(val, currency = '') {
   const n = Number(val || 0)
@@ -116,8 +115,6 @@ function MarginsWidget({ dashboard, onNavigate }) {
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Silver Position</th>
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Equity</th>
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Margin</th>
-                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Excess</th>
-                  <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontSize: '0.65rem', fontWeight: '700', color: muted }}>Status</th>
                   <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right',  fontSize: '0.65rem', fontWeight: '700', color: muted }}>Margin %</th>
                 </tr></thead>
                 <tbody>
@@ -128,8 +125,6 @@ function MarginsWidget({ dashboard, onNavigate }) {
                       <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '600', color: Number(c.silverPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{fmtPosition(c.silverPosition)}</td>
                       <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: c.equity > 0 ? '#16A34A' : c.equity < 0 ? '#DC2626' : ink }}>{c.equityFmt}</td>
                       <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.marginAmountFmt}</td>
-                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', fontWeight: '500', color: c.excess < 0 ? '#DC2626' : '#1D4ED8', fontFamily: 'Consolas, monospace', fontVariantNumeric: 'tabular-nums' }}>{c.excessFmt}</td>
-                      <td style={{ padding: '0.35rem 0.4rem', textAlign: 'center', fontWeight: '700', fontSize: '0.68rem', color: statusColor(c.status) }}>{c.status}</td>
                       <td style={{ padding: '0.35rem 0.4rem', textAlign: 'right', color: muted }}>{c.marginFmt}</td>
                     </tr>
                   ))}
@@ -248,335 +243,6 @@ function MarginsWidget({ dashboard, onNavigate }) {
   )
 }
 
-const SPOT_METAL_ROWS = [
-  { key: 'gold', label: 'Gold', symbol: 'XAU', color: '#D97706' },
-  { key: 'silver', label: 'Silver', symbol: 'XAG', color: '#64748B' },
-  { key: 'platinum', label: 'Platinum', symbol: 'XPT', color: '#4F46E5' },
-  { key: 'palladium', label: 'Palladium', symbol: 'XPD', color: '#0F766E' },
-]
-
-/** Trading-style spot strip: USD per troy oz, fast refresh, tick flash on change. */
-function SpotMetalsLiveWidget() {
-  const currency = 'USD'
-  const unit = 'toz'
-  const [market, setMarket] = useState({
-    metals: {},
-    currency: 'USD',
-    unit: 'toz',
-    source: '',
-    updatedAt: null,
-    warning: '',
-    feedStatus: '',
-    cached: false,
-    streamSeq: 0,
-    streamAt: null,
-  })
-  const [history, setHistory] = useState({})
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [transport, setTransport] = useState('loading')
-  const [tickDir, setTickDir] = useState({})
-  const lastMid = useRef({})
-
-  useEffect(() => {
-    let cancelled = false
-    let es = null
-    let pollTimer = null
-    let fallbackTimer = null
-    let gotStreamMessage = false
-
-    const applyPayload = (payload, { showSpinner } = { showSpinner: false }) => {
-      if (!payload || payload.success === false) {
-        setError(payload?.message || 'Spot feed unavailable')
-        if (showSpinner) setLoading(false)
-        return
-      }
-      const metals = payload.metals || {}
-      const nextDir = {}
-      SPOT_METAL_ROWS.forEach(({ key }) => {
-        const n = Number(metals[key] || 0)
-        const prev = Number(lastMid.current[key])
-        if (Number.isFinite(n) && n > 0 && Number.isFinite(prev) && prev > 0 && n !== prev) {
-          nextDir[key] = n > prev ? 'up' : 'down'
-        }
-      })
-      lastMid.current = {
-        ...lastMid.current,
-        ...Object.fromEntries(SPOT_METAL_ROWS.map(({ key }) => [key, Number(metals[key] || 0)])),
-      }
-      if (Object.keys(nextDir).length) {
-        setTickDir(nextDir)
-        window.setTimeout(() => setTickDir({}), 700)
-      }
-
-      setMarket({
-        metals,
-        currency: payload.currency || currency,
-        unit: payload.unit || unit,
-        source: payload.source || '',
-        updatedAt: payload.updatedAt || payload.generatedAt || null,
-        warning: payload.warning || '',
-        feedStatus: payload.feedStatus || '',
-        cached: Boolean(payload.cached),
-        streamSeq: Number(payload.streamSeq || 0),
-        streamAt: payload.streamAt != null ? Number(payload.streamAt) : null,
-      })
-      setHistory((prev) => {
-        const next = { ...prev }
-        const forceTape = Number(payload.streamSeq || 0) > 0
-        Object.entries(metals).forEach(([metal, price]) => {
-          const n = Number(price || 0)
-          if (!Number.isFinite(n) || n <= 0) return
-          const arr = next[metal] || []
-          const last = arr[arr.length - 1]
-          if (!forceTape && Number(last) === n) return
-          next[metal] = [...arr, n].slice(-64)
-        })
-        return next
-      })
-      setError('')
-      if (showSpinner) setLoading(false)
-    }
-
-    const pollOnce = async (showSpinner) => {
-      if (cancelled) return
-      if (showSpinner) setLoading(true)
-      try {
-        const { data: payload } = await axios.get(`${BASE}/reports/market-prices`, getAuthConfig(null, { currency, unit }))
-        applyPayload(payload, { showSpinner })
-      } catch (err) {
-        setError(err.response?.data?.message || 'Spot feed unavailable')
-        if (showSpinner) setLoading(false)
-      }
-    }
-
-    const startPolling = () => {
-      if (pollTimer || cancelled) return
-      setTransport('poll')
-      void pollOnce(true)
-      pollTimer = window.setInterval(() => { void pollOnce(false) }, 3200)
-    }
-
-    const cleanup = () => {
-      cancelled = true
-      window.clearTimeout(fallbackTimer)
-      if (es) {
-        es.close()
-        es = null
-      }
-      if (pollTimer) {
-        window.clearInterval(pollTimer)
-        pollTimer = null
-      }
-    }
-
-    if (typeof EventSource === 'undefined') {
-      startPolling()
-      return cleanup
-    }
-
-    const streamUrl = `${BASE}/reports/market-prices/stream?currency=${encodeURIComponent(currency)}&unit=${encodeURIComponent(unit)}`
-    setLoading(true)
-
-    try {
-      es = new EventSource(streamUrl, { withCredentials: true })
-    } catch {
-      startPolling()
-      return cleanup
-    }
-
-    fallbackTimer = window.setTimeout(() => {
-      if (cancelled || gotStreamMessage) return
-      if (es) {
-        es.close()
-        es = null
-      }
-      startPolling()
-    }, 5000)
-
-    let firstSse = true
-    es.onmessage = (ev) => {
-      if (cancelled) return
-      try {
-        gotStreamMessage = true
-        window.clearTimeout(fallbackTimer)
-        applyPayload(JSON.parse(ev.data), { showSpinner: firstSse })
-        firstSse = false
-        setTransport('sse')
-      } catch {
-        /* ignore malformed chunk */
-      }
-    }
-
-    es.onerror = () => {
-      if (cancelled) return
-      if (!gotStreamMessage) return
-      if (es) {
-        es.close()
-        es = null
-      }
-      startPolling()
-    }
-
-    return cleanup
-  }, [currency, unit])
-
-  const live = String(market.feedStatus || '').toLowerCase() === 'live'
-  const spotDecimals = live ? 4 : 2
-  const money = (value) =>
-    `USD ${Number(value || 0).toLocaleString('en-US', {
-      minimumFractionDigits: spotDecimals,
-      maximumFractionDigits: spotDecimals,
-    })}`
-
-  const spark = (values, stroke) => {
-    const data = (values || []).filter((v) => Number.isFinite(v) && v > 0)
-    if (data.length === 0) {
-      return (
-        <svg width="88" height="36" viewBox="0 0 88 36" aria-hidden="true" style={{ flexShrink: 0 }}>
-          <line x1="4" y1="18" x2="84" y2="18" stroke="#cbd5e1" strokeWidth="1.2" strokeDasharray="4 3" strokeLinecap="round" />
-        </svg>
-      )
-    }
-    if (data.length === 1) {
-      return (
-        <svg width="88" height="36" viewBox="0 0 88 36" aria-hidden="true" style={{ flexShrink: 0 }}>
-          <line x1="4" y1="18" x2="84" y2="18" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-      )
-    }
-    const min = Math.min(...data)
-    const max = Math.max(...data)
-    const range = max - min || Math.max(Math.abs(max) * 0.0001, 1e-9)
-    const points = data.map((v, index) => `${(index / (data.length - 1)) * 88},${30 - ((v - min) / range) * 22 + 4}`).join(' ')
-    return (
-      <svg width="88" height="36" viewBox="0 0 88 36" aria-hidden="true" style={{ flexShrink: 0 }}>
-        <polyline points={points} fill="none" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    )
-  }
-
-  return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '0.65rem',
-          flexWrap: 'wrap',
-          marginBottom: '0.65rem',
-          padding: '0.5rem 0.55rem',
-          borderRadius: '0.45rem',
-          background: live ? 'linear-gradient(90deg,#052e1a 0%,#0f172a 55%,#0f172a 100%)' : 'linear-gradient(90deg,#422006 0%,#1e293b 100%)',
-          border: `1px solid ${live ? '#14532d' : '#78350f'}`,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
-          <span
-            aria-hidden="true"
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 999,
-              background: live ? '#22c55e' : '#f59e0b',
-              boxShadow: live ? '0 0 0 6px rgba(34,197,94,0.18)' : 'none',
-              flexShrink: 0,
-            }}
-          />
-          <div style={{ minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: '0.72rem', fontWeight: '800', color: '#f8fafc', letterSpacing: '0.04em' }}>SPOT · USD / troy oz</p>
-            <p style={{ margin: '0.12rem 0 0', fontSize: '0.62rem', color: '#94a3b8', fontWeight: '600' }}>
-              {loading ? 'Updating…' : (
-                <>
-                  {live
-                    ? (transport === 'sse' ? 'Live push (SSE)' : transport === 'poll' ? 'Live (poll)' : 'Connecting…')
-                    : 'Fallback'}
-                  {(() => {
-                    const t = market.streamAt != null ? new Date(market.streamAt) : market.updatedAt ? new Date(market.updatedAt) : null
-                    if (!t) return null
-                    return ` · ${t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
-                  })()}
-                  {live && market.streamSeq ? ` · #${market.streamSeq}` : ''}
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-        <div style={{ fontSize: '0.62rem', fontWeight: '700', color: '#e2e8f0', textAlign: 'right', maxWidth: '11rem' }}>
-          {live ? (market.source || 'metals.dev') : (market.source || 'local')}
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gap: '0.2rem' }}>
-        {SPOT_METAL_ROWS.map((metal) => {
-          const rawPrice = Number(market.metals?.[metal.key] || 0)
-          const values = history[metal.key] || (rawPrice > 0 ? [rawPrice] : [])
-          const base = Number(values[0] || rawPrice)
-          const change = base > 0 && rawPrice > 0 ? rawPrice - base : 0
-          const changePct = base > 0 && rawPrice > 0 ? (change / base) * 100 : 0
-          const tick = tickDir[metal.key]
-          const up = change >= 0
-          const stroke = tick === 'up' ? '#22c55e' : tick === 'down' ? '#ef4444' : up ? '#16a34a' : '#dc2626'
-          const rowBg = tick === 'up' ? 'rgba(34,197,94,0.12)' : tick === 'down' ? 'rgba(239,68,68,0.1)' : 'transparent'
-
-          return (
-            <div
-              key={metal.key}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(92px, 1fr) 92px minmax(118px, auto)',
-                gap: '0.5rem',
-                alignItems: 'center',
-                padding: '0.48rem 0.35rem',
-                borderBottom: '1px solid #e2e8f0',
-                borderRadius: '0.35rem',
-                background: rowBg,
-                transition: 'background 0.35s ease',
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 8, background: metal.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.78rem', color: '#0f172a', fontWeight: '800' }}>{metal.label}</span>
-                  <span style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: '800' }}>{metal.symbol}</span>
-                </div>
-                <div style={{ marginTop: 2, fontSize: '0.6rem', color: '#64748b', fontWeight: '600' }}>1 troy oz mid · strip {values.length}×</div>
-              </div>
-              {spark(values.length ? values : [], stroke)}
-              <div style={{ textAlign: 'right' }}>
-                <div
-                  style={{
-                    color: rawPrice > 0 ? '#0f172a' : '#94a3b8',
-                    fontWeight: '900',
-                    fontSize: '0.92rem',
-                    fontVariantNumeric: 'tabular-nums',
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                    letterSpacing: '-0.02em',
-                  }}
-                >
-                  {rawPrice > 0 ? money(rawPrice) : '—'}
-                </div>
-                <div style={{ color: stroke, fontSize: '0.64rem', fontWeight: '800', fontVariantNumeric: 'tabular-nums' }}>
-                  {rawPrice > 0 && base > 0 && values.length >= 2
-                    ? `${up ? '+' : ''}${money(change)} · ${up ? '+' : ''}${changePct.toFixed(3)}% strip`
-                    : ' '}
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {(error || market.warning) && (
-        <p style={{ margin: '0.55rem 0 0', color: '#b45309', fontSize: '0.68rem', lineHeight: 1.45, fontWeight: '600' }}>
-          {error || market.warning}
-        </p>
-      )}
-    </div>
-  )
-}
-
 // ── AP/AR Widget — AR / AP tabs, full 3-col width ─────────────
 function APARWidget({ dashboard, onNavigate }) {
   const [tab, setTab] = useState('ar')
@@ -652,300 +318,87 @@ function APARWidget({ dashboard, onNavigate }) {
 }
 
 
-function FixingRegisterDashboardWidget({ fixingRegister, onNavigate, fallbackPositions = [] }) {
-  const filter = fixingRegister?.filter || {}
-  const setFilter = fixingRegister?.setFilter
-  const results = Array.isArray(fixingRegister?.results) ? fixingRegister.results : []
-  const opening = fixingRegister?.opening || { qtyOz: 0, value: 0 }
-  const loading = Boolean(fixingRegister?.loading)
-  const error = fixingRegister?.error || ''
-  const options = Array.isArray(fixingRegister?.metalOptions) ? fixingRegister.metalOptions : []
-  const refresh = fixingRegister?.onRefresh
-  const fmtQty = fixingRegister?.formatQty || ((value) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 4 }))
-  const fmtRate = fixingRegister?.formatRate || ((value) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }))
-  const fmtAmt = fixingRegister?.formatAmount || ((value) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
-  const qUnit = filter.quantityUnit || 'GOZ'
-  const rUnit = filter.rateUnit || 'GOZ'
-  const metalCodeLabel = String(filter.metalType || '').split('::')[0].toUpperCase() || 'ALL'
-  const hasRegisterState = Boolean(fixingRegister)
-  const selectedParty = filter.partyFilter === 'selected'
-
-  const updateFilter = (patch) => {
-    if (!setFilter) return
-    setFilter((prev) => ({ ...prev, ...patch }))
+function FixingPositionSummaryWidget({ dashboard, onNavigate }) {
+  const positions = Array.isArray(dashboard?.fixingPositions) ? dashboard.fixingPositions : []
+  const normaliseMetalCode = (position = {}) => {
+    const raw = String(position.code || position.metal || '').trim().toUpperCase()
+    if (raw.includes('XAU') || raw.includes('GOLD')) return 'XAU'
+    if (raw.includes('XAG') || raw.includes('SILV')) return 'XAG'
+    if (raw.includes('XPT') || raw.includes('PLAT')) return 'XPT'
+    if (raw.includes('XPD') || raw.includes('PALL')) return 'XPD'
+    return raw
   }
-  const isQtyImpactRow = (row) => String(row?.fixingMode || '').trim().toLowerCase() !== 'unfixing'
-  const totalBuyOz = results.filter((r) => r.direction === 'buy' && isQtyImpactRow(r)).reduce((s, r) => s + Number(r.qty || 0), 0)
-  const totalSellOz = results.filter((r) => r.direction === 'sell' && isQtyImpactRow(r)).reduce((s, r) => s + Number(r.qty || 0), 0)
-  const netOz = totalBuyOz - totalSellOz
-  const openingQtyOz = filter.excludeOpeningBalance ? 0 : Number(opening.qtyOz || 0)
-  const openingValue = filter.excludeOpeningBalance ? 0 : Number(opening.value || 0)
-  const getRowSignedValue = (row) => {
-    const amount = Number(row?.amount || 0)
-    if (String(row?.fixingMode || '').trim().toLowerCase() === 'unfixing') return amount
-    return String(row?.direction || '').toLowerCase() === 'buy' ? amount : -amount
+  const byMetal = new Map(
+    positions
+      .map((p) => [normaliseMetalCode(p), p])
+      .filter(([code]) => ['XAU', 'XAG', 'XPT', 'XPD'].includes(code))
+  )
+  const rows = [
+    { code: 'XAU', title: 'Gold', subtitle: 'XAU' },
+    { code: 'XAG', title: 'Silver', subtitle: 'XAG' },
+    { code: 'XPT', title: 'Platinum', subtitle: 'XPT' },
+    { code: 'XPD', title: 'Palladium', subtitle: 'XPD' },
+  ].map((row) => {
+    const p = byMetal.get(row.code) || {}
+    const net = Number(p.netPosition ?? p.qty ?? 0)
+    const unit = String(p.unit || 'GOZ').toUpperCase()
+    return { ...row, net, unit }
+  })
+  const fmt = (n, u) => {
+    const rounded = Math.abs(n) < 0.0005 ? 0 : n
+    if (Math.abs(rounded) < 0.0005) return `0.000 ${u}`
+    const abs = Math.abs(rounded).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 4 })
+    const sign = rounded > 0 ? '+' : '-'
+    return `${sign}${abs} ${u}`
   }
-  const txnNetValue = results.reduce((sum, row) => sum + getRowSignedValue(row), 0)
-  const closingQtyOz = openingQtyOz + netOz
-  const closingValue = openingValue + txnNetValue
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '-'
-  const fmtSignedAmt = (v) => {
-    const n = Number(v || 0)
-    const abs = fmtAmt(Math.abs(n))
-    return n < 0 ? `(${abs})` : abs
-  }
-  const fmtSignedQty = (v) => {
-    const n = Number(v || 0)
-    const abs = fmtQty(Math.abs(n), qUnit)
-    return n < 0 ? `(${abs})` : abs
-  }
-  const fmtSignedRate = (v) => {
-    const n = Number(v || 0)
-    const abs = fmtRate(Math.abs(n), rUnit)
-    return n < 0 ? `(${abs})` : abs
-  }
-  const fallbackTotal = fallbackPositions.reduce((s, p) => s + Number(p.amount || 0), 0)
-
-  const fieldStyle = {
-    width: '100%',
-    minHeight: 30,
-    padding: '0.32rem 0.5rem',
-    border: '1px solid #CBD5E1',
-    borderRadius: '0.3rem',
-    background: '#FFFFFF',
-    color: '#1E293B',
-    fontSize: '0.72rem',
-    fontWeight: '700',
-    boxSizing: 'border-box',
-  }
-  const labelStyle = { display: 'grid', gap: '0.18rem', color: '#64748B', fontSize: '0.6rem', fontWeight: '800' }
-  const head1 = { padding: '0.26rem 0.38rem', border: '1px solid #A7ADB7', background: '#F0CF8D', color: '#263241', fontSize: '0.62rem', fontWeight: '800', textTransform: 'uppercase', whiteSpace: 'nowrap' }
-  const head2 = { ...head1, padding: '0.2rem 0.38rem', background: '#F7E5BD', fontSize: '0.6rem' }
-  const cell = { padding: '0.26rem 0.4rem', border: '1px solid #D5DAE2', color: '#1F2937', background: '#FFFFFF' }
-  const numCell = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '600' }
-  let runningQtyOz = openingQtyOz
-  let runningAmount = openingValue
-
   return (
-    <div style={{ background: '#FFFFFF' }}>
-      <div style={{ padding: '0.55rem 0.7rem', borderBottom: '1px solid #E5E7EB' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '0.45rem', alignItems: 'end' }}>
-          <label style={labelStyle}>
-            Metal
-            <select value={filter.metalType || ''} onChange={(e) => updateFilter({ metalType: e.target.value })} style={fieldStyle} disabled={!hasRegisterState}>
-              {options.length ? options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>) : <option value="">All Metals</option>}
-            </select>
-          </label>
-          <label style={labelStyle}>
-            Quantity Unit
-            <select value={qUnit} onChange={(e) => updateFilter({ quantityUnit: e.target.value })} style={fieldStyle} disabled={!hasRegisterState}>
-              <option value="GOZ">GOZ - Troy Oz</option>
-              <option value="GRAM">GRAM</option>
-              <option value="KG">KG</option>
-              <option value="TOLA">TOLA</option>
-            </select>
-          </label>
-          <label style={labelStyle}>
-            Rate Unit
-            <select value={rUnit} onChange={(e) => updateFilter({ rateUnit: e.target.value })} style={fieldStyle} disabled={!hasRegisterState}>
-              <option value="GOZ">GOZ - per Troy Oz</option>
-              <option value="GRAM">GRAM</option>
-              <option value="KG">KG</option>
-              <option value="TOLA">TOLA</option>
-            </select>
-          </label>
-          <label style={labelStyle}>
-            From Date
-            <input type="date" value={filter.fromDate || ''} onChange={(e) => updateFilter({ fromDate: e.target.value })} style={fieldStyle} disabled={!hasRegisterState} />
-          </label>
-          <label style={labelStyle}>
-            To Date
-            <input type="date" value={filter.toDate || ''} onChange={(e) => updateFilter({ toDate: e.target.value })} style={fieldStyle} disabled={!hasRegisterState} />
-          </label>
-        </div>
-        <div style={{ marginTop: '0.45rem', display: 'grid', gridTemplateColumns: '1.15fr 0.9fr 1.45fr 0.75fr auto', gap: '0.45rem', alignItems: 'end' }}>
-          <label style={labelStyle}>
-            Order By
-            <select value={filter.orderBy || 'voucherNo'} onChange={(e) => updateFilter({ orderBy: e.target.value })} style={fieldStyle} disabled={!hasRegisterState}>
-              <option value="voucherNo">Voucher Number</option>
-              <option value="docDate">Doc Date</option>
-              <option value="valueDate">Value Date</option>
-            </select>
-          </label>
-          <label style={labelStyle}>
-            Group By
-            <select value={filter.groupBy || 'none'} onChange={(e) => updateFilter({ groupBy: e.target.value })} style={fieldStyle} disabled={!hasRegisterState}>
-              <option value="none">- None -</option>
-              <option value="customer">Customer</option>
-              <option value="branch">Branch</option>
-              <option value="valuedate">Value Date</option>
-            </select>
-          </label>
-          <div style={{ display: 'flex', gap: '0.55rem', alignItems: 'center', flexWrap: 'wrap', paddingBottom: '0.34rem' }}>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: '#059669', fontSize: '0.72rem', fontWeight: '800' }}>
-              <input type="radio" name="dashFixingPartyFilter" checked={(filter.partyFilter || 'all') === 'all'} onChange={() => updateFilter({ partyFilter: 'all' })} disabled={!hasRegisterState} />
-              All
-            </label>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: '#475569', fontSize: '0.72rem' }}>
-              <input type="radio" name="dashFixingPartyFilter" checked={filter.partyFilter === 'selected'} onChange={() => updateFilter({ partyFilter: 'selected' })} disabled={!hasRegisterState} />
-              Selected
-            </label>
-            {selectedParty && (
-              <input
-                placeholder="Party name"
-                value={filter.partySearch || ''}
-                onChange={(e) => updateFilter({ partySearch: e.target.value })}
-                style={{ ...fieldStyle, width: 180, minHeight: 28 }}
-                disabled={!hasRegisterState}
-              />
-            )}
-          </div>
-          <label style={labelStyle}>
-            Status
-            <select value={filter.status || 'preview'} onChange={(e) => updateFilter({ status: e.target.value })} style={fieldStyle} disabled={!hasRegisterState}>
-              <option value="preview">Preview</option>
-              <option value="final">Final</option>
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={refresh}
-            disabled={!refresh || loading}
-            style={{ minHeight: 30, padding: '0.3rem 0.72rem', borderRadius: '0.35rem', border: '1px solid #7DD3C7', background: loading ? '#CCFBF1' : '#ECFDF5', color: '#0F766E', fontWeight: '800', fontSize: '0.72rem', cursor: refresh && !loading ? 'pointer' : 'default' }}
+    <div style={{ padding: '0.65rem 0.75rem 0.75rem' }}>
+      <div style={{ display: 'grid', gap: '0.5rem' }}>
+        {rows.map((r) => (
+          <div
+            key={r.code}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr) auto',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: '0.55rem 0.65rem',
+              border: '1px solid #FBCFE8',
+              borderRadius: '0.45rem',
+              background: '#FDF2F8',
+            }}
           >
-            {loading ? 'Loading...' : 'Refresh'}
+            <div>
+              <div style={{ color: '#0F172A', fontSize: '0.8rem', fontWeight: '800' }}>{r.title}</div>
+              <div style={{ color: '#9D174D', fontSize: '0.64rem', fontWeight: '700', marginTop: '0.1rem' }}>{r.subtitle}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{
+                color: r.net < -0.0005 ? '#DC2626' : r.net > 0.0005 ? '#047857' : '#334155',
+                fontSize: '0.88rem',
+                fontWeight: '900',
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                {fmt(r.net, r.unit)}
+              </div>
+              <div style={{ color: '#94A3B8', fontSize: '0.6rem', fontWeight: '800', marginTop: '0.08rem', textTransform: 'uppercase' }}>Net position</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {onNavigate && (
+        <div style={{ marginTop: '0.55rem', textAlign: 'right' }}>
+          <button type="button" onClick={() => onNavigate('fixing-register')} style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', padding: 0, textDecoration: 'underline' }}>
+            View full statement
           </button>
         </div>
-        <div style={{ marginTop: '0.42rem', display: 'flex', gap: '0.9rem', alignItems: 'center', flexWrap: 'wrap', color: '#64748B', fontSize: '0.68rem' }}>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: '#334155' }}>
-            <input type="checkbox" checked={Boolean(filter.excludeOpeningBalance)} onChange={(e) => updateFilter({ excludeOpeningBalance: e.target.checked })} disabled={!hasRegisterState} />
-            Exclude Opening Balance
-          </label>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: '#334155' }}>
-            <input type="checkbox" checked={Boolean(filter.excludeFutures)} onChange={(e) => updateFilter({ excludeFutures: e.target.checked })} disabled={!hasRegisterState} />
-            Exclude Futures
-          </label>
-          <span>Unfixing rows affect USD amount balance only; XAU position balance is unchanged.</span>
-        </div>
-        {error && <div style={{ marginTop: '0.45rem', padding: '0.42rem 0.55rem', borderRadius: '0.35rem', background: '#FEE2E2', color: '#991B1B', fontSize: '0.72rem', fontWeight: '600' }}>{error}</div>}
-      </div>
-
-      <div style={{ padding: '0.62rem 0.7rem 0.55rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.45rem', marginBottom: '0.52rem' }}>
-          {[
-            { label: 'Total Buy', value: `${fmtQty(totalBuyOz, qUnit)} ${qUnit}`, bg: '#DCFCE7', color: '#15803D' },
-            { label: 'Total Sell', value: `${fmtQty(totalSellOz, qUnit)} ${qUnit}`, bg: '#FEE2E2', color: '#DC2626' },
-            { label: 'Net Position', value: `${netOz >= 0 ? '+' : '-'}${fmtQty(Math.abs(netOz), qUnit)} ${qUnit}`, bg: '#DBEAFE', color: netOz >= 0 ? '#1D4ED8' : '#B45309' },
-            { label: 'Records', value: String(results.length), bg: '#F3F4F6', color: '#111827' },
-          ].map((card) => (
-            <div key={card.label} style={{ padding: '0.45rem 0.55rem', borderRadius: '0.38rem', background: card.bg, minWidth: 0 }}>
-              <div style={{ fontSize: '0.58rem', color: '#64748B', fontWeight: '800', textTransform: 'uppercase', marginBottom: '0.18rem' }}>{card.label}</div>
-              <div style={{ color: card.color, fontSize: '0.82rem', fontWeight: '900', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.value}</div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ overflow: 'auto', border: '1px solid #9AA4B2', borderRadius: '0.25rem', maxHeight: '230px', background: '#FFFFFF' }}>
-          <table style={{ width: '100%', minWidth: '1040px', borderCollapse: 'collapse', fontSize: '0.68rem', fontVariantNumeric: 'tabular-nums' }}>
-            <thead>
-              <tr>
-                <th rowSpan={2} style={{ ...head1, textAlign: 'right' }}>#</th>
-                <th rowSpan={2} style={{ ...head1, textAlign: 'left' }}>Doc Date</th>
-                <th rowSpan={2} style={{ ...head1, textAlign: 'left' }}>Val Date</th>
-                <th rowSpan={2} style={{ ...head1, textAlign: 'left' }}>Doc No</th>
-                <th rowSpan={2} style={{ ...head1, textAlign: 'left' }}>Description</th>
-                <th colSpan={3} style={{ ...head1, textAlign: 'center' }}>{`${metalCodeLabel} (${qUnit})`}</th>
-                <th colSpan={3} style={{ ...head1, textAlign: 'center' }}>Amount (USD)</th>
-                <th rowSpan={2} style={{ ...head1, textAlign: 'right' }}>Average</th>
-              </tr>
-              <tr>
-                <th style={{ ...head2, textAlign: 'right' }}>In</th>
-                <th style={{ ...head2, textAlign: 'right' }}>Out</th>
-                <th style={{ ...head2, textAlign: 'right' }}>Balance</th>
-                <th style={{ ...head2, textAlign: 'right' }}>{`Rate (${rUnit})`}</th>
-                <th style={{ ...head2, textAlign: 'right' }}>Value</th>
-                <th style={{ ...head2, textAlign: 'right' }}>Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={{ ...cell, textAlign: 'right', color: '#64748B' }}>-</td>
-                <td style={cell}>-</td>
-                <td style={cell}>-</td>
-                <td style={{ ...cell, fontWeight: '800' }}>Opening C/F</td>
-                <td style={cell}>Opening Carry Forward</td>
-                <td style={numCell}>-</td>
-                <td style={numCell}>-</td>
-                <td style={numCell}>{fmtSignedQty(openingQtyOz)}</td>
-                <td style={numCell}>-</td>
-                <td style={numCell}>-</td>
-                <td style={numCell}>{fmtSignedAmt(openingValue)}</td>
-                <td style={numCell}>{runningQtyOz !== 0 ? fmtSignedRate(runningAmount / runningQtyOz) : '-'}</td>
-              </tr>
-              {results.slice(0, 5).map((row, idx) => {
-                const qtyOz = Number(row.qty || 0)
-                const isBuy = String(row.direction || '').toLowerCase() === 'buy'
-                const signedQtyOz = isQtyImpactRow(row) ? (isBuy ? qtyOz : -qtyOz) : 0
-                const signedValue = getRowSignedValue(row)
-                runningQtyOz += signedQtyOz
-                runningAmount += signedValue
-                const avgRate = runningQtyOz !== 0 ? runningAmount / runningQtyOz : null
-                return (
-                  <tr key={row.rowId || `${row.voucherNo}-${idx}`} style={{ background: idx % 2 === 0 ? '#FFFFFF' : '#FCFAF4' }}>
-                    <td style={{ ...cell, textAlign: 'right', color: '#64748B' }}>{idx + 1}</td>
-                    <td style={cell}>{fmtDate(row.docDate)}</td>
-                    <td style={cell}>{fmtDate(row.valueDate)}</td>
-                    <td style={{ ...cell, fontWeight: '800' }}>{row.voucherNo || '-'}</td>
-                    <td style={{ ...cell, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {filter.groupBy && filter.groupBy !== 'none' && row.groupKey && <span style={{ color: '#0F766E', fontWeight: '800', marginRight: '0.3rem' }}>[{row.groupKey}]</span>}
-                      {row.remarks || `${row.sourceType || ''} ${row.customerName || ''}`.trim() || '-'}
-                    </td>
-                    <td style={numCell}>{isBuy && qtyOz > 0 ? fmtQty(qtyOz, qUnit) : '-'}</td>
-                    <td style={numCell}>{!isBuy && qtyOz > 0 ? fmtQty(qtyOz, qUnit) : '-'}</td>
-                    <td style={numCell}>{fmtSignedQty(runningQtyOz)}</td>
-                    <td style={numCell}>{fmtRate(Number(row.price || 0), rUnit)}</td>
-                    <td style={numCell}>{fmtSignedAmt(signedValue)}</td>
-                    <td style={numCell}>{fmtSignedAmt(runningAmount)}</td>
-                    <td style={numCell}>{avgRate === null ? '-' : fmtSignedRate(avgRate)}</td>
-                  </tr>
-                )
-              })}
-              <tr style={{ background: '#FFF7E6' }}>
-                <td style={{ ...cell, textAlign: 'right', color: '#B45309', fontWeight: '800' }}>-</td>
-                <td style={{ ...cell, color: '#B45309', fontWeight: '800' }}>-</td>
-                <td style={{ ...cell, color: '#B45309', fontWeight: '800' }}>-</td>
-                <td style={{ ...cell, color: '#B45309', fontWeight: '800' }}>Closing C/F</td>
-                <td style={{ ...cell, color: '#B45309', fontWeight: '800' }}>Closing Carry Forward</td>
-                <td style={{ ...numCell, color: '#B45309' }}>{fmtQty(totalBuyOz, qUnit)}</td>
-                <td style={{ ...numCell, color: '#B45309' }}>{fmtQty(totalSellOz, qUnit)}</td>
-                <td style={{ ...numCell, color: '#B45309' }}>{fmtSignedQty(closingQtyOz)}</td>
-                <td style={{ ...numCell, color: '#B45309' }}>-</td>
-                <td style={{ ...numCell, color: '#B45309' }}>{fmtSignedAmt(txnNetValue)}</td>
-                <td style={{ ...numCell, color: '#B45309' }}>{fmtSignedAmt(closingValue)}</td>
-                <td style={{ ...numCell, color: '#B45309' }}>{closingQtyOz !== 0 ? fmtSignedRate(closingValue / closingQtyOz) : '-'}</td>
-              </tr>
-              {!results.length && (
-                <tr>
-                  <td colSpan={12} style={{ padding: '1rem', textAlign: 'center', color: '#94A3B8', border: '1px solid #D5DAE2' }}>
-                    {hasRegisterState ? 'Click Refresh to load fixing register rows for the selected filters.' : `No fixing positions in period. Current exposure: ${fmtMoney(fallbackTotal)}`}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        {onNavigate && (
-          <div style={{ marginTop: '0.45rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', color: '#64748B', fontSize: '0.66rem' }}>
-            <span>{results.length > 5 ? `Showing first 5 of ${results.length} rows` : `${results.length} row${results.length === 1 ? '' : 's'}`}</span>
-            <button onClick={() => onNavigate('fixing-register')} style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.72rem', fontWeight: '800', padding: 0, textDecoration: 'underline' }}>View full statement</button>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   )
 }
 
-function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = null, onNavigateMain = null, options = {}) {
+
+function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = null, onNavigateMain = null, _options = {}) {
   const bdr = '1px solid #F0FDF4'
   const muted = '#6B7280'
   const ink = '#111827'
@@ -976,14 +429,6 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
   switch (id) {
     case 'margins':
       return <div style={widgetContainerStyle}><MarginsWidget dashboard={dashboard} onNavigate={onNavigate} /></div>
-
-    case 'metals': {
-      return (
-        <div style={widgetContainerStyle}>
-          <SpotMetalsLiveWidget />
-        </div>
-      )
-    }
 
     case 'bank': {
       const bankRows = dashboard?.bankBalances || []
@@ -1165,13 +610,12 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
     case 'apar':
       return <div style={widgetContainerStyle}><APARWidget dashboard={dashboard} onNavigate={onNavigate} /></div>
 
-    case 'fixing': {
+    case 'fixing':
       return (
-        <div style={{ ...widgetContainerStyle, padding: 0, overflow: 'hidden' }}>
-          <FixingRegisterDashboardWidget fixingRegister={options.fixingRegister} onNavigate={onNavigate} fallbackPositions={dashboard?.fixingPositions || []} />
+        <div style={widgetContainerStyle}>
+          <FixingPositionSummaryWidget dashboard={dashboard} onNavigate={onNavigate} />
         </div>
       )
-    }
 
     case 'chat': {
       const FALLBACK_MSGS = [

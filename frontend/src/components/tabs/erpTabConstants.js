@@ -13,20 +13,20 @@ export const METAL_UNIT_FACTORS = {
   kg: 1000,
 }
 
+/** Default ERP home dashboard: 3-column grid (row1: margins | fixing | bank; row2: cashflow+expenses+volume+apar; row3: chat+notif). */
 export const ERP_DASH_ALL_WIDGETS = [
-  { id: 'margins', label: 'Customer & Supplier Margins', icon: '📊', color: '#e8f5ef', desc: 'Equity status and margin by customer/supplier', cols: 2 },
-  { id: 'metals', label: 'Spot metals (live)', icon: '📈', color: '#fef9c3', desc: 'USD per troy oz — gold, silver, platinum, palladium', cols: 1 },
-  { id: 'bank', label: 'Bank & Cash Balances', icon: '🏦', color: '#dbeafe', desc: 'All account balances overview', cols: 1, viewTab: 'bank' },
+  { id: 'margins', label: 'Customer & Supplier Margins', icon: '📊', color: '#ffedd5', desc: 'Equity and margin by customer/supplier', cols: 1 },
+  { id: 'fixing', label: 'Fixing Position Summary', icon: '📌', color: '#fdf2f8', desc: 'Net position by metal (XAU–XPD)', cols: 1, viewTab: 'fixing-register' },
+  { id: 'bank', label: 'Bank & Cash Balances', icon: '🏦', color: '#ede9fe', desc: 'All account balances overview', cols: 1, viewTab: 'bank' },
   { id: 'cashflow', label: 'Cash Flow', icon: '💸', color: '#dcfce7', desc: 'Monthly inflow / outflow bar chart', cols: 2 },
-  { id: 'expenses', label: 'Expenses', icon: '📋', color: '#fee2e2', desc: 'Expense breakdown by category', cols: 1 },
-  { id: 'volume', label: 'Total Volume Traded', icon: '📦', color: '#e8f5ef', desc: 'Trade volume by metal type', cols: 1 },
-  { id: 'apar', label: 'Accounts Payable & Receivable', icon: '⚖️', color: '#fef3c7', desc: 'Live AP / AR with outstanding breakdown', cols: 3, viewTab: 'apar' },
-  { id: 'fixing', label: 'Fixing Position Summary', icon: '📌', color: '#f0fdf4', desc: 'Open fixing positions by metal', cols: 3, viewTab: 'fixing-register' },
+  { id: 'expenses', label: 'Expenses', icon: '📋', color: '#fef9c3', desc: 'Expense breakdown by category', cols: 1 },
+  { id: 'volume', label: 'Total Volume Traded', icon: '📦', color: '#ffedd5', desc: 'Trade volume by metal type', cols: 1 },
+  { id: 'apar', label: 'Accounts Payable & Receivable', icon: '⚖️', color: '#fef3c7', desc: 'Live AP / AR with outstanding breakdown', cols: 2, viewTab: 'apar' },
   { id: 'chat', label: 'Chat', icon: '💬', color: '#eff6ff', desc: 'Recent team messages', cols: 1, viewTab: 'chat' },
-  { id: 'notif', label: 'Notifications & Alerts', icon: '🔔', color: '#fff7ed', desc: 'System alerts and reminders', cols: 1, viewTab: 'notif' },
+  { id: 'notif', label: 'Notifications & Alerts', icon: '🔔', color: '#e0f2fe', desc: 'System alerts and reminders', cols: 1, viewTab: 'notif' },
 ]
 
-export const ERP_DASH_DEFAULT = ['margins', 'metals', 'bank', 'cashflow', 'expenses', 'volume', 'apar', 'fixing', 'chat', 'notif']
+export const ERP_DASH_DEFAULT = ['margins', 'fixing', 'bank', 'cashflow', 'expenses', 'volume', 'apar', 'chat', 'notif']
 
 const ERP_DASH_VALID_IDS = new Set(ERP_DASH_ALL_WIDGETS.map((widget) => widget.id))
 
