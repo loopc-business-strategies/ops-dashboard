@@ -1,5 +1,8 @@
 const mongoose = require('mongoose')
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
+const {
+  shouldSuppressSpotMetalMtmForAccountEnquiry,
+} = require('../../services/erpAccounting/metalMarginPolicy')
 
 function registerAccountsRoutes(deps) {
   const {
@@ -143,6 +146,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true })
     const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
     const accountCurrencyCode = String(account.currency || baseCurrencyCode).toUpperCase()
+    const suppressMetalSpotMtm = shouldSuppressSpotMetalMtmForAccountEnquiry(account)
     // netBalance is already aggregated in base currency (amount * exchangeRate).
     const convertedToRateCurrency = Number(netBalance)
 
@@ -753,7 +757,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         limitValue: 0,
         balance: Number(goldBalance || 0),
         price: Number(rates.goldPrice || 0),
-        currentValue: Number(convertedToRateCurrency || 0),
+        currentValue: suppressMetalSpotMtm ? 0 : Number(goldBalance || 0) * Number(rates.goldPrice || 0),
         valueCurrency: rates.priceCurrency,
         unit: 'gram',
       },
@@ -763,7 +767,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         limitValue: 0,
         balance: Number(silverBalance || 0),
         price: Number(rates.silverPrice || 0),
-        currentValue: Number(convertedToRateCurrency || 0),
+        currentValue: suppressMetalSpotMtm ? 0 : Number(silverBalance || 0) * Number(rates.silverPrice || 0),
         valueCurrency: rates.priceCurrency,
         unit: 'gram',
       },
@@ -798,6 +802,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         updatedAt: rates.updatedAt,
         goldBalance,
         silverBalance,
+        suppressMetalSpotMtm,
       },
       statement: {
         limitValue: Number(account.openingBalance || 0),

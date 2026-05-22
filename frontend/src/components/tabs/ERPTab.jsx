@@ -843,7 +843,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const modalTotalFunds = totalFunds
   // Vendor/creditor AP is booked in currency; spot × grams is a trading margin view and is misleading here.
   const enquirySuppressMetalSpotMtm = Boolean(
-    accountEnquiryData && shouldSuppressSpotMetalMtmForAccountEnquiry(accountEnquiryData.account),
+    accountEnquiryData?.metals?.suppressMetalSpotMtm
+      || (accountEnquiryData && shouldSuppressSpotMetalMtmForAccountEnquiry(accountEnquiryData.account)),
   )
   const statementUnfixedVoucherRevaluationByMetal = statementEntries.reduce((acc, entry) => {
     if (resolveFixStatus(entry) !== 'unfixed') return acc
@@ -866,7 +867,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     statementUnfixedVoucherRevaluationByMetal.gold
     + statementUnfixedVoucherRevaluationByMetal.silver
     + statementUnfixedVoucherRevaluationByMetal.other
-  const useVoucherRevaluation = Math.abs(statementUnfixedVoucherRevaluation) > 0.000001
+  const useVoucherRevaluation = !enquirySuppressMetalSpotMtm && Math.abs(statementUnfixedVoucherRevaluation) > 0.000001
   const xauSpotValue = xauBalance * goldPriceUSD
   const xagSpotValue = xagBalance * silverPriceUSD
   const xauCurrentValue = useVoucherRevaluation
