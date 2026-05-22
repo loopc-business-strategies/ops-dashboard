@@ -513,6 +513,17 @@ export default function ERPLedgerTab({
                             ? `Ledger row stored as ${baseEq.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${baseSym} × 1; shown as ${displaySym} using master rate ${dispRate}. Run DB backfill to store FC on the row.`
                             : (isFc ? `Booked: ${amt} ${storedSym} × ${rate}` : '')
 
+                          const isJournalJv = String(entry.referenceType || '').toLowerCase() === 'journal'
+                          // Normal JV list: show economic amount in base currency only (hover still shows booked FC).
+                          if (isJournalJv) {
+                            return (
+                              <div title={title || undefined}>
+                                <span>{baseEq.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                <span style={{ marginLeft: '0.25rem', fontSize: '0.72rem', color: C.inkSoft, fontWeight: '600' }}>{baseSym}</span>
+                              </div>
+                            )
+                          }
+
                           return (
                             <div title={title || undefined}>
                               <span>{displayAmt.toLocaleString()}</span>
