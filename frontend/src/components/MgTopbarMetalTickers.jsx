@@ -31,6 +31,28 @@ const METALS = [
   { key: 'platinum', label: 'Platinum', swatch: '#A855F7', sym: 'Pt', labelColor: '#FDE68A' },
 ]
 
+/** Second line under price when there is no move row yet. */
+function metalStatusSubline(snapshot, price) {
+  const cur = `${snapshot.currency}/${snapshot.unit || 'G'}`
+  const src = String(snapshot.source || '').toLowerCase()
+  const fromSaved = ['manual', 'inventory', 'default'].includes(src)
+  const fromLiveFeed = Boolean(src && !fromSaved && src !== 'waiting-mt5')
+  const hasAnyRate = (Number(snapshot.gold) || 0) > 0
+    || (Number(snapshot.silver) || 0) > 0
+    || (Number(snapshot.platinum) || 0) > 0
+
+  if (price > 0) {
+    return fromSaved ? `${cur} · saved` : cur
+  }
+  if (fromSaved) {
+    return `${cur} · not set`
+  }
+  if (fromLiveFeed && hasAnyRate) {
+    return cur
+  }
+  return 'waiting MT5'
+}
+
 /**
  * MG tenant top bar: live Gold / Silver / Platinum spot from ERP metal-rates API.
  * Second row shows prior poll price plus move since last refresh (after the first poll).
@@ -179,16 +201,7 @@ export default function MgTopbarMetalTickers({ token, tenant }) {
                     <span style={{ marginLeft: '0.15rem' }}>{move.rest}</span>
                   </>
                 ) : (
-                  <span>
-                    {price > 0
-                      ? (() => {
-                          const cur = `${snapshot.currency}/${snapshot.unit || 'G'}`
-                          const src = String(snapshot.source || '').toLowerCase()
-                          const fromSaved = ['manual', 'inventory', 'default'].includes(src)
-                          return fromSaved ? `${cur} · saved` : cur
-                        })()
-                      : 'waiting MT5'}
-                  </span>
+                  <span>{metalStatusSubline(snapshot, price)}</span>
                 )}
               </div>
             </div>
