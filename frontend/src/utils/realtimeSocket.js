@@ -58,6 +58,24 @@ export const startERPRealtimeFeeds = ({ token, tenant, onLedgerUpdate, onTransac
   }
 }
 
+export const startMetalRatesRealtime = ({ token, tenant, onRatesUpdate }) => {
+  const tenantKey = String(tenant || '').trim()
+  if (!tenantKey || typeof onRatesUpdate !== 'function') return () => {}
+
+  const socket = createSocket('/metal-rates', token)
+
+  socket.on('connect', () => {
+    socket.emit('subscribe:tenant', tenantKey)
+  })
+
+  socket.on('metal-rates:update', onRatesUpdate)
+
+  return () => {
+    socket.off('metal-rates:update', onRatesUpdate)
+    socket.disconnect()
+  }
+}
+
 export const startUserNotifications = ({ token, onNotification }) => {
   if (typeof onNotification !== 'function') return () => {}
 

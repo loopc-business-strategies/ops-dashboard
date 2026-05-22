@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { currenciesApi } from '../api/erp-accounting/currencies'
+import { startMetalRatesRealtime } from '../utils/realtimeSocket'
 
 const POLL_MS = 60_000
 
@@ -34,58 +35,72 @@ const METALS = [
  * MG tenant top bar: live Gold / Silver / Platinum spot from ERP metal-rates API.
  * Second row shows prior poll price plus move since last refresh (after the first poll).
  */
-export default function MgTopbarMetalTickers({ token }) {
+export default function MgTopbarMetalTickers({ token, tenant }) {
   const [snapshot, setSnapshot] = useState({
     gold: 0,
     silver: 0,
     platinum: 0,
     currency: 'USD',
+    unit: 'G',
+    source: '',
     updatedAt: null,
     deltas: null,
     prevPoll: null,
   })
   const lastPollRef = useRef(null)
 
+  const applyRates = useCallback((rates) => {
+    if (!rates) return
+    const next = {
+      gold: Number(rates.goldPrice) || 0,
+      silver: Number(rates.silverPrice) || 0,
+      platinum: Number(rates.platinumPrice) || 0,
+      currency: String(rates.priceCurrency || 'USD').trim().toUpperCase() || 'USD',
+      unit: String(rates.priceUnit || 'G').trim().toUpperCase() || 'G',
+      source: String(rates.source || '').trim(),
+      updatedAt: rates.updatedAt || null,
+    }
+    const prevPoll = lastPollRef.current
+    let deltas = null
+    if (prevPoll && (prevPoll.gold > 0 || prevPoll.silver > 0 || prevPoll.platinum > 0)) {
+      deltas = {
+        gold: next.gold - prevPoll.gold,
+        silver: next.silver - prevPoll.silver,
+        platinum: next.platinum - prevPoll.platinum,
+      }
+    }
+    lastPollRef.current = { gold: next.gold, silver: next.silver, platinum: next.platinum }
+    setSnapshot({
+      ...next,
+      deltas,
+      prevPoll: prevPoll && (prevPoll.gold > 0 || prevPoll.silver > 0 || prevPoll.platinum > 0)
+        ? { gold: prevPoll.gold, silver: prevPoll.silver, platinum: prevPoll.platinum }
+        : null,
+    })
+  }, [])
+
   const load = useCallback(async () => {
     if (!token) return
     try {
       const data = await currenciesApi.getMetalRates(token)
       if (!data?.success || !data.rates) return
-      const r = data.rates
-      const next = {
-        gold: Number(r.goldPrice) || 0,
-        silver: Number(r.silverPrice) || 0,
-        platinum: Number(r.platinumPrice) || 0,
-        currency: String(r.priceCurrency || 'USD').trim().toUpperCase() || 'USD',
-        updatedAt: r.updatedAt || null,
-      }
-      const prevPoll = lastPollRef.current
-      let deltas = null
-      if (prevPoll && (prevPoll.gold > 0 || prevPoll.silver > 0 || prevPoll.platinum > 0)) {
-        deltas = {
-          gold: next.gold - prevPoll.gold,
-          silver: next.silver - prevPoll.silver,
-          platinum: next.platinum - prevPoll.platinum,
-        }
-      }
-      lastPollRef.current = { gold: next.gold, silver: next.silver, platinum: next.platinum }
-      setSnapshot({
-        ...next,
-        deltas,
-        prevPoll: prevPoll && (prevPoll.gold > 0 || prevPoll.silver > 0 || prevPoll.platinum > 0)
-          ? { gold: prevPoll.gold, silver: prevPoll.silver, platinum: prevPoll.platinum }
-          : null,
-      })
+      applyRates(data.rates)
     } catch {
       void 0
     }
-  }, [token])
+  }, [applyRates, token])
 
   useEffect(() => {
     void load()
     const id = window.setInterval(() => void load(), POLL_MS)
     return () => window.clearInterval(id)
   }, [load])
+
+  useEffect(() => startMetalRatesRealtime({
+    token,
+    tenant,
+    onRatesUpdate: (payload) => applyRates(payload?.rates || payload?.data?.rates),
+  }), [applyRates, tenant, token])
 
   const pillBase = {
     display: 'inline-flex',
@@ -95,7 +110,8 @@ export default function MgTopbarMetalTickers({ token }) {
     borderRadius: '999px',
     background: 'rgba(15, 23, 42, 0.42)',
     border: '1px solid rgba(255,255,255,0.14)',
-    maxWidth: '11.75rem',
+    minWidth: '8.75rem',
+    maxWidth: '12.5rem',
     flexShrink: 0,
   }
 
@@ -133,10 +149,10 @@ export default function MgTopbarMetalTickers({ token }) {
             >
               {sym}
             </span>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', flexWrap: 'wrap', lineHeight: 1.15 }}>
-                <span style={{ fontSize: '0.68rem', fontWeight: 600, color: labelColor || 'rgba(255,255,255,0.55)', letterSpacing: '0.02em' }}>{label}</span>
-                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff' }}>{fmtSpot(price)}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(3.75rem, 1fr)', alignItems: 'baseline', gap: '0.35rem', width: '100%', lineHeight: 1.15 }}>
+                <span style={{ fontSize: '0.68rem', fontWeight: 600, color: labelColor || 'rgba(255,255,255,0.55)', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>{label}</span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmtSpot(price)}</span>
               </div>
               <div
                 style={{
@@ -153,7 +169,7 @@ export default function MgTopbarMetalTickers({ token }) {
                     <span style={{ marginLeft: '0.15rem' }}>{move.rest}</span>
                   </>
                 ) : (
-                  <span>{price > 0 ? `${snapshot.currency} spot` : '—'}</span>
+                  <span>{price > 0 ? `${snapshot.currency}/${snapshot.unit || 'G'}` : '—'}</span>
                 )}
               </div>
             </div>

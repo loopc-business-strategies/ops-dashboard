@@ -114,7 +114,11 @@ function createApp() {
     max: Number(process.env.RATE_LIMIT_MAX || 400),
     standardHeaders: true,
     legacyHeaders: false,
-    skip: () => !isProduction,
+    skip: (req) => {
+      if (!isProduction) return true
+      const isMetalRatesBridge = req.path === '/erp-accounting/metal-rates/bridge'
+      return isMetalRatesBridge && Boolean(req.headers['x-metal-rates-bridge-token'])
+    },
     message: { success: false, message: 'Too many requests. Please try again shortly.' },
   })
 
@@ -174,7 +178,7 @@ function createApp() {
       callback(new Error(`CORS: origin not allowed — ${origin}`))
     },
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant', 'x-company', 'x-csrf-token', 'x-xsrf-token', 'x-requested-with', 'Last-Event-ID'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant', 'x-company', 'x-metal-rates-bridge-token', 'x-csrf-token', 'x-xsrf-token', 'x-requested-with', 'Last-Event-ID'],
   }))
   app.use(cookieParser())
   app.use(express.json({ limit: REQUEST_BODY_LIMIT }))

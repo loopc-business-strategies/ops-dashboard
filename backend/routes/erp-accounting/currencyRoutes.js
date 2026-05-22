@@ -1,3 +1,11 @@
+const { normalizeTenant } = require('../../config/tenants')
+const { publishRealtimeEvent } = require('../../utils/realtimeBus')
+const {
+  normalizeBridgeMetalRates,
+  buildMetalRatesResponse,
+  getBridgeTokenFromRequest,
+} = require('../../services/erpAccounting/metalRateBridgeService')
+
 function registerCurrencyRoutes(deps) {
   const {
     router,
@@ -179,14 +187,16 @@ function registerCurrencyRoutes(deps) {
 
       const latest = await getLatestMetalRate()
       const { stockPriceMap, latestStockUpdatedAt } = await resolveInventoryMetalRates()
+      const preferSavedLiveRate = latest && !['manual', 'default'].includes(String(latest.source || '').toLowerCase())
 
       const rates = {
-        goldPrice: stockPriceMap.gold?.price || (latest ? Number(latest.goldPrice || 0) : Number(DEFAULT_METAL_RATES.goldPrice || 0)),
-        silverPrice: stockPriceMap.silver?.price || (latest ? Number(latest.silverPrice || 0) : Number(DEFAULT_METAL_RATES.silverPrice || 0)),
-        platinumPrice: stockPriceMap.platinum?.price || 0,
-        priceCurrency: stockPriceMap.gold?.currency || stockPriceMap.silver?.currency || (latest ? latest.priceCurrency : DEFAULT_METAL_RATES.priceCurrency || 'USD'),
-        priceUnit: stockPriceMap.gold?.unit || stockPriceMap.silver?.unit || stockPriceMap.platinum?.unit || 'OZ',
-        updatedAt: latestStockUpdatedAt || (latest ? latest.updatedAt : null),
+        goldPrice: preferSavedLiveRate ? Number(latest.goldPrice || 0) : (stockPriceMap.gold?.price || (latest ? Number(latest.goldPrice || 0) : Number(DEFAULT_METAL_RATES.goldPrice || 0))),
+        silverPrice: preferSavedLiveRate ? Number(latest.silverPrice || 0) : (stockPriceMap.silver?.price || (latest ? Number(latest.silverPrice || 0) : Number(DEFAULT_METAL_RATES.silverPrice || 0))),
+        platinumPrice: preferSavedLiveRate ? Number(latest.platinumPrice || 0) : (stockPriceMap.platinum?.price || (latest ? Number(latest.platinumPrice || 0) : 0)),
+        priceCurrency: preferSavedLiveRate ? latest.priceCurrency : (stockPriceMap.gold?.currency || stockPriceMap.silver?.currency || (latest ? latest.priceCurrency : DEFAULT_METAL_RATES.priceCurrency || 'USD')),
+        priceUnit: preferSavedLiveRate ? (latest.priceUnit || 'G') : (stockPriceMap.gold?.unit || stockPriceMap.silver?.unit || stockPriceMap.platinum?.unit || latest?.priceUnit || 'G'),
+        source: latest?.source || (latestStockUpdatedAt ? 'inventory' : 'default'),
+        updatedAt: preferSavedLiveRate ? latest.updatedAt : (latestStockUpdatedAt || (latest ? latest.updatedAt : null)),
       }
 
       res.json({
@@ -205,6 +215,7 @@ function registerCurrencyRoutes(deps) {
 
       const goldPrice = Number(req.body.goldPrice)
       const silverPrice = Number(req.body.silverPrice)
+      const platinumPrice = Number(req.body.platinumPrice || 0)
       const priceCurrency = BASE_CURRENCY_CODE
 
       if (!Number.isFinite(goldPrice) || goldPrice <= 0 || !Number.isFinite(silverPrice) || silverPrice <= 0) {
@@ -214,21 +225,68 @@ function registerCurrencyRoutes(deps) {
       const rate = await MetalRate.create({
         goldPrice,
         silverPrice,
+        platinumPrice: Number.isFinite(platinumPrice) && platinumPrice > 0 ? platinumPrice : 0,
         priceCurrency,
+        priceUnit: 'G',
+        source: 'manual',
         updatedBy: req.user._id,
       })
 
       res.json({
         success: true,
-        rates: {
-          goldPrice: Number(rate.goldPrice || 0),
-          silverPrice: Number(rate.silverPrice || 0),
-          priceCurrency: rate.priceCurrency,
-          updatedAt: rate.updatedAt,
-        },
+        rates: buildMetalRatesResponse(rate),
       })
     } catch {
       res.status(500).json({ success: false, message: 'Server error' })
+    }
+  })
+
+  router.post('/metal-rates/bridge', async (req, res) => {
+    try {
+      const expectedToken = String(process.env.METAL_RATES_BRIDGE_TOKEN || '').trim()
+      if (!expectedToken) {
+        return res.status(503).json({ success: false, message: 'Metal rates bridge is not configured.' })
+      }
+
+      const token = getBridgeTokenFromRequest(req)
+      if (!token || token !== expectedToken) {
+        return res.status(401).json({ success: false, message: 'Invalid metal rates bridge token.' })
+      }
+
+      const tenant = normalizeTenant(req.headers['x-tenant'] || req.headers['x-company'] || req.body.tenant)
+      if (!tenant) return res.status(400).json({ success: false, message: 'Valid tenant is required.' })
+
+      const TenantMetalRate = await MetalRate.getTenantModel(tenant)
+      const latest = await TenantMetalRate.findOne({}).sort({ updatedAt: -1 })
+      const normalized = normalizeBridgeMetalRates(req.body, latest || DEFAULT_METAL_RATES)
+      const rate = await TenantMetalRate.findOneAndUpdate(
+        { source: normalized.source },
+        {
+          $set: {
+            goldPrice: normalized.goldPrice,
+            silverPrice: normalized.silverPrice,
+            platinumPrice: normalized.platinumPrice,
+            priceCurrency: normalized.priceCurrency,
+            priceUnit: normalized.priceUnit,
+            source: normalized.source,
+            sourcePayload: {
+              sourceUnit: normalized.sourceUnit,
+              symbols: req.body.symbols || undefined,
+              receivedAt: new Date(),
+            },
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      )
+
+      const rates = buildMetalRatesResponse(rate)
+      req.app.get('realtimeServer')?.broadcastMetalRatesUpdate?.(tenant, { rates })
+      publishRealtimeEvent({ type: 'metal-rates:update', tenant, data: { rates } })
+
+      res.json({ success: true, tenant, rates })
+    } catch (err) {
+      const message = err?.message || 'Invalid metal rates payload'
+      res.status(message.includes('required') ? 400 : 500).json({ success: false, message })
     }
   })
 
@@ -365,4 +423,3 @@ function registerCurrencyRoutes(deps) {
 module.exports = {
   registerCurrencyRoutes,
 }
-

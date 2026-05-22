@@ -616,7 +616,7 @@ function Dashboard() {
             <div className="flex items-center justify-end gap-2 flex-nowrap flex-shrink-0 min-w-0">
               {branding.key === 'mg' && (
                 <div className="hidden md:flex items-center shrink-0 min-w-0 overflow-hidden">
-                  <MgTopbarMetalTickers token={token} />
+                  <MgTopbarMetalTickers token={token} tenant={branding.key} />
                 </div>
               )}
               {branding.key !== 'mg' && <BuildInfoBadge className="hidden md:inline-flex" />}

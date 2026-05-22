@@ -57,7 +57,7 @@ import ERPLedgerTab from './erp/tabs/ERPLedgerTab'
 import ERPTransactionsTab from './erp/tabs/ERPTransactionsTab'
 import ERPReportsTab from './erp/tabs/ERPReportsTab'
 import ERPFixingRegisterTab from './erp/tabs/ERPFixingRegisterTab'
-import { startERPRealtimeFeeds } from '../../utils/realtimeSocket'
+import { startERPRealtimeFeeds, startMetalRatesRealtime } from '../../utils/realtimeSocket'
 import { createHtmlExportRoot, downloadBlob, downloadCsv } from './erp/exportHelpers'
 import {
   buildStatementCurrencyOptions,
@@ -2952,9 +2952,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
   ])
   useEffect(() => {
     if (!token || !canAccessERP) return undefined
+    const tenantKey = user?.tenant || user?.company
     const stopRealtime = startERPRealtimeFeeds({
       token,
-      tenant: user?.tenant,
+      tenant: tenantKey,
       onLedgerUpdate: () => {
         if (activeTab === 'ledger') {
           loadLedger({ cursor: null, cursorHistory: [] })
@@ -2966,10 +2967,29 @@ function ERPTab({ focusTab, onNavigateMain }) {
         }
       },
     })
+    const stopMetalRatesRealtime = startMetalRatesRealtime({
+      token,
+      tenant: tenantKey,
+      onRatesUpdate: (payload) => {
+        const rates = payload?.rates || payload?.data?.rates
+        if (!rates) return
+        setMetalRates(rates)
+        setMetalRateForm((prev) => ({
+          ...prev,
+          goldPrice: String(rates.goldPrice ?? prev.goldPrice),
+          silverPrice: String(rates.silverPrice ?? prev.silverPrice),
+          priceCurrency: rates.priceCurrency || prev.priceCurrency || 'USD',
+        }))
+        if (activeTab === 'enquiry' && accountEnquiryData?.account?.accountCode) {
+          void fetchAccountEnquiryByCode(accountEnquiryData.account.accountCode)
+        }
+      },
+    })
     return () => {
       stopRealtime()
+      stopMetalRatesRealtime()
     }
-  }, [token, user?.tenant, canAccessERP, activeTab])
+  }, [token, user?.tenant, user?.company, canAccessERP, activeTab, accountEnquiryData?.account?.accountCode])
   // Re-load dashboard when date range changes
   useEffect(() => {
     if (activeTab === 'dashboard' && canViewAccounts && token) loadDashboard()

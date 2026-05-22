@@ -201,6 +201,23 @@ class RealtimeServer {
     })
 
     /**
+     * Metal rates namespace: broadcast live spot updates from the MT5 bridge.
+     */
+    const metalRatesNamespace = this.io.of('/metal-rates')
+    metalRatesNamespace.use(this.authMiddleware)
+    metalRatesNamespace.on('connection', (socket) => {
+      socket.on('subscribe:tenant', (tenant) => {
+        try {
+          const subscriptionTenant = resolveSocketTenantSubscription(socket, tenant)
+          socket.join(`metal-rates:tenant:${subscriptionTenant}`)
+          socket.emit('subscribed', { namespace: '/metal-rates', tenant: subscriptionTenant })
+        } catch {
+          socket.emit('subscription:error', { namespace: '/metal-rates', message: 'Tenant subscription denied' })
+        }
+      })
+    })
+
+    /**
      * Notifications namespace: broadcast user notifications
      */
     const notificationsNamespace = this.io.of('/notifications')
@@ -260,6 +277,18 @@ class RealtimeServer {
   }
 
   /**
+   * Broadcast tenant-wide metal-rate updates
+   * @param {String} tenant - Tenant key
+   * @param {Object} payload - Latest rate payload
+   */
+  broadcastMetalRatesUpdate(tenant, payload = {}) {
+    this.io.of('/metal-rates').to(`metal-rates:tenant:${tenant}`).emit('metal-rates:update', {
+      timestamp: new Date(),
+      ...payload,
+    })
+  }
+
+  /**
    * Broadcast report generation progress
    * @param {String} reportId - Report identifier
    * @param {String} status - 'pending' | 'processing' | 'completed' | 'failed'
@@ -293,11 +322,12 @@ class RealtimeServer {
   getConnectionStats() {
     const namespaceCount = (namespace) => Object.keys(this.io.of(namespace).sockets || {}).length
     return {
-      total: namespaceCount('/dashboard') + namespaceCount('/reports') + namespaceCount('/ledger') + namespaceCount('/transactions') + namespaceCount('/notifications'),
+      total: namespaceCount('/dashboard') + namespaceCount('/reports') + namespaceCount('/ledger') + namespaceCount('/transactions') + namespaceCount('/metal-rates') + namespaceCount('/notifications'),
       dashboard: namespaceCount('/dashboard'),
       reports: namespaceCount('/reports'),
       ledger: namespaceCount('/ledger'),
       transactions: namespaceCount('/transactions'),
+      metalRates: namespaceCount('/metal-rates'),
       notifications: namespaceCount('/notifications'),
     }
   }
