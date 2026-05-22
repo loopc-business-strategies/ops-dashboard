@@ -23,6 +23,7 @@ import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage, LANGUAGES } from '../context/LanguageContext'
 import { getTenantBranding } from '../config/tenantBranding'
 import BuildInfoBadge from '../components/BuildInfoBadge'
+import MgTopbarMetalTickers from '../components/MgTopbarMetalTickers'
 import { startUserNotifications } from '../utils/realtimeSocket'
 
 // Import tab content components
@@ -587,8 +588,8 @@ function Dashboard() {
 
         {/* Top header bar */}
         <header className="topbar sticky top-0 z-30 flex-shrink-0">
-          <div className="flex w-full items-center justify-between gap-6">
-            <div className="flex items-center gap-2.5">
+          <div className="flex w-full items-center justify-between gap-3 min-w-0">
+            <div className="flex items-center gap-2.5 flex-shrink-0 min-w-0">
               {/* Hamburger */}
               <button onClick={toggleSidebar}
                 className="p-2 rounded-lg transition-colors"
@@ -601,7 +602,7 @@ function Dashboard() {
               </button>
 
               {/* Breadcrumb */}
-              <div>
+              <div className="min-w-0">
                 <h1 className="topbar-title">
                   {currentTab?.label || t('dashboard')}
                 </h1>
@@ -611,9 +612,15 @@ function Dashboard() {
               </div>
             </div>
 
+            {branding.key === 'mg' && (
+              <div className="hidden md:flex flex-1 min-w-0 justify-center px-1 overflow-hidden">
+                <MgTopbarMetalTickers token={token} />
+              </div>
+            )}
+
             {/* Right side of header */}
-            <div className="ml-auto flex items-center justify-end gap-1 flex-nowrap">
-              <BuildInfoBadge className="hidden md:inline-flex" />
+            <div className="ml-auto flex items-center justify-end gap-1 flex-nowrap flex-shrink-0">
+              {branding.key !== 'mg' && <BuildInfoBadge className="hidden md:inline-flex" />}
 
               {/* Read-only badge */}
               {perms.isReadOnly && (
