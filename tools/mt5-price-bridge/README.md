@@ -22,10 +22,10 @@ cd tools\mt5-price-bridge
 python -m pip install -r requirements.txt
 ```
 
-5. Create `tools\mt5-price-bridge\.env`:
+5. Create `tools\mt5-price-bridge\.env` from `.env.example`:
 
 ```env
-ERP_BRIDGE_URL=http://localhost:5000/api/erp-accounting/metal-rates/bridge
+ERP_BRIDGE_URL=https://api.loopcstrategies.com/api/erp-accounting/metal-rates/bridge
 ERP_TENANT=mg
 METAL_RATES_BRIDGE_TOKEN=change-this-to-the-same-token-as-backend
 POLL_SECONDS=1
@@ -50,10 +50,18 @@ METAL_RATES_BRIDGE_TOKEN=change-this-to-the-same-token-as-backend
 7. Run:
 
 ```powershell
-python mt5_price_bridge.py
+.\run-mt5-bridge.ps1
 ```
 
 Keep MT5 open and connected. Keep this bridge process running.
+
+If the top bar says `waiting MT5`, the bridge has not posted a valid live tick yet. Keep the PowerShell window open and check for lines like:
+
+```text
+14:10:03 XAU=107.71 XAG=1.16 XPT=41.51 USD/G
+```
+
+If it prints `waiting for gold and silver ticks...`, your MT5 symbol names are different. Check Market Watch in MT5 and update `MT5_GOLD_SYMBOL`, `MT5_SILVER_SYMBOL`, and `MT5_PLATINUM_SYMBOL`.
 
 ## Notes
 
