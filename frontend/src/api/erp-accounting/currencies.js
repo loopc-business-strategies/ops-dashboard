@@ -8,6 +8,7 @@ const seedDefaultCurrencies = async (token) => (await axios.post(`${BASE}/curren
 const getReportBranding = async (token, params) => (await axios.get(`${BASE}/report-branding`, getAuthConfig(token, params))).data
 const updateReportBranding = async (token, payload) => (await axios.put(`${BASE}/report-branding`, payload, getAuthConfig(token))).data
 const getMetalRates = async (token) => (await axios.get(`${BASE}/metal-rates`, getAuthConfig(token))).data
+const getLiveMetalRates = async (token) => (await axios.get(`${BASE}/metal-rates/live`, getAuthConfig(token))).data
 const updateMetalRates = async (token, payload) => (await axios.put(`${BASE}/metal-rates`, payload, getAuthConfig(token))).data
 
 export const currenciesApi = {
@@ -19,5 +20,6 @@ export const currenciesApi = {
   getReportBranding,
   updateReportBranding,
   getMetalRates,
+  getLiveMetalRates,
   updateMetalRates,
 }

@@ -209,6 +209,43 @@ function registerCurrencyRoutes(deps) {
     }
   })
 
+  router.get('/metal-rates/live', protect, async (req, res) => {
+    try {
+      if (!canViewAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+
+      const latest = await getLatestMetalRate()
+      const source = String(latest?.source || '').toLowerCase()
+      const isBridgeRate = Boolean(latest && source && !['manual', 'default', 'inventory'].includes(source))
+
+      if (!isBridgeRate) {
+        return res.json({
+          success: true,
+          live: false,
+          message: 'Waiting for MT5 live feed.',
+          rates: {
+            goldPrice: 0,
+            silverPrice: 0,
+            platinumPrice: 0,
+            priceCurrency: 'USD',
+            priceUnit: 'G',
+            source: 'waiting-mt5',
+            updatedAt: null,
+          },
+          canUpdate: canManageAccounts(req.user),
+        })
+      }
+
+      res.json({
+        success: true,
+        live: true,
+        rates: buildMetalRatesResponse(latest),
+        canUpdate: canManageAccounts(req.user),
+      })
+    } catch {
+      res.status(500).json({ success: false, message: 'Server error' })
+    }
+  })
+
   router.put('/metal-rates', protect, async (req, res) => {
     try {
       if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })

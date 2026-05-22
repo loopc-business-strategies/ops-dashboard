@@ -82,7 +82,7 @@ export default function MgTopbarMetalTickers({ token, tenant }) {
   const load = useCallback(async () => {
     if (!token) return
     try {
-      const data = await currenciesApi.getMetalRates(token)
+      const data = await currenciesApi.getLiveMetalRates(token)
       if (!data?.success || !data.rates) return
       applyRates(data.rates)
     } catch {
@@ -169,7 +169,7 @@ export default function MgTopbarMetalTickers({ token, tenant }) {
                     <span style={{ marginLeft: '0.15rem' }}>{move.rest}</span>
                   </>
                 ) : (
-                  <span>{price > 0 ? `${snapshot.currency}/${snapshot.unit || 'G'}` : '—'}</span>
+                  <span>{price > 0 ? `${snapshot.currency}/${snapshot.unit || 'G'}` : 'waiting MT5'}</span>
                 )}
               </div>
             </div>
