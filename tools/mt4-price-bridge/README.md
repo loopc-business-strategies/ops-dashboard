@@ -12,7 +12,7 @@ Equiti MT4 account 3140019
   -> POST /api/erp-accounting/metal-rates/bridge
   -> backend saves latest tenant metal rates
   -> Socket.IO broadcasts metal-rates:update
-  -> React MG top bar changes in real time
+  -> React tenant top bar changes in real time
 ```
 
 ## Backend setup
@@ -70,6 +70,8 @@ PlatinumSymbol=XPTUSD
 PostEverySeconds=1
 ```
 
+Use `Tenant=mg`, `Tenant=cg`, or `Tenant=loopc` depending on which company top bar should receive the prices. If all three companies should use the same MT4 feed, run one EA instance per tenant on separate charts and change only the `Tenant` input.
+
 10. Turn on **AutoTrading**.
 
 ## Symbol names
@@ -84,7 +86,7 @@ Some brokers add suffixes, such as `XAUUSDm`. Put the exact names into the EA in
 
 ## Expected result
 
-The MG top bar should stop showing `waiting MT4` and should update every second. Values display as **USD/G**. The backend converts MT4's usual USD/troy ounce quotes into USD/gram.
+The selected tenant top bar should stop showing `waiting MT4` and should update every second. Values display as **USD/G**. The backend converts MT4's usual USD/troy ounce quotes into USD/gram.
 
 ## Troubleshooting
 
@@ -92,4 +94,4 @@ The MG top bar should stop showing `waiting MT4` and should update every second.
 - `503 Metal rates bridge is not configured`: backend `.env` is missing `METAL_RATES_BRIDGE_TOKEN`, or backend was not restarted.
 - `WebRequest failed 4014`: MT4 WebRequest URL is not allowed in **Tools > Options > Expert Advisors**.
 - `missing tick`: symbol is not visible or the symbol name is wrong.
-- Top bar still says `waiting MT4`: the EA is not posting successfully, the tenant is not `mg`, or your browser is logged into a different tenant.
+- Top bar still says `waiting MT4`: the EA is not posting successfully, the EA `Tenant` input does not match your logged-in company, or your browser is logged into a different tenant.

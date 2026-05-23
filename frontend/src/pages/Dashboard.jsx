@@ -612,14 +612,14 @@ function Dashboard() {
               </div>
             </div>
 
-            {/* Right side of header (MG: metal tickers sit here before notif / language / user) */}
+            {/* Right side of header: tenant metal tickers sit here before notif / language / user */}
             <div className="flex items-center justify-end gap-2 flex-nowrap flex-shrink-0 min-w-0">
-              {branding.key === 'mg' && (
+              {['mg', 'cg', 'loopc'].includes(branding.key) && (
                 <div className="hidden md:flex items-center shrink-0 min-w-0 overflow-hidden">
                   <MgTopbarMetalTickers token={token} tenant={branding.key} />
                 </div>
               )}
-              {branding.key !== 'mg' && <BuildInfoBadge className="hidden md:inline-flex" />}
+              {!['mg', 'cg', 'loopc'].includes(branding.key) && <BuildInfoBadge className="hidden md:inline-flex" />}
 
               {/* Read-only badge */}
               {perms.isReadOnly && (
