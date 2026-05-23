@@ -53,7 +53,7 @@ function normalizeBridgeMetalRates(body = {}, defaults = {}) {
     priceCurrency: currency,
     priceUnit: 'G',
     sourceUnit: unit,
-    source: String(body.source || 'mt5-bridge').trim() || 'mt5-bridge',
+    source: String(body.source || 'mt4-bridge').trim() || 'mt4-bridge',
   }
 }
 

@@ -213,7 +213,7 @@ function registerCurrencyRoutes(deps) {
     try {
       if (!canViewAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
-      // Do not use getLatestMetalRate() alone: a newer *manual* row shadows the MT5 bridge row
+      // Do not use getLatestMetalRate() alone: a newer *manual* row shadows the MT4 bridge row
       // (both exist with different `source`). Live tickers need the latest external feed document.
       const NON_FEED_SOURCES = ['manual', 'default', 'inventory']
       const latestFeed = await MetalRate.findOne({
@@ -226,14 +226,14 @@ function registerCurrencyRoutes(deps) {
         return res.json({
           success: true,
           live: false,
-          message: 'Waiting for MT5 live feed.',
+          message: 'Waiting for MT4 live feed.',
           rates: {
             goldPrice: 0,
             silverPrice: 0,
             platinumPrice: 0,
             priceCurrency: 'USD',
             priceUnit: 'G',
-            source: 'waiting-mt5',
+            source: 'waiting-mt4',
             updatedAt: null,
           },
           canUpdate: canManageAccounts(req.user),

@@ -91,9 +91,25 @@ VITE_API_URL=https://api.yourdomain.com
 
 ---
 
+### Optional: MT4 live metal top bar
+
+The **MG ERP top bar** can show live Gold, Silver, and Platinum prices from your connected MT4 terminal. Run the local Expert Advisor in `tools/mt4-price-bridge` and set the same bridge token in MT4 and the backend.
+
+```
+METAL_RATES_BRIDGE_TOKEN=<long random secret shared with MT4 EA>
+```
+
+The bridge posts to:
+
+```
+POST /api/erp-accounting/metal-rates/bridge
+```
+
+Prices from MT4 are normally USD per troy ounce; the backend stores them as **USD/G** for ERP use.
+
 ### Optional: server-side metal market prices (API / reports)
 
-The **ERP home dashboard** no longer shows a live spot-metals card or header ticker. Backend routes such as `GET /api/erp-accounting/reports/market-prices` (and optional SSE) may still use external feeds for **reports, margins, and saved metal rates**.
+Backend routes such as `GET /api/erp-accounting/reports/market-prices` (and optional SSE) may still use external feeds for **reports, margins, and saved metal rates**.
 
 If you call the default **metals.dev** host, set **`METALS_DEV_API_KEY`** (or **`METALS_API_KEY`**) in Railway / `backend/.env`. Otherwise the service falls back to **FRED** (`FRED_API_KEY`), **Alpha Vantage** (`ALPHA_VANTAGE_API_KEY` or `METALS_ALPHA_VANTAGE_API_KEY`), then **inventory / saved metal rates**.
 
@@ -250,4 +266,3 @@ Expected output from health check:
 - Vercel: https://vercel.com/dashboard
 - MongoDB Atlas: https://cloud.mongodb.com
 - Your Domain Registrar: (set bookmark)
-

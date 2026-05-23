@@ -201,7 +201,7 @@ class RealtimeServer {
     })
 
     /**
-     * Metal rates namespace: broadcast live spot updates from the MT5 bridge.
+     * Metal rates namespace: broadcast live spot updates from the MT4 bridge.
      */
     const metalRatesNamespace = this.io.of('/metal-rates')
     metalRatesNamespace.use(this.authMiddleware)

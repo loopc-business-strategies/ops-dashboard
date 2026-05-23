@@ -36,7 +36,7 @@ function metalStatusSubline(snapshot, price) {
   const cur = `${snapshot.currency}/${snapshot.unit || 'G'}`
   const src = String(snapshot.source || '').toLowerCase()
   const fromSaved = ['manual', 'inventory', 'default'].includes(src)
-  const fromLiveFeed = Boolean(src && !fromSaved && src !== 'waiting-mt5')
+  const fromLiveFeed = Boolean(src && !fromSaved && src !== 'waiting-mt4')
   const hasAnyRate = (Number(snapshot.gold) || 0) > 0
     || (Number(snapshot.silver) || 0) > 0
     || (Number(snapshot.platinum) || 0) > 0
@@ -50,7 +50,7 @@ function metalStatusSubline(snapshot, price) {
   if (fromLiveFeed && hasAnyRate) {
     return cur
   }
-  return 'waiting MT5'
+  return 'waiting MT4'
 }
 
 /**

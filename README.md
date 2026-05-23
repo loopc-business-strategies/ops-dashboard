@@ -11,7 +11,7 @@ Multi-tenant operations and ERP platform for mg, cg, and loopc companies.
 **Linting:** `npm run lint` runs repository guardrails (tracked paths, destructive scripts, rewrites). **`npm run lint:eslint`** runs ESLint on **`frontend/src`** (JS/React + Babel JSX parser). The repo has many legacy findings; run locally and tighten rules over time. CI does not gate on ESLint yet.
 
 **Normal releases:** With the repo connected to **Vercel** and **Railway**, pushing to **`main`** is enough—both platforms pick up the commit automatically. You do not need local `npx vercel` or `railway` for day-to-day deploys. Use those CLIs only for manual redeploys or when setting up CI with `VERCEL_TOKEN` / a fresh `railway login`; headless environments (e.g. some agent sandboxes) often lack OAuth, which is why CLI deploy can fail there even when GitHub integrations succeed.
-- Optional server-side metal **market** feeds (reports / saved rates): `METALS_DEV_API_KEY`, `FRED_API_KEY`, or `ALPHA_VANTAGE_API_KEY`; optional **`METALS_SPOT_MOCK_REALTIME=true`** for synthetic ticks in dev — see `ENV-VARS-QUICK-REFERENCE.md`. The ERP home dashboard does **not** show a live spot strip or header ticker.
+- Optional server-side metal **market** feeds (reports / saved rates): `METALS_DEV_API_KEY`, `FRED_API_KEY`, or `ALPHA_VANTAGE_API_KEY`; optional **`METALS_SPOT_MOCK_REALTIME=true`** for synthetic ticks in dev — see `ENV-VARS-QUICK-REFERENCE.md`. The MG top bar can receive live Gold/Silver/Platinum ticks from `tools/mt4-price-bridge`.
 
 ## GitHub Actions Setup (One-Shot)
 This repo includes the post-deploy tenant smoke workflow:

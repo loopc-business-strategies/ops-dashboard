@@ -4,9 +4,9 @@ const {
 } = require('../services/erpAccounting/metalRateBridgeService')
 
 describe('metal rate bridge service', () => {
-  test('normalizes MT5 troy-ounce bid/ask quotes into ERP gram prices', () => {
+  test('normalizes MT4 troy-ounce bid/ask quotes into ERP gram prices', () => {
     const rates = normalizeBridgeMetalRates({
-      source: 'mt5-bridge',
+      source: 'mt4-bridge',
       currency: 'USD',
       unit: 'toz',
       metals: {
