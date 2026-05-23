@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.00"
+#property version   "1.01"
 #property description "Posts live Equiti MT4 metal quotes to the Ops Dashboard backend."
 
 input string BridgeUrl = "http://localhost:5000/api/erp-accounting/metal-rates/bridge";
@@ -106,17 +106,23 @@ bool PostQuotes()
    char result[];
    string resultHeaders = "";
    StringToCharArray(payload, data, 0, StringLen(payload), CP_UTF8);
+   int dataSize = ArraySize(data);
+   if (dataSize > 0 && data[dataSize - 1] == 0) dataSize -= 1;
 
    string headers = "Content-Type: application/json\r\n";
    headers += "x-metal-rates-bridge-token: " + BridgeToken + "\r\n";
    headers += "x-tenant: " + Tenant + "\r\n";
 
    ResetLastError();
-   int status = WebRequest("POST", BridgeUrl, headers, RequestTimeoutMs, data, result, resultHeaders);
+   int status = WebRequest("POST", BridgeUrl, "", "", RequestTimeoutMs, data, dataSize, result, resultHeaders);
    if (status < 200 || status >= 300)
    {
       string body = CharArrayToString(result, 0, -1, CP_UTF8);
-      Print("MT4 metal bridge: POST failed. status=", status, " lastError=", GetLastError(), " body=", body);
+      int errorCode = GetLastError();
+      string hint = "";
+      if (errorCode == 4014) hint = " Allow WebRequest for the backend origin in Tools > Options > Expert Advisors.";
+      if (errorCode == 4029) hint = " Check the BridgeUrl, allowed WebRequest URL, and that localhost:5000 is reachable from Windows.";
+      Print("MT4 metal bridge: POST failed. status=", status, " lastError=", errorCode, hint, " body=", body);
       return false;
    }
 
