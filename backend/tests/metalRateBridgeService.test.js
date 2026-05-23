@@ -24,13 +24,16 @@ describe('metal rate bridge service', () => {
     expect(rates.platinumPrice).toBeCloseTo(1291 / TROY_OUNCE_GRAMS, 6)
   })
 
-  test('requires gold and silver but allows platinum to fallback to zero', () => {
+  test('requires gold, silver, and platinum', () => {
     expect(() => normalizeBridgeMetalRates({
       currency: 'USD',
       unit: 'toz',
       metals: {
         gold: { bid: 3310, ask: 3312 },
+        silver: { bid: 36, ask: 36.2 },
       },
-    })).toThrow('Gold and silver prices are required')
+    }, {
+      platinumPrice: 42,
+    })).toThrow('Gold, silver, and platinum prices are required')
   })
 })

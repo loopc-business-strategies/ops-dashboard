@@ -183,8 +183,6 @@ function registerCurrencyRoutes(deps) {
 
   router.get('/metal-rates', protect, async (req, res) => {
     try {
-      if (!canViewAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-
       const latest = await getLatestMetalRate()
       const { stockPriceMap, latestStockUpdatedAt } = await resolveInventoryMetalRates()
       const preferSavedLiveRate = latest && !['manual', 'default'].includes(String(latest.source || '').toLowerCase())
@@ -211,8 +209,6 @@ function registerCurrencyRoutes(deps) {
 
   router.get('/metal-rates/live', protect, async (req, res) => {
     try {
-      if (!canViewAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-
       // Do not use getLatestMetalRate() alone: a newer *manual* row shadows the MT4 bridge row
       // (both exist with different `source`). Live tickers need the latest external feed document.
       const NON_FEED_SOURCES = ['manual', 'default', 'inventory']
@@ -287,16 +283,24 @@ function registerCurrencyRoutes(deps) {
     try {
       const expectedToken = String(process.env.METAL_RATES_BRIDGE_TOKEN || '').trim()
       if (!expectedToken) {
+        console.warn('[metal-rates bridge] rejected POST: METAL_RATES_BRIDGE_TOKEN is not configured')
         return res.status(503).json({ success: false, message: 'Metal rates bridge is not configured.' })
       }
 
       const token = getBridgeTokenFromRequest(req)
       if (!token || token !== expectedToken) {
+        console.warn('[metal-rates bridge] rejected POST: invalid bridge token')
         return res.status(401).json({ success: false, message: 'Invalid metal rates bridge token.' })
       }
 
       const tenant = normalizeTenant(req.headers['x-tenant'] || req.headers['x-company'] || req.body.tenant)
-      if (!tenant) return res.status(400).json({ success: false, message: 'Valid tenant is required.' })
+      if (!tenant) {
+        console.warn('[metal-rates bridge] rejected POST: valid tenant is required', {
+          headerTenant: req.headers['x-tenant'] || req.headers['x-company'] || '',
+          bodyTenant: req.body?.tenant || '',
+        })
+        return res.status(400).json({ success: false, message: 'Valid tenant is required.' })
+      }
 
       const TenantMetalRate = await MetalRate.getTenantModel(tenant)
       const latest = await TenantMetalRate.findOne({}).sort({ updatedAt: -1 })
@@ -324,10 +328,21 @@ function registerCurrencyRoutes(deps) {
       const rates = buildMetalRatesResponse(rate)
       req.app.get('realtimeServer')?.broadcastMetalRatesUpdate?.(tenant, { rates })
       publishRealtimeEvent({ type: 'metal-rates:update', tenant, data: { rates } })
+      console.info('[metal-rates bridge] accepted live metal rates', {
+        tenant,
+        source: normalized.source,
+        symbols: req.body.symbols || {},
+        updatedAt: rate.updatedAt,
+      })
 
       res.json({ success: true, tenant, rates })
     } catch (err) {
       const message = err?.message || 'Invalid metal rates payload'
+      console.warn('[metal-rates bridge] rejected POST: invalid payload', {
+        message,
+        tenant: req.headers['x-tenant'] || req.headers['x-company'] || req.body?.tenant || '',
+        symbols: req.body?.symbols || {},
+      })
       res.status(message.includes('required') ? 400 : 500).json({ success: false, message })
     }
   })

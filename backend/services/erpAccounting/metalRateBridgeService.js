@@ -38,14 +38,16 @@ function normalizeBridgeMetalRates(body = {}, defaults = {}) {
   const rawMetals = body.metals && typeof body.metals === 'object' ? body.metals : body
 
   const normalized = {}
+  const received = {}
   METAL_KEYS.forEach((metal) => {
     const directKey = `${metal}Price`
     const rawPrice = midFromQuote(rawMetals[metal] ?? rawMetals[metal.toUpperCase()] ?? body[directKey])
+    received[metal] = rawPrice
     normalized[`${metal}Price`] = rawPrice > 0 ? rawPrice / divisor : toPositiveNumber(defaults[`${metal}Price`])
   })
 
-  if (normalized.goldPrice <= 0 || normalized.silverPrice <= 0) {
-    throw new Error('Gold and silver prices are required')
+  if (received.gold <= 0 || received.silver <= 0 || received.platinum <= 0) {
+    throw new Error('Gold, silver, and platinum prices are required')
   }
 
   return {

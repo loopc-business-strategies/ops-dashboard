@@ -320,7 +320,7 @@ class RealtimeServer {
    * Get connection count for monitoring
    */
   getConnectionStats() {
-    const namespaceCount = (namespace) => Object.keys(this.io.of(namespace).sockets || {}).length
+    const namespaceCount = (namespace) => this.io.of(namespace).sockets?.size || 0
     return {
       total: namespaceCount('/dashboard') + namespaceCount('/reports') + namespaceCount('/ledger') + namespaceCount('/transactions') + namespaceCount('/metal-rates') + namespaceCount('/notifications'),
       dashboard: namespaceCount('/dashboard'),

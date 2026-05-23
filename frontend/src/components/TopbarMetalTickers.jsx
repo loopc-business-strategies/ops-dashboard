@@ -31,8 +31,30 @@ const METALS = [
   { key: 'platinum', label: 'Platinum', swatch: '#A855F7', sym: 'Pt', labelColor: '#FDE68A' },
 ]
 
+function metalErrorLabel(error) {
+  const status = Number(error?.status || 0)
+  if (status === 401) return 'login required'
+  if (status === 403) return 'permission denied'
+  if (status === 503) return 'bridge unavailable'
+  if (error?.network) return 'backend offline'
+  return error?.message || ''
+}
+
+function metalErrorFromException(error) {
+  const status = Number(error?.response?.status || 0)
+  const serverMessage = String(error?.response?.data?.message || '').trim()
+  return {
+    status,
+    network: !error?.response,
+    message: serverMessage || (status ? 'backend error' : 'backend offline'),
+  }
+}
+
 /** Second line under price when there is no move row yet. */
-function metalStatusSubline(snapshot, price) {
+function metalStatusSubline(snapshot, price, error) {
+  const errorLabel = metalErrorLabel(error)
+  if (errorLabel) return errorLabel
+
   const cur = `${snapshot.currency}/${snapshot.unit || 'G'}`
   const src = String(snapshot.source || '').toLowerCase()
   const fromSaved = ['manual', 'inventory', 'default'].includes(src)
@@ -54,10 +76,10 @@ function metalStatusSubline(snapshot, price) {
 }
 
 /**
- * MG tenant top bar: live Gold / Silver / Platinum spot from ERP metal-rates API.
- * Second row shows prior poll price plus move since last refresh (after the first poll).
+ * Tenant top bar: live Gold / Silver / Platinum spot from ERP metal-rates API.
+ * Second row shows movement since the previous live snapshot once one exists.
  */
-export default function MgTopbarMetalTickers({ token, tenant }) {
+export default function TopbarMetalTickers({ token, tenant }) {
   const [snapshot, setSnapshot] = useState({
     gold: 0,
     silver: 0,
@@ -67,9 +89,10 @@ export default function MgTopbarMetalTickers({ token, tenant }) {
     source: '',
     updatedAt: null,
     deltas: null,
-    prevPoll: null,
+    prevSnapshot: null,
   })
-  const lastPollRef = useRef(null)
+  const [error, setError] = useState(null)
+  const lastSnapshotRef = useRef(null)
 
   const applyRates = useCallback((rates) => {
     if (!rates) return
@@ -82,21 +105,22 @@ export default function MgTopbarMetalTickers({ token, tenant }) {
       source: String(rates.source || '').trim(),
       updatedAt: rates.updatedAt || null,
     }
-    const prevPoll = lastPollRef.current
+    const prevSnapshot = lastSnapshotRef.current
     let deltas = null
-    if (prevPoll && (prevPoll.gold > 0 || prevPoll.silver > 0 || prevPoll.platinum > 0)) {
+    if (prevSnapshot && (prevSnapshot.gold > 0 || prevSnapshot.silver > 0 || prevSnapshot.platinum > 0)) {
       deltas = {
-        gold: next.gold - prevPoll.gold,
-        silver: next.silver - prevPoll.silver,
-        platinum: next.platinum - prevPoll.platinum,
+        gold: next.gold - prevSnapshot.gold,
+        silver: next.silver - prevSnapshot.silver,
+        platinum: next.platinum - prevSnapshot.platinum,
       }
     }
-    lastPollRef.current = { gold: next.gold, silver: next.silver, platinum: next.platinum }
+    lastSnapshotRef.current = { gold: next.gold, silver: next.silver, platinum: next.platinum }
+    setError(null)
     setSnapshot({
       ...next,
       deltas,
-      prevPoll: prevPoll && (prevPoll.gold > 0 || prevPoll.silver > 0 || prevPoll.platinum > 0)
-        ? { gold: prevPoll.gold, silver: prevPoll.silver, platinum: prevPoll.platinum }
+      prevSnapshot: prevSnapshot && (prevSnapshot.gold > 0 || prevSnapshot.silver > 0 || prevSnapshot.platinum > 0)
+        ? { gold: prevSnapshot.gold, silver: prevSnapshot.silver, platinum: prevSnapshot.platinum }
         : null,
     })
   }, [])
@@ -108,7 +132,8 @@ export default function MgTopbarMetalTickers({ token, tenant }) {
       const liveRates = live?.rates
       const g = Number(liveRates?.goldPrice) || 0
       const s = Number(liveRates?.silverPrice) || 0
-      if (live?.success && liveRates && g > 0 && s > 0) {
+      const p = Number(liveRates?.platinumPrice) || 0
+      if (live?.success && liveRates && g > 0 && s > 0 && p > 0) {
         applyRates(liveRates)
         return
       }
@@ -116,9 +141,12 @@ export default function MgTopbarMetalTickers({ token, tenant }) {
       const saved = await currenciesApi.getMetalRates(token)
       if (saved?.success && saved.rates) {
         applyRates(saved.rates)
+        if (!live?.live) {
+          setError(live?.message ? { message: 'bridge offline' } : null)
+        }
       }
-    } catch {
-      void 0
+    } catch (err) {
+      setError(metalErrorFromException(err))
     }
   }, [applyRates, token])
 
@@ -151,8 +179,8 @@ export default function MgTopbarMetalTickers({ token, tenant }) {
     <div className="flex items-center justify-end gap-2 min-w-0 flex-wrap" style={{ rowGap: 6 }}>
       {METALS.map(({ key, label, swatch, sym, labelColor }) => {
         const price = snapshot[key]
-        const move = snapshot.deltas && snapshot.prevPoll
-          ? fmtMoveRow(snapshot.deltas[key], snapshot.prevPoll[key])
+        const move = snapshot.deltas && snapshot.prevSnapshot && !error
+          ? fmtMoveRow(snapshot.deltas[key], snapshot.prevSnapshot[key])
           : null
 
         return (
@@ -191,7 +219,7 @@ export default function MgTopbarMetalTickers({ token, tenant }) {
                   marginTop: '0.12rem',
                   fontSize: '0.65rem',
                   fontWeight: 600,
-                  color: move ? (move.up ? '#4ade80' : '#f87171') : 'rgba(255,255,255,0.45)',
+                  color: error ? '#fbbf24' : move ? (move.up ? '#4ade80' : '#f87171') : 'rgba(255,255,255,0.45)',
                   whiteSpace: 'nowrap',
                 }}
               >
@@ -201,7 +229,7 @@ export default function MgTopbarMetalTickers({ token, tenant }) {
                     <span style={{ marginLeft: '0.15rem' }}>{move.rest}</span>
                   </>
                 ) : (
-                  <span>{metalStatusSubline(snapshot, price)}</span>
+                  <span>{metalStatusSubline(snapshot, price, error)}</span>
                 )}
               </div>
             </div>

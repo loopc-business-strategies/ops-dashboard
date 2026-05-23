@@ -23,7 +23,7 @@ import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage, LANGUAGES } from '../context/LanguageContext'
 import { getTenantBranding } from '../config/tenantBranding'
 import BuildInfoBadge from '../components/BuildInfoBadge'
-import MgTopbarMetalTickers from '../components/MgTopbarMetalTickers'
+import TopbarMetalTickers from '../components/TopbarMetalTickers'
 import { startUserNotifications } from '../utils/realtimeSocket'
 
 // Import tab content components
@@ -616,7 +616,7 @@ function Dashboard() {
             <div className="flex items-center justify-end gap-2 flex-nowrap flex-shrink-0 min-w-0">
               {['mg', 'cg', 'loopc'].includes(branding.key) && (
                 <div className="hidden md:flex items-center shrink-0 min-w-0 overflow-hidden">
-                  <MgTopbarMetalTickers token={token} tenant={branding.key} />
+                  <TopbarMetalTickers token={token} tenant={branding.key} />
                 </div>
               )}
               {!['mg', 'cg', 'loopc'].includes(branding.key) && <BuildInfoBadge className="hidden md:inline-flex" />}
