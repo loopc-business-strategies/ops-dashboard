@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { currenciesApi } from '../api/erp-accounting/currencies'
+import { reportsApi } from '../api/erp-accounting/reports'
 import { startMetalRatesRealtime } from '../utils/realtimeSocket'
 
 const POLL_MS = 60_000
+const TOPBAR_MARKET_PARAMS = { currency: 'USD', unit: 'g' }
 
 function fmtSpot(n) {
   const x = Number(n || 0)
@@ -47,6 +49,28 @@ function metalErrorFromException(error) {
     status,
     network: !error?.response,
     message: serverMessage || (status ? 'backend error' : 'backend offline'),
+  }
+}
+
+function normalizeMarketUnit(value) {
+  const unit = String(value || 'G').trim().toUpperCase()
+  if (unit === 'G' || unit === 'GRAM' || unit === 'GRAMS') return 'G'
+  if (unit === 'TOZ' || unit === 'OZ') return 'TOZ'
+  if (unit === 'KG') return 'KG'
+  return unit || 'G'
+}
+
+function marketPricesToRates(payload) {
+  const metals = payload?.metals
+  if (!payload?.success || !metals || typeof metals !== 'object') return null
+  return {
+    goldPrice: Number(metals.gold) || 0,
+    silverPrice: Number(metals.silver) || 0,
+    platinumPrice: Number(metals.platinum) || 0,
+    priceCurrency: String(payload.currency || 'USD').trim().toUpperCase() || 'USD',
+    priceUnit: normalizeMarketUnit(payload.unit),
+    source: String(payload.source || payload.feedStatus || 'market-prices').trim(),
+    updatedAt: payload.updatedAt || payload.generatedAt || payload.streamAt || null,
   }
 }
 
@@ -137,6 +161,21 @@ export default function TopbarMetalTickers({ token, tenant }) {
         applyRates(liveRates)
         return
       }
+
+      try {
+        const market = await reportsApi.getMarketPrices(token, { ...TOPBAR_MARKET_PARAMS, fresh: 1 })
+        const marketRates = marketPricesToRates(market)
+        const mg = Number(marketRates?.goldPrice) || 0
+        const ms = Number(marketRates?.silverPrice) || 0
+        const mp = Number(marketRates?.platinumPrice) || 0
+        if (marketRates && mg > 0 && ms > 0 && mp > 0) {
+          applyRates(marketRates)
+          return
+        }
+      } catch {
+        // Some roles can read saved rates but not reports. Keep the topbar useful for them.
+      }
+
       // Bridge offline or not configured: show last saved / inventory / defaults from standard endpoint
       const saved = await currenciesApi.getMetalRates(token)
       if (saved?.success && saved.rates) {
@@ -161,6 +200,35 @@ export default function TopbarMetalTickers({ token, tenant }) {
     tenant,
     onRatesUpdate: (payload) => applyRates(payload?.rates || payload?.data?.rates),
   }), [applyRates, tenant, token])
+
+  useEffect(() => {
+    if (!token || typeof window === 'undefined' || typeof window.EventSource !== 'function') return undefined
+
+    let closed = false
+    const source = new window.EventSource(
+      reportsApi.getMarketPricesStreamUrl(TOPBAR_MARKET_PARAMS),
+      { withCredentials: true },
+    )
+
+    source.onmessage = (event) => {
+      if (closed) return
+      try {
+        const rates = marketPricesToRates(JSON.parse(event.data))
+        if (rates) applyRates(rates)
+      } catch {
+        // Ignore malformed stream ticks; polling and socket fallback remain active.
+      }
+    }
+
+    source.onerror = () => {
+      setError((prev) => prev || { message: 'market stream offline' })
+    }
+
+    return () => {
+      closed = true
+      source.close()
+    }
+  }, [applyRates, token])
 
   const pillBase = {
     display: 'inline-flex',
