@@ -63,6 +63,7 @@ function normalizeMarketUnit(value) {
 function marketPricesToRates(payload) {
   const metals = payload?.metals
   if (!payload?.success || !metals || typeof metals !== 'object') return null
+  if (String(payload.feedStatus || '').toLowerCase() === 'fallback') return null
   return {
     goldPrice: Number(metals.gold) || 0,
     silverPrice: Number(metals.silver) || 0,

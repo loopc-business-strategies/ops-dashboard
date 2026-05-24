@@ -7,6 +7,7 @@
 
 const FRED_OBSERVATIONS_URL = 'https://api.stlouisfed.org/fred/series/observations'
 const ALPHA_VANTAGE_URL = 'https://www.alphavantage.co/query'
+const SILV_DATA_COMMODITIES_URL = 'https://data.silv.app/commodities.json'
 
 function trimEnv(...keys) {
   for (const k of keys) {
@@ -98,6 +99,69 @@ async function fetchFredPreciousMetalSpotBundle() {
     currency: 'USD',
     unit: 'toz',
     updatedAt: new Date(),
+    metals,
+  }
+}
+
+function pickSilvCommodity(payload, key) {
+  const commodities = payload?.commodities
+  if (!commodities) return null
+
+  if (!Array.isArray(commodities)) return commodities[key] || null
+
+  return commodities.find((row) => {
+    const id = String(row?.id || '').toLowerCase()
+    const name = String(row?.display_name || row?.name || '').toLowerCase()
+    const symbol = String(row?.symbol || '').toLowerCase()
+    return id === key || name === key || (
+      (key === 'gold' && symbol === 'au') ||
+      (key === 'silver' && symbol === 'ag') ||
+      (key === 'platinum' && symbol === 'pt') ||
+      (key === 'palladium' && symbol === 'pd')
+    )
+  }) || null
+}
+
+/**
+ * Free no-auth commodity feed. SILV documents precious metals as real-time
+ * spot prices updated about every 15 minutes.
+ * @see https://datadocs.silv.app/
+ */
+async function fetchSilvDataPreciousMetalSpotBundle() {
+  const res = await fetch(SILV_DATA_COMMODITIES_URL, {
+    headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(12000),
+  })
+  const text = await res.text()
+  let json
+  try {
+    json = JSON.parse(text)
+  } catch {
+    throw new Error('SILV DATA returned non-JSON')
+  }
+  if (!res.ok) {
+    throw new Error(`SILV DATA HTTP ${res.status}`)
+  }
+
+  const metals = {}
+  let updatedAt = null
+  for (const metal of ['gold', 'silver', 'platinum', 'palladium']) {
+    const row = pickSilvCommodity(json, metal)
+    const price = Number(row?.price || row?.mid || row?.last || 0)
+    metals[metal] = Number.isFinite(price) && price > 0 ? price : 0
+    const stamp = row?.last_updated || row?.timestamp
+    if (stamp && (!updatedAt || new Date(stamp) > new Date(updatedAt))) updatedAt = stamp
+  }
+
+  if (metals.gold <= 0 || metals.silver <= 0 || metals.platinum <= 0) {
+    throw new Error('SILV DATA returned no usable precious-metal prices')
+  }
+
+  return {
+    source: 'data.silv.app',
+    currency: 'USD',
+    unit: 'toz',
+    updatedAt: updatedAt ? new Date(updatedAt) : new Date(),
     metals,
   }
 }
@@ -213,4 +277,5 @@ async function fetchAlphaVantagePreciousMetalSpotBundle({ apiKey: explicitKey } 
 module.exports = {
   fetchFredPreciousMetalSpotBundle,
   fetchAlphaVantagePreciousMetalSpotBundle,
+  fetchSilvDataPreciousMetalSpotBundle,
 }

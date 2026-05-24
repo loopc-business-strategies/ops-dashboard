@@ -8,6 +8,7 @@ const metalSpotCache = {
 const {
   fetchFredPreciousMetalSpotBundle,
   fetchAlphaVantagePreciousMetalSpotBundle,
+  fetchSilvDataPreciousMetalSpotBundle,
 } = require('../../services/metalSpotFeeds')
 const {
   isMockRealtimeMetalsSpotEnabled,
@@ -756,6 +757,20 @@ router.get('/reports/forex-gain-loss', protect, async (req, res) => {
     if (canTryMetalsDev) {
       try {
         market = await fetchExternalMetalPrices({ currency, unit })
+      } catch (e) {
+        liveErrors.push(e.message)
+      }
+    }
+
+    if (!market) {
+      try {
+        const rawSilv = await fetchSilvDataPreciousMetalSpotBundle()
+        market = {
+          ...rawSilv,
+          metals: await scaleUsdPerOzMetalsToRequest(rawSilv.metals, currency, unit),
+          currency: String(currency || 'USD').toUpperCase(),
+          unit: String(unit || 'toz').toLowerCase(),
+        }
       } catch (e) {
         liveErrors.push(e.message)
       }
