@@ -317,6 +317,7 @@ function registerCurrencyRoutes(deps) {
             source: normalized.source,
             sourcePayload: {
               sourceUnit: normalized.sourceUnit,
+              sourcePrices: normalized.sourcePrices,
               symbols: req.body.symbols || undefined,
               receivedAt: new Date(),
             },

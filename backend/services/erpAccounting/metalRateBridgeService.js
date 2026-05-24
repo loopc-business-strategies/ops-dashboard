@@ -55,17 +55,26 @@ function normalizeBridgeMetalRates(body = {}, defaults = {}) {
     priceCurrency: currency,
     priceUnit: 'G',
     sourceUnit: unit,
+    sourcePrices: received,
     source: String(body.source || 'mt4-bridge').trim() || 'mt4-bridge',
   }
 }
 
 function buildMetalRatesResponse(rate) {
+  const sourcePrices = rate?.sourcePayload?.sourcePrices && typeof rate.sourcePayload.sourcePrices === 'object'
+    ? rate.sourcePayload.sourcePrices
+    : null
+  const sourceUnit = normalizeUnit(rate?.sourcePayload?.sourceUnit || rate?.sourceUnit || rate?.priceUnit)
   return {
     goldPrice: toPositiveNumber(rate?.goldPrice),
     silverPrice: toPositiveNumber(rate?.silverPrice),
     platinumPrice: toPositiveNumber(rate?.platinumPrice),
     priceCurrency: normalizeCurrency(rate?.priceCurrency),
     priceUnit: normalizeUnit(rate?.priceUnit),
+    sourceGoldPrice: toPositiveNumber(sourcePrices?.gold),
+    sourceSilverPrice: toPositiveNumber(sourcePrices?.silver),
+    sourcePlatinumPrice: toPositiveNumber(sourcePrices?.platinum),
+    sourceUnit,
     source: String(rate?.source || 'manual'),
     updatedAt: rate?.updatedAt || null,
   }

@@ -121,12 +121,17 @@ export default function TopbarMetalTickers({ token, tenant }) {
 
   const applyRates = useCallback((rates) => {
     if (!rates) return
+    const useSourceToz = normalizeMarketUnit(rates.sourceUnit) === 'TOZ'
+    const pickPrice = (sourceValue, storedValue) => {
+      const source = Number(sourceValue) || 0
+      return useSourceToz && source > 0 ? source : Number(storedValue) || 0
+    }
     const next = {
-      gold: Number(rates.goldPrice) || 0,
-      silver: Number(rates.silverPrice) || 0,
-      platinum: Number(rates.platinumPrice) || 0,
+      gold: pickPrice(rates.sourceGoldPrice, rates.goldPrice),
+      silver: pickPrice(rates.sourceSilverPrice, rates.silverPrice),
+      platinum: pickPrice(rates.sourcePlatinumPrice, rates.platinumPrice),
       currency: String(rates.priceCurrency || 'USD').trim().toUpperCase() || 'USD',
-      unit: String(rates.priceUnit || 'G').trim().toUpperCase() || 'G',
+      unit: useSourceToz ? 'TOZ' : String(rates.priceUnit || 'G').trim().toUpperCase() || 'G',
       source: String(rates.source || '').trim(),
       updatedAt: rates.updatedAt || null,
     }

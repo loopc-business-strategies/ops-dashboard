@@ -86,7 +86,7 @@ Some brokers add suffixes, such as `XAUUSDm`. Put the exact names into the EA in
 
 ## Expected result
 
-The selected tenant top bar should stop showing `waiting MT4` and should update every second. Values display as **USD/G**. The backend converts MT4's usual USD/troy ounce quotes into USD/gram.
+The selected tenant top bar should update every second. The top bar displays MT4's original **USD/TOZ** tick values, while the backend also stores converted USD/gram values for ERP calculations.
 
 ## Troubleshooting
 
