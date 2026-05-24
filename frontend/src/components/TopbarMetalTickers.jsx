@@ -4,7 +4,7 @@ import { reportsApi } from '../api/erp-accounting/reports'
 import { startMetalRatesRealtime } from '../utils/realtimeSocket'
 
 const POLL_MS = 60_000
-const TOPBAR_MARKET_PARAMS = { currency: 'USD', unit: 'g' }
+const TOPBAR_MARKET_PARAMS = { currency: 'USD', unit: 'toz' }
 
 function fmtSpot(n) {
   const x = Number(n || 0)
