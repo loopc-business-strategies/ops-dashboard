@@ -422,9 +422,13 @@ export const DOC_PREFIX_BY_TYPE = {
 export const METAL_STOCK_VOUCHER_TYPES = ['purchase', 'sale', 'metal_receipt', 'metal_payment']
 export const METAL_STOCK_IN_VOUCHER_TYPES = ['purchase', 'metal_receipt']
 export const METAL_STOCK_OUT_VOUCHER_TYPES = ['sale', 'metal_payment']
+export const METAL_TRANSFER_VOUCHER_TYPES = ['metal_receipt', 'metal_payment']
 
 export const isMetalStockVoucherType = (type) => (
   METAL_STOCK_VOUCHER_TYPES.includes(String(type || '').toLowerCase())
+)
+export const isMetalTransferVoucherType = (type) => (
+  METAL_TRANSFER_VOUCHER_TYPES.includes(String(type || '').toLowerCase())
 )
 export const isMetalStockInVoucherType = (type) => (
   METAL_STOCK_IN_VOUCHER_TYPES.includes(String(type || '').toLowerCase())
