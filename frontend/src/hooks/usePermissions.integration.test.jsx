@@ -15,6 +15,8 @@ function PermissionsProbe() {
   return (
     <div>
       <p data-testid="erp">{String(perms.canViewERP)}</p>
+      <p data-testid="erp-dashboard">{String(perms.canViewERPSubTab('dashboard'))}</p>
+      <p data-testid="erp-transactions">{String(perms.canViewERPSubTab('transactions'))}</p>
       <p data-testid="finance">{String(perms.canViewModule('finance'))}</p>
       <p data-testid="sales">{String(perms.canViewModule('sales'))}</p>
       <p data-testid="readonly">{String(perms.isReadOnly)}</p>
@@ -40,6 +42,42 @@ describe('sidebar permission integration', () => {
     expect(screen.getByTestId('finance').textContent).toBe('false')
     expect(screen.getByTestId('sales').textContent).toBe('true')
     expect(screen.getByTestId('readonly').textContent).toBe('true')
+  })
+
+  test('granular ERP subtabs override legacy allowedModules access', () => {
+    mockedUser = {
+      role: 'management',
+      allowedModules: ['erp'],
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            transactions: { on: true },
+          },
+        },
+      },
+    }
+
+    render(<PermissionsProbe />)
+
+    expect(screen.getByTestId('erp').textContent).toBe('true')
+    expect(screen.getByTestId('erp-dashboard').textContent).toBe('false')
+    expect(screen.getByTestId('erp-transactions').textContent).toBe('true')
+  })
+
+  test('granular ERP off overrides legacy allowedModules access', () => {
+    mockedUser = {
+      role: 'management',
+      allowedModules: ['erp'],
+      modulePermissions: {
+        erp: { on: false },
+      },
+    }
+
+    render(<PermissionsProbe />)
+
+    expect(screen.getByTestId('erp').textContent).toBe('false')
+    expect(screen.getByTestId('erp-transactions').textContent).toBe('false')
   })
 
   test('department users only see their own department by default', () => {
