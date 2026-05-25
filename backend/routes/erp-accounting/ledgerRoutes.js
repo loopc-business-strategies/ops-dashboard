@@ -50,6 +50,42 @@ const encodeCursor = (doc) => {
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+const jvDescriptionHead = (description = '') => {
+  const raw = String(description || '')
+  return (raw.includes(' — ') ? raw.split(' — ')[0] : raw.split(' - ')[0]).trim()
+}
+
+const isValidObjectId = (value = '') => /^[a-fA-F0-9]{24}$/.test(String(value || '').trim())
+
+async function assertJvDocNoNotDuplicate(TenantLedger, { referenceType, description, referenceId }) {
+  const refType = String(referenceType || 'journal').toLowerCase()
+  if (!['journal', 'bank_jv'].includes(refType)) return null
+  const head = jvDescriptionHead(description)
+  if (!/^(jv|bnkjv)\/\d{4}\/\d+$/i.test(head)) return null
+
+  const matches = await TenantLedger.find({
+    isDeleted: { $ne: true },
+    referenceType: refType,
+    description: new RegExp(`^${escapeRegex(head)}(\\s|$|—|-)`, 'i'),
+  })
+    .select('referenceId')
+    .lean()
+
+  const batchId = String(referenceId || '').trim()
+  const duplicate = (matches || []).some((row) => {
+    const rowBatch = String(row?.referenceId || '').trim()
+    if (!batchId || !isValidObjectId(batchId)) return true
+    if (!rowBatch || !isValidObjectId(rowBatch)) return true
+    return rowBatch !== batchId
+  })
+
+  if (duplicate) {
+    const err = new Error(`DUPLICATE_JV_DOCNO:${head}`)
+    throw err
+  }
+  return null
+}
+
 const JV_MODE_PREFIX = {
   journal: { prefix: 'Jv', referenceType: 'journal' },
   bank_jv: { prefix: 'BnkJV', referenceType: 'bank_jv' },
@@ -266,6 +302,20 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
     }
 
     const isBankJV = referenceType === 'bank_jv'
+
+    const TenantLedger = await Ledger.getTenantModel(req.tenant)
+    try {
+      await assertJvDocNoNotDuplicate(TenantLedger, { referenceType, description, referenceId })
+    } catch (e) {
+      if (String(e.message || '').startsWith('DUPLICATE_JV_DOCNO:')) {
+        const docNo = String(e.message).split(':')[1] || 'this voucher number'
+        return res.status(409).json({
+          success: false,
+          message: `Voucher number ${docNo} already exists. Use the next available number.`,
+        })
+      }
+      throw e
+    }
 
     // Auto-generate transaction number for Bank JV
     let autoTxNo = ''

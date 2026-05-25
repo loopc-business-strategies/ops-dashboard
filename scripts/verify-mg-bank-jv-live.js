@@ -77,8 +77,9 @@ async function main() {
 
   const dupDocs = [...docNoCounts.entries()].filter(([, n]) => n > 1)
   if (dupDocs.length) {
-    console.log(`\nNote: ${dupDocs.length} doc number(s) appear in more than one batch (separate saves):`)
+    console.log(`\nFAIL: ${dupDocs.length} duplicate doc number(s):`)
     dupDocs.forEach(([doc, n]) => console.log(`  ${doc}: ${n} voucher row(s)`))
+    process.exit(1)
   }
 
   console.log('\nAll Bank JV vouchers:')
