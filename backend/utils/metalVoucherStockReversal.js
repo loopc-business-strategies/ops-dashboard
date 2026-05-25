@@ -24,21 +24,29 @@ async function reverseMetalVoucherStockForVoid({ tx, user, StockMovement, Invent
 
   const now = new Date()
   const reasonText = String(deleteReason || 'void transaction').slice(0, 200)
+  const touchedItemIds = new Set()
 
   for (const mov of movements) {
-    const item = await InventoryItem.findById(mov.itemId)
-    if (!item || item.isDeleted) continue
-
-    const nextQty = toQty(Number(item.quantity || 0) - Number(mov.change || 0))
-    item.quantity = nextQty < 0 ? 0 : nextQty
-    item.updatedBy = user._id
-    await item.save()
-
+    touchedItemIds.add(String(mov.itemId))
     mov.isDeleted = true
     mov.deletedAt = now
     mov.deletedBy = user._id
     mov.deleteReason = reasonText
     await mov.save()
+  }
+
+  // Reconcile on-hand qty from remaining active movements (avoids drift when
+  // duplicate postings or void order would leave the wrong quantity).
+  for (const itemId of touchedItemIds) {
+    const item = await InventoryItem.findById(itemId)
+    if (!item || item.isDeleted) continue
+    const activeMoves = await StockMovement.find({ itemId: item._id, isDeleted: { $ne: true } })
+      .select('change')
+      .lean()
+    const computed = activeMoves.reduce((sum, row) => sum + Number(row.change || 0), 0)
+    item.quantity = Math.max(0, toQty(computed))
+    item.updatedBy = user._id
+    await item.save()
   }
 }
 
