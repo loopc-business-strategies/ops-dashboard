@@ -21,73 +21,87 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
     return { startDate: prevStart, endDate: prevEnd }
   }
 
-  const buildProfitLossSummary = async (startDate, endDate, includeZero = false) => {
-    const query = { isDeleted: { $ne: true } }
-    const dateQuery = buildDateQuery(startDate, endDate)
-    if (dateQuery) query.date = dateQuery
+  let pnlAccountCache = null
+  const getPnlAccountSets = async () => {
+    if (pnlAccountCache) return pnlAccountCache
+    const accounts = await ChartOfAccount.find({
+      isActive: true,
+      accountType: { $in: ['Income', 'Expense'] },
+    }).select('_id accountCode accountName accountType').lean()
+    const incomeById = new Map()
+    const expenseById = new Map()
+    const incomeIds = new Set()
+    const expenseIds = new Set()
+    accounts.forEach((account) => {
+      const key = String(account._id)
+      if (account.accountType === 'Income') {
+        incomeIds.add(key)
+        incomeById.set(key, account)
+      }
+      if (account.accountType === 'Expense') {
+        expenseIds.add(key)
+        expenseById.set(key, account)
+      }
+    })
+    pnlAccountCache = { incomeById, expenseById, incomeIds, expenseIds }
+    return pnlAccountCache
+  }
 
-    const entries = await Ledger.find(query)
-      .populate('debitAccountId', 'accountType accountName accountCode')
-      .populate('creditAccountId', 'accountType accountName accountCode')
-
+  const summarizeProfitLossEntries = (entries, { incomeById, expenseById, incomeIds, expenseIds }, includeZero = false) => {
     let totalIncome = 0
     let totalExpense = 0
-    const incomeBreakdownMap = new Map()
-    const expenseBreakdownMap = new Map()
-
-    if (includeZero) {
-      const pnlAccounts = await ChartOfAccount.find({
-        isActive: true,
-        accountType: { $in: ['Income', 'Expense'] },
-      }).select('accountCode accountName accountType')
-
-      pnlAccounts.forEach((account) => {
-        const key = account._id.toString()
-        const baseRow = {
-          accountId: key,
-          accountCode: account.accountCode,
-          accountName: account.accountName,
-          amount: 0,
-        }
-        if (account.accountType === 'Income') incomeBreakdownMap.set(key, baseRow)
-        if (account.accountType === 'Expense') expenseBreakdownMap.set(key, baseRow)
-      })
-    }
+    const incomeBreakdownMap = includeZero ? new Map(
+      [...incomeById.entries()].map(([key, account]) => [key, {
+        accountId: key,
+        accountCode: account.accountCode,
+        accountName: account.accountName,
+        amount: 0,
+      }]),
+    ) : new Map()
+    const expenseBreakdownMap = includeZero ? new Map(
+      [...expenseById.entries()].map(([key, account]) => [key, {
+        accountId: key,
+        accountCode: account.accountCode,
+        accountName: account.accountName,
+        amount: 0,
+      }]),
+    ) : new Map()
 
     entries.forEach((entry) => {
       const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
-      if (entry.creditAccountId?.accountType === 'Income') {
+      const creditKey = String(entry.creditAccountId || '')
+      const debitKey = String(entry.debitAccountId || '')
+      if (incomeIds.has(creditKey)) {
         totalIncome += amount
-        const key = entry.creditAccountId._id.toString()
-        if (!incomeBreakdownMap.has(key)) {
-          incomeBreakdownMap.set(key, {
-            accountId: key,
-            accountCode: entry.creditAccountId.accountCode,
-            accountName: entry.creditAccountId.accountName,
+        if (!incomeBreakdownMap.has(creditKey)) {
+          const account = incomeById.get(creditKey)
+          incomeBreakdownMap.set(creditKey, {
+            accountId: creditKey,
+            accountCode: account?.accountCode || '',
+            accountName: account?.accountName || '',
             amount: 0,
           })
         }
-        incomeBreakdownMap.get(key).amount += amount
+        incomeBreakdownMap.get(creditKey).amount += amount
       }
-      if (entry.debitAccountId?.accountType === 'Expense') {
+      if (expenseIds.has(debitKey)) {
         totalExpense += amount
-        const key = entry.debitAccountId._id.toString()
-        if (!expenseBreakdownMap.has(key)) {
-          expenseBreakdownMap.set(key, {
-            accountId: key,
-            accountCode: entry.debitAccountId.accountCode,
-            accountName: entry.debitAccountId.accountName,
+        if (!expenseBreakdownMap.has(debitKey)) {
+          const account = expenseById.get(debitKey)
+          expenseBreakdownMap.set(debitKey, {
+            accountId: debitKey,
+            accountCode: account?.accountCode || '',
+            accountName: account?.accountName || '',
             amount: 0,
           })
         }
-        expenseBreakdownMap.get(key).amount += amount
+        expenseBreakdownMap.get(debitKey).amount += amount
       }
     })
 
     const incomeBreakdown = Array.from(incomeBreakdownMap.values())
       .map((row) => ({ ...row, amount: toMoney(row.amount) }))
       .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))
-
     const expenseBreakdown = Array.from(expenseBreakdownMap.values())
       .map((row) => ({ ...row, amount: toMoney(row.amount) }))
       .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))
@@ -104,23 +118,93 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
     }
   }
 
-  const buildBalanceSheetSummary = async (endDate) => {
-    const accounts = await ChartOfAccount.find({ isActive: true })
-    const entryQuery = { isDeleted: { $ne: true } }
-    if (endDate) {
-      entryQuery.date = { $lte: new Date(endDate) }
-    }
-    const entries = await Ledger.find(entryQuery)
+  const fetchProfitLossEntries = async (startDate, endDate) => {
+    const query = { isDeleted: { $ne: true } }
+    const dateQuery = buildDateQuery(startDate, endDate)
+    if (dateQuery) query.date = dateQuery
+    return Ledger.find(query)
+      .select('date debitAccountId creditAccountId amount exchangeRate')
+      .lean()
+  }
 
-    const balanceByAccount = new Map()
-    entries.forEach((entry) => {
-      const debitKey = entry.debitAccountId?.toString()
-      const creditKey = entry.creditAccountId?.toString()
-      const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
-      if (debitKey) balanceByAccount.set(debitKey, Number(balanceByAccount.get(debitKey) || 0) + amount)
-      if (creditKey) balanceByAccount.set(creditKey, Number(balanceByAccount.get(creditKey) || 0) - amount)
+  const buildProfitLossSummary = async (startDate, endDate, includeZero = false) => {
+    const [entries, pnlAccounts] = await Promise.all([
+      fetchProfitLossEntries(startDate, endDate),
+      getPnlAccountSets(),
+    ])
+    return summarizeProfitLossEntries(entries, pnlAccounts, includeZero)
+  }
+
+  const buildProfitLossComparisons = async (comparisonAnchor, includeZero = false) => {
+    const anchor = comparisonAnchor ? new Date(comparisonAnchor) : new Date()
+    const monthRanges = []
+    for (let i = 5; i >= 0; i -= 1) {
+      const monthStart = new Date(anchor.getFullYear(), anchor.getMonth() - i, 1)
+      const monthEnd = new Date(anchor.getFullYear(), anchor.getMonth() - i + 1, 0)
+      monthEnd.setHours(23, 59, 59, 999)
+      monthRanges.push({ label: monthStart.toLocaleString('en-US', { month: 'short', year: 'numeric' }), monthStart, monthEnd })
+    }
+
+    const anchorQuarter = Math.floor(anchor.getMonth() / 3)
+    const quarterRanges = []
+    for (let i = 3; i >= 0; i -= 1) {
+      const quarterIndex = anchorQuarter - i
+      const yearOffset = Math.floor(quarterIndex / 4)
+      const normalizedQuarter = ((quarterIndex % 4) + 4) % 4
+      const year = anchor.getFullYear() + yearOffset
+      const quarterStart = new Date(year, normalizedQuarter * 3, 1)
+      const quarterEnd = new Date(year, normalizedQuarter * 3 + 3, 0)
+      quarterEnd.setHours(23, 59, 59, 999)
+      quarterRanges.push({
+        label: `Q${normalizedQuarter + 1} ${year}`,
+        quarterStart,
+        quarterEnd,
+      })
+    }
+
+    const earliest = monthRanges[0]?.monthStart || quarterRanges[0]?.quarterStart || anchor
+    const latest = monthRanges[monthRanges.length - 1]?.monthEnd || anchor
+    const [entries, pnlAccounts] = await Promise.all([
+      fetchProfitLossEntries(earliest, latest),
+      getPnlAccountSets(),
+    ])
+
+    const monthlyComparison = monthRanges.map(({ label, monthStart, monthEnd }) => {
+      const periodEntries = entries.filter((entry) => {
+        const entryDate = new Date(entry.date)
+        return entryDate >= monthStart && entryDate <= monthEnd
+      })
+      const summary = summarizeProfitLossEntries(periodEntries, pnlAccounts, includeZero)
+      return {
+        label,
+        startDate: monthStart,
+        endDate: monthEnd,
+        totalIncome: summary.totalIncome,
+        totalExpense: summary.totalExpense,
+        netProfit: summary.netProfit,
+      }
     })
 
+    const quarterlyComparison = quarterRanges.map(({ label, quarterStart, quarterEnd }) => {
+      const periodEntries = entries.filter((entry) => {
+        const entryDate = new Date(entry.date)
+        return entryDate >= quarterStart && entryDate <= quarterEnd
+      })
+      const summary = summarizeProfitLossEntries(periodEntries, pnlAccounts, includeZero)
+      return {
+        label,
+        startDate: quarterStart,
+        endDate: quarterEnd,
+        totalIncome: summary.totalIncome,
+        totalExpense: summary.totalExpense,
+        netProfit: summary.netProfit,
+      }
+    })
+
+    return { monthlyComparison, quarterlyComparison }
+  }
+
+  const buildBalanceSheetSummaryFromBalances = (accounts, balanceByAccount) => {
     const assets = []
     const liabilities = []
     const equity = []
@@ -156,30 +240,21 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
     }
 
     accounts.forEach((account) => {
-      const bal = Number(account.openingBalance || 0) + Number(balanceByAccount.get(account._id.toString()) || 0)
+      const bal = Number(account.openingBalance || 0) + Number(balanceByAccount.get(String(account._id)) || 0)
       if (account.accountType === 'Asset') {
-        if (bal >= 0) {
-          assets.push(buildBalanceSheetRow(account, bal, bal, 'Asset', 'Dr'))
-        } else {
-          liabilities.push(buildBalanceSheetRow(account, bal, Math.abs(bal), 'Liability', 'Cr'))
-        }
+        if (bal >= 0) assets.push(buildBalanceSheetRow(account, bal, bal, 'Asset', 'Dr'))
+        else liabilities.push(buildBalanceSheetRow(account, bal, Math.abs(bal), 'Liability', 'Cr'))
         return
       }
-
       if (account.accountType === 'Liability') {
-        if (bal <= 0) {
-          liabilities.push(buildBalanceSheetRow(account, bal, Math.abs(bal), 'Liability', 'Cr'))
-        } else {
-          assets.push(buildBalanceSheetRow(account, bal, bal, 'Asset', 'Dr'))
-        }
+        if (bal <= 0) liabilities.push(buildBalanceSheetRow(account, bal, Math.abs(bal), 'Liability', 'Cr'))
+        else assets.push(buildBalanceSheetRow(account, bal, bal, 'Asset', 'Dr'))
         return
       }
-
       if (account.accountType === 'Equity') {
         equity.push(buildBalanceSheetRow(account, bal, -bal, 'Equity', bal <= 0 ? 'Cr' : 'Dr'))
         return
       }
-
       if (account.accountType === 'Income') incomeSignedTotal += bal
       if (account.accountType === 'Expense') expenseSignedTotal += bal
     })
@@ -204,13 +279,8 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
     const totalLiabilities = toMoney(liabilities.reduce((s, x) => s + Number(x.balance || 0), 0))
     const totalEquity = toMoney(equity.reduce((s, x) => s + Number(x.balance || 0), 0))
     const liabilitiesPlusEquity = toMoney(Number(totalLiabilities) + Number(totalEquity))
-
-    const currentAssets = toMoney(assets
-      .filter((x) => x.isCurrent)
-      .reduce((s, x) => s + Number(x.balance || 0), 0))
-    const currentLiabilities = toMoney(liabilities
-      .filter((x) => x.isCurrent)
-      .reduce((s, x) => s + Number(x.balance || 0), 0))
+    const currentAssets = toMoney(assets.filter((x) => x.isCurrent).reduce((s, x) => s + Number(x.balance || 0), 0))
+    const currentLiabilities = toMoney(liabilities.filter((x) => x.isCurrent).reduce((s, x) => s + Number(x.balance || 0), 0))
     const workingCapital = toMoney(Number(currentAssets) - Number(currentLiabilities))
     const currentRatio = Number(currentLiabilities) > 0 ? toMoney(Number(currentAssets) / Number(currentLiabilities)) : null
 
@@ -231,12 +301,104 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
     }
   }
 
+  const buildBalanceSheetSummary = async (endDate) => {
+    const [accounts, entries] = await Promise.all([
+      ChartOfAccount.find({ isActive: true }).lean(),
+      Ledger.find({
+        isDeleted: { $ne: true },
+        ...(endDate ? { date: { $lte: new Date(endDate) } } : {}),
+      }).select('debitAccountId creditAccountId amount exchangeRate').lean(),
+    ])
+
+    const balanceByAccount = new Map()
+    entries.forEach((entry) => {
+      const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
+      const debitKey = String(entry.debitAccountId || '')
+      const creditKey = String(entry.creditAccountId || '')
+      if (debitKey) balanceByAccount.set(debitKey, Number(balanceByAccount.get(debitKey) || 0) + amount)
+      if (creditKey) balanceByAccount.set(creditKey, Number(balanceByAccount.get(creditKey) || 0) - amount)
+    })
+
+    return buildBalanceSheetSummaryFromBalances(accounts, balanceByAccount)
+  }
+
+  const buildBalanceSheetComparisons = async (comparisonAnchor) => {
+    const anchorDate = comparisonAnchor ? new Date(comparisonAnchor) : new Date()
+    const monthEnds = []
+    for (let i = 5; i >= 0; i -= 1) {
+      const monthEnd = new Date(anchorDate.getFullYear(), anchorDate.getMonth() - i + 1, 0)
+      monthEnd.setHours(23, 59, 59, 999)
+      monthEnds.push(monthEnd)
+    }
+
+    const anchorQuarter = Math.floor(anchorDate.getMonth() / 3)
+    const quarterEnds = []
+    for (let i = 3; i >= 0; i -= 1) {
+      const quarterIndex = anchorQuarter - i
+      const yearOffset = Math.floor(quarterIndex / 4)
+      const normalizedQuarter = ((quarterIndex % 4) + 4) % 4
+      const year = anchorDate.getFullYear() + yearOffset
+      quarterEnds.push(new Date(year, normalizedQuarter * 3 + 3, 0))
+    }
+
+    const maxEnd = [...monthEnds, ...quarterEnds].reduce((max, date) => (date > max ? date : max), anchorDate)
+    const [accounts, entries] = await Promise.all([
+      ChartOfAccount.find({ isActive: true }).lean(),
+      Ledger.find({
+        isDeleted: { $ne: true },
+        date: { $lte: maxEnd },
+      }).select('date debitAccountId creditAccountId amount exchangeRate').lean(),
+    ])
+
+    const summarizeAt = (asOfDate) => {
+      const balanceByAccount = new Map()
+      entries.forEach((entry) => {
+        if (new Date(entry.date) > asOfDate) return
+        const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
+        const debitKey = String(entry.debitAccountId || '')
+        const creditKey = String(entry.creditAccountId || '')
+        if (debitKey) balanceByAccount.set(debitKey, Number(balanceByAccount.get(debitKey) || 0) + amount)
+        if (creditKey) balanceByAccount.set(creditKey, Number(balanceByAccount.get(creditKey) || 0) - amount)
+      })
+      return buildBalanceSheetSummaryFromBalances(accounts, balanceByAccount)
+    }
+
+    const monthlyComparison = monthEnds.map((monthEnd) => {
+      const summary = summarizeAt(monthEnd)
+      return {
+        label: monthEnd.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+        endDate: monthEnd,
+        totalAssets: summary.totalAssets,
+        totalLiabilities: summary.totalLiabilities,
+        totalEquity: summary.totalEquity,
+        workingCapital: summary.workingCapital,
+      }
+    })
+
+    const quarterlyComparison = quarterEnds.map((quarterEnd) => {
+      const summary = summarizeAt(quarterEnd)
+      const quarter = Math.floor(quarterEnd.getMonth() / 3)
+      return {
+        label: `Q${quarter + 1} ${quarterEnd.getFullYear()}`,
+        endDate: quarterEnd,
+        totalAssets: summary.totalAssets,
+        totalLiabilities: summary.totalLiabilities,
+        totalEquity: summary.totalEquity,
+        workingCapital: summary.workingCapital,
+      }
+    })
+
+    return { monthlyComparison, quarterlyComparison }
+  }
+
   return {
     parseBool,
     buildDateQuery,
     buildPreviousPeriod,
     buildProfitLossSummary,
+    buildProfitLossComparisons,
     buildBalanceSheetSummary,
+    buildBalanceSheetComparisons,
   }
 }
 

@@ -86,5 +86,6 @@ vendorSchema.index({ status: 1 })
 vendorSchema.index({ approvalStatus: 1 })
 vendorSchema.index({ category: 1 })
 vendorSchema.index({ isActive: 1, name: 1 })
+vendorSchema.index({ ledgerAccountId: 1, isActive: 1, deletedAt: 1 })
 
 module.exports = createTenantModel('Vendor', vendorSchema)

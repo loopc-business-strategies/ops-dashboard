@@ -3,6 +3,10 @@ const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAc
 const {
   shouldSuppressSpotMetalMtmForAccountEnquiry,
 } = require('../../services/erpAccounting/metalMarginPolicy')
+const { createReportResponseCache } = require('../../utils/reportResponseCache')
+const { getOutstandingMapForAccounts } = require('../../utils/ledgerBalanceBatch')
+
+const enquiryCache = createReportResponseCache(45000)
 
 function registerAccountsRoutes(deps) {
   const {
@@ -41,7 +45,8 @@ router.get('/accounts', protect, async (req, res) => {
     if (!canViewAccounts(req.user) && !(isSummaryScope && canViewAccountSummary(req.user))) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
-    const { page, limit, skip } = parsePagination(req.query, 50, 200)
+    const summaryMaxLimit = 5000
+    const { page, limit, skip } = parsePagination(req.query, 50, isSummaryScope ? summaryMaxLimit : 200)
     const query = { isActive: true }
     if (isSummaryScope) {
       const scopedIds = await getAccountSummaryScope(req.user)
@@ -52,9 +57,11 @@ router.get('/accounts', protect, async (req, res) => {
     const [accounts, total] = await Promise.all([
       ChartOfAccount.find(query)
         .populate('parentAccountId', 'accountName accountCode')
+        .select('accountCode accountName accountType parentAccountId openingBalance currency isActive')
         .sort({ accountCode: 1 })
         .skip(skip)
-        .limit(limit),
+        .limit(limit)
+        .lean(),
       ChartOfAccount.countDocuments(query),
     ])
     res.json({ success: true, accounts, total, page, limit })
@@ -71,8 +78,17 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     if (!accountCode) {
       return res.status(400).json({ success: false, message: 'Account number is required' })
     }
-    const rawStatementLimit = Number(req.query.statementLimit || 500)
-    const statementLimit = Math.min(Math.max(Number.isFinite(rawStatementLimit) ? rawStatementLimit : 500, 1), 1000)
+    const rawStatementLimit = Number(req.query.statementLimit || 300)
+    const statementLimit = Math.min(Math.max(Number.isFinite(rawStatementLimit) ? rawStatementLimit : 300, 1), 500)
+
+    const cacheKey = enquiryCache.buildKey([
+      req.user?.tenant || req.user?.company || 'default',
+      'account-enquiry',
+      accountCode,
+      statementLimit,
+    ])
+    const cached = enquiryCache.get(cacheKey)
+    if (cached) return res.json(cached)
 
     const scopedIds = await getAccountSummaryScope(req.user)
     const accountQuery = { accountCode }
@@ -176,37 +192,42 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       }
     }
 
-    const linkedCustomer = await Customer.findOne({ ledgerAccountId: account._id, isActive: true }).lean()
-    if (linkedCustomer) {
-      const metalTxs = await Transaction.find({
-        customerId: linkedCustomer._id,
-        type: { $in: ['sale', 'purchase'] },
-        status: 'posted',
-        isDeleted: { $ne: true },
-      }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
-      accumulateUnfixedMetalFromTransactions(metalTxs)
-    }
-
-    const linkedVendor = await Vendor.findOne({ ledgerAccountId: account._id, deletedAt: null }).lean()
-    if (linkedVendor) {
-      const vendorMetalTxs = await Transaction.find({
-        vendorId: linkedVendor._id,
-        type: { $in: ['sale', 'purchase'] },
-        status: 'posted',
-        isDeleted: { $ne: true },
-      }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
-      accumulateUnfixedMetalFromTransactions(vendorMetalTxs)
-    }
+    const [linkedCustomer, linkedVendor] = await Promise.all([
+      Customer.findOne({ ledgerAccountId: account._id, isActive: true }).select('_id').lean(),
+      Vendor.findOne({ ledgerAccountId: account._id, deletedAt: null }).select('_id').lean(),
+    ])
+    const [customerMetalTxs, vendorMetalTxs] = await Promise.all([
+      linkedCustomer
+        ? Transaction.find({
+            customerId: linkedCustomer._id,
+            type: { $in: ['sale', 'purchase'] },
+            status: 'posted',
+            isDeleted: { $ne: true },
+          }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+        : Promise.resolve([]),
+      linkedVendor
+        ? Transaction.find({
+            vendorId: linkedVendor._id,
+            type: { $in: ['sale', 'purchase'] },
+            status: 'posted',
+            isDeleted: { $ne: true },
+          }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+        : Promise.resolve([]),
+    ])
+    accumulateUnfixedMetalFromTransactions(customerMetalTxs)
+    accumulateUnfixedMetalFromTransactions(vendorMetalTxs)
 
     const ledgerEntries = await Ledger.find({
       isDeleted: { $ne: true },
       $or: [{ debitAccountId: { $in: targetAccountIds } }, { creditAccountId: { $in: targetAccountIds } }],
     })
+      .select('date referenceType referenceId description amount exchangeRate currency debitAccountId creditAccountId createdBy createdAt notes')
       .populate('debitAccountId', 'accountCode accountName')
       .populate('creditAccountId', 'accountCode accountName')
       .populate('createdBy', 'name')
       .sort({ date: -1, createdAt: -1 })
       .limit(statementLimit)
+      .lean()
 
     const ledgerIds = ledgerEntries.map((entry) => entry._id)
     const referenceIds = ledgerEntries.map((entry) => entry.referenceId).filter(Boolean)
@@ -773,7 +794,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       },
     ]
 
-    res.json({
+    const enquiryPayload = {
       success: true,
       account: {
         _id: account._id,
@@ -810,7 +831,9 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         entries: statementEntries,
       },
       positions,
-    })
+    }
+    enquiryCache.set(cacheKey, enquiryPayload)
+    res.json(enquiryPayload)
   } catch (e) {
     console.error('Account enquiry error:', e)
     res.status(500).json({ success: false, message: e?.message || 'Server error' })

@@ -210,6 +210,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const [currencies, setCurrencies] = useState([])
   const [dashboard, setDashboard] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [summaryAccountsLoading, setSummaryAccountsLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [exportOptionsOpen, setExportOptionsOpen] = useState(false)
@@ -1376,23 +1377,14 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const loadAccounts = async (params = {}) => {
     const isSummaryScope = params.scope === 'summary'
     if (!canViewAccounts && !(isSummaryScope && canViewBalanceEnquiry)) return
-    setLoading(true)
+    if (isSummaryScope) setSummaryAccountsLoading(true)
+    else setLoading(true)
     try {
       if (isSummaryScope) {
-        const pageSize = 200
-        let page = 1
-        let total = 0
-        let merged = []
-        do {
-          const data = await erpAccountingAPI.getAccounts(token, { ...params, page, limit: pageSize })
-          const rows = data.accounts || []
-          total = Number(data.total || 0)
-          merged = merged.concat(rows)
-          page += 1
-          if (!rows.length) break
-        } while (merged.length < total)
+        const data = await erpAccountingAPI.getAccounts(token, { ...params, page: 1, limit: 5000 })
+        const rows = data.accounts || []
         const uniqueById = new Map()
-        merged.forEach((item) => {
+        rows.forEach((item) => {
           if (item?._id) uniqueById.set(item._id, item)
         })
         setSummaryAccounts(Array.from(uniqueById.values()))
@@ -1404,7 +1396,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
     } catch (e) {
       setError(e.response?.data?.message || `Failed to load ${isSummaryScope ? 'account summary options' : 'accounts'}`)
     }
-    setLoading(false)
+    if (isSummaryScope) setSummaryAccountsLoading(false)
+    else setLoading(false)
   }
   const formatSummaryAccountLabel = (account) => {
     const code = String(account?.accountCode || '').trim()
@@ -1876,67 +1869,99 @@ function ERPTab({ focusTab, onNavigateMain }) {
       setStockMovementsLoading(false)
     }
   }
-  const loadReports = async () => {
+  const buildReportDateRange = () => {
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    const startOfYear = new Date(now.getFullYear(), 0, 1)
+    let startDate = ''
+    let endDate = ''
+    if (reportFilters.period === 'today') {
+      startDate = now.toISOString().slice(0, 10)
+      endDate = startDate
+    } else if (reportFilters.period === 'month') {
+      startDate = startOfMonth.toISOString().slice(0, 10)
+      endDate = endOfMonth.toISOString().slice(0, 10)
+    } else if (reportFilters.period === 'ytd') {
+      startDate = startOfYear.toISOString().slice(0, 10)
+      endDate = now.toISOString().slice(0, 10)
+    } else if (reportFilters.period === 'custom') {
+      startDate = reportFilters.startDate || ''
+      endDate = reportFilters.endDate || ''
+    }
+    return {
+      startDate,
+      endDate,
+      commonRange: {
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+      },
+    }
+  }
+  const patchAccountEnquiryMetalRates = (rates) => {
+    if (!rates) return
+    setAccountEnquiryData((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        metals: {
+          ...prev.metals,
+          goldPrice: Number(rates.goldPrice ?? prev.metals?.goldPrice ?? 0),
+          silverPrice: Number(rates.silverPrice ?? prev.metals?.silverPrice ?? 0),
+          priceCurrency: rates.priceCurrency || prev.metals?.priceCurrency || 'USD',
+          updatedAt: rates.updatedAt || prev.metals?.updatedAt || null,
+        },
+      }
+    })
+  }
+  const loadReports = async (targetView = reportView) => {
     if (!canAccessReports) return
     setLoading(true)
     try {
-      const now = new Date()
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-      const startOfYear = new Date(now.getFullYear(), 0, 1)
-      let startDate = ''
-      let endDate = ''
-      if (reportFilters.period === 'today') {
-        startDate = now.toISOString().slice(0, 10)
-        endDate = startDate
-      } else if (reportFilters.period === 'month') {
-        startDate = startOfMonth.toISOString().slice(0, 10)
-        endDate = endOfMonth.toISOString().slice(0, 10)
-      } else if (reportFilters.period === 'ytd') {
-        startDate = startOfYear.toISOString().slice(0, 10)
-        endDate = now.toISOString().slice(0, 10)
-      } else if (reportFilters.period === 'custom') {
-        startDate = reportFilters.startDate || ''
-        endDate = reportFilters.endDate || ''
-      }
-      const commonRange = {
-        ...(startDate ? { startDate } : {}),
-        ...(endDate ? { endDate } : {}),
-      }
-      const [trial, pnl, bs, dayBook, custOut, venOut, forex] = await Promise.all([
-        erpAccountingAPI.getTrialBalance(token, {
+      const { endDate, commonRange } = buildReportDateRange()
+      const updates = {}
+
+      if (targetView === 'summary' || targetView === 'trial') {
+        updates.trialBalance = await erpAccountingAPI.getTrialBalance(token, {
           ...commonRange,
           ...(reportFilters.accountType ? { accountType: reportFilters.accountType } : {}),
           includeZero: reportFilters.includeZeroAccounts,
           sortBy: reportFilters.sortBy,
           sortDir: reportFilters.sortDir,
-        }),
-        erpAccountingAPI.getProfitLossReport(token, {
+        })
+      }
+      if (targetView === 'pnl') {
+        updates.profitLoss = await erpAccountingAPI.getProfitLossReport(token, {
           ...commonRange,
           includeZero: reportFilters.includeZeroAccounts,
           comparePrevious: reportFilters.comparePrevious,
-        }),
-        erpAccountingAPI.getBalanceSheetReport(token, {
+        })
+      }
+      if (targetView === 'balanceSheet') {
+        updates.balanceSheet = await erpAccountingAPI.getBalanceSheetReport(token, {
           ...(endDate ? { endDate } : {}),
-        }),
-        erpAccountingAPI.getDayBookReport(token, {
+        })
+      }
+      if (targetView === 'dayBook') {
+        updates.dayBook = await erpAccountingAPI.getDayBookReport(token, {
           ...commonRange,
           ...(reportFilters.referenceType ? { referenceType: reportFilters.referenceType } : {}),
           ...(reportFilters.minAmount ? { minAmount: reportFilters.minAmount } : {}),
-        }),
-        erpAccountingAPI.getCustomerOutstandingReport(token),
-        erpAccountingAPI.getVendorOutstandingReport(token),
-        erpAccountingAPI.getForexGainLossReport(token, commonRange),
-      ])
-      setReports({
-        trialBalance: trial,
-        profitLoss: pnl,
-        balanceSheet: bs,
-        dayBook,
-        customerOutstanding: custOut,
-        vendorOutstanding: venOut,
-        forex,
-      })
+        })
+      }
+      if (targetView === 'outstanding') {
+        const [custOut, venOut] = await Promise.all([
+          erpAccountingAPI.getCustomerOutstandingReport(token),
+          erpAccountingAPI.getVendorOutstandingReport(token),
+        ])
+        updates.customerOutstanding = custOut
+        updates.vendorOutstanding = venOut
+      }
+      if (targetView === 'forex') {
+        updates.forex = await erpAccountingAPI.getForexGainLossReport(token, commonRange)
+      }
+
+      setReports((prev) => ({ ...prev, ...updates }))
       setError('')
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load reports')
@@ -2736,7 +2761,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       setEnquiryLoading(true)
       setShowEnquiryLookupMenu(false)
       setEnquiryStatus({ type: '', message: '' })
-      const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, { statementLimit: 1000 })
+      const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, { statementLimit: 300 })
       setAccountEnquiryCode(cleanCode)
       setAccountEnquiryData(data)
       setStatementFilters({
@@ -2801,9 +2826,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       setError('')
       showNotification('✅ Gold/Silver rates updated')
       if (accountEnquiryData?.account?.accountCode) {
-        const refreshed = await erpAccountingAPI.getAccountEnquiry(token, accountEnquiryData.account.accountCode, { statementLimit: 1000 })
-        setAccountEnquiryData(refreshed)
-        pushEnquiryHistory(refreshed.account)
+        patchAccountEnquiryMetalRates(rates)
       }
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to update metal rates')
@@ -2893,23 +2916,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
     else if (activeTab === 'customer-margin') loadCustomers({ limit: 200 })
     else if (activeTab === 'customers') loadCustomers()
     else if (activeTab === 'supplier-margin') loadVendors()
-    else if (activeTab === 'ledger') {
-      loadLedger()
-      loadAccounts({ scope: 'summary' })
-    }
     else if (activeTab === 'mappings') loadMappings(mappingFilters)
     else if (activeTab === 'transactions') loadTransactions()
-    else if (activeTab === 'vouchers') {
-      loadReportBranding()
-    }
-    else if (activeTab === 'reports') {
-      loadReportBranding()
-      loadReports()
-      if (!accounts.length) loadAccounts()
-      if (selectedReportAccountId) {
-        loadLedgerReport(selectedReportAccountId)
-      }
-    }
+    else if (activeTab === 'vouchers') loadReportBranding()
     else if (activeTab === 'vendors') {
       loadVendors()
       loadVendorPaymentCalendar()
@@ -2930,6 +2939,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
       if (!accounts.length) loadAccounts()
     }
     else if (activeTab === 'enquiry') loadAccounts({ scope: 'summary' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, token])
+  useEffect(() => {
+    if (!canAccessERP || !token || activeTab !== 'ledger') return
+    loadLedger()
+    loadAccounts({ scope: 'summary' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeTab,
     token,
@@ -2939,10 +2955,21 @@ function ERPTab({ focusTab, onNavigateMain }) {
     ledgerFilters.referenceType,
     ledgerFilters.accountId,
     ledgerVoucherTab,
+  ])
+  useEffect(() => {
+    if (!canAccessERP || !token || activeTab !== 'reports') return
+    loadReportBranding()
+    loadReports(reportView)
+    if (!accounts.length) loadAccounts()
+    if (selectedReportAccountId) loadLedgerReport(selectedReportAccountId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeTab,
+    token,
+    reportView,
     reportFilters.period,
     reportFilters.startDate,
     reportFilters.endDate,
-    mappingFilters.department,
     reportFilters.accountType,
     reportFilters.includeZeroAccounts,
     reportFilters.sortBy,
@@ -2952,6 +2979,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
     reportFilters.minAmount,
     selectedReportAccountId,
   ])
+  useEffect(() => {
+    if (!canAccessERP || !token || activeTab !== 'mappings') return
+    loadMappings(mappingFilters)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, token, mappingFilters.department])
   useEffect(() => {
     if (!token || !canAccessERP) return undefined
     const tenantKey = user?.tenant || user?.company
@@ -2983,7 +3015,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           priceCurrency: rates.priceCurrency || prev.priceCurrency || 'USD',
         }))
         if (activeTab === 'enquiry' && accountEnquiryData?.account?.accountCode) {
-          void fetchAccountEnquiryByCode(accountEnquiryData.account.accountCode)
+          patchAccountEnquiryMetalRates(rates)
         }
       },
     })
@@ -6241,7 +6273,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
                       {enquiryStatus.message}
                     </p>
                   )}
-                  {!summaryAccounts.length && (
+                  {summaryAccountsLoading && (
+                    <p style={{ margin: '0.7rem 0 0', color: '#6B7280', fontSize: '0.82rem', fontWeight: '600' }}>
+                      Loading account list…
+                    </p>
+                  )}
+                  {!summaryAccountsLoading && !summaryAccounts.length && (
                     <p style={{ margin: '0.7rem 0 0', color: '#92400E', fontSize: '0.82rem', fontWeight: '600' }}>
                       No accounts available for your role. Department heads only see mapped accounts in Account Summary.
                     </p>

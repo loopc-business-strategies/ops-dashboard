@@ -156,6 +156,9 @@ transactionSchema.index({ 'voucherMeta.vocNo': 1 })
 transactionSchema.index({ createdBy: 1, date: -1 })
 transactionSchema.index({ isDeleted: 1, date: -1 })
 transactionSchema.index({ journalEntryId: 1 })
+transactionSchema.index({ customerId: 1, type: 1, status: 1, isDeleted: 1 })
+transactionSchema.index({ vendorId: 1, type: 1, status: 1, isDeleted: 1 })
+transactionSchema.index({ isDeleted: 1, type: 1, status: 1, date: 1 })
 
 // No USD-lock hook — preserve transaction and line-item currencies/rates.
 

@@ -76,5 +76,6 @@ customerSchema.index({ name: 1 })
 customerSchema.index({ email: 1 })
 customerSchema.index({ isActive: 1 })
 customerSchema.index({ isActive: 1, name: 1 })
+customerSchema.index({ ledgerAccountId: 1, isActive: 1 })
 
 module.exports = createTenantModel('Customer', customerSchema)
