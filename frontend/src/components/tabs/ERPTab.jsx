@@ -77,6 +77,7 @@ import {
   convertJvAmountBetweenCurrencies,
   createJvHeader as createNextJvHeader,
   emptyJvLine,
+  extractLedgerJvDocNoFromDescription,
   inferLegacyJvBatchDisplayFc,
   normalizeJvCurrencyCode,
   resolveJvModeMeta,
@@ -5453,14 +5454,20 @@ function ERPTab({ focusTab, onNavigateMain }) {
       },
     })
   }
-  const handleReverseLedger = async (entry) => {
-    if (!window.confirm(`Reverse ledger entry ${entry.referenceType} (${entry.amount})? This will create an offsetting entry.`)) return
+  const handleReverseLedger = async (entryOrVoucher) => {
+    const entry = entryOrVoucher?.representative || entryOrVoucher
+    const entryIds = Array.isArray(entryOrVoucher?.entryIds) && entryOrVoucher.entryIds.length
+      ? entryOrVoucher.entryIds
+      : [entry?._id].filter(Boolean)
+    const lineLabel = entryIds.length > 1 ? `${entryIds.length} ledger lines` : 'ledger entry'
+    const voucherLabel = extractLedgerJvDocNoFromDescription(entry?.description) || entry?.referenceType || 'entry'
+    if (!window.confirm(`Reverse ${voucherLabel} (${lineLabel})? This will create offsetting entries.`)) return
     try {
       setSaving(true)
-      await erpAccountingAPI.deleteLedgerEntry(token, entry._id)
+      await Promise.all(entryIds.map((id) => erpAccountingAPI.deleteLedgerEntry(token, id)))
       await loadLedger()
       setError('')
-      showNotification('✅ Entry reversed successfully')
+      showNotification(`✅ Voucher reversed successfully (${entryIds.length} line${entryIds.length === 1 ? '' : 's'})`)
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to reverse entry')
     } finally {

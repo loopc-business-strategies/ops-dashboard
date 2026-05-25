@@ -6,6 +6,7 @@ import {
   emptyJvLine,
   normalizeJvCurrencyCode,
   resolveJvModeMeta,
+  groupJvLedgerEntries,
 } from './journalVoucherHelpers'
 
 describe('journal voucher helpers', () => {
@@ -57,5 +58,85 @@ describe('journal voucher helpers', () => {
     expect(normalizeJvCurrencyCode('SOMS')).toBe('UZS')
     expect(convertJvAmountBetweenCurrencies(100000, 'SOMS', 'USD', currencies, 'USD')).toBe(7.8)
     expect(convertJvAmountBetweenCurrencies(7.8, 'USD', 'SOMS', currencies, 'USD')).toBe(100000)
+  })
+
+  test('groups multi-line JV ledger postings into one voucher row', () => {
+    const sharedRef = '507f1f77bcf86cd799439011'
+    const entries = [
+      {
+        _id: 'a1',
+        referenceType: 'bank_jv',
+        referenceId: sharedRef,
+        date: '2026-05-15',
+        description: 'BnkJV/2026/0004 — fx transfer',
+        amount: 91.74,
+        exchangeRate: 1,
+        currency: 'USD',
+        debitAccountId: { accountCode: '5190' },
+        creditAccountId: { accountCode: '101001' },
+      },
+      {
+        _id: 'a2',
+        referenceType: 'bank_jv',
+        referenceId: sharedRef,
+        date: '2026-05-15',
+        description: 'BnkJV/2026/0004 — fx transfer',
+        amount: 71488946,
+        exchangeRate: 0.000078,
+        currency: 'UZS',
+        debitAccountId: { accountCode: '101002' },
+        creditAccountId: { accountCode: '101001' },
+      },
+      {
+        _id: 'b1',
+        referenceType: 'bank_jv',
+        referenceId: '507f1f77bcf86cd799439099',
+        date: '2026-05-15',
+        description: 'BnkJV/2026/0005 — other',
+        amount: 10,
+        exchangeRate: 1,
+        currency: 'USD',
+        debitAccountId: { accountCode: '1000' },
+        creditAccountId: { accountCode: '101001' },
+      },
+    ]
+
+    const grouped = groupJvLedgerEntries(entries)
+    expect(grouped).toHaveLength(2)
+    expect(grouped[0].voucherNo).toBe('BnkJV/2026/0004')
+    expect(grouped[0].lineCount).toBe(2)
+    expect(grouped[0].debitAccounts).toBe('101002, 5190')
+    expect(grouped[0].creditAccounts).toBe('101001')
+    expect(grouped[0].entryIds).toEqual(['a1', 'a2'])
+  })
+
+  test('groups legacy JV rows without referenceId by doc number and date', () => {
+    const entries = [
+      {
+        _id: 'x1',
+        referenceType: 'journal',
+        date: '2026-03-01',
+        description: 'Jv/2026/0001 — opening',
+        amount: 100,
+        exchangeRate: 1,
+        debitAccountId: { accountCode: '1100' },
+        creditAccountId: { accountCode: '2100' },
+      },
+      {
+        _id: 'x2',
+        referenceType: 'journal',
+        date: '2026-03-01',
+        description: 'Jv/2026/0001 — opening',
+        amount: 50,
+        exchangeRate: 1,
+        debitAccountId: { accountCode: '1200' },
+        creditAccountId: { accountCode: '2100' },
+      },
+    ]
+
+    const grouped = groupJvLedgerEntries(entries)
+    expect(grouped).toHaveLength(1)
+    expect(grouped[0].lineCount).toBe(2)
+    expect(grouped[0].voucherNo).toBe('Jv/2026/0001')
   })
 })

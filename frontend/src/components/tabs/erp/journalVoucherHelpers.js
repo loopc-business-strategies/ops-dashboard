@@ -138,6 +138,80 @@ const inferLegacyJvBatchDisplayFc = (entries, baseCurrencyCode = 'USD') => {
 const inferLegacyJvRowDisplayFc = (entry, baseCurrencyCode = 'USD') =>
   inferLegacyJvBatchDisplayFc(entry ? [entry] : [], baseCurrencyCode)
 
+const isValidMongoObjectId = (value = '') => /^[a-fA-F0-9]{24}$/.test(String(value || '').trim())
+
+/** Stable key for grouping multi-line journal / bank_jv ledger postings into one voucher row. */
+const jvLedgerGroupKey = (entry) => {
+  const refId = String(entry?.referenceId || '').trim()
+  if (isValidMongoObjectId(refId)) return `ref:${refId}`
+  const docNo = extractLedgerJvDocNoFromDescription(entry?.description)
+  if (docNo) {
+    const dateKey = entry?.date ? new Date(entry.date).toISOString().slice(0, 10) : ''
+    return `doc:${docNo}:${dateKey}`
+  }
+  return `id:${entry?._id}`
+}
+
+const summarizeJvLedgerAccountCodes = (entries, side) => {
+  const codes = new Set()
+  for (const entry of entries || []) {
+    const account = side === 'debit' ? entry?.debitAccountId : entry?.creditAccountId
+    const code = String(account?.accountCode || '').trim()
+    if (code) codes.add(code)
+  }
+  return [...codes].sort((a, b) => a.localeCompare(b)).join(', ') || '—'
+}
+
+const sumJvLedgerBaseAmount = (entries = []) =>
+  entries.reduce((sum, entry) => sum + Number(entry?.amount || 0) * Number(entry?.exchangeRate ?? 1), 0)
+
+/**
+ * Collapse paired ledger postings (one row per debit/credit pair) into voucher-level rows
+ * for journal and bank_jv list views.
+ */
+const groupJvLedgerEntries = (entries = []) => {
+  const buckets = new Map()
+  for (const entry of entries || []) {
+    const key = jvLedgerGroupKey(entry)
+    if (!buckets.has(key)) buckets.set(key, [])
+    buckets.get(key).push(entry)
+  }
+
+  return [...buckets.entries()].map(([key, groupEntries]) => {
+    const sorted = [...groupEntries].sort((a, b) => {
+      const aTs = new Date(a?.createdAt || a?.date || 0).getTime()
+      const bTs = new Date(b?.createdAt || b?.date || 0).getTime()
+      return aTs - bTs
+    })
+    const representative = sorted[0]
+    const voucherNo = extractLedgerJvDocNoFromDescription(representative?.description)
+      || (String(representative?.referenceType || '').toLowerCase() === 'bank_jv' && representative?.autoTxNo
+        ? representative.autoTxNo
+        : '—')
+    const narration = String(representative?.notes || '').trim()
+      || extractLedgerJvDetailFromDescription(representative?.description)
+      || '—'
+
+    return {
+      key,
+      entries: sorted,
+      representative,
+      entryIds: sorted.map((entry) => entry._id).filter(Boolean),
+      lineCount: sorted.length,
+      voucherNo,
+      date: representative?.date,
+      referenceType: representative?.referenceType,
+      narration,
+      debitAccounts: summarizeJvLedgerAccountCodes(sorted, 'debit'),
+      creditAccounts: summarizeJvLedgerAccountCodes(sorted, 'credit'),
+      totalBaseAmount: sumJvLedgerBaseAmount(sorted),
+      attachmentUrl: sorted.find((entry) => entry?.attachmentUrl)?.attachmentUrl || '',
+      autoTxNo: sorted.find((entry) => entry?.autoTxNo)?.autoTxNo || '',
+      chequeNo: sorted.find((entry) => entry?.chequeNo)?.chequeNo || '',
+    }
+  })
+}
+
 export {
   JV_MODE_META,
   convertJvAmountBetweenCurrencies,
@@ -150,4 +224,7 @@ export {
   extractLedgerJvDetailFromDescription,
   inferLegacyJvBatchDisplayFc,
   inferLegacyJvRowDisplayFc,
+  groupJvLedgerEntries,
+  jvLedgerGroupKey,
+  sumJvLedgerBaseAmount,
 }

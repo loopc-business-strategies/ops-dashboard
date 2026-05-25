@@ -1,9 +1,8 @@
 import { Fragment } from 'react'
 import AccountCombobox from '../../../AccountCombobox'
 import {
-  extractLedgerJvDetailFromDescription,
-  extractLedgerJvDocNoFromDescription,
-  inferLegacyJvRowDisplayFc,
+  groupJvLedgerEntries,
+  inferLegacyJvBatchDisplayFc,
   normalizeJvCurrencyCode,
 } from '../journalVoucherHelpers'
 
@@ -62,6 +61,11 @@ export default function ERPLedgerTab({
   handleRepairJvFxPreview,
   handleRepairJvFxApply,
 }) {
+  const visibleJvLedgerEntries = activeTab === 'ledger'
+    ? ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab)
+    : []
+  const groupedJvVouchers = groupJvLedgerEntries(visibleJvLedgerEntries)
+
   return (
     <>
       {/* LEDGER TAB */}
@@ -439,14 +443,12 @@ export default function ERPLedgerTab({
           </div>
           <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
             {(() => {
-              const visibleLedgerEntries = ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab)
-              const pagedLedgerEntries = [...visibleLedgerEntries]
+              const pagedLedgerEntries = [...groupedJvVouchers]
                 .sort((a, b) => {
                   if (sorting.ledger.by === 'date') {
                     return sorting.ledger.asc ? new Date(a.date) - new Date(b.date) : new Date(b.date) - new Date(a.date)
                   } else if (sorting.ledger.by === 'amount') {
-                    const baseVal = (x) => Number(x.amount || 0) * Number(x.exchangeRate || 1)
-                    return sorting.ledger.asc ? baseVal(a) - baseVal(b) : baseVal(b) - baseVal(a)
+                    return sorting.ledger.asc ? a.totalBaseAmount - b.totalBaseAmount : b.totalBaseAmount - a.totalBaseAmount
                   }
                   return 0
                 })
@@ -467,66 +469,55 @@ export default function ERPLedgerTab({
               </thead>
               <tbody>
                 {pagedLedgerEntries
-                  .map((entry) => {
-                    const voucherNo = extractLedgerJvDocNoFromDescription(entry.description) || (entry.referenceType === 'bank_jv' && entry.autoTxNo ? entry.autoTxNo : '—')
-                    const narrDetail = extractLedgerJvDetailFromDescription(entry.description) || (entry.notes || '—')
+                  .map((voucher) => {
+                    const entry = voucher.representative
+                    const voucherNo = voucher.voucherNo
+                    const narrDetail = voucher.narration
+                    const isBankJv = String(voucher.referenceType || '').toLowerCase() === 'bank_jv'
                     return (
-                    <tr key={entry._id} style={{ borderBottom: `1px solid ${C.p2}`, background: entry.referenceType === 'bank_jv' ? '#F0F9FF' : 'transparent' }}>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>{new Date(entry.date).toLocaleDateString()}</td>
+                    <tr key={voucher.key} style={{ borderBottom: `1px solid ${C.p2}`, background: isBankJv ? '#F0F9FF' : 'transparent' }}>
+                      <td style={{ padding: '0.75rem', color: C.t2 }}>{new Date(voucher.date).toLocaleDateString()}</td>
                       <td style={{ padding: '0.75rem', color: C.t1, fontWeight: '700', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>{voucherNo}</td>
                       <td style={{ padding: '0.75rem', color: C.t2, fontSize: '0.78rem', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={narrDetail}>{narrDetail}</td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>{entry.debitAccountId?.accountCode}</td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>{entry.creditAccountId?.accountCode}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2, fontSize: '0.82rem' }} title={voucher.debitAccounts}>{voucher.debitAccounts}</td>
+                      <td style={{ padding: '0.75rem', color: C.t2, fontSize: '0.82rem' }} title={voucher.creditAccounts}>{voucher.creditAccounts}</td>
                       <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>
                         {(() => {
                           const baseSym = String(baseCurrencyCode || '').trim().toUpperCase() || 'USD'
-                          const amt = Number(entry.amount || 0)
-                          const rate = Number(entry.exchangeRate || 1)
-                          const baseEq = amt * rate
-                          const storedSym = String(entry.currency || '').trim().toUpperCase()
-                          const storedNorm = normalizeJvCurrencyCode(storedSym || baseSym)
-
-                          const legacyFc = inferLegacyJvRowDisplayFc(entry, baseCurrencyCode)
+                          const baseEq = Number(voucher.totalBaseAmount || 0)
+                          const legacyFc = inferLegacyJvBatchDisplayFc(voucher.entries, baseCurrencyCode)
                           const fxRow = legacyFc
                             ? (currencies || []).find((c) => normalizeJvCurrencyCode(c?.code) === normalizeJvCurrencyCode(legacyFc))
                             : null
                           const dispRate = fxRow ? Number(fxRow.exchangeRate || 0) : 0
-                          const useLegacyFc = Boolean(
-                            legacyFc
-                            && dispRate > 0
-                            && storedNorm === baseSym
-                            && Math.abs(rate - 1) < 1e-9,
-                          )
+                          const useLegacyFc = Boolean(legacyFc && dispRate > 0)
+                          const isJournalJv = String(voucher.referenceType || '').toLowerCase() === 'journal'
+                          const lineHint = voucher.lineCount > 1 ? `${voucher.lineCount} ledger lines` : ''
 
-                          let displayAmt = amt
-                          let displaySym = storedSym || baseSym
-                          let displayRate = rate
+                          if (isJournalJv) {
+                            return (
+                              <div title={lineHint || undefined}>
+                                <span>{baseEq.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                <span style={{ marginLeft: '0.25rem', fontSize: '0.72rem', color: C.inkSoft, fontWeight: '600' }}>{baseSym}</span>
+                                {lineHint ? (
+                                  <div style={{ fontSize: '0.68rem', color: C.inkSoft, marginTop: '0.12rem', fontWeight: '600' }}>{lineHint}</div>
+                                ) : null}
+                              </div>
+                            )
+                          }
+
+                          let displayAmt = baseEq
+                          let displaySym = baseSym
                           if (useLegacyFc) {
                             displaySym = normalizeJvCurrencyCode(legacyFc)
-                            displayRate = dispRate
                             const rawFc = baseEq / dispRate
                             displayAmt = dispRate < 0.001 ? Math.round(rawFc) : Number(rawFc.toFixed(2))
                           }
 
                           const isFc = displaySym && normalizeJvCurrencyCode(displaySym) !== baseSym
-                          const title = useLegacyFc
-                            ? `Ledger row stored as ${baseEq.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${baseSym} × 1; shown as ${displaySym} using master rate ${dispRate}. Run DB backfill to store FC on the row.`
-                            : (isFc ? `Booked: ${amt} ${storedSym} × ${rate}` : '')
-
-                          const isJournalJv = String(entry.referenceType || '').toLowerCase() === 'journal'
-                          // Normal JV list: show economic amount in base currency only (hover still shows booked FC).
-                          if (isJournalJv) {
-                            return (
-                              <div title={title || undefined}>
-                                <span>{baseEq.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                                <span style={{ marginLeft: '0.25rem', fontSize: '0.72rem', color: C.inkSoft, fontWeight: '600' }}>{baseSym}</span>
-                              </div>
-                            )
-                          }
-
                           return (
-                            <div title={title || undefined}>
-                              <span>{displayAmt.toLocaleString()}</span>
+                            <div title={lineHint || undefined}>
+                              <span>{displayAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
                               {displaySym ? (
                                 <span style={{ marginLeft: '0.25rem', fontSize: '0.72rem', color: C.inkSoft, fontWeight: '600' }}>{displaySym}</span>
                               ) : null}
@@ -535,39 +526,47 @@ export default function ERPLedgerTab({
                                   ≈ {baseEq.toLocaleString(undefined, { maximumFractionDigits: 2 })} {baseSym}
                                 </div>
                               ) : null}
+                              {lineHint ? (
+                                <div style={{ fontSize: '0.68rem', color: C.inkSoft, marginTop: '0.12rem', fontWeight: '600' }}>{lineHint}</div>
+                              ) : null}
                             </div>
                           )
                         })()}
                       </td>
                       <td style={{ padding: '0.75rem', color: C.t2 }}>
-                        {entry.referenceType === 'bank_jv' ? (
+                        {isBankJv ? (
                           <div>
                             <span style={{ background: '#DBEAFE', color: '#1E40AF', padding: '0.15rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '700' }}>🏦 Bank JV</span>
-                            {entry.autoTxNo && <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '0.15rem' }}>{entry.autoTxNo}</div>}
-                            {entry.chequeNo && <div style={{ fontSize: '0.7rem', color: '#64748B' }}>Chq: {entry.chequeNo}</div>}
+                            {voucher.lineCount > 1 && (
+                              <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '0.15rem' }}>{voucher.lineCount} lines</div>
+                            )}
+                            {voucher.autoTxNo && <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '0.15rem' }}>{voucher.autoTxNo}</div>}
+                            {voucher.chequeNo && <div style={{ fontSize: '0.7rem', color: '#64748B' }}>Chq: {voucher.chequeNo}</div>}
                           </div>
-                        ) : entry.referenceType}
+                        ) : (
+                          <div>
+                            <span>{voucher.referenceType}</span>
+                            {voucher.lineCount > 1 && (
+                              <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '0.15rem' }}>{voucher.lineCount} lines</div>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                           <button
                             onClick={() => {
-                              const entryType = String(entry.referenceType || '').toLowerCase()
-                              if (entryType === 'journal' || entryType === 'bank_jv') {
-                                void handleEditJv(entry)
-                                return
-                              }
-                              handleEditLedger(entry)
+                              void handleEditJv(entry)
                             }}
-                            title="Edit"
+                            title="Edit voucher"
                             style={{ padding: '0.35rem 0.5rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}
                           >
                             Edit
                           </button>
-                          {entry.attachmentUrl && (
-                            <a href={`${(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')}${entry.attachmentUrl}`} target="_blank" rel="noreferrer" style={{ padding: '0.35rem 0.5rem', background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'none' }}>Slip</a>
+                          {voucher.attachmentUrl && (
+                            <a href={`${(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')}${voucher.attachmentUrl}`} target="_blank" rel="noreferrer" style={{ padding: '0.35rem 0.5rem', background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'none' }}>Slip</a>
                           )}
-                          <button onClick={() => handleReverseLedger(entry)} title="Reverse" style={{ padding: '0.35rem 0.5rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Reverse</button>
+                          <button onClick={() => handleReverseLedger(voucher)} title="Reverse voucher" style={{ padding: '0.35rem 0.5rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Reverse</button>
                         </div>
                       </td>
                     </tr>
@@ -581,7 +580,10 @@ export default function ERPLedgerTab({
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.85rem' }}>
             <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.84rem' }}>
-              Showing {Number(ledger.length || 0).toLocaleString()} entries
+              Showing {Number(groupedJvVouchers.length || 0).toLocaleString()} vouchers
+              {visibleJvLedgerEntries.length > 0
+                ? ` (${Number(visibleJvLedgerEntries.length).toLocaleString()} ledger lines loaded)`
+                : ''}
             </p>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button
@@ -610,7 +612,7 @@ export default function ERPLedgerTab({
             </div>
           </div>
 
-          {ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab).length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No {ledgerVoucherTab === 'bank_jv' ? 'Bank JV' : 'Journal Voucher'} entries yet.</p>}
+          {groupedJvVouchers.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No {ledgerVoucherTab === 'bank_jv' ? 'Bank JV' : 'Journal Voucher'} entries yet.</p>}
         </div>
       )}
 
