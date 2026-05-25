@@ -456,7 +456,7 @@ describe('ERP accounting transactions workflow', () => {
       name: 'Ten Tola Bar',
       sku: 'GOLD-TTB',
       category: 'recordType=product;mainStock=gold',
-      quantity: 50,
+      quantity: 0,
       unit: 'grams',
       unitCost: 40,
       ledgerAccountId: inventoryAccount._id,
@@ -509,7 +509,8 @@ describe('ERP accounting transactions workflow', () => {
     expect(postRes.body.transaction.status).toBe('posted')
 
     const updatedItem = await InventoryItem.findById(item._id)
-    expect(Number(updatedItem.quantity)).toBe(60)
+    expect(Number(updatedItem.quantity)).toBe(10)
+    expect(Number(updatedItem.unitCost)).toBe(0)
 
     const stockMovements = await StockMovement.find({ itemId: item._id })
     expect(stockMovements).toHaveLength(1)

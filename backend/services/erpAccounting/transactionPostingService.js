@@ -64,7 +64,7 @@ function createTransactionPostingService(deps) {
 
     if (skipMainLedger) {
       await Ledger.updateMany(
-        { referenceType: transactionType, referenceId: tx._id, isDeleted: { $ne: true } },
+        { referenceId: tx._id, isDeleted: { $ne: true } },
         { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
       )
       tx.journalEntryId = null

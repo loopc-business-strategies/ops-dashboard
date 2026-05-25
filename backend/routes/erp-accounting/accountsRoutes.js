@@ -127,13 +127,59 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
 
     const targetAccountIds = scopedRelatedAccountIds.length ? scopedRelatedAccountIds : [account._id]
 
+    const [linkedCustomer, linkedVendor] = await Promise.all([
+      Customer.findOne({ ledgerAccountId: account._id, isActive: true }).select('_id').lean(),
+      Vendor.findOne({ ledgerAccountId: account._id, deletedAt: null }).select('_id').lean(),
+    ])
+
+    const transferPartyOr = [
+      { 'voucherMeta.partyAccountId': account._id },
+      { 'voucherMeta.partyAccountId': String(account._id) },
+    ]
+    const partyCode = String(account.accountCode || '').trim()
+    if (partyCode) transferPartyOr.push({ 'voucherMeta.partyCode': partyCode })
+    if (linkedCustomer?._id) transferPartyOr.push({ customerId: linkedCustomer._id })
+    if (linkedVendor?._id) transferPartyOr.push({ vendorId: linkedVendor._id })
+
+    const transferMetalTxs = await Transaction.find({
+      isDeleted: { $ne: true },
+      status: 'posted',
+      type: { $in: METAL_TRANSFER_LEDGER_TYPES },
+      $or: transferPartyOr,
+    })
+      .select('_id type date voucherMeta.vocNo voucherMeta.refNo voucherMeta.valueDate voucherMeta.lineItems voucherMeta.partyAccountId')
+      .lean()
+
+    const transferTxIds = transferMetalTxs.map((tx) => tx._id).filter(Boolean)
+    if (transferTxIds.length) {
+      await Ledger.updateMany(
+        {
+          referenceId: { $in: transferTxIds },
+          isDeleted: { $ne: true },
+        },
+        {
+          $set: {
+            isDeleted: true,
+            deletedAt: new Date(),
+            notes: 'Superseded: metal transfer vouchers are weight-only (no party USD ledger).',
+          },
+        }
+      )
+    }
+
+    const ledgerExclusionMatch = {
+      isDeleted: { $ne: true },
+      ...(transferTxIds.length ? { referenceId: { $nin: transferTxIds } } : {}),
+      referenceType: { $nin: METAL_TRANSFER_LEDGER_TYPES },
+    }
+
     const [debitAgg, creditAgg] = await Promise.all([
       Ledger.aggregate([
-        { $match: { debitAccountId: { $in: targetAccountIds }, isDeleted: { $ne: true }, referenceType: { $nin: METAL_TRANSFER_LEDGER_TYPES } } },
+        { $match: { debitAccountId: { $in: targetAccountIds }, ...ledgerExclusionMatch } },
         { $group: { _id: null, total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
       ]),
       Ledger.aggregate([
-        { $match: { creditAccountId: { $in: targetAccountIds }, isDeleted: { $ne: true }, referenceType: { $nin: METAL_TRANSFER_LEDGER_TYPES } } },
+        { $match: { creditAccountId: { $in: targetAccountIds }, ...ledgerExclusionMatch } },
         { $group: { _id: null, total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
       ]),
     ])
@@ -194,10 +240,6 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       }
     }
 
-    const [linkedCustomer, linkedVendor] = await Promise.all([
-      Customer.findOne({ ledgerAccountId: account._id, isActive: true }).select('_id').lean(),
-      Vendor.findOne({ ledgerAccountId: account._id, deletedAt: null }).select('_id').lean(),
-    ])
     const [customerMetalTxs, vendorMetalTxs] = await Promise.all([
       linkedCustomer
         ? Transaction.find({
@@ -218,23 +260,6 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     ])
     accumulateUnfixedMetalFromTransactions(customerMetalTxs)
     accumulateUnfixedMetalFromTransactions(vendorMetalTxs)
-
-    const transferPartyOr = [
-      { 'voucherMeta.partyAccountId': account._id },
-    ]
-    const partyCode = String(account.accountCode || '').trim()
-    if (partyCode) transferPartyOr.push({ 'voucherMeta.partyCode': partyCode })
-    if (linkedCustomer?._id) transferPartyOr.push({ customerId: linkedCustomer._id })
-    if (linkedVendor?._id) transferPartyOr.push({ vendorId: linkedVendor._id })
-
-    const transferMetalTxs = await Transaction.find({
-      isDeleted: { $ne: true },
-      status: 'posted',
-      type: { $in: METAL_TRANSFER_LEDGER_TYPES },
-      $or: transferPartyOr,
-    })
-      .select('type date voucherMeta.vocNo voucherMeta.refNo voucherMeta.valueDate voucherMeta.lineItems voucherMeta.partyAccountId')
-      .lean()
 
     const ledgerEntries = await Ledger.find({
       isDeleted: { $ne: true },
@@ -747,7 +772,11 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       })
     }
 
-    const isMetalTransferLedger = (entry) => METAL_TRANSFER_LEDGER_TYPES.includes(String(entry.referenceType || '').toLowerCase())
+    const transferTxIdSet = new Set(transferTxIds.map((id) => String(id)))
+    const isMetalTransferLedger = (entry) => (
+      METAL_TRANSFER_LEDGER_TYPES.includes(String(entry.referenceType || '').toLowerCase())
+      || transferTxIdSet.has(String(entry.referenceId || ''))
+    )
     const statementLedgerEntries = ledgerEntries.filter((entry) => !isMetalTransferLedger(entry))
 
     const buildLedgerStatementRow = (entry) => {

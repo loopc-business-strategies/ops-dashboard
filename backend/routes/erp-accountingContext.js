@@ -760,11 +760,13 @@ const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
     if (isMetalStockInType(transactionType)) {
       const nextQty = toQty(beforeQty + movementQty)
       const currentValue = beforeQty * Number(item.unitCost || 0)
-      const incomingValue = Number(plan.lineAmount || 0)
+      const incomingValue = isMetalTransferType(transactionType) ? 0 : Number(plan.lineAmount || 0)
       item.quantity = nextQty
       item.lastRestockedAt = tx.date || new Date()
       item.updatedBy = user._id
-      if (incomingValue > 0 && nextQty > 0) {
+      if (isMetalTransferType(transactionType)) {
+        item.unitCost = nextQty > 0 ? toMoney(currentValue / nextQty) : 0
+      } else if (incomingValue > 0 && nextQty > 0) {
         item.unitCost = toMoney((currentValue + incomingValue) / nextQty)
       }
       await item.save()
