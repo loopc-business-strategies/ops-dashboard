@@ -515,10 +515,10 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       productType: productName,
       grossWeight: grossWeight > 0 ? String(Number(grossWeight.toFixed(3))) : line.grossWeight,
       purity: rawPurity > 0 ? String(rawPurity) : line.purity,
-      vatType: productTaxType || line.vatType || 'VAT',
-      vatPer: productVatPer > 0 ? String(productVatPer) : line.vatPer,
+      vatType: isMetalTransferVoucherType(voucherType) ? 'None' : (productTaxType || line.vatType || 'VAT'),
+      vatPer: isMetalTransferVoucherType(voucherType) ? '0' : (productVatPer > 0 ? String(productVatPer) : line.vatPer),
     })
-  }, [applyLineAutoCalc, inventoryProducts])
+  }, [applyLineAutoCalc, inventoryProducts, voucherType])
 
   const handleStockSelection = useCallback((selectedStockCode) => {
     const normalizedStockCode = String(selectedStockCode || '').trim()
@@ -561,8 +561,8 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       metalRate: defaultRate > 0 ? defaultRate.toFixed(2) : prev.metalRate,
       rateType: resolvedRateType,
       currCode: storedCurrency,
-      vatType: productTaxType || prev.vatType || 'VAT',
-      vatPer: productVatPer > 0 ? String(productVatPer) : prev.vatPer,
+      vatType: isMetalTransferVoucherType(voucherType) ? 'None' : (productTaxType || prev.vatType || 'VAT'),
+      vatPer: isMetalTransferVoucherType(voucherType) ? '0' : (productVatPer > 0 ? String(productVatPer) : prev.vatPer),
     }))
   }, [applyLineAutoCalc, inventoryProducts, voucherType])
 
@@ -1884,7 +1884,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const voucherLabelT = voucherConfig.short
   const lineTableHeaders = isMetalVoucher
     ? (isSimpleMetalVoucher
-      ? ['No.', 'Stock Code', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', 'Metal Rate', 'Metal Amount', 'Total', '']
+      ? ['No.', 'Stock Code', 'Product Type', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', 'Metal Rate', 'Metal Amount', 'Total', '']
       : ['No.', 'Stock Code', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', 'Rate Type', 'Metal Rate', 'Metal Amount', 'Total', ''])
     : ['No.', 'A/C Code', 'Type', 'Curr', 'Amount FC', 'Amount LC', '']
   const branding = user?.branding || {}
@@ -2706,7 +2706,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                       <tr style={{ background: S.headerBg }}>
                         {(isMetalVoucher
                           ? (isSimpleMetalVoucher
-                            ? ['Stock Code', 'PCS', 'Gross Wt.', 'Purity', 'Pure Wt.', 'Metal Rate', 'Metal Amount', 'Total', 'Narration']
+                            ? ['Stock Code', 'Product Type', 'PCS', 'Gross Wt.', 'Purity', 'Pure Wt.', 'Metal Rate', 'Metal Amount', 'Total', 'Narration']
                             : ['Stock Code', 'PCS', 'Gross Wt.', 'Purity', 'Pure Wt.', 'Rate Type', 'Metal Rate', 'Metal Amount', 'Total', 'Narration'])
                           : ['A/C Code', 'Type', 'Currency', 'Amount FC', 'Amount LC', 'Narration']
                         ).map(h => (
@@ -2720,6 +2720,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                           {isMetalVoucher ? (
                             <>
                               <td style={{ padding: '0.5rem 0.75rem', fontWeight: '600' }}>{l.stockCode || '-'}</td>
+                              {isSimpleMetalVoucher && (
+                                <td style={{ padding: '0.5rem 0.75rem' }}>{l.productType || '-'}</td>
+                              )}
                               <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.pcs || '-'}</td>
                               <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.grossWeight || '-'}</td>
                               <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.purity || '-'}</td>
@@ -2781,6 +2784,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                         {isMetalVoucher ? (
                           <>
                             <td style={{ padding: '0.28rem 0.48rem', fontWeight: '600', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.stockCode || '-'}</td>
+                            {isSimpleMetalVoucher && (
+                              <td style={{ padding: '0.28rem 0.48rem', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.productType || '-'}</td>
+                            )}
                             <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.pcs || '-'}</td>
                             <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.grossWeight || '-'}</td>
                             <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.purity || '-'}</td>
@@ -2846,37 +2852,29 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Location</div>
                             <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.location} onChange={e => setLF('location', e.target.value)} />
                           </div>
-                          {!isSimpleMetalVoucher && (
-                            <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, background: S.headerBg }}>Product Type</div>
-                              <select
-                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }}
-                                value={lineForm.productType}
-                                onChange={(e) => {
-                                  const selectedName = e.target.value
-                                  if (!selectedName) {
-                                    setLineForm((prev) => ({ ...prev, productType: '' }))
-                                    return
-                                  }
-                                  setLineForm((prev) => applyProductTypeAutoFill({ ...prev, productType: selectedName }, selectedName))
-                                }}
-                              >
-                                <option value="">Select product type</option>
-                                {inventoryProducts
-                                  .filter(p => String(p.category || '').includes('recordType=product'))
-                                  .map(p => <option key={p._id} value={p.name}>{p.name}</option>)
+                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, background: S.headerBg }}>Product Type</div>
+                            <select
+                              style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }}
+                              value={lineForm.productType}
+                              onChange={(e) => {
+                                const selectedName = e.target.value
+                                if (!selectedName) {
+                                  setLineForm((prev) => ({ ...prev, productType: '' }))
+                                  return
                                 }
-                              </select>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>PCS</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="1" value={lineForm.pcs} onChange={e => setLineForm(prev => applyProductTypeAutoFill({ ...prev, pcs: e.target.value }))} />
-                            </div>
-                          )}
-                          {isSimpleMetalVoucher && (
-                            <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>PCS</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="1" value={lineForm.pcs} onChange={e => setLineForm(prev => applyProductTypeAutoFill({ ...prev, pcs: e.target.value }))} />
-                            </div>
-                          )}
+                                setLineForm((prev) => applyProductTypeAutoFill({ ...prev, productType: selectedName }, selectedName))
+                              }}
+                            >
+                              <option value="">Select product type</option>
+                              {inventoryProducts
+                                .filter(p => String(p.category || '').includes('recordType=product'))
+                                .map(p => <option key={p._id} value={p.name}>{p.name}</option>)
+                              }
+                            </select>
+                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>PCS</div>
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="1" value={lineForm.pcs} onChange={e => setLineForm(prev => applyProductTypeAutoFill({ ...prev, pcs: e.target.value }))} />
+                          </div>
                           <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '110px minmax(90px, 1fr)' : '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Gross Weight</div>
                             <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.grossWeight} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, grossWeight: e.target.value }))} />
@@ -2885,7 +2883,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Purity</div>
                             <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.purity} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, purity: e.target.value }))} />
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Pure Weight</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.pureWeight} onChange={e => { const pw = parseFloat(e.target.value) || 0; setLineForm(prev => ({ ...prev, pureWeight: e.target.value, weightInOz: pw > 0 ? (pw / 31.1034768).toFixed(3) : '' })) }} />
+                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.pureWeight} onChange={e => { const pw = parseFloat(e.target.value) || 0; setLineForm(prev => applyLineAutoCalc({ ...prev, pureWeight: e.target.value, weightInOz: pw > 0 ? (pw / 31.1034768).toFixed(3) : '' })) }} />
                           </div>
                           {!isSimpleMetalVoucher && (
                             <>
@@ -2994,7 +2992,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                             )}
                             <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                               <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.metalRate} onChange={e => setLF('metalRate', e.target.value)} />
+                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.metalRate} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, metalRate: e.target.value }))} />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                               <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Metal Amt</div>
