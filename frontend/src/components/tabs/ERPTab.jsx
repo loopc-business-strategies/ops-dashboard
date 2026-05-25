@@ -2088,7 +2088,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
       if (data.transaction) {
         setTransactions((prev) => prev.map((tx) => (tx._id === transactionId ? data.transaction : tx)))
       }
-      showNotification('Transaction chat sent')
+      const deliveredCount = Array.isArray(data.deliveredTo) ? data.deliveredTo.length : 0
+      showNotification(deliveredCount ? `Transaction chat sent to ${deliveredCount} user${deliveredCount === 1 ? '' : 's'}` : 'Transaction note saved; no mentioned user matched')
       return true
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to send transaction chat')

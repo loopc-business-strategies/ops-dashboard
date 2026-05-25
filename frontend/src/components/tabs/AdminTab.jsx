@@ -36,7 +36,26 @@ const ALL_PERM_ROWS = [
   { id: 'sales',       label: 'Sales & Marketing',      group: 'DEPARTMENTS' },
   { id: 'operations',  label: 'Operations & Logistics', group: 'DEPARTMENTS' },
   { id: 'training',    label: 'Training & Dev.',        group: 'DEPARTMENTS' },
-  { id: 'erp',         label: 'ERP',                    group: 'ERP' },
+]
+
+const ERP_PERMISSION_ROWS = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'accounts', label: 'Accounts' },
+  { id: 'mappings', label: 'Mappings' },
+  { id: 'settings', label: 'Settings' },
+  { id: 'currencies', label: 'Currency Master' },
+  { id: 'enquiry', label: 'Account Summary' },
+  { id: 'customers', label: 'Customers' },
+  { id: 'customer-margin', label: 'Customer Margin' },
+  { id: 'supplier-margin', label: 'Supplier Margin' },
+  { id: 'ledger', label: 'Ledger' },
+  { id: 'transactions', label: 'Transactions' },
+  { id: 'reports', label: 'Reports' },
+  { id: 'vendors', label: 'Vendors' },
+  { id: 'inventory', label: 'Inventory' },
+  { id: 'vouchers', label: 'Vouchers' },
+  { id: 'direct-deals', label: 'Direct Deals' },
+  { id: 'fixing-register', label: 'Fixing Register' },
 ]
 
 const SETTINGS_KEY = 'ops-dashboard-admin-settings-v1'
@@ -680,6 +699,12 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
   }, [selectedUserId]) // intentionally omit users — avoids resetting mid-edit on unrelated refreshes
 
   const selectedUser = selectableUsers.find((u) => u._id === selectedUserId)
+  const erpSubs = perms.erp?.subs || {}
+  const configuredErpSubCount = Object.keys(erpSubs).length
+  const enabledErpSubCount = ERP_PERMISSION_ROWS.filter((row) => erpSubs[row.id]?.on).length
+  const erpAllEnabled = !!perms.erp?.on && configuredErpSubCount === 0
+  const erpPartiallyEnabled = !!perms.erp?.on && configuredErpSubCount > 0 && enabledErpSubCount > 0
+  const erpEnabled = erpAllEnabled || erpPartiallyEnabled
 
   const notify = (msg) => {
     setToast(msg)
@@ -697,6 +722,39 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
       return { ...p, [modId]: { on: true } }
     })
   }
+
+  const setAllErpSubTabs = (enabled) => {
+    setPerms((p) => {
+      const next = { ...p }
+      if (!enabled) {
+        delete next.erp
+        return next
+      }
+      return { ...next, erp: { on: true } }
+    })
+  }
+
+  const toggleErpSubTab = (subId) => {
+    setPerms((p) => {
+      const currentSubs = p.erp?.subs || {}
+      const nextSubs = { ...currentSubs }
+      if (nextSubs[subId]?.on) {
+        delete nextSubs[subId]
+      } else {
+        nextSubs[subId] = { on: true }
+      }
+
+      const next = { ...p }
+      if (!Object.keys(nextSubs).length) {
+        next.erp = { on: true }
+      } else {
+        next.erp = { ...(p.erp || {}), on: true, subs: nextSubs }
+      }
+      return next
+    })
+  }
+
+  const isErpSubOn = (subId) => erpAllEnabled || !!erpSubs[subId]?.on
 
   const handleSave = async () => {
     if (!selectedUser) return
@@ -716,9 +774,9 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
     <div>
       {toast && <div className="fixed top-4 right-4 z-50 bg-white border border-gray-200 text-gray-800 px-4 py-3 rounded-xl text-sm shadow-lg">{toast}</div>}
 
-      <div className="flex border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm" style={{ minHeight: '520px' }}>
+      <div className="flex border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm" style={{ minHeight: '620px' }}>
         {/* Sidebar: user list */}
-        <div className="w-52 border-r border-gray-200 flex-shrink-0 flex flex-col bg-gray-50/50">
+        <div className="w-64 border-r border-gray-200 flex-shrink-0 flex flex-col bg-gray-50/70">
           <div className="px-4 py-3 border-b border-gray-200 bg-white">
             <p className="text-[10px] font-medium tracking-widest text-gray-500 uppercase">Users</p>
           </div>
@@ -773,20 +831,26 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
                 </button>
               </div>
 
-              <div className="overflow-y-auto flex-1 px-5 py-4 bg-gray-50/30">
-                {['GENERAL', 'DEPARTMENTS', 'ERP'].map((group) => (
-                  <div key={group}>
-                    <p className="text-[11px] font-medium tracking-widest text-gray-500 uppercase mt-5 mb-2 first:mt-0">{group}</p>
-                    {ALL_PERM_ROWS.filter((r) => r.group === group).map((row) => {
+              <div className="overflow-y-auto flex-1 bg-slate-50/70 p-5">
+                <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,0.9fr)_minmax(520px,1.4fr)] gap-5">
+                  <div className="space-y-5">
+                    {['GENERAL', 'DEPARTMENTS'].map((group) => (
+                      <section key={group} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="mb-3">
+                          <p className="text-[11px] font-bold tracking-[0.18em] text-slate-500 uppercase">{group}</p>
+                          <p className="text-xs text-slate-500 mt-1">{group === 'GENERAL' ? 'Core workspace areas.' : 'Department modules available in the sidebar.'}</p>
+                        </div>
+                        <div className="space-y-2">
+                          {ALL_PERM_ROWS.filter((r) => r.group === group).map((row) => {
                       const isOn = !!perms[row.id]?.on
                       return (
                         <div
                           key={row.id}
-                          className={`flex items-center justify-between px-4 py-3 mb-1.5 rounded-xl border transition-all ${
-                            isOn ? 'border-violet-200 bg-violet-50/80' : 'border-gray-200 bg-white'
+                          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition-all ${
+                            isOn ? 'border-violet-200 bg-violet-50 text-violet-950 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'
                           }`}
                         >
-                          <span className="text-sm text-gray-900">{row.label}</span>
+                          <span className="text-sm font-medium text-slate-900">{row.label}</span>
                           <button
                             type="button"
                             onClick={() => toggleModule(row.id)}
@@ -798,9 +862,58 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
                           </button>
                         </div>
                       )
-                    })}
+                          })}
+                        </div>
+                      </section>
+                    ))}
                   </div>
-                ))}
+                  <section className="rounded-2xl border border-violet-200 bg-white shadow-sm overflow-hidden">
+                    <div className="flex flex-col gap-3 border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-sky-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-[11px] font-bold tracking-[0.18em] text-violet-700 uppercase">ERP subtabs</p>
+                        <h4 className="mt-1 text-base font-bold text-slate-950">ERP Access Control</h4>
+                        <p className="mt-1 text-xs text-slate-600">Choose the exact ERP pages this user can open from the sidebar.</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => setAllErpSubTabs(true)} className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-50">Allow all</button>
+                        <button type="button" onClick={() => setAllErpSubTabs(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Clear</button>
+                      </div>
+                    </div>
+                    <div className="px-5 py-4">
+                      <div className={`mb-4 rounded-xl border px-4 py-3 ${erpEnabled ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                        <p className={`text-sm font-semibold ${erpEnabled ? 'text-emerald-800' : 'text-amber-800'}`}>
+                          {erpAllEnabled ? 'All ERP subtabs enabled' : erpPartiallyEnabled ? `${enabledErpSubCount} ERP subtabs enabled` : 'ERP access is off'}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          Turning on any ERP subtab automatically enables ERP for this user.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3">
+                        {ERP_PERMISSION_ROWS.map((row) => {
+                          const isOn = isErpSubOn(row.id)
+                          return (
+                            <button
+                              key={row.id}
+                              type="button"
+                              onClick={() => toggleErpSubTab(row.id)}
+                              className={`group flex items-center justify-between gap-3 rounded-xl border p-3 text-left transition-all ${
+                                isOn ? 'border-violet-300 bg-violet-50 shadow-sm' : 'border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/40'
+                              }`}
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-semibold text-slate-900">{row.label}</span>
+                                <span className="mt-1 block text-[11px] text-slate-500">{isOn ? 'Visible in ERP menu' : 'Hidden for this user'}</span>
+                              </span>
+                              <span className={`inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full p-1 transition-all ${isOn ? 'bg-violet-600' : 'bg-slate-300'}`}>
+                                <span className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${isOn ? 'translate-x-5' : 'translate-x-0'}`} />
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </section>
+                </div>
               </div>
             </>
           )}

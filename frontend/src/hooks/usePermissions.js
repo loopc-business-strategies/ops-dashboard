@@ -11,6 +11,16 @@ import { useAuth } from '../context/AuthContext'
 export function usePermissions() {
   const { user } = useAuth()
   const role = user?.role || ''
+  const erpPermission = user?.modulePermissions?.erp
+
+  const canViewERPSubTab = (subTab) => {
+    if (role === 'super_admin') return true
+    if ((user?.allowedModules || []).includes('erp')) return true
+    if (erpPermission?.on !== true) return false
+    const configuredSubs = erpPermission?.subs || {}
+    if (!Object.keys(configuredSubs).length) return true
+    return configuredSubs[subTab]?.on === true
+  }
 
   return {
     isSuperAdmin:     role === 'super_admin',
@@ -57,6 +67,7 @@ export function usePermissions() {
     canViewStrategic: ['super_admin', 'management', 'department_head'].includes(role),
 
     // ERP access — super_admin always; others via allowedModules or granular modulePermissions
-    canViewERP: role === 'super_admin' || ((user?.allowedModules || []).includes('erp')) || (user?.modulePermissions?.erp?.on === true),
+    canViewERP: role === 'super_admin' || ((user?.allowedModules || []).includes('erp')) || (erpPermission?.on === true),
+    canViewERPSubTab,
   }
 }

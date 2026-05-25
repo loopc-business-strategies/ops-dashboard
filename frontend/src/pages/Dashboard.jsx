@@ -95,6 +95,9 @@ function NavItem({ label, active, onClick, badge }) {
 
 // ── All sidebar tabs definition ─────────────────
 function getNavItems(perms, t, chatUnread = 0, branding) {
+  const canShowErpSubTab = (subTab) => (
+    perms.canViewERP && (!perms.canViewERPSubTab || perms.canViewERPSubTab(subTab))
+  )
   const rawItems = [
     // ── Main ──
     { id: 'overview',    label: t('overview'),    group: 'main',       show: true },
@@ -111,23 +114,23 @@ function getNavItems(perms, t, chatUnread = 0, branding) {
     { id: 'sales',       label: t('sales'),       group: 'departments', show: perms.canViewModule('sales') },
     { id: 'operations',  label: t('operations'),  group: 'departments', show: perms.canViewModule('operations') },
     { id: 'training',    label: t('training'),    group: 'departments', show: perms.canViewModule('training') },
-    { id: 'erp-dashboard',    label: 'Dashboard',      group: 'erp', erpSub: 'dashboard',    show: perms.canViewERP },
-    { id: 'erp-accounts',     label: 'Accounts',       group: 'erp', erpSub: 'accounts',     show: perms.canViewERP },
-    { id: 'erp-mappings',     label: 'Mappings',       group: 'erp', erpSub: 'mappings',     show: perms.canViewERP },
-    { id: 'erp-settings',     label: 'Settings',       group: 'erp', erpSub: 'settings',     show: perms.canViewERP },
-    { id: 'erp-currencies',   label: 'Currency Master',group: 'erp', erpSub: 'currencies',   show: perms.canViewERP },
-    { id: 'erp-enquiry',      label: 'Account Summary',group: 'erp', erpSub: 'enquiry',      show: perms.canViewERP },
-    { id: 'erp-customers',        label: 'Customers',       group: 'erp', erpSub: 'customers',       show: perms.canViewERP },
-    { id: 'erp-customer-margin',  label: 'Customer Margin', group: 'erp', erpSub: 'customer-margin', show: perms.canViewERP },
-    { id: 'erp-supplier-margin',  label: 'Supplier Margin', group: 'erp', erpSub: 'supplier-margin', show: perms.canViewERP },
-    { id: 'erp-ledger',           label: 'Ledger',          group: 'erp', erpSub: 'ledger',          show: perms.canViewERP },
-    { id: 'erp-transactions', label: 'Transactions',   group: 'erp', erpSub: 'transactions', show: perms.canViewERP },
-    { id: 'erp-reports',      label: 'Reports',        group: 'erp', erpSub: 'reports',      show: perms.canViewERP },
-    { id: 'erp-vendors',      label: 'Vendors',        group: 'erp', erpSub: 'vendors',      show: perms.canViewERP },
-    { id: 'erp-inventory',    label: 'Inventory',      group: 'erp', erpSub: 'inventory',    show: perms.canViewERP },
-    { id: 'erp-vouchers',     label: 'Vouchers',       group: 'erp', erpSub: 'vouchers',     show: perms.canViewERP },
-    { id: 'erp-direct-deals',    label: 'Direct Deals',    group: 'erp', erpSub: 'direct-deals',    show: perms.canViewERP },
-    { id: 'erp-fixing-register', label: 'Fixing Register', group: 'erp', erpSub: 'fixing-register', show: perms.canViewERP },
+    { id: 'erp-dashboard',    label: 'Dashboard',      group: 'erp', erpSub: 'dashboard',    show: canShowErpSubTab('dashboard') },
+    { id: 'erp-accounts',     label: 'Accounts',       group: 'erp', erpSub: 'accounts',     show: canShowErpSubTab('accounts') },
+    { id: 'erp-mappings',     label: 'Mappings',       group: 'erp', erpSub: 'mappings',     show: canShowErpSubTab('mappings') },
+    { id: 'erp-settings',     label: 'Settings',       group: 'erp', erpSub: 'settings',     show: canShowErpSubTab('settings') },
+    { id: 'erp-currencies',   label: 'Currency Master',group: 'erp', erpSub: 'currencies',   show: canShowErpSubTab('currencies') },
+    { id: 'erp-enquiry',      label: 'Account Summary',group: 'erp', erpSub: 'enquiry',      show: canShowErpSubTab('enquiry') },
+    { id: 'erp-customers',        label: 'Customers',       group: 'erp', erpSub: 'customers',       show: canShowErpSubTab('customers') },
+    { id: 'erp-customer-margin',  label: 'Customer Margin', group: 'erp', erpSub: 'customer-margin', show: canShowErpSubTab('customer-margin') },
+    { id: 'erp-supplier-margin',  label: 'Supplier Margin', group: 'erp', erpSub: 'supplier-margin', show: canShowErpSubTab('supplier-margin') },
+    { id: 'erp-ledger',           label: 'Ledger',          group: 'erp', erpSub: 'ledger',          show: canShowErpSubTab('ledger') },
+    { id: 'erp-transactions', label: 'Transactions',   group: 'erp', erpSub: 'transactions', show: canShowErpSubTab('transactions') },
+    { id: 'erp-reports',      label: 'Reports',        group: 'erp', erpSub: 'reports',      show: canShowErpSubTab('reports') },
+    { id: 'erp-vendors',      label: 'Vendors',        group: 'erp', erpSub: 'vendors',      show: canShowErpSubTab('vendors') },
+    { id: 'erp-inventory',    label: 'Inventory',      group: 'erp', erpSub: 'inventory',    show: canShowErpSubTab('inventory') },
+    { id: 'erp-vouchers',     label: 'Vouchers',       group: 'erp', erpSub: 'vouchers',     show: canShowErpSubTab('vouchers') },
+    { id: 'erp-direct-deals',    label: 'Direct Deals',    group: 'erp', erpSub: 'direct-deals',    show: canShowErpSubTab('direct-deals') },
+    { id: 'erp-fixing-register', label: 'Fixing Register', group: 'erp', erpSub: 'fixing-register', show: canShowErpSubTab('fixing-register') },
     { id: 'procurement-plus', label: 'Procurement Plus', group: 'departments', show: Boolean(branding?.featureFlags?.procurementPlus) },
   ]
 

@@ -4,6 +4,8 @@ function registerTransactionRoutes(deps) {
   const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
   const { reverseMetalVoucherStockForVoid } = require('../../utils/metalVoucherStockReversal')
   const User = require('../../models/User')
+  const Message = require('../../models/Message')
+  const { publishRealtimeEvent } = require('../../utils/realtimeBus')
   const {
     router,
     protect,
@@ -725,6 +727,34 @@ router.post('/transactions/:id/comments', protect, async (req, res) => {
     tx.updatedBy = req.user._id
     await tx.save()
 
+    let deliveredMessage = null
+    if (mentionedUsers.length) {
+      const transactionRef = tx.voucherMeta?.vocNo || tx.voucherMeta?.refNo || String(tx._id)
+      deliveredMessage = await Message.create({
+        type: 'dm',
+        room: `ERP Transaction ${transactionRef}`,
+        department: String(req.user?.department || ''),
+        senderId: req.user._id,
+        senderName: req.user.name,
+        recipientIds: mentionedUsers.map((mentionedUser) => mentionedUser._id),
+        recipientNames: mentionedUsers.map((mentionedUser) => mentionedUser.name).filter(Boolean),
+        text: `ERP transaction ${transactionRef}: ${message}`,
+      })
+
+      publishRealtimeEvent({
+        type: 'message.created',
+        tenant: req.tenant?.key,
+        data: {
+          id: deliveredMessage._id,
+          room: deliveredMessage.room,
+          type: deliveredMessage.type,
+          senderName: deliveredMessage.senderName,
+          createdAt: deliveredMessage.createdAt,
+          transactionId: String(tx._id),
+        },
+      })
+    }
+
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.sendUserNotification !== 'function') return
       mentionedUsers.forEach((mentionedUser) => {
@@ -743,7 +773,17 @@ router.post('/transactions/:id/comments', protect, async (req, res) => {
     })
 
     const populated = await populateTransactionQuery(Transaction.findById(tx._id))
-    res.json({ success: true, transaction: populated, comment: populated.comments?.[populated.comments.length - 1] || null })
+    res.json({
+      success: true,
+      transaction: populated,
+      comment: populated.comments?.[populated.comments.length - 1] || null,
+      deliveredTo: mentionedUsers.map((mentionedUser) => ({
+        _id: mentionedUser._id,
+        name: mentionedUser.name,
+        email: mentionedUser.email,
+      })),
+      messageId: deliveredMessage?._id || null,
+    })
   } catch (e) {
     console.error('Add transaction comment error:', e)
     res.status(500).json({ success: false, message: 'Server error' })
