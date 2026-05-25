@@ -645,7 +645,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   })()
 
   const totals = {
+    grossWeightTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.grossWeight) || 0), 0),
     pureWeightTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.pureWeight) || 0), 0),
+    pcsTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.pcs) || 0), 0),
     metalTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.metalAmount) || 0), 0),
     premiumTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.premiumAmount) || 0), 0),
     makingTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.makingCharges) || 0), 0),
@@ -3176,10 +3178,20 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.77rem' }}>
                       <tbody>
                         {isSimpleMetalVoucher && (
-                          <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Pure Weight :</td>
-                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{totals.pureWeightTotal > 0 ? totals.pureWeightTotal.toFixed(3) : '0.000'}</td>
-                          </tr>
+                          <>
+                            <tr style={{ borderBottom: '1px solid #E8EAED' }}>
+                              <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Gross Weight :</td>
+                              <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{totals.grossWeightTotal > 0 ? totals.grossWeightTotal.toFixed(3) : '0.000'}</td>
+                            </tr>
+                            <tr style={{ borderBottom: '1px solid #E8EAED' }}>
+                              <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Pure Weight :</td>
+                              <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{totals.pureWeightTotal > 0 ? totals.pureWeightTotal.toFixed(3) : '0.000'}</td>
+                            </tr>
+                            <tr style={{ background: '#F1F3F6' }}>
+                              <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>Total PCS :</td>
+                              <td style={{ padding: '0.24rem 0.65rem', textAlign: 'right', fontWeight: '800', color: S.green, fontSize: '0.87rem' }}>{totals.pcsTotal > 0 ? Math.round(totals.pcsTotal).toLocaleString('en-US') : '0'}</td>
+                            </tr>
+                          </>
                         )}
                         {!isSimpleMetalVoucher && isMetalVoucher && (
                           <tr style={{ borderBottom: '1px solid #E8EAED' }}>
