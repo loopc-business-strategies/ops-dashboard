@@ -36,6 +36,7 @@ const ALL_PERM_ROWS = [
   { id: 'sales',       label: 'Sales & Marketing',      group: 'DEPARTMENTS' },
   { id: 'operations',  label: 'Operations & Logistics', group: 'DEPARTMENTS' },
   { id: 'training',    label: 'Training & Dev.',        group: 'DEPARTMENTS' },
+  { id: 'procurement-plus', label: 'Procurement Plus',   group: 'DEPARTMENTS' },
 ]
 
 const ERP_PERMISSION_ROWS = [
@@ -700,11 +701,7 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
 
   const selectedUser = selectableUsers.find((u) => u._id === selectedUserId)
   const erpSubs = perms.erp?.subs || {}
-  const configuredErpSubCount = Object.keys(erpSubs).length
-  const enabledErpSubCount = ERP_PERMISSION_ROWS.filter((row) => erpSubs[row.id]?.on).length
-  const erpAllEnabled = !!perms.erp?.on && configuredErpSubCount === 0
-  const erpPartiallyEnabled = !!perms.erp?.on && configuredErpSubCount > 0 && enabledErpSubCount > 0
-  const erpEnabled = erpAllEnabled || erpPartiallyEnabled
+  const erpAllEnabled = !!perms.erp?.on && Object.keys(erpSubs).length === 0
 
   const notify = (msg) => {
     setToast(msg)
@@ -723,20 +720,11 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
     })
   }
 
-  const setAllErpSubTabs = (enabled) => {
-    setPerms((p) => {
-      const next = { ...p }
-      if (!enabled) {
-        delete next.erp
-        return next
-      }
-      return { ...next, erp: { on: true } }
-    })
-  }
-
   const toggleErpSubTab = (subId) => {
     setPerms((p) => {
-      const currentSubs = p.erp?.subs || {}
+      const currentSubs = p.erp?.on && !p.erp?.subs
+        ? ERP_PERMISSION_ROWS.reduce((acc, row) => ({ ...acc, [row.id]: { on: true } }), {})
+        : p.erp?.subs || {}
       const nextSubs = { ...currentSubs }
       if (nextSubs[subId]?.on) {
         delete nextSubs[subId]
@@ -746,7 +734,7 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
 
       const next = { ...p }
       if (!Object.keys(nextSubs).length) {
-        next.erp = { on: true }
+        delete next.erp
       } else {
         next.erp = { ...(p.erp || {}), on: true, subs: nextSubs }
       }
@@ -832,87 +820,44 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
               </div>
 
               <div className="overflow-y-auto flex-1 bg-slate-50/70 p-5">
-                <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,0.9fr)_minmax(520px,1.4fr)] gap-5">
-                  <div className="space-y-5">
-                    {['GENERAL', 'DEPARTMENTS'].map((group) => (
+                <div className="max-w-3xl space-y-5">
+                  {['GENERAL', 'DEPARTMENTS', 'ERP'].map((group) => {
+                    const rows = group === 'ERP' ? ERP_PERMISSION_ROWS : ALL_PERM_ROWS.filter((r) => r.group === group)
+                    return (
                       <section key={group} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                         <div className="mb-3">
                           <p className="text-[11px] font-bold tracking-[0.18em] text-slate-500 uppercase">{group}</p>
-                          <p className="text-xs text-slate-500 mt-1">{group === 'GENERAL' ? 'Core workspace areas.' : 'Department modules available in the sidebar.'}</p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {group === 'GENERAL' ? 'Core workspace areas.' : group === 'DEPARTMENTS' ? 'Department modules available in the sidebar.' : 'ERP pages available in the sidebar.'}
+                          </p>
                         </div>
                         <div className="space-y-2">
-                          {ALL_PERM_ROWS.filter((r) => r.group === group).map((row) => {
-                      const isOn = !!perms[row.id]?.on
-                      return (
-                        <div
-                          key={row.id}
-                          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition-all ${
-                            isOn ? 'border-violet-200 bg-violet-50 text-violet-950 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'
-                          }`}
-                        >
-                          <span className="text-sm font-medium text-slate-900">{row.label}</span>
-                          <button
-                            type="button"
-                            onClick={() => toggleModule(row.id)}
-                            className={`relative inline-flex h-5 w-9 items-center rounded-full p-0.5 transition-all flex-shrink-0 ${
-                              isOn ? 'bg-violet-600' : 'bg-gray-300'
-                            }`}
-                          >
-                            <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm ${isOn ? 'translate-x-4' : 'translate-x-0'}`} />
-                          </button>
-                        </div>
-                      )
+                          {rows.map((row) => {
+                            const isOn = group === 'ERP' ? isErpSubOn(row.id) : !!perms[row.id]?.on
+                            return (
+                              <div
+                                key={row.id}
+                                className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition-all ${
+                                  isOn ? 'border-violet-200 bg-violet-50 text-violet-950 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'
+                                }`}
+                              >
+                                <span className="text-sm font-medium text-slate-900">{row.label}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => (group === 'ERP' ? toggleErpSubTab(row.id) : toggleModule(row.id))}
+                                  className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full p-0.5 transition-all ${
+                                    isOn ? 'bg-violet-600' : 'bg-gray-300'
+                                  }`}
+                                >
+                                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${isOn ? 'translate-x-4' : 'translate-x-0'}`} />
+                                </button>
+                              </div>
+                            )
                           })}
                         </div>
                       </section>
-                    ))}
-                  </div>
-                  <section className="rounded-2xl border border-violet-200 bg-white shadow-sm overflow-hidden">
-                    <div className="flex flex-col gap-3 border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-sky-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-[11px] font-bold tracking-[0.18em] text-violet-700 uppercase">ERP subtabs</p>
-                        <h4 className="mt-1 text-base font-bold text-slate-950">ERP Access Control</h4>
-                        <p className="mt-1 text-xs text-slate-600">Choose the exact ERP pages this user can open from the sidebar.</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button type="button" onClick={() => setAllErpSubTabs(true)} className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-50">Allow all</button>
-                        <button type="button" onClick={() => setAllErpSubTabs(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Clear</button>
-                      </div>
-                    </div>
-                    <div className="px-5 py-4">
-                      <div className={`mb-4 rounded-xl border px-4 py-3 ${erpEnabled ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
-                        <p className={`text-sm font-semibold ${erpEnabled ? 'text-emerald-800' : 'text-amber-800'}`}>
-                          {erpAllEnabled ? 'All ERP subtabs enabled' : erpPartiallyEnabled ? `${enabledErpSubCount} ERP subtabs enabled` : 'ERP access is off'}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-600">
-                          Turning on any ERP subtab automatically enables ERP for this user.
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3">
-                        {ERP_PERMISSION_ROWS.map((row) => {
-                          const isOn = isErpSubOn(row.id)
-                          return (
-                            <button
-                              key={row.id}
-                              type="button"
-                              onClick={() => toggleErpSubTab(row.id)}
-                              className={`group flex items-center justify-between gap-3 rounded-xl border p-3 text-left transition-all ${
-                                isOn ? 'border-violet-300 bg-violet-50 shadow-sm' : 'border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/40'
-                              }`}
-                            >
-                              <span className="min-w-0">
-                                <span className="block truncate text-sm font-semibold text-slate-900">{row.label}</span>
-                                <span className="mt-1 block text-[11px] text-slate-500">{isOn ? 'Visible in ERP menu' : 'Hidden for this user'}</span>
-                              </span>
-                              <span className={`inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full p-1 transition-all ${isOn ? 'bg-violet-600' : 'bg-slate-300'}`}>
-                                <span className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${isOn ? 'translate-x-5' : 'translate-x-0'}`} />
-                              </span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  </section>
+                    )
+                  })}
                 </div>
               </div>
             </>

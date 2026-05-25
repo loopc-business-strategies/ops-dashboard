@@ -100,11 +100,11 @@ function getNavItems(perms, t, chatUnread = 0, branding) {
   )
   const rawItems = [
     // ── Main ──
-    { id: 'overview',    label: t('overview'),    group: 'main',       show: true },
-    { id: 'chat',        label: t('chat'),        group: 'main',       show: true, badge: chatUnread || null },
+    { id: 'overview',    label: t('overview'),    group: 'main',       show: perms.canViewModule('overview') },
+    { id: 'chat',        label: t('chat'),        group: 'main',       show: perms.canViewModule('chat'), badge: chatUnread || null },
 
     // ── Admin (super_admin only) ──
-    { id: 'admin',       label: t('admin'),       group: 'admin',      show: true },
+    { id: 'admin',       label: t('admin'),       group: 'admin',      show: perms.canViewAdmin },
 
     // ── Departments ──
     { id: 'hr',          label: t('hr'),          group: 'departments', show: perms.canViewModule('hr') },
@@ -131,7 +131,7 @@ function getNavItems(perms, t, chatUnread = 0, branding) {
     { id: 'erp-vouchers',     label: 'Vouchers',       group: 'erp', erpSub: 'vouchers',     show: canShowErpSubTab('vouchers') },
     { id: 'erp-direct-deals',    label: 'Direct Deals',    group: 'erp', erpSub: 'direct-deals',    show: canShowErpSubTab('direct-deals') },
     { id: 'erp-fixing-register', label: 'Fixing Register', group: 'erp', erpSub: 'fixing-register', show: canShowErpSubTab('fixing-register') },
-    { id: 'procurement-plus', label: 'Procurement Plus', group: 'departments', show: Boolean(branding?.featureFlags?.procurementPlus) },
+    { id: 'procurement-plus', label: 'Procurement Plus', group: 'departments', show: Boolean(branding?.featureFlags?.procurementPlus) && (!perms.hasGranularPermissions || perms.canViewModule('procurement-plus')) },
   ]
 
   return rawItems
@@ -246,6 +246,32 @@ function Dashboard() {
 
   const branding = useMemo(() => getTenantBranding(user?.company || company), [company, user?.company])
   const navItems = getNavItems(perms, t, chatUnread, branding)
+
+  useEffect(() => {
+    const firstAllowed = navItems[0]
+    if (!firstAllowed) return
+
+    if (activeTab === 'erp') {
+      const currentErpItem = navItems.find((item) => item.group === 'erp' && item.erpSub === erpSubTab)
+      if (currentErpItem) return
+
+      const firstErpItem = navItems.find((item) => item.group === 'erp')
+      if (firstErpItem) {
+        setErpSubTab(firstErpItem.erpSub)
+        return
+      }
+
+      setActiveTab(firstAllowed.group === 'erp' ? 'erp' : firstAllowed.id)
+      if (firstAllowed.group === 'erp') setErpSubTab(firstAllowed.erpSub)
+      return
+    }
+
+    const currentItem = navItems.find((item) => item.id === activeTab)
+    if (currentItem) return
+
+    setActiveTab(firstAllowed.group === 'erp' ? 'erp' : firstAllowed.id)
+    if (firstAllowed.group === 'erp') setErpSubTab(firstAllowed.erpSub)
+  }, [activeTab, erpSubTab, navItems])
 
   useEffect(() => {
     const root = document.documentElement

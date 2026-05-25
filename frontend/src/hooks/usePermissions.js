@@ -12,6 +12,7 @@ export function usePermissions() {
   const { user } = useAuth()
   const role = user?.role || ''
   const erpPermission = user?.modulePermissions?.erp
+  const hasGranularPermissions = Boolean(user?.modulePermissions && Object.keys(user.modulePermissions).length > 0)
 
   const canViewERPSubTab = (subTab) => {
     if (role === 'super_admin') return true
@@ -49,7 +50,7 @@ export function usePermissions() {
     // modulePermissions (granular) takes priority, then allowedModules, then role defaults
     canViewModule: (module) => {
       if (role === 'super_admin') return true
-      if (user?.modulePermissions && Object.keys(user.modulePermissions).length > 0) {
+      if (hasGranularPermissions) {
         return user.modulePermissions[module]?.on === true
       }
       if ((user?.allowedModules || []).length > 0) return (user.allowedModules).includes(module)
@@ -62,6 +63,8 @@ export function usePermissions() {
       }
       return false
     },
+
+    hasGranularPermissions,
 
     // Can see risk panel and 7-day plan
     canViewStrategic: ['super_admin', 'management', 'department_head'].includes(role),
