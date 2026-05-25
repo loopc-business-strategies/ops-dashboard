@@ -157,6 +157,9 @@ function createTransactionPostingService(deps) {
       { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
     )
 
+    if (!ledgerEntry?._id) {
+      throw new Error(`Unable to create ledger entry for ${tx.type} voucher`)
+    }
     tx.journalEntryId = ledgerEntry._id
 
     await applyVoucherVatImpact({ user, tx, resolvedAccounts: resolved })

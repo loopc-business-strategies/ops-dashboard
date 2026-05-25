@@ -438,6 +438,170 @@ describe('ERP accounting transactions workflow', () => {
     expect(String(ledgers[0].creditAccountId)).toBe(String(payableAccount._id))
   })
 
+  test('posting metal receipt voucher creates inventory-party ledger without purchase expense', async () => {
+    const financeUser = await createUser({ name: 'Finance Metal Receipt' })
+    const partyAccount = await ChartOfAccount.create({
+      accountName: 'Staff Accommodation',
+      accountCode: '5105',
+      accountType: 'Expense',
+      createdBy: financeUser._id,
+    })
+    const inventoryAccount = await ChartOfAccount.create({
+      accountName: 'Gold Inventory - Transfer',
+      accountCode: '1304',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const item = await InventoryItem.create({
+      name: 'Ten Tola Bar',
+      sku: 'GOLD-TTB',
+      category: 'recordType=product;mainStock=gold',
+      quantity: 50,
+      unit: 'grams',
+      unitCost: 40,
+      ledgerAccountId: inventoryAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'metal_receipt',
+        amount: 0.01,
+        description: 'Metal receipt transfer',
+        currency: 'USD',
+        voucherMeta: {
+          vocNo: 'MRec/2026/0001',
+          partyAccountId: partyAccount._id.toString(),
+          lineItems: [
+            {
+              stockCode: 'Gold',
+              productType: item.name,
+              grossWeight: 10,
+              purity: 995,
+              pureWeight: 9.95,
+              pcs: 1,
+            },
+          ],
+        },
+      })
+
+    expect(createRes.status).toBe(201)
+
+    const txId = createRes.body.transaction._id
+    await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/submit`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Ready to post' })
+    await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/approve`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Approved' })
+
+    const postRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/post`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Post metal receipt' })
+
+    expect(postRes.status).toBe(200)
+    expect(postRes.body.transaction.status).toBe('posted')
+
+    const updatedItem = await InventoryItem.findById(item._id)
+    expect(Number(updatedItem.quantity)).toBe(60)
+
+    const ledgers = await Ledger.find({ referenceId: txId, isDeleted: { $ne: true } })
+    expect(ledgers).toHaveLength(1)
+    expect(ledgers[0].referenceType).toBe('metal_receipt')
+    expect(String(ledgers[0].debitAccountId)).toBe(String(inventoryAccount._id))
+    expect(String(ledgers[0].creditAccountId)).toBe(String(partyAccount._id))
+    expect(Number(ledgers[0].amount)).toBe(400)
+    expect(ledgers.some((entry) => entry.referenceType === 'cogs')).toBe(false)
+  })
+
+  test('posting metal payment voucher creates party-inventory ledger without sales revenue', async () => {
+    const financeUser = await createUser({ name: 'Finance Metal Payment' })
+    const partyAccount = await ChartOfAccount.create({
+      accountName: 'Staff Accommodation Out',
+      accountCode: '5106',
+      accountType: 'Expense',
+      createdBy: financeUser._id,
+    })
+    const inventoryAccount = await ChartOfAccount.create({
+      accountName: 'Gold Inventory - Payment',
+      accountCode: '1305',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const item = await InventoryItem.create({
+      name: 'Ten Tola Bar Out',
+      sku: 'GOLD-TTB-OUT',
+      category: 'recordType=product;mainStock=gold',
+      quantity: 100,
+      unit: 'grams',
+      unitCost: 25,
+      ledgerAccountId: inventoryAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'metal_payment',
+        amount: 0.01,
+        description: 'Metal payment transfer',
+        currency: 'USD',
+        voucherMeta: {
+          vocNo: 'MPay/2026/0001',
+          partyAccountId: partyAccount._id.toString(),
+          lineItems: [
+            {
+              stockCode: 'Gold',
+              productType: item.name,
+              grossWeight: 8,
+              purity: 995,
+              pureWeight: 7.96,
+              pcs: 1,
+            },
+          ],
+        },
+      })
+
+    expect(createRes.status).toBe(201)
+
+    const txId = createRes.body.transaction._id
+    await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/submit`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Ready to post' })
+    await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/approve`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Approved' })
+
+    const postRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/post`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Post metal payment' })
+
+    expect(postRes.status).toBe(200)
+    expect(postRes.body.transaction.status).toBe('posted')
+
+    const updatedItem = await InventoryItem.findById(item._id)
+    expect(Number(updatedItem.quantity)).toBe(92)
+
+    const ledgers = await Ledger.find({ referenceId: txId, isDeleted: { $ne: true } })
+    expect(ledgers).toHaveLength(1)
+    expect(ledgers[0].referenceType).toBe('metal_payment')
+    expect(String(ledgers[0].debitAccountId)).toBe(String(partyAccount._id))
+    expect(String(ledgers[0].creditAccountId)).toBe(String(inventoryAccount._id))
+    expect(Number(ledgers[0].amount)).toBe(200)
+    expect(ledgers.some((entry) => entry.referenceType === 'cogs')).toBe(false)
+  })
+
   test('voiding posted purchase soft-deletes ledgers and reverses inventory', async () => {
     const financeUser = await createUser({ name: 'Finance Void Purchase' })
     const payableAccount = await ChartOfAccount.create({
