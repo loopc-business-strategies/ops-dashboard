@@ -8,6 +8,15 @@ export const DEFAULT_STATEMENT_METAL_OPTIONS = [
   'Other',
 ]
 
+export function isMetalStatementEntry(entry = {}) {
+  const sourceType = String(entry?.sourceTransactionType || entry?.referenceType || entry?.metalDealType || '').toLowerCase()
+  return Boolean(
+    entry?.isMetalTrade
+    || entry?.isMetalTransfer
+    || ['sale', 'purchase', 'metal_receipt', 'metal_payment'].includes(sourceType),
+  )
+}
+
 export function resolveMetalCodeFromStockName(name) {
   const normalized = String(name || '').trim().toLowerCase()
   if (normalized === 'xau' || normalized === 'gold') return 'XAU'

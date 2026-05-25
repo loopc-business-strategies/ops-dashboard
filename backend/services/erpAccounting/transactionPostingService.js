@@ -14,7 +14,6 @@ function createTransactionPostingService(deps) {
     createLedgerFromTransaction,
     applyVoucherVatImpact,
     applyVoucherInventoryImpact,
-    resolveTransferPostingAmount,
     isMetalTransferType,
     appendTransactionComment,
     appendTransactionAudit,
@@ -61,106 +60,111 @@ function createTransactionPostingService(deps) {
     tx.debitAccountId = resolved.debitAccountId
     tx.creditAccountId = resolved.creditAccountId
 
-    if (isMetalTransferType(transactionType)) {
-      const transferAmount = resolveTransferPostingAmount(preparedVoucherImpact, transactionType)
-      if (transferAmount > 0) {
-        tx.amount = transferAmount
-      }
+    const skipMainLedger = isMetalTransferType(transactionType)
+
+    if (skipMainLedger) {
+      await Ledger.updateMany(
+        { referenceType: transactionType, referenceId: tx._id, isDeleted: { $ne: true } },
+        { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
+      )
+      tx.journalEntryId = null
     }
 
     let ledgerEntry = null
-    const existingMainEntries = await Ledger.find({
-      referenceType: tx.type,
-      referenceId: tx._id,
-      isDeleted: { $ne: true },
-    })
-      .sort({ createdAt: 1, _id: 1 })
-
-    if (existingMainEntries.length > 1) {
-      const keepEntry = existingMainEntries[existingMainEntries.length - 1]
-      const staleIds = existingMainEntries
-        .slice(0, -1)
-        .map((entry) => entry._id)
-
-      if (staleIds.length) {
-        await Ledger.updateMany(
-          { _id: { $in: staleIds } },
-          { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
-        )
-      }
-
-      tx.journalEntryId = keepEntry._id
-    }
-
-    if (tx.journalEntryId) {
-      ledgerEntry = await Ledger.findOne({ _id: tx.journalEntryId, isDeleted: { $ne: true } })
-    }
-    if (!ledgerEntry) {
-      ledgerEntry = await Ledger.findOne({
+    if (!skipMainLedger) {
+      const existingMainEntries = await Ledger.find({
         referenceType: tx.type,
         referenceId: tx._id,
         isDeleted: { $ne: true },
-      }).sort({ createdAt: -1, _id: -1 })
-    }
-    if (!ledgerEntry) {
-      if (!isUnfixed) {
-        ledgerEntry = await createLedgerFromTransaction({
-          user,
-          transaction: tx,
-          referenceType: tx.type,
-        })
-      } else {
-        const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-        const unfixedPremiumAmount = lines.reduce((sum, line) => {
-          const premiumVal = Number(line.premiumValue || 0)
-          if (!premiumVal) return sum
-          const purity = Number(line.purity || 0)
-          const purityRatio = purity > 1.2 ? purity / 1000 : purity
-          const grossWeight = Number(line.grossWeight || 0)
-          const storedPureWeight = Number(line.pureWeight || 0)
-          const ozOnly = Number(line.weightInOz || 0)
-          const pureFromOz = ozOnly > 0 ? ozOnly * 31.1034768 : 0
-          const pureWeight = storedPureWeight > 0 ? storedPureWeight : (pureFromOz > 0 ? pureFromOz : (grossWeight * purityRatio))
-          const rateType = String(line.rateType || 'OZ').trim().toUpperCase()
-          const weightInOz = pureWeight / 31.1034768
-          const rateQty = rateType === 'GRAM' ? pureWeight : rateType === 'KG' ? pureWeight / 1000 : weightInOz
-          return sum + (premiumVal * rateQty)
-        }, 0)
+      })
+        .sort({ createdAt: 1, _id: 1 })
 
-        const roundedPremiumImpact = Number(unfixedPremiumAmount.toFixed(2))
-        const isDiscountImpact = roundedPremiumImpact < 0
-        const postingAmount = Math.abs(roundedPremiumImpact)
-        const debitAccountId = isDiscountImpact ? resolved.creditAccountId : resolved.debitAccountId
-        const creditAccountId = isDiscountImpact ? resolved.debitAccountId : resolved.creditAccountId
+      if (existingMainEntries.length > 1) {
+        const keepEntry = existingMainEntries[existingMainEntries.length - 1]
+        const staleIds = existingMainEntries
+          .slice(0, -1)
+          .map((entry) => entry._id)
 
-        ledgerEntry = await Ledger.create({
-          date: tx.voucherMeta?.valueDate || tx.date || new Date(),
-          debitAccountId,
-          creditAccountId,
-          amount: postingAmount,
-          description: tx.description || `Unfixed ${tx.type} voucher`,
+        if (staleIds.length) {
+          await Ledger.updateMany(
+            { _id: { $in: staleIds } },
+            { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
+          )
+        }
+
+        tx.journalEntryId = keepEntry._id
+      }
+
+      if (tx.journalEntryId) {
+        ledgerEntry = await Ledger.findOne({ _id: tx.journalEntryId, isDeleted: { $ne: true } })
+      }
+      if (!ledgerEntry) {
+        ledgerEntry = await Ledger.findOne({
           referenceType: tx.type,
           referenceId: tx._id,
-          createdBy: user._id,
-          department: user.department || tx.department || '',
-          currency: tx.currency || 'USD',
-          exchangeRate: tx.exchangeRate || 1,
-          notes: isDiscountImpact
-            ? 'Unfixed voucher - discount-only ledger entry (customer credit impact).'
-            : 'Unfixed voucher - premium-only ledger entry (customer debit impact).',
-        })
+          isDeleted: { $ne: true },
+        }).sort({ createdAt: -1, _id: -1 })
       }
+      if (!ledgerEntry) {
+        if (!isUnfixed) {
+          ledgerEntry = await createLedgerFromTransaction({
+            user,
+            transaction: tx,
+            referenceType: tx.type,
+          })
+        } else {
+          const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+          const unfixedPremiumAmount = lines.reduce((sum, line) => {
+            const premiumVal = Number(line.premiumValue || 0)
+            if (!premiumVal) return sum
+            const purity = Number(line.purity || 0)
+            const purityRatio = purity > 1.2 ? purity / 1000 : purity
+            const grossWeight = Number(line.grossWeight || 0)
+            const storedPureWeight = Number(line.pureWeight || 0)
+            const ozOnly = Number(line.weightInOz || 0)
+            const pureFromOz = ozOnly > 0 ? ozOnly * 31.1034768 : 0
+            const pureWeight = storedPureWeight > 0 ? storedPureWeight : (pureFromOz > 0 ? pureFromOz : (grossWeight * purityRatio))
+            const rateType = String(line.rateType || 'OZ').trim().toUpperCase()
+            const weightInOz = pureWeight / 31.1034768
+            const rateQty = rateType === 'GRAM' ? pureWeight : rateType === 'KG' ? pureWeight / 1000 : weightInOz
+            return sum + (premiumVal * rateQty)
+          }, 0)
+
+          const roundedPremiumImpact = Number(unfixedPremiumAmount.toFixed(2))
+          const isDiscountImpact = roundedPremiumImpact < 0
+          const postingAmount = Math.abs(roundedPremiumImpact)
+          const debitAccountId = isDiscountImpact ? resolved.creditAccountId : resolved.debitAccountId
+          const creditAccountId = isDiscountImpact ? resolved.debitAccountId : resolved.creditAccountId
+
+          ledgerEntry = await Ledger.create({
+            date: tx.voucherMeta?.valueDate || tx.date || new Date(),
+            debitAccountId,
+            creditAccountId,
+            amount: postingAmount,
+            description: tx.description || `Unfixed ${tx.type} voucher`,
+            referenceType: tx.type,
+            referenceId: tx._id,
+            createdBy: user._id,
+            department: user.department || tx.department || '',
+            currency: tx.currency || 'USD',
+            exchangeRate: tx.exchangeRate || 1,
+            notes: isDiscountImpact
+              ? 'Unfixed voucher - discount-only ledger entry (customer credit impact).'
+              : 'Unfixed voucher - premium-only ledger entry (customer debit impact).',
+          })
+        }
+      }
+
+      if (!ledgerEntry?._id) {
+        throw new Error(`Unable to create ledger entry for ${tx.type} voucher`)
+      }
+      tx.journalEntryId = ledgerEntry._id
     }
 
     await Ledger.updateMany(
       { referenceType: 'cogs', referenceId: tx._id, isDeleted: { $ne: true } },
       { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
     )
-
-    if (!ledgerEntry?._id) {
-      throw new Error(`Unable to create ledger entry for ${tx.type} voucher`)
-    }
-    tx.journalEntryId = ledgerEntry._id
 
     await applyVoucherVatImpact({ user, tx, resolvedAccounts: resolved })
     await applyVoucherInventoryImpact({ user, tx, preparedImpact: preparedVoucherImpact })

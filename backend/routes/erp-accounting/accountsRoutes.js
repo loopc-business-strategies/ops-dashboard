@@ -3,10 +3,12 @@ const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAc
 const {
   shouldSuppressSpotMetalMtmForAccountEnquiry,
 } = require('../../services/erpAccounting/metalMarginPolicy')
+const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVoucherTypes')
 const { createReportResponseCache } = require('../../utils/reportResponseCache')
 const { getOutstandingMapForAccounts } = require('../../utils/ledgerBalanceBatch')
 
 const enquiryCache = createReportResponseCache(45000)
+const METAL_TRANSFER_LEDGER_TYPES = ['metal_receipt', 'metal_payment']
 
 function registerAccountsRoutes(deps) {
   const {
@@ -127,11 +129,11 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
 
     const [debitAgg, creditAgg] = await Promise.all([
       Ledger.aggregate([
-        { $match: { debitAccountId: { $in: targetAccountIds }, isDeleted: { $ne: true } } },
+        { $match: { debitAccountId: { $in: targetAccountIds }, isDeleted: { $ne: true }, referenceType: { $nin: METAL_TRANSFER_LEDGER_TYPES } } },
         { $group: { _id: null, total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
       ]),
       Ledger.aggregate([
-        { $match: { creditAccountId: { $in: targetAccountIds }, isDeleted: { $ne: true } } },
+        { $match: { creditAccountId: { $in: targetAccountIds }, isDeleted: { $ne: true }, referenceType: { $nin: METAL_TRANSFER_LEDGER_TYPES } } },
         { $group: { _id: null, total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
       ]),
     ])
@@ -217,6 +219,23 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     accumulateUnfixedMetalFromTransactions(customerMetalTxs)
     accumulateUnfixedMetalFromTransactions(vendorMetalTxs)
 
+    const transferPartyOr = [
+      { 'voucherMeta.partyAccountId': account._id },
+    ]
+    const partyCode = String(account.accountCode || '').trim()
+    if (partyCode) transferPartyOr.push({ 'voucherMeta.partyCode': partyCode })
+    if (linkedCustomer?._id) transferPartyOr.push({ customerId: linkedCustomer._id })
+    if (linkedVendor?._id) transferPartyOr.push({ vendorId: linkedVendor._id })
+
+    const transferMetalTxs = await Transaction.find({
+      isDeleted: { $ne: true },
+      status: 'posted',
+      type: { $in: METAL_TRANSFER_LEDGER_TYPES },
+      $or: transferPartyOr,
+    })
+      .select('type date voucherMeta.vocNo voucherMeta.refNo voucherMeta.valueDate voucherMeta.lineItems voucherMeta.partyAccountId')
+      .lean()
+
     const ledgerEntries = await Ledger.find({
       isDeleted: { $ne: true },
       $or: [{ debitAccountId: { $in: targetAccountIds } }, { creditAccountId: { $in: targetAccountIds } }],
@@ -286,6 +305,25 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       if (txType === 'sale') return Number(-(gross || 0))
       return 0
     }
+    const accumulateTransferMetalFromTransactions = (metalTxs) => {
+      for (const tx of metalTxs) {
+        const txType = String(tx.type || '').toLowerCase()
+        const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+        const signedWeight = resolveTransferSignedPureWeight(txType, lines)
+        if (!signedWeight) continue
+        const metalCode = resolveMetalCodeFromLines(lines)
+        const isSilver = metalCode === 'XAG' || lines.some((line) => {
+          const sc = String(line?.stockCode || '').toUpperCase()
+          return sc.includes('XAG') || sc.includes('SILV')
+        })
+        if (isSilver) {
+          silverBalance += signedWeight
+        } else {
+          goldBalance += signedWeight
+        }
+      }
+    }
+    accumulateTransferMetalFromTransactions(transferMetalTxs)
     const resolveDirectDealLineWeightGram = (line = {}) => {
       const qty = Number(line?.qty || 0)
       if (!Number.isFinite(qty) || qty <= 0) return 0
@@ -341,23 +379,45 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const fixingStatus = normalizeFixingStatus(tx.voucherMeta?.fixingType)
       const metalCode = resolveMetalCodeFromLines(tx.voucherMeta?.lineItems)
       const hasVoucherLines = Array.isArray(tx.voucherMeta?.lineItems) && tx.voucherMeta.lineItems.length > 0
-      const isMetalTrade = ['sale', 'purchase'].includes(txType) && Boolean(metalCode || hasVoucherLines)
+      const isMetalTransfer = METAL_TRANSFER_LEDGER_TYPES.includes(txType)
+      const isMetalTrade = (['sale', 'purchase'].includes(txType) && Boolean(metalCode || hasVoucherLines)) || isMetalTransfer
       const voucherAmount = Number(tx.amount || tx.voucherMeta?.grandTotal || 0) * Number(tx.exchangeRate || 1)
-      const metalSignedWeight = (isMetalTrade && fixingStatus === 'unfixed')
-        ? resolveSignedPureWeight(txType, tx.voucherMeta?.lineItems, metalCode)
-        : 0
+      const metalSignedWeight = isMetalTransfer
+        ? resolveTransferSignedPureWeight(txType, tx.voucherMeta?.lineItems)
+        : (isMetalTrade && fixingStatus === 'unfixed')
+          ? resolveSignedPureWeight(txType, tx.voucherMeta?.lineItems, metalCode)
+          : 0
       const txRef = {
         id: String(tx._id),
         number: txNumber,
         transactionType: txType,
-        metalFixStatus: isMetalTrade ? fixingStatus : '',
+        metalFixStatus: isMetalTrade && !isMetalTransfer ? fixingStatus : '',
         metalCode,
         isMetalTrade,
+        isMetalTransfer,
         metalSignedWeight,
-        unfixedVoucherAmount: isMetalTrade && fixingStatus === 'unfixed' ? Number(voucherAmount.toFixed(2)) : 0,
+        unfixedVoucherAmount: isMetalTrade && !isMetalTransfer && fixingStatus === 'unfixed' ? Number(voucherAmount.toFixed(2)) : 0,
       }
       if (tx.journalEntryId) transactionByLedgerId.set(String(tx.journalEntryId), txRef)
       transactionById.set(String(tx._id), txRef)
+    })
+
+    transferMetalTxs.forEach((tx) => {
+      if (transactionById.has(String(tx._id))) return
+      const txNumber = String(tx.voucherMeta?.vocNo || tx.voucherMeta?.refNo || '').trim()
+      const txType = String(tx.type || '').trim().toLowerCase()
+      const metalCode = resolveMetalCodeFromLines(tx.voucherMeta?.lineItems)
+      transactionById.set(String(tx._id), {
+        id: String(tx._id),
+        number: txNumber,
+        transactionType: txType,
+        metalFixStatus: '',
+        metalCode,
+        isMetalTrade: true,
+        isMetalTransfer: true,
+        metalSignedWeight: resolveTransferSignedPureWeight(txType, tx.voucherMeta?.lineItems),
+        unfixedVoucherAmount: 0,
+      })
     })
 
     const scoreCounterpartyAccount = (candidate = {}) => {
@@ -687,8 +747,10 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       })
     }
 
-    let runningBalance = netBalance
-    const statementEntries = ledgerEntries.map((entry) => {
+    const isMetalTransferLedger = (entry) => METAL_TRANSFER_LEDGER_TYPES.includes(String(entry.referenceType || '').toLowerCase())
+    const statementLedgerEntries = ledgerEntries.filter((entry) => !isMetalTransferLedger(entry))
+
+    const buildLedgerStatementRow = (entry) => {
       const debitId = String(entry.debitAccountId?._id || entry.debitAccountId || '')
       const isDebitEntry = targetAccountIds.some((id) => String(id) === debitId)
       const entryRate = Number(entry.exchangeRate || 1)
@@ -730,7 +792,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const effectiveOffsetName = (effectiveRowType === 'payment' || effectiveRowType === 'receipt') && preferredDisplayOffset
         ? String(preferredDisplayOffset.accountName || defaultOffsetName)
         : defaultOffsetName
-      const row = {
+      const dealType = String(linkedTx?.transactionType || '')
+      return {
         _id: entry._id,
         date: entry.date,
         description: entry.description || entry.notes || '',
@@ -741,8 +804,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         debitAmount: isDebitEntry ? convertedAmount : 0,
         creditAmount: isDebitEntry ? 0 : convertedAmount,
         signedAmount,
-        runningBalance,
-        currentValue: Number(runningBalance || 0),
+        currentValue: 0,
         limitValue: Number(account.openingBalance || 0),
         offsetAccountCode: effectiveOffsetCode,
         offsetAccountName: effectiveOffsetName,
@@ -750,15 +812,70 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         sourceTransactionId: linkedTx?.id || '',
         sourceTransactionNumber: linkedTx?.number || '',
         sourceTransactionType: linkedTx?.transactionType || '',
-        metalDealType: ['sale', 'purchase'].includes(String(linkedTx?.transactionType || '')) ? String(linkedTx.transactionType) : '',
+        metalDealType: ['sale', 'purchase', 'metal_receipt', 'metal_payment'].includes(dealType) ? dealType : '',
         metalFixStatus: linkedTx?.metalFixStatus || '',
         metalCode: linkedTx?.metalCode || '',
         isMetalTrade: Boolean(linkedTx?.isMetalTrade),
+        isMetalTransfer: Boolean(linkedTx?.isMetalTransfer),
         metalSignedWeight: Number(linkedTx?.metalSignedWeight || 0),
         unfixedVoucherAmount: Number(linkedTx?.unfixedVoucherAmount || 0),
       }
+    }
+
+    const transferStatementEntries = transferMetalTxs.map((tx) => {
+      const txType = String(tx.type || '').toLowerCase()
+      const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+      const metalCode = resolveMetalCodeFromLines(lines)
+      const txNumber = String(tx.voucherMeta?.vocNo || tx.voucherMeta?.refNo || '').trim()
+      return {
+        _id: `transfer:${tx._id}`,
+        date: tx.voucherMeta?.valueDate || tx.date || new Date(),
+        description: `${txType.replace('_', ' ')} transfer`,
+        referenceType: txType,
+        department: '',
+        currency: accountCurrencyCode,
+        exchangeRate: 1,
+        debitAmount: 0,
+        creditAmount: 0,
+        signedAmount: 0,
+        currentValue: 0,
+        limitValue: Number(account.openingBalance || 0),
+        offsetAccountCode: '',
+        offsetAccountName: '',
+        createdBy: '',
+        sourceTransactionId: String(tx._id),
+        sourceTransactionNumber: txNumber,
+        sourceTransactionType: txType,
+        metalDealType: txType,
+        metalFixStatus: '',
+        metalCode,
+        isMetalTrade: true,
+        isMetalTransfer: true,
+        metalSignedWeight: resolveTransferSignedPureWeight(txType, lines),
+        unfixedVoucherAmount: 0,
+      }
+    })
+
+    const combinedStatementRows = [
+      ...statementLedgerEntries.map(buildLedgerStatementRow),
+      ...transferStatementEntries,
+    ].sort((left, right) => {
+      const leftDate = new Date(left.date).getTime()
+      const rightDate = new Date(right.date).getTime()
+      if (rightDate !== leftDate) return rightDate - leftDate
+      return String(right._id).localeCompare(String(left._id))
+    })
+
+    let runningBalance = netBalance
+    const statementEntries = combinedStatementRows.map((row) => {
+      const signedAmount = Number(row.signedAmount || 0)
+      const nextRow = {
+        ...row,
+        runningBalance,
+        currentValue: Number(runningBalance || 0),
+      }
       runningBalance -= signedAmount
-      return row
+      return nextRow
     })
 
     const positions = [

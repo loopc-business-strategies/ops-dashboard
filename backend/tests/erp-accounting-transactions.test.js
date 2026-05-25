@@ -438,7 +438,7 @@ describe('ERP accounting transactions workflow', () => {
     expect(String(ledgers[0].creditAccountId)).toBe(String(payableAccount._id))
   })
 
-  test('posting metal receipt voucher creates inventory-party ledger without purchase expense', async () => {
+  test('posting metal receipt voucher updates inventory without monetary ledger entry', async () => {
     const financeUser = await createUser({ name: 'Finance Metal Receipt' })
     const partyAccount = await ChartOfAccount.create({
       accountName: 'Staff Accommodation',
@@ -511,16 +511,16 @@ describe('ERP accounting transactions workflow', () => {
     const updatedItem = await InventoryItem.findById(item._id)
     expect(Number(updatedItem.quantity)).toBe(60)
 
+    const stockMovements = await StockMovement.find({ itemId: item._id })
+    expect(stockMovements).toHaveLength(1)
+    expect(stockMovements[0].reason).toBe('Voucher metal receipt #MRec/2026/0001')
+    expect(Number(stockMovements[0].change)).toBe(10)
+
     const ledgers = await Ledger.find({ referenceId: txId, isDeleted: { $ne: true } })
-    expect(ledgers).toHaveLength(1)
-    expect(ledgers[0].referenceType).toBe('metal_receipt')
-    expect(String(ledgers[0].debitAccountId)).toBe(String(inventoryAccount._id))
-    expect(String(ledgers[0].creditAccountId)).toBe(String(partyAccount._id))
-    expect(Number(ledgers[0].amount)).toBe(400)
-    expect(ledgers.some((entry) => entry.referenceType === 'cogs')).toBe(false)
+    expect(ledgers).toHaveLength(0)
   })
 
-  test('posting metal payment voucher creates party-inventory ledger without sales revenue', async () => {
+  test('posting metal payment voucher updates inventory without monetary ledger entry', async () => {
     const financeUser = await createUser({ name: 'Finance Metal Payment' })
     const partyAccount = await ChartOfAccount.create({
       accountName: 'Staff Accommodation Out',
@@ -593,13 +593,169 @@ describe('ERP accounting transactions workflow', () => {
     const updatedItem = await InventoryItem.findById(item._id)
     expect(Number(updatedItem.quantity)).toBe(92)
 
+    const stockMovements = await StockMovement.find({ itemId: item._id })
+    expect(stockMovements).toHaveLength(1)
+    expect(stockMovements[0].reason).toBe('Voucher metal payment #MPay/2026/0001')
+    expect(Number(stockMovements[0].change)).toBe(-8)
+
     const ledgers = await Ledger.find({ referenceId: txId, isDeleted: { $ne: true } })
-    expect(ledgers).toHaveLength(1)
-    expect(ledgers[0].referenceType).toBe('metal_payment')
-    expect(String(ledgers[0].debitAccountId)).toBe(String(partyAccount._id))
-    expect(String(ledgers[0].creditAccountId)).toBe(String(inventoryAccount._id))
-    expect(Number(ledgers[0].amount)).toBe(200)
-    expect(ledgers.some((entry) => entry.referenceType === 'cogs')).toBe(false)
+    expect(ledgers).toHaveLength(0)
+  })
+
+  test('account enquiry records metal receipt pure weight without USD ledger balance', async () => {
+    const financeUser = await createUser({ name: 'Finance Metal Enquiry' })
+    const partyAccount = await ChartOfAccount.create({
+      accountName: 'STAFF ACCOMODATION (Creditor)',
+      accountCode: '2305',
+      accountType: 'Liability',
+      description: 'Auto-created payable account for vendor STAFF ACCOMODATION.',
+      createdBy: financeUser._id,
+    })
+    const inventoryAccount = await ChartOfAccount.create({
+      accountName: 'Metal Inventory',
+      accountCode: '1210',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const item = await InventoryItem.create({
+      name: 'Ten Tola Bar',
+      sku: 'GOLD-TTB-ENQ',
+      category: 'recordType=product;mainStock=gold',
+      quantity: 0,
+      unit: 'grams',
+      unitCost: 4.68,
+      ledgerAccountId: inventoryAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'metal_receipt',
+        amount: 0.01,
+        description: 'Metal receipt enquiry test',
+        currency: 'USD',
+        voucherMeta: {
+          vocNo: 'MRec/2026/0099',
+          partyAccountId: partyAccount._id.toString(),
+          lineItems: [
+            {
+              stockCode: 'Gold',
+              productType: item.name,
+              grossWeight: 116.64,
+              purity: 0.999,
+              pureWeight: 116.523,
+              pcs: 1,
+            },
+          ],
+        },
+      })
+    expect(createRes.status).toBe(201)
+
+    const txId = createRes.body.transaction._id
+    await request(app).post(`/api/erp-accounting/transactions/${txId}/submit`).set(authHeader(financeUser)).send({})
+    await request(app).post(`/api/erp-accounting/transactions/${txId}/approve`).set(authHeader(financeUser)).send({})
+    const postRes = await request(app).post(`/api/erp-accounting/transactions/${txId}/post`).set(authHeader(financeUser)).send({})
+    expect(postRes.status).toBe(200)
+
+    const enquiryRes = await request(app)
+      .get('/api/erp-accounting/accounts/enquiry')
+      .query({ accountCode: '2305' })
+      .set(authHeader(financeUser))
+
+    expect(enquiryRes.status).toBe(200)
+    expect(Number(enquiryRes.body.balances?.netBalance || 0)).toBe(0)
+    expect(Number(enquiryRes.body.metals?.goldBalance || 0)).toBeCloseTo(-116.523, 3)
+
+    const transferRow = (enquiryRes.body.statement?.entries || []).find(
+      (entry) => String(entry.sourceTransactionNumber || '').includes('MRec/2026/0099'),
+    )
+    expect(transferRow).toBeTruthy()
+    expect(Number(transferRow.debitAmount || 0)).toBe(0)
+    expect(Number(transferRow.creditAmount || 0)).toBe(0)
+    expect(Number(transferRow.metalSignedWeight || 0)).toBeCloseTo(-116.523, 3)
+  })
+
+  test('account enquiry records metal payment pure weight without USD ledger balance', async () => {
+    const financeUser = await createUser({ name: 'Finance Metal Payment Enquiry' })
+    const partyAccount = await ChartOfAccount.create({
+      accountName: 'STAFF ACCOMODATION PAY (Creditor)',
+      accountCode: '2306',
+      accountType: 'Liability',
+      description: 'Auto-created payable account for vendor STAFF ACCOMODATION.',
+      createdBy: financeUser._id,
+    })
+    const inventoryAccount = await ChartOfAccount.create({
+      accountName: 'Metal Inventory Pay',
+      accountCode: '1211',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const item = await InventoryItem.create({
+      name: 'Ten Tola Bar Pay',
+      sku: 'GOLD-TTB-PAY',
+      category: 'recordType=product;mainStock=gold',
+      quantity: 200,
+      unit: 'grams',
+      unitCost: 4.68,
+      ledgerAccountId: inventoryAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'metal_payment',
+        amount: 0.01,
+        description: 'Metal payment enquiry test',
+        currency: 'USD',
+        voucherMeta: {
+          vocNo: 'MPay/2026/0099',
+          partyAccountId: partyAccount._id.toString(),
+          lineItems: [
+            {
+              stockCode: 'Gold',
+              productType: item.name,
+              grossWeight: 50,
+              purity: 0.999,
+              pureWeight: 49.95,
+              pcs: 1,
+            },
+          ],
+        },
+      })
+    expect(createRes.status).toBe(201)
+
+    const txId = createRes.body.transaction._id
+    await request(app).post(`/api/erp-accounting/transactions/${txId}/submit`).set(authHeader(financeUser)).send({})
+    await request(app).post(`/api/erp-accounting/transactions/${txId}/approve`).set(authHeader(financeUser)).send({})
+    const postRes = await request(app).post(`/api/erp-accounting/transactions/${txId}/post`).set(authHeader(financeUser)).send({})
+    expect(postRes.status).toBe(200)
+
+    const enquiryRes = await request(app)
+      .get('/api/erp-accounting/accounts/enquiry')
+      .query({ accountCode: '2306' })
+      .set(authHeader(financeUser))
+
+    expect(enquiryRes.status).toBe(200)
+    expect(Number(enquiryRes.body.balances?.netBalance || 0)).toBe(0)
+    expect(Number(enquiryRes.body.metals?.goldBalance || 0)).toBeCloseTo(49.95, 3)
+
+    const transferRow = (enquiryRes.body.statement?.entries || []).find(
+      (entry) => String(entry.sourceTransactionNumber || '').includes('MPay/2026/0099'),
+    )
+    expect(transferRow).toBeTruthy()
+    expect(Number(transferRow.debitAmount || 0)).toBe(0)
+    expect(Number(transferRow.creditAmount || 0)).toBe(0)
+    expect(Number(transferRow.metalSignedWeight || 0)).toBeCloseTo(49.95, 3)
+    expect(String(transferRow.sourceTransactionType || '')).toBe('metal_payment')
+
+    const ledgers = await Ledger.find({ referenceId: txId, isDeleted: { $ne: true } })
+    expect(ledgers).toHaveLength(0)
   })
 
   test('voiding posted purchase soft-deletes ledgers and reverses inventory', async () => {

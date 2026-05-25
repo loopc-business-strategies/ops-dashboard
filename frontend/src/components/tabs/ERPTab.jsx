@@ -69,6 +69,7 @@ import {
   resolveMetalCodeFromStockName,
   resolveStatementMetalBalance,
   resolveStatementMetalCode,
+  isMetalStatementEntry,
 } from './erp/statementHelpers'
 import { shouldSuppressSpotMetalMtmForAccountEnquiry } from './erp/metalMarginPolicy'
 import {
@@ -646,7 +647,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const rawUnfixedStatementMetalHint = rawStatementEntries.reduce((acc, entry) => {
     if (resolveFixStatus(entry) !== 'unfixed') return acc
     const st = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
-    if (!(entry.isMetalTrade || st === 'sale' || st === 'purchase')) return acc
+    if (!isMetalStatementEntry(entry)) return acc
     const w = Number(entry.metalSignedWeight || 0)
     if (!Number.isFinite(w) || w === 0) return acc
     const tx = String(entry?.sourceTransactionId || '').trim()
@@ -738,7 +739,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const resolveStatementReceiptNo = (entry = {}) => {
     const parsedDocNo = (() => {
       const text = `${String(entry.description || '')} ${String(entry.notes || '')}`
-      const match = text.match(/\b((?:Pay|Rec|Pur|Sal|BnkJV|JV|Jv)[/-]\d{4}[/-]\d{1,6})\b/i)
+      const match = text.match(/\b((?:Pay|Rec|Pur|Sal|MRec|MPay|BnkJV|JV|Jv)[/-]\d{4}[/-]\d{1,6})\b/i)
       return String(match?.[1] || '').trim()
     })()
     const sourceNo = String(entry.sourceTransactionNumber || '').trim()
@@ -748,9 +749,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
   }
   const resolveDealSide = (entry) => {
     const explicit = String(entry?.metalDealType || entry?.sourceTransactionType || '').toLowerCase().trim()
-    if (explicit === 'sale' || explicit === 'purchase') return explicit
+    if (explicit === 'sale' || explicit === 'purchase' || explicit === 'metal_receipt' || explicit === 'metal_payment') return explicit
     const referenceType = String(entry?.referenceType || '').toLowerCase().trim()
-    if (referenceType === 'sale' || referenceType === 'purchase') return referenceType
+    if (referenceType === 'sale' || referenceType === 'purchase' || referenceType === 'metal_receipt' || referenceType === 'metal_payment') return referenceType
     return ''
   }
   const combineVoucherStatementRows = (entries = []) => {
@@ -760,7 +761,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       const dealSide = resolveDealSide(entry)
       const sourceId = String(entry?.sourceTransactionId || '').trim()
       const receiptNo = resolveStatementReceiptNo(entry)
-      const canGroup = sourceId && (dealSide === 'sale' || dealSide === 'purchase')
+      const canGroup = sourceId && ['sale', 'purchase', 'metal_receipt', 'metal_payment'].includes(dealSide)
       const key = canGroup ? `tx:${sourceId}` : `row:${entry?._id || index}`
       if (!grouped.has(key)) {
         grouped.set(key, {
@@ -829,7 +830,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const deriveStatementUnfixedMetalBalances = (entries) => entries.reduce((acc, entry) => {
     if (resolveFixStatus(entry) !== 'unfixed') return acc
     const st = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
-    if (!(entry.isMetalTrade || st === 'sale' || st === 'purchase')) return acc
+    if (!isMetalStatementEntry(entry)) return acc
     const w = Number(entry.metalSignedWeight || 0)
     if (!Number.isFinite(w) || w === 0) return acc
     const mc = resolveStatementMetalCode(entry)
@@ -851,7 +852,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const statementUnfixedVoucherRevaluationByMetal = statementEntries.reduce((acc, entry) => {
     if (resolveFixStatus(entry) !== 'unfixed') return acc
     const st = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
-    if (!(entry.isMetalTrade || st === 'sale' || st === 'purchase')) return acc
+    if (!isMetalStatementEntry(entry)) return acc
     const voucherAmount = Math.abs(Number(entry.unfixedVoucherAmount || 0))
     if (!Number.isFinite(voucherAmount) || voucherAmount <= 0) return acc
     const postedAmount = Math.abs(Number(entry.signedAmount || entry.debitAmount || entry.creditAmount || 0))
@@ -903,11 +904,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   ] : []
   const buildPureWeightRunningBalancesByEntryKey = (entries, selectedMetalCode) => {
     const selected = String(selectedMetalCode || '').trim().toUpperCase()
-    const isMetalRowForPureWt = (entry) => {
-      const sourceType = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
-      const entryMetalCode = resolveStatementMetalCode(entry)
-      return (entry.isMetalTrade || sourceType === 'sale' || sourceType === 'purchase') && entryMetalCode === selected
-    }
+    const isMetalRowForPureWt = (entry) => isMetalStatementEntry(entry) && resolveStatementMetalCode(entry) === selected
     let closing = entries.reduce((sum, entry) => {
       if (!isMetalRowForPureWt(entry)) return sum
       return sum + Number(entry.metalSignedWeight || 0)
@@ -7803,7 +7800,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                               const balanceDisplay = convertStatementDisplayAmount(balanceUsd)
                               const sourceType = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
                               const entryMetalCode = resolveMetalCode(entry)
-                              const isMetalRow = (entry.isMetalTrade || sourceType === 'sale' || sourceType === 'purchase') && entryMetalCode === statementSelectedMetalCode
+                              const isMetalRow = isMetalStatementEntry(entry) && entryMetalCode === statementSelectedMetalCode
                               const signedPureWeight = Number(entry.metalSignedWeight || 0)
                               const debitPureWeight = isMetalRow && signedPureWeight > 0 ? signedPureWeight : (isMetalRow ? 0 : null)
                               const creditPureWeight = isMetalRow && signedPureWeight < 0 ? Math.abs(signedPureWeight) : (isMetalRow ? 0 : null)

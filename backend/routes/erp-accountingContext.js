@@ -20,7 +20,7 @@ const {
   isMetalStockOutType,
   isMetalStockType,
   isMetalTransferType,
-  stockMovementReferenceType,
+  buildStockMovementReason,
 } = require('../utils/metalStockVoucherTypes')
 const { getNextPrefixedCode } = require('../utils/sequentialPartyCode')
 const {
@@ -750,11 +750,6 @@ const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
   const plans = Array.isArray(preparedImpact?.inventoryPlans) ? preparedImpact.inventoryPlans : []
   if (!plans.length || !isMetalStockType(transactionType)) return
 
-  const fixingType = String(tx?.voucherMeta?.fixingType || tx?.metalFixStatus || 'fixed').toLowerCase()
-  const isUnfixed = ['unfixed', 'non-fixing', 'nonfixing', 'non_fixing'].includes(fixingType)
-  const fixLabel = isUnfixed ? 'UNFIXED' : 'FIXED'
-
-  // Process stock movements for BOTH fixed and unfixed sale/purchase vouchers.
   for (const plan of plans) {
     const item = await InventoryItem.findById(plan.item._id)
     if (!item || item.isDeleted) continue
@@ -774,14 +769,13 @@ const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
       }
       await item.save()
 
-      const stockKind = stockMovementReferenceType(transactionType)
       await StockMovement.create({
         itemId: item._id,
         itemName: item.name,
         change: movementQty,
         quantityBefore: beforeQty,
         quantityAfter: nextQty,
-        reason: `Voucher ${stockKind} (${fixLabel})${tx.voucherMeta?.vocNo ? ` #${tx.voucherMeta.vocNo}` : ''}`,
+        reason: buildStockMovementReason(tx, transactionType),
         actorId: user._id,
         actorName: user.name,
       })
@@ -799,7 +793,7 @@ const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
       change: -movementQty,
       quantityBefore: beforeQty,
       quantityAfter: nextQty,
-      reason: `Voucher ${stockMovementReferenceType(transactionType)} (${fixLabel})${tx.voucherMeta?.vocNo ? ` #${tx.voucherMeta.vocNo}` : ''}`,
+      reason: buildStockMovementReason(tx, transactionType),
       actorId: user._id,
       actorName: user.name,
     })

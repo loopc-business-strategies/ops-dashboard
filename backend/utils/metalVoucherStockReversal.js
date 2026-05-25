@@ -6,10 +6,8 @@
 const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const {
-  isMetalStockInType,
-  isMetalStockOutType,
   isMetalStockType,
-  stockMovementReferenceType,
+  stockMovementReasonPattern,
 } = require('./metalStockVoucherTypes')
 
 async function reverseMetalVoucherStockForVoid({ tx, user, StockMovement, InventoryItem, toQty, deleteReason }) {
@@ -18,11 +16,7 @@ async function reverseMetalVoucherStockForVoid({ tx, user, StockMovement, Invent
   const type = String(tx?.type || '').toLowerCase()
   if (!vocNo || !isMetalStockType(type)) return
 
-  const kind = stockMovementReferenceType(type)
-  const reasonPattern = new RegExp(
-    `Voucher\\s+${kind}\\s*\\([^)]*\\)\\s*#\\s*${escapeRegExp(vocNo)}(?:\\s|$)`,
-    'i',
-  )
+  const reasonPattern = stockMovementReasonPattern(type, vocNo)
 
   const movements = await StockMovement.find({
     isDeleted: { $ne: true },
