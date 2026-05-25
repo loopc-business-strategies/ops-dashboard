@@ -19,6 +19,7 @@ const {
   isMetalStockInType,
   isMetalStockOutType,
   isMetalStockType,
+  isMetalTransferType,
   stockMovementReferenceType,
 } = require('../utils/metalStockVoucherTypes')
 const { getNextPrefixedCode } = require('../utils/sequentialPartyCode')
@@ -508,6 +509,23 @@ const resolveVoucherInventoryLineAmount = (line = {}) => {
   return 0
 }
 
+const resolveTransferPostingAmount = (preparedImpact, transactionType) => {
+  const plans = Array.isArray(preparedImpact?.inventoryPlans) ? preparedImpact.inventoryPlans : []
+  if (!plans.length || !isMetalTransferType(transactionType)) return 0
+
+  if (isMetalStockOutType(transactionType)) {
+    return toMoney(plans.reduce((sum, plan) => sum + Number(plan.costAmount || 0), 0))
+  }
+
+  return toMoney(plans.reduce((sum, plan) => {
+    const lineAmount = Number(plan.lineAmount || 0)
+    if (lineAmount > 0) return sum + lineAmount
+    const qty = Number(plan.quantity || 0)
+    const unitCost = Number(plan.item?.unitCost || 0)
+    return sum + (qty * unitCost)
+  }, 0))
+}
+
 const categoryPurityFromString = (category) => {
   const m = String(category || '').match(/(?:^|;)purity=([\d.]+)/i)
   return m ? Number(m[1]) : 0
@@ -694,7 +712,7 @@ const prepareVoucherInventoryImpact = async ({ user, tx }) => {
     accountType: 'Asset',
     currency: tx.currency || BASE_CURRENCY_CODE,
   })
-  const cogsAccount = isMetalStockOutType(transactionType)
+  const cogsAccount = isMetalStockOutType(transactionType) && !isMetalTransferType(transactionType)
     ? await ensureAccountByCode({
       user,
       code: '5101',
@@ -720,6 +738,9 @@ const prepareVoucherInventoryImpact = async ({ user, tx }) => {
   return {
     inventoryPlans,
     purchaseDebitAccountId: inventoryPlans[0]?.inventoryAccountId || null,
+    inventoryCreditAccountId: isMetalTransferType(transactionType) && isMetalStockOutType(transactionType)
+      ? (inventoryPlans[0]?.inventoryAccountId || null)
+      : null,
     cogsAccountId: cogsAccount?._id || null,
   }
 }
@@ -783,11 +804,11 @@ const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
       actorName: user.name,
     })
 
-    // Create COGS ledger entry: debit COGS expense, credit inventory asset
+    // Create COGS ledger entry for sale/purchase stock-out only (not metal transfers).
     const cogsAmount = Number(plan.costAmount || 0)
     const cogsAccountId = preparedImpact?.cogsAccountId || null
     const inventoryAccountId = plan.inventoryAccountId || item.ledgerAccountId || null
-    if (cogsAmount > 0 && cogsAccountId && inventoryAccountId) {
+    if (!isMetalTransferType(transactionType) && cogsAmount > 0 && cogsAccountId && inventoryAccountId) {
       await Ledger.create({
         date: tx.voucherMeta?.valueDate || tx.date || new Date(),
         debitAccountId: cogsAccountId,
@@ -924,7 +945,7 @@ const resolveVatPostingAccounts = async ({ user, tx, resolvedAccounts }) => {
 
 const applyVoucherVatImpact = async ({ user, tx, resolvedAccounts }) => {
   const transactionType = String(tx?.type || '').toLowerCase()
-  if (!isMetalStockType(transactionType)) return null
+  if (!isMetalStockType(transactionType) || isMetalTransferType(transactionType)) return null
 
   await Ledger.updateMany(
     {
@@ -1717,6 +1738,10 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
     }
   }
 
+  if (transactionType === 'metal_payment' && preparedVoucherImpact?.inventoryCreditAccountId) {
+    creditAccountId = preparedVoucherImpact.inventoryCreditAccountId
+  }
+
   if (mappingOverride?.debitAccountId) debitAccountId = mappingOverride.debitAccountId
   if (mappingOverride?.creditAccountId) creditAccountId = mappingOverride.creditAccountId
 
@@ -1733,10 +1758,24 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
       return acc._id
     }
 
-    if (transactionType === 'sale' || transactionType === 'metal_payment') {
+    if (isMetalTransferType(transactionType)) {
+      if (transactionType === 'metal_receipt') {
+        if (!debitAccountId) {
+          debitAccountId = preparedVoucherImpact?.purchaseDebitAccountId
+            || await ensureAccount({ name: 'Metal Inventory', code: '1300', type: 'Asset' })
+        }
+        if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Accounts Payable', code: '2000', type: 'Liability' })
+      } else if (transactionType === 'metal_payment') {
+        if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Accounts Receivable', code: '1100', type: 'Asset' })
+        if (!creditAccountId) {
+          creditAccountId = preparedVoucherImpact?.inventoryCreditAccountId
+            || await ensureAccount({ name: 'Metal Inventory', code: '1300', type: 'Asset' })
+        }
+      }
+    } else if (transactionType === 'sale') {
       if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Accounts Receivable', code: '1100', type: 'Asset' })
       if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Sales Revenue', code: '4000', type: 'Income' })
-    } else if (transactionType === 'purchase' || transactionType === 'metal_receipt') {
+    } else if (transactionType === 'purchase') {
       const hasVoucherInventory = Boolean(preparedVoucherImpact?.purchaseDebitAccountId || tx.inventoryItemId || (Array.isArray(tx.voucherMeta?.lineItems) && tx.voucherMeta.lineItems.length))
       if (!debitAccountId) {
         debitAccountId = hasVoucherInventory
@@ -2059,6 +2098,8 @@ transactionPostingService = createTransactionPostingService({
   createLedgerFromTransaction,
   applyVoucherVatImpact,
   applyVoucherInventoryImpact,
+  resolveTransferPostingAmount,
+  isMetalTransferType,
   appendTransactionComment,
   appendTransactionAudit,
 })

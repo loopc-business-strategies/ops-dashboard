@@ -9,7 +9,7 @@ import MGMetalInvoicePrintLayout from './erp/MGMetalInvoicePrintLayout'
 import MGVoucherPrintLayout from './erp/MGVoucherPrintLayout'
 import VoucherAttachmentsPanel from './erp/VoucherAttachmentsPanel'
 import { resolveDocumentBranding } from './erp/documentBranding'
-import { BASE, cfg, fmt, today, S, fieldRow, fieldGroup, labelStyle, inputStyle, readInput, sectionBox, sectionHeader, sectionBody, btn, tabBtn, classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid, classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap, classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName, classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue, classicRightGrid, classicLabel, classicInput, classicReadInput, classicTextAreaRow, metalWin, metalTopInlineRow, metalTopField, emptyLine, normalizeMongoIdField, emptyHeader, DOC_PREFIX_BY_TYPE, getDocYear, parseVoucherDocMeta, buildVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, toFinitePositive, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, getAccountNameValue, isBankLikeAccount, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalStockInVoucherType, isMetalStockOutVoucherType, isMetalTransferVoucherType } from './voucher/voucherTabShared'
+import { BASE, cfg, fmt, today, S, fieldRow, fieldGroup, labelStyle, inputStyle, readInput, sectionBox, sectionHeader, sectionBody, btn, tabBtn, classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid, classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap, classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName, classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue, classicRightGrid, classicLabel, classicInput, classicReadInput, classicTextAreaRow, metalWin, metalTopInlineRow, metalTopField, emptyLine, normalizeMongoIdField, emptyHeader, DOC_PREFIX_BY_TYPE, getDocYear, parseVoucherDocMeta, buildVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, toFinitePositive, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, getAccountNameValue, isBankLikeAccount, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalStockInVoucherType, isMetalStockOutVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity } from './voucher/voucherTabShared'
 
 export default function VoucherTab({ token, user, accounts = [], customers: propCustomers = [], vendors: propVendors = [], currencies = [], reportBranding = null }) {
   const showAccountDetailsTab = false
@@ -635,6 +635,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
     const hasDraftContent = Boolean(
       String(draftLine.stockCode || draftLine.acCode || draftLine.productType || '').trim()
+      || (isMetalTransferVoucherType(voucherType) && hasMetalTransferLineQuantity(draftLine))
       || parseFloat(draftLine.amountWithVAT)
       || parseFloat(draftLine.amountLC)
       || parseFloat(draftLine.metalAmount)
@@ -1274,16 +1275,20 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
     let effectiveLineItems = [...lineItems]
     if (showLineForm) {
-      const hasLineAmount = Boolean(lineForm.amountLC || lineForm.amountFC || lineForm.totalAmount || lineForm.metalAmount)
+      const hasLineAmount = isSimpleMetalSave
+        ? hasMetalTransferLineQuantity(lineForm)
+        : Boolean(lineForm.amountLC || lineForm.amountFC || lineForm.totalAmount || lineForm.metalAmount)
       if ((!isMetalVoucher && !lineForm.acCode.trim()) || !hasLineAmount) {
-        setError('Complete line details and click Save Line, or cancel the open line before saving voucher')
+        setError(isSimpleMetalSave
+          ? 'Complete stock/weight details and click Save Line, or cancel the open line before saving voucher'
+          : 'Complete line details and click Save Line, or cancel the open line before saving voucher')
         return
       }
       const draftLine = {
         ...lineForm,
         type: normalizeLineType(lineForm.type),
-        amountLC: lineForm.amountLC || lineForm.totalAmount || lineForm.metalAmount || '',
-        amountWithVAT: lineForm.amountWithVAT || lineForm.amountLC || lineForm.amountFC,
+        amountLC: isSimpleMetalSave ? '' : (lineForm.amountLC || lineForm.totalAmount || lineForm.metalAmount || ''),
+        amountWithVAT: isSimpleMetalSave ? '' : (lineForm.amountWithVAT || lineForm.amountLC || lineForm.amountFC),
       }
       if (editingLineIdx !== null) {
         effectiveLineItems = effectiveLineItems.map((l, i) => (i === editingLineIdx ? draftLine : l))
@@ -1329,7 +1334,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
     const payload = {
       type: voucherType,
-      amount: totals.grandTotal || 0.01,
+      amount: isSimpleMetalSave ? 0.01 : (totals.grandTotal || 0.01),
       date: isSimpleMetalSave ? (header.docDate || header.valueDate || header.vocDate) : (header.valueDate || header.vocDate),
       description: `${voucherType} voucher ${header.vocNo || ''}`.trim(),
       currency: isReceiptPayment ? normalizedHeaderCurrency : baseCurrencyCode,
@@ -1352,7 +1357,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           goldPriceUpdatedAt: latestMetalRates.updatedAt || null,
         },
         ...(requiresReferenceRate ? { referenceExchangeRate: backendHeaderRate } : {}),
-        ...(isMetalStockVoucherType(voucherType) ? { fixingType: normalizeVoucherFixingType(header.fixingType) } : {}),
+        ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave ? { fixingType: normalizeVoucherFixingType(header.fixingType) } : {}),
         lineItems: effectiveLineItems.map((l) => ({
           ...l,
           inventoryItemId: normalizeMongoIdField(l.inventoryItemId),
@@ -1369,12 +1374,12 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           headerAmountWithVAT: parseFloat(l.headerAmountWithVAT) || 0,
         })),
       },
-      ...(isMetalStockVoucherType(voucherType)
+      ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalSave
         ? { metalFixStatus: normalizeVoucherFixingType(header.fixingType) === 'non-fixing' ? 'unfixed' : 'fixed' }
         : {}),
     }
     const payloadLineTotal = effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0), 0)
-    payload.amount = payloadLineTotal || 0.01
+    payload.amount = isSimpleMetalSave ? 0.01 : (payloadLineTotal || 0.01)
     setSaving(true)
     try {
       let savedId = editingId
@@ -1510,13 +1515,21 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const saveLine = () => {
     if (!isMetalVoucher && !lineForm.acCode.trim()) { setError('A/C Code is required'); return }
     if (isMetalVoucher && !lineForm.stockCode.trim()) { setError('Stock Code is required for metal vouchers'); return }
-    if (!lineForm.amountLC && !lineForm.amountFC && !lineForm.totalAmount && !lineForm.metalAmount) { setError('Amount is required'); return }
-    const computedLineForm = isMetalVoucher ? applyLineAutoCalc(lineForm) : lineForm
+    if (isSimpleMetalVoucher) {
+      if (!hasMetalTransferLineQuantity(lineForm)) {
+        setError('Gross weight, pure weight, or PCS is required')
+        return
+      }
+    } else if (!lineForm.amountLC && !lineForm.amountFC && !lineForm.totalAmount && !lineForm.metalAmount) {
+      setError('Amount is required')
+      return
+    }
+    const computedLineForm = isMetalVoucher && !isSimpleMetalVoucher ? applyLineAutoCalc(lineForm) : lineForm
     const line = {
       ...computedLineForm,
       type: normalizeLineType(computedLineForm.type),
-      amountLC: computedLineForm.amountLC || computedLineForm.totalAmount || computedLineForm.metalAmount || '',
-      amountWithVAT: computedLineForm.amountWithVAT || computedLineForm.amountLC || computedLineForm.amountFC,
+      amountLC: isSimpleMetalVoucher ? '' : (computedLineForm.amountLC || computedLineForm.totalAmount || computedLineForm.metalAmount || ''),
+      amountWithVAT: isSimpleMetalVoucher ? '' : (computedLineForm.amountWithVAT || computedLineForm.amountLC || computedLineForm.amountFC),
     }
     if (editingLineIdx !== null) {
       setLineItems(prev => prev.map((l, i) => i === editingLineIdx ? line : l))
@@ -1884,7 +1897,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const voucherLabelT = voucherConfig.short
   const lineTableHeaders = isMetalVoucher
     ? (isSimpleMetalVoucher
-      ? ['No.', 'Stock Code', 'Product Type', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', 'Metal Rate', 'Metal Amount', 'Total', '']
+      ? ['No.', 'Stock Code', 'Product Type', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', '']
       : ['No.', 'Stock Code', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', 'Rate Type', 'Metal Rate', 'Metal Amount', 'Total', ''])
     : ['No.', 'A/C Code', 'Type', 'Curr', 'Amount FC', 'Amount LC', '']
   const branding = user?.branding || {}
@@ -1964,7 +1977,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     { label: 'Doc Date', value: payDateValue },
     ...(isSimpleMetalVoucher ? [] : [{ label: 'Value Date', value: header?.valueDate || payDateValue }]),
     { label: 'Prepared By', value: preparedByValue },
-    ...(isMetalVoucher ? [{ label: 'Fixing', value: normalizeVoucherFixingType(header?.fixingType) }] : []),
+    ...(isMetalVoucher && !isSimpleMetalVoucher ? [{ label: 'Fixing', value: normalizeVoucherFixingType(header?.fixingType) }] : []),
   ]
   const printAmountLabel = `Amount (${currencyLabel || 'USD'})`
   const printPostingDirection = (voucherType === 'receipt' || voucherType === 'sale' || voucherType === 'metal_payment') ? 'CREDITED' : 'DEBITED'
@@ -2154,7 +2167,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                 <thead>
                   <tr style={{ background: S.headerBg }}>
-                    {['Doc No', 'Doc Date', ...(isSimpleMetalVoucher ? [] : ['Value Date']), 'Party Code', 'Party Name', ...(isMetalStockVoucherType(voucherType) ? ['Fixing'] : []), ...(isSimpleMetalVoucher ? [] : ['Currency']), 'Grand Total', 'Status', 'Actions'].map(h => (
+                    {['Doc No', 'Doc Date', ...(isSimpleMetalVoucher ? [] : ['Value Date']), 'Party Code', 'Party Name', ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? ['Fixing'] : []), ...(isSimpleMetalVoucher ? [] : ['Currency']), 'Grand Total', 'Status', 'Actions'].map(h => (
                       <th key={h} style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: '700', color: S.ink, borderBottom: `2px solid ${S.border}`, whiteSpace: 'nowrap' }}>
                         {h}
                       </th>
@@ -2184,7 +2197,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                         )}
                         <td style={{ padding: '0.55rem 0.75rem' }}>{m.partyCode || '-'}</td>
                         <td style={{ padding: '0.55rem 0.75rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.partyName || '-'}</td>
-                        {isMetalStockVoucherType(voucherType) && (
+                        {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher && (
                           <td style={{ padding: '0.55rem 0.75rem' }}>
                             <span style={{ padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: fixingDisplay === 'Unfixed' ? '#FEE2E2' : '#DCFCE7', color: fixingDisplay === 'Unfixed' ? '#B91C1C' : '#166534' }}>
                               {fixingDisplay}
@@ -2581,7 +2594,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                           readOnly={formReadOnly}
                         />
 
-                        {isMetalStockVoucherType(voucherType) ? (
+                        {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? (
                           <>
                             <label style={classicLabel}>Fixing Type :</label>
                             <select
@@ -2594,12 +2607,12 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                               <option value="non-fixing">UnFixed</option>
                             </select>
                           </>
-                        ) : (
+                        ) : !isMetalStockVoucherType(voucherType) ? (
                           <>
                             <label style={classicLabel}>Voc Type :</label>
                             <input style={classicReadInput} value={voucherCode} readOnly />
                           </>
-                        )}
+                        ) : null}
 
                         <label style={classicLabel}>Doc Date :</label>
                         <input
@@ -2706,7 +2719,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                       <tr style={{ background: S.headerBg }}>
                         {(isMetalVoucher
                           ? (isSimpleMetalVoucher
-                            ? ['Stock Code', 'Product Type', 'PCS', 'Gross Wt.', 'Purity', 'Pure Wt.', 'Metal Rate', 'Metal Amount', 'Total', 'Narration']
+                            ? ['Stock Code', 'Product Type', 'PCS', 'Gross Wt.', 'Purity', 'Pure Wt.', 'Narration']
                             : ['Stock Code', 'PCS', 'Gross Wt.', 'Purity', 'Pure Wt.', 'Rate Type', 'Metal Rate', 'Metal Amount', 'Total', 'Narration'])
                           : ['A/C Code', 'Type', 'Currency', 'Amount FC', 'Amount LC', 'Narration']
                         ).map(h => (
@@ -2728,11 +2741,13 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                               <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.purity || '-'}</td>
                               <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.pureWeight || '-'}</td>
                               {!isSimpleMetalVoucher && (
-                                <td style={{ padding: '0.5rem 0.75rem' }}>{l.rateType || '-'}</td>
+                                <>
+                                  <td style={{ padding: '0.5rem 0.75rem' }}>{l.rateType || '-'}</td>
+                                  <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(parseFloat(l.metalRate) || ((parseFloat(l.weightInOz) || 0) > 0 ? ((parseFloat(l.metalAmount) || 0) / (parseFloat(l.weightInOz) || 0)) : 0))}</td>
+                                  <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(l.metalAmount)}</td>
+                                  <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: '700' }}>{fmt(l.totalAmount || l.amountLC)}</td>
+                                </>
                               )}
-                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(parseFloat(l.metalRate) || ((parseFloat(l.weightInOz) || 0) > 0 ? ((parseFloat(l.metalAmount) || 0) / (parseFloat(l.weightInOz) || 0)) : 0))}</td>
-                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(l.metalAmount)}</td>
-                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: '700' }}>{fmt(l.totalAmount || l.amountLC)}</td>
                               <td style={{ padding: '0.5rem 0.75rem' }}>{l.narration || l.remarks || '-'}</td>
                             </>
                           ) : (
@@ -2792,11 +2807,13 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                             <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.purity || '-'}</td>
                             <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.pureWeight || '-'}</td>
                             {!isSimpleMetalVoucher && (
-                              <td style={{ padding: '0.28rem 0.48rem', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.rateType || '-'}</td>
+                              <>
+                                <td style={{ padding: '0.28rem 0.48rem', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.rateType || '-'}</td>
+                                <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(parseFloat(l.metalRate) || ((parseFloat(l.weightInOz) || 0) > 0 ? ((parseFloat(l.metalAmount) || 0) / (parseFloat(l.weightInOz) || 0)) : 0))}</td>
+                                <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(l.metalAmount)}</td>
+                                <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', fontWeight: '700', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(l.totalAmount || l.amountLC)}</td>
+                              </>
                             )}
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(parseFloat(l.metalRate) || ((parseFloat(l.weightInOz) || 0) > 0 ? ((parseFloat(l.metalAmount) || 0) / (parseFloat(l.weightInOz) || 0)) : 0))}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(l.metalAmount)}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', fontWeight: '700', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(l.totalAmount || l.amountLC)}</td>
                           </>
                         ) : (
                           <>
@@ -2835,9 +2852,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
                   {isMetalVoucher ? (
                     <>
-                      <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '1fr auto' : '2.35fr 1.25fr auto', gap: '0.75rem', alignItems: 'start', marginBottom: '0.6rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '1fr' : '2.35fr 1.25fr auto', gap: '0.75rem', alignItems: 'start', marginBottom: '0.6rem' }}>
                         <div style={{ border: `1px solid ${S.border}`, background: S.white }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(180px, 1fr) 90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '110px minmax(180px, 1fr)' : '110px minmax(180px, 1fr) 90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, background: S.headerBg }}>Stock *</div>
                             <select
                               style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }}
@@ -2849,8 +2866,12 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                                 <option key={option.code} value={option.code}>{option.label}</option>
                               ))}
                             </select>
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Location</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.location} onChange={e => setLF('location', e.target.value)} />
+                            {!isSimpleMetalVoucher && (
+                              <>
+                                <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Location</div>
+                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.location} onChange={e => setLF('location', e.target.value)} />
+                              </>
+                            )}
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                             <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, background: S.headerBg }}>Product Type</div>
@@ -2981,15 +3002,14 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                         </div>
                         )}
 
+                        {!isSimpleMetalVoucher && (
                         <div style={{ display: 'grid', gap: '0.5rem' }}>
                           <div style={{ border: `1px solid ${S.border}`, background: S.white, minWidth: '180px' }}>
                             <div style={{ padding: '0.28rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', borderBottom: `1px solid ${S.border}`, background: S.headerBg }}>Metal Rate & Amount</div>
-                            {!isSimpleMetalVoucher && (
-                              <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                                <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate Type</div>
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)} />
-                              </div>
-                            )}
+                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate Type</div>
+                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)} />
+                            </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                               <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate</div>
                               <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.metalRate} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, metalRate: e.target.value }))} />
@@ -2998,19 +3018,17 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                               <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Metal Amt</div>
                               <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', color: '#991B1B', fontWeight: '700', background: '#F9FAFB' }} type="number" step="0.01" value={lineForm.metalAmount} readOnly />
                             </div>
-                            {!isSimpleMetalVoucher && (
-                              <>
-                                <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                                  <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Premium Amt</div>
-                                  <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', background: '#F9FAFB' }} type="number" step="0.01" value={lineForm.premiumAmount || ''} readOnly />
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                                  <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Making Chg.</div>
-                                  <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.makingCharges} onChange={e => setLF('makingCharges', e.target.value)} />
-                                </div>
-                              </>
-                            )}
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: isSimpleMetalVoucher ? 'none' : `1px solid ${S.border}` }}>
+                            <>
+                              <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                                <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Premium Amt</div>
+                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', background: '#F9FAFB' }} type="number" step="0.01" value={lineForm.premiumAmount || ''} readOnly />
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
+                                <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Making Chg.</div>
+                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.makingCharges} onChange={e => setLF('makingCharges', e.target.value)} />
+                              </div>
+                            </>
+                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
                               <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700' }}>Total</div>
                               <input
                                 style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', fontWeight: '700', background: '#F9FAFB' }}
@@ -3020,16 +3038,14 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                                 readOnly
                               />
                             </div>
-                            {!isSimpleMetalVoucher && (
-                              <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)' }}>
-                                <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700' }}>Total Amt+Tax</div>
-                                <input
-                                  style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', fontWeight: '700' }}
-                                  readOnly
-                                  value={lineForm.amountWithVAT || ''}
-                                />
-                              </div>
-                            )}
+                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)' }}>
+                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700' }}>Total Amt+Tax</div>
+                              <input
+                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', fontWeight: '700' }}
+                                readOnly
+                                value={lineForm.amountWithVAT || ''}
+                              />
+                            </div>
                           </div>
 
                           <div style={{ display: 'grid', gap: '0.35rem' }}>
@@ -3044,7 +3060,22 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                             <button style={{ ...btn('secondary'), minWidth: '92px' }} onClick={cancelLine}>Cancel</button>
                           </div>
                         </div>
+                        )}
                       </div>
+
+                      {isSimpleMetalVoucher && (
+                        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.55rem' }}>
+                          <button style={{ ...btn('gray'), minWidth: '92px' }} onClick={() => {
+                            saveLine()
+                            if (!lineForm.stockCode.trim()) return
+                            setTimeout(() => openAddLine(), 50)
+                          }}>
+                            Continue
+                          </button>
+                          <button style={{ ...btn('primary'), minWidth: '92px' }} onClick={saveLine}>Save</button>
+                          <button style={{ ...btn('secondary'), minWidth: '92px' }} onClick={cancelLine}>Cancel</button>
+                        </div>
+                      )}
 
                       <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '1fr' : '1fr 180px', gap: '0.55rem', marginBottom: '0.2rem' }}>
                         <div>
@@ -3150,7 +3181,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                             <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{totals.pureWeightTotal > 0 ? totals.pureWeightTotal.toFixed(3) : '0.000'}</td>
                           </tr>
                         )}
-                        {isMetalVoucher && (
+                        {!isSimpleMetalVoucher && isMetalVoucher && (
                           <tr style={{ borderBottom: '1px solid #E8EAED' }}>
                             <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Metal Amount :</td>
                             <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.metalTotal)}</td>
@@ -3180,10 +3211,12 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                             <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.vatAmount)}</td>
                           </tr>
                         )}
+                        {!isSimpleMetalVoucher && (
                         <tr style={{ background: '#F1F3F6' }}>
-                          <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>{isSimpleMetalVoucher ? 'Net Amount :' : `Net Amt (${header.currCode || 'USD'}) :`}</td>
+                          <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>{`Net Amt (${header.currCode || 'USD'}) :`}</td>
                           <td style={{ padding: '0.24rem 0.65rem', textAlign: 'right', fontWeight: '800', color: S.green, fontSize: '0.87rem' }}>{fmt(totals.grandTotal)}</td>
                         </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>

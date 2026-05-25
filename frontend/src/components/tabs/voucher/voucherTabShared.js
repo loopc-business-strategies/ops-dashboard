@@ -430,6 +430,11 @@ export const isMetalStockVoucherType = (type) => (
 export const isMetalTransferVoucherType = (type) => (
   METAL_TRANSFER_VOUCHER_TYPES.includes(String(type || '').toLowerCase())
 )
+export const hasMetalTransferLineQuantity = (line = {}) => (
+  (parseFloat(line.grossWeight) || 0) > 0
+  || (parseFloat(line.pureWeight) || 0) > 0
+  || (parseFloat(line.pcs) || 0) > 0
+)
 export const isMetalStockInVoucherType = (type) => (
   METAL_STOCK_IN_VOUCHER_TYPES.includes(String(type || '').toLowerCase())
 )

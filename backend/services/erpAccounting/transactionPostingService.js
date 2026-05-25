@@ -14,6 +14,8 @@ function createTransactionPostingService(deps) {
     createLedgerFromTransaction,
     applyVoucherVatImpact,
     applyVoucherInventoryImpact,
+    resolveTransferPostingAmount,
+    isMetalTransferType,
     appendTransactionComment,
     appendTransactionAudit,
   } = deps
@@ -58,6 +60,13 @@ function createTransactionPostingService(deps) {
     })
     tx.debitAccountId = resolved.debitAccountId
     tx.creditAccountId = resolved.creditAccountId
+
+    if (isMetalTransferType(transactionType)) {
+      const transferAmount = resolveTransferPostingAmount(preparedVoucherImpact, transactionType)
+      if (transferAmount > 0) {
+        tx.amount = transferAmount
+      }
+    }
 
     let ledgerEntry = null
     const existingMainEntries = await Ledger.find({
