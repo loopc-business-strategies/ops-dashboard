@@ -98,6 +98,8 @@ export default function ERPTransactionsTab({
     { value: 'receipt', label: 'Receipt' },
     { value: 'purchase', label: 'Metal Purchase' },
     { value: 'sale', label: 'Metal Sale' },
+    { value: 'metal_receipt', label: 'Metal Receipt' },
+    { value: 'metal_payment', label: 'Metal Payment' },
   ]
   const filteredTransactions = useMemo(() => {
     if (!selectedTypeFilter) return transactions
@@ -243,7 +245,7 @@ export default function ERPTransactionsTab({
               <select value={transactionForm.type} onChange={(e) => setTransactionForm((prev) => ({ ...prev, type: e.target.value }))} style={modalInputStyle}>
                 {availableTransactionTypes.map((type) => <option key={type} value={type}>{TRANSACTION_TYPE_LABELS[type]}</option>)}
               </select>
-              {['sale', 'purchase'].includes(String(transactionForm.type || '').toLowerCase()) && (
+              {['sale', 'purchase', 'metal_receipt', 'metal_payment'].includes(String(transactionForm.type || '').toLowerCase()) && (
                 <select value={transactionForm.metalFixStatus} onChange={(e) => setTransactionForm((prev) => ({ ...prev, metalFixStatus: e.target.value }))} style={modalInputStyle}>
                   <option value="fixed">Fixing (Fixed)</option>
                   <option value="unfixed">Non-Fixing (Unfixed)</option>

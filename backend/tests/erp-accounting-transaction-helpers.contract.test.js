@@ -36,11 +36,11 @@ const {
 } = require('../routes/erp-accounting/transactionHelpers')
 
 describe('transactionHelpers – constants', () => {
-  test('TRANSACTION_TYPES includes all 6 standard types', () => {
+  test('TRANSACTION_TYPES includes all standard types', () => {
     expect(TRANSACTION_TYPES).toEqual(
-      expect.arrayContaining(['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll'])
+      expect.arrayContaining(['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment'])
     )
-    expect(TRANSACTION_TYPES).toHaveLength(6)
+    expect(TRANSACTION_TYPES).toHaveLength(8)
   })
 
   test('TRANSACTION_STATUSES includes all lifecycle states', () => {
@@ -134,11 +134,11 @@ describe('transactionHelpers – getRoleTransactionTypes', () => {
   })
 
   test('sales gets sale and receipt only', () => {
-    expect(getRoleTransactionTypes({ role: 'sales' })).toEqual(['sale', 'receipt'])
+    expect(getRoleTransactionTypes({ role: 'sales' })).toEqual(['sale', 'receipt', 'metal_payment'])
   })
 
   test('operations gets purchase and expense only', () => {
-    expect(getRoleTransactionTypes({ role: 'operations' })).toEqual(['purchase', 'expense'])
+    expect(getRoleTransactionTypes({ role: 'operations' })).toEqual(['purchase', 'expense', 'metal_receipt'])
   })
 
   test('hr gets payroll only', () => {

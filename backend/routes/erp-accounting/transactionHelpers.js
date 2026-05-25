@@ -16,7 +16,7 @@ const {
 // TRANSACTION DOMAIN CONSTANTS
 // ==========================================
 
-const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
+const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment']
 const TRANSACTION_STATUSES = ['draft', 'submitted', 'approved', 'posted', 'returned', 'rejected']
 const BASE_CURRENCY_CODE = 'USD'
 const MAX_TRANSACTION_AMOUNT = Number(process.env.MAX_TRANSACTION_AMOUNT || 1_000_000_000)
@@ -67,8 +67,8 @@ const normalizeExchangeRateValue = (value, field = 'exchange rate') => {
 
 const getRoleTransactionTypes = (user) => {
   if (isSuperAdmin(user) || isFinance(user)) return TRANSACTION_TYPES
-  if (isSales(user)) return ['sale', 'receipt']
-  if (isOperations(user) || isProduction(user)) return ['purchase', 'expense']
+  if (isSales(user)) return ['sale', 'receipt', 'metal_payment']
+  if (isOperations(user) || isProduction(user)) return ['purchase', 'expense', 'metal_receipt']
   if (isHR(user)) return ['payroll']
   return []
 }
@@ -107,6 +107,14 @@ const validateTransactionPayload = (payload) => {
 
   if (payload.type === 'payment' && !payload.vendorId && !payload.customerId && !hasDirectPartyAccount) {
     return 'Vendor or customer is required for payments'
+  }
+
+  if (payload.type === 'metal_receipt' && !payload.vendorId && !payload.customerId && !hasDirectPartyAccount) {
+    return 'Party account is required for metal receipt'
+  }
+
+  if (payload.type === 'metal_payment' && !payload.customerId && !payload.vendorId && !hasDirectPartyAccount) {
+    return 'Party account is required for metal payment'
   }
 
   return ''

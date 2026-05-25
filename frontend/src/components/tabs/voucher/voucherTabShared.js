@@ -415,7 +415,23 @@ export const DOC_PREFIX_BY_TYPE = {
   receipt: 'Rec',
   purchase: 'Pur',
   sale: 'Sal',
+  metal_receipt: 'MRec',
+  metal_payment: 'MPay',
 }
+
+export const METAL_STOCK_VOUCHER_TYPES = ['purchase', 'sale', 'metal_receipt', 'metal_payment']
+export const METAL_STOCK_IN_VOUCHER_TYPES = ['purchase', 'metal_receipt']
+export const METAL_STOCK_OUT_VOUCHER_TYPES = ['sale', 'metal_payment']
+
+export const isMetalStockVoucherType = (type) => (
+  METAL_STOCK_VOUCHER_TYPES.includes(String(type || '').toLowerCase())
+)
+export const isMetalStockInVoucherType = (type) => (
+  METAL_STOCK_IN_VOUCHER_TYPES.includes(String(type || '').toLowerCase())
+)
+export const isMetalStockOutVoucherType = (type) => (
+  METAL_STOCK_OUT_VOUCHER_TYPES.includes(String(type || '').toLowerCase())
+)
 
 export const getDocYear = (dateValue) => {
   const dt = new Date(dateValue || Date.now())

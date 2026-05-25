@@ -15,6 +15,12 @@ const DirectDeal = require('../models/DirectDeal')
 const Employee = require('../models/Employee')
 const Customer = require('../models/Customer')
 const { applyPartyAccountPriority } = require('../utils/transactionPartyAccounts')
+const {
+  isMetalStockInType,
+  isMetalStockOutType,
+  isMetalStockType,
+  stockMovementReferenceType,
+} = require('../utils/metalStockVoucherTypes')
 const { getNextPrefixedCode } = require('../utils/sequentialPartyCode')
 const {
   idParam,
@@ -672,7 +678,7 @@ const resolveVoucherInventoryItems = async (tx) => {
 
 const prepareVoucherInventoryImpact = async ({ user, tx }) => {
   const transactionType = String(tx?.type || '').toLowerCase()
-  if (!['sale', 'purchase'].includes(transactionType)) {
+  if (!isMetalStockType(transactionType)) {
     return { inventoryPlans: [], purchaseDebitAccountId: null, cogsAccountId: null }
   }
 
@@ -688,7 +694,7 @@ const prepareVoucherInventoryImpact = async ({ user, tx }) => {
     accountType: 'Asset',
     currency: tx.currency || BASE_CURRENCY_CODE,
   })
-  const cogsAccount = transactionType === 'sale'
+  const cogsAccount = isMetalStockOutType(transactionType)
     ? await ensureAccountByCode({
       user,
       code: '5101',
@@ -707,7 +713,7 @@ const prepareVoucherInventoryImpact = async ({ user, tx }) => {
       quantity,
       lineAmount,
       inventoryAccountId,
-      costAmount: transactionType === 'sale' ? toMoney(quantity * Number(item.unitCost || 0)) : 0,
+      costAmount: isMetalStockOutType(transactionType) ? toMoney(quantity * Number(item.unitCost || 0)) : 0,
     }
   })
 
@@ -721,7 +727,7 @@ const prepareVoucherInventoryImpact = async ({ user, tx }) => {
 const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
   const transactionType = String(tx?.type || '').toLowerCase()
   const plans = Array.isArray(preparedImpact?.inventoryPlans) ? preparedImpact.inventoryPlans : []
-  if (!plans.length || !['sale', 'purchase'].includes(transactionType)) return
+  if (!plans.length || !isMetalStockType(transactionType)) return
 
   const fixingType = String(tx?.voucherMeta?.fixingType || tx?.metalFixStatus || 'fixed').toLowerCase()
   const isUnfixed = ['unfixed', 'non-fixing', 'nonfixing', 'non_fixing'].includes(fixingType)
@@ -735,7 +741,7 @@ const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
     const beforeQty = Number(item.quantity || 0)
     const movementQty = Number(plan.quantity || 0)
 
-    if (transactionType === 'purchase') {
+    if (isMetalStockInType(transactionType)) {
       const nextQty = toQty(beforeQty + movementQty)
       const currentValue = beforeQty * Number(item.unitCost || 0)
       const incomingValue = Number(plan.lineAmount || 0)
@@ -747,13 +753,14 @@ const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
       }
       await item.save()
 
+      const stockKind = stockMovementReferenceType(transactionType)
       await StockMovement.create({
         itemId: item._id,
         itemName: item.name,
         change: movementQty,
         quantityBefore: beforeQty,
         quantityAfter: nextQty,
-        reason: `Voucher purchase (${fixLabel})${tx.voucherMeta?.vocNo ? ` #${tx.voucherMeta.vocNo}` : ''}`,
+        reason: `Voucher ${stockKind} (${fixLabel})${tx.voucherMeta?.vocNo ? ` #${tx.voucherMeta.vocNo}` : ''}`,
         actorId: user._id,
         actorName: user.name,
       })
@@ -771,7 +778,7 @@ const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
       change: -movementQty,
       quantityBefore: beforeQty,
       quantityAfter: nextQty,
-      reason: `Voucher sale (${fixLabel})${tx.voucherMeta?.vocNo ? ` #${tx.voucherMeta.vocNo}` : ''}`,
+      reason: `Voucher ${stockMovementReferenceType(transactionType)} (${fixLabel})${tx.voucherMeta?.vocNo ? ` #${tx.voucherMeta.vocNo}` : ''}`,
       actorId: user._id,
       actorName: user.name,
     })
@@ -840,7 +847,7 @@ const resolveVoucherNetLineAmount = (tx) => {
 const resolveVatPostingAccounts = async ({ user, tx, resolvedAccounts }) => {
   const transactionType = String(tx?.type || '').toLowerCase()
 
-  if (transactionType === 'sale') {
+  if (isMetalStockOutType(transactionType)) {
     const mapping = await AccountMapping.findOne({ mappingType: 'vat_output', isActive: true })
       .select('debitAccountId creditAccountId')
       .lean()
@@ -876,7 +883,7 @@ const resolveVatPostingAccounts = async ({ user, tx, resolvedAccounts }) => {
     }
   }
 
-  if (transactionType === 'purchase') {
+  if (isMetalStockInType(transactionType)) {
     const mapping = await AccountMapping.findOne({ mappingType: 'vat_input', isActive: true })
       .select('debitAccountId creditAccountId')
       .lean()
@@ -917,7 +924,7 @@ const resolveVatPostingAccounts = async ({ user, tx, resolvedAccounts }) => {
 
 const applyVoucherVatImpact = async ({ user, tx, resolvedAccounts }) => {
   const transactionType = String(tx?.type || '').toLowerCase()
-  if (!['sale', 'purchase'].includes(transactionType)) return null
+  if (!isMetalStockType(transactionType)) return null
 
   await Ledger.updateMany(
     {
@@ -944,7 +951,7 @@ const applyVoucherVatImpact = async ({ user, tx, resolvedAccounts }) => {
     debitAccountId: posting.debitAccountId,
     creditAccountId: posting.creditAccountId,
     amount: vatAmount,
-    description: `Auto VAT ${transactionType === 'sale' ? 'output' : 'input'} for transaction ${tx._id}`,
+    description: `Auto VAT ${isMetalStockOutType(transactionType) ? 'output' : 'input'} for transaction ${tx._id}`,
     referenceType: posting.referenceType,
     referenceId: tx._id,
     createdBy: user._id,
@@ -1644,14 +1651,14 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
     }
   }
 
-  if (transactionType === 'sale' || transactionType === 'receipt') {
+  if (transactionType === 'sale' || transactionType === 'receipt' || transactionType === 'metal_payment') {
     const customer = tx.customerId ? await Customer.findById(tx.customerId).populate('ledgerAccountId') : null
-    if ((transactionType === 'sale' || transactionType === 'receipt') && customer?.ledgerAccountId) {
-      if (transactionType === 'sale') debitAccountId = customer.ledgerAccountId._id
+    if ((transactionType === 'sale' || transactionType === 'receipt' || transactionType === 'metal_payment') && customer?.ledgerAccountId) {
+      if (transactionType === 'sale' || transactionType === 'metal_payment') debitAccountId = customer.ledgerAccountId._id
       if (transactionType === 'receipt') creditAccountId = customer.ledgerAccountId._id
     }
 
-    if (transactionType === 'sale' && !customer?.ledgerAccountId) {
+    if ((transactionType === 'sale' || transactionType === 'metal_payment') && !customer?.ledgerAccountId) {
       const vendor = tx.vendorId ? await Vendor.findById(tx.vendorId).populate('ledgerAccountId') : null
       if (vendor?.ledgerAccountId) {
         debitAccountId = debitAccountId || vendor.ledgerAccountId._id
@@ -1669,14 +1676,14 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
     if (transactionType === 'receipt') debitAccountId = voucherSettlementAccountId || debitAccountId || bank._id
   }
 
-  if (transactionType === 'purchase' || transactionType === 'payment') {
+  if (transactionType === 'purchase' || transactionType === 'payment' || transactionType === 'metal_receipt') {
     const vendor = tx.vendorId ? await Vendor.findById(tx.vendorId).populate('ledgerAccountId') : null
     if (vendor?.ledgerAccountId) {
-      if (transactionType === 'purchase') creditAccountId = vendor.ledgerAccountId._id
+      if (transactionType === 'purchase' || transactionType === 'metal_receipt') creditAccountId = vendor.ledgerAccountId._id
       if (transactionType === 'payment') debitAccountId = vendor.ledgerAccountId._id
     }
 
-    if (transactionType === 'purchase' && !vendor?.ledgerAccountId) {
+    if ((transactionType === 'purchase' || transactionType === 'metal_receipt') && !vendor?.ledgerAccountId) {
       const customer = tx.customerId ? await Customer.findById(tx.customerId).populate('ledgerAccountId') : null
       if (customer?.ledgerAccountId) {
         creditAccountId = creditAccountId || customer.ledgerAccountId._id
@@ -1701,8 +1708,7 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
     if (transactionType === 'payment') creditAccountId = voucherSettlementAccountId || creditAccountId || bank._id
   }
 
-  if (transactionType === 'purchase') {
-    // When voucher lines resolve to stock products, post Dr to that inventory account (not a stale purchase/expense mapping).
+  if (transactionType === 'purchase' || transactionType === 'metal_receipt') {
     if (preparedVoucherImpact?.purchaseDebitAccountId) {
       debitAccountId = preparedVoucherImpact.purchaseDebitAccountId
     } else if (tx.inventoryItemId) {
@@ -1727,10 +1733,10 @@ const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedV
       return acc._id
     }
 
-    if (transactionType === 'sale') {
+    if (transactionType === 'sale' || transactionType === 'metal_payment') {
       if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Accounts Receivable', code: '1100', type: 'Asset' })
       if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Sales Revenue', code: '4000', type: 'Income' })
-    } else if (transactionType === 'purchase') {
+    } else if (transactionType === 'purchase' || transactionType === 'metal_receipt') {
       const hasVoucherInventory = Boolean(preparedVoucherImpact?.purchaseDebitAccountId || tx.inventoryItemId || (Array.isArray(tx.voucherMeta?.lineItems) && tx.voucherMeta.lineItems.length))
       if (!debitAccountId) {
         debitAccountId = hasVoucherInventory
@@ -1767,7 +1773,7 @@ const createLedgerFromTransaction = async ({ user, transaction, referenceType })
   const voucherNetAmount = resolveVoucherNetLineAmount(transaction)
   const voucherVatAmount = resolveVoucherVatAmount(transaction)
   const voucherGrossAmount = toMoney(voucherNetAmount + voucherVatAmount)
-  const shouldPostNetMainAmount = ['sale', 'purchase'].includes(String(transaction.type || '').toLowerCase())
+  const shouldPostNetMainAmount = isMetalStockType(String(transaction.type || '').toLowerCase())
     && voucherNetAmount > 0
     && voucherVatAmount > 0
     && Math.abs(transactionAmount - voucherGrossAmount) <= 0.02

@@ -5,13 +5,20 @@
 
 const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+const {
+  isMetalStockInType,
+  isMetalStockOutType,
+  isMetalStockType,
+  stockMovementReferenceType,
+} = require('./metalStockVoucherTypes')
+
 async function reverseMetalVoucherStockForVoid({ tx, user, StockMovement, InventoryItem, toQty, deleteReason }) {
   if (!StockMovement || !InventoryItem || !toQty) return
   const vocNo = String(tx?.voucherMeta?.vocNo || '').trim()
   const type = String(tx?.type || '').toLowerCase()
-  if (!vocNo || (type !== 'purchase' && type !== 'sale')) return
+  if (!vocNo || !isMetalStockType(type)) return
 
-  const kind = type === 'purchase' ? 'purchase' : 'sale'
+  const kind = stockMovementReferenceType(type)
   const reasonPattern = new RegExp(
     `Voucher\\s+${kind}\\s*\\([^)]*\\)\\s*#\\s*${escapeRegExp(vocNo)}(?:\\s|$)`,
     'i',

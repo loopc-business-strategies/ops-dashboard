@@ -5,7 +5,7 @@ const { ACCOUNT_TYPES } = require('../../constants/accountTypes')
 
 // ─── Joi Schemas ────────────────────────────────────────────────────────────
 const ACC_TYPES = ACCOUNT_TYPES
-const TX_TYPES  = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
+const TX_TYPES  = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment']
 
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
 

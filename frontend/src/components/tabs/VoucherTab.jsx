@@ -9,7 +9,7 @@ import MGMetalInvoicePrintLayout from './erp/MGMetalInvoicePrintLayout'
 import MGVoucherPrintLayout from './erp/MGVoucherPrintLayout'
 import VoucherAttachmentsPanel from './erp/VoucherAttachmentsPanel'
 import { resolveDocumentBranding } from './erp/documentBranding'
-import { BASE, cfg, fmt, today, S, fieldRow, fieldGroup, labelStyle, inputStyle, readInput, sectionBox, sectionHeader, sectionBody, btn, tabBtn, classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid, classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap, classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName, classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue, classicRightGrid, classicLabel, classicInput, classicReadInput, classicTextAreaRow, metalWin, metalTopInlineRow, metalTopField, emptyLine, normalizeMongoIdField, emptyHeader, DOC_PREFIX_BY_TYPE, getDocYear, parseVoucherDocMeta, buildVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, toFinitePositive, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, getAccountNameValue, isBankLikeAccount, pickDefaultAccountCodeByType } from './voucher/voucherTabShared'
+import { BASE, cfg, fmt, today, S, fieldRow, fieldGroup, labelStyle, inputStyle, readInput, sectionBox, sectionHeader, sectionBody, btn, tabBtn, classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid, classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap, classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName, classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue, classicRightGrid, classicLabel, classicInput, classicReadInput, classicTextAreaRow, metalWin, metalTopInlineRow, metalTopField, emptyLine, normalizeMongoIdField, emptyHeader, DOC_PREFIX_BY_TYPE, getDocYear, parseVoucherDocMeta, buildVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, toFinitePositive, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, getAccountNameValue, isBankLikeAccount, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalStockInVoucherType, isMetalStockOutVoucherType } from './voucher/voucherTabShared'
 
 export default function VoucherTab({ token, user, accounts = [], customers: propCustomers = [], vendors: propVendors = [], currencies = [], reportBranding = null }) {
   const showAccountDetailsTab = false
@@ -143,9 +143,11 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     receipt: { key: 'receipt', label: 'Receipt Voucher', short: t('receiptVoucher'), code: 'REC', docPrefix: 'Rec', icon: '🧾', partySelectLabel: 'Customer', partyPlaceholder: 'Auto from customer' },
     purchase: { key: 'purchase', label: 'Metal Purchase Voucher', short: 'Metal Purchase', code: 'PUR', docPrefix: 'Pur', icon: '🟫', partySelectLabel: 'Vendor / Customer', partyPlaceholder: 'Vendor, customer, or account code' },
     sale: { key: 'sale', label: 'Metal Sale Voucher', short: 'Metal Sale', code: 'SAL', docPrefix: 'Sal', icon: '🟨', partySelectLabel: 'Customer / Vendor', partyPlaceholder: 'Customer, vendor, or account code' },
+    metal_receipt: { key: 'metal_receipt', label: 'Metal Receipt Voucher', short: 'Metal Receipt', code: 'MREC', docPrefix: 'MRec', icon: '📥', partySelectLabel: 'Account Name', partyPlaceholder: 'Vendor, customer, or account code' },
+    metal_payment: { key: 'metal_payment', label: 'Metal Payment Voucher', short: 'Metal Payment', code: 'MPAY', docPrefix: 'MPay', icon: '📤', partySelectLabel: 'Account Name', partyPlaceholder: 'Customer, vendor, or account code' },
   }
 
-  const voucherPartyMode = voucherType === 'receipt' || voucherType === 'sale'
+  const voucherPartyMode = (voucherType === 'receipt' || voucherType === 'sale' || voucherType === 'metal_payment')
     ? 'customer'
     : 'vendor'
 
@@ -194,7 +196,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     })
 
     // Sale/receipt: prefer customer (counterparty is usually buyer). Purchase/payment: prefer vendor (supplier).
-    const preferCustomerFirst = voucherType === 'sale' || voucherType === 'receipt'
+    const preferCustomerFirst = voucherType === 'sale' || voucherType === 'receipt' || voucherType === 'metal_payment'
     if (preferCustomerFirst) {
       if (customerMatch) return toCustomer(customerMatch)
       if (vendorMatch) return toVendor(vendorMatch)
@@ -241,7 +243,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     options: g.items.map((item) => ({ value: item.id, label: item.label })),
   }))
 
-  const isMetalVoucherHeader = voucherType === 'purchase' || voucherType === 'sale'
+  const isMetalVoucherHeader = isMetalStockVoucherType(voucherType)
   const metalPartyComboGroups = (() => {
     if (!isMetalVoucherHeader) return partyComboGroups
     const customerOpts = customers
@@ -537,7 +539,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     const mainStock = meta.mainStock || meta.metalType || ''
     const symbol = normalizeMetalSymbol(mainStock, meta.metalType)
     const stockGroup = normalizeStockGroup(mainStock, meta.metalType)
-    const defaultRate = voucherType === 'sale'
+    const defaultRate = (voucherType === 'sale' || voucherType === 'metal_payment')
       ? Number(product.sellingPrice || 0)
       : Number(product.unitCost || 0)
     const storedPriceUnit = String(fullMeta.priceUnit || '').trim().toUpperCase()
@@ -589,7 +591,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   }, [canView])
 
   useEffect(() => {
-    if (!showLineForm || (voucherType !== 'purchase' && voucherType !== 'sale')) return
+    if (!showLineForm || !isMetalStockVoucherType(voucherType)) return
     setLineForm((prev) => {
       const calculated = applyLineAutoCalc(prev)
       const keys = ['pureWeight', 'weightInOz', 'metalAmount', 'totalAmount', 'amountLC', 'vatAmountLC', 'vatAmountFC', 'amountWithVAT']
@@ -654,7 +656,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     ? canCreatePayment
     : voucherType === 'receipt'
       ? canCreateReceipt
-      : voucherType === 'purchase'
+      : (voucherType === 'purchase' || voucherType === 'metal_receipt')
         ? canCreatePurchase
         : canCreateSale
 
@@ -793,7 +795,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   }
 
   const handleModalHeaderMouseDown = (e) => {
-    if (mode !== 'create' || e.button !== 0) return
+    if ((mode !== 'create' && mode !== 'view') || e.button !== 0) return
     if (e.target instanceof Element && e.target.closest('button')) return
 
     dragMetaRef.current.moved = false
@@ -1348,7 +1350,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           goldPriceUpdatedAt: latestMetalRates.updatedAt || null,
         },
         ...(requiresReferenceRate ? { referenceExchangeRate: backendHeaderRate } : {}),
-        ...(( voucherType === 'purchase' || voucherType === 'sale') ? { fixingType: normalizeVoucherFixingType(header.fixingType) } : {}),
+        ...(isMetalStockVoucherType(voucherType) ? { fixingType: normalizeVoucherFixingType(header.fixingType) } : {}),
         lineItems: effectiveLineItems.map((l) => ({
           ...l,
           inventoryItemId: normalizeMongoIdField(l.inventoryItemId),
@@ -1365,7 +1367,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
           headerAmountWithVAT: parseFloat(l.headerAmountWithVAT) || 0,
         })),
       },
-      ...((voucherType === 'purchase' || voucherType === 'sale')
+      ...(isMetalStockVoucherType(voucherType)
         ? { metalFixStatus: normalizeVoucherFixingType(header.fixingType) === 'non-fixing' ? 'unfixed' : 'fixed' }
         : {}),
     }
@@ -1873,7 +1875,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   }
 
   const voucherConfig = voucherConfigs[voucherType] || voucherConfigs.payment
-  const isMetalVoucher = voucherType === 'purchase' || voucherType === 'sale'
+  const isMetalVoucher = isMetalStockVoucherType(voucherType)
   const voucherLabel = voucherConfig.label
   const voucherCode = voucherConfig.code
   const voucherLabelT = voucherConfig.short
@@ -1948,6 +1950,8 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     receipt: 'Receipt Voucher',
     purchase: 'Metal Purchase Voucher',
     sale: 'Metal Sale Voucher',
+    metal_receipt: 'Metal Receipt Voucher',
+    metal_payment: 'Metal Payment Voucher',
   }
   const printTitle = printTitleByType[voucherType] || voucherLabel
   const printMeta = [
@@ -1958,7 +1962,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     ...(isMetalVoucher ? [{ label: 'Fixing', value: normalizeVoucherFixingType(header?.fixingType) }] : []),
   ]
   const printAmountLabel = `Amount (${currencyLabel || 'USD'})`
-  const printPostingDirection = voucherType === 'receipt' || voucherType === 'sale' ? 'CREDITED' : 'DEBITED'
+  const printPostingDirection = (voucherType === 'receipt' || voucherType === 'sale' || voucherType === 'metal_payment') ? 'CREDITED' : 'DEBITED'
   const accountNameByCode = (code) => (accounts || []).find((a) => getAccountCodeValue(a) === String(code || '').trim())?.accountName || ''
   const tenantIdentity = [
     activeTenantBranding?.key,
@@ -1970,7 +1974,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   ].map((value) => String(value || '').trim().toLowerCase()).join(' ')
   const isModernGoldTenant = /\bmg\b/.test(tenantIdentity) || tenantIdentity.includes('modern gold')
   const isMgCurrencyVoucher = isModernGoldTenant && ['payment', 'receipt'].includes(voucherType)
-  const isMgMetalVoucher = isModernGoldTenant && ['purchase', 'sale'].includes(voucherType)
+  const isMgMetalVoucher = isModernGoldTenant && isMetalStockVoucherType(voucherType)
   const mgPrintTitle = voucherType === 'receipt' ? 'RECEIPT CURRENCY' : 'CURRENCY PAYMENT'
   const mgBranch = header?.branch || effectiveLineItems?.find((line) => line?.branch)?.branch || 'HO'
   const mgLogoImage = documentBranding.logoUrl || ''
@@ -1999,9 +2003,17 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     ? `${numberToWords(totals.grandTotal)} ${mgAmountCurrencyName} Only`
     : ''
   const mgFixingDisplay = normalizeVoucherFixingType(header?.fixingType) === 'non-fixing' ? 'UNFIXED' : 'FIXED'
-  const mgMetalInvoiceTitle = `${voucherType === 'purchase' ? 'PURCHASE INVOICE' : 'SALE INVOICE'} (${mgFixingDisplay})`
-  const mgMetalCopyLabel = voucherType === 'purchase' ? 'ACCOUNTS COPY' : 'PARTY COPY'
-  const mgMetalPostingDirection = voucherType === 'purchase' ? 'DEBITED' : 'CREDITED'
+  const mgMetalInvoiceTitle = `${
+    voucherType === 'purchase'
+      ? 'PURCHASE INVOICE'
+      : voucherType === 'metal_receipt'
+        ? 'METAL RECEIPT'
+        : voucherType === 'metal_payment'
+          ? 'METAL PAYMENT'
+          : 'SALE INVOICE'
+  } (${mgFixingDisplay})`
+  const mgMetalCopyLabel = (voucherType === 'purchase' || voucherType === 'metal_receipt') ? 'ACCOUNTS COPY' : 'PARTY COPY'
+  const mgMetalPostingDirection = (voucherType === 'purchase' || voucherType === 'metal_receipt') ? 'DEBITED' : 'CREDITED'
   const mgMetalRateValue = mgLineItems.find((line) => Number(line?.metalRate || 0) > 0)?.metalRate || ''
   const mgMetalRateLabel = mgMetalRateValue ? `${fmt(mgMetalRateValue)} / SOZ (${currencyLabel || 'USD'})` : ''
 
@@ -2075,6 +2087,18 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         >
           🟨 Metal Sale
         </button>
+        <button
+          style={tabBtn(voucherType === 'metal_receipt')}
+          onClick={() => { setVoucherType('metal_receipt'); openLastOrCreate('metal_receipt') }}
+        >
+          📥 Metal Receipt
+        </button>
+        <button
+          style={tabBtn(voucherType === 'metal_payment')}
+          onClick={() => { setVoucherType('metal_payment'); openLastOrCreate('metal_payment') }}
+        >
+          📤 Metal Payment
+        </button>
         {mode !== 'list' && (
           <button style={btn('secondary')} onClick={() => setMode('list')}>
             ← Back to List
@@ -2125,7 +2149,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                 <thead>
                   <tr style={{ background: S.headerBg }}>
-                    {['Doc No', 'Doc Date', 'Value Date', 'Party Code', 'Party Name', ...((voucherType === 'purchase' || voucherType === 'sale') ? ['Fixing'] : []), 'Currency', 'Grand Total', 'Status', 'Actions'].map(h => (
+                    {['Doc No', 'Doc Date', 'Value Date', 'Party Code', 'Party Name', ...(isMetalStockVoucherType(voucherType) ? ['Fixing'] : []), 'Currency', 'Grand Total', 'Status', 'Actions'].map(h => (
                       <th key={h} style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: '700', color: S.ink, borderBottom: `2px solid ${S.border}`, whiteSpace: 'nowrap' }}>
                         {h}
                       </th>
@@ -2153,7 +2177,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                         <td style={{ padding: '0.55rem 0.75rem' }}>{m.valueDate ? String(m.valueDate).slice(0, 10) : (v.date ? v.date.slice(0, 10) : '-')}</td>
                         <td style={{ padding: '0.55rem 0.75rem' }}>{m.partyCode || '-'}</td>
                         <td style={{ padding: '0.55rem 0.75rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.partyName || '-'}</td>
-                        {(voucherType === 'purchase' || voucherType === 'sale') && (
+                        {isMetalStockVoucherType(voucherType) && (
                           <td style={{ padding: '0.55rem 0.75rem' }}>
                             <span style={{ padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: fixingDisplay === 'Unfixed' ? '#FEE2E2' : '#DCFCE7', color: fixingDisplay === 'Unfixed' ? '#B91C1C' : '#166534' }}>
                               {fixingDisplay}
@@ -2548,7 +2572,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                           readOnly={formReadOnly}
                         />
 
-                        {(voucherType === 'purchase' || voucherType === 'sale') ? (
+                        {isMetalStockVoucherType(voucherType) ? (
                           <>
                             <label style={classicLabel}>Fixing Type :</label>
                             <select
