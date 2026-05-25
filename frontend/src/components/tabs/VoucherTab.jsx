@@ -2460,7 +2460,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
               {isMetalVoucher ? 'Stock Details' : 'Header Details'}
             </button>
             <button style={tabBtn(menuTab === 'attachments')} onClick={() => setMenuTab('attachments')}>
-              {isMetalVoucher ? 'Other Charges' : t('attachments')}
+              {t('attachments')}
             </button>
           </div>
 
