@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import {
+  accumulateUnfixedVoucherRevaluationByMetal,
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
   calculateAccountSummaryMetrics,
   normalizeStatementCurrencyCode,
   resolveExposureDirection,
+  resolveUnfixedBookedExposureSign,
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
   resolveStatementMetalBalance,
@@ -101,5 +103,62 @@ describe('statement helpers', () => {
     expect(metrics.excess).toBe(-112022.75)
     expect(metrics.marginPercent).toBe(0)
     expect(resolveExposureDirection(metrics.netEquity)).toBe('Credit')
+  })
+
+  test('uses full booked voucher amount for creditor-style revaluation', () => {
+    const entries = [{
+      metalFixStatus: 'unfixed',
+      sourceTransactionType: 'purchase',
+      metalDealType: 'purchase',
+      unfixedVoucherAmount: 234.21,
+      signedAmount: -234.21,
+      creditAmount: 234.21,
+      metalCode: 'XAU',
+      isMetalTrade: true,
+    }]
+
+    const byMetal = accumulateUnfixedVoucherRevaluationByMetal(entries, {
+      mode: 'booked',
+      resolveFixStatus: (entry) => String(entry.metalFixStatus || ''),
+      isMetalEntry: () => true,
+      resolveMetalCode: resolveStatementMetalCode,
+    })
+
+    expect(byMetal.gold).toBe(234.21)
+    expect(resolveUnfixedBookedExposureSign(entries[0])).toBe(1)
+  })
+
+  test('uses only unpriced voucher remainder for trading-style revaluation', () => {
+    const entries = [{
+      metalFixStatus: 'unfixed',
+      sourceTransactionType: 'purchase',
+      metalDealType: 'purchase',
+      unfixedVoucherAmount: 234.21,
+      signedAmount: -100,
+      creditAmount: 100,
+      metalCode: 'XAU',
+      isMetalTrade: true,
+    }]
+
+    const byMetal = accumulateUnfixedVoucherRevaluationByMetal(entries, {
+      mode: 'unpriced',
+      resolveFixStatus: (entry) => String(entry.metalFixStatus || ''),
+      isMetalEntry: () => true,
+      resolveMetalCode: resolveStatementMetalCode,
+    })
+
+    expect(byMetal.gold).toBe(-134.21)
+  })
+
+  test('creditor account summary uses booked revaluation for margin math', () => {
+    const metrics = calculateAccountSummaryMetrics({
+      totalFunds: -234.21,
+      revaluation: 234.21,
+      marginAmount: 4.68,
+    })
+
+    expect(metrics.netEquity).toBe(0)
+    expect(metrics.excess).toBeCloseTo(-4.68, 2)
+    expect(metrics.marginPercent).toBeCloseTo(5004.487, 1)
   })
 })

@@ -114,6 +114,67 @@ export function resolveExposureDirection(value) {
   return 'Flat'
 }
 
+export function resolveUnfixedBookedExposureSign(entry = {}) {
+  const dealSide = String(
+    entry?.metalDealType || entry?.sourceTransactionType || entry?.referenceType || '',
+  ).trim().toLowerCase()
+  if (dealSide === 'purchase') return 1
+  if (dealSide === 'sale') return -1
+  const signedAmount = Number(entry?.signedAmount || 0)
+  if (signedAmount < 0) return -1
+  if (signedAmount > 0) return 1
+  return 0
+}
+
+/**
+ * Sum unfixed metal voucher exposure by metal code.
+ * - `unpriced`: only the voucher amount not yet posted to the ledger (debtor / trading).
+ * - `booked`: full booked voucher amount (creditor / vendor AP).
+ */
+export function accumulateUnfixedVoucherRevaluationByMetal(
+  entries = [],
+  {
+    mode = 'unpriced',
+    resolveFixStatus = () => '',
+    isMetalEntry = () => false,
+    resolveMetalCode = () => '-',
+  } = {},
+) {
+  return entries.reduce((acc, entry) => {
+    if (resolveFixStatus(entry) !== 'unfixed') return acc
+    if (!isMetalEntry(entry)) return acc
+
+    const dealSide = String(
+      entry?.metalDealType || entry?.sourceTransactionType || entry?.referenceType || '',
+    ).trim().toLowerCase()
+    if (dealSide !== 'sale' && dealSide !== 'purchase') return acc
+
+    const voucherAmount = Math.abs(Number(entry?.unfixedVoucherAmount || 0))
+    if (!Number.isFinite(voucherAmount) || voucherAmount <= 0) return acc
+
+    let signedAmount = 0
+    if (mode === 'booked') {
+      const sign = resolveUnfixedBookedExposureSign(entry)
+      if (!sign) return acc
+      signedAmount = voucherAmount * sign
+    } else {
+      const postedAmount = Math.abs(Number(
+        entry?.signedAmount || entry?.debitAmount || entry?.creditAmount || 0,
+      ))
+      const unpricedAmount = Number(Math.max(voucherAmount - postedAmount, 0).toFixed(2))
+      if (unpricedAmount <= 0) return acc
+      const exposureSign = Number(entry?.signedAmount || 0) < 0 ? -1 : 1
+      signedAmount = unpricedAmount * exposureSign
+    }
+
+    const metalCode = resolveMetalCode(entry)
+    if (metalCode === 'XAG') acc.silver += signedAmount
+    else if (metalCode === 'XAU') acc.gold += signedAmount
+    else acc.other += signedAmount
+    return acc
+  }, { gold: 0, silver: 0, other: 0 })
+}
+
 export function calculateAccountSummaryMetrics({
   totalFunds = 0,
   revaluation = 0,

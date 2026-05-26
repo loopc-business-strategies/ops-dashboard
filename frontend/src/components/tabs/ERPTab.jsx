@@ -60,6 +60,7 @@ import ERPFixingRegisterTab from './erp/tabs/ERPFixingRegisterTab'
 import { startERPRealtimeFeeds, startMetalRatesRealtime } from '../../utils/realtimeSocket'
 import { createHtmlExportRoot, downloadBlob, downloadCsv } from './erp/exportHelpers'
 import {
+  accumulateUnfixedVoucherRevaluationByMetal,
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
   calculateAccountSummaryMetrics,
@@ -858,28 +859,17 @@ function ERPTab({ focusTab, onNavigateMain }) {
     accountEnquiryData?.metals?.suppressMetalSpotMtm
       || (accountEnquiryData && shouldSuppressSpotMetalMtmForAccountEnquiry(accountEnquiryData.account)),
   )
-  const statementUnfixedVoucherRevaluationByMetal = statementEntries.reduce((acc, entry) => {
-    if (resolveFixStatus(entry) !== 'unfixed') return acc
-    const st = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
-    if (!isMetalStatementEntry(entry)) return acc
-    const voucherAmount = Math.abs(Number(entry.unfixedVoucherAmount || 0))
-    if (!Number.isFinite(voucherAmount) || voucherAmount <= 0) return acc
-    const postedAmount = Math.abs(Number(entry.signedAmount || entry.debitAmount || entry.creditAmount || 0))
-    const unpricedAmount = Number(Math.max(voucherAmount - postedAmount, 0).toFixed(2))
-    if (unpricedAmount <= 0) return acc
-    const exposureSign = Number(entry.signedAmount || 0) < 0 ? -1 : 1
-    const signedUnpricedAmount = unpricedAmount * exposureSign
-    const metalCode = resolveStatementMetalCode(entry)
-    if (metalCode === 'XAG') acc.silver += signedUnpricedAmount
-    else if (metalCode === 'XAU') acc.gold += signedUnpricedAmount
-    else acc.other += signedUnpricedAmount
-    return acc
-  }, { gold: 0, silver: 0, other: 0 })
+  const statementUnfixedVoucherRevaluationByMetal = accumulateUnfixedVoucherRevaluationByMetal(statementEntries, {
+    mode: enquirySuppressMetalSpotMtm ? 'booked' : 'unpriced',
+    resolveFixStatus,
+    isMetalEntry: isMetalStatementEntry,
+    resolveMetalCode: resolveStatementMetalCode,
+  })
   const statementUnfixedVoucherRevaluation =
     statementUnfixedVoucherRevaluationByMetal.gold
     + statementUnfixedVoucherRevaluationByMetal.silver
     + statementUnfixedVoucherRevaluationByMetal.other
-  const useVoucherRevaluation = !enquirySuppressMetalSpotMtm && Math.abs(statementUnfixedVoucherRevaluation) > 0.000001
+  const useVoucherRevaluation = Math.abs(statementUnfixedVoucherRevaluation) > 0.000001
   const xauSpotValue = xauBalance * goldPriceUSD
   const xagSpotValue = xagBalance * silverPriceUSD
   const xauCurrentValue = useVoucherRevaluation
@@ -890,7 +880,15 @@ function ERPTab({ focusTab, onNavigateMain }) {
     : (enquirySuppressMetalSpotMtm ? 0 : xagSpotValue)
   const modalRevaluation = useVoucherRevaluation ? statementUnfixedVoucherRevaluation : (xauCurrentValue + xagCurrentValue)
   const modalMarginAmt = Math.abs(modalRevaluation) * 0.02
-  const breakEvenPrice = enquirySuppressMetalSpotMtm || Math.abs(xauBalance) === 0 ? 0 : Math.abs(totalFunds) / Math.abs(xauBalance)
+  const resolveBookedBreakEvenPrice = (metalBalance, bookedValue) => {
+    const grams = Math.abs(Number(metalBalance || 0))
+    const booked = Math.abs(Number(bookedValue || 0))
+    if (grams <= 0 || booked <= 0) return 0
+    return booked / grams
+  }
+  const breakEvenPrice = enquirySuppressMetalSpotMtm
+    ? resolveBookedBreakEvenPrice(xauBalance, statementUnfixedVoucherRevaluationByMetal.gold)
+    : (Math.abs(xauBalance) === 0 ? 0 : Math.abs(totalFunds) / Math.abs(xauBalance))
   const modalPositionRows = accountEnquiryData ? [
     {
       key: 'xau',
@@ -908,7 +906,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
       balance: xagBalance,
       price: silverPriceUSD,
       currentValue: xagCurrentValue,
-      breakEven: enquirySuppressMetalSpotMtm || Math.abs(xagBalance) === 0 ? 0 : Math.abs(totalFunds) / Math.abs(xagBalance),
+      breakEven: enquirySuppressMetalSpotMtm
+        ? resolveBookedBreakEvenPrice(xagBalance, statementUnfixedVoucherRevaluationByMetal.silver)
+        : (Math.abs(xagBalance) === 0 ? 0 : Math.abs(totalFunds) / Math.abs(xagBalance)),
     },
   ] : []
   const buildPureWeightRunningBalancesByEntryKey = (entries, selectedMetalCode) => {

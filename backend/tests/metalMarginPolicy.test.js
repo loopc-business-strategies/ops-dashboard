@@ -1,5 +1,6 @@
 const {
   computeMarginMetricsRaw,
+  computeBookedUnfixedRevaluationFromTransactions,
   shouldSuppressSpotMetalMtmForAccountEnquiry,
   shouldSuppressSpotMetalMtmForCustomerDashboard,
   shouldSuppressSpotMetalMtmForSupplierDashboard,
@@ -94,5 +95,19 @@ describe('metalMarginPolicy', () => {
       accountName: '2100 Accrued expenses',
       description: 'Accruals',
     })).toBe(false)
+  })
+
+  test('booked unfixed revaluation uses voucher currency for creditor AP', () => {
+    const booked = computeBookedUnfixedRevaluationFromTransactions([{
+      type: 'purchase',
+      amount: 234.21,
+      exchangeRate: 1,
+      voucherMeta: {
+        fixingType: 'unfixed',
+        lineItems: [{ stockCode: 'XAU', pureWeight: 999.9 }],
+      },
+    }])
+    expect(booked.gold).toBe(234.21)
+    expect(booked.total).toBe(234.21)
   })
 })

@@ -90,9 +90,52 @@ function computeMarginMetricsRaw({
   }
 }
 
+/**
+ * Sum booked unfixed voucher currency exposure from posted sale/purchase transactions.
+ * Used for creditor/vendor AP where spot × grams is misleading.
+ *
+ * @param {Array<{ type?: string, amount?: number|string, exchangeRate?: number|string, voucherMeta?: object }>} transactions
+ * @returns {{ gold: number, silver: number, total: number }}
+ */
+function computeBookedUnfixedRevaluationFromTransactions(transactions = []) {
+  let gold = 0
+  let silver = 0
+  const isUnfixed = (tx) => {
+    const normalized = String(tx?.voucherMeta?.fixingType || tx?.metalFixStatus || '').trim().toLowerCase()
+    return ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(normalized)
+  }
+  const resolveMetalCode = (lines = []) => {
+    for (const line of lines) {
+      const stockText = String(line?.stockCode || '').trim().toUpperCase()
+      if (stockText.includes('XAG') || stockText.includes('SILV')) return 'XAG'
+      if (stockText.includes('XAU') || stockText.includes('GOLD')) return 'XAU'
+    }
+    return 'XAU'
+  }
+
+  for (const tx of transactions) {
+    const txType = String(tx?.type || '').trim().toLowerCase()
+    if (txType !== 'sale' && txType !== 'purchase') continue
+    if (!isUnfixed(tx)) continue
+    const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+    const voucherAmount = Math.abs(
+      Number(tx?.amount || tx?.voucherMeta?.grandTotal || 0) * Number(tx?.exchangeRate || 1),
+    )
+    if (!Number.isFinite(voucherAmount) || voucherAmount <= 0) continue
+    const sign = txType === 'purchase' ? 1 : -1
+    const signedAmount = voucherAmount * sign
+    const metalCode = resolveMetalCode(lines)
+    if (metalCode === 'XAG') silver += signedAmount
+    else gold += signedAmount
+  }
+
+  return { gold, silver, total: gold + silver }
+}
+
 module.exports = {
   shouldSuppressSpotMetalMtmForCustomerDashboard,
   shouldSuppressSpotMetalMtmForSupplierDashboard,
   shouldSuppressSpotMetalMtmForAccountEnquiry,
   computeMarginMetricsRaw,
+  computeBookedUnfixedRevaluationFromTransactions,
 }
