@@ -40,6 +40,53 @@ function evaluatePermission(user, key) {
   return evaluateRule(user, accessMatrix.permissions[key] || {})
 }
 
+const ERP_PERMISSION_TO_SUBTAB = {
+  canViewAccounts: ['accounts', 'dashboard'],
+  canManageAccounts: ['accounts'],
+  canViewMappings: ['mappings'],
+  canManageMappings: ['mappings'],
+  canViewAccountSummary: ['enquiry'],
+  canViewLedger: ['ledger'],
+  canCreateTransaction: ['transactions'],
+  canAccessReports: ['reports'],
+  canAccessVendors: ['vendors', 'supplier-margin'],
+  canManageVendors: ['vendors'],
+  canUpdateVendorOperational: ['vendors'],
+  canAccessInventory: ['inventory'],
+  canAccessTransactions: ['transactions'],
+  canAccessDirectDeals: ['direct-deals'],
+  canManageDirectDeals: ['direct-deals'],
+  canViewCustomers: ['customers', 'customer-margin'],
+  canManageCustomers: ['customers'],
+  canAccessVouchers: ['vouchers'],
+}
+
+function hasGranularPermissions(user) {
+  return Boolean(user?.modulePermissions && Object.keys(user.modulePermissions).length > 0)
+}
+
+function hasErpSubTab(user, subTabs) {
+  if (isSuperAdmin(user)) return true
+  if (!hasGranularPermissions(user)) return null
+
+  const erpPermission = user?.modulePermissions?.erp
+  if (erpPermission?.on !== true) return false
+
+  const configuredSubs = erpPermission?.subs || {}
+  if (!Object.keys(configuredSubs).length) return true
+
+  return subTabs.some((subTab) => configuredSubs[subTab]?.on === true)
+}
+
+function evaluateErpPermission(user, key) {
+  const subTabs = ERP_PERMISSION_TO_SUBTAB[key]
+  if (subTabs) {
+    const granularAllowed = hasErpSubTab(user, subTabs)
+    if (granularAllowed !== null) return granularAllowed
+  }
+  return evaluatePermission(user, key)
+}
+
 function evaluatePredicate(user, key) {
   return evaluateRule(user, accessMatrix.predicates[key] || {})
 }
@@ -84,31 +131,31 @@ function roleName(user) {
 }
 
 function canViewAccounts(user) {
-  return evaluatePermission(user, 'canViewAccounts')
+  return evaluateErpPermission(user, 'canViewAccounts')
 }
 
 function canManageAccounts(user) {
-  return evaluatePermission(user, 'canManageAccounts')
+  return evaluateErpPermission(user, 'canManageAccounts')
 }
 
 function canViewMappings(user) {
-  return evaluatePermission(user, 'canViewMappings')
+  return evaluateErpPermission(user, 'canViewMappings')
 }
 
 function canManageMappings(user) {
-  return evaluatePermission(user, 'canManageMappings')
+  return evaluateErpPermission(user, 'canManageMappings')
 }
 
 function canViewAccountSummary(user) {
-  return evaluatePermission(user, 'canViewAccountSummary')
+  return evaluateErpPermission(user, 'canViewAccountSummary')
 }
 
 function canViewLedger(user) {
-  return evaluatePermission(user, 'canViewLedger')
+  return evaluateErpPermission(user, 'canViewLedger')
 }
 
 function canCreateTransaction(user) {
-  return evaluatePermission(user, 'canCreateTransaction')
+  return evaluateErpPermission(user, 'canCreateTransaction')
 }
 
 function canCreateTransactionFor(user, transactionType) {
@@ -118,42 +165,43 @@ function canCreateTransactionFor(user, transactionType) {
 }
 
 function canAccessReports(user) {
-  return evaluatePermission(user, 'canAccessReports')
+  return evaluateErpPermission(user, 'canAccessReports')
 }
 
 function canAccessVendors(user) {
-  return evaluatePermission(user, 'canAccessVendors')
+  return evaluateErpPermission(user, 'canAccessVendors')
 }
 
 function canManageVendors(user) {
-  return evaluatePermission(user, 'canManageVendors')
+  return evaluateErpPermission(user, 'canManageVendors')
 }
 
 function canUpdateVendorOperational(user) {
-  return evaluatePermission(user, 'canUpdateVendorOperational')
+  return evaluateErpPermission(user, 'canUpdateVendorOperational')
 }
 
 function canAccessInventory(user) {
-  return evaluatePermission(user, 'canAccessInventory')
+  return evaluateErpPermission(user, 'canAccessInventory')
 }
 
 function canAccessTransactions(user) {
-  return evaluatePermission(user, 'canAccessTransactions')
+  return evaluateErpPermission(user, 'canAccessTransactions')
 }
 
 function canAccessDirectDeals(user) {
-  return evaluatePermission(user, 'canAccessDirectDeals')
+  return evaluateErpPermission(user, 'canAccessDirectDeals')
 }
 
 function canManageDirectDeals(user) {
-  return evaluatePermission(user, 'canManageDirectDeals')
+  return evaluateErpPermission(user, 'canManageDirectDeals')
 }
 
 function deriveErpAccessPolicy(user) {
-  const canViewCustomers = evaluatePermission(user, 'canViewCustomers')
+  const canViewCustomers = evaluateErpPermission(user, 'canViewCustomers')
   const canAccessTransactionsValue = canAccessTransactions(user)
   const canAccessInventoryValue = canAccessInventory(user)
   const canViewAccountsValue = canViewAccounts(user)
+  const granularErpAccess = hasErpSubTab(user, Object.values(ERP_PERMISSION_TO_SUBTAB).flat())
   return {
     isSuperAdmin: isSuperAdmin(user),
     isDepartmentHead: isDepartmentHead(user),
@@ -166,19 +214,19 @@ function deriveErpAccessPolicy(user) {
     canManageAccounts: canManageAccounts(user),
     canViewLedger: canViewLedger(user),
     canViewCustomers,
-    canManageCustomers: evaluatePermission(user, 'canManageCustomers'),
+    canManageCustomers: evaluateErpPermission(user, 'canManageCustomers'),
     canViewBalanceEnquiry: canViewAccountSummary(user),
-    canUpdateMetalRates: evaluatePermission(user, 'canUpdateMetalRates'),
-    canExportAccountSummary: evaluatePermission(user, 'canExportAccountSummary'),
+    canUpdateMetalRates: evaluateErpPermission(user, 'canUpdateMetalRates'),
+    canExportAccountSummary: evaluateErpPermission(user, 'canExportAccountSummary'),
     canAccessTransactions: canAccessTransactionsValue,
     canAccessReports: canAccessReports(user),
     canAccessVendors: canAccessVendors(user),
     canManageVendors: canManageVendors(user),
     canUpdateVendorOperational: canUpdateVendorOperational(user),
     canAccessInventory: canAccessInventoryValue,
-    canAccessVouchers: evaluatePermission(user, 'canAccessVouchers'),
+    canAccessVouchers: evaluateErpPermission(user, 'canAccessVouchers'),
     canAccessDirectDeals: canAccessDirectDeals(user),
-    canAccessERP: canViewAccountsValue || canAccessTransactionsValue || canAccessInventoryValue || canViewCustomers,
+    canAccessERP: granularErpAccess ?? (canViewAccountsValue || canAccessTransactionsValue || canAccessInventoryValue || canViewCustomers),
   }
 }
 

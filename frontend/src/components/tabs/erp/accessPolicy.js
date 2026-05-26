@@ -25,6 +25,51 @@ function evaluatePermission(user, key) {
   return evaluateRule(user, accessMatrix.permissions[key] || {})
 }
 
+const ERP_PERMISSION_TO_SUBTAB = {
+  canViewAccounts: ['accounts', 'dashboard'],
+  canManageAccounts: ['accounts'],
+  canViewLedger: ['ledger'],
+  canViewCustomers: ['customers', 'customer-margin'],
+  canManageCustomers: ['customers'],
+  canViewAccountSummary: ['enquiry'],
+  canUpdateMetalRates: ['dashboard'],
+  canExportAccountSummary: ['enquiry'],
+  canAccessTransactions: ['transactions'],
+  canAccessReports: ['reports'],
+  canAccessVendors: ['vendors', 'supplier-margin'],
+  canManageVendors: ['vendors'],
+  canUpdateVendorOperational: ['vendors'],
+  canAccessInventory: ['inventory'],
+  canAccessVouchers: ['vouchers'],
+  canAccessDirectDeals: ['direct-deals'],
+}
+
+function hasGranularPermissions(user) {
+  return Boolean(user?.modulePermissions && Object.keys(user.modulePermissions).length > 0)
+}
+
+function hasErpSubTab(user, subTabs) {
+  if (getRole(user) === 'super_admin') return true
+  if (!hasGranularPermissions(user)) return null
+
+  const erpPermission = user?.modulePermissions?.erp
+  if (erpPermission?.on !== true) return false
+
+  const configuredSubs = erpPermission?.subs || {}
+  if (!Object.keys(configuredSubs).length) return true
+
+  return subTabs.some((subTab) => configuredSubs[subTab]?.on === true)
+}
+
+function evaluateErpPermission(user, key) {
+  const subTabs = ERP_PERMISSION_TO_SUBTAB[key]
+  if (subTabs) {
+    const granularAllowed = hasErpSubTab(user, subTabs)
+    if (granularAllowed !== null) return granularAllowed
+  }
+  return evaluatePermission(user, key)
+}
+
 export function deriveErpAccessPolicy(user) {
   const isSuperAdmin = evaluatePredicate(user, 'isSuperAdmin')
   const isDepartmentHead = evaluatePredicate(user, 'isDepartmentHead')
@@ -34,23 +79,25 @@ export function deriveErpAccessPolicy(user) {
   const isOperationsRole = evaluatePredicate(user, 'isOperationsRole')
   const isHRRole = evaluatePredicate(user, 'isHRRole')
 
-  const canViewAccounts = evaluatePermission(user, 'canViewAccounts')
-  const canManageAccounts = evaluatePermission(user, 'canManageAccounts')
-  const canViewLedger = evaluatePermission(user, 'canViewLedger')
-  const canViewCustomers = evaluatePermission(user, 'canViewCustomers')
-  const canManageCustomers = evaluatePermission(user, 'canManageCustomers')
-  const canViewBalanceEnquiry = evaluatePermission(user, 'canViewAccountSummary')
-  const canUpdateMetalRates = evaluatePermission(user, 'canUpdateMetalRates')
-  const canExportAccountSummary = evaluatePermission(user, 'canExportAccountSummary')
-  const canAccessTransactions = evaluatePermission(user, 'canAccessTransactions')
-  const canAccessReports = evaluatePermission(user, 'canAccessReports')
-  const canAccessVendors = evaluatePermission(user, 'canAccessVendors')
-  const canManageVendors = evaluatePermission(user, 'canManageVendors')
-  const canUpdateVendorOperational = evaluatePermission(user, 'canUpdateVendorOperational')
-  const canAccessInventory = evaluatePermission(user, 'canAccessInventory')
-  const canAccessVouchers = evaluatePermission(user, 'canAccessVouchers')
-  const canAccessDirectDeals = evaluatePermission(user, 'canAccessDirectDeals')
-  const canAccessERP = canViewAccounts || canAccessTransactions || canAccessInventory || canViewCustomers
+  const canViewAccounts = evaluateErpPermission(user, 'canViewAccounts')
+  const canManageAccounts = evaluateErpPermission(user, 'canManageAccounts')
+  const canViewLedger = evaluateErpPermission(user, 'canViewLedger')
+  const canViewCustomers = evaluateErpPermission(user, 'canViewCustomers')
+  const canManageCustomers = evaluateErpPermission(user, 'canManageCustomers')
+  const canViewBalanceEnquiry = evaluateErpPermission(user, 'canViewAccountSummary')
+  const canUpdateMetalRates = evaluateErpPermission(user, 'canUpdateMetalRates')
+  const canExportAccountSummary = evaluateErpPermission(user, 'canExportAccountSummary')
+  const canAccessTransactions = evaluateErpPermission(user, 'canAccessTransactions')
+  const canAccessReports = evaluateErpPermission(user, 'canAccessReports')
+  const canAccessVendors = evaluateErpPermission(user, 'canAccessVendors')
+  const canManageVendors = evaluateErpPermission(user, 'canManageVendors')
+  const canUpdateVendorOperational = evaluateErpPermission(user, 'canUpdateVendorOperational')
+  const canAccessInventory = evaluateErpPermission(user, 'canAccessInventory')
+  const canAccessVouchers = evaluateErpPermission(user, 'canAccessVouchers')
+  const canAccessDirectDeals = evaluateErpPermission(user, 'canAccessDirectDeals')
+  const canAccessERP = hasErpSubTab(user, Object.values(ERP_PERMISSION_TO_SUBTAB).flat()) ?? (
+    canViewAccounts || canAccessTransactions || canAccessInventory || canViewCustomers
+  )
 
   return {
     isSuperAdmin,
