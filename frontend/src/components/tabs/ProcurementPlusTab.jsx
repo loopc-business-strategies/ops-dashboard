@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
-import erpAPI from '../../api/erp'
+import erpUnified from '../../api/erpUnified'
 import { ErpSubTabButton, ModulePageHeading, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
 const C = {
@@ -11,6 +11,8 @@ const C = {
   inkSoft: '#64748B',
   primary: 'var(--purple)',
 }
+
+const erpOps = erpUnified.operations
 
 const TABS = [
   { id: 'suppliers', label: 'Suppliers' },
@@ -64,9 +66,9 @@ export default function ProcurementPlusTab() {
     setError('')
     try {
       const [supRes, poRes, alertRes] = await Promise.all([
-        erpAPI.getSuppliers(token),
-        erpAPI.getPurchaseOrders(token),
-        erpAPI.getExpiryAlerts(token),
+        erpOps.getSuppliers(token),
+        erpOps.getPurchaseOrders(token),
+        erpOps.getExpiryAlerts(token),
       ])
       setSuppliers(Array.isArray(supRes?.suppliers) ? supRes.suppliers : (Array.isArray(supRes) ? supRes : []))
       setOrders(Array.isArray(poRes?.purchaseOrders) ? poRes.purchaseOrders : (Array.isArray(poRes) ? poRes : []))
@@ -95,7 +97,7 @@ export default function ProcurementPlusTab() {
   const handleCreateSupplier = async () => {
     if (isReadOnly || !supplierForm.name.trim()) return
     try {
-      await erpAPI.createSupplier(token, supplierForm)
+      await erpOps.createSupplier(token, supplierForm)
       setSupplierForm({ name: '', country: '', contact: '', productType: '', paymentTerms: '' })
       await loadData()
     } catch (e) {
@@ -106,7 +108,7 @@ export default function ProcurementPlusTab() {
   const handleCreatePo = async () => {
     if (isReadOnly || !poForm.poNumber.trim() || !poForm.supplierId) return
     try {
-      await erpAPI.createPurchaseOrder(token, {
+      await erpOps.createPurchaseOrder(token, {
         poNumber: poForm.poNumber.trim(),
         supplierId: poForm.supplierId,
         expectedDeliveryDate: poForm.expectedDeliveryDate || undefined,
@@ -126,7 +128,7 @@ export default function ProcurementPlusTab() {
   const handleResolveAlert = async (id) => {
     if (isReadOnly) return
     try {
-      await erpAPI.resolveExpiryAlert(token, id, 'Resolved from Procurement Plus')
+      await erpOps.resolveExpiryAlert(token, id, 'Resolved from Procurement Plus')
       await loadData()
     } catch (e) {
       setError(e?.response?.data?.message || 'Failed to resolve alert')
