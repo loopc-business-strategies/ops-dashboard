@@ -426,6 +426,7 @@ const updatePermissionsSchema = Joi.object({
         'sales',
         'operations',
         'training',
+        'procurement-plus',
         'erp'
       ),
       Joi.object({

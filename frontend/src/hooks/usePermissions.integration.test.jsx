@@ -19,6 +19,7 @@ function PermissionsProbe() {
       <p data-testid="erp-transactions">{String(perms.canViewERPSubTab('transactions'))}</p>
       <p data-testid="finance">{String(perms.canViewModule('finance'))}</p>
       <p data-testid="sales">{String(perms.canViewModule('sales'))}</p>
+      <p data-testid="admin">{String(perms.canViewAdmin)}</p>
       <p data-testid="readonly">{String(perms.isReadOnly)}</p>
     </div>
   )
@@ -41,6 +42,7 @@ describe('sidebar permission integration', () => {
     expect(screen.getByTestId('erp').textContent).toBe('true')
     expect(screen.getByTestId('finance').textContent).toBe('false')
     expect(screen.getByTestId('sales').textContent).toBe('true')
+    expect(screen.getByTestId('admin').textContent).toBe('false')
     expect(screen.getByTestId('readonly').textContent).toBe('true')
   })
 

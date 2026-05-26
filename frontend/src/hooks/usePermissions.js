@@ -37,8 +37,8 @@ export function usePermissions() {
     // Can create/manage users (full CRUD — super_admin only)
     canManageUsers: role === 'super_admin',
 
-    // Can view the Admin tab (super_admin + management + dept_head)
-    canViewAdmin: ['super_admin', 'management', 'department_head'].includes(role),
+    // Admin APIs are super-admin only, so do not expose the Admin tab to other roles.
+    canViewAdmin: role === 'super_admin',
 
     // Can edit a specific department
     canEditDepartment: (dept) => {

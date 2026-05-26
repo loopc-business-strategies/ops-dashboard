@@ -90,6 +90,33 @@ describe('Authorization guards', () => {
     expect(res.body.users.length).toBeGreaterThan(0)
   })
 
+  test('super-admin can save granular dashboard permissions', async () => {
+    const admin = await createUser({ role: 'super_admin', department: '' })
+    const target = await createUser({ role: 'management', department: 'management' })
+
+    const res = await request(app)
+      .put(`/api/auth/users/${target._id.toString()}/permissions`)
+      .set('Authorization', `Bearer ${tokenFor(admin)}`)
+      .send({
+        modulePermissions: {
+          overview: { on: true },
+          'procurement-plus': { on: true },
+          erp: {
+            on: true,
+            subs: {
+              transactions: { on: true },
+              vendors: { on: true },
+            },
+          },
+        },
+      })
+
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(res.body.modulePermissions['procurement-plus'].on).toBe(true)
+    expect(res.body.modulePermissions.erp.subs.transactions.on).toBe(true)
+  })
+
   test('department user cannot create employee', async () => {
     const user = await createUser({ role: 'department_user', department: 'operations' })
 
