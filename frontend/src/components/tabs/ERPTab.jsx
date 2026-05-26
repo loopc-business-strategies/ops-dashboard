@@ -58,6 +58,12 @@ import ERPTransactionsTab from './erp/tabs/ERPTransactionsTab'
 import ERPReportsTab from './erp/tabs/ERPReportsTab'
 import ERPFixingRegisterTab from './erp/tabs/ERPFixingRegisterTab'
 import { startERPRealtimeFeeds, startMetalRatesRealtime } from '../../utils/realtimeSocket'
+import useLiveMetalRates from '../../hooks/useLiveMetalRates'
+import {
+  liveRatesToMetalRatesState,
+  resolveEffectiveSpotPrices,
+  resolveInventoryValuationUnitCost,
+} from '../../utils/liveMetalRates'
 import { createHtmlExportRoot, downloadBlob, downloadCsv } from './erp/exportHelpers'
 import {
   accumulateUnfixedVoucherRevaluationByMetal,
@@ -470,6 +476,22 @@ function ERPTab({ focusTab, onNavigateMain }) {
     canAccessDirectDeals,
     canAccessERP,
   } = deriveErpAccessPolicy(user)
+  const { snapshot: liveMetalSnapshot, error: liveMetalError } = useLiveMetalRates({
+    token,
+    tenant: inventoryTenantKey,
+    enabled: Boolean(token && canAccessERP),
+  })
+  useEffect(() => {
+    const synced = liveRatesToMetalRatesState(liveMetalSnapshot)
+    if (!synced) return
+    setMetalRates(synced)
+    setMetalRateForm((prev) => ({
+      ...prev,
+      goldPrice: String(synced.goldPrice),
+      silverPrice: String(synced.silverPrice),
+      priceCurrency: synced.priceCurrency || prev.priceCurrency || 'USD',
+    }))
+  }, [liveMetalSnapshot])
   const selectedUsdConversionCurrency = currencies.find((currency) => currency.code === usdConversion.targetCode) || null
   const selectedUsdConversionRate = Number(selectedUsdConversionCurrency?.exchangeRate || 0)
   const usdAmountValue = Number(usdConversion.usdAmount || 0)
@@ -480,11 +502,15 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const inventoryCatalogProducts = inventoryProducts.filter((item) => String(item?.category || '').includes('recordType=product'))
   const legacyInventoryProducts = inventoryProducts.filter((item) => !String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
   const inventoryReportProducts = [...inventoryCatalogProducts, ...legacyInventoryProducts]
-  const inventoryReportRows = inventoryReportProducts.map((item) => {
+  const inventoryReportRows = useMemo(() => inventoryReportProducts.map((item) => {
     const categoryMeta = decodeInventoryCategoryMeta(item.category)
     const productMeta = decodeInventoryCategoryPairs(item.category)
     const quantity = Math.max(0, Number(item.quantity || 0))
-    const unitCost = Number(item.unitCost || 0)
+    const metalName = productMeta.mainStock || productMeta.metalType || categoryMeta.mainStock || categoryMeta.metalType || ''
+    const priceUnit = categoryMeta.priceUnit || productMeta.priceUnit || 'OZ'
+    const storedUnitCost = Number(item.unitCost || 0)
+    const unitCost = resolveInventoryValuationUnitCost(storedUnitCost, metalName, liveMetalSnapshot, priceUnit)
+    const usesLivePrice = unitCost !== storedUnitCost && unitCost > 0
     const stockValue = quantity * unitCost
     const minThreshold = Number(item.minThreshold || 0)
     const metal = titleCaseWords(productMeta.mainStock || productMeta.metalType || categoryMeta.mainStock || categoryMeta.metalType || 'Unmapped')
@@ -505,6 +531,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
       productMeta,
       quantity,
       unitCost,
+      storedUnitCost,
+      usesLivePrice,
       stockValue,
       minThreshold,
       metal,
@@ -517,7 +545,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       isZeroStock,
       isLowStock: isZeroStock || isBelowMinStock,
     }
-  })
+  }), [inventoryReportProducts, liveMetalSnapshot])
   const inventoryTotalQuantity = inventoryReportRows.reduce((sum, row) => sum + row.quantity, 0)
   const inventoryTotalValue = inventoryReportRows.reduce((sum, row) => sum + row.stockValue, 0)
   const inventoryLowStockCount = inventoryReportRows.filter((row) => row.isLowStock).length
@@ -654,8 +682,15 @@ function ERPTab({ focusTab, onNavigateMain }) {
     if (/fixing|fixed|price[\s-_]?fix/.test(text)) return 'fixed'
     return 'unknown'
   }
-  const goldPriceUSD = accountEnquiryData ? Number(accountEnquiryData.metals?.goldPrice || 0) : 0
-  const silverPriceUSD = accountEnquiryData ? Number(accountEnquiryData.metals?.silverPrice || 0) : 0
+  const effectiveSpotPrices = resolveEffectiveSpotPrices({
+    liveSnapshot: liveMetalSnapshot,
+    enquiryGold: accountEnquiryData?.metals?.goldPrice,
+    enquirySilver: accountEnquiryData?.metals?.silverPrice,
+    fallbackGold: metalRates.goldPrice,
+    fallbackSilver: metalRates.silverPrice,
+  })
+  const goldPriceUSD = effectiveSpotPrices.goldPriceUSD
+  const silverPriceUSD = effectiveSpotPrices.silverPriceUSD
   const totalFunds = accountEnquiryData ? Number(accountEnquiryData.balances?.netBalance || 0) : 0
   const modalStatementCurrency = 'USD'  // Trading platform uses USD
   const rawUnfixedMetalDedupeKeys = new Set()
@@ -6487,6 +6522,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
         saving={saving}
         token={token}
         tenantKey={inventoryTenantKey}
+        liveMetalSnapshot={liveMetalSnapshot}
+        liveMetalError={liveMetalError}
         loadInventory={loadInventory}
         inventoryMappingProducts={inventoryMappingProducts}
         inventoryCatalogProducts={inventoryCatalogProducts}

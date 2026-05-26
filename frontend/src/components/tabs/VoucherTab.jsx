@@ -9,6 +9,8 @@ import MGMetalInvoicePrintLayout from './erp/MGMetalInvoicePrintLayout'
 import MGVoucherPrintLayout from './erp/MGVoucherPrintLayout'
 import VoucherAttachmentsPanel from './erp/VoucherAttachmentsPanel'
 import { resolveDocumentBranding } from './erp/documentBranding'
+import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
+import { buildMetalRatesFromApiPayload, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
 import { BASE, cfg, fmt, today, S, fieldRow, fieldGroup, labelStyle, inputStyle, readInput, sectionBox, sectionHeader, sectionBody, btn, tabBtn, classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid, classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap, classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName, classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue, classicRightGrid, classicLabel, classicInput, classicReadInput, classicTextAreaRow, metalWin, metalTopInlineRow, metalTopField, emptyLine, normalizeMongoIdField, emptyHeader, DOC_PREFIX_BY_TYPE, getDocYear, parseVoucherDocMeta, buildVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, toFinitePositive, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, getAccountNameValue, isBankLikeAccount, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalStockInVoucherType, isMetalStockOutVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity } from './voucher/voucherTabShared'
 
 export default function VoucherTab({ token, user, accounts = [], customers: propCustomers = [], vendors: propVendors = [], currencies = [], reportBranding = null }) {
@@ -90,15 +92,22 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
   const refreshMetalRates = useCallback(async () => {
     try {
+      const liveRes = await axios.get(`${BASE}/metal-rates/live`, cfg())
+      const liveRates = liveRes.data?.rates
+      const lg = Number(liveRates?.goldPrice) || 0
+      const ls = Number(liveRates?.silverPrice) || 0
+      const lp = Number(liveRates?.platinumPrice) || 0
+      if (liveRes.data?.success && liveRates && lg > 0 && ls > 0 && lp > 0) {
+        setLatestMetalRates(buildMetalRatesFromApiPayload(liveRates))
+        return
+      }
+
       const res = await axios.get(`${BASE}/metal-rates`, cfg())
       const rates = res.data?.rates || {}
       const goldPrice = Number(rates.goldPrice || 0)
-      setLatestMetalRates({
-        goldPrice: Number.isFinite(goldPrice) && goldPrice > 0 ? goldPrice : 0,
-        silverPrice: Number(rates.silverPrice || 0),
-        priceCurrency: String(rates.priceCurrency || 'USD').trim().toUpperCase() || 'USD',
-        updatedAt: rates.updatedAt || null,
-      })
+      if (Number.isFinite(goldPrice) && goldPrice > 0) {
+        setLatestMetalRates(buildMetalRatesFromApiPayload(rates))
+      }
     } catch {
       // silently ignore — payment vouchers can still use normal currency rates
     }
@@ -113,6 +122,19 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   useEffect(() => {
     if (canView) refreshMetalRates()
   }, [canView, refreshMetalRates])
+
+  useEffect(() => {
+    if (!canView || !token) return undefined
+    const tenant = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)?.key || ''
+    return startMetalRatesRealtime({
+      token,
+      tenant,
+      onRatesUpdate: (payload) => {
+        const rates = payload?.rates || payload?.data?.rates
+        if (rates) setLatestMetalRates(buildMetalRatesFromApiPayload(rates))
+      },
+    })
+  }, [canView, token, user?.company, user?.tenant?.key, user?.tenant?.name])
   const [vouchers, setVouchers] = useState([])
   const [loadingList, setLoadingList] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -539,14 +561,16 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     const mainStock = meta.mainStock || meta.metalType || ''
     const symbol = normalizeMetalSymbol(mainStock, meta.metalType)
     const stockGroup = normalizeStockGroup(mainStock, meta.metalType)
-    const defaultRate = (voucherType === 'sale' || voucherType === 'metal_payment')
-      ? Number(product.sellingPrice || 0)
-      : Number(product.unitCost || 0)
     const storedPriceUnit = String(fullMeta.priceUnit || '').trim().toUpperCase()
     const resolvedRateType = normalizeRateType(storedPriceUnit || 'OZ')
     const storedCurrency = String(fullMeta.priceCurrency || product.currency || 'USD').toUpperCase()
     const productVatPer = parseFloat(fullMeta.vatPercent || '') || 0
     const productTaxType = String(fullMeta.taxType || 'VAT').trim()
+    const liveRate = resolveLiveVoucherMetalRate(symbol, mainStock, latestMetalRates, resolvedRateType)
+    const storedRate = (voucherType === 'sale' || voucherType === 'metal_payment')
+      ? Number(product.sellingPrice || 0)
+      : Number(product.unitCost || 0)
+    const defaultRate = liveRate > 0 ? liveRate : storedRate
 
     setLineForm((prev) => applyLineAutoCalc({
       ...prev,
@@ -564,7 +588,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       vatType: isMetalTransferVoucherType(voucherType) ? 'None' : (productTaxType || prev.vatType || 'VAT'),
       vatPer: isMetalTransferVoucherType(voucherType) ? '0' : (productVatPer > 0 ? String(productVatPer) : prev.vatPer),
     }))
-  }, [applyLineAutoCalc, inventoryProducts, voucherType])
+  }, [applyLineAutoCalc, inventoryProducts, latestMetalRates, voucherType])
 
   useEffect(() => {
     if (!canView) return

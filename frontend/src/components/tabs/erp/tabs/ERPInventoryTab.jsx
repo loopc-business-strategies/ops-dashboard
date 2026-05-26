@@ -1,6 +1,5 @@
-import useLiveMetalRates from '../../../../hooks/useLiveMetalRates'
 import StockTypeLivePrice from '../../../StockTypeLivePrice'
-import { resolveLiveMetalKey } from '../../../../utils/liveMetalRates'
+import { resolveLiveMetalKey, resolveLiveInventoryUnitCost } from '../../../../utils/liveMetalRates'
 
 export default function ERPInventoryTab({
   activeTab,
@@ -11,6 +10,8 @@ export default function ERPInventoryTab({
   saving,
   token,
   tenantKey,
+  liveMetalSnapshot = null,
+  liveMetalError = null,
   loadInventory,
   inventoryMappingProducts,
   inventoryCatalogProducts,
@@ -71,12 +72,6 @@ export default function ERPInventoryTab({
   handleCreateProduct,
   handleInventoryModalDragStart,
 }) {
-  const { snapshot: liveMetalSnapshot, error: liveMetalError } = useLiveMetalRates({
-    token,
-    tenant: tenantKey,
-    enabled: activeTab === 'inventory' && Boolean(token),
-  })
-
   return (
   <>
       {activeTab === 'inventory' && (
@@ -207,7 +202,7 @@ export default function ERPInventoryTab({
                 <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Stock Types</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryMappingProducts.length}</p></div>
                 <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Products</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryCatalogProducts.length}</p></div>
                 <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Gross Stock Left</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalQuantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p></div>
-                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Inventory Value</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p></div>
+                <div style={{ border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}><p style={{ margin: 0, color: C.inkSoft, fontSize: '0.72rem' }}>Inventory Value</p><p style={{ margin: '0.22rem 0 0', color: C.ink, fontWeight: '800' }}>{inventoryTotalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p><p style={{ margin: '0.15rem 0 0', color: '#1D4ED8', fontSize: '0.68rem', fontWeight: '600' }}>Live spot where metal stock types apply</p></div>
               </div>
               <div style={{ marginTop: '0.7rem', border: '1px solid #DBEAFE', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.65rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', marginBottom: '0.45rem' }}>
@@ -322,7 +317,9 @@ export default function ERPInventoryTab({
                       const displayQty = Math.max(0, Number(item.quantity || 0))
                       const zeroStock = displayQty <= 0
                       const lowStock = zeroStock || (Number(item.minThreshold || 0) > 0 && displayQty <= Number(item.minThreshold || 0))
-                      const totalValue = displayQty * Number(item.unitCost || 0)
+                      const unitCost = Number(reportRow?.unitCost ?? item.unitCost ?? 0)
+                      const totalValue = Number(reportRow?.stockValue ?? (displayQty * unitCost))
+                      const usesLivePrice = Boolean(reportRow?.usesLivePrice)
                       return (
                         <tr key={item._id} style={{ borderBottom: '1px solid #F1F5F9', background: lowStock ? '#FFF7ED' : undefined }}>
                           <td style={{ padding: '0.5rem 0.7rem', color: '#6B7280', fontFamily: 'monospace' }}>{item.sku || '—'}</td>
@@ -333,7 +330,7 @@ export default function ERPInventoryTab({
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: lowStock ? '#B45309' : '#065F46' }}>{displayQty.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(reportRow?.pureStockQty || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
                           <td style={{ padding: '0.5rem 0.7rem', color: C.inkSoft }}>{item.unit || 'pcs'}</td>
-                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(item.unitCost || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: usesLivePrice ? '#1D4ED8' : C.ink, fontWeight: usesLivePrice ? '700' : '400' }} title={usesLivePrice ? 'Live spot price' : undefined}>{unitCost.toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.ink }}>{Number(item.sellingPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', fontWeight: '700', color: '#1D4ED8' }}>{totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                           <td style={{ padding: '0.5rem 0.7rem', textAlign: 'right', color: C.inkSoft }}>{Number(item.minThreshold || 0) || '—'}</td>
@@ -550,6 +547,36 @@ export default function ERPInventoryTab({
                       {stockTypeModalTab === 'pricing' && (
                         <div style={{ border: '1px solid #C7AEAA', background: '#F5F1F1', padding: '0.42rem', maxWidth: '360px' }}>
                             <p style={{ margin: '0 0 0.35rem', fontSize: '0.72rem', color: '#6F4B45', fontWeight: '700' }}>Current Price</p>
+                            {resolveLiveMetalKey(inventoryMappingForm.mainStock || inventoryMappingForm.metalType) && (
+                              <div style={{ marginBottom: '0.45rem', display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center' }}>
+                                <StockTypeLivePrice
+                                  metalKey={resolveLiveMetalKey(inventoryMappingForm.mainStock || inventoryMappingForm.metalType)}
+                                  snapshot={liveMetalSnapshot}
+                                  error={liveMetalError}
+                                  align="left"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const metalKey = resolveLiveMetalKey(inventoryMappingForm.mainStock || inventoryMappingForm.metalType)
+                                    const livePrice = resolveLiveInventoryUnitCost(
+                                      inventoryMappingForm.mainStock || inventoryMappingForm.metalType,
+                                      liveMetalSnapshot,
+                                      inventoryMappingForm.priceUnit || 'OZ',
+                                    )
+                                    if (!metalKey || !livePrice) return
+                                    setInventoryMappingForm((prev) => ({
+                                      ...prev,
+                                      currentPrice: livePrice.toFixed(4),
+                                      priceCurrency: liveMetalSnapshot?.currency || prev.priceCurrency || 'USD',
+                                    }))
+                                  }}
+                                  style={{ padding: '0.28rem 0.55rem', background: '#DCFCE7', border: '1px solid #86EFAC', borderRadius: '0.3rem', color: '#166534', cursor: 'pointer', fontSize: '0.68rem', fontWeight: '700', whiteSpace: 'nowrap' }}
+                                >
+                                  Use live price
+                                </button>
+                              </div>
+                            )}
                             <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '0.28rem', alignItems: 'center', marginBottom: '0.28rem' }}>
                               <label style={{ fontSize: '0.74rem', color: '#6F4B45', fontWeight: '700' }}>Price :</label>
                               <input

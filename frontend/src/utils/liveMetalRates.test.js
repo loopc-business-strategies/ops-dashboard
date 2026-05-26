@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'vitest'
-import { fmtMoveRow, fmtSpot, resolveLiveMetalKey } from '../utils/liveMetalRates'
+import {
+  convertLivePriceUnit,
+  fmtMoveRow,
+  fmtSpot,
+  resolveEffectiveSpotPrices,
+  resolveInventoryValuationUnitCost,
+  resolveLiveMetalKey,
+  resolveLiveVoucherMetalRate,
+} from '../utils/liveMetalRates'
 
 describe('liveMetalRates helpers', () => {
   test('maps stock type names to live metal keys', () => {
@@ -19,5 +27,40 @@ describe('liveMetalRates helpers', () => {
     expect(move?.up).toBe(true)
     expect(move?.arrow).toBe('▲')
     expect(move?.rest).toContain('+0.03%')
+  })
+
+  test('converts live TOZ price to gram and inventory OZ units', () => {
+    expect(convertLivePriceUnit(4500, 'TOZ', 'G')).toBeCloseTo(4500 / 31.1034768, 4)
+    expect(convertLivePriceUnit(4500, 'TOZ', 'OZ')).toBe(4500)
+  })
+
+  test('values inventory with live snapshot when metal matches', () => {
+    const snapshot = { gold: 4500, silver: 30, platinum: 1000, unit: 'TOZ', currency: 'USD' }
+    const liveCost = resolveInventoryValuationUnitCost(100, 'Gold', snapshot, 'OZ')
+    expect(liveCost).toBe(4500)
+    expect(resolveInventoryValuationUnitCost(100, 'Copper', snapshot, 'OZ')).toBe(100)
+  })
+
+  test('prefers live gram prices for account enquiry spot', () => {
+    const prices = resolveEffectiveSpotPrices({
+      liveSnapshot: { gold: 4500, silver: 30, unit: 'TOZ' },
+      enquiryGold: 144,
+      enquirySilver: 2.4,
+      fallbackGold: 285,
+      fallbackSilver: 3.5,
+    })
+    expect(prices.goldPriceUSD).toBeCloseTo(4500 / 31.1034768, 4)
+    expect(prices.silverPriceUSD).toBeCloseTo(30 / 31.1034768, 4)
+  })
+
+  test('resolves voucher metal rate in requested unit', () => {
+    const liveRates = {
+      sourceGoldPrice: 4500,
+      sourceUnit: 'TOZ',
+      goldPrice: 144.7,
+      priceUnit: 'G',
+    }
+    expect(resolveLiveVoucherMetalRate('XAU', 'Gold', liveRates, 'OZ')).toBe(4500)
+    expect(resolveLiveVoucherMetalRate('XAU', 'Gold', liveRates, 'GRAM')).toBeCloseTo(4500 / 31.1034768, 4)
   })
 })

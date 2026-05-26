@@ -1139,6 +1139,13 @@ const buildBrandingProfiles = (docs = []) => {
 }
 
 const getLatestMetalRate = async () => {
+  const NON_FEED_SOURCES = ['manual', 'default', 'inventory']
+  const latestFeed = await MetalRate.findOne({
+    source: { $nin: NON_FEED_SOURCES },
+    goldPrice: { $gt: 0 },
+    silverPrice: { $gt: 0 },
+  }).sort({ updatedAt: -1 })
+  if (latestFeed) return latestFeed
   const latest = await MetalRate.findOne({}).sort({ updatedAt: -1 })
   return latest || null
 }
