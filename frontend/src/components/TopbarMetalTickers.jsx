@@ -1,31 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { currenciesApi } from '../api/erp-accounting/currencies'
-import { reportsApi } from '../api/erp-accounting/reports'
-import { startMetalRatesRealtime } from '../utils/realtimeSocket'
-
-const POLL_MS = 60_000
-const TOPBAR_MARKET_PARAMS = { currency: 'USD', unit: 'toz' }
-
-function fmtSpot(n) {
-  const x = Number(n || 0)
-  if (!Number.isFinite(x) || x <= 0) return '—'
-  return x.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })
-}
-
-function fmtMoveRow(delta, prevPrice) {
-  const dv = Number(delta)
-  const prev = Number(prevPrice)
-  if (!Number.isFinite(dv) || !Number.isFinite(prev) || prev <= 0) return null
-  const pct = (dv / prev) * 100
-  const up = dv >= 0
-  const pctSign = pct >= 0 ? '+' : ''
-  const dvStr = dv.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })
-  return {
-    up,
-    arrow: up ? '▲' : '▼',
-    rest: `${dvStr} (${pctSign}${pct.toFixed(2)}%)`,
-  }
-}
+import {
+  fmtMoveRow,
+  fmtSpot,
+  metalStatusSubline,
+} from '../utils/liveMetalRates'
+import useLiveMetalRates from '../hooks/useLiveMetalRates'
 
 const METALS = [
   { key: 'gold', label: 'Gold', swatch: '#FACC15', sym: 'Au', labelColor: '#FDE047' },
@@ -33,208 +11,12 @@ const METALS = [
   { key: 'platinum', label: 'Platinum', swatch: '#A855F7', sym: 'Pt', labelColor: '#FDE68A' },
 ]
 
-function metalErrorLabel(error) {
-  const status = Number(error?.status || 0)
-  if (status === 401) return 'login required'
-  if (status === 403) return 'permission denied'
-  if (status === 503) return 'bridge unavailable'
-  if (error?.network) return 'backend offline'
-  return error?.message || ''
-}
-
-function metalErrorFromException(error) {
-  const status = Number(error?.response?.status || 0)
-  const serverMessage = String(error?.response?.data?.message || '').trim()
-  return {
-    status,
-    network: !error?.response,
-    message: serverMessage || (status ? 'backend error' : 'backend offline'),
-  }
-}
-
-function normalizeMarketUnit(value) {
-  const unit = String(value || 'G').trim().toUpperCase()
-  if (unit === 'G' || unit === 'GRAM' || unit === 'GRAMS') return 'G'
-  if (unit === 'TOZ' || unit === 'OZ') return 'TOZ'
-  if (unit === 'KG') return 'KG'
-  return unit || 'G'
-}
-
-function marketPricesToRates(payload) {
-  const metals = payload?.metals
-  if (!payload?.success || !metals || typeof metals !== 'object') return null
-  if (String(payload.feedStatus || '').toLowerCase() === 'fallback') return null
-  return {
-    goldPrice: Number(metals.gold) || 0,
-    silverPrice: Number(metals.silver) || 0,
-    platinumPrice: Number(metals.platinum) || 0,
-    priceCurrency: String(payload.currency || 'USD').trim().toUpperCase() || 'USD',
-    priceUnit: normalizeMarketUnit(payload.unit),
-    source: String(payload.source || payload.feedStatus || 'market-prices').trim(),
-    updatedAt: payload.updatedAt || payload.generatedAt || payload.streamAt || null,
-  }
-}
-
-/** Second line under price when there is no move row yet. */
-function metalStatusSubline(snapshot, price, error) {
-  const errorLabel = metalErrorLabel(error)
-  if (errorLabel) return errorLabel
-
-  const cur = `${snapshot.currency}/${snapshot.unit || 'G'}`
-  const src = String(snapshot.source || '').toLowerCase()
-  const fromSaved = ['manual', 'inventory', 'default'].includes(src)
-  const fromLiveFeed = Boolean(src && !fromSaved && src !== 'waiting-mt4')
-  const hasAnyRate = (Number(snapshot.gold) || 0) > 0
-    || (Number(snapshot.silver) || 0) > 0
-    || (Number(snapshot.platinum) || 0) > 0
-
-  if (price > 0) {
-    return fromSaved ? `${cur} · saved` : cur
-  }
-  if (fromSaved) {
-    return `${cur} · not set`
-  }
-  if (fromLiveFeed && hasAnyRate) {
-    return cur
-  }
-  return 'waiting MT4'
-}
-
 /**
  * Tenant top bar: live Gold / Silver / Platinum spot from ERP metal-rates API.
  * Second row shows movement since the previous live snapshot once one exists.
  */
 export default function TopbarMetalTickers({ token, tenant }) {
-  const [snapshot, setSnapshot] = useState({
-    gold: 0,
-    silver: 0,
-    platinum: 0,
-    currency: 'USD',
-    unit: 'G',
-    source: '',
-    updatedAt: null,
-    deltas: null,
-    prevSnapshot: null,
-  })
-  const [error, setError] = useState(null)
-  const lastSnapshotRef = useRef(null)
-
-  const applyRates = useCallback((rates) => {
-    if (!rates) return
-    const useSourceToz = normalizeMarketUnit(rates.sourceUnit) === 'TOZ'
-    const pickPrice = (sourceValue, storedValue) => {
-      const source = Number(sourceValue) || 0
-      return useSourceToz && source > 0 ? source : Number(storedValue) || 0
-    }
-    const next = {
-      gold: pickPrice(rates.sourceGoldPrice, rates.goldPrice),
-      silver: pickPrice(rates.sourceSilverPrice, rates.silverPrice),
-      platinum: pickPrice(rates.sourcePlatinumPrice, rates.platinumPrice),
-      currency: String(rates.priceCurrency || 'USD').trim().toUpperCase() || 'USD',
-      unit: useSourceToz ? 'TOZ' : String(rates.priceUnit || 'G').trim().toUpperCase() || 'G',
-      source: String(rates.source || '').trim(),
-      updatedAt: rates.updatedAt || null,
-    }
-    const prevSnapshot = lastSnapshotRef.current
-    let deltas = null
-    if (prevSnapshot && (prevSnapshot.gold > 0 || prevSnapshot.silver > 0 || prevSnapshot.platinum > 0)) {
-      deltas = {
-        gold: next.gold - prevSnapshot.gold,
-        silver: next.silver - prevSnapshot.silver,
-        platinum: next.platinum - prevSnapshot.platinum,
-      }
-    }
-    lastSnapshotRef.current = { gold: next.gold, silver: next.silver, platinum: next.platinum }
-    setError(null)
-    setSnapshot({
-      ...next,
-      deltas,
-      prevSnapshot: prevSnapshot && (prevSnapshot.gold > 0 || prevSnapshot.silver > 0 || prevSnapshot.platinum > 0)
-        ? { gold: prevSnapshot.gold, silver: prevSnapshot.silver, platinum: prevSnapshot.platinum }
-        : null,
-    })
-  }, [])
-
-  const load = useCallback(async () => {
-    if (!token) return
-    try {
-      const live = await currenciesApi.getLiveMetalRates(token)
-      const liveRates = live?.rates
-      const g = Number(liveRates?.goldPrice) || 0
-      const s = Number(liveRates?.silverPrice) || 0
-      const p = Number(liveRates?.platinumPrice) || 0
-      if (live?.success && liveRates && g > 0 && s > 0 && p > 0) {
-        applyRates(liveRates)
-        return
-      }
-
-      try {
-        const market = await reportsApi.getMarketPrices(token, { ...TOPBAR_MARKET_PARAMS, fresh: 1 })
-        const marketRates = marketPricesToRates(market)
-        const mg = Number(marketRates?.goldPrice) || 0
-        const ms = Number(marketRates?.silverPrice) || 0
-        const mp = Number(marketRates?.platinumPrice) || 0
-        if (marketRates && mg > 0 && ms > 0 && mp > 0) {
-          applyRates(marketRates)
-          return
-        }
-      } catch {
-        // Some roles can read saved rates but not reports. Keep the topbar useful for them.
-      }
-
-      // Bridge offline or not configured: show last saved / inventory / defaults from standard endpoint
-      const saved = await currenciesApi.getMetalRates(token)
-      if (saved?.success && saved.rates) {
-        applyRates(saved.rates)
-        if (!live?.live) {
-          setError(live?.message ? { message: 'bridge offline' } : null)
-        }
-      }
-    } catch (err) {
-      setError(metalErrorFromException(err))
-    }
-  }, [applyRates, token])
-
-  useEffect(() => {
-    void load()
-    const id = window.setInterval(() => void load(), POLL_MS)
-    return () => window.clearInterval(id)
-  }, [load])
-
-  useEffect(() => startMetalRatesRealtime({
-    token,
-    tenant,
-    onRatesUpdate: (payload) => applyRates(payload?.rates || payload?.data?.rates),
-  }), [applyRates, tenant, token])
-
-  useEffect(() => {
-    if (!token || typeof window === 'undefined' || typeof window.EventSource !== 'function') return undefined
-
-    let closed = false
-    const source = new window.EventSource(
-      reportsApi.getMarketPricesStreamUrl(TOPBAR_MARKET_PARAMS),
-      { withCredentials: true },
-    )
-
-    source.onmessage = (event) => {
-      if (closed) return
-      try {
-        const rates = marketPricesToRates(JSON.parse(event.data))
-        if (rates) applyRates(rates)
-      } catch {
-        // Ignore malformed stream ticks; polling and socket fallback remain active.
-      }
-    }
-
-    source.onerror = () => {
-      setError((prev) => prev || { message: 'market stream offline' })
-    }
-
-    return () => {
-      closed = true
-      source.close()
-    }
-  }, [applyRates, token])
+  const { snapshot, error } = useLiveMetalRates({ token, tenant })
 
   const pillBase = {
     display: 'inline-flex',
@@ -303,7 +85,7 @@ export default function TopbarMetalTickers({ token, tenant }) {
                     <span style={{ marginLeft: '0.15rem' }}>{move.rest}</span>
                   </>
                 ) : (
-                  <span>{metalStatusSubline(snapshot, price, error)}</span>
+                  <span>{metalStatusSubline(snapshot, price, error, key)}</span>
                 )}
               </div>
             </div>

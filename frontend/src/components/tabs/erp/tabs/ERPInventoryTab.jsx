@@ -1,3 +1,7 @@
+import useLiveMetalRates from '../../../../hooks/useLiveMetalRates'
+import StockTypeLivePrice from '../../../StockTypeLivePrice'
+import { resolveLiveMetalKey } from '../../../../utils/liveMetalRates'
+
 export default function ERPInventoryTab({
   activeTab,
   C,
@@ -5,6 +9,8 @@ export default function ERPInventoryTab({
   isSuperAdmin,
   isFinance,
   saving,
+  token,
+  tenantKey,
   loadInventory,
   inventoryMappingProducts,
   inventoryCatalogProducts,
@@ -65,6 +71,12 @@ export default function ERPInventoryTab({
   handleCreateProduct,
   handleInventoryModalDragStart,
 }) {
+  const { snapshot: liveMetalSnapshot, error: liveMetalError } = useLiveMetalRates({
+    token,
+    tenant: tenantKey,
+    enabled: activeTab === 'inventory' && Boolean(token),
+  })
+
   return (
   <>
       {activeTab === 'inventory' && (
@@ -102,11 +114,28 @@ export default function ERPInventoryTab({
               <div style={{ marginTop: '0.85rem', display: 'grid', gap: '0.55rem' }}>
                 {inventoryMappingProducts.slice(0, 4).map((item) => {
                   const meta = decodeInventoryCategoryMeta(item.category)
+                  const liveMetalKey = resolveLiveMetalKey(meta.mainStock || meta.metalType || item.name)
                   return (
                     <div key={item._id} style={{ border: '1px solid #DCFCE7', background: '#FFFFFF', borderRadius: '0.5rem', padding: '0.6rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'flex-start' }}>
                         <span style={{ fontWeight: '700', color: C.ink }}>{titleCaseWords(meta.mainStock || meta.metalType || item.name)}</span>
-                        {Number(item.unitCost || 0) > 0 && <span style={{ fontSize: '0.72rem', fontWeight: '700', color: '#166534', background: '#DCFCE7', padding: '0.15rem 0.4rem', borderRadius: '0.25rem' }}>{Number(item.unitCost).toLocaleString()} {item.currency || 'USD'}/{meta.priceUnit || 'OZ'}</span>}
+                        {liveMetalKey ? (
+                          <StockTypeLivePrice
+                            metalKey={liveMetalKey}
+                            snapshot={liveMetalSnapshot}
+                            error={liveMetalError}
+                          />
+                        ) : (
+                          Number(item.unitCost || 0) > 0 && (
+                            <span style={{ fontSize: '0.72rem', fontWeight: '700', color: '#166534', background: '#DCFCE7', padding: '0.15rem 0.4rem', borderRadius: '0.25rem' }}>
+                              {Number(item.unitCost).toLocaleString()}
+                              {' '}
+                              {item.currency || 'USD'}
+                              /
+                              {meta.priceUnit || 'OZ'}
+                            </span>
+                          )
+                        )}
                       </div>
                       <div style={{ marginTop: '0.2rem', color: C.inkSoft, fontSize: '0.75rem' }}>Main Stock Mapping</div>
                       <div style={{ marginTop: '0.45rem', display: 'flex', gap: '0.35rem' }}>

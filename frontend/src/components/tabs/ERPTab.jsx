@@ -145,6 +145,7 @@ const C = {
 }
 function ERPTab({ focusTab, onNavigateMain }) {
   const { user, token } = useAuth()
+  const inventoryTenantKey = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)?.key || ''
   const { t } = useLanguage()
   const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
   const TRANSACTION_ACTION_LABELS = getTransactionActionLabels(t)
@@ -6476,6 +6477,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
         isSuperAdmin={isSuperAdmin}
         isFinance={isFinance}
         saving={saving}
+        token={token}
+        tenantKey={inventoryTenantKey}
         loadInventory={loadInventory}
         inventoryMappingProducts={inventoryMappingProducts}
         inventoryCatalogProducts={inventoryCatalogProducts}
