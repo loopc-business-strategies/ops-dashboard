@@ -65,6 +65,7 @@ import {
   buildStatementMetalOptions,
   calculateAccountSummaryMetrics,
   computeStatementExportOpeningBalances,
+  formatMarginExcessDisplay,
   normalizeStatementCurrencyCode,
   resolveExposureDirection,
   matchesStatementMetal,
@@ -858,7 +859,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const xauBalance = apiGoldBal !== 0 ? apiGoldBal : statementUnfixedMetalBalances.gold
   const xagBalance = apiSilverBal !== 0 ? apiSilverBal : statementUnfixedMetalBalances.silver
   const modalTotalFunds = totalFunds
-  // Vendor/creditor AP is booked in currency; spot × grams is a trading margin view and is misleading here.
+  // Creditor/vendor AP: flag drives enquiry layout — funds from ledger, revaluation from spot × net grams.
   const enquirySuppressMetalSpotMtm = Boolean(
     accountEnquiryData?.metals?.suppressMetalSpotMtm
       || (accountEnquiryData && shouldSuppressSpotMetalMtmForAccountEnquiry(accountEnquiryData.account)),
@@ -873,26 +874,35 @@ function ERPTab({ focusTab, onNavigateMain }) {
     statementUnfixedVoucherRevaluationByMetal.gold
     + statementUnfixedVoucherRevaluationByMetal.silver
     + statementUnfixedVoucherRevaluationByMetal.other
-  const useVoucherRevaluation = Math.abs(statementUnfixedVoucherRevaluation) > 0.000001
   const xauSpotValue = xauBalance * goldPriceUSD
   const xagSpotValue = xagBalance * silverPriceUSD
-  const xauCurrentValue = useVoucherRevaluation
-    ? statementUnfixedVoucherRevaluationByMetal.gold
-    : (enquirySuppressMetalSpotMtm ? 0 : xauSpotValue)
-  const xagCurrentValue = useVoucherRevaluation
-    ? statementUnfixedVoucherRevaluationByMetal.silver
-    : (enquirySuppressMetalSpotMtm ? 0 : xagSpotValue)
-  const modalRevaluation = useVoucherRevaluation ? statementUnfixedVoucherRevaluation : (xauCurrentValue + xagCurrentValue)
-  const modalMarginAmt = Math.abs(modalRevaluation) * 0.02
-  const resolveBookedBreakEvenPrice = (metalBalance, bookedValue) => {
-    const grams = Math.abs(Number(metalBalance || 0))
-    const booked = Math.abs(Number(bookedValue || 0))
-    if (grams <= 0 || booked <= 0) return 0
-    return booked / grams
+  let xauCurrentValue
+  let xagCurrentValue
+  let modalRevaluation
+  if (enquirySuppressMetalSpotMtm) {
+    // Creditor/vendor AP: ledger payable in Total Funds; revaluation = spot on net metal position.
+    xauCurrentValue = xauSpotValue
+    xagCurrentValue = xagSpotValue
+    modalRevaluation = xauSpotValue + xagSpotValue
+  } else {
+    const useVoucherRevaluation = Math.abs(statementUnfixedVoucherRevaluation) > 0.000001
+    xauCurrentValue = useVoucherRevaluation
+      ? statementUnfixedVoucherRevaluationByMetal.gold
+      : xauSpotValue
+    xagCurrentValue = useVoucherRevaluation
+      ? statementUnfixedVoucherRevaluationByMetal.silver
+      : xagSpotValue
+    modalRevaluation = useVoucherRevaluation
+      ? statementUnfixedVoucherRevaluation
+      : (xauCurrentValue + xagCurrentValue)
   }
-  const breakEvenPrice = enquirySuppressMetalSpotMtm
-    ? resolveBookedBreakEvenPrice(xauBalance, statementUnfixedVoucherRevaluationByMetal.gold)
-    : (Math.abs(xauBalance) === 0 ? 0 : Math.abs(totalFunds) / Math.abs(xauBalance))
+  const modalMarginAmt = Math.abs(modalRevaluation) * 0.02
+  const resolvePayableBreakEvenPrice = (metalBalance) => {
+    const grams = Math.abs(Number(metalBalance || 0))
+    if (grams <= 0) return 0
+    return Math.abs(totalFunds) / grams
+  }
+  const breakEvenPrice = resolvePayableBreakEvenPrice(xauBalance)
   const modalPositionRows = accountEnquiryData ? [
     {
       key: 'xau',
@@ -910,9 +920,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       balance: xagBalance,
       price: silverPriceUSD,
       currentValue: xagCurrentValue,
-      breakEven: enquirySuppressMetalSpotMtm
-        ? resolveBookedBreakEvenPrice(xagBalance, statementUnfixedVoucherRevaluationByMetal.silver)
-        : (Math.abs(xagBalance) === 0 ? 0 : Math.abs(totalFunds) / Math.abs(xagBalance)),
+      breakEven: resolvePayableBreakEvenPrice(xagBalance),
     },
   ] : []
   const buildPureWeightRunningBalancesByEntryKey = (entries, selectedMetalCode) => {
@@ -7584,7 +7592,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                             <option value="USD">USD</option>
                           </select>
                           <span style={{ color: getSignedColor(modalExcessDisplay), fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>
-                            {formatDirectionalBalance(modalExcessDisplay, { preferredDirection: resolveExposureDirection(modalExcessDisplay) })}
+                            {formatMarginExcessDisplay(modalExcessDisplay, (value) => formatStatementValue(value, 2))}
                           </span>
                         </div>
                       </div>
@@ -7598,7 +7606,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                         {enquirySuppressMetalSpotMtm && (
                           <span>
                             {' '}
-                            For creditor/vendor payables, spot revaluation and position current value use booked currency only (grams remain for reference).
+                            For creditor/vendor payables, Total Funds uses the ledger payable balance; revaluation uses live spot on the net unfixed metal position (grams).
                           </span>
                         )}
                       </p>

@@ -283,3 +283,10 @@ export function calculateAccountSummaryMetrics({
     marginPercent,
   }
 }
+
+export function formatMarginExcessDisplay(value, formatValue = (amount) => String(amount)) {
+  const num = Number(value || 0)
+  if (Math.abs(num) < 0.005) return formatValue(0)
+  if (num > 0) return `Excess ${formatValue(num)}`
+  return `Short ${formatValue(Math.abs(num))}`
+}

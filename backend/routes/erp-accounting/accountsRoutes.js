@@ -929,9 +929,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         limitValue: 0,
         balance: Number(goldBalance || 0),
         price: Number(rates.goldPrice || 0),
-        currentValue: suppressMetalSpotMtm
-          ? Number(bookedUnfixedRevaluation.gold || 0)
-          : Number(goldBalance || 0) * Number(rates.goldPrice || 0),
+        currentValue: Number(goldBalance || 0) * Number(rates.goldPrice || 0),
         valueCurrency: rates.priceCurrency,
         unit: 'gram',
       },
@@ -941,9 +939,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         limitValue: 0,
         balance: Number(silverBalance || 0),
         price: Number(rates.silverPrice || 0),
-        currentValue: suppressMetalSpotMtm
-          ? Number(bookedUnfixedRevaluation.silver || 0)
-          : Number(silverBalance || 0) * Number(rates.silverPrice || 0),
+        currentValue: Number(silverBalance || 0) * Number(rates.silverPrice || 0),
         valueCurrency: rates.priceCurrency,
         unit: 'gram',
       },

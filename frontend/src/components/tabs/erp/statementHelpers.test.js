@@ -4,6 +4,7 @@ import {
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
   calculateAccountSummaryMetrics,
+  formatMarginExcessDisplay,
   normalizeStatementCurrencyCode,
   resolveExposureDirection,
   resolveUnfixedBookedExposureSign,
@@ -179,16 +180,28 @@ describe('statement helpers', () => {
     expect(byMetal.gold).toBe(-134.21)
   })
 
-  test('creditor account summary uses booked revaluation for margin math', () => {
+  test('creditor account summary uses spot revaluation against ledger payable', () => {
+    const goldPrice = 144.943
+    const xauBalance = 4.9
+    const totalFunds = -234.21
+    const revaluation = xauBalance * goldPrice
+    const marginAmount = Math.abs(revaluation) * 0.02
+
     const metrics = calculateAccountSummaryMetrics({
-      totalFunds: -234.21,
-      revaluation: 234.21,
-      marginAmount: 4.68,
+      totalFunds,
+      revaluation,
+      marginAmount,
     })
 
-    expect(metrics.netEquity).toBe(0)
-    expect(metrics.excess).toBeCloseTo(-4.68, 2)
-    expect(metrics.marginPercent).toBeCloseTo(5004.487, 1)
+    expect(metrics.netEquity).toBeCloseTo(-234.21 + revaluation, 2)
+    expect(metrics.excess).toBeCloseTo(metrics.netEquity - marginAmount, 2)
+    expect(metrics.marginPercent).toBeCloseTo((234.21 / marginAmount) * 100, 1)
+  })
+
+  test('formatMarginExcessDisplay shows Short and Excess labels', () => {
+    expect(formatMarginExcessDisplay(-4.68, (value) => value.toFixed(2))).toBe('Short 4.68')
+    expect(formatMarginExcessDisplay(10, (value) => value.toFixed(2))).toBe('Excess 10.00')
+    expect(formatMarginExcessDisplay(0, (value) => value.toFixed(2))).toBe('0.00')
   })
 
   test('export opening USD balance derives from closing minus period movement', () => {
