@@ -6280,7 +6280,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
             </div>
           </div>
           {!canViewBalanceEnquiry ? (
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid', background: '#FEF2F2', color: '#991B1B' }}>⛔ Account summary access restricted. Super Admin, Finance, or Department Head with mapped-account visibility only.</div>
+            <div style={{ ...emptyCardStyle, borderStyle: 'solid', background: '#FEF2F2', color: '#991B1B' }}>Account summary access restricted. Ask an admin to enable the Account Summary ERP permission for this user.</div>
           ) : (
             <>
               <div style={{ marginBottom: '1rem' }}>

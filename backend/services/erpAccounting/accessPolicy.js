@@ -168,6 +168,14 @@ function canViewLedger(user) {
   return evaluateErpPermission(user, 'canViewLedger')
 }
 
+function canViewCustomers(user) {
+  return evaluateErpPermission(user, 'canViewCustomers')
+}
+
+function canManageCustomers(user) {
+  return evaluateErpPermission(user, 'canManageCustomers')
+}
+
 function canCreateTransaction(user) {
   return evaluateErpPermission(user, 'canCreateTransaction')
 }
@@ -211,7 +219,7 @@ function canManageDirectDeals(user) {
 }
 
 function deriveErpAccessPolicy(user) {
-  const canViewCustomers = evaluateErpPermission(user, 'canViewCustomers')
+  const canViewCustomersValue = canViewCustomers(user)
   const canAccessTransactionsValue = canAccessTransactions(user)
   const canAccessInventoryValue = canAccessInventory(user)
   const canViewAccountsValue = canViewAccounts(user)
@@ -230,8 +238,8 @@ function deriveErpAccessPolicy(user) {
     canViewAccounts: canViewAccountsValue,
     canManageAccounts: canManageAccounts(user),
     canViewLedger: canViewLedger(user),
-    canViewCustomers,
-    canManageCustomers: evaluateErpPermission(user, 'canManageCustomers'),
+    canViewCustomers: canViewCustomersValue,
+    canManageCustomers: canManageCustomers(user),
     canViewBalanceEnquiry: canViewAccountSummary(user),
     canUpdateMetalRates: evaluateErpPermission(user, 'canUpdateMetalRates'),
     canExportAccountSummary: evaluateErpPermission(user, 'canExportAccountSummary'),
@@ -243,7 +251,7 @@ function deriveErpAccessPolicy(user) {
     canAccessInventory: canAccessInventoryValue,
     canAccessVouchers: evaluateErpPermission(user, 'canAccessVouchers'),
     canAccessDirectDeals: canAccessDirectDeals(user),
-    canAccessERP: granularErpAccess ?? (canViewAccountsValue || canAccessTransactionsValue || canAccessInventoryValue || canViewCustomers),
+    canAccessERP: granularErpAccess ?? (canViewAccountsValue || canAccessTransactionsValue || canAccessInventoryValue || canViewCustomersValue),
   }
 }
 
@@ -262,6 +270,8 @@ module.exports = {
   canManageMappings,
   canViewAccountSummary,
   canViewLedger,
+  canViewCustomers,
+  canManageCustomers,
   canCreateTransaction,
   canCreateTransactionFor,
   canAccessReports,

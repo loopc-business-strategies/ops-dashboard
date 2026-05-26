@@ -58,4 +58,24 @@ describe('ERP access policy', () => {
     expect(policy.canAccessERP).toBe(false)
     expect(policy.canAccessTransactions).toBe(false)
   })
+
+  test('customer margin and account summary permissions are not role blocked', () => {
+    const policy = deriveErpAccessPolicy({
+      role: 'external',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            'customer-margin': { on: true },
+            enquiry: { on: true },
+          },
+        },
+      },
+    })
+
+    expect(policy.canAccessERP).toBe(true)
+    expect(policy.canViewCustomers).toBe(true)
+    expect(policy.canViewBalanceEnquiry).toBe(true)
+    expect(policy.canViewAccounts).toBe(false)
+  })
 })

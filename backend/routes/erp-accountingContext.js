@@ -112,6 +112,8 @@ const {
   canManageMappings,
   canViewAccountSummary,
   canViewLedger,
+  canViewCustomers,
+  canManageCustomers,
   canCreateTransaction,
   canCreateTransactionFor,
   canAccessReports,
@@ -1049,10 +1051,6 @@ const applyTransactionWorkflowAction = createTransactionWorkflowAction({
   isFinance,
   getTransactionPostingService: () => transactionPostingService,
 })
-
-// Customers
-const canViewCustomers = (user) => isSuperAdmin(user) || isFinance(user) || isSales(user)
-const canManageCustomers = (user) => isSuperAdmin(user) || isFinance(user) || isSales(user)
 
 const parsePagination = (query, defaultLimit = 25, maxLimit = 100) => {
   const page = Math.max(1, Number(query.page) || 1)
