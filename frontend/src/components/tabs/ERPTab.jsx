@@ -7482,9 +7482,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
                                 <tr key={row.key} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                                   <td style={{ padding: '0.7rem', fontWeight: '700', color: '#111827' }}>{row.type}</td>
                                   <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.limits, 0)}</td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.balance), fontWeight: '600' }}>{formatStatementValue(row.balance, 6)}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.balance), fontWeight: '600' }}>
+                                    {formatDirectionalBalance(row.balance, { minDigits: 6, maxDigits: 6 })}
+                                  </td>
                                   <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.price, 4)}</td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.currentValue), fontWeight: '700' }}>{formatStatementValue(row.currentValue, 2)}</td>
+                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.currentValue), fontWeight: '700' }}>
+                                    {formatDirectionalBalance(row.currentValue)}
+                                  </td>
                                   <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.breakEven, 4)}</td>
                                 </tr>
                               ))}
