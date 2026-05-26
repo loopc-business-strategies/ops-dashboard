@@ -381,7 +381,6 @@ export default function ERPFixingRegisterTab({
                         {fixingRegResults.map((row, idx) => (
                           (() => {
                             const qtyOz = Number(row.qty || 0)
-                            const amount = Number(row.amount || 0)
                             const isBuy = String(row.direction || '').toLowerCase() === 'buy'
                             const isQtyImpactEnabled = isQtyImpactRow(row)
                             const qtyInOz = isBuy ? qtyOz : 0

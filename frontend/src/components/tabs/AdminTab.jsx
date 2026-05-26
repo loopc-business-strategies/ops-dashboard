@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import authAPI from '../../api/auth'
+import departmentStateAPI from '../../api/department-state'
 import { useLanguage } from '../../context/LanguageContext'
 
 const ROLES = [
@@ -931,17 +932,34 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
 }
 
 function SettingsTab() {
+  const { token } = useAuth()
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [toast, setToast] = useState('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(SETTINGS_KEY)
-      if (saved) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(saved) })
-    } catch {
-      // use defaults
+    let mounted = true
+    const load = async () => {
+      setLoading(true)
+      try {
+        const res = await departmentStateAPI.getDepartmentState(token, 'admin')
+        if (mounted && res?.state && typeof res.state === 'object') {
+          setSettings({ ...DEFAULT_SETTINGS, ...res.state })
+        }
+      } catch {
+        try {
+          const saved = window.localStorage.getItem(SETTINGS_KEY)
+          if (mounted && saved) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(saved) })
+        } catch {
+          // use defaults
+        }
+      } finally {
+        if (mounted) setLoading(false)
+      }
     }
-  }, [])
+    load()
+    return () => { mounted = false }
+  }, [token])
 
   const notify = (msg) => {
     setToast(msg)
@@ -949,9 +967,15 @@ function SettingsTab() {
     notify.t = window.setTimeout(() => setToast(''), 2500)
   }
 
-  const saveSettings = () => {
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
-    notify('Settings saved successfully.')
+  const saveSettings = async () => {
+    try {
+      await departmentStateAPI.saveDepartmentState(token, 'admin', settings)
+      window.localStorage.removeItem(SETTINGS_KEY)
+      notify('Settings saved successfully.')
+    } catch {
+      window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+      notify('Saved locally — sync to server when online.')
+    }
   }
 
   const setToggle = (key) => setSettings((s) => ({ ...s, [key]: !s[key] }))
@@ -964,7 +988,7 @@ function SettingsTab() {
           <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: ADMIN.ink }}>General Settings</h2>
           <p style={{ margin: '0.35rem 0 0', fontSize: '0.84rem', color: ADMIN.inkSoft }}>Configure global application settings and preferences.</p>
         </div>
-        <button type="button" onClick={saveSettings} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', borderRadius: 8, border: 'none', background: ADMIN.primary, color: '#fff', fontWeight: 700, cursor: 'pointer' }}>💾 Save Settings</button>
+        <button type="button" onClick={saveSettings} disabled={loading} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', borderRadius: 8, border: 'none', background: ADMIN.primary, color: '#fff', fontWeight: 700, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1 }}>💾 {loading ? 'Loading…' : 'Save Settings'}</button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>

@@ -1,20 +1,5 @@
 // FILE: src/pages/Dashboard.jsx
-// PAGE 2 — Main dashboard after login
-//
-// LAYOUT:
-//   Left sidebar — navigation tabs (Admin, HR, Compliance, etc.)
-//   Right content — shows the selected tab's content
-//
-// TABS (sidebar):
-//   Overview       → project snapshot, progress, activity
-//   Admin          → user management, permissions (super_admin only)
-//   HR             → placeholder (to be built)
-//   Compliance     → placeholder (to be built)
-//   Production     → placeholder (to be built)
-//   Finance        → placeholder (to be built)
-//   Sales          → placeholder (to be built)
-//   Operations     → placeholder (to be built)
-//   Training       → placeholder (to be built)
+// Main dashboard shell — sidebar navigation + lazy-loaded tab modules.
 
 import React, { Component, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -39,7 +24,7 @@ const OperationsTab = lazy(() => import('../components/tabs/OperationsTab'))
 const SalesTab = lazy(() => import('../components/tabs/SalesTab'))
 const ERPTab = lazy(() => import('../components/tabs/ERPTab'))
 const ComplianceTab = lazy(() => import('../components/tabs/ComplianceTab'))
-const PlaceholderTab = lazy(() => import('../components/tabs/PlaceholderTab'))
+const ProcurementPlusTab = lazy(() => import('../components/tabs/ProcurementPlusTab'))
 
 class TabErrorBoundary extends Component {
   constructor(props) {
@@ -183,14 +168,7 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab) {
       return <ERPTab focusTab={erpSubTab} onNavigateMain={setActiveTab} />
 
     case 'procurement-plus':
-      return (
-        <PlaceholderTab
-          title="Procurement Plus"
-          icon="🧩"
-          description="Company-specific procurement controls module."
-          subTabs={['Vendor Scoring', 'Contract Rules', 'Approval Matrix']}
-        />
-      )
+      return <ProcurementPlusTab />
 
     default:
       return (
@@ -412,7 +390,7 @@ function Dashboard() {
         setActiveTab(tabParam)
       }
     }
-  }, [])
+  }, [user])
 
   const handleShellMouseMove = (e) => {
     if (!isDesktop) return

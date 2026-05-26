@@ -70,6 +70,15 @@ export default defineConfig({
             if (id.includes('/exceljs/')) {
               return 'vendor-excel'
             }
+            if (id.includes('/html2pdf')) {
+              return 'vendor-html2pdf'
+            }
+            if (id.includes('/socket.io-client/')) {
+              return 'vendor-socket'
+            }
+            if (id.includes('/papaparse/')) {
+              return 'vendor-csv'
+            }
             if (id.includes('/axios/')) {
               return 'vendor-http'
             }

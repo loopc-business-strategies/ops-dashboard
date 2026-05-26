@@ -44,10 +44,6 @@ export default function ERPVendorsTab({
     return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString()
   }
 
-  const getVendorContact = (vendor) => {
-    const parts = [vendor.contactPerson, vendor.phone, vendor.email].filter(Boolean)
-    return parts.length ? parts.join(' | ') : '-'
-  }
 
   const formatMoney = (value, currency = 'USD') => `${currency} ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
@@ -67,30 +63,6 @@ export default function ERPVendorsTab({
     return { label: 'Payment on track', color: '#059669', bg: '#ECFDF5', icon: '✓' }
   }
 
-  const getVendorDueSummary = (vendor) => {
-    const nextDue = vendor.nextDue || null
-    const overdue = Number(vendor.dueAlerts?.overdue || 0)
-    const amount = Number(vendor.dueAmount || nextDue?.remaining || 0)
-    if (!nextDue && !amount) return { label: 'No due', color: C.inkSoft, detail: '-' }
-    if (overdue > 0 || nextDue?.alertLevel === 'overdue') {
-      return { label: `${amount.toLocaleString()} overdue`, color: '#991B1B', detail: nextDue ? `Since ${formatDate(nextDue.dueDate)}` : `${overdue} overdue` }
-    }
-    return { label: `${amount.toLocaleString()} due`, color: '#92400E', detail: nextDue ? `Next ${formatDate(nextDue.dueDate)}` : '-' }
-  }
-
-  const getVendorAlertText = (vendor) => {
-    const nextDue = vendor.nextDue
-    if (nextDue?.alertLevel === 'overdue') return `Overdue payment: ${Number(nextDue.remaining || 0).toLocaleString()} ${nextDue.currency || vendor.currency || 'USD'}`
-    if (nextDue?.alertLevel === 'due_soon') return `Due soon: ${Number(nextDue.remaining || 0).toLocaleString()} ${nextDue.currency || vendor.currency || 'USD'}`
-    if (vendor.compliance && !vendor.compliance.compliant) return `Missing docs: ${(vendor.compliance.missingDocuments || []).join(', ') || 'review required'}`
-    return 'Monthly review'
-  }
-
-  const getVendorMessage = (vendor) => {
-    if (vendor.nextDue) return `${getVendorAlertText(vendor)}. Contact ${vendor.contactPerson || vendor.email || vendor.phone || 'vendor'} before ${formatDate(vendor.nextDue.dueDate)}.`
-    if (vendor.notes) return vendor.notes
-    return 'No open payment message.'
-  }
 
   const getVendorDocumentUrl = (doc, vendorId = selectedVendorId) => {
     if (!doc) return ''

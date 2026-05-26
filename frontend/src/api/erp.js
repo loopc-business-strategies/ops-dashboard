@@ -1,5 +1,11 @@
 import axios, { API_ORIGIN } from './client'
 
+/**
+ * Operations ERP (legacy) — suppliers, POs, work orders, ops inventory.
+ * For accounting/ledger features use `erp-accounting` clients instead.
+ * See docs/ERP-API-GUIDE.md
+ */
+
 const BASE = `${API_ORIGIN}/api/erp`
 
 // Inventory

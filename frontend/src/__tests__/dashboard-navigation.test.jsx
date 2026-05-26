@@ -58,8 +58,8 @@ vi.mock('../components/tabs/SalesTab', () => ({
 vi.mock('../components/tabs/ComplianceTab', () => ({
   default: () => <div>compliance-tab</div>,
 }))
-vi.mock('../components/tabs/PlaceholderTab', () => ({
-  default: () => <div>placeholder-tab</div>,
+vi.mock('../components/tabs/ProcurementPlusTab', () => ({
+  default: () => <div>procurement-plus-tab</div>,
 }))
 vi.mock('../components/tabs/ERPTab', () => ({
   default: ({ focusTab }) => <div>{`erp-tab-focus:${focusTab}`}</div>,

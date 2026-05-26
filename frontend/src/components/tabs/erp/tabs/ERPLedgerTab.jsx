@@ -55,7 +55,7 @@ export default function ERPLedgerTab({
   ledgerMeta,
   loadLedger,
   handleEditJv,
-  handleEditLedger,
+  handleEditLedger: _handleEditLedger,
   handleReverseLedger,
   isFinance,
   handleRepairJvFxPreview,

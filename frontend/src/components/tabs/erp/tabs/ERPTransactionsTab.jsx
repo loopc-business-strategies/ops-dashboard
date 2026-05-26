@@ -54,8 +54,8 @@ export default function ERPTransactionsTab({
   toggleVisibleTransactionSelection,
   allVisibleTransactionsSelected,
   toggleTransactionSelection,
-  populateTransactionForm,
-  handleDeleteTransaction,
+  populateTransactionForm: _populateTransactionForm,
+  handleDeleteTransaction: _handleDeleteTransaction,
   transactionMeta,
   loading,
 }) {

@@ -103,7 +103,7 @@ export function AuthProvider({ children }) {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [resolvedTenant])
 
   const login = async (name, password, selectedCompany) => {
     const tenant = resolveTenantFromSearch(

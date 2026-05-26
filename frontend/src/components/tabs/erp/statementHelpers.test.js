@@ -9,7 +9,6 @@ import {
   resolveExposureDirection,
   resolveUnfixedBookedExposureSign,
   resolveBookedLedgerAmount,
-  resolveStatementSignedAmount,
   sortStatementEntriesForExport,
   computeStatementExportOpeningBalances,
   matchesStatementMetal,

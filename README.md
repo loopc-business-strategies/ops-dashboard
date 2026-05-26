@@ -4,6 +4,7 @@ Multi-tenant operations and ERP platform for mg, cg, and loopc companies.
 
 ## Deployment Docs
 - Main deployment checklist: `DEPLOYMENT-CHECKLIST.md`
+- ERP API guide (accounting vs operations): `docs/ERP-API-GUIDE.md`
 - Release/version policy: `RELEASE-VERSIONING-POLICY.md`
 - Observability, health checks, and Vercel/Railway notes: `docs/OBSERVABILITY-AND-DEPLOYS.md`
 - Historical analyses (may be stale): `docs/archive/README.md`

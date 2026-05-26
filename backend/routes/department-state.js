@@ -6,7 +6,7 @@ const DepartmentState = require('../models/DepartmentState')
 const router = express.Router()
 
 const normalize = (value = '') => String(value).trim().toLowerCase()
-const allowedModules = ['finance', 'compliance', 'training']
+const allowedModules = ['finance', 'compliance', 'training', 'admin']
 const moduleParamSchema = Joi.object({
   module: Joi.string().trim().lowercase().valid(...allowedModules).required(),
 })
@@ -16,6 +16,7 @@ const moduleStateSchema = Joi.object({
 
 const canAccessModule = (user, module) => {
   if (!user) return false
+  if (module === 'admin') return user.role === 'super_admin'
   if (user.role === 'super_admin' || user.role === 'management') return true
 
   const dept = normalize(user.department)
