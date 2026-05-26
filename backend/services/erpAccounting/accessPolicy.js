@@ -27,6 +27,14 @@ function getDept(user) {
   return String(user?.department || '').toLowerCase()
 }
 
+function isManagementReadOnly(user) {
+  return getRole(user) === 'management'
+}
+
+function blocksManagementWrite(user) {
+  return isManagementReadOnly(user)
+}
+
 function evaluateRule(user, rule = {}) {
   const role = getRole(user)
   const dept = getDept(user)
@@ -149,6 +157,7 @@ function canViewAccounts(user) {
 }
 
 function canManageAccounts(user) {
+  if (blocksManagementWrite(user)) return false
   return evaluateErpPermission(user, 'canManageAccounts')
 }
 
@@ -157,6 +166,7 @@ function canViewMappings(user) {
 }
 
 function canManageMappings(user) {
+  if (blocksManagementWrite(user)) return false
   return evaluateErpPermission(user, 'canManageMappings')
 }
 
@@ -173,14 +183,17 @@ function canViewCustomers(user) {
 }
 
 function canManageCustomers(user) {
+  if (blocksManagementWrite(user)) return false
   return evaluateErpPermission(user, 'canManageCustomers')
 }
 
 function canCreateTransaction(user) {
+  if (blocksManagementWrite(user)) return false
   return evaluateErpPermission(user, 'canCreateTransaction')
 }
 
 function canCreateTransactionFor(user, transactionType) {
+  if (blocksManagementWrite(user)) return false
   if (canCreateTransaction(user)) return true
   const key = String(transactionType || '').toLowerCase()
   return evaluateRule(user, accessMatrix.transactionTypes[key] || {})
@@ -195,10 +208,12 @@ function canAccessVendors(user) {
 }
 
 function canManageVendors(user) {
+  if (blocksManagementWrite(user)) return false
   return evaluateErpPermission(user, 'canManageVendors')
 }
 
 function canUpdateVendorOperational(user) {
+  if (blocksManagementWrite(user)) return false
   return evaluateErpPermission(user, 'canUpdateVendorOperational')
 }
 
@@ -215,6 +230,7 @@ function canAccessDirectDeals(user) {
 }
 
 function canManageDirectDeals(user) {
+  if (blocksManagementWrite(user)) return false
   return evaluateErpPermission(user, 'canManageDirectDeals')
 }
 

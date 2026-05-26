@@ -1,6 +1,9 @@
 const {
   canAccessTransactions,
   canAccessVendors,
+  canManageCustomers,
+  canManageDirectDeals,
+  canCreateTransactionFor,
   canViewAccounts,
   canViewAccountSummary,
   canViewCustomers,
@@ -39,6 +42,15 @@ describe('ERP accounting access policy', () => {
 
     expect(canAccessTransactions(user)).toBe(false)
     expect(deriveErpAccessPolicy(user).canAccessERP).toBe(false)
+  })
+
+  test('management role remains read-only for ERP writes', () => {
+    const user = { role: 'management', allowedModules: ['erp'] }
+    expect(canManageCustomers(user)).toBe(false)
+    expect(canManageDirectDeals(user)).toBe(false)
+    expect(canCreateTransactionFor(user, 'sale')).toBe(false)
+    expect(canAccessTransactions(user)).toBe(true)
+    expect(canViewCustomers(user)).toBe(true)
   })
 
   test('customer margin and account summary permissions are not role blocked', () => {

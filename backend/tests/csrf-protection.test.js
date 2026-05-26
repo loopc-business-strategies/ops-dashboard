@@ -116,7 +116,7 @@ describe('CSRF protection for cookie-auth mutating routes', () => {
   test('bypasses CSRF check for setup path', async () => {
     const res = await request(app)
       .post('/api/auth/setup')
-      .send({ company: 'loopc', name: 'SetupAdmin', password: 'password123' })
+      .send({ company: 'loopc', name: 'SetupAdmin', password: 'ValidPass1!' })
 
     expect(res.status).toBe(201)
     expect(res.body.success).toBe(true)

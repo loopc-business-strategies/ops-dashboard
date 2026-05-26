@@ -14,6 +14,15 @@ function getDept(user) {
   return String(user?.department || '').toLowerCase()
 }
 
+function isManagementReadOnly(user) {
+  return getRole(user) === 'management'
+}
+
+function applyManagementReadOnly(user, allowed) {
+  if (!allowed) return false
+  return !isManagementReadOnly(user)
+}
+
 function evaluateRule(user, rule = {}) {
   const role = getRole(user)
   const dept = getDept(user)
@@ -82,18 +91,18 @@ export function deriveErpAccessPolicy(user) {
   const isHRRole = evaluatePredicate(user, 'isHRRole')
 
   const canViewAccounts = evaluateErpPermission(user, 'canViewAccounts')
-  const canManageAccounts = evaluateErpPermission(user, 'canManageAccounts')
+  const canManageAccounts = applyManagementReadOnly(user, evaluateErpPermission(user, 'canManageAccounts'))
   const canViewLedger = evaluateErpPermission(user, 'canViewLedger')
   const canViewCustomers = evaluateErpPermission(user, 'canViewCustomers')
-  const canManageCustomers = evaluateErpPermission(user, 'canManageCustomers')
+  const canManageCustomers = applyManagementReadOnly(user, evaluateErpPermission(user, 'canManageCustomers'))
   const canViewBalanceEnquiry = evaluateErpPermission(user, 'canViewAccountSummary')
-  const canUpdateMetalRates = evaluateErpPermission(user, 'canUpdateMetalRates')
+  const canUpdateMetalRates = applyManagementReadOnly(user, evaluateErpPermission(user, 'canUpdateMetalRates'))
   const canExportAccountSummary = evaluateErpPermission(user, 'canExportAccountSummary')
   const canAccessTransactions = evaluateErpPermission(user, 'canAccessTransactions')
   const canAccessReports = evaluateErpPermission(user, 'canAccessReports')
   const canAccessVendors = evaluateErpPermission(user, 'canAccessVendors')
-  const canManageVendors = evaluateErpPermission(user, 'canManageVendors')
-  const canUpdateVendorOperational = evaluateErpPermission(user, 'canUpdateVendorOperational')
+  const canManageVendors = applyManagementReadOnly(user, evaluateErpPermission(user, 'canManageVendors'))
+  const canUpdateVendorOperational = applyManagementReadOnly(user, evaluateErpPermission(user, 'canUpdateVendorOperational'))
   const canAccessInventory = evaluateErpPermission(user, 'canAccessInventory')
   const canAccessVouchers = evaluateErpPermission(user, 'canAccessVouchers')
   const canAccessDirectDeals = evaluateErpPermission(user, 'canAccessDirectDeals')

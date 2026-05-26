@@ -48,4 +48,21 @@ This is the **primary ERP** for MG/CG/LoopC. New financial features belong here.
 2. **Procurement & production ops** → `/api/erp` until migrated
 3. Do **not** duplicate vendors/suppliers across both without explicit sync
 
+## Migration direction
+
+1. **Financial / metal accounting** → always `/api/erp-accounting`
+2. **Procurement & production ops** → `/api/erp` until migrated
+3. Do **not** duplicate vendors/suppliers across both without explicit sync
+
 When adding features, prefer extending **erp-accounting** for anything that posts to the ledger or affects account enquiry.
+
+---
+
+## Management role (read-only)
+
+Users with role `management` can **view** ERP modules they are granted (transactions, vouchers, account enquiry, customers, direct deals) but **cannot** create or mutate ERP data:
+
+- Blocked: manage customers/vendors/accounts, create transactions, manage direct deals, update metal rates
+- Allowed: view-only access aligned with Admin → Permissions toggles and VoucherTab read-only mode
+
+Backend enforcement lives in `backend/services/erpAccounting/accessPolicy.js` (`blocksManagementWrite`).

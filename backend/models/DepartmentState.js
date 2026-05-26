@@ -5,7 +5,7 @@ const DepartmentStateSchema = new mongoose.Schema(
   {
     module: {
       type: String,
-      enum: ['finance', 'compliance', 'training'],
+      enum: ['finance', 'compliance', 'training', 'admin'],
       required: true,
       unique: true,
     },

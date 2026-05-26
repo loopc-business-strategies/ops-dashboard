@@ -21,6 +21,12 @@ const { protect, restrictTo } = require('../middleware/auth')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
 const { normalizeTenant, getDefaultTenant, resolveTenantFromHost } = require('../config/tenants')
 const { setCsrfCookie, clearCsrfCookie, generateCsrfToken } = require('../middleware/csrf')
+const {
+  loadAdminSettings,
+  validatePasswordPolicy,
+  resolveSessionMaxAgeMs,
+  resolveJwtExpiresIn,
+} = require('../services/adminSettings')
 
 const router = express.Router()
 
@@ -34,17 +40,60 @@ function resolveRequestTenant(req, requestedCompany) {
 }
 
 // Helper: create a JWT token for a user
-const createToken = (id, company) =>
-  jwt.sign({ id, company }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' })
+const createToken = (id, company, expiresIn = process.env.JWT_EXPIRES_IN || '7d') =>
+  jwt.sign({ id, company }, process.env.JWT_SECRET, { expiresIn })
 
-const COOKIE_MAX_AGE = Number(process.env.COOKIE_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000)
-
-const cookieOptions = {
+const clearSessionCookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-  maxAge: COOKIE_MAX_AGE,
   path: '/',
+}
+const buildSessionCookieOptions = (maxAgeMs) => ({
+  ...clearSessionCookieOptions,
+  maxAge: maxAgeMs,
+})
+
+// Helper: send user data + token as response
+const sendToken = async (user, status, res, company) => {
+  const tenant = normalizeTenant(company) || getDefaultTenant()
+  const settings = await loadAdminSettings(tenant)
+  const maxAgeMs = resolveSessionMaxAgeMs(settings)
+  const expiresIn = resolveJwtExpiresIn(maxAgeMs)
+  const token = createToken(user._id, tenant, expiresIn)
+  res.cookie('sessionToken', token, buildSessionCookieOptions(maxAgeMs))
+  const csrfToken = generateCsrfToken()
+  setCsrfCookie(res, csrfToken)
+  // Also send CSRF token in response body so cross-domain frontends can store and use it
+  res.setHeader('X-CSRF-Token', csrfToken)
+  user.password = undefined // never send password
+  res.status(status).json({
+    success: true,
+    csrfToken,
+    user: {
+      id:             user._id,
+      name:           user.name,
+      fullName:       user.fullName,
+      email:          user.email,
+      role:           user.role,
+      department:     user.department,
+      allowedModules: user.allowedModules,
+      assignedTasks:  user.assignedTasks,
+      title:          user.title,
+      phone:          user.phone,
+      location:       user.location,
+      timezone:       user.timezone,
+      employeeCode:   user.employeeCode,
+      notes:          user.notes,
+      modulePermissions: user.modulePermissions,
+      company: tenant,
+    },
+  })
+}
+
+const validatePasswordForTenant = async (tenant, password) => {
+  const settings = await loadAdminSettings(tenant)
+  return validatePasswordPolicy(password, settings.passwordPolicy)
 }
 
 const setupSchema = Joi.object({
@@ -95,40 +144,6 @@ const updateRoleSchema = Joi.object({
   password: Joi.string().min(6).max(128).allow('').optional(),
 })
 
-// Helper: send user data + token as response
-const sendToken = (user, status, res, company) => {
-  const tenant = normalizeTenant(company) || getDefaultTenant()
-  const token = createToken(user._id, tenant)
-  res.cookie('sessionToken', token, cookieOptions)
-  const csrfToken = generateCsrfToken()
-  setCsrfCookie(res, csrfToken)
-  // Also send CSRF token in response body so cross-domain frontends can store and use it
-  res.setHeader('X-CSRF-Token', csrfToken)
-  user.password = undefined // never send password
-  res.status(status).json({
-    success: true,
-    csrfToken,
-    user: {
-      id:             user._id,
-      name:           user.name,
-      fullName:       user.fullName,
-      email:          user.email,
-      role:           user.role,
-      department:     user.department,
-      allowedModules: user.allowedModules,
-      assignedTasks:  user.assignedTasks,
-      title:          user.title,
-      phone:          user.phone,
-      location:       user.location,
-      timezone:       user.timezone,
-      employeeCode:   user.employeeCode,
-      notes:          user.notes,
-      modulePermissions: user.modulePermissions,
-      company: tenant,
-    },
-  })
-}
-
 // ==========================================
 // POST /api/auth/setup
 // Creates the FIRST Super Admin account.
@@ -154,8 +169,9 @@ router.post('/setup', validateBody(setupSchema), async (req, res) => {
     const { name, password } = req.body
     if (!name || !password)
       return res.status(400).json({ success: false, message: 'Name and password are required.' })
-    if (password.length < 8)
-      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' })
+    const passwordError = await validatePasswordForTenant(tenant, password)
+    if (passwordError)
+      return res.status(400).json({ success: false, message: passwordError })
 
     // Create super admin — use name as login identifier (no email needed)
     const user = await TenantUser.create({
@@ -165,7 +181,7 @@ router.post('/setup', validateBody(setupSchema), async (req, res) => {
       role: 'super_admin',
     })
 
-    sendToken(user, 201, res, tenant)
+    await sendToken(user, 201, res, tenant)
   } catch (err) {
     console.error('Setup error:', err)
     res.status(500).json({ success: false, message: 'Server error.' })
@@ -204,7 +220,7 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
     user.lastLogin = new Date()
     await user.save({ validateBeforeSave: false })
 
-    sendToken(user, 200, res, tenant)
+    await sendToken(user, 200, res, tenant)
   } catch (err) {
     console.error('Login error:', err)
     res.status(500).json({ success: false, message: 'Server error.' })
@@ -246,7 +262,7 @@ router.get('/me', protect, (req, res) => {
 })
 
 router.post('/logout', protect, (req, res) => {
-  res.clearCookie('sessionToken', { ...cookieOptions, maxAge: undefined })
+  res.clearCookie('sessionToken', clearSessionCookieOptions)
   clearCsrfCookie(res)
   res.json({ success: true, message: 'Logged out.' })
 })
@@ -263,12 +279,14 @@ router.post('/refresh', protect, async (req, res) => {
     const TenantUser = await User.getTenantModel(req.tenant)
     const user = await TenantUser.findById(req.user._id).select('-password')
     if (!user || !user.isActive) {
-      res.clearCookie('sessionToken', { ...cookieOptions, maxAge: undefined })
+      res.clearCookie('sessionToken', clearSessionCookieOptions)
       return res.status(401).json({ success: false, message: 'Session revoked.' })
     }
-    // Issue a fresh token — effectively sliding the expiry window
-    const token = createToken(user._id, req.tenant)
-    res.cookie('sessionToken', token, cookieOptions)
+    const settings = await loadAdminSettings(req.tenant)
+    const maxAgeMs = resolveSessionMaxAgeMs(settings)
+    const expiresIn = resolveJwtExpiresIn(maxAgeMs)
+    const token = createToken(user._id, req.tenant, expiresIn)
+    res.cookie('sessionToken', token, buildSessionCookieOptions(maxAgeMs))
     setCsrfCookie(res)
     res.json({ success: true, message: 'Session refreshed.' })
   } catch (err) {
@@ -300,8 +318,9 @@ router.post('/users', protect, restrictTo('super_admin'), validateBody(createUse
 
     if (!name || !password)
       return res.status(400).json({ success: false, message: 'Name and password are required.' })
-    if (password.length < 8)
-      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' })
+    const passwordError = await validatePasswordForTenant(req.tenant, password)
+    if (passwordError)
+      return res.status(400).json({ success: false, message: passwordError })
 
     const TenantUser = await User.getTenantModel(req.tenant)
 
@@ -369,7 +388,12 @@ router.put('/users/:id/role', protect, restrictTo('super_admin'), validateParams
     user.timezone = timezone || 'Africa/Johannesburg'
     user.employeeCode = employeeCode || ''
     user.notes = notes || ''
-    if (password) user.password = password
+    if (password) {
+      const passwordError = await validatePasswordForTenant(req.tenant, password)
+      if (passwordError)
+        return res.status(400).json({ success: false, message: passwordError })
+      user.password = password
+    }
 
     await user.save()
     user.password = undefined

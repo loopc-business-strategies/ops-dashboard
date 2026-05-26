@@ -59,6 +59,19 @@ describe('ERP access policy', () => {
     expect(policy.canAccessTransactions).toBe(false)
   })
 
+  test('management role is read-only for ERP manage actions', () => {
+    const policy = deriveErpAccessPolicy({
+      role: 'management',
+      allowedModules: ['erp'],
+    })
+
+    expect(policy.isManagementRole).toBe(true)
+    expect(policy.canAccessTransactions).toBe(true)
+    expect(policy.canManageCustomers).toBe(false)
+    expect(policy.canManageVendors).toBe(false)
+    expect(policy.canManageAccounts).toBe(false)
+  })
+
   test('customer margin and account summary permissions are not role blocked', () => {
     const policy = deriveErpAccessPolicy({
       role: 'external',

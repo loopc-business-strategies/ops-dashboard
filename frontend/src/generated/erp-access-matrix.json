@@ -186,8 +186,7 @@
     },
     "canManageDirectDeals": {
       "roles": [
-        "super_admin",
-        "management"
+        "super_admin"
       ],
       "departmentHead": [
         "finance",
@@ -206,8 +205,7 @@
     },
     "canManageCustomers": {
       "roles": [
-        "super_admin",
-        "management"
+        "super_admin"
       ],
       "departmentHead": [
         "finance",
@@ -230,8 +228,7 @@
   "transactionTypes": {
     "sale": {
       "roles": [
-        "super_admin",
-        "management"
+        "super_admin"
       ],
       "departmentHead": [
         "finance",
@@ -240,8 +237,7 @@
     },
     "receipt": {
       "roles": [
-        "super_admin",
-        "management"
+        "super_admin"
       ],
       "departmentHead": [
         "finance",
