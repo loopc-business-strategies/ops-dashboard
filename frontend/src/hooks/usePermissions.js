@@ -7,22 +7,18 @@
 //   const { canManageUsers, isReadOnly, canEditDepartment } = usePermissions()
 
 import { useAuth } from '../context/AuthContext'
+import {
+  canViewERPModule,
+  canViewErpSubTab,
+  hasGranularModulePermissions,
+} from '../utils/erpSubTabPermissions'
 
 export function usePermissions() {
   const { user } = useAuth()
   const role = user?.role || ''
-  const erpPermission = user?.modulePermissions?.erp
-  const hasGranularPermissions = Boolean(user?.modulePermissions && Object.keys(user.modulePermissions).length > 0)
+  const hasGranularPermissions = hasGranularModulePermissions(user)
 
-  const canViewERPSubTab = (subTab) => {
-    if (role === 'super_admin') return true
-    if (hasGranularPermissions && erpPermission?.on !== true) return false
-    if (!hasGranularPermissions && (user?.allowedModules || []).includes('erp')) return true
-    if (erpPermission?.on !== true) return false
-    const configuredSubs = erpPermission?.subs || {}
-    if (!Object.keys(configuredSubs).length) return true
-    return configuredSubs[subTab]?.on === true
-  }
+  const canViewERPSubTab = (subTab) => canViewErpSubTab(user, subTab)
 
   return {
     isSuperAdmin:     role === 'super_admin',
@@ -71,7 +67,7 @@ export function usePermissions() {
     canViewStrategic: ['super_admin', 'management', 'department_head'].includes(role),
 
     // ERP access — super_admin always; others via allowedModules or granular modulePermissions
-    canViewERP: role === 'super_admin' || (hasGranularPermissions ? erpPermission?.on === true : (user?.allowedModules || []).includes('erp')),
+    canViewERP: canViewERPModule(user),
     canViewERPSubTab,
   }
 }

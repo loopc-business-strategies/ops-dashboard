@@ -22,6 +22,7 @@ import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage, LANGUAGES } from '../context/LanguageContext'
 import { getTenantBranding } from '../config/tenantBranding'
+import { resolveAllowedErpSubTab } from '../utils/erpSubTabPermissions'
 import BuildInfoBadge from '../components/BuildInfoBadge'
 import TopbarMetalTickers from '../components/TopbarMetalTickers'
 import { startUserNotifications } from '../utils/realtimeSocket'
@@ -406,7 +407,7 @@ function Dashboard() {
     if (tabParam) {
       if (tabParam.startsWith('erp-')) {
         setActiveTab('erp')
-        setErpSubTab(tabParam.replace('erp-', ''))
+        setErpSubTab(resolveAllowedErpSubTab(user, tabParam.replace('erp-', ''), 'dashboard'))
       } else {
         setActiveTab(tabParam)
       }

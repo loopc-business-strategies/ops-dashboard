@@ -23,6 +23,29 @@ describe('ERP access policy', () => {
     expect(policy.canAccessInventory).toBe(false)
   })
 
+  test('granular ERP sub tabs block unconfigured ERP pages', () => {
+    const policy = deriveErpAccessPolicy({
+      role: 'management',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            dashboard: { on: true },
+            customers: { on: true },
+          },
+        },
+      },
+    })
+
+    expect(policy.canAccessERP).toBe(true)
+    expect(policy.canViewAccounts).toBe(true)
+    expect(policy.canAccessTransactions).toBe(false)
+    expect(policy.canAccessInventory).toBe(false)
+    expect(policy.canAccessErpSettings).toBe(false)
+    expect(policy.canAccessCurrencies).toBe(false)
+    expect(policy.canAccessFixingRegister).toBe(false)
+  })
+
   test('blocks ERP when granular ERP permission is off', () => {
     const policy = deriveErpAccessPolicy({
       role: 'management',

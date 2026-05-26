@@ -84,6 +84,10 @@ import {
 } from './erp/statementHelpers'
 import { shouldSuppressSpotMetalMtmForAccountEnquiry } from './erp/metalMarginPolicy'
 import {
+  canViewErpSubTab,
+  resolveAllowedErpSubTab,
+} from '../../utils/erpSubTabPermissions'
+import {
   JV_MODE_META,
   buildJvDocNo as buildNextJvDocNo,
   convertJvAmountBetweenCurrencies,
@@ -157,6 +161,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
   const TRANSACTION_ACTION_LABELS = getTransactionActionLabels(t)
   const { activeTab, setActiveTab } = useERPTabStateAdapter(focusTab)
+  useEffect(() => {
+    const allowedTab = resolveAllowedErpSubTab(user, activeTab, focusTab || 'dashboard')
+    if (allowedTab !== activeTab) {
+      setActiveTab(allowedTab)
+    }
+  }, [activeTab, focusTab, user, setActiveTab])
+  const canViewCurrentErpSubTab = canViewErpSubTab(user, activeTab)
   const dashStorageKey = `erp_dash_${user?.name || 'default'}`
   const [dashWidgets, setDashWidgets] = useState(() => [...ERP_DASH_DEFAULT])
   useLayoutEffect(() => {
@@ -2964,6 +2975,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       setError('You do not have access to the ERP Accounting module.')
       return
     }
+    if (!canViewErpSubTab(user, activeTab)) return
     if (activeTab === 'dashboard') loadDashboard()
     else if (activeTab === 'accounts') loadAccounts()
     else if (activeTab === 'customer-margin') loadCustomers({ limit: 200 })
@@ -4603,6 +4615,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: C.t2 }}>
         <p>⛔ ERP access restricted for your role.</p>
+      </div>
+    )
+  }
+  if (!canViewCurrentErpSubTab) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center', color: C.t2 }}>
+        <p>⛔ This ERP page is not enabled in your permissions.</p>
       </div>
     )
   }

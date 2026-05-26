@@ -557,7 +557,7 @@ function UsersTab({ users, token, onRefresh, onOpenPermissions }) {
             <tbody>
               {filteredUsers.map((u) => {
                 const rc = ROLE_COLOR[u.role] || ROLE_COLOR.department_user
-                const isSelf = u._id === me?.id
+                const isSelf = String(u._id) === String(me?.id || me?._id || '')
                 return (
                   <tr key={u._id} style={{ borderBottom: `1px solid ${ADMIN.border}` }}>
                     <td style={{ padding: '0.85rem 1rem', verticalAlign: 'top' }}>
@@ -635,7 +635,7 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
   useEffect(() => {
     const u = users.find((x) => x._id === selectedUserId)
     setPerms(u?.modulePermissions || {})
-  }, [selectedUserId])
+  }, [selectedUserId, users])
 
   const filteredSidebarUsers = useMemo(() => {
     const q = userQuery.trim().toLowerCase()

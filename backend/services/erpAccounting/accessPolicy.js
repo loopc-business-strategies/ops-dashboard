@@ -42,7 +42,7 @@ function evaluatePermission(user, key) {
 
 const ERP_PERMISSION_TO_SUBTAB = {
   canViewAccounts: ['accounts', 'dashboard'],
-  canManageAccounts: ['accounts'],
+  canManageAccounts: ['accounts', 'mappings'],
   canViewMappings: ['mappings'],
   canManageMappings: ['mappings'],
   canViewAccountSummary: ['enquiry'],
@@ -59,6 +59,9 @@ const ERP_PERMISSION_TO_SUBTAB = {
   canViewCustomers: ['customers', 'customer-margin'],
   canManageCustomers: ['customers'],
   canAccessVouchers: ['vouchers'],
+  canAccessErpSettings: ['settings'],
+  canAccessCurrencies: ['currencies'],
+  canAccessFixingRegister: ['fixing-register'],
 }
 
 function hasGranularPermissions(user) {
@@ -76,6 +79,17 @@ function hasErpSubTab(user, subTabs) {
   if (!Object.keys(configuredSubs).length) return true
 
   return subTabs.some((subTab) => configuredSubs[subTab]?.on === true)
+}
+
+function getAllowedErpSubTabs(user) {
+  const allSubs = [...new Set(Object.values(ERP_PERMISSION_TO_SUBTAB).flat())]
+  if (isSuperAdmin(user)) return allSubs
+  if (!hasGranularPermissions(user)) return null
+  const erpPermission = user?.modulePermissions?.erp
+  if (erpPermission?.on !== true) return []
+  const configuredSubs = erpPermission?.subs || {}
+  if (!Object.keys(configuredSubs).length) return allSubs
+  return allSubs.filter((subTab) => configuredSubs[subTab]?.on === true)
 }
 
 function evaluateErpPermission(user, key) {
@@ -201,7 +215,10 @@ function deriveErpAccessPolicy(user) {
   const canAccessTransactionsValue = canAccessTransactions(user)
   const canAccessInventoryValue = canAccessInventory(user)
   const canViewAccountsValue = canViewAccounts(user)
-  const granularErpAccess = hasErpSubTab(user, Object.values(ERP_PERMISSION_TO_SUBTAB).flat())
+  const granularAllowedSubs = getAllowedErpSubTabs(user)
+  const granularErpAccess = Array.isArray(granularAllowedSubs)
+    ? granularAllowedSubs.length > 0
+    : hasErpSubTab(user, Object.values(ERP_PERMISSION_TO_SUBTAB).flat())
   return {
     isSuperAdmin: isSuperAdmin(user),
     isDepartmentHead: isDepartmentHead(user),

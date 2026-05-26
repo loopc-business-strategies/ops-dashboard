@@ -1,4 +1,10 @@
 import accessMatrix from '../../../generated/erp-access-matrix.json'
+import {
+  canViewErpSubTab,
+  canViewERPModule,
+  getAllowedErpSubTabs,
+  hasGranularModulePermissions,
+} from '../../../utils/erpSubTabPermissions'
 
 function getRole(user) {
   return String(user?.role || '').toLowerCase()
@@ -27,7 +33,7 @@ function evaluatePermission(user, key) {
 
 const ERP_PERMISSION_TO_SUBTAB = {
   canViewAccounts: ['accounts', 'dashboard'],
-  canManageAccounts: ['accounts'],
+  canManageAccounts: ['accounts', 'mappings'],
   canViewLedger: ['ledger'],
   canViewCustomers: ['customers', 'customer-margin'],
   canManageCustomers: ['customers'],
@@ -42,23 +48,19 @@ const ERP_PERMISSION_TO_SUBTAB = {
   canAccessInventory: ['inventory'],
   canAccessVouchers: ['vouchers'],
   canAccessDirectDeals: ['direct-deals'],
+  canAccessErpSettings: ['settings'],
+  canAccessCurrencies: ['currencies'],
+  canAccessFixingRegister: ['fixing-register'],
 }
 
 function hasGranularPermissions(user) {
-  return Boolean(user?.modulePermissions && Object.keys(user.modulePermissions).length > 0)
+  return hasGranularModulePermissions(user)
 }
 
 function hasErpSubTab(user, subTabs) {
-  if (getRole(user) === 'super_admin') return true
+  if (String(user?.role || '').toLowerCase() === 'super_admin') return true
   if (!hasGranularPermissions(user)) return null
-
-  const erpPermission = user?.modulePermissions?.erp
-  if (erpPermission?.on !== true) return false
-
-  const configuredSubs = erpPermission?.subs || {}
-  if (!Object.keys(configuredSubs).length) return true
-
-  return subTabs.some((subTab) => configuredSubs[subTab]?.on === true)
+  return subTabs.some((subTab) => canViewErpSubTab(user, subTab))
 }
 
 function evaluateErpPermission(user, key) {
@@ -95,9 +97,14 @@ export function deriveErpAccessPolicy(user) {
   const canAccessInventory = evaluateErpPermission(user, 'canAccessInventory')
   const canAccessVouchers = evaluateErpPermission(user, 'canAccessVouchers')
   const canAccessDirectDeals = evaluateErpPermission(user, 'canAccessDirectDeals')
-  const canAccessERP = hasErpSubTab(user, Object.values(ERP_PERMISSION_TO_SUBTAB).flat()) ?? (
-    canViewAccounts || canAccessTransactions || canAccessInventory || canViewCustomers
-  )
+  const canAccessErpSettings = evaluateErpPermission(user, 'canAccessErpSettings')
+  const canAccessCurrencies = evaluateErpPermission(user, 'canAccessCurrencies')
+  const canAccessFixingRegister = evaluateErpPermission(user, 'canAccessFixingRegister')
+  const canAccessERP = hasGranularPermissions(user)
+    ? getAllowedErpSubTabs(user).length > 0
+    : (canViewERPModule(user) && (
+      canViewAccounts || canAccessTransactions || canAccessInventory || canViewCustomers
+    ))
 
   return {
     isSuperAdmin,
@@ -123,6 +130,9 @@ export function deriveErpAccessPolicy(user) {
     canAccessInventory,
     canAccessVouchers,
     canAccessDirectDeals,
+    canAccessErpSettings,
+    canAccessCurrencies,
+    canAccessFixingRegister,
     canAccessERP,
   }
 }
