@@ -39,24 +39,26 @@ const ALL_PERM_ROWS = [
 ]
 
 const ERP_PERMISSION_ROWS = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'accounts', label: 'Accounts' },
-  { id: 'mappings', label: 'Mappings' },
-  { id: 'settings', label: 'Settings' },
-  { id: 'currencies', label: 'Currency Master' },
-  { id: 'enquiry', label: 'Account Summary' },
-  { id: 'customers', label: 'Customers' },
-  { id: 'customer-margin', label: 'Customer Margin' },
-  { id: 'supplier-margin', label: 'Supplier Margin' },
-  { id: 'ledger', label: 'Ledger' },
-  { id: 'transactions', label: 'Transactions' },
-  { id: 'reports', label: 'Reports' },
-  { id: 'vendors', label: 'Vendors' },
-  { id: 'inventory', label: 'Inventory' },
-  { id: 'vouchers', label: 'Vouchers' },
-  { id: 'direct-deals', label: 'Direct Deals' },
-  { id: 'fixing-register', label: 'Fixing Register' },
+  { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+  { id: 'accounts', label: 'Accounts', icon: '📁' },
+  { id: 'mappings', label: 'Mappings', icon: '🔗' },
+  { id: 'settings', label: 'Settings', icon: '⚙️' },
+  { id: 'currencies', label: 'Currency Master', icon: '💱' },
+  { id: 'enquiry', label: 'Account Summary', icon: '🔍' },
+  { id: 'customers', label: 'Customers', icon: '👥' },
+  { id: 'customer-margin', label: 'Customer Margin', icon: '📈' },
+  { id: 'supplier-margin', label: 'Supplier Margin', icon: '📉' },
+  { id: 'ledger', label: 'Ledger', icon: '📒' },
+  { id: 'transactions', label: 'Transactions', icon: '🔄' },
+  { id: 'reports', label: 'Reports', icon: '📋' },
+  { id: 'vendors', label: 'Vendors', icon: '🏢' },
+  { id: 'inventory', label: 'Inventory', icon: '📦' },
+  { id: 'vouchers', label: 'Vouchers', icon: '🧾' },
+  { id: 'direct-deals', label: 'Direct Deals', icon: '🤝' },
+  { id: 'fixing-register', label: 'Fixing Register', icon: '📌' },
 ]
+
+const PERMISSIONS_PANEL_HEIGHT = 'min(640px, calc(100vh - 210px))'
 
 const SETTINGS_KEY = 'ops-dashboard-admin-settings-v2'
 
@@ -620,10 +622,95 @@ function actionBtn(color, bg) {
   return { padding: '0.28rem 0.55rem', borderRadius: 6, border: `1px solid ${color}33`, background: bg, color, fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }
 }
 
+function PermissionToggle({ checked, onChange, compact = false }) {
+  const w = compact ? 36 : 44
+  const h = compact ? 20 : 24
+  const knob = compact ? 14 : 18
+  const onLeft = compact ? 18 : 22
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      aria-pressed={checked}
+      style={{
+        width: w,
+        height: h,
+        borderRadius: 999,
+        border: 'none',
+        background: checked ? ADMIN.primary : '#CBD5E1',
+        position: 'relative',
+        cursor: 'pointer',
+        flexShrink: 0,
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute',
+          top: (h - knob) / 2,
+          left: checked ? onLeft : (h - knob) / 2,
+          width: knob,
+          height: knob,
+          borderRadius: '50%',
+          background: '#fff',
+          transition: 'left 0.15s ease',
+          boxShadow: '0 1px 2px rgba(15,23,42,0.12)',
+        }}
+      />
+    </button>
+  )
+}
+
+function PermissionRow({ label, icon, checked, onToggle, compact = false }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '0.45rem',
+        padding: compact ? '0.32rem 0.55rem' : '0.75rem 1rem',
+        borderBottom: `1px solid ${ADMIN.border}`,
+        minHeight: compact ? 34 : undefined,
+      }}
+    >
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+        {icon && <span style={{ fontSize: compact ? '0.82rem' : '0.95rem', lineHeight: 1, flexShrink: 0 }}>{icon}</span>}
+        <span style={{ fontSize: compact ? '0.78rem' : '0.875rem', fontWeight: 600, color: ADMIN.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      </span>
+      <PermissionToggle checked={checked} onChange={onToggle} compact={compact} />
+    </div>
+  )
+}
+
+function PermissionGroupCard({ title, desc, rows, checkedFor, onToggle, twoCol = false }) {
+  return (
+    <section style={{ background: '#fff', border: `1px solid ${ADMIN.border}`, borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div style={{ padding: '0.45rem 0.65rem 0.35rem', borderBottom: `1px solid ${ADMIN.border}`, background: '#FAFBFC' }}>
+        <p style={{ margin: 0, fontSize: '0.64rem', fontWeight: 800, color: ADMIN.inkSoft, letterSpacing: '0.08em' }}>{title}</p>
+        <p style={{ margin: '0.1rem 0 0', fontSize: '0.68rem', color: ADMIN.inkSoft }}>{desc}</p>
+      </div>
+      <div style={{ display: twoCol ? 'grid' : 'block', gridTemplateColumns: twoCol ? '1fr 1fr' : undefined, flex: 1, minHeight: 0 }}>
+        {rows.map((row, idx) => (
+          <PermissionRow
+            key={row.id}
+            label={row.label}
+            icon={row.icon}
+            checked={checkedFor(row.id)}
+            onToggle={() => onToggle(row.id)}
+            compact
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function PermissionsTab({ users, token, initialUserId, onRefresh }) {
   const selectableUsers = useMemo(() => users.filter((u) => u.role !== 'super_admin'), [users])
   const [selectedUserId, setSelectedUserId] = useState(initialUserId || selectableUsers[0]?._id || null)
   const [userQuery, setUserQuery] = useState('')
+  const [erpModuleQuery, setErpModuleQuery] = useState('')
+  const [erpSectionOpen, setErpSectionOpen] = useState(true)
   const [perms, setPerms] = useState({})
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
@@ -681,6 +768,12 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
 
   const isErpSubOn = (subId) => erpAllEnabled || !!erpSubs[subId]?.on
 
+  const filteredErpRows = useMemo(() => {
+    const q = erpModuleQuery.trim().toLowerCase()
+    if (!q) return ERP_PERMISSION_ROWS
+    return ERP_PERMISSION_ROWS.filter((row) => row.label.toLowerCase().includes(q) || row.id.includes(q))
+  }, [erpModuleQuery])
+
   const handleSave = async () => {
     if (!selectedUser) return
     setSaving(true)
@@ -698,75 +791,136 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
   return (
     <div>
       <Toast message={toast} />
-      <div style={{ display: 'flex', border: `1px solid ${ADMIN.border}`, borderRadius: 14, overflow: 'hidden', background: ADMIN.card, minHeight: 620, boxShadow: '0 4px 16px rgba(15,23,42,0.04)' }}>
-        <div style={{ width: 260, borderRight: `1px solid ${ADMIN.border}`, background: '#F8FAFC', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '0.85rem 1rem', borderBottom: `1px solid ${ADMIN.border}`, background: '#fff' }}>
-            <p style={{ margin: '0 0 0.55rem', fontSize: '0.68rem', fontWeight: 800, color: ADMIN.inkSoft, letterSpacing: '0.08em' }}>USERS</p>
+      <div style={{
+        display: 'flex',
+        border: `1px solid ${ADMIN.border}`,
+        borderRadius: 14,
+        overflow: 'hidden',
+        background: ADMIN.card,
+        height: PERMISSIONS_PANEL_HEIGHT,
+        maxHeight: PERMISSIONS_PANEL_HEIGHT,
+        boxShadow: '0 4px 16px rgba(15,23,42,0.04)',
+      }}
+      >
+        <div style={{ width: 220, borderRight: `1px solid ${ADMIN.border}`, background: '#F8FAFC', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ padding: '0.65rem 0.75rem', borderBottom: `1px solid ${ADMIN.border}`, background: '#fff' }}>
+            <p style={{ margin: '0 0 0.45rem', fontSize: '0.64rem', fontWeight: 800, color: ADMIN.inkSoft, letterSpacing: '0.08em' }}>USERS</p>
             <div style={{ position: 'relative' }}>
-              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: ADMIN.inkSoft, fontSize: '0.8rem' }}>🔍</span>
-              <input value={userQuery} onChange={(e) => setUserQuery(e.target.value)} placeholder="Search users..." style={{ width: '100%', padding: '0.45rem 0.65rem 0.45rem 1.85rem', borderRadius: 8, border: `1px solid ${ADMIN.border}`, fontSize: '0.8rem' }} />
+              <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: ADMIN.inkSoft, fontSize: '0.75rem' }}>🔍</span>
+              <input value={userQuery} onChange={(e) => setUserQuery(e.target.value)} placeholder="Search users..." style={{ width: '100%', padding: '0.38rem 0.55rem 0.38rem 1.65rem', borderRadius: 8, border: `1px solid ${ADMIN.border}`, fontSize: '0.76rem' }} />
             </div>
           </div>
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            {filteredSidebarUsers.map((u) => (
-              <button
-                type="button"
-                key={u._id}
-                onClick={() => setSelectedUserId(u._id)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.65rem 0.85rem', border: 'none', borderLeft: `3px solid ${selectedUserId === u._id ? ADMIN.primary : 'transparent'}`, background: selectedUserId === u._id ? ADMIN.purpleSoft : 'transparent', cursor: 'pointer', textAlign: 'left' }}
-              >
-                <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarColor(u.name), color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: '0.78rem' }}>{u.name?.[0]?.toUpperCase()}</div>
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: '0.84rem', fontWeight: 700, color: ADMIN.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.fullName || u.name}</p>
-                  <p style={{ margin: '0.1rem 0 0', fontSize: '0.72rem', color: ADMIN.inkSoft, textTransform: 'capitalize' }}>{roleLabel(u.role)}</p>
-                </div>
-              </button>
-            ))}
+          <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+            {filteredSidebarUsers.map((u) => {
+              const rc = ROLE_COLOR[u.role] || ROLE_COLOR.department_user
+              const selected = selectedUserId === u._id
+              return (
+                <button
+                  type="button"
+                  key={u._id}
+                  onClick={() => setSelectedUserId(u._id)}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.55rem',
+                    padding: '0.55rem 0.7rem',
+                    border: 'none',
+                    borderLeft: `3px solid ${selected ? ADMIN.primary : 'transparent'}`,
+                    background: selected ? ADMIN.purpleSoft : 'transparent',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ width: 30, height: 30, borderRadius: '50%', background: avatarColor(u.name), color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: '0.72rem', flexShrink: 0 }}>{u.name?.[0]?.toUpperCase()}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: '0.78rem', fontWeight: 700, color: ADMIN.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.fullName || u.name}</p>
+                    <span style={{ display: 'inline-block', marginTop: 3, padding: '0.08rem 0.38rem', borderRadius: 999, background: rc.bg, color: rc.text, border: `1px solid ${rc.border}`, fontSize: '0.62rem', fontWeight: 700 }}>{roleLabel(u.role)}</span>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
           {!selectedUser ? (
             <div style={{ flex: 1, display: 'grid', placeItems: 'center', color: ADMIN.inkSoft }}>Select a user to manage permissions</div>
           ) : (
             <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.85rem 1.1rem', borderBottom: `1px solid ${ADMIN.border}`, background: '#fff' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: avatarColor(selectedUser.name), color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800 }}>{selectedUser.name?.[0]?.toUpperCase()}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.55rem 0.85rem', borderBottom: `1px solid ${ADMIN.border}`, background: '#fff', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarColor(selectedUser.name), color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: '0.82rem' }}>{selectedUser.name?.[0]?.toUpperCase()}</div>
                   <div>
-                    <p style={{ margin: 0, fontWeight: 800, color: ADMIN.ink }}>{selectedUser.fullName || selectedUser.name}</p>
-                    <span style={{ display: 'inline-block', marginTop: 4, padding: '0.12rem 0.45rem', borderRadius: 999, background: ADMIN.purpleSoft, color: ADMIN.primary, fontSize: '0.68rem', fontWeight: 700 }}>{roleLabel(selectedUser.role)}</span>
+                    <p style={{ margin: 0, fontWeight: 800, color: ADMIN.ink, fontSize: '0.92rem' }}>{selectedUser.fullName || selectedUser.name}</p>
+                    <span style={{ display: 'inline-block', marginTop: 2, padding: '0.08rem 0.38rem', borderRadius: 999, background: ADMIN.purpleSoft, color: ADMIN.primary, fontSize: '0.62rem', fontWeight: 700 }}>{roleLabel(selectedUser.role)}</span>
                   </div>
                 </div>
-                <button type="button" onClick={handleSave} disabled={saving} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', borderRadius: 8, border: 'none', background: ADMIN.primary, color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
+                <button type="button" onClick={handleSave} disabled={saving} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem', borderRadius: 8, border: 'none', background: ADMIN.primary, color: '#fff', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
                   💾 {saving ? 'Saving…' : 'Save Permissions'}
                 </button>
               </div>
 
-              <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.1rem', background: '#F8FAFC' }}>
-                {['GENERAL', 'DEPARTMENTS', 'ERP'].map((group) => {
-                  const rows = group === 'ERP' ? ERP_PERMISSION_ROWS : ALL_PERM_ROWS.filter((r) => r.group === group)
-                  const groupDesc = group === 'GENERAL' ? 'Core workspace areas' : group === 'DEPARTMENTS' ? 'Department modules available in the sidebar' : 'ERP pages available in the sidebar'
-                  return (
-                    <section key={group} style={{ marginBottom: '1rem' }}>
-                      <p style={{ margin: '0 0 0.15rem', fontSize: '0.72rem', fontWeight: 800, color: ADMIN.inkSoft, letterSpacing: '0.08em' }}>{group}</p>
-                      <p style={{ margin: '0 0 0.55rem', fontSize: '0.75rem', color: ADMIN.inkSoft }}>{groupDesc}</p>
-                      <div style={{ background: '#fff', border: `1px solid ${ADMIN.border}`, borderRadius: 12, overflow: 'hidden' }}>
-                        {rows.map((row, idx) => {
-                          const isOn = group === 'ERP' ? isErpSubOn(row.id) : !!perms[row.id]?.on
-                          return (
-                            <div key={row.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderBottom: idx < rows.length - 1 ? `1px solid ${ADMIN.border}` : 'none' }}>
-                              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: ADMIN.ink }}>{row.label}</span>
-                              <button type="button" onClick={() => (group === 'ERP' ? toggleErpSubTab(row.id) : toggleModule(row.id))} style={{ width: 44, height: 24, borderRadius: 999, border: 'none', background: isOn ? ADMIN.primary : '#CBD5E1', position: 'relative', cursor: 'pointer' }}>
-                                <span style={{ position: 'absolute', top: 3, left: isOn ? 22 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.15s ease' }} />
-                              </button>
-                            </div>
-                          )
-                        })}
+              <div style={{
+                flex: 1,
+                minHeight: 0,
+                overflow: 'hidden',
+                padding: '0.55rem 0.75rem',
+                display: 'grid',
+                gridTemplateRows: 'auto 1fr',
+                gap: '0.5rem',
+                background: '#F8FAFC',
+              }}
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 0.75fr) minmax(280px, 1.25fr)', gap: '0.5rem', minHeight: 0 }}>
+                  <PermissionGroupCard
+                    title="GENERAL"
+                    desc="Core workspace areas"
+                    rows={ALL_PERM_ROWS.filter((row) => row.group === 'GENERAL')}
+                    checkedFor={(id) => !!perms[id]?.on}
+                    onToggle={toggleModule}
+                  />
+                  <PermissionGroupCard
+                    title="DEPARTMENTS"
+                    desc="Department modules available in the sidebar"
+                    rows={ALL_PERM_ROWS.filter((row) => row.group === 'DEPARTMENTS')}
+                    checkedFor={(id) => !!perms[id]?.on}
+                    onToggle={toggleModule}
+                    twoCol
+                  />
+                </div>
+
+                <section style={{ background: '#fff', border: `1px solid ${ADMIN.border}`, borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', padding: '0.45rem 0.65rem', borderBottom: `1px solid ${ADMIN.border}`, background: '#FAFBFC', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+                      <button type="button" onClick={() => setErpSectionOpen((open) => !open)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: ADMIN.inkSoft, fontSize: '0.75rem', padding: 0 }} aria-label={erpSectionOpen ? 'Collapse ERP section' : 'Expand ERP section'}>
+                        {erpSectionOpen ? '▾' : '▸'}
+                      </button>
+                      <div>
+                        <p style={{ margin: 0, fontSize: '0.64rem', fontWeight: 800, color: ADMIN.inkSoft, letterSpacing: '0.08em' }}>ERP</p>
+                        <p style={{ margin: '0.08rem 0 0', fontSize: '0.68rem', color: ADMIN.inkSoft }}>ERP pages available in the sidebar · {ERP_PERMISSION_ROWS.length} items</p>
                       </div>
-                    </section>
-                  )
-                })}
+                    </div>
+                    <div style={{ position: 'relative', width: 'min(220px, 42%)' }}>
+                      <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: ADMIN.inkSoft, fontSize: '0.72rem' }}>🔍</span>
+                      <input value={erpModuleQuery} onChange={(e) => setErpModuleQuery(e.target.value)} placeholder="Search modules..." style={{ width: '100%', padding: '0.32rem 0.5rem 0.32rem 1.55rem', borderRadius: 8, border: `1px solid ${ADMIN.border}`, fontSize: '0.72rem' }} />
+                    </div>
+                  </div>
+                  {erpSectionOpen && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                      {filteredErpRows.map((row) => (
+                        <PermissionRow
+                          key={row.id}
+                          label={row.label}
+                          icon={row.icon}
+                          checked={isErpSubOn(row.id)}
+                          onToggle={() => toggleErpSubTab(row.id)}
+                          compact
+                        />
+                      ))}
+                    </div>
+                  )}
+                </section>
               </div>
             </>
           )}
