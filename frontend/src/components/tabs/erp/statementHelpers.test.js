@@ -8,6 +8,9 @@ import {
   resolveExposureDirection,
   resolveUnfixedBookedExposureSign,
   resolveBookedLedgerAmount,
+  resolveStatementSignedAmount,
+  sortStatementEntriesForExport,
+  computeStatementExportOpeningBalances,
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
   resolveStatementMetalBalance,
@@ -186,5 +189,45 @@ describe('statement helpers', () => {
     expect(metrics.netEquity).toBe(0)
     expect(metrics.excess).toBeCloseTo(-4.68, 2)
     expect(metrics.marginPercent).toBeCloseTo(5004.487, 1)
+  })
+
+  test('export opening USD balance derives from closing minus period movement', () => {
+    const entries = [
+      {
+        sourceTransactionType: 'purchase',
+        signedAmount: -234.21,
+        creditAmount: 234.21,
+        metalSignedWeight: 999.9,
+        metalCode: 'XAU',
+      },
+      {
+        sourceTransactionType: 'metal_receipt',
+        signedAmount: 0,
+        metalSignedWeight: -995,
+        metalCode: 'XAU',
+      },
+    ]
+
+    const balances = computeStatementExportOpeningBalances({
+      exportEntries: entries,
+      closingNetBalance: -234.21,
+      closingPureWeight: 4.9,
+      matchesMetalEntry: () => true,
+    })
+
+    expect(balances.openingUsdBalance).toBe(0)
+    expect(balances.closingUsdBalance).toBe(-234.21)
+    expect(balances.openingPureWeight).toBeCloseTo(0, 6)
+    expect(balances.closingPureWeight).toBe(4.9)
+  })
+
+  test('export sort places purchase before metal receipt on the same date', () => {
+    const sorted = sortStatementEntriesForExport([
+      { date: '2026-05-26', sourceTransactionType: 'metal_receipt', sourceTransactionNumber: 'MRec/2026/0001' },
+      { date: '2026-05-26', sourceTransactionType: 'purchase', sourceTransactionNumber: 'Pur/2026/0001' },
+    ], (entry) => String(entry.sourceTransactionNumber || ''))
+
+    expect(sorted[0].sourceTransactionType).toBe('purchase')
+    expect(sorted[1].sourceTransactionType).toBe('metal_receipt')
   })
 })

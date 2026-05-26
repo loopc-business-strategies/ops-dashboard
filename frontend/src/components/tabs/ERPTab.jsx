@@ -64,12 +64,15 @@ import {
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
   calculateAccountSummaryMetrics,
+  computeStatementExportOpeningBalances,
   normalizeStatementCurrencyCode,
   resolveExposureDirection,
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
   resolveStatementMetalBalance,
   resolveStatementMetalCode,
+  resolveStatementSignedAmount,
+  sortStatementEntriesForExport,
   isMetalStatementEntry,
 } from './erp/statementHelpers'
 import { shouldSuppressSpotMetalMtmForAccountEnquiry } from './erp/metalMarginPolicy'
@@ -3751,28 +3754,22 @@ function ERPTab({ focusTab, onNavigateMain }) {
   }
   const generateStatementHtml = async () => {
     if (!accountEnquiryData) return null
-    const exportEntries = [...filteredStatementEntries].sort((left, right) => {
-      const leftDate = left?.date ? new Date(left.date).getTime() : 0
-      const rightDate = right?.date ? new Date(right.date).getTime() : 0
-      if (leftDate !== rightDate) return leftDate - rightDate
-      return String(resolveStatementReceiptNo(left)).localeCompare(String(resolveStatementReceiptNo(right)), undefined, { numeric: true, sensitivity: 'base' })
-    })
+    const exportEntries = sortStatementEntriesForExport(filteredStatementEntries, resolveStatementReceiptNo)
     const statementMetalCode = statementSelectedMetalCode || resolvePreferredStatementMetalCode(exportEntries)
     const exportDisplayCurrency = statementDisplayCurrency
     const endingPureWeight = resolveStatementMetalBalance(accountEnquiryData?.metals, statementMetalCode, rawStatementEntries)
-    const totalPureWeightMovement = exportEntries.reduce((sum, entry) => {
-      const signedWeight = Number(entry?.metalSignedWeight || 0)
-      const metalCode = resolveMetalCode(entry)
-      if (metalCode && metalCode !== '-' && !matchesStatementMetal(entry, statementMetalCode)) return sum
-      return sum + signedWeight
-    }, 0)
-    const openingPureWeight = endingPureWeight - totalPureWeightMovement
-    const firstEntry = exportEntries[0] || null
-    const firstSignedAmount = Number(firstEntry?.signedAmount || 0)
-    const firstRunningBalance = Number(firstEntry?.runningBalance || 0)
-    const openingUsdBalance = firstEntry
-      ? (firstRunningBalance - firstSignedAmount)
-      : Number(accountEnquiryData?.balances?.netBalance || 0)
+    const matchesExportMetalEntry = (entry) => matchesStatementMetal(entry, statementMetalCode)
+    const {
+      openingUsdBalance,
+      openingPureWeight,
+      closingUsdBalance,
+      closingPureWeight,
+    } = computeStatementExportOpeningBalances({
+      exportEntries,
+      closingNetBalance: accountEnquiryData?.balances?.netBalance,
+      closingPureWeight: endingPureWeight,
+      matchesMetalEntry: matchesExportMetalEntry,
+    })
     let runningUsdBalance = openingUsdBalance
     let runningPureWeight = openingPureWeight
     const formatDateForHeader = (value) => {
@@ -3810,7 +3807,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       const isSelectedMetalEntry = matchesStatementMetal(entry, statementMetalCode)
       const debitPure = isSelectedMetalEntry && signedPureWeight > 0 ? signedPureWeight : 0
       const creditPure = isSelectedMetalEntry && signedPureWeight < 0 ? Math.abs(signedPureWeight) : 0
-      runningUsdBalance += Number(entry?.signedAmount || (debitUsd - creditUsd))
+      runningUsdBalance += resolveStatementSignedAmount(entry)
       if (isSelectedMetalEntry) runningPureWeight += signedPureWeight
       return `
         <tr>
@@ -3830,14 +3827,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
     const totalCreditUsd = exportEntries.reduce((sum, entry) => sum + Number(entry?.creditAmount || 0), 0)
     const totalDebitPure = exportEntries.reduce((sum, entry) => {
       const signedPureWeight = Number(entry?.metalSignedWeight || 0)
-      return sum + (matchesStatementMetal(entry, statementMetalCode) && signedPureWeight > 0 ? signedPureWeight : 0)
+      return sum + (matchesExportMetalEntry(entry) && signedPureWeight > 0 ? signedPureWeight : 0)
     }, 0)
     const totalCreditPure = exportEntries.reduce((sum, entry) => {
       const signedPureWeight = Number(entry?.metalSignedWeight || 0)
-      return sum + (matchesStatementMetal(entry, statementMetalCode) && signedPureWeight < 0 ? Math.abs(signedPureWeight) : 0)
+      return sum + (matchesExportMetalEntry(entry) && signedPureWeight < 0 ? Math.abs(signedPureWeight) : 0)
     }, 0)
-    const closingUsdBalance = openingUsdBalance + (totalDebitUsd - totalCreditUsd)
-    const closingPureWeight = openingPureWeight + (totalDebitPure - totalCreditPure)
     const tenantIdentity = [
       tenantBranding?.key,
       tenantBranding?.displayName,

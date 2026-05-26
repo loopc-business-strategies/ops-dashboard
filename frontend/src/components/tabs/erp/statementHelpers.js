@@ -195,6 +195,74 @@ export function accumulateUnfixedVoucherRevaluationByMetal(
   }, { gold: 0, silver: 0, other: 0 })
 }
 
+export function resolveStatementSignedAmount(entry = {}) {
+  const signed = Number(entry?.signedAmount)
+  if (Number.isFinite(signed) && signed !== 0) return signed
+  return Number(entry?.debitAmount || 0) - Number(entry?.creditAmount || 0)
+}
+
+const EXPORT_DEAL_RANK = {
+  purchase: 10,
+  sale: 20,
+  metal_receipt: 30,
+  metal_payment: 40,
+}
+
+export function resolveStatementExportDealRank(entry = {}) {
+  const deal = String(
+    entry?.metalDealType || entry?.sourceTransactionType || entry?.referenceType || '',
+  ).trim().toLowerCase()
+  return EXPORT_DEAL_RANK[deal] ?? 50
+}
+
+/** Oldest-first export order: date, then business deal sequence, then receipt/doc no. */
+export function sortStatementEntriesForExport(entries = [], resolveReceiptNo = (entry) => String(entry?._id || '')) {
+  return [...entries].sort((left, right) => {
+    const leftDate = left?.date ? new Date(left.date).getTime() : 0
+    const rightDate = right?.date ? new Date(right.date).getTime() : 0
+    if (leftDate !== rightDate) return leftDate - rightDate
+    const rankDiff = resolveStatementExportDealRank(left) - resolveStatementExportDealRank(right)
+    if (rankDiff !== 0) return rankDiff
+    return String(resolveReceiptNo(left)).localeCompare(
+      String(resolveReceiptNo(right)),
+      undefined,
+      { numeric: true, sensitivity: 'base' },
+    )
+  })
+}
+
+/**
+ * Derive Balance B/F for PDF/print export from closing balances minus in-period movement.
+ * Avoids reusing API running balances that are computed newest-first.
+ */
+export function computeStatementExportOpeningBalances({
+  exportEntries = [],
+  closingNetBalance = 0,
+  closingPureWeight = 0,
+  matchesMetalEntry = () => true,
+} = {}) {
+  const totalSignedUsdMovement = exportEntries.reduce(
+    (sum, entry) => sum + resolveStatementSignedAmount(entry),
+    0,
+  )
+  const totalPureWeightMovement = exportEntries.reduce((sum, entry) => {
+    if (!matchesMetalEntry(entry)) return sum
+    return sum + Number(entry?.metalSignedWeight || 0)
+  }, 0)
+
+  const closingUsdBalance = Number(closingNetBalance || 0)
+  const closingPure = Number(closingPureWeight || 0)
+
+  return {
+    openingUsdBalance: closingUsdBalance - totalSignedUsdMovement,
+    openingPureWeight: closingPure - totalPureWeightMovement,
+    closingUsdBalance,
+    closingPureWeight: closingPure,
+    totalSignedUsdMovement,
+    totalPureWeightMovement,
+  }
+}
+
 export function calculateAccountSummaryMetrics({
   totalFunds = 0,
   revaluation = 0,
