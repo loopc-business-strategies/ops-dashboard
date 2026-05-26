@@ -485,7 +485,14 @@ function ERPTab({ focusTab, onNavigateMain }) {
     const categoryName = productMeta.productCategory || titleCaseWords(productMeta.mainStock || productMeta.metalType || categoryMeta.mainStock || categoryMeta.metalType || item.name)
     const weight = Number(productMeta.grossWeight || productMeta.weight || item.weight || 0)
     const purity = productMeta.productPurity || productMeta.purity || categoryMeta.purity || ''
+    const purityNumeric = Number(purity || 0)
+    const purityFactor = purityNumeric > 1.2 ? purityNumeric / 1000 : purityNumeric
     const purityWeight = Number(productMeta.purityWeight || 0)
+    const pureStockQty = Number.isFinite(purityFactor) && purityFactor > 0
+      ? quantity * purityFactor
+      : quantity
+    const isZeroStock = quantity <= 0
+    const isBelowMinStock = minThreshold > 0 && quantity <= minThreshold
     return {
       item,
       categoryMeta,
@@ -499,8 +506,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
       weight,
       purity,
       purityWeight,
+      pureStockQty,
       stockUnit: item.unit || 'units',
-      isLowStock: minThreshold > 0 && quantity <= minThreshold,
+      isZeroStock,
+      isLowStock: isZeroStock || isBelowMinStock,
     }
   })
   const inventoryTotalQuantity = inventoryReportRows.reduce((sum, row) => sum + row.quantity, 0)
@@ -973,7 +982,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const metalFixingEntries = filteredStatementEntries
     .map((entry) => {
       const dealSide = resolveDealSide(entry)
-      if (!dealSide) return null
+      if (dealSide !== 'sale' && dealSide !== 'purchase') return null
       const isExplicitMetalTrade = Boolean(entry?.isMetalTrade)
       const hasLegacyMetalHint = String(entry?.metalCode || '').trim() !== '' || /\bxau\b|\bxag\b|gold|silver/i.test(String(entry?.description || ''))
       if (!isExplicitMetalTrade && !hasLegacyMetalHint) return null
@@ -7454,7 +7463,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                       <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', overflow: 'hidden', background: '#FFFFFF' }}>
                         <div style={{ background: '#3F4B2E', padding: '0.7rem 1rem', borderBottom: '1px solid #2D3620' }}>
                           <span style={{ color: '#FFFFFF', fontWeight: '700', fontSize: '0.95rem' }}>Position</span>
-                          <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: '0.78rem', marginLeft: '0.5rem', fontWeight: '600' }}>(pure weight, grams — includes unfixed)</span>
+                          <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: '0.78rem', marginLeft: '0.5rem', fontWeight: '600' }}>(pure weight, grams - includes unfixed trades and metal transfers)</span>
                         </div>
                         <div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
