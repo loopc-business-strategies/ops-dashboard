@@ -1,7 +1,11 @@
 const request = require('supertest')
 const mongoose = require('mongoose')
 const jwt = require('jsonwebtoken')
-const { MongoMemoryServer } = require('mongodb-memory-server')
+const {
+  startMongoMemoryServer,
+  isMongooseConnected,
+  disconnectMongooseIfConnected,
+} = require('./mongoMemoryTestServer')
 
 const createApp = require('../app')
 const User = require('../models/User')
@@ -31,7 +35,7 @@ beforeAll(async () => {
   process.env.AUTH_RATE_LIMIT_MAX = '100000'
   process.env.DEFAULT_TENANT = 'loopc'
 
-  mongo = await MongoMemoryServer.create()
+  mongo = await startMongoMemoryServer()
   const mongoUri = mongo.getUri()
   process.env.MONGO_URI = mongoUri
   process.env.MONGO_URI_LOOPC = mongoUri
@@ -43,6 +47,7 @@ beforeAll(async () => {
 })
 
 afterEach(async () => {
+  if (!isMongooseConnected(mongoose)) return
   await Promise.all([
     (await User.getTenantModel('loopc')).deleteMany({}),
     (await User.getTenantModel('mg')).deleteMany({}),
@@ -51,7 +56,7 @@ afterEach(async () => {
 })
 
 afterAll(async () => {
-  await mongoose.disconnect()
+  await disconnectMongooseIfConnected(mongoose)
   if (mongo) await mongo.stop()
 })
 

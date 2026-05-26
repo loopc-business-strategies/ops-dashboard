@@ -20,6 +20,14 @@ async function safeJson(response) {
   }
 }
 
+function erpHeaders(sessionCookie) {
+  return {
+    Cookie: sessionCookie,
+    'x-tenant': LOGIN_COMPANY,
+    'x-company': LOGIN_COMPANY,
+  }
+}
+
 async function login() {
   const response = await fetch(`${BASE_URL}/api/auth/login`, {
     method: 'POST',
@@ -39,6 +47,19 @@ async function login() {
   return sessionCookie
 }
 
+async function expectOkJson(url, sessionCookie, label) {
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: erpHeaders(sessionCookie),
+  })
+  const data = await safeJson(response)
+  if (!response.ok) {
+    const message = data?.message || `HTTP ${response.status}`
+    throw new Error(`${label} failed: ${message}`)
+  }
+  return data
+}
+
 async function fetchLedger(sessionCookie) {
   const params = new URLSearchParams({
     department: FILTER_DEPARTMENT,
@@ -46,22 +67,7 @@ async function fetchLedger(sessionCookie) {
     limit: String(FILTER_LIMIT),
   })
 
-  const response = await fetch(`${BASE_URL}/api/erp-accounting/ledger?${params.toString()}`, {
-    method: 'GET',
-    headers: {
-      Cookie: sessionCookie,
-      'x-tenant': LOGIN_COMPANY,
-      'x-company': LOGIN_COMPANY,
-    },
-  })
-
-  const data = await safeJson(response)
-  if (!response.ok) {
-    const message = data?.message || `HTTP ${response.status}`
-    throw new Error(`Ledger request failed: ${message}`)
-  }
-
-  return data
+  return expectOkJson(`${BASE_URL}/api/erp-accounting/ledger?${params.toString()}`, sessionCookie, 'Ledger')
 }
 
 function uniqueValues(entries, key) {
@@ -75,14 +81,29 @@ async function run() {
   console.log('Optional env overrides: SMOKE_API_BASE_URL, SMOKE_LOGIN_COMPANY, SMOKE_LOGIN_NAME, SMOKE_LOGIN_PASSWORD, SMOKE_DEFAULT_NAME, SMOKE_DEFAULT_PASSWORD, SMOKE_LEDGER_DEPARTMENT, SMOKE_LEDGER_REFERENCE_TYPE, SMOKE_LEDGER_LIMIT')
 
   const sessionCookie = await login()
+  console.log('Step: session / login — OK')
+
+  await expectOkJson(`${BASE_URL}/api/erp-accounting/accounts?limit=5&page=1`, sessionCookie, 'Accounts list')
+  console.log('Step: accounts list — OK')
+
   const ledger = await fetchLedger(sessionCookie)
   const entries = Array.isArray(ledger.entries) ? ledger.entries : []
+  console.log('Step: ledger list — OK')
+
+  await expectOkJson(`${BASE_URL}/api/erp-accounting/transactions?limit=5&page=1`, sessionCookie, 'Transactions list')
+  console.log('Step: transactions list — OK')
+
+  await expectOkJson(`${BASE_URL}/api/erp-accounting/reports/dashboard`, sessionCookie, 'Dashboard report')
+  console.log('Step: dashboard report — OK')
+
+  await expectOkJson(`${BASE_URL}/api/erp-accounting/currencies/metal-rates`, sessionCookie, 'Metal rates')
+  console.log('Step: metal rates — OK')
 
   const departments = uniqueValues(entries, 'department')
   const referenceTypes = uniqueValues(entries, 'referenceType')
 
   console.log('Result: SUCCESS')
-  console.log(`Entries: ${entries.length}`)
+  console.log(`Ledger entries (filtered): ${entries.length}`)
   console.log(`Unique departments: ${departments.join(', ') || '(none)'}`)
   console.log(`Unique reference types: ${referenceTypes.join(', ') || '(none)'}`)
 }

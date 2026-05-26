@@ -19,6 +19,7 @@
     "smoke:erp": "node scripts/smoke-erp-api.js",
     "test": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest",
     "test:fast": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest tests/permissions.test.js",
+    "test:erp-accounting": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest tests/erpAccounting",
     "test:pagination": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest tests/pagination-edge-cases.test.js",
     "test:integration": "npm run test:integration:tenant-routing && npm run test:integration:tenant-isolation && npm run test:integration:erp",
     "test:integration:tenant-routing": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest --testTimeout=120000 tests/tenant-routing-auth.test.js",
@@ -48,7 +49,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.0",
-    "jest": "^30.4.2",
+    "jest": "^29.7.0",
     "mongodb-memory-server": "^11.1.0",
     "nodemon": "^3.0.2",
     "supertest": "^7.1.4"

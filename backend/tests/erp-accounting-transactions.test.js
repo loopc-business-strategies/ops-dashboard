@@ -3,7 +3,11 @@ const path = require('path')
 const request = require('supertest')
 const mongoose = require('mongoose')
 const jwt = require('jsonwebtoken')
-const { MongoMemoryServer } = require('mongodb-memory-server')
+const {
+  startMongoMemoryServer,
+  isMongooseConnected,
+  disconnectMongooseIfConnected,
+} = require('./mongoMemoryTestServer')
 
 const createApp = require('../app')
 const User = require('../models/User')
@@ -89,7 +93,7 @@ beforeAll(async () => {
     process.env.DESTRUCTIVE_ADMIN_CONFIRM_TOKEN = 'test-destructive-token'
   }
 
-  mongo = await MongoMemoryServer.create()
+  mongo = await startMongoMemoryServer()
   const mongoUri = mongo.getUri()
   process.env.MONGO_URI = mongoUri
   process.env.MONGO_URI_LOOPC = mongoUri
@@ -112,23 +116,25 @@ beforeAll(async () => {
 })
 
 afterEach(async () => {
-  await Promise.all([
-    User.deleteMany({}),
-    Transaction.deleteMany({}),
-    Customer.deleteMany({}),
-    Vendor.deleteMany({}),
-    InventoryItem.deleteMany({}),
-    StockMovement.deleteMany({}),
-    Ledger.deleteMany({}),
-    ChartOfAccount.deleteMany({}),
-    AccountMapping.deleteMany({}),
-    Currency.deleteMany({}),
-  ])
+  if (isMongooseConnected(mongoose)) {
+    await Promise.all([
+      User.deleteMany({}),
+      Transaction.deleteMany({}),
+      Customer.deleteMany({}),
+      Vendor.deleteMany({}),
+      InventoryItem.deleteMany({}),
+      StockMovement.deleteMany({}),
+      Ledger.deleteMany({}),
+      ChartOfAccount.deleteMany({}),
+      AccountMapping.deleteMany({}),
+      Currency.deleteMany({}),
+    ])
+  }
   fs.rmSync(uploadDir, { recursive: true, force: true })
 })
 
 afterAll(async () => {
-  await mongoose.disconnect()
+  await disconnectMongooseIfConnected(mongoose)
   if (mongo) await mongo.stop()
   fs.rmSync(uploadDir, { recursive: true, force: true })
 })

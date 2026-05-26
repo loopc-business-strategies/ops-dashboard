@@ -412,14 +412,6 @@ function ERPTab({ focusTab, onNavigateMain }) {
     setSuccess(msg)
     setTimeout(() => setSuccess(''), 3000)
   }
-  // Check if user is logged in
-  if (!token) {
-    return (
-      <div style={{ padding: '2rem', background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: '0.5rem', color: '#DC2626', textAlign: 'center' }}>
-        <p style={{ fontSize: '1rem', fontWeight: '500' }}>🔒 Please log in to access this module.</p>
-      </div>
-    )
-  }
   // Role-based permissions
   const {
     isSuperAdmin,
@@ -5564,6 +5556,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
     } finally {
       setSaving(false)
     }
+  }
+  if (!token) {
+    return (
+      <div style={{ padding: '2rem', background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: '0.5rem', color: '#DC2626', textAlign: 'center' }}>
+        <p style={{ fontSize: '1rem', fontWeight: '500' }}>🔒 Please log in to access this module.</p>
+      </div>
+    )
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>

@@ -1,0 +1,313 @@
+import { useCallback, useRef } from 'react'
+import {
+  allocateJvLedgerEntries,
+  applyBankJvExchangeBalancing,
+  buildJvPostingPayloads,
+  buildJvPrintHtml,
+  emptyJvLine,
+  filterJvEditableEntries,
+  inferLegacyJvBatchDisplayFc,
+  makeJvGroupObjectId,
+  normalizeJvCurrencyCode,
+  reconstructJvEditLines,
+  resolveJvModeMeta,
+  validateJvLines,
+} from './journalVoucherHelpers'
+import { accountLookupText, resolveAccountIdFromInput } from './erpTabUtils'
+
+/**
+ * Journal / Bank JV line editing, validation, edit-load, and multi-line save.
+ * Uses a ref so callbacks stay stable while always reading the latest props from ERPTab.
+ */
+export function useJournalVoucher(props) {
+  const propsRef = useRef(props)
+  propsRef.current = props
+
+  const bankBalanceCtx = () => {
+    const p = propsRef.current
+    return {
+      jvMode: p.jvMode,
+      entryAccountOptions: p.entryAccountOptions,
+      baseCurrencyCode: p.baseCurrencyCode,
+      convertJvAmount: p.convertJvAmount,
+      inferJvAccountCurrency: p.inferJvAccountCurrency,
+      accountLookupText,
+    }
+  }
+
+  const getJvAccountById = (accountId) => {
+    const { entryAccountOptions } = propsRef.current
+    return entryAccountOptions.find((item) => String(item?._id) === String(accountId || '')) || null
+  }
+
+  /** Stable ref; reads latest `entryAccountOptions` via `propsRef` (avoids stale hook deps in callers). */
+  const isExchangeLine = useCallback((line) => {
+    const { entryAccountOptions } = propsRef.current
+    const acc = entryAccountOptions.find((item) => String(item?._id) === String(line?.accountId || '')) || null
+    const code = String(acc?.accountCode || '').trim().toUpperCase()
+    return ['4190', '5190'].includes(code)
+  }, [])
+
+  const updateJvLine = useCallback((id, field, value) => {
+    const p = propsRef.current
+    const applyFx = (lines) => applyBankJvExchangeBalancing(lines, bankBalanceCtx())
+    p.setJvLines((prev) => {
+      const withEdited = prev.map((line) => {
+        if (line.id !== id) return line
+        if (field === 'debit') return { ...line, debit: value, credit: '', autoFx: false, autoSync: false }
+        if (field === 'credit') return { ...line, credit: value, debit: '', autoFx: false, autoSync: false }
+        return { ...line, [field]: value, autoFx: false, autoSync: false }
+      })
+      if (p.jvMode !== 'bank_jv' || !['debit', 'credit'].includes(field)) return withEdited
+      const enteredAmount = Number(value || 0)
+      if (!Number.isFinite(enteredAmount) || enteredAmount <= 0) return applyFx(withEdited)
+      const sourceLine = withEdited.find((line) => line.id === id)
+      if (!sourceLine?.accountId) return applyFx(withEdited)
+      if (isExchangeLine(sourceLine) && enteredAmount > 0) return withEdited
+      const targetField = field === 'debit' ? 'credit' : 'debit'
+      const targetLine = withEdited.find((line) => {
+        if (line.id === id) return false
+        if (!String(line.accountId || '').trim()) return false
+        if (isExchangeLine(line)) return false
+        return true
+      })
+      if (!targetLine) return applyFx(withEdited)
+      const existingTargetValue = Number(targetLine[targetField] || 0)
+      const preserveManualTarget = Number.isFinite(existingTargetValue)
+        && existingTargetValue > 0
+        && !targetLine.autoSync
+      if (preserveManualTarget) {
+        return applyFx(withEdited)
+      }
+      const sourceCurrency = p.inferJvAccountCurrency(sourceLine.accountId)
+      const targetCurrency = p.inferJvAccountCurrency(targetLine.accountId)
+      const convertedAmount = p.convertJvAmount(enteredAmount, sourceCurrency, targetCurrency)
+      if (!Number.isFinite(convertedAmount) || convertedAmount <= 0) return applyFx(withEdited)
+      const withSyncedPair = withEdited.map((line) => {
+        if (line.id !== targetLine.id) return line
+        return targetField === 'debit'
+          ? { ...line, debit: String(convertedAmount), credit: '', autoFx: false, autoSync: true }
+          : { ...line, credit: String(convertedAmount), debit: '', autoFx: false, autoSync: true }
+      })
+      return applyFx(withSyncedPair)
+    })
+  }, [isExchangeLine])
+
+  const resolveJvLineAccount = useCallback((lineId, value, label = '') => {
+    const p = propsRef.current
+    const resolvedId = resolveAccountIdFromInput(value, p.entryAccountOptions)
+    const account = resolvedId ? p.entryAccountOptions.find((a) => String(a._id) === String(resolvedId)) : null
+    const resolvedLabel = account ? accountLookupText(account) : label
+    p.setJvLines((prev) => {
+      const withResolved = prev.map((line) => (
+        line.id !== lineId
+          ? line
+          : { ...line, accountId: resolvedId || '', accountInput: resolvedLabel || '', autoFx: false, autoSync: false }
+      ))
+      return applyBankJvExchangeBalancing(withResolved, bankBalanceCtx())
+    })
+  }, [])
+
+  const getJvValidation = useCallback((lines) => {
+    const p = propsRef.current
+    return validateJvLines({
+      lines,
+      jvMode: p.jvMode,
+      baseCurrencyCode: p.baseCurrencyCode,
+      inferJvAccountCurrency: p.inferJvAccountCurrency,
+      convertJvAmount: p.convertJvAmount,
+      isExchangeLine,
+    })
+  }, [isExchangeLine])
+
+  const addJvLine = useCallback(() => {
+    const p = propsRef.current
+    p.setJvLines((prev) => [...prev, emptyJvLine(p.nextJvLineId)])
+    p.setNextJvLineId((n) => n + 1)
+  }, [])
+
+  const removeJvLine = useCallback((id) => {
+    propsRef.current.setJvLines((prev) => prev.filter((l) => l.id !== id))
+  }, [])
+
+  const handleJvLineKeyDown = useCallback((e, idx) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const p = propsRef.current
+      if (idx === p.jvLines.length - 1) {
+        p.setJvLines((prev) => [...prev, emptyJvLine(p.nextJvLineId)])
+        p.setNextJvLineId((n) => n + 1)
+      }
+    }
+  }, [])
+
+  const handleJvAccountKeyDown = useCallback((e, idx) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const p = propsRef.current
+      if (idx === p.jvLines.length - 1) {
+        p.setJvLines((prev) => [...prev, emptyJvLine(p.nextJvLineId)])
+        p.setNextJvLineId((n) => n + 1)
+      }
+    }
+  }, [])
+
+  const handleEditJv = useCallback(async (entry) => {
+    const p = propsRef.current
+    const rawDesc = String(entry.description || '')
+    const docNoHead = (rawDesc.includes(' — ') ? rawDesc.split(' — ') : rawDesc.split(' - '))[0]?.trim() || ''
+    const docNo = docNoHead
+    const hasDocPrefix = /^(jv|bnkjv)[/-]/i.test(String(docNo || ''))
+    const entryMode = String(entry?.referenceType || '').toLowerCase() === 'bank_jv' ? 'bank_jv' : 'journal'
+    const refTypeFilter = entryMode
+    let docMatchedEntries = [entry]
+    try {
+      const batchId = entry.referenceId ? String(entry.referenceId).trim() : ''
+      if (batchId && /^[a-fA-F0-9]{24}$/.test(batchId)) {
+        const data = await p.erpAccountingAPI.getLedger(p.token, {
+          referenceType: refTypeFilter,
+          referenceId: batchId,
+          limit: 300,
+          page: 1,
+        })
+        if (Array.isArray(data?.entries) && data.entries.length) {
+          docMatchedEntries = data.entries
+        }
+      } else if (docNo && hasDocPrefix) {
+        const data = await p.erpAccountingAPI.getLedger(p.token, {
+          referenceType: refTypeFilter,
+          docNoPrefix: docNo,
+          limit: 300,
+          page: 1,
+        })
+        if (Array.isArray(data?.entries) && data.entries.length) {
+          docMatchedEntries = data.entries
+        }
+      }
+    } catch (e) {
+      p.setError(e.response?.data?.message || 'Failed to load JV lines for editing')
+      return
+    }
+    const editableEntries = filterJvEditableEntries(docMatchedEntries, entry, entryMode)
+    const reconstructed = reconstructJvEditLines(editableEntries, entry, {
+      baseCurrencyCode: p.baseCurrencyCode,
+      normalizeJvCurrencyCode,
+      convertJvAmount: p.convertJvAmount,
+      inferJvAccountCurrency: p.inferJvAccountCurrency,
+      inferLegacyJvBatchDisplayFc,
+    })
+    p.setJvMode(reconstructed.entryMode)
+    p.setJvEditEntryIds(reconstructed.jvEditEntryIds)
+    p.setJvLines(reconstructed.lines)
+    p.setNextJvLineId(reconstructed.nextJvLineId)
+    p.setJvHeader({
+      docNo: reconstructed.headerDocNo,
+      date: reconstructed.entryDate,
+      narration: reconstructed.narration,
+      currency: reconstructed.headerCurrency,
+    })
+    p.setJvModalOffset({ x: 0, y: 0 })
+    p.setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+    p.setJvModalResize({
+      active: false,
+      pointerX: 0,
+      pointerY: 0,
+      startW: p.JV_MODAL_DEFAULT_SIZE.width,
+      startH: p.JV_MODAL_DEFAULT_SIZE.height,
+    })
+    p.setJvModalSize(p.JV_MODAL_DEFAULT_SIZE)
+    p.setShowLedgerForm(true)
+  }, [])
+
+  const handleSaveMultiLineJV = useCallback(async () => {
+    const p = propsRef.current
+    const validation = getJvValidation(p.jvLines)
+    if (validation.hasLineIssues) {
+      const firstLineIssue = Object.values(validation.lineIssuesById)[0]
+      p.setError(firstLineIssue || 'Please fix JV row errors before saving')
+      return
+    }
+    if (!validation.activeLines.length) {
+      p.setError('Add at least one debit row and one credit row')
+      return
+    }
+    if (!validation.isBalanced) {
+      p.setError('Debit and Credit totals are not balanced')
+      return
+    }
+    const allocation = allocateJvLedgerEntries(validation.activeLines)
+    if (allocation.error) {
+      p.setError(allocation.error)
+      return
+    }
+    const entries = allocation.entries
+    const jvGroupId = makeJvGroupObjectId()
+    const built = buildJvPostingPayloads({
+      entries,
+      jvHeader: p.jvHeader,
+      baseCurrencyCode: p.baseCurrencyCode,
+      currencies: p.currencies,
+      jvMode: p.jvMode,
+      jvGroupId,
+      normalizeJvCurrencyCode,
+    })
+    if (built.error) {
+      p.setError(built.error)
+      return
+    }
+    p.setSaving(true)
+    try {
+      if (p.jvEditEntryIds.length > 0) {
+        await Promise.all(p.jvEditEntryIds.map((id) => p.erpAccountingAPI.deleteLedgerEntry(p.token, id)))
+      }
+      await Promise.all(built.payloads.map((payload) => p.erpAccountingAPI.createLedgerEntry(p.token, payload)))
+      const isBankJV = p.jvMode === 'bank_jv'
+      const isEdit = p.jvEditEntryIds.length > 0
+      const voucherLabel = isBankJV ? 'Bank JV' : 'Journal Voucher'
+      p.closeJvModal()
+      await Promise.all([p.loadLedger(), p.loadDashboard()])
+      const n = built.payloads.length
+      p.showNotification(isEdit ? `✅ ${voucherLabel} updated — ${n} entr${n === 1 ? 'y' : 'ies'} reposted` : `✅ ${voucherLabel} saved — ${n} entr${n === 1 ? 'y' : 'ies'} posted`)
+    } catch (e) {
+      p.setError(e.response?.data?.message || 'Failed to save Journal Voucher')
+    } finally {
+      p.setSaving(false)
+    }
+  }, [getJvValidation])
+
+  const handlePrintJvVoucher = useCallback(async () => {
+    const p = propsRef.current
+    const validation = getJvValidation(p.jvLines)
+    const modeMeta = resolveJvModeMeta(p.jvMode)
+    const logoMarkup = await p.buildBrandingLogoTag(p.branding, 'margin-left:auto;')
+    const body = buildJvPrintHtml({
+      validation,
+      jvLines: p.jvLines,
+      jvHeader: p.jvHeader,
+      modeMeta,
+      branding: p.branding,
+      defaultCompanyName: p.defaultCompanyName,
+      baseCurrencyCode: p.baseCurrencyCode,
+      preparedBy: p.user?.name || '',
+      logoMarkup,
+      getJvAccountById,
+    })
+    p.openPrintWindow(modeMeta.badge, body)
+    p.showNotification('JV print layout opened')
+  }, [getJvValidation])
+
+  return {
+    updateJvLine,
+    resolveJvLineAccount,
+    getJvValidation,
+    addJvLine,
+    removeJvLine,
+    handleJvLineKeyDown,
+    handleJvAccountKeyDown,
+    handleEditJv,
+    handleSaveMultiLineJV,
+    handlePrintJvVoucher,
+    getJvAccountById,
+    isExchangeLine,
+  }
+}

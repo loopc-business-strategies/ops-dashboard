@@ -1,5 +1,9 @@
 const mongoose = require('mongoose')
-const { MongoMemoryServer } = require('mongodb-memory-server')
+const {
+  startMongoMemoryServer,
+  isMongooseConnected,
+  disconnectMongooseIfConnected,
+} = require('./mongoMemoryTestServer')
 
 const User = require('../models/User')
 const Customer = require('../models/Customer')
@@ -18,7 +22,7 @@ beforeAll(async () => {
   process.env.JWT_SECRET = 'test-secret'
   process.env.DEFAULT_TENANT = 'loopc'
 
-  mongo = await MongoMemoryServer.create()
+  mongo = await startMongoMemoryServer()
   const baseUri = mongo.getUri()
 
   process.env.MONGO_URI_MG = withDbName(baseUri, 'ops_mg_test')
@@ -29,6 +33,7 @@ beforeAll(async () => {
 })
 
 afterEach(async () => {
+  if (!isMongooseConnected(mongoose)) return
   await Promise.all([
     (await User.getTenantModel('mg')).deleteMany({}),
     (await User.getTenantModel('cg')).deleteMany({}),
@@ -40,12 +45,14 @@ afterEach(async () => {
 })
 
 afterAll(async () => {
-  await Promise.all([
-    connectTenant('mg').then((conn) => conn.close()).catch(() => {}),
-    connectTenant('cg').then((conn) => conn.close()).catch(() => {}),
-    connectTenant('loopc').then((conn) => conn.close()).catch(() => {}),
-  ])
-  await mongoose.disconnect()
+  if (isMongooseConnected(mongoose)) {
+    await Promise.all([
+      connectTenant('mg').then((conn) => conn.close()).catch(() => {}),
+      connectTenant('cg').then((conn) => conn.close()).catch(() => {}),
+      connectTenant('loopc').then((conn) => conn.close()).catch(() => {}),
+    ])
+  }
+  await disconnectMongooseIfConnected(mongoose)
   if (mongo) await mongo.stop()
 })
 

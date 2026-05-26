@@ -54,6 +54,7 @@ export default defineConfig({
     globals: true,
     pool: 'forks',
     fileParallelism: false,
+    exclude: ['**/node_modules/**', '**/*.node.test.{js,ts}', '**/e2e/**'],
   },
   build: {
     chunkSizeWarningLimit: 1600,

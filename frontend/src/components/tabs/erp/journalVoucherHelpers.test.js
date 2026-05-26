@@ -1,12 +1,15 @@
 import { describe, expect, test } from 'vitest'
 import {
   buildJvDocNo,
+  buildJvPrintHtml,
+  allocateJvLedgerEntries,
   convertJvAmountBetweenCurrencies,
   createJvHeader,
   emptyJvLine,
   normalizeJvCurrencyCode,
   resolveJvModeMeta,
   groupJvLedgerEntries,
+  validateJvLines,
 } from './journalVoucherHelpers'
 
 describe('journal voucher helpers', () => {
@@ -138,5 +141,169 @@ describe('journal voucher helpers', () => {
     expect(grouped).toHaveLength(1)
     expect(grouped[0].lineCount).toBe(2)
     expect(grouped[0].voucherNo).toBe('Jv/2026/0001')
+  })
+
+  test('validates balanced JV rows and returns normalized active lines', () => {
+    const result = validateJvLines({
+      lines: [
+        { id: 1, accountId: 'cash', description: 'Cash leg', debit: '100', credit: '' },
+        { id: 2, accountId: 'sales', description: 'Sales leg', debit: '', credit: '100' },
+      ],
+      baseCurrencyCode: 'USD',
+      inferJvAccountCurrency: () => 'USD',
+      convertJvAmount: (amount) => Number(amount),
+    })
+
+    expect(result.isBalanced).toBe(true)
+    expect(result.canSave).toBe(true)
+    expect(result.hasLineIssues).toBe(false)
+    expect(result.activeLines).toEqual([
+      { id: 1, accountId: 'cash', description: 'Cash leg', debit: 100, credit: 0 },
+      { id: 2, accountId: 'sales', description: 'Sales leg', debit: 0, credit: 100 },
+    ])
+  })
+
+  test('validates JV line entry errors', () => {
+    const result = validateJvLines({
+      lines: [
+        { id: 'both', accountId: 'cash', debit: '10', credit: '5' },
+        { id: 'blank', accountId: 'sales', description: 'typed only', debit: '', credit: '' },
+        { id: 'missing-account', accountId: '', debit: '10', credit: '' },
+      ],
+      inferJvAccountCurrency: () => 'USD',
+      convertJvAmount: (amount) => Number(amount),
+    })
+
+    expect(result.hasLineIssues).toBe(true)
+    expect(result.lineIssuesById).toEqual({
+      both: 'Row 1: Only one side allowed per row',
+      blank: 'Row 2: Enter debit or credit amount',
+      'missing-account': 'Row 3: Account is required',
+    })
+    expect(result.canSave).toBe(false)
+  })
+
+  test('allows blank bank JV exchange rows', () => {
+    const result = validateJvLines({
+      jvMode: 'bank_jv',
+      lines: [
+        { id: 'exchange', accountId: '5190', debit: '', credit: '' },
+      ],
+      isExchangeLine: (line) => line.accountId === '5190',
+    })
+
+    expect(result.lineIssuesById).toEqual({})
+  })
+
+  test('reports missing currency conversion rate', () => {
+    const result = validateJvLines({
+      lines: [
+        { id: 1, accountId: 'uzs-bank', debit: '1000', credit: '' },
+      ],
+      baseCurrencyCode: 'USD',
+      inferJvAccountCurrency: () => 'UZS',
+      convertJvAmount: () => null,
+    })
+
+    expect(result.lineIssuesById[1]).toBe('Row 1: Missing or invalid currency rate for UZS')
+    expect(result.hasLineIssues).toBe(true)
+  })
+
+  test('allocates one debit and one credit line into one ledger entry', () => {
+    const result = allocateJvLedgerEntries([
+      { id: 1, accountId: 'cash', description: 'cash in', debit: 100, credit: 0 },
+      { id: 2, accountId: 'sales', description: 'sale', debit: 0, credit: 100 },
+    ])
+
+    expect(result.error).toBe('')
+    expect(result.entries).toEqual([
+      {
+        debitAccountId: 'cash',
+        creditAccountId: 'sales',
+        amount: 100,
+        lineDesc: 'cash in | sale',
+      },
+    ])
+  })
+
+  test('allocates split debit and credit rows into balanced pairs', () => {
+    const result = allocateJvLedgerEntries([
+      { id: 1, accountId: 'bank-a', description: 'bank a', debit: 70, credit: 0 },
+      { id: 2, accountId: 'bank-b', description: 'bank b', debit: 30, credit: 0 },
+      { id: 3, accountId: 'income', description: 'income', debit: 0, credit: 100 },
+    ])
+
+    expect(result.error).toBe('')
+    expect(result.entries).toEqual([
+      { debitAccountId: 'bank-a', creditAccountId: 'income', amount: 70, lineDesc: 'bank a | income' },
+      { debitAccountId: 'bank-b', creditAccountId: 'income', amount: 30, lineDesc: 'bank b | income' },
+    ])
+  })
+
+  test('reports an error when allocation has a material remainder', () => {
+    const result = allocateJvLedgerEntries([
+      { id: 1, accountId: 'cash', debit: 100, credit: 0 },
+      { id: 2, accountId: 'sales', debit: 0, credit: 99.98 },
+    ])
+
+    expect(result.error).toBe('Failed to allocate JV lines into balanced ledger entries')
+    expect(result.entries).toEqual([
+      { debitAccountId: 'cash', creditAccountId: 'sales', amount: 99.98, lineDesc: '' },
+    ])
+  })
+
+  test('reports an error when only one side is present', () => {
+    const result = allocateJvLedgerEntries([
+      { id: 1, accountId: 'cash', debit: 100, credit: 0 },
+    ])
+
+    expect(result).toEqual({
+      entries: [],
+      error: 'JV requires at least one debit row and one credit row',
+    })
+  })
+
+  test('builds escaped JV print HTML with header, rows, and totals', () => {
+    const html = buildJvPrintHtml({
+      validation: {
+        activeLines: [
+          { id: 1, accountId: 'cash', description: 'Cash <leg>', debit: 100, credit: 0 },
+          { id: 2, accountId: 'sales', description: 'Sales & revenue', debit: 0, credit: 100 },
+        ],
+        totalDebit: 100,
+        totalCredit: 100,
+      },
+      jvHeader: {
+        docNo: 'Jv/2026/0001',
+        date: '2026-05-26',
+        currency: 'USD',
+        narration: 'Month-end <close>',
+      },
+      modeMeta: { badge: 'JOURNAL VOUCHER' },
+      branding: {
+        companyName: 'Modern <Gold>',
+        address: 'Line 1\nLine 2',
+        phone: '+998',
+        trn: 'TRN-1',
+      },
+      defaultCompanyName: 'Default Co',
+      preparedBy: 'Admin & User',
+      logoMarkup: '<img alt="logo" />',
+      getJvAccountById: (id) => ({
+        cash: { accountCode: '1000', accountName: 'Cash & Bank' },
+        sales: { accountCode: '4000', accountName: 'Sales' },
+      })[id] || null,
+    })
+
+    expect(html).toContain('Modern &lt;Gold&gt;')
+    expect(html).toContain('Line 1<br />Line 2')
+    expect(html).toContain('JOURNAL VOUCHER')
+    expect(html).toContain('Jv/2026/0001')
+    expect(html).toContain('Admin &amp; User')
+    expect(html).toContain('1000 - Cash &amp; Bank')
+    expect(html).toContain('Cash &lt;leg&gt;')
+    expect(html).toContain('Sales &amp; revenue')
+    expect(html).toContain('100.00')
+    expect(html).toContain('<img alt="logo" />')
   })
 })

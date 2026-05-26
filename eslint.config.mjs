@@ -30,6 +30,8 @@ export default [
       'frontend/dist/**',
       '**/.cache/**',
       '**/coverage/**',
+      'frontend/e2e/**',
+      'frontend/playwright.config.js',
       'scripts/**',
       'backend/tests/**',
       'backend/scripts/**',
@@ -39,6 +41,7 @@ export default [
     files: ['frontend/src/**/*.{js,jsx}'],
     ignores: [
       'frontend/src/**/*.test.{js,jsx}',
+      'frontend/src/**/*.node.test.{js,ts}',
       'frontend/src/**/__tests__/**',
       'frontend/src/**/*.contract.test.js',
     ],
@@ -63,6 +66,7 @@ export default [
       'frontend/src/**/*.test.{js,jsx}',
       'frontend/src/**/__tests__/**/*.{js,jsx}',
       'frontend/src/**/*.contract.test.js',
+      'frontend/src/**/*.node.test.{js,ts}',
     ],
     languageOptions: {
       parser: babelParser,

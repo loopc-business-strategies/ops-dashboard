@@ -1,5 +1,9 @@
 const mongoose = require('mongoose')
-const { MongoMemoryServer } = require('mongodb-memory-server')
+const {
+  startMongoMemoryServer,
+  isMongooseConnected,
+  disconnectMongooseIfConnected,
+} = require('./mongoMemoryTestServer')
 const { reverseMetalVoucherStockForVoid } = require('../utils/metalVoucherStockReversal')
 const InventoryItem = require('../models/InventoryItem')
 const StockMovement = require('../models/StockMovement')
@@ -10,16 +14,17 @@ let mongo
 const toQty = (value) => Math.round(Number(value || 0) * 1000) / 1000
 
 beforeAll(async () => {
-  mongo = await MongoMemoryServer.create()
+  mongo = await startMongoMemoryServer()
   await mongoose.connect(mongo.getUri())
 })
 
 afterAll(async () => {
-  await mongoose.disconnect()
+  await disconnectMongooseIfConnected(mongoose)
   if (mongo) await mongo.stop()
 })
 
 afterEach(async () => {
+  if (!isMongooseConnected(mongoose)) return
   await Promise.all([
     InventoryItem.deleteMany({}),
     StockMovement.deleteMany({}),

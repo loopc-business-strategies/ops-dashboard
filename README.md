@@ -8,8 +8,15 @@ Multi-tenant operations and ERP platform for mg, cg, and loopc companies.
 - Release/version policy: `RELEASE-VERSIONING-POLICY.md`
 - Observability, health checks, and Vercel/Railway notes: `docs/OBSERVABILITY-AND-DEPLOYS.md`
 - Historical analyses (may be stale): `docs/archive/README.md`
+- **Local & CI testing commands:** `docs/TESTING.md`
 
-**Linting:** `npm run lint` runs repository guardrails (tracked paths, destructive scripts, rewrites). **`npm run lint:eslint`** runs ESLint on **`frontend/src`** (JS/React + Babel JSX parser). The repo has many legacy findings; run locally and tighten rules over time. CI does not gate on ESLint yet.
+**Windows-only development:** see `docs/WINDOWS-DEV.md` (Jest, Mongo memory server / VC++ redist, Node version). **CI uses Node 24** (`.github/workflows/ci.yml`); use the same major locally when debugging “passes in CI, fails locally.”
+
+**Linting:** `npm run lint` runs repository guardrails **and** strict ESLint on **all production `frontend/src/components/tabs/erp/**/*.js`** (tests excluded, `--max-warnings=0`). **`npm run lint:eslint`** still scans all of **`frontend/src`** for broader cleanup (legacy warnings allowed).
+
+**CI backend tests:** the **Backend Fast Tests** job runs `test:fast` and **`test:erp-accounting`**. **Backend full Jest** runs **`npm test`** on all suites (same as local `cd backend && npm test`). **Backend Integration** runs tenant routing, tenant isolation, and ERP transactions in parallel. Root **`npm run test:backend`** still adds guardrails + sync before the full suite.
+
+**Frontend tests:** **`npm run test:frontend`** (used by **`deploy:railway`**) runs **`npm test`** (jsdom Vitest) **and** **`npm run test:unit`** (Node Vitest), matching CI’s frontend job.
 
 **Normal releases:** With the repo connected to **Vercel** and **Railway**, pushing to **`main`** is enough—both platforms pick up the commit automatically. You do not need local `npx vercel` or `railway` for day-to-day deploys. Use those CLIs only for manual redeploys or when setting up CI with `VERCEL_TOKEN` / a fresh `railway login`; headless environments (e.g. some agent sandboxes) often lack OAuth, which is why CLI deploy can fail there even when GitHub integrations succeed.
 - Optional server-side metal **market** feeds (reports / saved rates): `METALS_DEV_API_KEY`, `FRED_API_KEY`, or `ALPHA_VANTAGE_API_KEY`; optional **`METALS_SPOT_MOCK_REALTIME=true`** for synthetic ticks in dev — see `ENV-VARS-QUICK-REFERENCE.md`. The MG top bar can receive live Gold/Silver/Platinum ticks from `tools/mt4-price-bridge`.

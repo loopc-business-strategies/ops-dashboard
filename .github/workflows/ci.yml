@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -21,6 +22,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace root dependencies
+        run: npm ci
 
       - name: Check forbidden tracked paths
         run: npm run check:tracked-paths
@@ -39,6 +45,9 @@ jobs:
           npm run sync:erp-access
           node scripts/check-access-policy-parity.mjs
           git diff --exit-code -- shared/erp-access-matrix.json backend/shared/erp-access-matrix.json frontend/src/generated/erp-access-matrix.json
+
+      - name: ESLint (ERP tab production JS, zero warnings)
+        run: npm run lint:eslint:ci
 
   backend-fast-tests:
     name: Backend Fast Tests
@@ -65,6 +74,46 @@ jobs:
       - name: Run backend fast tests
         working-directory: backend
         run: npm run test:fast
+
+      - name: Run backend ERP accounting unit tests
+        working-directory: backend
+        run: npm run test:erp-accounting
+
+  backend-full-jest:
+    name: Backend full Jest (all suites)
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.base_ref == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      MONGOMS_DOWNLOAD_DIR: ~/.cache/mongodb-binaries
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Cache MongoDB binaries for mongodb-memory-server
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-v1
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Sync ERP access policy
+        run: npm run sync:erp-access
+
+      - name: Run full backend Jest
+        working-directory: backend
+        run: npm test
 
   backend-integration-tests:
     name: Backend Integration (${{ matrix.module }})
@@ -137,6 +186,10 @@ jobs:
         working-directory: frontend
         run: npm test
 
+      - name: Run frontend Node unit tests
+        working-directory: frontend
+        run: npm run test:unit
+
   frontend-build:
     name: Frontend Build
     runs-on: ubuntu-latest
@@ -165,3 +218,34 @@ jobs:
 
       - name: Check frontend bundle budget
         run: npm run check:frontend-bundle
+
+  frontend-e2e:
+    name: Frontend E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Sync ERP access policy
+        run: npm run sync:erp-access
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright smoke tests
+        working-directory: frontend
+        run: npm run test:e2e

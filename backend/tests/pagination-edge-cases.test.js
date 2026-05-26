@@ -4,14 +4,18 @@
  */
 
 const mongoose = require('mongoose')
-const { MongoMemoryServer } = require('mongodb-memory-server')
-const { parsePaginationParams, formatPaginationResponse } = require('../utils/pagination')
+const {
+  startMongoMemoryServer,
+  isMongooseConnected,
+  disconnectMongooseIfConnected,
+} = require('./mongoMemoryTestServer')
+const { parseOffsetPagination, parsePaginationParams, formatPaginationResponse } = require('../utils/pagination')
 
 describe('Pagination Utility', () => {
   let mongoServer
 
   beforeAll(async () => {
-    mongoServer = await MongoMemoryServer.create()
+    mongoServer = await startMongoMemoryServer()
     await mongoose.connect(mongoServer.getUri())
   })
 
@@ -43,6 +47,21 @@ describe('Pagination Utility', () => {
 
     it('should default sortOrder to -1 (desc)', () => {
       expect(parsePaginationParams({}).sortOrder).toBe(-1)
+    })
+  })
+
+  describe('parseOffsetPagination', () => {
+    it('should parse page, limit, and skip', () => {
+      expect(parseOffsetPagination({ page: '3', limit: '25' })).toEqual({ page: 3, limit: 25, skip: 50 })
+    })
+
+    it('should enforce page and limit bounds', () => {
+      expect(parseOffsetPagination({ page: '-2', limit: '999' }, 25, 100)).toEqual({ page: 1, limit: 100, skip: 0 })
+      expect(parseOffsetPagination({ page: '2', limit: '0' }, 25, 100)).toEqual({ page: 2, limit: 25, skip: 25 })
+    })
+
+    it('should use default limit when limit is missing', () => {
+      expect(parseOffsetPagination({ page: '2' }, 50, 200)).toEqual({ page: 2, limit: 50, skip: 50 })
     })
   })
 
@@ -110,6 +129,7 @@ describe('Pagination Utility', () => {
     })
 
     afterEach(async () => {
+      if (!isMongooseConnected(mongoose)) return
       await TransactionModel.deleteMany({})
     })
 
@@ -165,6 +185,7 @@ describe('Pagination Utility', () => {
     })
 
     afterEach(async () => {
+      if (!isMongooseConnected(mongoose)) return
       await CoaModel.deleteMany({})
     })
 

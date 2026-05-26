@@ -212,11 +212,475 @@ const groupJvLedgerEntries = (entries = []) => {
   })
 }
 
+const validateJvLines = ({
+  lines = [],
+  jvMode = 'journal',
+  baseCurrencyCode = 'USD',
+  inferJvAccountCurrency = () => baseCurrencyCode,
+  convertJvAmount = (amount) => Number(amount || 0),
+  isExchangeLine = () => false,
+} = {}) => {
+  const lineIssuesById = {}
+  const activeLines = []
+  let totalDebit = 0
+  let totalCredit = 0
+
+  lines.forEach((line, index) => {
+    const debit = Number(line.debit || 0)
+    const credit = Number(line.credit || 0)
+    const debitRawValue = Number.isFinite(debit) && debit > 0 ? debit : 0
+    const creditRawValue = Number.isFinite(credit) && credit > 0 ? credit : 0
+    const accountId = String(line.accountId || '').trim()
+    const hasNarration = String(line.description || '').trim().length > 0
+    const hasAmount = debitRawValue > 0 || creditRawValue > 0
+    const hasTyped = hasAmount || hasNarration || accountId
+    let debitValue = debitRawValue
+    let creditValue = creditRawValue
+
+    if (accountId) {
+      const accountCurrency = inferJvAccountCurrency(accountId)
+      if (debitRawValue > 0) {
+        const normalizedDebit = convertJvAmount(debitRawValue, accountCurrency, baseCurrencyCode)
+        if (!Number.isFinite(normalizedDebit) || normalizedDebit <= 0) {
+          lineIssuesById[line.id] = `Row ${index + 1}: Missing or invalid currency rate for ${accountCurrency}`
+        } else {
+          debitValue = normalizedDebit
+        }
+      }
+      if (creditRawValue > 0) {
+        const normalizedCredit = convertJvAmount(creditRawValue, accountCurrency, baseCurrencyCode)
+        if (!Number.isFinite(normalizedCredit) || normalizedCredit <= 0) {
+          lineIssuesById[line.id] = `Row ${index + 1}: Missing or invalid currency rate for ${accountCurrency}`
+        } else {
+          creditValue = normalizedCredit
+        }
+      }
+    }
+
+    if (debitValue > 0 && creditValue > 0) {
+      lineIssuesById[line.id] = `Row ${index + 1}: Only one side allowed per row`
+    } else if (hasTyped && !hasAmount && !(jvMode === 'bank_jv' && isExchangeLine(line))) {
+      lineIssuesById[line.id] = `Row ${index + 1}: Enter debit or credit amount`
+    } else if (hasAmount && !accountId) {
+      lineIssuesById[line.id] = `Row ${index + 1}: Account is required`
+    }
+
+    totalDebit += debitValue
+    totalCredit += creditValue
+    if (!lineIssuesById[line.id] && hasAmount && accountId) {
+      activeLines.push({
+        id: line.id,
+        accountId,
+        description: String(line.description || '').trim(),
+        debit: debitValue,
+        credit: creditValue,
+      })
+    }
+  })
+
+  const difference = Number((totalDebit - totalCredit).toFixed(2))
+  const hasLineIssues = Object.keys(lineIssuesById).length > 0
+  const hasDebit = totalDebit > 0
+  const hasCredit = totalCredit > 0
+  const isBalanced = hasDebit && hasCredit && Math.abs(difference) < 0.005
+  const canSave = !hasLineIssues && isBalanced && activeLines.length > 1
+
+  return {
+    activeLines,
+    lineIssuesById,
+    totalDebit,
+    totalCredit,
+    difference,
+    isBalanced,
+    canSave,
+    hasLineIssues,
+  }
+}
+
+const allocateJvLedgerEntries = (activeLines = []) => {
+  const debitQueue = activeLines
+    .filter((line) => Number(line.debit || 0) > 0)
+    .map((line) => ({ ...line, remaining: Number(Number(line.debit || 0).toFixed(2)) }))
+  const creditQueue = activeLines
+    .filter((line) => Number(line.credit || 0) > 0)
+    .map((line) => ({ ...line, remaining: Number(Number(line.credit || 0).toFixed(2)) }))
+
+  if (!debitQueue.length || !creditQueue.length) {
+    return {
+      entries: [],
+      error: 'JV requires at least one debit row and one credit row',
+    }
+  }
+
+  const entries = []
+  let drIndex = 0
+  let crIndex = 0
+  while (drIndex < debitQueue.length && crIndex < creditQueue.length) {
+    const debitLine = debitQueue[drIndex]
+    const creditLine = creditQueue[crIndex]
+    const pairAmount = Math.min(debitLine.remaining, creditLine.remaining)
+    if (pairAmount > 0) {
+      entries.push({
+        debitAccountId: debitLine.accountId,
+        creditAccountId: creditLine.accountId,
+        amount: Number(pairAmount.toFixed(2)),
+        lineDesc: [debitLine.description, creditLine.description].filter(Boolean).join(' | '),
+      })
+    }
+    debitLine.remaining = Number((debitLine.remaining - pairAmount).toFixed(2))
+    creditLine.remaining = Number((creditLine.remaining - pairAmount).toFixed(2))
+    if (debitLine.remaining <= 0.004) drIndex += 1
+    if (creditLine.remaining <= 0.004) crIndex += 1
+  }
+
+  const debitRemainder = debitQueue.reduce((sum, line) => sum + Math.max(0, line.remaining), 0)
+  const creditRemainder = creditQueue.reduce((sum, line) => sum + Math.max(0, line.remaining), 0)
+  if (debitRemainder > 0.01 || creditRemainder > 0.01) {
+    return {
+      entries,
+      error: 'Failed to allocate JV lines into balanced ledger entries',
+    }
+  }
+
+  return { entries, error: '' }
+}
+
+const getJvAccountByIdFromOptions = (accountId, entryAccountOptions = []) =>
+  entryAccountOptions.find((item) => String(item?._id) === String(accountId || '')) || null
+
+const getJvAccountCodeFromOptions = (accountId, entryAccountOptions) =>
+  String(getJvAccountByIdFromOptions(accountId, entryAccountOptions)?.accountCode || '').trim().toUpperCase()
+
+const isExchangeAccountCode = (code) => ['4190', '5190'].includes(String(code || '').trim().toUpperCase())
+
+const isExchangeJvLine = (line, entryAccountOptions) =>
+  isExchangeAccountCode(getJvAccountCodeFromOptions(line?.accountId, entryAccountOptions))
+
+/** Bank JV: auto-balance FX gain/loss (4190/5190) when user has not entered manual FX amounts. */
+function applyBankJvExchangeBalancing(lines, ctx) {
+  const {
+    jvMode,
+    entryAccountOptions = [],
+    baseCurrencyCode = 'USD',
+    convertJvAmount,
+    inferJvAccountCurrency,
+    accountLookupText,
+  } = ctx
+  if (jvMode !== 'bank_jv') return lines
+  const hasManualFxEntry = lines.some((line) => {
+    if (!isExchangeJvLine(line, entryAccountOptions)) return false
+    const hasAmount = Number(line.debit || 0) > 0 || Number(line.credit || 0) > 0
+    return hasAmount && !line.autoFx
+  })
+  if (hasManualFxEntry) return lines
+  const withoutFxAmounts = lines.map((line) => (
+    isExchangeJvLine(line, entryAccountOptions) && line.autoFx
+      ? { ...line, debit: '', credit: '' }
+      : line
+  ))
+  const nonFxLines = withoutFxAmounts.filter((line) => String(line.accountId || '').trim() && !isExchangeJvLine(line, entryAccountOptions))
+  if (nonFxLines.length < 2) return withoutFxAmounts
+  let baseDebit = 0
+  let baseCredit = 0
+  for (const line of nonFxLines) {
+    const accountCurrency = inferJvAccountCurrency(line.accountId)
+    const debitRaw = Number(line.debit || 0)
+    const creditRaw = Number(line.credit || 0)
+    const debitValue = Number.isFinite(debitRaw) && debitRaw > 0 ? debitRaw : 0
+    const creditValue = Number.isFinite(creditRaw) && creditRaw > 0 ? creditRaw : 0
+    if (debitValue > 0) {
+      const normalizedDebit = convertJvAmount(debitValue, accountCurrency, baseCurrencyCode)
+      if (!Number.isFinite(normalizedDebit)) return withoutFxAmounts
+      baseDebit += normalizedDebit
+    }
+    if (creditValue > 0) {
+      const normalizedCredit = convertJvAmount(creditValue, accountCurrency, baseCurrencyCode)
+      if (!Number.isFinite(normalizedCredit)) return withoutFxAmounts
+      baseCredit += normalizedCredit
+    }
+  }
+  const difference = Number((baseDebit - baseCredit).toFixed(2))
+  if (Math.abs(difference) < 0.005) return withoutFxAmounts
+  const needsDebitFx = difference < 0
+  const targetCode = needsDebitFx ? '5190' : '4190'
+  const targetAccount = entryAccountOptions.find((item) => String(item?.accountCode || '').trim().toUpperCase() === targetCode)
+  if (!targetAccount?._id) return withoutFxAmounts
+  const withoutFxAmountsLocal = withoutFxAmounts
+  let targetLine = withoutFxAmountsLocal.find((line) => getJvAccountCodeFromOptions(line.accountId, entryAccountOptions) === targetCode)
+    || withoutFxAmountsLocal.find((line) => isExchangeJvLine(line, entryAccountOptions))
+    || withoutFxAmountsLocal.find((line) => {
+      const hasAccount = String(line.accountId || '').trim().length > 0
+      const hasAmount = Number(line.debit || 0) > 0 || Number(line.credit || 0) > 0
+      const hasNarration = String(line.description || '').trim().length > 0
+      return !hasAccount && !hasAmount && !hasNarration
+    })
+  let workingLines = withoutFxAmountsLocal
+  if (!targetLine) {
+    const nextId = Math.max(0, ...withoutFxAmountsLocal.map((line) => Number(line.id || 0))) + 1
+    targetLine = { id: nextId, accountId: '', accountInput: '', description: '', debit: '', credit: '', autoFx: true }
+    workingLines = [...withoutFxAmountsLocal, targetLine]
+  }
+  const targetCurrency = inferJvAccountCurrency(targetAccount._id)
+  const fxAmount = convertJvAmount(Math.abs(difference), baseCurrencyCode, targetCurrency)
+  if (!Number.isFinite(fxAmount) || fxAmount <= 0) return workingLines
+  return workingLines.map((line) => {
+    if (line.id !== targetLine.id) return line
+    return {
+      ...line,
+      accountId: String(targetAccount._id),
+      accountInput: accountLookupText(targetAccount),
+      debit: needsDebitFx ? String(fxAmount) : '',
+      credit: needsDebitFx ? '' : String(fxAmount),
+      autoFx: true,
+    }
+  })
+}
+
+function filterJvEditableEntries(docMatchedEntries, entry, entryMode) {
+  const reversedEntryIds = new Set(
+    docMatchedEntries
+      .filter((e) => String(e?.referenceType || '').toLowerCase() === 'reversal')
+      .map((e) => String(e?.referenceId || String(e?.description || '').match(/REVERSAL of Entry\s+([a-f0-9]{24})/i)?.[1] || '').trim())
+      .filter(Boolean),
+  )
+  const entryDateKey = entry?.date ? new Date(entry.date).toISOString().slice(0, 10) : ''
+  return docMatchedEntries.filter((e) => {
+    const refType = String(e?.referenceType || '').toLowerCase()
+    if (refType !== entryMode) return false
+    const rowDateKey = e?.date ? new Date(e.date).toISOString().slice(0, 10) : ''
+    if (entryDateKey && rowDateKey !== entryDateKey) return false
+    return !reversedEntryIds.has(String(e?._id || ''))
+  })
+}
+
+/** Rebuild JV modal lines from ledger entries (same-account debit/credit aggregation as UI). */
+function reconstructJvEditLines(editableEntries, entry, {
+  baseCurrencyCode = 'USD',
+  normalizeJvCurrencyCode: normCur = normalizeJvCurrencyCode,
+  convertJvAmount,
+  inferJvAccountCurrency,
+  inferLegacyJvBatchDisplayFc,
+} = {}) {
+  const debitMap = new Map()
+  const creditMap = new Map()
+  editableEntries.forEach((e) => {
+    const entryCur = normCur(e.currency || baseCurrencyCode)
+    const drId = e.debitAccountId?._id
+    const crId = e.creditAccountId?._id
+    if (drId) {
+      const displayDebit = convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(drId))
+      const debitAmount = Number.isFinite(Number(displayDebit)) ? Number(displayDebit) : Number(e.amount || 0)
+      if (!debitMap.has(drId)) {
+        debitMap.set(drId, {
+          accountId: drId,
+          accountInput: `${e.debitAccountId.accountCode} - ${e.debitAccountId.accountName}`,
+          debit: 0,
+          description: '',
+        })
+      }
+      debitMap.get(drId).debit = Number((debitMap.get(drId).debit + debitAmount).toFixed(2))
+    }
+    if (crId) {
+      const displayCredit = convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(crId))
+      const creditAmount = Number.isFinite(Number(displayCredit)) ? Number(displayCredit) : Number(e.amount || 0)
+      if (!creditMap.has(crId)) {
+        creditMap.set(crId, {
+          accountId: crId,
+          accountInput: `${e.creditAccountId.accountCode} - ${e.creditAccountId.accountName}`,
+          credit: 0,
+          description: '',
+        })
+      }
+      creditMap.get(crId).credit = Number((creditMap.get(crId).credit + creditAmount).toFixed(2))
+    }
+  })
+  let id = 1
+  const lines = [
+    ...Array.from(debitMap.values()).map((d) => ({ id: id++, accountId: d.accountId, accountInput: d.accountInput, description: d.description, debit: d.debit, credit: '' })),
+    ...Array.from(creditMap.values()).map((c) => ({ id: id++, accountId: c.accountId, accountInput: c.accountInput, description: c.description, debit: '', credit: c.credit })),
+  ]
+  const rawDesc = String(entry.description || '')
+  const docNoHead = (rawDesc.includes(' — ') ? rawDesc.split(' — ') : rawDesc.split(' - '))[0]?.trim() || ''
+  const docNo = docNoHead
+  const hasDocPrefix = /^(jv|bnkjv)[/-]/i.test(String(docNo || ''))
+  const entryMode = String(entry?.referenceType || '').toLowerCase() === 'bank_jv' ? 'bank_jv' : 'journal'
+  const narration = editableEntries[0]?.notes || ''
+  const headerDocNo = (docNo && hasDocPrefix) ? docNo : `${resolveJvModeMeta(entryMode).prefix}-EDIT-${entry._id.slice(-6)}`
+  const legacyBatchFc = inferLegacyJvBatchDisplayFc(editableEntries, baseCurrencyCode)
+  const headerCurrency = legacyBatchFc
+    || normCur((editableEntries[0] || entry).currency || baseCurrencyCode)
+  return {
+    lines,
+    nextJvLineId: id,
+    narration,
+    headerDocNo,
+    headerCurrency,
+    jvEditEntryIds: editableEntries.map((e) => e._id),
+    entryMode,
+    hasDocPrefix,
+    entryDate: new Date((editableEntries[0] || entry).date).toISOString().slice(0, 10),
+  }
+}
+
+/** 24-char hex ObjectId-style batch id for multi-line JV posting groups. */
+function makeJvGroupObjectId() {
+  const hex = '0123456789abcdef'
+  let s = ''
+  for (let i = 0; i < 24; i += 1) s += hex[Math.floor(Math.random() * 16)]
+  return s
+}
+
+/** Build createLedgerEntry payloads for a balanced multi-line JV (header currency vs base). */
+function buildJvPostingPayloads({
+  entries,
+  jvHeader,
+  baseCurrencyCode,
+  currencies = [],
+  jvMode,
+  jvGroupId,
+  normalizeJvCurrencyCode: normCur = normalizeJvCurrencyCode,
+} = {}) {
+  const isBankJV = jvMode === 'bank_jv'
+  const sharedDesc = [jvHeader.docNo, jvHeader.narration].filter(Boolean).join(' — ') || 'Manual JV'
+  const headerCur = normCur(jvHeader.currency || baseCurrencyCode)
+  const baseCur = normCur(baseCurrencyCode)
+  let headerFxRate = 1
+  if (headerCur !== baseCur) {
+    const curRow = currencies.find((c) => normCur(c?.code) === headerCur)
+    headerFxRate = Number(curRow?.exchangeRate || 0)
+    if (!Number.isFinite(headerFxRate) || headerFxRate <= 0) {
+      return {
+        error: `Cannot post in ${headerCur}: add an active ${headerCur} currency with exchangeRate (vs ${baseCur}) in Master → Currencies.`,
+        payloads: null,
+      }
+    }
+    for (const row of entries) {
+      const fcRaw = Number(row.amount) / headerFxRate
+      const postAmt = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
+      if (!Number.isFinite(postAmt) || postAmt <= 0) {
+        return {
+          error: 'A JV line would round to zero in the header currency; adjust amounts or the FX rate.',
+          payloads: null,
+        }
+      }
+    }
+  }
+  const payloads = entries.map((entry) => {
+    const pairBase = Number(entry.amount)
+    let postAmount = pairBase
+    let postCurrency = baseCur
+    let postRate = 1
+    if (headerCur !== baseCur) {
+      const fcRaw = pairBase / headerFxRate
+      postAmount = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
+      postCurrency = headerCur
+      postRate = headerFxRate
+    }
+    return {
+      date: jvHeader.date,
+      description: entry.lineDesc ? `${sharedDesc} — ${entry.lineDesc}` : sharedDesc,
+      notes: jvHeader.narration || '',
+      referenceType: isBankJV ? 'bank_jv' : 'journal',
+      referenceId: jvGroupId,
+      currency: postCurrency,
+      exchangeRate: postRate,
+      debitAccountId: entry.debitAccountId,
+      creditAccountId: entry.creditAccountId,
+      amount: postAmount,
+    }
+  })
+  return { error: null, payloads }
+}
+
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;')
+
+const formatJvPrintAmount = (value) => (
+  Number(value || 0) > 0
+    ? Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : ''
+)
+
+const buildJvPrintHtml = ({
+  validation = {},
+  jvLines = [],
+  jvHeader = {},
+  modeMeta = resolveJvModeMeta(),
+  branding = {},
+  defaultCompanyName = 'Ops Dashboard ERP',
+  baseCurrencyCode = 'USD',
+  preparedBy = '',
+  logoMarkup = '',
+  getJvAccountById = () => null,
+} = {}) => {
+  const printLines = Array.isArray(validation.activeLines) && validation.activeLines.length
+    ? validation.activeLines
+    : jvLines
+  const rows = printLines
+    .map((line, index) => {
+      const account = getJvAccountById(line.accountId)
+      const accountText = account
+        ? `${account.accountCode || ''} - ${account.accountName || ''}`
+        : (line.accountInput || line.accountId || '')
+      return `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${escapeHtml(accountText)}</td>
+            <td>${escapeHtml(line.description || jvHeader.narration || '')}</td>
+            <td class="num">${formatJvPrintAmount(line.debit)}</td>
+            <td class="num">${formatJvPrintAmount(line.credit)}</td>
+          </tr>
+        `
+    })
+    .join('')
+
+  return `
+      <div class="doc-head">
+        <div>
+          <div class="company">${escapeHtml(branding.companyName || defaultCompanyName)}</div>
+          ${branding.address ? `<div class="meta">${escapeHtml(branding.address).replace(/\n/g, '<br />')}</div>` : ''}
+          ${branding.phone ? `<div class="meta">Telephone: ${escapeHtml(branding.phone)}</div>` : ''}
+          ${branding.trn ? `<div class="meta">TRN: ${escapeHtml(branding.trn)}</div>` : ''}
+        </div>
+        ${logoMarkup}
+      </div>
+      <h1>${escapeHtml(modeMeta.badge)}</h1>
+      <div class="meta-grid">
+        <div><strong>Doc No:</strong> ${escapeHtml(jvHeader.docNo || '')}</div>
+        <div><strong>Date:</strong> ${escapeHtml(jvHeader.date || '')}</div>
+        <div><strong>Currency:</strong> ${escapeHtml(jvHeader.currency || baseCurrencyCode)}</div>
+        <div><strong>Prepared By:</strong> ${escapeHtml(preparedBy)}</div>
+      </div>
+      <table>
+        <thead><tr><th>No.</th><th>Account</th><th>Narration</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="5">No JV rows</td></tr>'}</tbody>
+        <tfoot><tr><td colspan="3" class="num">Total</td><td class="num">${Number(validation.totalDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td class="num">${Number(validation.totalCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr></tfoot>
+      </table>
+      <div class="note">${escapeHtml(jvHeader.narration || '')}</div>
+      <div class="signatures">
+        <div>Prepared By</div>
+        <div>Checked By</div>
+        <div>Authorised Signatory</div>
+      </div>
+    `
+}
+
 export {
   JV_MODE_META,
+  allocateJvLedgerEntries,
+  applyBankJvExchangeBalancing,
+  buildJvPostingPayloads,
+  buildJvPrintHtml,
   convertJvAmountBetweenCurrencies,
   emptyJvLine,
+  filterJvEditableEntries,
+  makeJvGroupObjectId,
   normalizeJvCurrencyCode,
+  reconstructJvEditLines,
   resolveJvModeMeta,
   buildJvDocNo,
   createJvHeader,
@@ -227,4 +691,5 @@ export {
   groupJvLedgerEntries,
   jvLedgerGroupKey,
   sumJvLedgerBaseAmount,
+  validateJvLines,
 }

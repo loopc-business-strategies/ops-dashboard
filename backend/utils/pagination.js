@@ -17,6 +17,13 @@ function parsePaginationParams(query) {
   return { limit, cursor, sortOrder }
 }
 
+function parseOffsetPagination(query = {}, defaultLimit = 25, maxLimit = 100) {
+  const page = Math.max(1, Number(query.page) || 1)
+  const limit = Math.min(maxLimit, Math.max(1, Number(query.limit) || defaultLimit))
+  const skip = (page - 1) * limit
+  return { page, limit, skip }
+}
+
 /**
  * Apply cursor-based pagination to Mongoose query
  * @param {Object} query - Mongoose query object
@@ -80,6 +87,7 @@ async function paginateQuery(mongooseQuery, sortField = '_id', expressQuery = {}
 }
 
 module.exports = {
+  parseOffsetPagination,
   parsePaginationParams,
   applyCursorPagination,
   formatPaginationResponse,
