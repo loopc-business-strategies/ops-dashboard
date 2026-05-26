@@ -2,7 +2,7 @@ const mongoose = require('mongoose')
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
 const {
   shouldSuppressSpotMetalMtmForAccountEnquiry,
-  computeBookedUnfixedRevaluationFromTransactions,
+  computeBookedUnfixedRevaluationFromStatementRows,
 } = require('../../services/erpAccounting/metalMarginPolicy')
 const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVoucherTypes')
 const { createReportResponseCache } = require('../../utils/reportResponseCache')
@@ -261,10 +261,6 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     ])
     accumulateUnfixedMetalFromTransactions(customerMetalTxs)
     accumulateUnfixedMetalFromTransactions(vendorMetalTxs)
-
-    const bookedUnfixedRevaluation = suppressMetalSpotMtm
-      ? computeBookedUnfixedRevaluationFromTransactions([...customerMetalTxs, ...vendorMetalTxs])
-      : { gold: 0, silver: 0, total: 0 }
 
     const ledgerEntries = await Ledger.find({
       isDeleted: { $ne: true },
@@ -911,6 +907,10 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       runningBalance -= signedAmount
       return nextRow
     })
+
+    const bookedUnfixedRevaluation = suppressMetalSpotMtm
+      ? computeBookedUnfixedRevaluationFromStatementRows(combinedStatementRows)
+      : { gold: 0, silver: 0, total: 0 }
 
     const positions = [
       {

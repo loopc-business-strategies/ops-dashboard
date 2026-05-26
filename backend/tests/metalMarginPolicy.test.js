@@ -1,5 +1,6 @@
 const {
   computeMarginMetricsRaw,
+  computeBookedUnfixedRevaluationFromStatementRows,
   computeBookedUnfixedRevaluationFromTransactions,
   shouldSuppressSpotMetalMtmForAccountEnquiry,
   shouldSuppressSpotMetalMtmForCustomerDashboard,
@@ -97,17 +98,35 @@ describe('metalMarginPolicy', () => {
     })).toBe(false)
   })
 
-  test('booked unfixed revaluation uses voucher currency for creditor AP', () => {
-    const booked = computeBookedUnfixedRevaluationFromTransactions([{
-      type: 'purchase',
-      amount: 234.21,
-      exchangeRate: 1,
-      voucherMeta: {
-        fixingType: 'unfixed',
-        lineItems: [{ stockCode: 'XAU', pureWeight: 999.9 }],
-      },
+  test('booked unfixed revaluation uses posted ledger amount for creditor AP', () => {
+    const booked = computeBookedUnfixedRevaluationFromStatementRows([{
+      sourceTransactionId: 'tx-1',
+      sourceTransactionType: 'purchase',
+      metalDealType: 'purchase',
+      metalFixStatus: 'unfixed',
+      isMetalTrade: true,
+      metalCode: 'XAU',
+      unfixedVoucherAmount: 4918.5,
+      signedAmount: -234.21,
+      creditAmount: 234.21,
     }])
     expect(booked.gold).toBe(234.21)
     expect(booked.total).toBe(234.21)
+  })
+
+  test('booked unfixed revaluation falls back to voucher when ledger is not yet posted', () => {
+    const booked = computeBookedUnfixedRevaluationFromStatementRows([{
+      sourceTransactionId: 'tx-2',
+      sourceTransactionType: 'purchase',
+      metalDealType: 'purchase',
+      metalFixStatus: 'unfixed',
+      isMetalTrade: true,
+      metalCode: 'XAU',
+      unfixedVoucherAmount: 234.21,
+      signedAmount: 0,
+      debitAmount: 0,
+      creditAmount: 0,
+    }])
+    expect(booked.gold).toBe(234.21)
   })
 })

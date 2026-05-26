@@ -126,10 +126,21 @@ export function resolveUnfixedBookedExposureSign(entry = {}) {
   return 0
 }
 
+/** Prefer ledger debit/credit on this account over raw transaction totals. */
+export function resolveBookedLedgerAmount(entry = {}) {
+  const postedAmount = Math.abs(Number(
+    entry?.signedAmount || entry?.debitAmount || entry?.creditAmount || 0,
+  ))
+  const voucherAmount = Math.abs(Number(entry?.unfixedVoucherAmount || 0))
+  if (Number.isFinite(postedAmount) && postedAmount > 0) return postedAmount
+  if (Number.isFinite(voucherAmount) && voucherAmount > 0) return voucherAmount
+  return 0
+}
+
 /**
  * Sum unfixed metal voucher exposure by metal code.
  * - `unpriced`: only the voucher amount not yet posted to the ledger (debtor / trading).
- * - `booked`: full booked voucher amount (creditor / vendor AP).
+ * - `booked`: ledger-posted amount on this account (creditor / vendor AP), falling back to voucher when unposted.
  */
 export function accumulateUnfixedVoucherRevaluationByMetal(
   entries = [],
@@ -140,6 +151,8 @@ export function accumulateUnfixedVoucherRevaluationByMetal(
     resolveMetalCode = () => '-',
   } = {},
 ) {
+  const seenBookedTransactions = new Set()
+
   return entries.reduce((acc, entry) => {
     if (resolveFixStatus(entry) !== 'unfixed') return acc
     if (!isMetalEntry(entry)) return acc
@@ -150,17 +163,24 @@ export function accumulateUnfixedVoucherRevaluationByMetal(
     if (dealSide !== 'sale' && dealSide !== 'purchase') return acc
 
     const voucherAmount = Math.abs(Number(entry?.unfixedVoucherAmount || 0))
-    if (!Number.isFinite(voucherAmount) || voucherAmount <= 0) return acc
+    const postedAmount = Math.abs(Number(
+      entry?.signedAmount || entry?.debitAmount || entry?.creditAmount || 0,
+    ))
 
     let signedAmount = 0
     if (mode === 'booked') {
+      const txKey = String(entry?.sourceTransactionId || entry?._id || '').trim()
+      if (txKey) {
+        if (seenBookedTransactions.has(txKey)) return acc
+        seenBookedTransactions.add(txKey)
+      }
+      const bookedAmount = resolveBookedLedgerAmount(entry)
+      if (!Number.isFinite(bookedAmount) || bookedAmount <= 0) return acc
       const sign = resolveUnfixedBookedExposureSign(entry)
       if (!sign) return acc
-      signedAmount = voucherAmount * sign
+      signedAmount = bookedAmount * sign
     } else {
-      const postedAmount = Math.abs(Number(
-        entry?.signedAmount || entry?.debitAmount || entry?.creditAmount || 0,
-      ))
+      if (!Number.isFinite(voucherAmount) || voucherAmount <= 0) return acc
       const unpricedAmount = Number(Math.max(voucherAmount - postedAmount, 0).toFixed(2))
       if (unpricedAmount <= 0) return acc
       const exposureSign = Number(entry?.signedAmount || 0) < 0 ? -1 : 1

@@ -7,6 +7,7 @@ import {
   normalizeStatementCurrencyCode,
   resolveExposureDirection,
   resolveUnfixedBookedExposureSign,
+  resolveBookedLedgerAmount,
   matchesStatementMetal,
   resolveMetalCodeFromStockName,
   resolveStatementMetalBalance,
@@ -126,6 +127,31 @@ describe('statement helpers', () => {
 
     expect(byMetal.gold).toBe(234.21)
     expect(resolveUnfixedBookedExposureSign(entries[0])).toBe(1)
+  })
+
+  test('prefers posted ledger amount over inflated transaction total for booked revaluation', () => {
+    const entries = [{
+      sourceTransactionId: 'tx-2305',
+      metalFixStatus: 'unfixed',
+      sourceTransactionType: 'purchase',
+      metalDealType: 'purchase',
+      unfixedVoucherAmount: 4918.5,
+      signedAmount: -234.21,
+      creditAmount: 234.21,
+      metalCode: 'XAU',
+      isMetalTrade: true,
+    }]
+
+    expect(resolveBookedLedgerAmount(entries[0])).toBe(234.21)
+
+    const byMetal = accumulateUnfixedVoucherRevaluationByMetal(entries, {
+      mode: 'booked',
+      resolveFixStatus: (entry) => String(entry.metalFixStatus || ''),
+      isMetalEntry: () => true,
+      resolveMetalCode: resolveStatementMetalCode,
+    })
+
+    expect(byMetal.gold).toBe(234.21)
   })
 
   test('uses only unpriced voucher remainder for trading-style revaluation', () => {

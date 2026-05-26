@@ -90,46 +90,118 @@ function computeMarginMetricsRaw({
   }
 }
 
+const UNFIXED_FIXING_TYPES = new Set(['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'])
+
+function normalizeUnfixedFixingStatus(value = '') {
+  const normalized = String(value || '').trim().toLowerCase()
+  return UNFIXED_FIXING_TYPES.has(normalized) ? 'unfixed' : ''
+}
+
+function resolveBookedExposureSign(dealType = '', signedAmount = 0) {
+  const dealSide = String(dealType || '').trim().toLowerCase()
+  if (dealSide === 'purchase') return 1
+  if (dealSide === 'sale') return -1
+  const signed = Number(signedAmount || 0)
+  if (signed < 0) return -1
+  if (signed > 0) return 1
+  return 0
+}
+
+function resolveBookedLedgerAmountFromRow(row = {}) {
+  const postedAmount = Math.abs(Number(
+    row?.signedAmount || row?.debitAmount || row?.creditAmount || 0,
+  ))
+  const voucherAmount = Math.abs(Number(row?.unfixedVoucherAmount || 0))
+  if (Number.isFinite(postedAmount) && postedAmount > 0) return postedAmount
+  if (Number.isFinite(voucherAmount) && voucherAmount > 0) return voucherAmount
+  return 0
+}
+
 /**
- * Sum booked unfixed voucher currency exposure from posted sale/purchase transactions.
- * Used for creditor/vendor AP where spot × grams is misleading.
+ * Sum booked unfixed exposure from account-enquiry statement rows.
+ * Uses ledger debit/credit on the account, not raw transaction totals.
  *
- * @param {Array<{ type?: string, amount?: number|string, exchangeRate?: number|string, voucherMeta?: object }>} transactions
+ * @param {Array<object>} rows
  * @returns {{ gold: number, silver: number, total: number }}
  */
-function computeBookedUnfixedRevaluationFromTransactions(transactions = []) {
-  let gold = 0
-  let silver = 0
-  const isUnfixed = (tx) => {
-    const normalized = String(tx?.voucherMeta?.fixingType || tx?.metalFixStatus || '').trim().toLowerCase()
-    return ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(normalized)
-  }
-  const resolveMetalCode = (lines = []) => {
-    for (const line of lines) {
-      const stockText = String(line?.stockCode || '').trim().toUpperCase()
-      if (stockText.includes('XAG') || stockText.includes('SILV')) return 'XAG'
-      if (stockText.includes('XAU') || stockText.includes('GOLD')) return 'XAU'
+function computeBookedUnfixedRevaluationFromStatementRows(rows = []) {
+  const grouped = new Map()
+
+  for (const row of rows) {
+    if (normalizeUnfixedFixingStatus(row?.metalFixStatus) !== 'unfixed') continue
+    if (!row?.isMetalTrade) continue
+
+    const dealType = String(
+      row?.sourceTransactionType || row?.metalDealType || row?.referenceType || '',
+    ).trim().toLowerCase()
+    if (dealType !== 'sale' && dealType !== 'purchase') continue
+
+    const txKey = String(row?.sourceTransactionId || row?._id || '').trim()
+      || `${String(row?.date || '')}:${dealType}:${String(row?.metalCode || 'XAU')}`
+    const bucket = grouped.get(txKey) || {
+      dealType,
+      metalCode: String(row?.metalCode || 'XAU').trim().toUpperCase() || 'XAU',
+      posted: 0,
+      voucher: 0,
+      signedAmount: 0,
     }
-    return 'XAU'
+    bucket.posted += Math.abs(Number(
+      row?.signedAmount || row?.debitAmount || row?.creditAmount || 0,
+    ))
+    bucket.voucher = Math.max(
+      bucket.voucher,
+      Math.abs(Number(row?.unfixedVoucherAmount || 0)),
+    )
+    if (!bucket.signedAmount && Number(row?.signedAmount || 0)) {
+      bucket.signedAmount = Number(row.signedAmount || 0)
+    }
+    if (row?.metalCode) bucket.metalCode = String(row.metalCode).trim().toUpperCase()
+    grouped.set(txKey, bucket)
   }
 
-  for (const tx of transactions) {
-    const txType = String(tx?.type || '').trim().toLowerCase()
-    if (txType !== 'sale' && txType !== 'purchase') continue
-    if (!isUnfixed(tx)) continue
-    const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-    const voucherAmount = Math.abs(
-      Number(tx?.amount || tx?.voucherMeta?.grandTotal || 0) * Number(tx?.exchangeRate || 1),
-    )
-    if (!Number.isFinite(voucherAmount) || voucherAmount <= 0) continue
-    const sign = txType === 'purchase' ? 1 : -1
-    const signedAmount = voucherAmount * sign
-    const metalCode = resolveMetalCode(lines)
-    if (metalCode === 'XAG') silver += signedAmount
+  let gold = 0
+  let silver = 0
+  for (const bucket of grouped.values()) {
+    const bookedAmount = bucket.posted > 0 ? bucket.posted : bucket.voucher
+    if (!Number.isFinite(bookedAmount) || bookedAmount <= 0) continue
+    const sign = resolveBookedExposureSign(bucket.dealType, bucket.signedAmount)
+    if (!sign) continue
+    const signedAmount = bookedAmount * sign
+    if (bucket.metalCode === 'XAG') silver += signedAmount
     else gold += signedAmount
   }
 
   return { gold, silver, total: gold + silver }
+}
+
+/**
+ * @deprecated Prefer computeBookedUnfixedRevaluationFromStatementRows for account enquiry.
+ */
+function computeBookedUnfixedRevaluationFromTransactions(transactions = []) {
+  return computeBookedUnfixedRevaluationFromStatementRows(
+    transactions.map((tx) => {
+      const txType = String(tx?.type || '').trim().toLowerCase()
+      const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
+      const metalCode = lines.some((line) => {
+        const stockText = String(line?.stockCode || '').trim().toUpperCase()
+        return stockText.includes('XAG') || stockText.includes('SILV')
+      }) ? 'XAG' : 'XAU'
+      return {
+        sourceTransactionId: String(tx?._id || ''),
+        sourceTransactionType: txType,
+        metalDealType: txType,
+        metalFixStatus: normalizeUnfixedFixingStatus(tx?.voucherMeta?.fixingType || tx?.metalFixStatus),
+        isMetalTrade: true,
+        metalCode,
+        unfixedVoucherAmount: Math.abs(
+          Number(tx?.amount || tx?.voucherMeta?.grandTotal || 0) * Number(tx?.exchangeRate || 1),
+        ),
+        signedAmount: 0,
+        debitAmount: 0,
+        creditAmount: 0,
+      }
+    }),
+  )
 }
 
 module.exports = {
@@ -137,5 +209,6 @@ module.exports = {
   shouldSuppressSpotMetalMtmForSupplierDashboard,
   shouldSuppressSpotMetalMtmForAccountEnquiry,
   computeMarginMetricsRaw,
+  computeBookedUnfixedRevaluationFromStatementRows,
   computeBookedUnfixedRevaluationFromTransactions,
 }
