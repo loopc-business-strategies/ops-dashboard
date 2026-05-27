@@ -136,25 +136,42 @@ async function main() {
     throw new Error('GitHub CLI is not authenticated. Run gh auth login or set GH_TOKEN.')
   }
 
+  const usersOnly = process.argv.includes('--users-only')
+  const secretsOnly = process.argv.includes('--secrets-only')
+
   for (const tenant of TENANTS) {
     const envVar = `MONGO_URI_${tenant.toUpperCase()}`
     if (!String(process.env[envVar] || '').trim()) {
-      throw new Error(`Missing ${envVar} in backend/.env`)
+      throw new Error(`Missing ${envVar} in backend/.env or workflow env`)
     }
   }
 
-  const existingSecrets = runGh(['secret', 'list', '-R', REPO])
-  const hasSharedPassword = /\bSMOKE_AUTH_PASSWORD\b/m.test(existingSecrets)
+  if (!usersOnly) {
+    const existingSecrets = runGh(['secret', 'list', '-R', REPO])
+    const hasSharedPassword = /\bSMOKE_AUTH_PASSWORD\b/m.test(existingSecrets)
 
-  if (verifyOnly) {
-    if (!hasSharedPassword) {
-      throw new Error('SMOKE_AUTH_PASSWORD secret is not configured yet.')
+    if (verifyOnly) {
+      if (!hasSharedPassword) {
+        throw new Error('SMOKE_AUTH_PASSWORD secret is not configured yet.')
+      }
+      console.log('GitHub smoke secrets are present.')
+      return
     }
-    console.log('GitHub smoke secrets are present. Re-run without --verify-only to rotate users/secrets.')
-    return
+
+    if (secretsOnly || !hasSharedPassword) {
+      const password = process.env.SMOKE_AUTH_PASSWORD?.trim() || generatePassword()
+      console.log(`Setting GitHub secrets on ${REPO}...`)
+      setGithubSecrets(password)
+      console.log('GitHub smoke auth secrets configured.')
+      if (secretsOnly) return
+      process.env.SMOKE_AUTH_PASSWORD = password
+    }
   }
 
-  const password = generatePassword()
+  const password = String(process.env.SMOKE_AUTH_PASSWORD || '').trim()
+  if (!password) {
+    throw new Error('SMOKE_AUTH_PASSWORD is required to provision tenant users.')
+  }
 
   console.log(`Provisioning smoke user "${SMOKE_USER_NAME}" in mg/cg/loopc...`)
   for (const tenant of TENANTS) {
@@ -168,13 +185,7 @@ async function main() {
     console.log(`  ${detail}`)
   }
 
-  console.log(`Setting GitHub secrets on ${REPO}...`)
-  setGithubSecrets(password)
-
-  console.log('Done. GitHub secrets configured:')
-  console.log('  SMOKE_AUTH_NAME, SMOKE_AUTH_PASSWORD')
-  console.log('  SMOKE_AUTH_NAME_MG/CG/LOOPC, SMOKE_AUTH_PASSWORD_MG/CG/LOOPC')
-  console.log('Password is stored only in GitHub Actions secrets (not printed here).')
+  console.log('Smoke credential provisioning complete.')
 }
 
 main().catch((error) => {
