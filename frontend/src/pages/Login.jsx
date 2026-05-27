@@ -306,7 +306,8 @@ function Login() {
   const { login } = useAuth()
   const { t } = useLanguage()
 
-  const hostTenant = resolveTenantFromHostname(window.location.hostname, 'loopc')
+  const storedTenant = localStorage.getItem('tenantCompany') || 'loopc'
+  const hostTenant = resolveTenantFromHostname(window.location.hostname, storedTenant)
   const company = resolveTenantFromSearch(window.location.search, hostTenant)
   const isPlainLocalHost = isLocalTenantHost(window.location.hostname)
 

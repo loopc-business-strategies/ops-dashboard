@@ -908,7 +908,7 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
                     </div>
                   </div>
                   {erpSectionOpen && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
                       {filteredErpRows.map((row) => (
                         <PermissionRow
                           key={row.id}
