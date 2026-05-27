@@ -132,12 +132,12 @@ function setGithubSecrets(password) {
 }
 
 async function main() {
-  if (!process.env.GH_TOKEN && spawnSync('gh', ['auth', 'status'], { encoding: 'utf8', shell: true }).status !== 0) {
-    throw new Error('GitHub CLI is not authenticated. Run gh auth login or set GH_TOKEN.')
-  }
-
   const usersOnly = process.argv.includes('--users-only')
   const secretsOnly = process.argv.includes('--secrets-only')
+
+  if (!usersOnly && !process.env.GH_TOKEN && spawnSync('gh', ['auth', 'status'], { encoding: 'utf8', shell: true }).status !== 0) {
+    throw new Error('GitHub CLI is not authenticated. Run gh auth login or set GH_TOKEN.')
+  }
 
   for (const tenant of TENANTS) {
     const envVar = `MONGO_URI_${tenant.toUpperCase()}`
