@@ -100,7 +100,9 @@ function getAllowedErpSubTabs(user) {
   const allSubs = [...new Set(Object.values(ERP_PERMISSION_TO_SUBTAB).flat())]
   if (isSuperAdmin(user)) return allSubs
   if (!hasGranularPermissions(user)) return null
-  if (!hasExplicitErpPermissions(user)) return null
+  if (!hasExplicitErpPermissions(user)) {
+    return (user?.allowedModules || []).includes('erp') ? allSubs : []
+  }
   const erpPermission = user?.modulePermissions?.erp
   if (erpPermission?.on !== true) return []
   const configuredSubs = erpPermission?.subs || {}
@@ -298,15 +300,22 @@ function canManageDirectDeals(user) {
   return evaluateErpPermission(user, 'canManageDirectDeals')
 }
 
+function canViewERPModule(user) {
+  if (isSuperAdmin(user)) return true
+  if (hasGranularPermissions(user)) {
+    if (!hasExplicitErpPermissions(user)) {
+      return (user?.allowedModules || []).includes('erp')
+    }
+    return user?.modulePermissions?.erp?.on === true
+  }
+  return (user?.allowedModules || []).includes('erp')
+}
+
 function deriveErpAccessPolicy(user) {
   const canViewCustomersValue = canViewCustomers(user)
   const canAccessTransactionsValue = canAccessTransactions(user)
   const canAccessInventoryValue = canAccessInventory(user)
   const canViewAccountsValue = canViewAccounts(user)
-  const granularAllowedSubs = getAllowedErpSubTabs(user)
-  const granularErpAccess = Array.isArray(granularAllowedSubs)
-    ? granularAllowedSubs.length > 0
-    : hasErpSubTab(user, Object.values(ERP_PERMISSION_TO_SUBTAB).flat())
   return {
     isSuperAdmin: isSuperAdmin(user),
     isDepartmentHead: isDepartmentHead(user),
@@ -334,7 +343,11 @@ function deriveErpAccessPolicy(user) {
     canAccessErpSettings: evaluateErpPermission(user, 'canAccessErpSettings'),
     canAccessCurrencies: evaluateErpPermission(user, 'canAccessCurrencies'),
     canAccessFixingRegister: evaluateErpPermission(user, 'canAccessFixingRegister'),
-    canAccessERP: granularErpAccess ?? (canViewAccountsValue || canAccessTransactionsValue || canAccessInventoryValue || canViewCustomersValue),
+    canAccessERP: hasGranularPermissions(user)
+      ? getAllowedErpSubTabs(user).length > 0
+      : (canViewERPModule(user) && (
+        canViewAccountsValue || canAccessTransactionsValue || canAccessInventoryValue || canViewCustomersValue
+      )),
   }
 }
 

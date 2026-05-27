@@ -16,6 +16,8 @@ jest.mock('../services/erpAccounting/accessPolicy', () => ({
   isOperations: (u) => u?.role === 'operations',
   isProduction: (u) => u?.role === 'production',
   isHR: (u) => u?.role === 'hr',
+  hasExplicitErpPermissions: () => false,
+  canAccessOperationalTransactions: () => false,
 }))
 
 const {
