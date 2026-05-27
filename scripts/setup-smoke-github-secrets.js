@@ -146,6 +146,7 @@ function setGithubSecrets(password) {
 async function main() {
   const usersOnly = process.argv.includes('--users-only')
   const secretsOnly = process.argv.includes('--secrets-only')
+  const skipProductionVerify = process.argv.includes('--skip-production-verify')
 
   if (!usersOnly && !process.env.GH_TOKEN && spawnSync('gh', ['auth', 'status'], { encoding: 'utf8', shell: true }).status !== 0) {
     throw new Error('GitHub CLI is not authenticated. Run gh auth login or set GH_TOKEN.')
@@ -189,6 +190,12 @@ async function main() {
   for (const tenant of TENANTS) {
     const result = await upsertSmokeUser(tenant, password)
     console.log(`  ${result.tenant.toUpperCase()}: ${result.action} (${result.id})`)
+  }
+
+  if (skipProductionVerify) {
+    console.log('Skipping production login/ERP verification (--skip-production-verify).')
+    console.log('Smoke credential provisioning complete.')
+    return
   }
 
   console.log(`Verifying production login + ERP read against ${API_BASE}...`)
