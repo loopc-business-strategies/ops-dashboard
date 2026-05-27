@@ -38,6 +38,7 @@ function registerAccountsRoutes(deps) {
     validateAccountParentAssignment,
     canViewAccounts,
     canViewAccountSummary,
+    canReadErpReferenceData,
     canManageAccounts,
     isSuperAdmin,
   } = deps
@@ -45,7 +46,7 @@ function registerAccountsRoutes(deps) {
 router.get('/accounts', protect, async (req, res) => {
   try {
     const isSummaryScope = String(req.query.scope || '').trim().toLowerCase() === 'summary'
-    if (!canViewAccounts(req.user) && !(isSummaryScope && canViewAccountSummary(req.user))) {
+    if (!canReadErpReferenceData(req.user)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
     const summaryMaxLimit = 5000
@@ -994,7 +995,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
 
 router.get('/accounts/:id', protect, async (req, res) => {
   try {
-    if (!canViewAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    if (!canReadErpReferenceData(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const account = await ChartOfAccount.findById(req.params.id).populate('parentAccountId')
     if (!account) return res.status(404).json({ success: false, message: 'Account not found' })
     res.json({ success: true, account })

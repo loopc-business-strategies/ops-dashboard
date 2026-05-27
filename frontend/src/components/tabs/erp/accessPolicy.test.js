@@ -110,4 +110,23 @@ describe('ERP access policy', () => {
     expect(policy.canViewBalanceEnquiry).toBe(true)
     expect(policy.canViewAccounts).toBe(false)
   })
+
+  test('vouchers subtab grants voucher access without transactions subtab', () => {
+    const policy = deriveErpAccessPolicy({
+      role: 'department_user',
+      department: 'operations',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            vouchers: { on: true },
+          },
+        },
+      },
+    })
+
+    expect(policy.canAccessVouchers).toBe(true)
+    expect(policy.canAccessTransactions).toBe(false)
+    expect(policy.canAccessERP).toBe(true)
+  })
 })

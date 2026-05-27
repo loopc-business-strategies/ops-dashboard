@@ -12,7 +12,7 @@ function registerAttachmentRoutes(deps) {
     protect,
     Transaction,
     Ledger,
-    canAccessTransactions,
+    canAccessOperationalTransactions,
     canViewLedger,
     canCreateTransaction,
     sendStoredAttachment,
@@ -39,7 +39,7 @@ function registerAttachmentRoutes(deps) {
         return res.status(403).json({ success: false, message: 'Access denied' })
       }
       if (type === 'transaction') {
-        if (!canAccessTransactions(req.user)) {
+        if (!canAccessOperationalTransactions(req.user)) {
           return res.status(403).json({ success: false, message: 'Forbidden' })
         }
 

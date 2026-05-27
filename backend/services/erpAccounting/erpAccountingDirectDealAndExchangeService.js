@@ -25,6 +25,8 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
     isSuperAdmin,
     isFinance,
     isDepartmentHead,
+    canViewAccountSummary,
+    hasExplicitErpPermissions,
   } = deps
 
   const ensureExchangeDifferenceAccounts = async (user, session = null) => {
@@ -94,6 +96,7 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
 
   const getAccountSummaryScope = async (user) => {
     if (isSuperAdmin(user) || isFinance(user) || isDepartmentHead(user)) return null
+    if (hasExplicitErpPermissions(user) && canViewAccountSummary(user)) return null
     return []
   }
 

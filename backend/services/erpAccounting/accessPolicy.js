@@ -54,8 +54,10 @@ const ERP_PERMISSION_TO_SUBTAB = {
   canViewMappings: ['mappings'],
   canManageMappings: ['mappings'],
   canViewAccountSummary: ['enquiry'],
+  canUpdateMetalRates: ['dashboard'],
+  canExportAccountSummary: ['enquiry'],
   canViewLedger: ['ledger'],
-  canCreateTransaction: ['transactions'],
+  canCreateTransaction: ['transactions', 'vouchers'],
   canAccessReports: ['reports'],
   canAccessVendors: ['vendors', 'supplier-margin'],
   canManageVendors: ['vendors'],
@@ -113,6 +115,61 @@ function evaluateErpPermission(user, key) {
     if (granularAllowed !== null) return granularAllowed
   }
   return evaluatePermission(user, key)
+}
+
+function canAccessVouchers(user) {
+  return evaluateErpPermission(user, 'canAccessVouchers')
+}
+
+function canAccessFixingRegister(user) {
+  return evaluateErpPermission(user, 'canAccessFixingRegister')
+}
+
+function canAccessErpSettings(user) {
+  return evaluateErpPermission(user, 'canAccessErpSettings')
+}
+
+function canAccessCurrencies(user) {
+  return evaluateErpPermission(user, 'canAccessCurrencies')
+}
+
+function canUpdateMetalRates(user) {
+  if (blocksManagementWrite(user)) return false
+  return evaluateErpPermission(user, 'canUpdateMetalRates')
+}
+
+function canReadDirectDeals(user) {
+  return canAccessDirectDeals(user) || canAccessFixingRegister(user)
+}
+
+function canAccessOperationalTransactions(user) {
+  return canAccessTransactions(user) || canAccessVouchers(user) || canAccessFixingRegister(user)
+}
+
+function canReadErpDashboardReport(user) {
+  return canViewAccounts(user) || canAccessReports(user)
+}
+
+function canReadErpInventory(user) {
+  return canAccessInventory(user) || canAccessFixingRegister(user)
+}
+
+function canReadErpReferenceData(user) {
+  return canViewAccounts(user)
+    || canAccessOperationalTransactions(user)
+    || canViewAccountSummary(user)
+    || canViewLedger(user)
+    || canAccessReports(user)
+    || canViewMappings(user)
+    || canAccessErpSettings(user)
+    || canAccessCurrencies(user)
+}
+
+function canReadErpParties(user) {
+  return canViewCustomers(user)
+    || canAccessVendors(user)
+    || canAccessOperationalTransactions(user)
+    || canReadDirectDeals(user)
 }
 
 function evaluatePredicate(user, key) {
@@ -201,6 +258,7 @@ function canCreateTransaction(user) {
 function canCreateTransactionFor(user, transactionType) {
   if (blocksManagementWrite(user)) return false
   if (canCreateTransaction(user)) return true
+  if (hasExplicitErpPermissions(user) && canAccessOperationalTransactions(user)) return true
   const key = String(transactionType || '').toLowerCase()
   return evaluateRule(user, accessMatrix.transactionTypes[key] || {})
 }
@@ -273,6 +331,9 @@ function deriveErpAccessPolicy(user) {
     canAccessInventory: canAccessInventoryValue,
     canAccessVouchers: evaluateErpPermission(user, 'canAccessVouchers'),
     canAccessDirectDeals: canAccessDirectDeals(user),
+    canAccessErpSettings: evaluateErpPermission(user, 'canAccessErpSettings'),
+    canAccessCurrencies: evaluateErpPermission(user, 'canAccessCurrencies'),
+    canAccessFixingRegister: evaluateErpPermission(user, 'canAccessFixingRegister'),
     canAccessERP: granularErpAccess ?? (canViewAccountsValue || canAccessTransactionsValue || canAccessInventoryValue || canViewCustomersValue),
   }
 }
@@ -286,6 +347,7 @@ module.exports = {
   isProduction,
   isHR,
   roleName,
+  hasExplicitErpPermissions,
   canViewAccounts,
   canManageAccounts,
   canViewMappings,
@@ -302,6 +364,17 @@ module.exports = {
   canUpdateVendorOperational,
   canAccessInventory,
   canAccessTransactions,
+  canAccessVouchers,
+  canAccessFixingRegister,
+  canAccessErpSettings,
+  canAccessCurrencies,
+  canUpdateMetalRates,
+  canAccessOperationalTransactions,
+  canReadErpDashboardReport,
+  canReadErpInventory,
+  canReadDirectDeals,
+  canReadErpReferenceData,
+  canReadErpParties,
   canAccessDirectDeals,
   canManageDirectDeals,
   deriveErpAccessPolicy,

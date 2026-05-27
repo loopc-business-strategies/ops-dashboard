@@ -5,15 +5,32 @@ export function useErpAccounts({
   token,
   canViewAccounts,
   canViewBalanceEnquiry,
+  canAccessTransactions,
+  canAccessVouchers,
+  canViewLedger,
+  canAccessReports,
+  canAccessCurrencies,
+  canAccessErpSettings,
+  canAccessFixingRegister,
   setLoading,
   setSummaryAccountsLoading,
   setAccounts,
   setSummaryAccounts,
   setError,
 }) {
+  const canLoadReferenceData = canViewAccounts
+    || canAccessTransactions
+    || canAccessVouchers
+    || canViewBalanceEnquiry
+    || canViewLedger
+    || canAccessReports
+    || canAccessCurrencies
+    || canAccessErpSettings
+    || canAccessFixingRegister
+
   const loadAccounts = useCallback(async (params = {}) => {
     const isSummaryScope = params.scope === 'summary'
-    if (!canViewAccounts && !(isSummaryScope && canViewBalanceEnquiry)) return
+    if (!canLoadReferenceData && !(isSummaryScope && canViewBalanceEnquiry)) return
     if (isSummaryScope) setSummaryAccountsLoading(true)
     else setLoading(true)
     try {
@@ -35,7 +52,16 @@ export function useErpAccounts({
     }
     if (isSummaryScope) setSummaryAccountsLoading(false)
     else setLoading(false)
-  }, [token, canViewAccounts, canViewBalanceEnquiry, setLoading, setSummaryAccountsLoading, setAccounts, setSummaryAccounts, setError])
+  }, [
+    token,
+    canLoadReferenceData,
+    canViewBalanceEnquiry,
+    setLoading,
+    setSummaryAccountsLoading,
+    setAccounts,
+    setSummaryAccounts,
+    setError,
+  ])
 
   return { loadAccounts }
 }

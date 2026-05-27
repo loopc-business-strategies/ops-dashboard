@@ -10,6 +10,8 @@ const {
   isOperations,
   isProduction,
   isHR,
+  canAccessOperationalTransactions,
+  hasExplicitErpPermissions,
 } = require('../../services/erpAccounting/accessPolicy')
 
 // ==========================================
@@ -67,6 +69,7 @@ const normalizeExchangeRateValue = (value, field = 'exchange rate') => {
 
 const getRoleTransactionTypes = (user) => {
   if (isSuperAdmin(user) || isFinance(user)) return TRANSACTION_TYPES
+  if (hasExplicitErpPermissions(user) && canAccessOperationalTransactions(user)) return TRANSACTION_TYPES
   if (isSales(user)) return ['sale', 'receipt', 'metal_payment']
   if (isOperations(user) || isProduction(user)) return ['purchase', 'expense', 'metal_receipt']
   if (isHR(user)) return ['payroll']

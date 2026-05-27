@@ -4,14 +4,17 @@ import erpAccountingAPI from '../../../api/erp-accounting'
 export function useErpInventory({
   token,
   canAccessInventory,
+  canAccessFixingRegister,
   setLoading,
   setInventoryProducts,
   setStockMovements,
   setStockMovementsLoading,
   setError,
 }) {
+  const canLoadInventoryData = canAccessInventory || canAccessFixingRegister
+
   const loadInventory = useCallback(async () => {
-    if (!canAccessInventory) return
+    if (!canLoadInventoryData) return
     setLoading(true)
     try {
       const productsData = await erpAccountingAPI.getInventoryProducts(token)
@@ -21,10 +24,10 @@ export function useErpInventory({
       setError(e.response?.data?.message || 'Failed to load inventory')
     }
     setLoading(false)
-  }, [token, canAccessInventory, setLoading, setInventoryProducts, setError])
+  }, [token, canLoadInventoryData, setLoading, setInventoryProducts, setError])
 
   const loadStockLedger = useCallback(async () => {
-    if (!canAccessInventory) return
+    if (!canLoadInventoryData) return
     setStockMovementsLoading(true)
     try {
       const data = await erpAccountingAPI.getStockLedger(token)
@@ -34,7 +37,7 @@ export function useErpInventory({
     } finally {
       setStockMovementsLoading(false)
     }
-  }, [token, canAccessInventory, setStockMovementsLoading, setStockMovements])
+  }, [token, canLoadInventoryData, setStockMovementsLoading, setStockMovements])
 
   return { loadInventory, loadStockLedger }
 }

@@ -48,6 +48,7 @@ function registerVendorRoutes(deps) {
     canAccessVendors,
     canManageVendors,
     canUpdateVendorOperational,
+    canReadErpParties,
     parsePagination,
     batchVendorSummaries,
     evaluateVendorCompliance,
@@ -93,7 +94,7 @@ function registerVendorRoutes(deps) {
 
   router.get('/vendors', protect, async (req, res) => {
     try {
-      if (!canAccessVendors(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canReadErpParties(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
       const { page, limit, skip } = parsePagination(req.query, 25, 100)
       const includeInactive = String(req.query.includeInactive || 'false').toLowerCase() === 'true'
@@ -251,7 +252,7 @@ function registerVendorRoutes(deps) {
 
   router.get('/vendors/compliance-summary', protect, async (req, res) => {
     try {
-      if (!canAccessVendors(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canReadErpParties(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
       const { page, limit, skip } = parsePagination(req.query, 25, 100)
       const includeInactive = String(req.query.includeInactive || 'false').toLowerCase() === 'true'
@@ -313,7 +314,7 @@ function registerVendorRoutes(deps) {
 
   router.get('/vendors/alerts/overdue-queue', protect, async (req, res) => {
     try {
-      if (!canAccessVendors(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canReadErpParties(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
       const horizonDays = Number(req.query.horizonDays || 120)
       const { page, limit, skip } = parsePagination(req.query, 25, 100)
@@ -575,7 +576,7 @@ function registerVendorRoutes(deps) {
 
   router.get('/vendors/:id/details', protect, async (req, res) => {
     try {
-      if (!canAccessVendors(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canReadErpParties(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
       const vendor = await Vendor.findById(req.params.id)
         .populate('ledgerAccountId', 'accountCode accountName accountType currency')
@@ -659,7 +660,7 @@ function registerVendorRoutes(deps) {
 
   router.get('/vendors/:id/documents', protect, async (req, res) => {
     try {
-      if (!canAccessVendors(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canReadErpParties(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const vendor = await Vendor.findById(req.params.id).select('name vendorCode documents')
       if (!vendor || vendor.deletedAt) return res.status(404).json({ success: false, message: 'Vendor not found' })
       res.json({ success: true, vendorId: vendor._id, vendorName: vendor.name, vendorCode: vendor.vendorCode || '', documents: vendor.documents || [] })
@@ -758,7 +759,7 @@ function registerVendorRoutes(deps) {
 
   router.get('/vendors/:id/documents/:documentId/download', protect, validateParams(vendorDocumentParamSchema), async (req, res) => {
     try {
-      if (!canAccessVendors(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canReadErpParties(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
       const vendor = await Vendor.findById(req.params.id)
       if (!vendor || vendor.deletedAt) return res.status(404).json({ success: false, message: 'Vendor not found' })
@@ -831,7 +832,7 @@ function registerVendorRoutes(deps) {
 
   router.get('/vendors/payment-calendar', protect, async (req, res) => {
     try {
-      if (!canAccessVendors(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canReadErpParties(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
       const horizonDays = Number(req.query.horizonDays || 45)
       const startDate = req.query.startDate ? new Date(req.query.startDate) : null

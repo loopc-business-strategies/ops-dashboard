@@ -438,8 +438,15 @@ function ERPTab({ focusTab, onNavigateMain }) {
     canAccessInventory,
     canAccessVouchers,
     canAccessDirectDeals,
+    canAccessErpSettings,
+    canAccessCurrencies,
+    canAccessFixingRegister,
     canAccessERP,
   } = deriveErpAccessPolicy(user)
+  const canLoadReferenceData = canViewAccounts || canAccessTransactions || canAccessVouchers || canViewBalanceEnquiry || canViewLedger || canAccessReports || canAccessCurrencies || canAccessErpSettings || canAccessFixingRegister
+  const canLoadParties = canViewCustomers || canAccessVendors || canAccessTransactions || canAccessVouchers || canAccessFixingRegister || canAccessDirectDeals
+  const canLoadInventoryData = canAccessInventory || canAccessFixingRegister
+  const canLoadDashboard = canViewAccounts || canAccessReports
   const { snapshot: liveMetalSnapshot, error: liveMetalError } = useLiveMetalRates({
     token,
     tenant: inventoryTenantKey,
@@ -1376,7 +1383,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
   }, [inventoryStockCodeSettingsKey, inventoryStockCodeSettings])
   const loadDashboard = async () => {
-    if (!canViewAccounts) return
+    if (!canLoadDashboard) return
     setLoading(true)
     try {
       const [data, chatData] = await Promise.all([
@@ -1393,7 +1400,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   }
   const loadAccounts = async (params = {}) => {
     const isSummaryScope = params.scope === 'summary'
-    if (!canViewAccounts && !(isSummaryScope && canViewBalanceEnquiry)) return
+    if (!canLoadReferenceData && !(isSummaryScope && canViewBalanceEnquiry)) return
     if (isSummaryScope) setSummaryAccountsLoading(true)
     else setLoading(true)
     try {
@@ -1552,8 +1559,8 @@ function ERPTab({ focusTab, onNavigateMain }) {
       }
       const [ledgerData, accountData, currencyData, mappingData] = await Promise.all([
         erpAccountingAPI.getLedger(token, ledgerQuery),
-        canViewAccounts ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
-        canViewAccounts ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
+        canLoadReferenceData ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
+        canLoadReferenceData ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
         canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
       ])
       setLedger(ledgerData.entries || [])
@@ -1573,7 +1580,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     setLoading(false)
   }
   const loadCustomers = async (params) => {
-    if (!canViewCustomers) return
+    if (!canLoadParties) return
     setLoading(true)
     try {
       const data = await erpAccountingAPI.getCustomers(token, params)
@@ -1590,7 +1597,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     try {
       const [mappingData, accountData] = await Promise.all([
         erpAccountingAPI.getMappings(token, params),
-        canViewAccounts ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
+        canLoadReferenceData ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
       ])
       setMappings(mappingData.mappings || [])
       setMappingSummary(mappingData.summary || { total: 0, shared: 0, byDepartment: {} })
@@ -1602,6 +1609,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     setLoading(false)
   }
   const loadCurrencies = async () => {
+    if (!canLoadReferenceData) return
     setLoading(true)
     try {
       const data = await erpAccountingAPI.getCurrencies(token)
@@ -1683,7 +1691,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
   }
   const loadTransactions = async (overrides = {}) => {
-    if (!canAccessTransactions) return
+    if (!(canAccessTransactions || canAccessVouchers || canAccessFixingRegister)) return
     setLoading(true)
     try {
       const hasCursorOverride = Object.prototype.hasOwnProperty.call(overrides, 'cursor')
@@ -1705,12 +1713,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
       }
       const [data, customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
         erpAccountingAPI.getTransactions(token, params),
-        canViewCustomers ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
-        canAccessVendors ? loadAllVendors({ includeInactive: true }) : Promise.resolve(null),
-        canAccessInventory ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
+        canLoadParties ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
+        canLoadParties ? loadAllVendors({ includeInactive: true }) : Promise.resolve(null),
+        canLoadInventoryData ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
         canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
-        canViewAccounts ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
-        canViewAccounts ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
+        canLoadReferenceData ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
+        canLoadReferenceData ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
       ])
       setTransactions(data.transactions || [])
       setTransactionSummary(data.summary || { totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
@@ -1804,7 +1812,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }))
   }, [transactionForm.type, transactionForm.customerId, transactionForm.vendorId, customers, vendors, currencies])
   const loadVendors = async (filters = vendorFilters) => {
-    if (!canAccessVendors) return
+    if (!canLoadParties) return
     setLoading(true)
     try {
       const data = await loadAllVendors(filters)
@@ -1863,7 +1871,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
   }
   const loadInventory = async () => {
-    if (!canAccessInventory) return
+    if (!canLoadInventoryData) return
     setLoading(true)
     try {
       const productsData = await erpAccountingAPI.getInventoryProducts(token)
@@ -1875,7 +1883,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     setLoading(false)
   }
   const loadStockLedger = async () => {
-    if (!canAccessInventory) return
+    if (!canLoadInventoryData) return
     setStockMovementsLoading(true)
     try {
       const data = await erpAccountingAPI.getStockLedger(token)
@@ -2935,7 +2943,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     else if (activeTab === 'customers') loadCustomers()
     else if (activeTab === 'supplier-margin') loadVendors()
     else if (activeTab === 'mappings') loadMappings(mappingFilters)
-    else if (activeTab === 'transactions') loadTransactions()
+    else if (activeTab === 'transactions' && (canAccessTransactions || canAccessVouchers || canAccessFixingRegister)) loadTransactions()
     else if (activeTab === 'vouchers') loadReportBranding()
     else if (activeTab === 'vendors') {
       loadVendors()
@@ -3044,14 +3052,14 @@ function ERPTab({ focusTab, onNavigateMain }) {
   }, [token, user?.tenant, user?.company, canAccessERP, activeTab, accountEnquiryData?.account?.accountCode])
   // Re-load dashboard when date range changes
   useEffect(() => {
-    if (activeTab === 'dashboard' && canViewAccounts && token) loadDashboard()
+    if (activeTab === 'dashboard' && canLoadDashboard && token) loadDashboard()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dashDateFrom, dashDateTo])
   // Auto-refresh every 30 seconds when enabled and on dashboard tab
   useEffect(() => {
     if (!dashAutoRefresh || activeTab !== 'dashboard') return
     const interval = setInterval(() => {
-      if (canViewAccounts && token) loadDashboard()
+      if (canLoadDashboard && token) loadDashboard()
     }, 30000)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps

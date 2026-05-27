@@ -35,6 +35,7 @@ function registerDirectDealsRoutes(deps) {
     DirectDeal,
     Ledger,
     canAccessDirectDeals,
+    canReadDirectDeals,
     canManageDirectDeals,
     parsePagination,
     nextDirectDealDocNo,
@@ -47,7 +48,7 @@ function registerDirectDealsRoutes(deps) {
 
   router.get('/direct-deals', protect, async (req, res) => {
     try {
-      if (!canAccessDirectDeals(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canReadDirectDeals(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
       const { page, limit, skip } = parsePagination(req.query, 25, 100)
       const query = { isDeleted: { $ne: true } }

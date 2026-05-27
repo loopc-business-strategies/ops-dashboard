@@ -5,10 +5,19 @@ import { fetchAllVendorsAggregated } from './useErpVendors'
 export function useErpTransactions({
   token,
   canAccessTransactions,
+  canAccessVouchers,
+  canAccessFixingRegister,
   canViewCustomers,
   canAccessVendors,
+  canAccessDirectDeals,
   canAccessInventory,
   canViewAccounts,
+  canViewBalanceEnquiry,
+  canViewLedger,
+  canAccessReports,
+  canAccessCurrencies,
+  canAccessErpSettings,
+  canViewMappings,
   transactionFilters,
   transactionMeta,
   setLoading,
@@ -23,8 +32,25 @@ export function useErpTransactions({
   setCurrencies,
   setError,
 }) {
+  const canLoadReferenceData = canViewAccounts
+    || canAccessTransactions
+    || canAccessVouchers
+    || canAccessFixingRegister
+    || canViewBalanceEnquiry
+    || canViewLedger
+    || canAccessReports
+    || canAccessCurrencies
+    || canAccessErpSettings
+  const canLoadParties = canViewCustomers
+    || canAccessVendors
+    || canAccessTransactions
+    || canAccessVouchers
+    || canAccessFixingRegister
+    || canAccessDirectDeals
+  const canLoadInventoryData = canAccessInventory || canAccessFixingRegister
+
   const loadTransactions = useCallback(async (overrides = {}) => {
-    if (!canAccessTransactions) return
+    if (!(canAccessTransactions || canAccessVouchers || canAccessFixingRegister)) return
     setLoading(true)
     try {
       const hasCursorOverride = Object.prototype.hasOwnProperty.call(overrides, 'cursor')
@@ -46,12 +72,12 @@ export function useErpTransactions({
       }
       const [data, customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
         erpAccountingAPI.getTransactions(token, params),
-        canViewCustomers ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
-        canAccessVendors ? fetchAllVendorsAggregated(token, { includeInactive: true }) : Promise.resolve(null),
-        canAccessInventory ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
-        canViewAccounts ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
-        canViewAccounts ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
-        canViewAccounts ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
+        canLoadParties ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
+        canLoadParties ? fetchAllVendorsAggregated(token, { includeInactive: true }) : Promise.resolve(null),
+        canLoadInventoryData ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
+        canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
+        canLoadReferenceData ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
+        canLoadReferenceData ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
       ])
       setTransactions(data.transactions || [])
       setTransactionSummary(data.summary || { totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
@@ -79,10 +105,19 @@ export function useErpTransactions({
   }, [
     token,
     canAccessTransactions,
+    canAccessVouchers,
+    canAccessFixingRegister,
     canViewCustomers,
     canAccessVendors,
+    canAccessDirectDeals,
     canAccessInventory,
     canViewAccounts,
+    canViewBalanceEnquiry,
+    canViewLedger,
+    canAccessReports,
+    canAccessCurrencies,
+    canAccessErpSettings,
+    canViewMappings,
     transactionFilters,
     transactionMeta,
     setLoading,

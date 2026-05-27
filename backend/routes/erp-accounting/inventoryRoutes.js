@@ -43,6 +43,7 @@ function registerInventoryRoutes(deps) {
     Ledger,
     ChartOfAccount,
     canAccessInventory,
+    canReadErpInventory,
     isSuperAdmin,
     isFinance,
     isOperations,
@@ -54,7 +55,7 @@ function registerInventoryRoutes(deps) {
 
   router.get('/inventory/products', protect, async (req, res) => {
     try {
-      if (!canAccessInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canReadErpInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const { page, limit, skip } = parsePagination(req.query, 25, 100)
       const query = { isDeleted: { $ne: true } }
       const [products, total] = await Promise.all([
@@ -281,7 +282,7 @@ function registerInventoryRoutes(deps) {
 
   router.get('/inventory/stock-ledger', protect, async (req, res) => {
     try {
-      if (!canAccessInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canReadErpInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const { page, limit, skip } = parsePagination(req.query, 50, 200)
       const [movements, total] = await Promise.all([
         StockMovement.find({ isDeleted: { $ne: true } }).sort({ createdAt: -1 }).skip(skip).limit(limit),

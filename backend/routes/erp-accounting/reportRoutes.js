@@ -65,6 +65,7 @@ function registerReportRoutes(deps) {
     buildDocumentExpiryBuckets,
     evaluateVendorCompliance,
     canAccessReports,
+    canReadErpDashboardReport,
   } = deps
 
   const {
@@ -943,7 +944,7 @@ router.get('/reports/market-prices/stream', protect, async (req, res) => {
 
 router.get('/reports/dashboard', protect, async (req, res) => {
   try {
-    if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+    if (!canReadErpDashboardReport(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
     const today = new Date()
     const { startDate, endDate } = req.query

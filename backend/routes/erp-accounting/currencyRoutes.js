@@ -21,6 +21,8 @@ function registerCurrencyRoutes(deps) {
     MetalRate,
     InventoryItem,
     canViewAccounts,
+    canReadErpReferenceData,
+    canUpdateMetalRates,
     canManageAccounts,
     ensureDefaultCurrencyMaster,
     ensureBaseCurrencyConfig,
@@ -96,7 +98,7 @@ function registerCurrencyRoutes(deps) {
 
   router.get('/currencies', protect, async (req, res) => {
     try {
-      if (!canViewAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canReadErpReferenceData(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       await ensureDefaultCurrencyMaster()
       const currencies = await Currency.find({}).sort({ baseCurrency: -1, code: 1 })
       res.json({ success: true, currencies, total: currencies.length, page: 1, limit: currencies.length })
@@ -126,7 +128,7 @@ function registerCurrencyRoutes(deps) {
 
   router.get('/report-branding', protect, async (req, res) => {
     try {
-      if (!canViewAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canReadErpReferenceData(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const requestedKey = normalizeBrandingKey(req.query.key || 'default')
       const profiles = await ReportBranding.find({}).sort({ isDefault: -1, entityName: 1, branchName: 1, key: 1 })
       const selectedDoc = profiles.find((doc) => doc.key === requestedKey) || profiles.find((doc) => doc.isDefault) || null
@@ -211,7 +213,7 @@ function registerCurrencyRoutes(deps) {
       res.json({
         success: true,
         rates,
-        canUpdate: canManageAccounts(req.user),
+        canUpdate: canUpdateMetalRates(req.user),
       })
     } catch {
       res.status(500).json({ success: false, message: 'Server error' })
@@ -243,7 +245,7 @@ function registerCurrencyRoutes(deps) {
             source: 'waiting-mt4',
             updatedAt: null,
           },
-          canUpdate: canManageAccounts(req.user),
+          canUpdate: canUpdateMetalRates(req.user),
         })
       }
 
@@ -251,7 +253,7 @@ function registerCurrencyRoutes(deps) {
         success: true,
         live: true,
         rates: buildMetalRatesResponse(latestFeed),
-        canUpdate: canManageAccounts(req.user),
+        canUpdate: canUpdateMetalRates(req.user),
       })
     } catch {
       res.status(500).json({ success: false, message: 'Server error' })
@@ -260,7 +262,7 @@ function registerCurrencyRoutes(deps) {
 
   router.put('/metal-rates', protect, async (req, res) => {
     try {
-      if (!canManageAccounts(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canUpdateMetalRates(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
       const goldPrice = Number(req.body.goldPrice)
       const silverPrice = Number(req.body.silverPrice)

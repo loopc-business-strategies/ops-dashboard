@@ -133,8 +133,16 @@ const {
   canUpdateVendorOperational,
   canAccessInventory,
   canAccessTransactions,
+  canAccessOperationalTransactions,
+  canReadErpReferenceData,
+  canReadErpParties,
+  canReadErpDashboardReport,
+  canReadErpInventory,
+  canReadDirectDeals,
+  canUpdateMetalRates,
   canAccessDirectDeals,
   canManageDirectDeals,
+  hasExplicitErpPermissions,
 } = require('../services/erpAccounting/accessPolicy')
 
 
@@ -245,6 +253,8 @@ const {
   isSuperAdmin,
   isFinance,
   isDepartmentHead,
+  canViewAccountSummary,
+  hasExplicitErpPermissions,
 })
 
 const {
@@ -368,6 +378,7 @@ function registerErpAccountingRoutes(router) {
     DEFAULT_METAL_RATES,
     canViewCustomers,
     canManageCustomers,
+    canReadErpParties,
     parsePagination,
     getAgingForAccount,
     nextCustomerAccountCode,
@@ -404,6 +415,7 @@ function registerErpAccountingRoutes(router) {
     validateAccountParentAssignment,
     canViewAccounts,
     canViewAccountSummary,
+    canReadErpReferenceData,
     canManageAccounts,
     isSuperAdmin,
   })
@@ -461,6 +473,8 @@ function registerErpAccountingRoutes(router) {
     MetalRate,
     InventoryItem,
     canViewAccounts,
+    canReadErpReferenceData,
+    canUpdateMetalRates,
     canManageAccounts,
     ensureDefaultCurrencyMaster,
     ensureBaseCurrencyConfig,
@@ -491,6 +505,7 @@ function registerErpAccountingRoutes(router) {
     canAccessVendors,
     canManageVendors,
     canUpdateVendorOperational,
+    canReadErpParties,
     parsePagination,
     batchVendorSummaries,
     evaluateVendorCompliance,
@@ -517,6 +532,7 @@ function registerErpAccountingRoutes(router) {
     Ledger,
     ChartOfAccount,
     canAccessInventory,
+    canReadErpInventory,
     isSuperAdmin,
     isFinance,
     isOperations,
@@ -532,6 +548,7 @@ function registerErpAccountingRoutes(router) {
     DirectDeal,
     Ledger,
     canAccessDirectDeals,
+    canReadDirectDeals,
     canManageDirectDeals,
     parsePagination,
     nextDirectDealDocNo,
@@ -582,7 +599,7 @@ function registerErpAccountingRoutes(router) {
     toMoney,
     parsePagination,
     canCreateTransactionFor,
-    canAccessTransactions,
+    canAccessOperationalTransactions,
     isFinance,
     getRoleTransactionTypes,
     BASE_CURRENCY_CODE,
@@ -597,7 +614,7 @@ function registerErpAccountingRoutes(router) {
     protect,
     Transaction,
     Ledger,
-    canAccessTransactions,
+    canAccessOperationalTransactions,
     canViewLedger,
     canCreateTransaction,
     sendStoredAttachment,
@@ -646,6 +663,7 @@ function registerErpAccountingRoutes(router) {
     buildDocumentExpiryBuckets,
     evaluateVendorCompliance,
     canAccessReports,
+    canReadErpDashboardReport,
   })
 }
 

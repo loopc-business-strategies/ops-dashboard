@@ -44,7 +44,7 @@ function registerTransactionRoutes(deps) {
     toMoney,
     parsePagination,
     canCreateTransactionFor,
-    canAccessTransactions,
+    canAccessOperationalTransactions,
     isFinance,
     getRoleTransactionTypes,
     BASE_CURRENCY_CODE,
@@ -149,7 +149,7 @@ const resolveMentionedUsers = async (message, payload = {}) => {
 
 router.get('/transactions', protect, async (req, res) => {
   try {
-    if (!canAccessTransactions(req.user)) {
+    if (!canAccessOperationalTransactions(req.user)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
 
@@ -382,7 +382,7 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
 
 router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), async (req, res) => {
   try {
-    if (!canAccessTransactions(req.user)) {
+    if (!canAccessOperationalTransactions(req.user)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
 
@@ -721,7 +721,7 @@ router.post('/transactions/:id/revalue-fx-journal', protect, async (req, res) =>
 
 router.post('/transactions/:id/comments', protect, async (req, res) => {
   try {
-    if (!canAccessTransactions(req.user)) {
+    if (!canAccessOperationalTransactions(req.user)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
 
@@ -807,7 +807,7 @@ router.post('/transactions/:id/comments', protect, async (req, res) => {
 
 router.post('/transactions/:id/attachments', protect, transactionUpload.single('file'), async (req, res) => {
   try {
-    if (!canAccessTransactions(req.user)) {
+    if (!canAccessOperationalTransactions(req.user)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
 
@@ -841,7 +841,7 @@ router.post('/transactions/:id/attachments', protect, transactionUpload.single('
 
 router.delete('/transactions/:id/attachments/:attachmentId', protect, async (req, res) => {
   try {
-    if (!canAccessTransactions(req.user)) {
+    if (!canAccessOperationalTransactions(req.user)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
 
@@ -938,7 +938,7 @@ router.post('/transactions/:id/reject', protect, async (req, res) => {
 
 router.post('/transactions/bulk-action', protect, async (req, res) => {
   try {
-    if (!canAccessTransactions(req.user)) {
+    if (!canAccessOperationalTransactions(req.user)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
 
@@ -998,7 +998,7 @@ router.post('/transactions/bulk-action', protect, async (req, res) => {
 
 router.get('/transactions/source-by-ledger/:ledgerId', protect, async (req, res) => {
   try {
-    if (!canAccessTransactions(req.user) && !canAccessReports(req.user)) {
+    if (!canAccessOperationalTransactions(req.user) && !canAccessReports(req.user)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
 

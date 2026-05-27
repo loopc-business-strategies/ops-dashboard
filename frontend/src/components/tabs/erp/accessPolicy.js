@@ -50,6 +50,7 @@ const ERP_PERMISSION_TO_SUBTAB = {
   canViewAccountSummary: ['enquiry'],
   canUpdateMetalRates: ['dashboard'],
   canExportAccountSummary: ['enquiry'],
+  canCreateTransaction: ['transactions', 'vouchers'],
   canAccessTransactions: ['transactions'],
   canAccessReports: ['reports'],
   canAccessVendors: ['vendors', 'supplier-margin'],

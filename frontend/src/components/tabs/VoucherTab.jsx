@@ -13,20 +13,22 @@ import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
 import { buildMetalRatesFromApiPayload, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
 import { BASE, cfg, fmt, today, S, fieldRow, fieldGroup, labelStyle, inputStyle, readInput, sectionBox, sectionHeader, sectionBody, btn, tabBtn, classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid, classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap, classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName, classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue, classicRightGrid, classicLabel, classicInput, classicReadInput, classicTextAreaRow, metalWin, metalTopInlineRow, metalTopField, emptyLine, normalizeMongoIdField, emptyHeader, DOC_PREFIX_BY_TYPE, getDocYear, parseVoucherDocMeta, buildVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, toFinitePositive, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, getAccountNameValue, isBankLikeAccount, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalStockInVoucherType, isMetalStockOutVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity } from './voucher/voucherTabShared'
 import { buildVoucherTypeConfigs } from './voucher/voucherTypeConfigs'
+import { deriveErpAccessPolicy } from './erp/accessPolicy'
 
 export default function VoucherTab({ token, user, accounts = [], customers: propCustomers = [], vendors: propVendors = [], currencies = [], reportBranding = null }) {
   const showAccountDetailsTab = false
   const { t } = useLanguage()
+  const erpAccess = deriveErpAccessPolicy(user || {})
   const role = user?.role || ''
   const dept = (user?.department || '').toLowerCase()
-  const isSuperAdmin = role === 'super_admin'
-  const isFinance = isSuperAdmin || (role === 'department_head' && dept === 'finance')
-  const isSales = isSuperAdmin || (role === 'department_head' && dept === 'sales') || role === 'management'
-  const isOperations = isSuperAdmin || (role === 'department_head' && dept === 'operations')
-  const isProduction = isSuperAdmin || (role === 'department_head' && dept === 'production')
-  const isManagementOnly = role === 'management'
+  const isSuperAdmin = erpAccess.isSuperAdmin
+  const isFinance = erpAccess.isFinance
+  const isSales = erpAccess.isSalesRole
+  const isOperations = erpAccess.isOperationsRole
+  const isProduction = role === 'department_head' && dept === 'production'
+  const isManagementOnly = erpAccess.isManagementRole
 
-  const canView = isFinance || isSales || isOperations || isProduction || isManagementOnly || isSuperAdmin
+  const canView = erpAccess.canAccessVouchers || erpAccess.canAccessTransactions
   const canCreatePayment = isFinance || isSuperAdmin
   const canCreateReceipt = isFinance || isSales || isSuperAdmin
   const canCreatePurchase = isFinance || isOperations || isProduction || isSuperAdmin

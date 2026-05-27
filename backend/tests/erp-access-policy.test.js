@@ -1,15 +1,30 @@
 const {
   canAccessTransactions,
+  canAccessVouchers,
+  canAccessOperationalTransactions,
+  canReadErpReferenceData,
+  canReadErpParties,
+  canReadErpDashboardReport,
+  canReadErpInventory,
+  canReadDirectDeals,
   canAccessVendors,
   canManageCustomers,
   canManageDirectDeals,
+  canCreateTransaction,
   canCreateTransactionFor,
   canViewAccounts,
   canViewMappings,
   canViewAccountSummary,
   canViewCustomers,
+  canAccessReports,
+  canAccessInventory,
+  canAccessDirectDeals,
+  canAccessErpSettings,
+  canAccessCurrencies,
+  canAccessFixingRegister,
   deriveErpAccessPolicy,
 } = require('../services/erpAccounting/accessPolicy')
+const { getRoleTransactionTypes } = require('../routes/erp-accounting/transactionHelpers')
 
 describe('ERP accounting access policy', () => {
   test('uses granular ERP subtabs for users outside the role matrix', () => {
@@ -104,5 +119,147 @@ describe('ERP accounting access policy', () => {
     expect(canViewAccountSummary(user)).toBe(true)
     expect(deriveErpAccessPolicy(user).canViewCustomers).toBe(true)
     expect(deriveErpAccessPolicy(user).canViewBalanceEnquiry).toBe(true)
+  })
+
+  test('vouchers permission grants operational transaction and reference reads', () => {
+    const user = {
+      role: 'department_user',
+      department: 'operations',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            vouchers: { on: true },
+          },
+        },
+      },
+    }
+
+    expect(canAccessVouchers(user)).toBe(true)
+    expect(canAccessTransactions(user)).toBe(false)
+    expect(canAccessOperationalTransactions(user)).toBe(true)
+    expect(canCreateTransaction(user)).toBe(true)
+    expect(canCreateTransactionFor(user, 'payment')).toBe(true)
+    expect(canReadErpReferenceData(user)).toBe(true)
+    expect(canReadErpParties(user)).toBe(true)
+    expect(getRoleTransactionTypes(user)).toEqual(expect.arrayContaining(['payment', 'receipt']))
+  })
+
+  test('account summary permission alone does not grant accounts tab access', () => {
+    const user = {
+      role: 'department_user',
+      department: 'sales',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            enquiry: { on: true },
+          },
+        },
+      },
+    }
+
+    expect(canViewAccountSummary(user)).toBe(true)
+    expect(canViewAccounts(user)).toBe(false)
+    expect(canReadErpReferenceData(user)).toBe(true)
+  })
+
+  test('reports-only permission grants dashboard report and reference reads', () => {
+    const user = {
+      role: 'department_user',
+      department: 'finance',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            reports: { on: true },
+          },
+        },
+      },
+    }
+
+    expect(canAccessReports(user)).toBe(true)
+    expect(canViewAccounts(user)).toBe(false)
+    expect(canReadErpDashboardReport(user)).toBe(true)
+    expect(canReadErpReferenceData(user)).toBe(true)
+  })
+
+  test('fixing register permission grants operational reads without full tabs', () => {
+    const user = {
+      role: 'department_user',
+      department: 'operations',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            'fixing-register': { on: true },
+          },
+        },
+      },
+    }
+
+    expect(canAccessFixingRegister(user)).toBe(true)
+    expect(canAccessTransactions(user)).toBe(false)
+    expect(canAccessDirectDeals(user)).toBe(false)
+    expect(canAccessInventory(user)).toBe(false)
+    expect(canAccessOperationalTransactions(user)).toBe(true)
+    expect(canReadDirectDeals(user)).toBe(true)
+    expect(canReadErpInventory(user)).toBe(true)
+    expect(canReadErpReferenceData(user)).toBe(true)
+    expect(canReadErpParties(user)).toBe(true)
+  })
+
+  test('inventory-only permission does not grant fixing register reads', () => {
+    const user = {
+      role: 'department_user',
+      department: 'operations',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            inventory: { on: true },
+          },
+        },
+      },
+    }
+
+    expect(canAccessInventory(user)).toBe(true)
+    expect(canReadErpInventory(user)).toBe(true)
+    expect(canReadDirectDeals(user)).toBe(false)
+    expect(canAccessOperationalTransactions(user)).toBe(false)
+  })
+
+  test('settings and currencies permissions grant reference reads only', () => {
+    const settingsUser = {
+      role: 'department_user',
+      department: 'finance',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            settings: { on: true },
+          },
+        },
+      },
+    }
+    const currenciesUser = {
+      role: 'department_user',
+      department: 'finance',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            currencies: { on: true },
+          },
+        },
+      },
+    }
+
+    expect(canAccessErpSettings(settingsUser)).toBe(true)
+    expect(canAccessCurrencies(currenciesUser)).toBe(true)
+    expect(canReadErpReferenceData(settingsUser)).toBe(true)
+    expect(canReadErpReferenceData(currenciesUser)).toBe(true)
+    expect(canReadErpParties(settingsUser)).toBe(false)
+    expect(canReadErpParties(currenciesUser)).toBe(false)
   })
 })

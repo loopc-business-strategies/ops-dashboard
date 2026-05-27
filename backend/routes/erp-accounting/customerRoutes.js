@@ -18,6 +18,7 @@ function registerCustomerRoutes(deps) {
     DEFAULT_METAL_RATES,
     canViewCustomers,
     canManageCustomers,
+    canReadErpParties,
     parsePagination,
     getAgingForAccount,
     nextCustomerAccountCode,
@@ -55,7 +56,7 @@ function registerCustomerRoutes(deps) {
 
   router.get('/customers', protect, async (req, res) => {
     try {
-      if (!canViewCustomers(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canReadErpParties(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
       const { page, limit, skip } = parsePagination(req.query, 25, 100)
 
@@ -180,7 +181,7 @@ function registerCustomerRoutes(deps) {
 
   router.get('/customers/:id/aging', protect, async (req, res) => {
     try {
-      if (!canViewCustomers(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canReadErpParties(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 
       const customer = await Customer.findById(req.params.id).populate('ledgerAccountId', 'accountName accountCode')
       if (!customer) return res.status(404).json({ success: false, message: 'Customer not found' })
