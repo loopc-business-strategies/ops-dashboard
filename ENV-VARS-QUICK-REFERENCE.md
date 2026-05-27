@@ -177,7 +177,7 @@ Names match the workflow `env` block and `scripts/production-smoke.js`:
 | `SMOKE_BASE_DOMAIN` | Host suffix for `mg` / `cg` / `loopc` portal checks |
 | `SMOKE_API_BASE` | API origin (no trailing slash), e.g. `https://api.yourdomain.com` |
 | `SMOKE_WAIT_SECONDS` | Seconds to sleep before smoke (deploy propagation) |
-| `SMOKE_REQUIRE_AUTH` | Optional. `true` = fail if ERP smoke credentials are missing |
+| `SMOKE_REQUIRE_AUTH` | Default `true`. Set `false` to skip authenticated ERP probe when credentials are absent |
 
 ### Repository secrets (optional ERP probe + notifications)
 

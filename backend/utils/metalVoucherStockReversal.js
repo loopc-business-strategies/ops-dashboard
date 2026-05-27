@@ -9,8 +9,9 @@ const {
   isMetalStockType,
   stockMovementReasonPattern,
 } = require('./metalStockVoucherTypes')
+const { withSession, writeOpts } = require('./mongoTransaction')
 
-async function reverseMetalVoucherStockForVoid({ tx, user, StockMovement, InventoryItem, toQty, deleteReason }) {
+async function reverseMetalVoucherStockForVoid({ tx, user, StockMovement, InventoryItem, toQty, deleteReason, session = null }) {
   if (!StockMovement || !InventoryItem || !toQty) return
   const vocNo = String(tx?.voucherMeta?.vocNo || '').trim()
   const type = String(tx?.type || '').toLowerCase()
@@ -18,28 +19,28 @@ async function reverseMetalVoucherStockForVoid({ tx, user, StockMovement, Invent
 
   const reasonPattern = stockMovementReasonPattern(type, vocNo)
 
-  const movements = await StockMovement.find({
+  const movements = await withSession(StockMovement.find({
     isDeleted: { $ne: true },
     reason: reasonPattern,
-  })
+  }), session)
 
   const now = new Date()
   const reasonText = String(deleteReason || 'void transaction').slice(0, 200)
 
   for (const mov of movements) {
-    const item = await InventoryItem.findById(mov.itemId)
+    const item = await withSession(InventoryItem.findById(mov.itemId), session)
     if (item && !item.isDeleted) {
       const nextQty = Number(item.quantity || 0) - Number(mov.change || 0)
       item.quantity = Math.max(0, toQty(nextQty))
       item.updatedBy = user._id
-      await item.save()
+      await item.save(writeOpts(session))
     }
 
     mov.isDeleted = true
     mov.deletedAt = now
     mov.deletedBy = user._id
     mov.deleteReason = reasonText
-    await mov.save()
+    await mov.save(writeOpts(session))
   }
 }
 

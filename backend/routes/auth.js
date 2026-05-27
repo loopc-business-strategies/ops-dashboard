@@ -100,6 +100,7 @@ const setupSchema = Joi.object({
   company: Joi.string().trim().valid('mg', 'cg', 'loopc').optional(),
   name: Joi.string().trim().min(2).max(80).required(),
   password: Joi.string().min(6).max(128).required(),
+  setupToken: Joi.string().trim().max(256).optional(),
 })
 
 const loginSchema = Joi.object({
@@ -152,6 +153,24 @@ const updateRoleSchema = Joi.object({
 // ==========================================
 router.post('/setup', validateBody(setupSchema), async (req, res) => {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      const enabled = String(process.env.ENABLE_SETUP || '').trim().toLowerCase() === 'true'
+      if (!enabled) {
+        return res.status(403).json({ success: false, message: 'Setup is disabled in production.' })
+      }
+
+      const expectedToken = String(process.env.SETUP_TOKEN || '').trim()
+      const providedToken = String(
+        req.headers['x-setup-token']
+        || req.body?.setupToken
+        || ''
+      ).trim()
+
+      if (!expectedToken || providedToken !== expectedToken) {
+        return res.status(403).json({ success: false, message: 'Invalid or missing setup token.' })
+      }
+    }
+
     const tenant = resolveRequestTenant(req, req.body.company)
     if (!tenant) {
       return res.status(400).json({ success: false, message: 'Valid company could not be resolved.' })

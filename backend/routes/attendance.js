@@ -4,6 +4,17 @@ const AttendanceRecord = require('../models/AttendanceRecord')
 const LeaveRequest = require('../models/LeaveRequest')
 const Employee = require('../models/Employee')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
+const {
+  canManageAttendance,
+  canReviewLeave,
+  scopedAttendanceDepartment,
+  canTouchAttendanceDepartment,
+  isSuperAdmin,
+  isManagement,
+  isHrHead,
+  normalize,
+  escapeRegex,
+} = require('../services/permissions/moduleAccessPolicy')
 
 const router = express.Router()
 
@@ -40,30 +51,9 @@ const leaveDecisionSchema = Joi.object({
   reviewNote: Joi.string().trim().allow('').max(500).optional(),
 })
 
-const normalize = (value = '') => String(value).trim().toLowerCase()
-const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-const isSuper = (user) => user?.role === 'super_admin'
-const isManagement = (user) => user?.role === 'management'
-const isHrHead = (user) => user?.role === 'department_head' && normalize(user.department) === 'hr'
-
-const canManageAttendance = (user) => isSuper(user) || isHrHead(user)
-const canReviewLeave = (user) => isSuper(user) || isHrHead(user) || user?.role === 'department_head'
-
-const scopedDepartment = (user) => {
-  if (!user) return null
-  if (isSuper(user) || isManagement(user) || isHrHead(user)) return null
-  if (user.role === 'department_head' || user.role === 'department_user') {
-    return normalize(user.department)
-  }
-  return null
-}
-
-const canTouchDepartment = (user, department) => {
-  if (isSuper(user) || isHrHead(user)) return true
-  if (user?.role === 'department_head') return normalize(user.department) === normalize(department)
-  return false
-}
+const isSuper = isSuperAdmin
+const scopedDepartment = scopedAttendanceDepartment
+const canTouchDepartment = canTouchAttendanceDepartment
 
 const dayKey = (date = new Date()) => {
   const d = new Date(date)

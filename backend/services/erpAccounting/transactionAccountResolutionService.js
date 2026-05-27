@@ -5,6 +5,7 @@
 
 const { applyPartyAccountPriority } = require('../../utils/transactionPartyAccounts')
 const { isMetalTransferType, isMetalStockType } = require('../../utils/metalStockVoucherTypes')
+const { withSession, writeOpts } = require('../../utils/mongoTransaction')
 
 function createTransactionAccountResolutionService({
   ChartOfAccount,
@@ -33,16 +34,16 @@ function createTransactionAccountResolutionService({
     return code || String(fallback || BASE_CURRENCY_CODE || 'USD').trim().toUpperCase()
   }
 
-  const findPreferredBankAccountByCurrency = async (currencyCode) => {
+  const findPreferredBankAccountByCurrency = async (currencyCode, session = null) => {
     const normalizedCurrency = normalizeCurrencyCode(currencyCode)
-    const bankCandidates = await ChartOfAccount.find({
+    const bankCandidates = await withSession(ChartOfAccount.find({
       isActive: true,
       accountType: 'Asset',
       $or: [
         { accountName: /bank|nbd/i },
         { accountCode: /^101/ },
       ],
-    }).sort({ accountCode: 1, createdAt: 1, _id: 1 })
+    }).sort({ accountCode: 1, createdAt: 1, _id: 1 }), session)
 
     if (!bankCandidates.length) return null
 
@@ -68,7 +69,7 @@ function createTransactionAccountResolutionService({
     return bankCandidates[0]
   }
 
-  const ensureCashBankAccount = async (user, currency = 'USD', preference = 'any') => {
+  const ensureCashBankAccount = async (user, currency = 'USD', preference = 'any', session = null) => {
     const normalizedPreference = String(preference || 'any').toLowerCase()
     const isBankPreferred = normalizedPreference === 'bank'
     const isCashPreferred = normalizedPreference === 'cash'
@@ -82,33 +83,33 @@ function createTransactionAccountResolutionService({
           : [{ accountCode: '1010' }, { accountName: /bank|cash/i }],
     }
 
-    let account = await ChartOfAccount.findOne(query).sort({ accountCode: 1 })
+    let account = await withSession(ChartOfAccount.findOne(query).sort({ accountCode: 1 }), session)
 
     const preferredCode = isCashPreferred ? '1000' : '1010'
 
     if (!account) {
-      account = await ChartOfAccount.findOne({ accountCode: preferredCode })
+      account = await withSession(ChartOfAccount.findOne({ accountCode: preferredCode }), session)
 
       if (!account) {
         try {
-          account = await ChartOfAccount.create({
+          account = await ChartOfAccount.create([{
             accountName: isCashPreferred ? 'Petty Cash' : 'Main Bank Account',
             accountCode: preferredCode,
             accountType: 'Asset',
             currency,
             description: isCashPreferred ? 'Default cash account' : 'Default bank account',
             createdBy: user._id,
-          })
+          }], writeOpts(session)).then((rows) => rows[0])
         } catch (err) {
           if (err?.code !== 11000) throw err
-          account = await ChartOfAccount.findOne({ accountCode: preferredCode })
+          account = await withSession(ChartOfAccount.findOne({ accountCode: preferredCode }), session)
         }
       }
     }
 
     if (account && !account.isActive) {
       account.isActive = true
-      await account.save()
+      await account.save(writeOpts(session))
     }
 
     return account
@@ -122,7 +123,7 @@ function createTransactionAccountResolutionService({
     return 'any'
   }
 
-  const resolveVoucherSettlementAccount = async (user, tx) => {
+  const resolveVoucherSettlementAccount = async (user, tx, session = null) => {
     if (!['receipt', 'payment'].includes(String(tx?.type || '').toLowerCase())) return null
 
     const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
@@ -143,12 +144,12 @@ function createTransactionAccountResolutionService({
       let account = null
 
       if (looksLikeObjectId) {
-        account = await ChartOfAccount.findById(accountCode)
+        account = await withSession(ChartOfAccount.findById(accountCode), session)
       }
 
       if (!account) {
-        const matches = await ChartOfAccount.find({ accountCode })
-          .sort({ isActive: -1, createdAt: 1, _id: 1 })
+        const matches = await withSession(ChartOfAccount.find({ accountCode })
+          .sort({ isActive: -1, createdAt: 1, _id: 1 }), session)
 
         account =
           matches.find((row) => row.isActive && row.accountType === 'Asset')
@@ -160,33 +161,33 @@ function createTransactionAccountResolutionService({
       if (account) {
         if (!account.isActive) {
           account.isActive = true
-          await account.save()
+          await account.save(writeOpts(session))
         }
         return account._id
       }
     }
 
     if (settlementPreference === 'bank') {
-      const preferredBank = await findPreferredBankAccountByCurrency(settlementCurrency)
+      const preferredBank = await findPreferredBankAccountByCurrency(settlementCurrency, session)
       if (preferredBank) return preferredBank._id
     }
 
-    const fallbackAccount = await ensureCashBankAccount(user, tx.currency || 'USD', settlementPreference)
+    const fallbackAccount = await ensureCashBankAccount(user, tx.currency || 'USD', settlementPreference, session)
     return fallbackAccount?._id || null
   }
 
-  const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedVoucherImpact }) => {
+  const resolveTransactionAccounts = async ({ user, tx, mappingOverride, preparedVoucherImpact, session = null }) => {
     const transactionType = tx.type
     let mapping = null
     if (tx.mappingId) {
-      mapping = await AccountMapping.findById(tx.mappingId)
+      mapping = await withSession(AccountMapping.findById(tx.mappingId), session)
     } else {
-      mapping = await AccountMapping.findOne({ mappingType: transactionType, isActive: true })
+      mapping = await withSession(AccountMapping.findOne({ mappingType: transactionType, isActive: true }), session)
     }
 
     let debitAccountId = tx.debitAccountId || mapping?.debitAccountId || null
     let creditAccountId = tx.creditAccountId || mapping?.creditAccountId || null
-    const voucherSettlementAccountId = await resolveVoucherSettlementAccount(user, tx)
+    const voucherSettlementAccountId = await resolveVoucherSettlementAccount(user, tx, session)
     const partyAccountIdRaw = String(tx?.voucherMeta?.partyAccountId || '').trim()
     const partyCodeRaw = String(tx?.voucherMeta?.partyCode || '').trim()
     let directPartyAccount = null
@@ -195,11 +196,11 @@ function createTransactionAccountResolutionService({
       const key = String(idOrCode || '').trim()
       if (!key) return null
       if (/^[a-f\d]{24}$/i.test(key)) {
-        const byId = await ChartOfAccount.findById(key)
+        const byId = await withSession(ChartOfAccount.findById(key), session)
         if (byId) return byId
       }
-      const matches = await ChartOfAccount.find({ accountCode: key })
-        .sort({ isActive: -1, createdAt: 1, _id: 1 })
+      const matches = await withSession(ChartOfAccount.find({ accountCode: key })
+        .sort({ isActive: -1, createdAt: 1, _id: 1 }), session)
       return matches.find((row) => row.isActive) || matches[0] || null
     }
 
@@ -211,14 +212,18 @@ function createTransactionAccountResolutionService({
     }
 
     if (transactionType === 'sale' || transactionType === 'receipt' || transactionType === 'metal_payment') {
-      const customer = tx.customerId ? await Customer.findById(tx.customerId).populate('ledgerAccountId') : null
+      const customer = tx.customerId
+        ? await withSession(Customer.findById(tx.customerId).populate('ledgerAccountId'), session)
+        : null
       if ((transactionType === 'sale' || transactionType === 'receipt' || transactionType === 'metal_payment') && customer?.ledgerAccountId) {
         if (transactionType === 'sale' || transactionType === 'metal_payment') debitAccountId = customer.ledgerAccountId._id
         if (transactionType === 'receipt') creditAccountId = customer.ledgerAccountId._id
       }
 
       if ((transactionType === 'sale' || transactionType === 'metal_payment') && !customer?.ledgerAccountId) {
-        const vendor = tx.vendorId ? await Vendor.findById(tx.vendorId).populate('ledgerAccountId') : null
+        const vendor = tx.vendorId
+          ? await withSession(Vendor.findById(tx.vendorId).populate('ledgerAccountId'), session)
+          : null
         if (vendor?.ledgerAccountId) {
           debitAccountId = debitAccountId || vendor.ledgerAccountId._id
         }
@@ -231,26 +236,32 @@ function createTransactionAccountResolutionService({
         directPartyAccountId: directPartyAccount?._id,
       }))
 
-      const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank')
+      const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank', session)
       if (transactionType === 'receipt') debitAccountId = voucherSettlementAccountId || debitAccountId || bank._id
     }
 
     if (transactionType === 'purchase' || transactionType === 'payment' || transactionType === 'metal_receipt') {
-      const vendor = tx.vendorId ? await Vendor.findById(tx.vendorId).populate('ledgerAccountId') : null
+      const vendor = tx.vendorId
+        ? await withSession(Vendor.findById(tx.vendorId).populate('ledgerAccountId'), session)
+        : null
       if (vendor?.ledgerAccountId) {
         if (transactionType === 'purchase' || transactionType === 'metal_receipt') creditAccountId = vendor.ledgerAccountId._id
         if (transactionType === 'payment') debitAccountId = vendor.ledgerAccountId._id
       }
 
       if ((transactionType === 'purchase' || transactionType === 'metal_receipt') && !vendor?.ledgerAccountId) {
-        const customer = tx.customerId ? await Customer.findById(tx.customerId).populate('ledgerAccountId') : null
+        const customer = tx.customerId
+          ? await withSession(Customer.findById(tx.customerId).populate('ledgerAccountId'), session)
+          : null
         if (customer?.ledgerAccountId) {
           creditAccountId = creditAccountId || customer.ledgerAccountId._id
         }
       }
 
       if (transactionType === 'payment' && !vendor?.ledgerAccountId) {
-        const customer = tx.customerId ? await Customer.findById(tx.customerId).populate('ledgerAccountId') : null
+        const customer = tx.customerId
+          ? await withSession(Customer.findById(tx.customerId).populate('ledgerAccountId'), session)
+          : null
         if (customer?.ledgerAccountId) {
           debitAccountId = debitAccountId || customer.ledgerAccountId._id
         }
@@ -263,7 +274,7 @@ function createTransactionAccountResolutionService({
         directPartyAccountId: directPartyAccount?._id,
       }))
 
-      const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank')
+      const bank = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank', session)
       if (transactionType === 'payment') creditAccountId = voucherSettlementAccountId || creditAccountId || bank._id
     }
 
@@ -271,7 +282,7 @@ function createTransactionAccountResolutionService({
       if (preparedVoucherImpact?.purchaseDebitAccountId) {
         debitAccountId = preparedVoucherImpact.purchaseDebitAccountId
       } else if (tx.inventoryItemId) {
-        const item = await InventoryItem.findById(tx.inventoryItemId)
+        const item = await withSession(InventoryItem.findById(tx.inventoryItemId), session)
         if (item?.ledgerAccountId) debitAccountId = debitAccountId || item.ledgerAccountId
       }
     }
@@ -291,6 +302,7 @@ function createTransactionAccountResolutionService({
           name,
           accountType: type,
           currency: tx.currency || 'USD',
+          session,
         })
         return acc._id
       }
@@ -321,10 +333,10 @@ function createTransactionAccountResolutionService({
         }
         if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Accounts Payable', code: '2000', type: 'Liability' })
       } else if (transactionType === 'receipt') {
-        if (!debitAccountId) debitAccountId = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank').then((a) => a._id)
+        if (!debitAccountId) debitAccountId = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank', session).then((a) => a._id)
         if (!creditAccountId) creditAccountId = await ensureAccount({ name: 'Accounts Receivable', code: '1100', type: 'Asset' })
       } else if (transactionType === 'payment') {
-        if (!creditAccountId) creditAccountId = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank').then((a) => a._id)
+        if (!creditAccountId) creditAccountId = await ensureCashBankAccount(user, tx.currency || 'USD', 'bank', session).then((a) => a._id)
         if (!debitAccountId) debitAccountId = await ensureAccount({ name: 'Accounts Payable', code: '2000', type: 'Liability' })
       }
     }
@@ -339,11 +351,11 @@ function createTransactionAccountResolutionService({
     }
   }
 
-  const createLedgerFromTransaction = async ({ user, transaction, referenceType }) => {
+  const createLedgerFromTransaction = async ({ user, transaction, referenceType, session = null }) => {
     const currencyCode = String(transaction.currency || 'USD').toUpperCase()
-    const base = await Currency.findOne({ baseCurrency: true, isActive: true })
+    const base = await withSession(Currency.findOne({ baseCurrency: true, isActive: true }), session)
     const baseCurrencyCode = String(base?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
-    const txCurrency = await Currency.findOne({ code: currencyCode, isActive: true })
+    const txCurrency = await withSession(Currency.findOne({ code: currencyCode, isActive: true }), session)
     const exchangeRate = normalizeExchangeRateValue(transaction.exchangeRate ?? txCurrency?.exchangeRate ?? 1)
     const transactionAmount = normalizeMoneyValue(transaction.amount, 'amount')
     const voucherNetAmount = resolveVoucherNetLineAmount(transaction)
@@ -356,7 +368,7 @@ function createTransactionAccountResolutionService({
     const postingAmount = shouldPostNetMainAmount ? voucherNetAmount : transactionAmount
     const amountInBase = postingAmount * exchangeRate
 
-    const entry = await Ledger.create({
+    const entry = await Ledger.create([{
       date: transaction.voucherMeta?.valueDate || transaction.date || new Date(),
       debitAccountId: transaction.debitAccountId,
       creditAccountId: transaction.creditAccountId,
@@ -369,7 +381,7 @@ function createTransactionAccountResolutionService({
       department: user.department,
       currency: baseCurrencyCode,
       exchangeRate: 1,
-    })
+    }], writeOpts(session)).then((rows) => rows[0])
 
     const type = String(transaction.type || '').toLowerCase()
     const voucherMeta = transaction?.voucherMeta || {}
@@ -390,7 +402,7 @@ function createTransactionAccountResolutionService({
       if (isForeignLine) {
         const lineCurrency = lineCurrCode === currencyCode
           ? txCurrency
-          : await Currency.findOne({ code: lineCurrCode, isActive: true })
+          : await withSession(Currency.findOne({ code: lineCurrCode, isActive: true }), session)
         masterRate = Number(lineCurrency?.exchangeRate || 0)
       }
 
@@ -427,9 +439,10 @@ function createTransactionAccountResolutionService({
             isGain,
             transactionType: type,
             offsetAccountId: type === 'receipt' ? transaction.creditAccountId : transaction.debitAccountId,
+            session,
           })
 
-          await Ledger.create({
+          await Ledger.create([{
             date: transaction.date || new Date(),
             debitAccountId: accounts.debitAccountId,
             creditAccountId: accounts.creditAccountId,
@@ -442,7 +455,7 @@ function createTransactionAccountResolutionService({
             department: user.department,
             currency: base?.code || 'USD',
             exchangeRate: 1,
-          })
+          }], writeOpts(session))
         }
       }
     }
@@ -494,20 +507,20 @@ function createVendorAdvanceConfirmationHelpers({
     return err
   }
 
-  const ensurePaymentAdvanceConfirmed = async ({ tx, resolvedAccounts, confirmed }) => {
+  const ensurePaymentAdvanceConfirmed = async ({ tx, resolvedAccounts, confirmed, session = null }) => {
     if (confirmed || String(tx?.type || '').toLowerCase() !== 'payment' || !resolvedAccounts?.debitAccountId) return
 
-    const debitAccount = await ChartOfAccount.findById(resolvedAccounts.debitAccountId)
+    const debitAccount = await withSession(ChartOfAccount.findById(resolvedAccounts.debitAccountId)
       .select('accountCode accountName accountType isActive')
-      .lean()
+      .lean(), session)
 
     if (!debitAccount || String(debitAccount.accountType || '').toLowerCase() !== 'liability') return
 
-    const txCurrency = await Currency.findOne({ code: String(tx.currency || 'USD').toUpperCase(), isActive: true }).select('exchangeRate').lean()
-    const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
+    const txCurrency = await withSession(Currency.findOne({ code: String(tx.currency || 'USD').toUpperCase(), isActive: true }).select('exchangeRate').lean(), session)
+    const baseCurrency = await withSession(Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean(), session)
     const exchangeRate = normalizeExchangeRateValue(tx.exchangeRate ?? txCurrency?.exchangeRate ?? 1)
     const paymentAmount = normalizeMoneyValue(tx.amount, 'amount') * exchangeRate
-    const outstandingBefore = Number(await getOutstandingForAccount(resolvedAccounts.debitAccountId) || 0)
+    const outstandingBefore = Number(await getOutstandingForAccount(resolvedAccounts.debitAccountId, session) || 0)
     const projectedBalance = outstandingBefore + paymentAmount
 
     if (projectedBalance > 0) {

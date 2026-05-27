@@ -30,7 +30,7 @@ const SMOKE_USER_NAME = String(process.env.SMOKE_AUTH_NAME || 'ops-smoke-probe')
 const API_BASE = (process.env.SMOKE_API_BASE || 'https://api.loopcstrategies.com').replace(/\/$/, '')
 const verifyOnly = process.argv.includes('--verify-only')
 
-const { connectTenant } = require(path.join(backendDir, 'db', 'tenantConnections'))
+const { connectTenant, closeAllTenantConnections } = require(path.join(backendDir, 'db', 'tenantConnections'))
 const User = require(path.join(backendDir, 'models', 'User'))
 
 function generatePassword() {
@@ -207,7 +207,15 @@ async function main() {
   console.log('Smoke credential provisioning complete.')
 }
 
-main().catch((error) => {
-  console.error(error.message || error)
-  process.exit(1)
-})
+async function shutdown() {
+  await closeAllTenantConnections()
+}
+
+main()
+  .then(shutdown)
+  .then(() => process.exit(0))
+  .catch(async (error) => {
+    await closeAllTenantConnections().catch(() => {})
+    console.error(error.message || error)
+    process.exit(1)
+  })

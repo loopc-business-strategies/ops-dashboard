@@ -61,4 +61,17 @@ describe('erpSubTabPermissions', () => {
     expect(resolveAllowedErpSubTab(user, 'transactions')).toBe('inventory')
     expect(resolveAllowedErpSubTab(user, 'inventory')).toBe('inventory')
   })
+
+  test('non-ERP granular permissions fall back to allowedModules for ERP access', () => {
+    const user = {
+      role: 'management',
+      allowedModules: ['erp'],
+      modulePermissions: {
+        sales: { on: true },
+      },
+    }
+
+    expect(canViewERPModule(user)).toBe(true)
+    expect(canViewErpSubTab(user, 'transactions')).toBe(true)
+  })
 })

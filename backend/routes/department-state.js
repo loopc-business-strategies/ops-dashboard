@@ -2,29 +2,21 @@ const express = require('express')
 const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
 const DepartmentState = require('../models/DepartmentState')
-
-const router = express.Router()
-
-const normalize = (value = '') => String(value).trim().toLowerCase()
-const allowedModules = ['finance', 'compliance', 'training', 'admin']
+const {
+  DEPARTMENT_STATE_MODULES,
+  canAccessDepartmentStateModule,
+  normalize,
+} = require('../services/permissions/moduleAccessPolicy')
 const moduleParamSchema = Joi.object({
-  module: Joi.string().trim().lowercase().valid(...allowedModules).required(),
+  module: Joi.string().trim().lowercase().valid(...DEPARTMENT_STATE_MODULES).required(),
 })
 const moduleStateSchema = Joi.object({
   state: Joi.object().required().max(200),
 })
 
-const canAccessModule = (user, module) => {
-  if (!user) return false
-  if (module === 'admin') return user.role === 'super_admin'
-  if (user.role === 'super_admin' || user.role === 'management') return true
-
-  const dept = normalize(user.department)
-  if (module === 'finance') return dept === 'finance'
-  if (module === 'compliance') return dept === 'government' || dept === 'compliance'
-  if (module === 'training') return dept === 'hr' || dept === 'training'
-  return false
-}
+const router = express.Router()
+const allowedModules = DEPARTMENT_STATE_MODULES
+const canAccessModule = canAccessDepartmentStateModule
 
 router.get('/:module', protect, validateParams(moduleParamSchema), async (req, res) => {
   try {

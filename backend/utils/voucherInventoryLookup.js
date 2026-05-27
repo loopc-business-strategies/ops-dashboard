@@ -1,4 +1,5 @@
 const InventoryItem = require('../models/InventoryItem')
+const { withSession } = require('./mongoTransaction')
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -51,14 +52,14 @@ const pushLineLookupConditions = (orList, rawValue) => {
 /**
  * Load candidate inventory rows for a voucher line (SKU, name, metal hints, explicit item id).
  */
-const collectVoucherLineInventoryCandidates = async (line) => {
+const collectVoucherLineInventoryCandidates = async (line, session = null) => {
   const stockCode = String(line?.stockCode || '').trim()
   const productType = String(line?.productType || '').trim()
   const metalHint = String(line?.metalSymbol || line?.metalName || '').trim()
 
   const directId = line?.inventoryItemId || line?.itemId
   if (directId && /^[a-f\d]{24}$/i.test(String(directId))) {
-    const one = await InventoryItem.findOne({ _id: directId, isDeleted: { $ne: true } })
+    const one = await withSession(InventoryItem.findOne({ _id: directId, isDeleted: { $ne: true } }), session)
     return one ? [one] : []
   }
 
@@ -71,7 +72,7 @@ const collectVoucherLineInventoryCandidates = async (line) => {
   const productBase = { isDeleted: { $ne: true }, category: /recordType=product/i }
   const anyBase = { isDeleted: { $ne: true } }
 
-  let candidates = await InventoryItem.find({ ...productBase, $or: orConditions }).limit(40)
+  let candidates = await withSession(InventoryItem.find({ ...productBase, $or: orConditions }).limit(40), session)
   if (candidates.length) return candidates
 
   const metalClause =
@@ -81,15 +82,15 @@ const collectVoucherLineInventoryCandidates = async (line) => {
     || metalCategoryClauseFromProductType(stockCode)
 
   if (metalClause) {
-    candidates = await InventoryItem.find({ ...productBase, ...metalClause }).limit(40)
+    candidates = await withSession(InventoryItem.find({ ...productBase, ...metalClause }).limit(40), session)
     if (candidates.length) return candidates
   }
 
-  candidates = await InventoryItem.find({ ...anyBase, $or: orConditions }).limit(40)
+  candidates = await withSession(InventoryItem.find({ ...anyBase, $or: orConditions }).limit(40), session)
   if (candidates.length) return candidates
 
   if (metalClause) {
-    candidates = await InventoryItem.find({ ...anyBase, ...metalClause }).limit(40)
+    candidates = await withSession(InventoryItem.find({ ...anyBase, ...metalClause }).limit(40), session)
     if (candidates.length) return candidates
   }
 
@@ -98,9 +99,9 @@ const collectVoucherLineInventoryCandidates = async (line) => {
     .find((t) => t.length >= 3)
   if (token) {
     const re = new RegExp(escapeRegex(token), 'i')
-    candidates = await InventoryItem.find({ ...productBase, $or: [{ name: re }, { sku: re }] }).limit(40)
+    candidates = await withSession(InventoryItem.find({ ...productBase, $or: [{ name: re }, { sku: re }] }).limit(40), session)
     if (candidates.length) return candidates
-    candidates = await InventoryItem.find({ ...anyBase, $or: [{ name: re }, { sku: re }] }).limit(40)
+    candidates = await withSession(InventoryItem.find({ ...anyBase, $or: [{ name: re }, { sku: re }] }).limit(40), session)
   }
 
   return candidates || []

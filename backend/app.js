@@ -114,11 +114,7 @@ function createApp() {
     max: Number(process.env.RATE_LIMIT_MAX || 400),
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => {
-      if (!isProduction) return true
-      const isMetalRatesBridge = req.path === '/erp-accounting/metal-rates/bridge'
-      return isMetalRatesBridge && Boolean(req.headers['x-metal-rates-bridge-token'])
-    },
+    skip: () => !isProduction,
     message: { success: false, message: 'Too many requests. Please try again shortly.' },
   })
 
@@ -185,7 +181,7 @@ function createApp() {
   app.use(express.urlencoded({ extended: true, limit: REQUEST_BODY_LIMIT }))
   
   // ─── Health Check (No Auth, No Rate Limit, No CSRF) ──────────────────────
-  // Must be BEFORE all middleware to avoid blocking on auth/rate-limit issues
+  // Liveness only — process is up. Deploy readiness uses /api/ready.
   app.get('/api/health', (req, res) => {
     res.json({
       success: true,
@@ -195,6 +191,22 @@ function createApp() {
       build: backendBuildMeta,
       backend: backendBuildMeta,
     })
+  })
+
+  const { getReadinessStatus } = require('./services/readiness')
+  app.get('/api/ready', async (req, res) => {
+    try {
+      const status = await getReadinessStatus()
+      res.status(status.ready ? 200 : 503).json(status)
+    } catch (err) {
+      console.error('Readiness check error:', err)
+      res.status(503).json({
+        success: false,
+        ready: false,
+        message: 'Readiness check failed',
+        time: new Date(),
+      })
+    }
   })
   
   // ─── Security & Logging Middleware ─────────────────────────────────────────

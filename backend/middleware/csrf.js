@@ -8,7 +8,7 @@ const isMutatingMethod = (method) => ['POST', 'PUT', 'PATCH', 'DELETE'].includes
 const shouldBypassPath = (path = '') => {
   const p = String(path || '')
   // Login/setup are pre-auth flows and should not require an existing CSRF cookie.
-  return p === '/auth/login' || p === '/auth/setup' || p === '/health'
+  return p === '/auth/login' || p === '/auth/setup' || p === '/health' || p === '/ready'
 }
 
 const csrfCookieOptions = {

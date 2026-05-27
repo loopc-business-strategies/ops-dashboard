@@ -76,9 +76,14 @@ function hasGranularPermissions(user) {
   return Boolean(user?.modulePermissions && Object.keys(user.modulePermissions).length > 0)
 }
 
+function hasExplicitErpPermissions(user) {
+  return user?.modulePermissions?.erp !== undefined
+}
+
 function hasErpSubTab(user, subTabs) {
   if (isSuperAdmin(user)) return true
   if (!hasGranularPermissions(user)) return null
+  if (!hasExplicitErpPermissions(user)) return null
 
   const erpPermission = user?.modulePermissions?.erp
   if (erpPermission?.on !== true) return false
@@ -93,6 +98,7 @@ function getAllowedErpSubTabs(user) {
   const allSubs = [...new Set(Object.values(ERP_PERMISSION_TO_SUBTAB).flat())]
   if (isSuperAdmin(user)) return allSubs
   if (!hasGranularPermissions(user)) return null
+  if (!hasExplicitErpPermissions(user)) return null
   const erpPermission = user?.modulePermissions?.erp
   if (erpPermission?.on !== true) return []
   const configuredSubs = erpPermission?.subs || {}

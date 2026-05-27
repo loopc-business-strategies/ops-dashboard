@@ -14,6 +14,13 @@ const CrmDeal     = require('../models/CrmDeal')
 const CrmActivity = require('../models/CrmActivity')
 const { resolveUploadDir } = require('../services/erpAccounting/uploadMiddleware')
 
+const {
+  canViewCrm,
+  canEditCrm,
+  canDeleteCrm,
+  isSalesRep,
+} = require('../services/permissions/moduleAccessPolicy')
+
 const router = express.Router()
 router.use(protect)
 
@@ -467,14 +474,9 @@ async function ensureCrmSeedData(user) {
 }
 
 // ── Role helpers ────────────────────────────────────────────────────────────
-const isSA   = (u) => u?.role === 'super_admin'
-const isMgmt = (u) => u?.role === 'management'
-const dept   = (u) => (u?.department || '').toLowerCase()
-const isSalesHead = (u) => isSA(u) || (u?.role === 'department_head' && dept(u) === 'sales')
-const isSalesRep  = (u) => isSA(u) || isSalesHead(u) || (u?.role === 'department_user' && dept(u) === 'sales')
-const canView = (u) => isSA(u) || isMgmt(u) || isSalesHead(u) || isSalesRep(u)
-const canEdit = (u) => isSA(u) || isSalesHead(u)
-const canDelete = (u) => isSA(u)
+const canView = canViewCrm
+const canEdit = canEditCrm
+const canDelete = canDeleteCrm
 
 function salesOnly(req, res, next) {
   if (!canView(req.user)) return res.status(403).json({ success: false, message: 'Access denied — Sales module only.' })

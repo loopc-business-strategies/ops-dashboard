@@ -24,9 +24,10 @@ function createTransactionWorkflowAction({
   isFinance,
   getTransactionPostingService,
 }) {
-  return async function applyTransactionWorkflowAction(tx, user, action, options = {}) {
+  return async function applyTransactionWorkflowAction(tx, user, action, options = {}, session = null) {
     const note = normalizeTransactionNote(options.comment)
     const fromStatus = tx.status
+    const saveOpts = session ? { session } : {}
 
     if (action === 'submit') {
       if (!['draft', 'returned', 'rejected'].includes(tx.status)) throw new Error('Only draft, returned, or rejected transactions can be submitted')
@@ -34,7 +35,7 @@ function createTransactionWorkflowAction({
       tx.updatedBy = user._id
       appendTransactionComment(tx, user, note, 'submit_note')
       appendTransactionAudit(tx, user, 'submit', { fromStatus, toStatus: 'submitted', comment: note })
-      await tx.save()
+      await tx.save(saveOpts)
       return { transaction: tx }
     }
 
@@ -46,7 +47,7 @@ function createTransactionWorkflowAction({
       tx.updatedBy = user._id
       appendTransactionComment(tx, user, note, 'approval_note')
       appendTransactionAudit(tx, user, 'approve', { fromStatus, toStatus: 'approved', comment: note })
-      await tx.save()
+      await tx.save(saveOpts)
       return { transaction: tx }
     }
 
@@ -58,7 +59,7 @@ function createTransactionWorkflowAction({
       tx.updatedBy = user._id
       appendTransactionComment(tx, user, note, 'return_note')
       appendTransactionAudit(tx, user, 'return', { fromStatus, toStatus: 'returned', comment: note })
-      await tx.save()
+      await tx.save(saveOpts)
       return { transaction: tx }
     }
 
@@ -70,7 +71,7 @@ function createTransactionWorkflowAction({
       tx.updatedBy = user._id
       appendTransactionComment(tx, user, note, 'reject_note')
       appendTransactionAudit(tx, user, 'reject', { fromStatus, toStatus: 'rejected', comment: note })
-      await tx.save()
+      await tx.save(saveOpts)
       return { transaction: tx }
     }
 
@@ -81,6 +82,7 @@ function createTransactionWorkflowAction({
         note,
         fromStatus,
         options,
+        session,
       })
     }
 

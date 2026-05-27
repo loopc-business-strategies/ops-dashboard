@@ -13,6 +13,7 @@ const {
   collectVoucherLineInventoryCandidates,
   scoreInventoryLineMatch,
 } = require('../../utils/voucherInventoryLookup')
+const { withSession, writeOpts } = require('../../utils/mongoTransaction')
 
 function createVoucherInventoryImpactService({
   ensureAccountByCode,
@@ -65,16 +66,16 @@ function createVoucherInventoryImpactService({
     }, 0))
   }
 
-  const resolveVoucherInventoryItems = async (tx) => {
+  const resolveVoucherInventoryItems = async (tx, session = null) => {
     const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
     const resolved = []
 
     for (const line of lines) {
-      const candidates = await collectVoucherLineInventoryCandidates(line)
+      const candidates = await collectVoucherLineInventoryCandidates(line, session)
       if (!candidates.length) continue
 
       const best = [...candidates].sort((a, b) => scoreInventoryLineMatch(b, line) - scoreInventoryLineMatch(a, line))[0]
-      const item = await InventoryItem.findById(best._id)
+      const item = await withSession(InventoryItem.findById(best._id), session)
       if (!item) continue
 
       const quantity = resolveVoucherInventoryLineQuantity(line)
@@ -91,13 +92,13 @@ function createVoucherInventoryImpactService({
     return resolved
   }
 
-  const prepareVoucherInventoryImpact = async ({ user, tx }) => {
+  const prepareVoucherInventoryImpact = async ({ user, tx, session = null }) => {
     const transactionType = String(tx?.type || '').toLowerCase()
     if (!isMetalStockType(transactionType)) {
       return { inventoryPlans: [], purchaseDebitAccountId: null, cogsAccountId: null }
     }
 
-    const resolvedLines = await resolveVoucherInventoryItems(tx)
+    const resolvedLines = await resolveVoucherInventoryItems(tx, session)
     if (!resolvedLines.length) {
       return { inventoryPlans: [], purchaseDebitAccountId: null, cogsAccountId: null }
     }
@@ -108,6 +109,7 @@ function createVoucherInventoryImpactService({
       name: 'Metal Inventory',
       accountType: 'Asset',
       currency: tx.currency || BASE_CURRENCY_CODE,
+      session,
     })
     const cogsAccount = isMetalStockOutType(transactionType) && !isMetalTransferType(transactionType)
       ? await ensureAccountByCode({
@@ -116,6 +118,7 @@ function createVoucherInventoryImpactService({
         name: 'Cost Of Goods Sold',
         accountType: 'Expense',
         currency: tx.currency || BASE_CURRENCY_CODE,
+        session,
       })
       : null
 
@@ -142,13 +145,13 @@ function createVoucherInventoryImpactService({
     }
   }
 
-  const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact }) => {
+  const applyVoucherInventoryImpact = async ({ user, tx, preparedImpact, session = null }) => {
     const transactionType = String(tx?.type || '').toLowerCase()
     const plans = Array.isArray(preparedImpact?.inventoryPlans) ? preparedImpact.inventoryPlans : []
     if (!plans.length || !isMetalStockType(transactionType)) return
 
     for (const plan of plans) {
-      const item = await InventoryItem.findById(plan.item._id)
+      const item = await withSession(InventoryItem.findById(plan.item._id), session)
       if (!item || item.isDeleted) continue
 
       const beforeQty = Number(item.quantity || 0)
@@ -166,9 +169,9 @@ function createVoucherInventoryImpactService({
         } else if (incomingValue > 0 && nextQty > 0) {
           item.unitCost = toMoney((currentValue + incomingValue) / nextQty)
         }
-        await item.save()
+        await item.save(writeOpts(session))
 
-        await StockMovement.create({
+        await StockMovement.create([{
           itemId: item._id,
           itemName: item.name,
           change: movementQty,
@@ -177,16 +180,16 @@ function createVoucherInventoryImpactService({
           reason: buildStockMovementReason(tx, transactionType),
           actorId: user._id,
           actorName: user.name,
-        })
+        }], writeOpts(session))
         continue
       }
 
       const nextQty = toQty(beforeQty - movementQty)
       item.quantity = nextQty
       item.updatedBy = user._id
-      await item.save()
+      await item.save(writeOpts(session))
 
-      await StockMovement.create({
+      await StockMovement.create([{
         itemId: item._id,
         itemName: item.name,
         change: -movementQty,
@@ -195,13 +198,13 @@ function createVoucherInventoryImpactService({
         reason: buildStockMovementReason(tx, transactionType),
         actorId: user._id,
         actorName: user.name,
-      })
+      }], writeOpts(session))
 
       const cogsAmount = Number(plan.costAmount || 0)
       const cogsAccountId = preparedImpact?.cogsAccountId || null
       const inventoryAccountId = plan.inventoryAccountId || item.ledgerAccountId || null
       if (!isMetalTransferType(transactionType) && cogsAmount > 0 && cogsAccountId && inventoryAccountId) {
-        await Ledger.create({
+        await Ledger.create([{
           date: tx.voucherMeta?.valueDate || tx.date || new Date(),
           debitAccountId: cogsAccountId,
           creditAccountId: inventoryAccountId,
@@ -214,7 +217,7 @@ function createVoucherInventoryImpactService({
           department: user.department || tx.department || '',
           currency: tx.currency || 'USD',
           exchangeRate: Number(tx.exchangeRate || 1),
-        })
+        }], writeOpts(session))
       }
     }
   }

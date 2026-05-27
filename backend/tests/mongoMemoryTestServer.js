@@ -1,4 +1,4 @@
-const { MongoMemoryServer } = require('mongodb-memory-server')
+const { MongoMemoryReplSet } = require('mongodb-memory-server')
 
 const WINDOWS_MONGO_HINT = `
 [Windows / MongoDB Memory Server]
@@ -29,7 +29,11 @@ async function startMongoMemoryServer() {
   }
 
   try {
-    return await MongoMemoryServer.create()
+    const replSet = await MongoMemoryReplSet.create({
+      replSet: { count: 1, storageEngine: 'wiredTiger' },
+    })
+    await replSet.waitUntilRunning()
+    return replSet
   } catch (err) {
     const text = String(err?.message || err)
     const looksLikeWindowsBinaryFailure = process.platform === 'win32'

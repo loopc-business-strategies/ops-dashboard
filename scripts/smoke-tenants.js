@@ -33,8 +33,8 @@ async function verifyPortal(tenant) {
   return { tenant, status: response.status, url }
 }
 
-async function verifyHealth(tenant) {
-  const response = await fetchWithTimeout(`${API_BASE}/api/health`, {
+async function verifyReadiness(tenant) {
+  const response = await fetchWithTimeout(`${API_BASE}/api/ready`, {
     headers: {
       'x-tenant': tenant,
       'x-company': tenant,
@@ -42,8 +42,8 @@ async function verifyHealth(tenant) {
   })
   const body = await response.json().catch(() => ({}))
 
-  if (!response.ok || body.success !== true) {
-    throw new Error(`${tenant.toUpperCase()} health check failed (${response.status})`)
+  if (!response.ok || body.ready !== true) {
+    throw new Error(`${tenant.toUpperCase()} readiness check failed (${response.status})`)
   }
 
   return {
@@ -85,8 +85,8 @@ async function run() {
     const portal = await verifyPortal(tenant)
     console.log(`✔ ${tenant.toUpperCase()} portal OK (${portal.status})`)
 
-    const health = await verifyHealth(tenant)
-    console.log(`✔ ${tenant.toUpperCase()} health OK (${health.status}) build=${health.buildSha}`)
+    const readiness = await verifyReadiness(tenant)
+    console.log(`✔ ${tenant.toUpperCase()} ready (${readiness.status}) build=${readiness.buildSha}`)
 
     const authPath = await verifyTenantAuthPath(tenant)
     console.log(`✔ ${tenant.toUpperCase()} auth routing OK (${authPath.status})`)

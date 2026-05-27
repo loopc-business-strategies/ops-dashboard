@@ -3,6 +3,7 @@ function registerTransactionRoutes(deps) {
   const path = require('path')
   const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
   const { reverseMetalVoucherStockForVoid } = require('../../utils/metalVoucherStockReversal')
+  const { runInTransaction, writeOpts } = require('../../utils/mongoTransaction')
   const User = require('../../models/User')
   const Message = require('../../models/Message')
   const { publishRealtimeEvent } = require('../../utils/realtimeBus')
@@ -85,6 +86,34 @@ const emitRealtime = (req, cb) => {
   const realtimeServer = req.app.get('realtimeServer')
   if (!realtimeServer || typeof cb !== 'function') return
   try { cb(realtimeServer) } catch { void 0 }
+}
+
+const reversePostedTransactionEffects = async ({ tx, user, session, deleteReason }) => {
+  const now = new Date()
+
+  await Ledger.updateMany(
+    { referenceId: tx._id, isDeleted: { $ne: true } },
+    { $set: { isDeleted: true, deletedAt: now, updatedBy: user._id } },
+    writeOpts(session),
+  )
+
+  if (tx.journalEntryId) {
+    await Ledger.updateMany(
+      { _id: tx.journalEntryId, isDeleted: { $ne: true } },
+      { $set: { isDeleted: true, deletedAt: now, updatedBy: user._id } },
+      writeOpts(session),
+    )
+  }
+
+  await reverseMetalVoucherStockForVoid({
+    tx,
+    user,
+    StockMovement,
+    InventoryItem,
+    toQty,
+    deleteReason,
+    session,
+  })
 }
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -364,27 +393,17 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
 
     // If editing a posted transaction, reverse its ledger entries and reset to draft
     if (wasPosted) {
-      const now = new Date()
-      await Ledger.updateMany(
-        { referenceId: tx._id, isDeleted: { $ne: true } },
-        { $set: { isDeleted: true, deletedAt: now, updatedBy: req.user._id } }
-      )
-      if (tx.journalEntryId) {
-        await Ledger.updateMany(
-          { _id: tx.journalEntryId, isDeleted: { $ne: true } },
-          { $set: { isDeleted: true, deletedAt: now, updatedBy: req.user._id } }
-        )
-      }
-      await reverseMetalVoucherStockForVoid({
-        tx,
-        user: req.user,
-        StockMovement,
-        InventoryItem,
-        toQty,
-        deleteReason: 'Posted transaction edited — inventory reversal',
+      await runInTransaction(async (session) => {
+        await reversePostedTransactionEffects({
+          tx,
+          user: req.user,
+          session,
+          deleteReason: 'Posted transaction edited — inventory reversal',
+        })
+        tx.status = 'draft'
+        tx.journalEntryId = null
+        await tx.save(writeOpts(session))
       })
-      tx.status = 'draft'
-      tx.journalEntryId = null
     }
 
     const nextType = req.body.type || tx.type
@@ -478,36 +497,21 @@ router.post('/transactions/:id/void', protect, requireTransactionVoidRole, requi
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
 
-    const now = new Date()
+    await runInTransaction(async (session) => {
+      await reversePostedTransactionEffects({
+        tx,
+        user: req.user,
+        session,
+        deleteReason: req.destructiveAction?.reason,
+      })
 
-    // Soft-delete all ledger entries linked to this transaction
-    await Ledger.updateMany(
-      { referenceId: tx._id, isDeleted: { $ne: true } },
-      { $set: { isDeleted: true, deletedAt: now, updatedBy: req.user._id } }
-    )
-
-    // Also soft-delete the journalEntryId ledger entry if present
-    if (tx.journalEntryId) {
-      await Ledger.updateMany(
-        { _id: tx.journalEntryId, isDeleted: { $ne: true } },
-        { $set: { isDeleted: true, deletedAt: now, updatedBy: req.user._id } }
-      )
-    }
-
-    await reverseMetalVoucherStockForVoid({
-      tx,
-      user: req.user,
-      StockMovement,
-      InventoryItem,
-      toQty,
-      deleteReason: req.destructiveAction?.reason,
+      const now = new Date()
+      tx.isDeleted = true
+      tx.deletedAt = now
+      tx.updatedBy = req.user._id
+      appendTransactionAudit(tx, req.user, 'void', { fromStatus: tx.status, toStatus: 'voided', comment: req.destructiveAction.reason })
+      await tx.save(writeOpts(session))
     })
-
-    tx.isDeleted = true
-    tx.deletedAt = now
-    tx.updatedBy = req.user._id
-    appendTransactionAudit(tx, req.user, 'void', { fromStatus: tx.status, toStatus: 'voided', comment: req.destructiveAction.reason })
-    await tx.save()
 
     const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
     emitRealtime(req, (realtimeServer) => {
@@ -600,7 +604,11 @@ router.post('/transactions/:id/approve', protect, async (req, res) => {
   try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
-    const result = await applyTransactionWorkflowAction(tx, req.user, 'approve', { comment: req.body?.comment })
+    const result = await runInTransaction(async (session) => {
+      const freshTx = await Transaction.findById(req.params.id).session(session)
+      if (!freshTx || freshTx.isDeleted) throw new Error('Transaction not found')
+      return applyTransactionWorkflowAction(freshTx, req.user, 'approve', { comment: req.body?.comment }, session)
+    })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
     emitRealtime(req, (realtimeServer) => {
@@ -635,7 +643,12 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
     if (tx.status === 'posted') {
       return res.status(409).json({ success: false, message: 'Transaction is already posted.' })
     }
-    const result = await applyTransactionWorkflowAction(tx, req.user, 'post', { comment: req.body?.comment, mappingOverride: req.body || {} })
+    const result = await runInTransaction(async (session) => {
+      const freshTx = await Transaction.findById(req.params.id).session(session)
+      if (!freshTx || freshTx.isDeleted) throw new Error('Transaction not found')
+      if (freshTx.status === 'posted') throw new Error('Transaction is already posted.')
+      return applyTransactionWorkflowAction(freshTx, req.user, 'post', { comment: req.body?.comment, mappingOverride: req.body || {} }, session)
+    })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
     const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
     emitRealtime(req, (realtimeServer) => {
@@ -696,7 +709,9 @@ router.post('/transactions/:id/revalue-fx-journal', protect, async (req, res) =>
       return res.json({ success: true, dryRun: true, ...preview })
     }
 
-    const applied = await applyFxJournalRevaluation({ transaction: tx, user: req.user, preview })
+    const applied = await runInTransaction(async (session) => (
+      applyFxJournalRevaluation({ transaction: tx, user: req.user, preview, session })
+    ))
     res.json({ success: true, dryRun: false, ...applied })
   } catch (e) {
     console.error('FX journal revaluation error:', e)
@@ -943,7 +958,13 @@ router.post('/transactions/bulk-action', protect, async (req, res) => {
         if (!canCreateTransactionFor(req.user, tx.type) && !isFinance(req.user) && !isSuperAdmin(req.user)) {
           throw new Error('Forbidden')
         }
-        const actionResult = await applyTransactionWorkflowAction(tx, req.user, action, { comment, mappingOverride })
+        const actionResult = ['approve', 'post'].includes(action)
+          ? await runInTransaction(async (session) => {
+            const freshTx = await Transaction.findById(tx._id).session(session)
+            if (!freshTx || freshTx.isDeleted) throw new Error('Transaction not found')
+            return applyTransactionWorkflowAction(freshTx, req.user, action, { comment, mappingOverride }, session)
+          })
+          : await applyTransactionWorkflowAction(tx, req.user, action, { comment, mappingOverride })
         results.successIds.push(String(actionResult.transaction._id))
       } catch (e) {
         results.failed.push({ id: String(tx._id), message: e.message || 'Failed' })

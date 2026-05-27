@@ -5,6 +5,7 @@ const {
   canManageDirectDeals,
   canCreateTransactionFor,
   canViewAccounts,
+  canViewMappings,
   canViewAccountSummary,
   canViewCustomers,
   deriveErpAccessPolicy,
@@ -51,6 +52,38 @@ describe('ERP accounting access policy', () => {
     expect(canCreateTransactionFor(user, 'sale')).toBe(false)
     expect(canAccessTransactions(user)).toBe(true)
     expect(canViewCustomers(user)).toBe(true)
+  })
+
+  test('dashboard ERP subtab grants accounts but not mappings access', () => {
+    const user = {
+      role: 'management',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            dashboard: { on: true },
+            transactions: { on: true },
+          },
+        },
+      },
+    }
+
+    expect(canAccessTransactions(user)).toBe(true)
+    expect(canViewAccounts(user)).toBe(true)
+    expect(canViewMappings(user)).toBe(false)
+  })
+
+  test('non-ERP granular permissions fall back to role matrix for ERP reads', () => {
+    const user = {
+      role: 'management',
+      allowedModules: ['erp'],
+      modulePermissions: {
+        sales: { on: true },
+      },
+    }
+
+    expect(canAccessTransactions(user)).toBe(true)
+    expect(deriveErpAccessPolicy(user).canAccessERP).toBe(true)
   })
 
   test('customer margin and account summary permissions are not role blocked', () => {

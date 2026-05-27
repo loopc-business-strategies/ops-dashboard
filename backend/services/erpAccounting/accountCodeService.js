@@ -2,6 +2,8 @@
  * Chart-of-accounts code generation and hierarchy validation for ERP accounting.
  */
 
+const { withSession, writeOpts } = require('../../utils/mongoTransaction')
+
 function createAccountCodeService({
   ChartOfAccount,
   BASE_CURRENCY_CODE,
@@ -10,21 +12,21 @@ function createAccountCodeService({
 }) {
   const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-  const ensureAccountByCode = async ({ user, code, name, accountType, currency = BASE_CURRENCY_CODE }) => {
-    let account = await ChartOfAccount.findOne({ accountCode: code })
+  const ensureAccountByCode = async ({ user, code, name, accountType, currency = BASE_CURRENCY_CODE, session = null }) => {
+    let account = await withSession(ChartOfAccount.findOne({ accountCode: code }), session)
     if (!account) {
       try {
-        account = await ChartOfAccount.create({
+        account = await ChartOfAccount.create([{
           accountName: name,
           accountCode: code,
           accountType,
           currency,
           description: `Auto-created default account for ${name}`,
           createdBy: user._id,
-        })
+        }], writeOpts(session)).then((rows) => rows[0])
       } catch (err) {
         if (err?.code !== 11000) throw err
-        account = await ChartOfAccount.findOne({ accountCode: code })
+        account = await withSession(ChartOfAccount.findOne({ accountCode: code }), session)
       }
     }
 
@@ -34,7 +36,7 @@ function createAccountCodeService({
 
     if (!account.isActive) {
       account.isActive = true
-      await account.save()
+      await account.save(writeOpts(session))
     }
 
     return account

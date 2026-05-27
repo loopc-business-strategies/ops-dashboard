@@ -1,6 +1,10 @@
 const fs = require('fs')
 const path = require('path')
 const { resolveUploadDir } = require('../../services/erpAccounting/uploadMiddleware')
+const {
+  inferMimeFromFilename,
+  resolveAttachmentContentDisposition,
+} = require('../../services/erpAccounting/attachmentDownloadHeaders')
 
 function registerAttachmentRoutes(deps) {
   const {
@@ -57,8 +61,10 @@ function registerAttachmentRoutes(deps) {
         if (attachment.mimeType) {
           res.type(attachment.mimeType)
         }
-        const disposition = req.query.download === '1' ? 'attachment' : 'inline'
-        res.setHeader('Content-Disposition', `${disposition}; filename="${String(attachment.originalName || filename).replace(/"/g, '')}"`)
+        res.setHeader('Content-Disposition', resolveAttachmentContentDisposition(req, {
+          mimeType: attachment.mimeType,
+          filename: attachment.originalName || filename,
+        }))
 
         const TenantTransaction = await Transaction.getTenantModel(req.tenant)
         return sendStoredAttachment({ res, attachment, transactionModel: TenantTransaction, localFilePath: filePath })
@@ -83,8 +89,10 @@ function registerAttachmentRoutes(deps) {
           return res.status(404).json({ success: false, message: 'Bank slip not found for this tenant' })
         }
 
-        const disposition = req.query.download === '1' ? 'attachment' : 'inline'
-        res.setHeader('Content-Disposition', `${disposition}; filename="${String(ledger.attachmentName || filename).replace(/"/g, '')}"`)
+        res.setHeader('Content-Disposition', resolveAttachmentContentDisposition(req, {
+          mimeType: inferMimeFromFilename(filename),
+          filename: ledger.attachmentName || filename,
+        }))
       }
 
       res.sendFile(filePath)

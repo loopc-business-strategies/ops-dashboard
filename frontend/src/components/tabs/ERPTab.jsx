@@ -423,6 +423,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     isHRRole,
     canViewAccounts,
     canManageAccounts,
+    canViewMappings,
     canViewLedger,
     canViewCustomers,
     canManageCustomers,
@@ -1551,9 +1552,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
       }
       const [ledgerData, accountData, currencyData, mappingData] = await Promise.all([
         erpAccountingAPI.getLedger(token, ledgerQuery),
-        erpAccountingAPI.getAccounts(token),
-        erpAccountingAPI.getCurrencies(token),
-        erpAccountingAPI.getMappings(token),
+        canViewAccounts ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
+        canViewAccounts ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
+        canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
       ])
       setLedger(ledgerData.entries || [])
       setLedgerMeta({
@@ -1562,9 +1563,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
         hasMore: Boolean(ledgerData.hasMore),
         cursorHistory,
       })
-      setAccounts(accountData.accounts || [])
-      setCurrencies(currencyData.currencies || [])
-      setMappings(mappingData.mappings || [])
+      if (accountData) setAccounts(accountData.accounts || [])
+      if (currencyData) setCurrencies(currencyData.currencies || [])
+      if (mappingData) setMappings(mappingData.mappings || [])
       setError('')
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load ledger')
@@ -1584,16 +1585,16 @@ function ERPTab({ focusTab, onNavigateMain }) {
     setLoading(false)
   }
   const loadMappings = async (params = mappingFilters) => {
-    if (!canViewAccounts) return
+    if (!canViewMappings) return
     setLoading(true)
     try {
       const [mappingData, accountData] = await Promise.all([
         erpAccountingAPI.getMappings(token, params),
-        erpAccountingAPI.getAccounts(token),
+        canViewAccounts ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
       ])
       setMappings(mappingData.mappings || [])
       setMappingSummary(mappingData.summary || { total: 0, shared: 0, byDepartment: {} })
-      setAccounts(accountData.accounts || [])
+      if (accountData) setAccounts(accountData.accounts || [])
       setError('')
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load mappings')
@@ -1707,7 +1708,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
         canViewCustomers ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
         canAccessVendors ? loadAllVendors({ includeInactive: true }) : Promise.resolve(null),
         canAccessInventory ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
-        canViewAccounts ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
+        canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
         canViewAccounts ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
         canViewAccounts ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
       ])

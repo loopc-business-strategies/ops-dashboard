@@ -7,20 +7,30 @@ const VERCEL_HOSTS = (process.env.SMOKE_VERCEL_HOSTS || TENANTS.map((tenant) => 
   .split(',')
   .map((host) => host.trim())
   .filter(Boolean)
-const RAILWAY_HEALTH_URL = process.env.SMOKE_RAILWAY_HEALTH_URL || `${API_BASE}/api/health`
+const RAILWAY_READINESS_URL = process.env.SMOKE_RAILWAY_READINESS_URL || process.env.SMOKE_RAILWAY_HEALTH_URL || `${API_BASE}/api/ready`
 const SMOKE_AUTH_TOKEN = String(process.env.SMOKE_AUTH_TOKEN || '').trim()
 const SMOKE_SESSION_COOKIE = String(process.env.SMOKE_SESSION_COOKIE || '').trim()
 const SMOKE_AUTH_NAME = String(process.env.SMOKE_AUTH_NAME || '').trim()
 const SMOKE_AUTH_PASSWORD = String(process.env.SMOKE_AUTH_PASSWORD || '').trim()
-const hasSmokeSessionAuth = Boolean(SMOKE_AUTH_TOKEN || SMOKE_SESSION_COOKIE)
-const hasSmokePasswordAuth = Boolean(SMOKE_AUTH_NAME && SMOKE_AUTH_PASSWORD)
 const smokeAuthExplicit = String(process.env.SMOKE_REQUIRE_AUTH || '').trim().toLowerCase()
-const SMOKE_REQUIRE_AUTH =
-  smokeAuthExplicit === 'true'
-    ? true
-    : smokeAuthExplicit === 'false'
-      ? false
-      : hasSmokeSessionAuth || hasSmokePasswordAuth
+const SMOKE_REQUIRE_AUTH = smokeAuthExplicit !== 'false'
+
+function assertSmokeAuthConfigured() {
+  if (!SMOKE_REQUIRE_AUTH) return
+
+  if (SMOKE_AUTH_TOKEN || SMOKE_SESSION_COOKIE) return
+
+  const missingTenants = TENANTS.filter((tenant) => !getTenantSmokeCredentials(tenant))
+  if (missingTenants.length) {
+    const tenantVars = missingTenants
+      .map((tenant) => `SMOKE_AUTH_NAME_${tenant.toUpperCase()} / SMOKE_AUTH_PASSWORD_${tenant.toUpperCase()}`)
+      .join(', ')
+    throw new Error(
+      `SMOKE_REQUIRE_AUTH=true but ERP smoke credentials are missing for: ${missingTenants.join(', ')}. `
+      + `Set shared SMOKE_AUTH_NAME/SMOKE_AUTH_PASSWORD or per-tenant vars (${tenantVars}).`
+    )
+  }
+}
 const timeoutMs = Number(process.env.SMOKE_TIMEOUT_MS || 20000)
 
 async function fetchWithTimeout(url, options = {}) {
@@ -54,16 +64,16 @@ async function verifyPortalHost(host) {
   return `${response.status} ${url}`
 }
 
-async function verifyRailwayHealth(tenant) {
-  const response = await fetchWithTimeout(RAILWAY_HEALTH_URL, {
+async function verifyRailwayReadiness(tenant) {
+  const response = await fetchWithTimeout(RAILWAY_READINESS_URL, {
     headers: {
       'x-tenant': tenant,
       'x-company': tenant,
     },
   })
   const body = await response.json().catch(() => ({}))
-  if (!response.ok || body.success !== true) {
-    throw new Error(`${RAILWAY_HEALTH_URL} returned ${response.status}`)
+  if (!response.ok || body.ready !== true) {
+    throw new Error(`${RAILWAY_READINESS_URL} returned ${response.status}`)
   }
   const sha = String(body?.build?.sha || body?.backend?.sha || body?.commit || 'unknown').slice(0, 7)
   return `${response.status} build=${sha}`
@@ -149,10 +159,11 @@ async function verifyTenantReadOnlyErpPath(tenant) {
   }
 
   if (!SMOKE_AUTH_TOKEN && !SMOKE_SESSION_COOKIE && !smokeSession) {
-    if (SMOKE_REQUIRE_AUTH) {
-      throw new Error('authenticated ERP probe requires SMOKE_AUTH_TOKEN, SMOKE_SESSION_COOKIE, or SMOKE_AUTH_NAME/SMOKE_AUTH_PASSWORD')
-    }
-    return 'skipped; set SMOKE_AUTH_TOKEN, SMOKE_SESSION_COOKIE, or SMOKE_AUTH_NAME/SMOKE_AUTH_PASSWORD for authenticated ERP probe'
+    throw new Error(
+      `authenticated ERP probe requires credentials for ${tenant}. `
+      + 'Set SMOKE_AUTH_TOKEN, SMOKE_SESSION_COOKIE, or SMOKE_AUTH_NAME/SMOKE_AUTH_PASSWORD '
+      + `(or SMOKE_AUTH_NAME_${tenant.toUpperCase()}/SMOKE_AUTH_PASSWORD_${tenant.toUpperCase()}).`
+    )
   }
 
   const headers = {
@@ -163,12 +174,12 @@ async function verifyTenantReadOnlyErpPath(tenant) {
   if (SMOKE_SESSION_COOKIE || smokeSession?.cookie) headers.cookie = SMOKE_SESSION_COOKIE || smokeSession.cookie
   if (smokeSession?.csrfToken) headers['x-csrf-token'] = smokeSession.csrfToken
 
-  const response = await fetchWithTimeout(`${API_BASE}/api/erp-accounting/accounts?limit=1`, { headers })
+  const response = await fetchWithTimeout(`${API_BASE}/api/erp-accounting/transactions?limit=1`, { headers })
   const body = await response.json().catch(() => ({}))
   if (!response.ok || body.success !== true) {
     throw new Error(`ERP read-only route returned ${response.status}: ${body.message || 'unexpected response'}`)
   }
-  return `${response.status} accounts read-only probe`
+  return `${response.status} transactions read-only probe`
 }
 
 async function verifyCsrfAuthShape(tenant) {
@@ -199,15 +210,18 @@ async function verifyCsrfAuthShape(tenant) {
 async function run() {
   console.log('Production smoke report')
   console.log(`API: ${API_BASE}`)
-  console.log(`Railway health: ${RAILWAY_HEALTH_URL}`)
+  console.log(`Railway readiness: ${RAILWAY_READINESS_URL}`)
   console.log(`Vercel hosts: ${VERCEL_HOSTS.join(', ')}`)
+  console.log(`ERP auth required: ${SMOKE_REQUIRE_AUTH ? 'yes' : 'no'}`)
+
+  assertSmokeAuthConfigured()
 
   const checks = []
   for (const host of VERCEL_HOSTS) {
     checks.push(check(`vercel:${host}`, () => verifyPortalHost(host)))
   }
   for (const tenant of TENANTS) {
-    checks.push(check(`railway:${tenant}:health`, () => verifyRailwayHealth(tenant)))
+    checks.push(check(`railway:${tenant}:ready`, () => verifyRailwayReadiness(tenant)))
     checks.push(check(`railway:${tenant}:auth-routing`, () => verifyTenantAuthPath(tenant)))
     checks.push(check(`railway:${tenant}:csrf-auth-shape`, () => verifyCsrfAuthShape(tenant)))
     checks.push(check(`railway:${tenant}:erp-readonly`, () => verifyTenantReadOnlyErpPath(tenant)))

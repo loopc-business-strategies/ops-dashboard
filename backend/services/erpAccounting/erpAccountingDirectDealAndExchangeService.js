@@ -3,6 +3,8 @@
  * department mapping scope, vendor code sequencing, and FX exchange adjustment account resolution.
  * Extracted from `erp-accountingContext` to keep route wiring thinner.
  */
+const { withSession } = require('../../utils/mongoTransaction')
+
 function createErpAccountingDirectDealAndExchangeService(deps) {
   const {
     ensureAccountByCode,
@@ -25,13 +27,14 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
     isDepartmentHead,
   } = deps
 
-  const ensureExchangeDifferenceAccounts = async (user) => {
+  const ensureExchangeDifferenceAccounts = async (user, session = null) => {
     const gain = await ensureAccountByCode({
       user,
       code: '4190',
       name: 'Exchange Gain',
       accountType: 'Income',
       currency: BASE_CURRENCY_CODE,
+      session,
     })
 
     const loss = await ensureAccountByCode({
@@ -40,6 +43,7 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
       name: 'Exchange Loss',
       accountType: 'Expense',
       currency: BASE_CURRENCY_CODE,
+      session,
     })
 
     return { gain, loss }
@@ -229,16 +233,22 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
     return getNextPrefixedCode(rows.map((row) => row.vendorCode), 'VEN')
   }
 
-  const resolveExchangeAdjustmentAccounts = async ({ user, isGain, transactionType = 'receipt', offsetAccountId = null }) => {
+  const resolveExchangeAdjustmentAccounts = async ({
+    user,
+    isGain,
+    transactionType = 'receipt',
+    offsetAccountId = null,
+    session = null,
+  }) => {
     const mappingType = isGain ? 'exchange_gain' : 'exchange_loss'
-    const mapping = await AccountMapping.findOne({ mappingType, isActive: true })
+    const mapping = await withSession(AccountMapping.findOne({ mappingType, isActive: true })
       .select('debitAccountId creditAccountId')
-      .lean()
+      .lean(), session)
 
     if (mapping?.debitAccountId && mapping?.creditAccountId) {
       const [debitAccount, creditAccount] = await Promise.all([
-        ChartOfAccount.findOne({ _id: mapping.debitAccountId, isActive: true }).select('_id').lean(),
-        ChartOfAccount.findOne({ _id: mapping.creditAccountId, isActive: true }).select('_id').lean(),
+        withSession(ChartOfAccount.findOne({ _id: mapping.debitAccountId, isActive: true }).select('_id').lean(), session),
+        withSession(ChartOfAccount.findOne({ _id: mapping.creditAccountId, isActive: true }).select('_id').lean(), session),
       ])
 
       if (debitAccount && creditAccount) {
@@ -260,6 +270,7 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
           code: '1100',
           name: 'Accounts Receivable',
           accountType: 'Asset',
+          session,
         })
         arApAccountId = arAccount._id
       } else {
@@ -268,12 +279,13 @@ function createErpAccountingDirectDealAndExchangeService(deps) {
           code: '2000',
           name: 'Accounts Payable',
           accountType: 'Liability',
+          session,
         })
         arApAccountId = apAccount._id
       }
     }
 
-    const { gain, loss } = await ensureExchangeDifferenceAccounts(user)
+    const { gain, loss } = await ensureExchangeDifferenceAccounts(user, session)
 
     return isGain
       ? { debitAccountId: arApAccountId, creditAccountId: gain._id }

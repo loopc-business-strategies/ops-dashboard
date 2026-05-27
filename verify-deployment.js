@@ -65,11 +65,32 @@ function request(url, options = {}) {
   });
 }
 
-// Test 1: Health Check
-async function testHealthCheck() {
-  console.log('\n🔍 Test 1: Health Check');
+// Test 1: Readiness Check (Railway / deploy gate)
+async function testReadinessCheck() {
+  console.log('\n🔍 Test 1: Readiness Check')
   try {
-    const res = await request(`${API_URL}/api/health`);
+    const res = await request(`${API_URL}/api/ready`)
+    if (res.status === 200 && res.data.ready === true) {
+      results.passed.push('✅ Readiness check passed')
+      console.log('   ✅ API is ready (JWT + tenant DB)')
+      return true
+    } else {
+      results.failed.push('❌ Readiness check failed: ' + res.status)
+      console.log('   ❌ API returned status:', res.status, res.data?.message || '')
+      return false
+    }
+  } catch (err) {
+    results.failed.push('❌ Readiness check error: ' + err.message)
+    console.log('   ❌ Error:', err.message)
+    return false
+  }
+}
+
+// Test 1b: Liveness (simple health)
+async function testHealthCheck() {
+  console.log('\n🔍 Test 1b: Liveness Health Check')
+  try {
+    const res = await request(`${API_URL}/api/health`)
     if (res.status === 200 && res.data.success) {
       results.passed.push('✅ Health check passed');
       console.log('   ✅ API is responding');
@@ -240,6 +261,7 @@ async function main() {
   console.log(`\nStarting tests...\n`);
 
   try {
+    await testReadinessCheck();
     await testHealthCheck();
     await testSSLCertificates();
     await testFrontendBranding();

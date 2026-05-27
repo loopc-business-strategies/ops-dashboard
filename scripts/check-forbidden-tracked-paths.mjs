@@ -1,32 +1,24 @@
 import { spawnSync } from 'node:child_process'
 
-function getTrackedFiles() {
-  let result = spawnSync('git', ['ls-files'], { encoding: 'utf8' })
+function runGitLsFiles() {
+  const attempts = [
+    () => spawnSync('git', ['ls-files'], { encoding: 'utf8' }),
+    () => spawnSync('git ls-files', { encoding: 'utf8', shell: true }),
+  ]
 
-  if (result.error?.code === 'EPERM' && process.platform === 'win32') {
-    result = spawnSync('git ls-files', { encoding: 'utf8', shell: true })
-  }
-
-  // Some WSL/Node combinations report EPERM even when the child process
-  // completed successfully. Trust the process status over the wrapper error.
-  if (result.error && result.status !== 0) {
-    if (result.error.code === 'EPERM') {
-      console.warn('Forbidden tracked path check skipped: git could not be spawned in this shell.')
-      return null
+  for (const attempt of attempts) {
+    const result = attempt()
+    if (result.status === 0 && typeof result.stdout === 'string') {
+      return result.stdout
     }
-    throw result.error
   }
 
-  if (result.status !== 0) {
-    const message = result.stderr || result.error?.message || 'git ls-files failed.'
-    throw new Error(message.trim())
-  }
-
-  return result.stdout || ''
+  console.error('Forbidden tracked path check failed: git is unavailable in this shell.')
+  console.error('Install git, ensure it is on PATH, and run from a git checkout.')
+  process.exit(1)
 }
 
-const trackedFileOutput = getTrackedFiles()
-if (trackedFileOutput === null) process.exit(0)
+const trackedFileOutput = runGitLsFiles()
 
 const trackedFiles = trackedFileOutput
   .split(/\r?\n/)

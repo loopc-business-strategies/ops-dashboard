@@ -12,16 +12,9 @@ const {
 
 const router = express.Router()
 
-// Only super_admin or government/compliance department heads may write
-const canWrite = (user) => {
-  if (!user) return false
-  if (user.role === 'super_admin') return true
-  if (user.role === 'department_head') {
-    const dept = String(user.department || '').toLowerCase()
-    return dept === 'government' || dept === 'compliance' || dept === 'finance'
-  }
-  return false
-}
+const { canWriteComplianceModule, canDeleteComplianceModule } = require('../services/permissions/moduleAccessPolicy')
+const canWrite = canWriteComplianceModule
+const canDelete = canDeleteComplianceModule
 
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
 
@@ -119,7 +112,7 @@ function crudRoutes(router, path, Model, createSchema) {
   })
 
   router.delete(`${path}/:id`, protect, validateParams(idParam), async (req, res) => {
-    if (req.user?.role !== 'super_admin') return res.status(403).json({ success: false, message: 'Only super admin can delete records.' })
+    if (!canDelete(req.user)) return res.status(403).json({ success: false, message: 'Only super admin can delete records.' })
     try {
       const TenantModel = await Model.getTenantModel(req.tenant)
       const doc = await softDeleteById(TenantModel, req.params.id, req)

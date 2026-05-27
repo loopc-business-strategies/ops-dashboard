@@ -249,3 +249,58 @@ jobs:
       - name: Run Playwright smoke tests
         working-directory: frontend
         run: npm run test:e2e
+
+  dependency-audit-advisory:
+    name: Dependency Audit (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix backend
+          npm ci --prefix frontend
+
+      - name: Run advisory npm audit (all dependencies)
+        run: node scripts/run-production-dependency-audit.mjs --advisory
+
+  dependency-audit:
+    name: Dependency Audit (production high/critical)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install production dependencies
+        run: |
+          npm ci
+          npm ci --prefix backend
+          npm ci --prefix frontend
+
+      - name: Fail on high/critical production vulnerabilities
+        run: node scripts/run-production-dependency-audit.mjs

@@ -50,6 +50,21 @@ async function connectTenant(tenant) {
   return tenantConnectionPromises.get(normalized)
 }
 
+async function closeAllTenantConnections() {
+  const pending = [...tenantConnectionPromises.entries()]
+  tenantConnectionPromises.clear()
+
+  await Promise.allSettled(
+    pending.map(async ([, connectionPromise]) => {
+      const connection = await connectionPromise.catch(() => null)
+      if (connection?.readyState === 1) {
+        await connection.close()
+      }
+    }),
+  )
+}
+
 module.exports = {
   connectTenant,
+  closeAllTenantConnections,
 }

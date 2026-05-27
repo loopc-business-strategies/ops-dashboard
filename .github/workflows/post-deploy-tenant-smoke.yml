@@ -64,7 +64,7 @@ jobs:
           SMOKE_AUTH_PASSWORD_CG: ${{ secrets.SMOKE_AUTH_PASSWORD_CG }}
           SMOKE_AUTH_NAME_LOOPC: ${{ secrets.SMOKE_AUTH_NAME_LOOPC }}
           SMOKE_AUTH_PASSWORD_LOOPC: ${{ secrets.SMOKE_AUTH_PASSWORD_LOOPC }}
-          SMOKE_REQUIRE_AUTH: ${{ vars.SMOKE_REQUIRE_AUTH }}
+          SMOKE_REQUIRE_AUTH: 'true'
         run: npm run smoke:prod
       - name: Notify Slack on smoke failure
         if: failure() && secrets.SMOKE_SLACK_WEBHOOK_URL != ''

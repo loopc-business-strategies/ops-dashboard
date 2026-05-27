@@ -8,6 +8,7 @@ function createFxRevaluationService(deps) {
     Currency,
     BASE_CURRENCY_CODE,
   } = deps
+  const { withSession, writeOpts } = require('../../utils/mongoTransaction')
 
   const resolveReferenceExchangeRate = (voucherMeta) => {
     const lines = Array.isArray(voucherMeta?.lineItems) ? voucherMeta.lineItems : []
@@ -161,7 +162,7 @@ function createFxRevaluationService(deps) {
     }
   }
 
-  const getFxJournalEntriesForTransaction = async (txId) => Ledger.find({
+  const getFxJournalEntriesForTransaction = async (txId, session = null) => withSession(Ledger.find({
     referenceId: txId,
     referenceType: 'journal',
     isDeleted: { $ne: true },
@@ -169,7 +170,7 @@ function createFxRevaluationService(deps) {
   })
     .sort({ createdAt: 1, _id: 1 })
     .populate('debitAccountId', 'accountCode accountName')
-    .populate('creditAccountId', 'accountCode accountName')
+    .populate('creditAccountId', 'accountCode accountName'), session)
 
   const buildFxJournalRevaluationPreview = async (transaction) => {
     const voucherMeta = transaction?.voucherMeta || {}
@@ -284,7 +285,7 @@ function createFxRevaluationService(deps) {
     }
   }
 
-  const applyFxJournalRevaluation = async ({ transaction, user, preview }) => {
+  const applyFxJournalRevaluation = async ({ transaction, user, preview, session = null }) => {
     let updatedCount = 0
     let removedCount = 0
 
@@ -301,6 +302,7 @@ function createFxRevaluationService(deps) {
             notes: `FX journal revalued using reference rate ${preview.transaction.referenceRate}`,
           },
         },
+        writeOpts(session),
       )
       updatedCount += 1
     }
@@ -319,6 +321,7 @@ function createFxRevaluationService(deps) {
             notes: `FX journal removed after revaluation at reference rate ${preview.transaction.referenceRate}`,
           },
         },
+        writeOpts(session),
       )
       removedCount += 1
     }
@@ -330,7 +333,7 @@ function createFxRevaluationService(deps) {
         toStatus: transaction.status,
         comment: `Revalued ${updatedCount} and removed ${removedCount} FX journal row(s) at reference rate ${preview.transaction.referenceRate}`,
       })
-      await transaction.save()
+      await transaction.save(writeOpts(session))
     }
 
     return {

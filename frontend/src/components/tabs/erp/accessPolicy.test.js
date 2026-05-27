@@ -72,6 +72,25 @@ describe('ERP access policy', () => {
     expect(policy.canManageAccounts).toBe(false)
   })
 
+  test('dashboard subtab grants accounts but not mappings', () => {
+    const policy = deriveErpAccessPolicy({
+      role: 'management',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            dashboard: { on: true },
+            transactions: { on: true },
+          },
+        },
+      },
+    })
+
+    expect(policy.canAccessTransactions).toBe(true)
+    expect(policy.canViewAccounts).toBe(true)
+    expect(policy.canViewMappings).toBe(false)
+  })
+
   test('customer margin and account summary permissions are not role blocked', () => {
     const policy = deriveErpAccessPolicy({
       role: 'external',

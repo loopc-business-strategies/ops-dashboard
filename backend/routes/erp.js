@@ -10,6 +10,19 @@ const ExpiryAlert = require('../models/ExpiryAlert')
 const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
 const { softDeleteById } = require('../utils/softDelete')
+const {
+  isSuperAdmin,
+  isDeptHead,
+  isFinanceRole,
+  canEditInventory,
+  canViewInventoryCosts,
+  canManageSuppliers,
+  canCreatePO,
+  canApprovePOBudget,
+  canManageProduction,
+  canManageLegacyErpFinance,
+  canUploadProcDocs,
+} = require('../services/permissions/moduleAccessPolicy')
 
 const router = express.Router()
 
@@ -96,23 +109,9 @@ const workOrderCreateSchema = Joi.object({
 const workOrderPatchSchema = Joi.object({}).unknown(true)
 // ────────────────────────────────────────────────────────────────────────────
 
-const normalize = (value = '') => String(value).trim().toLowerCase()
 const ERP_PO_FINAL_APPROVAL_THRESHOLD = Number(process.env.ERP_PO_FINAL_APPROVAL_THRESHOLD || 50000)
 
-const isSuperAdmin = (user) => user?.role === 'super_admin'
-const isDeptHead = (user, dept) => user?.role === 'department_head' && normalize(user?.department) === normalize(dept)
-const isFinanceRole = (user) => normalize(user?.department) === 'finance' && (user?.role === 'department_head' || user?.role === 'department_user')
-
-const canEditInventory = (user) => isSuperAdmin(user) || isDeptHead(user, 'production')
-const canViewInventoryCosts = (user) => isSuperAdmin(user) || isDeptHead(user, 'production') || isFinanceRole(user)
-
-const canManageSuppliers = (user) => isSuperAdmin(user) || isDeptHead(user, 'operations')
-const canCreatePO = (user) => isSuperAdmin(user) || isDeptHead(user, 'operations')
-const canApprovePOBudget = (user) => isSuperAdmin(user) || isFinanceRole(user)
-
-const canManageProduction = (user) => isSuperAdmin(user) || isDeptHead(user, 'production')
-const canManageFinance = (user) => isSuperAdmin(user) || isDeptHead(user, 'finance')
-const canUploadProcDocs = (user) => isSuperAdmin(user) || isDeptHead(user, 'operations') || isFinanceRole(user)
+const canManageFinance = canManageLegacyErpFinance
 
 const parsePagination = (query, defaultLimit = 20, maxLimit = 100) => {
   const page = Math.max(1, Number(query.page) || 1)

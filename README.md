@@ -37,7 +37,7 @@ Add under `Repository variables`:
 | `SMOKE_BASE_DOMAIN` | `loopcstrategies.com` | Base domain used to test mg/cg/loopc portals |
 | `SMOKE_API_BASE` | `https://api.loopcstrategies.com` | API base for `/api/health` and auth route checks |
 | `SMOKE_WAIT_SECONDS` | `180` | Delay before smoke run to allow Vercel/Railway propagation |
-| `SMOKE_REQUIRE_AUTH` | *(omit)* or `true` / `false` | When `true`, fail `smoke:prod` if no ERP session credentials are configured (see secrets below). Omit to auto-enable strict mode only when auth secrets are present. |
+| `SMOKE_REQUIRE_AUTH` | `true` (default). Set `false` to allow ERP probe skip when credentials are absent |
 
 ### Optional Secrets (Failure Notifications)
 Add under `Repository secrets`:
@@ -63,7 +63,7 @@ Add these if you want smoke checks to verify a real logged-in ERP route:
 | `SMOKE_AUTH_NAME_LOOPC` | `loopc-smoke-user` | Optional LoopC-specific smoke username |
 | `SMOKE_AUTH_PASSWORD_LOOPC` | `***` | Optional LoopC-specific smoke password |
 
-The workflow passes the rows above into `npm run smoke:prod` (`scripts/production-smoke.js`). The ERP read-only probe runs when you set **`SMOKE_AUTH_TOKEN`**, **`SMOKE_SESSION_COOKIE`**, or **`SMOKE_AUTH_NAME` + `SMOKE_AUTH_PASSWORD`** (tenant-specific `SMOKE_AUTH_NAME_*` / `SMOKE_AUTH_PASSWORD_*` override the shared pair per tenant). Set repository variable **`SMOKE_REQUIRE_AUTH=true`** to fail the job if none of those are configured; leave it unset for “skip ERP probe when credentials are absent.”
+The workflow passes the rows above into `npm run smoke:prod` (`scripts/production-smoke.js`). Post-deploy smoke sets **`SMOKE_REQUIRE_AUTH=true`** and expects **`SMOKE_AUTH_NAME` + `SMOKE_AUTH_PASSWORD`** or per-tenant `SMOKE_AUTH_NAME_*` / `SMOKE_AUTH_PASSWORD_*` secrets. Set repository variable **`SMOKE_REQUIRE_AUTH=false`** only if you intentionally want to skip authenticated ERP checks when credentials are absent.
 
 ### Backend Build Metadata
 Railway writes `backend/build-meta.json` during build so `/api/health` reports the source commit that produced the running backend.

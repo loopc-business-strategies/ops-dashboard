@@ -12,6 +12,16 @@ const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams, validateQuery } = require('../middleware/validate')
 const { publishRealtimeEvent } = require('../utils/realtimeBus')
 const { softDeleteById } = require('../utils/softDelete')
+const {
+  normalize,
+  escapeRegex,
+  canCreateTask,
+  isTaskCreator,
+  canMutateTask,
+  canDeleteTask,
+  canViewTask,
+  buildTaskReadFilter,
+} = require('../services/permissions/moduleAccessPolicy')
 
 const router = express.Router()
 
@@ -63,41 +73,6 @@ const commentSchema = Joi.object({
   text: Joi.string().trim().min(1).max(2000).required(),
 })
 
-const normalize = (value = '') => String(value).trim().toLowerCase()
-const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-const isReadOnlyRole = (role) => role === 'management' || role === 'external'
-
-const canCreateTask = (user) => user && !isReadOnlyRole(user.role)
-
-const isTaskCreator = (user, task) => {
-  if (!user || !task) return false
-  const byId = task.createdById && task.createdById.toString() === user._id.toString()
-  const byName = normalize(task.createdBy) === normalize(user.name)
-  return Boolean(byId || byName)
-}
-
-const canMutateTask = (user, task) => {
-  if (!user || !task) return false
-  if (user.role === 'super_admin') return true
-  if (isReadOnlyRole(user.role)) return false
-  if (user.role === 'department_head') return normalize(user.department) === normalize(task.department)
-  if (user.role === 'department_user') {
-    const mineById = task.assignedToId && task.assignedToId.toString() === user._id.toString()
-    const mineByName = normalize(task.assignedTo) === normalize(user.name)
-    return Boolean(mineById || mineByName || isTaskCreator(user, task))
-  }
-  return false
-}
-
-const canDeleteTask = (user, task) => {
-  if (!user || !task) return false
-  if (user.role === 'super_admin') return true
-  if (user.role === 'department_head') return normalize(user.department) === normalize(task.department)
-  if (user.role === 'department_user') return isTaskCreator(user, task)
-  return false
-}
-
 const taskMessageRecipients = ({ assignedToId, assignedTo, alsoNotifyIds = [], alsoNotifyNames = [] }) => {
   const ids = Array.isArray(alsoNotifyIds) ? [...alsoNotifyIds] : []
   const names = Array.isArray(alsoNotifyNames) ? [...alsoNotifyNames] : []
@@ -125,63 +100,6 @@ const createTaskMessage = async (user, task, text, recipients) => {
     recipientNames: recipients.recipientNames,
     text: String(text).trim(),
   })
-}
-
-const canViewTask = (user, task) => {
-  if (!user || !task) return false
-  if (user.role === 'super_admin' || user.role === 'management') return true
-
-  const taskDepartment = normalize(task.department)
-  if (user.role === 'external') {
-    const allowed = (user.allowedModules || []).map(normalize)
-    return taskDepartment && allowed.includes(taskDepartment)
-  }
-
-  if (user.role === 'department_head') {
-    return normalize(user.department) === taskDepartment
-  }
-
-  if (user.role === 'department_user') {
-    const mineById = task.assignedToId && task.assignedToId.toString() === user._id.toString()
-    const mineByName = normalize(task.assignedTo) === normalize(user.name)
-    const mineByDepartment = normalize(user.department) && normalize(user.department) === taskDepartment
-    return Boolean(mineById || mineByName || mineByDepartment)
-  }
-
-  return false
-}
-
-const buildTaskReadFilter = (user) => {
-  if (!user) return null
-  if (user.role === 'super_admin' || user.role === 'management') return {}
-
-  if (user.role === 'external') {
-    const allowed = (user.allowedModules || []).map(normalize).filter(Boolean)
-    if (!allowed.length) return { _id: null }
-    return { department: { $in: allowed.map((module) => new RegExp(`^${escapeRegex(module)}$`, 'i')) } }
-  }
-
-  if (user.role === 'department_head') {
-    const dept = normalize(user.department)
-    if (!dept) return { _id: null }
-    return { department: new RegExp(`^${escapeRegex(dept)}$`, 'i') }
-  }
-
-  if (user.role === 'department_user') {
-    const dept = normalize(user.department)
-    const or = []
-
-    if (dept) {
-      or.push({ department: new RegExp(`^${escapeRegex(dept)}$`, 'i') })
-    }
-
-    or.push({ assignedToId: user._id })
-    or.push({ assignedTo: new RegExp(`^${escapeRegex(normalize(user.name))}$`, 'i') })
-
-    return { $or: or }
-  }
-
-  return null
 }
 
 const sanitizeDepartmentUserTaskUpdate = (payload = {}) => {

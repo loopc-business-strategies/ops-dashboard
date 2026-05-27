@@ -40,7 +40,13 @@ function runWithTenantConnection(connection, tenant, callback) {
   return tenantModelStorage.run({ connection, tenant }, callback)
 }
 
+function getActiveTenantConnection() {
+  const store = tenantModelStorage.getStore()
+  return store?.connection || null
+}
+
 module.exports = {
   createTenantModel,
   runWithTenantConnection,
+  getActiveTenantConnection,
 }

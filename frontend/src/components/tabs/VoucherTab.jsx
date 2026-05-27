@@ -1824,9 +1824,23 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const canPostWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(currentVoucherStatus)
   const canRevalueCurrentVoucher = Boolean(editingId) && isSuperAdmin && ['payment', 'receipt'].includes(voucherType) && currentVoucherStatus === 'posted'
   const currentAttachments = Array.isArray(currentVoucher?.attachments) ? currentVoucher.attachments : []
-  const attachmentUrl = (attachment, download = false) => (
-    `${BASE}/attachments/download/transaction/${encodeURIComponent(attachment.fileName)}?txId=${encodeURIComponent(editingId || '')}${download ? '&download=1' : ''}`
-  )
+  const previewableAttachmentMimeTypes = new Set([
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/webp',
+    'image/gif',
+  ])
+  const attachmentUrl = (attachment, download = false) => {
+    const params = new URLSearchParams({ txId: editingId || '' })
+    if (download) {
+      params.set('download', '1')
+    } else if (previewableAttachmentMimeTypes.has(String(attachment?.mimeType || '').trim().toLowerCase())) {
+      params.set('preview', '1')
+    }
+    return `${BASE}/attachments/download/transaction/${encodeURIComponent(attachment.fileName)}?${params.toString()}`
+  }
 
   const handleUploadVoucherAttachments = async (fileList) => {
     const files = Array.from(fileList || []).filter(Boolean)

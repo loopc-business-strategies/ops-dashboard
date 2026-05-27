@@ -15,6 +15,10 @@ const Employee = require('../models/Employee')
 const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
 const { softDeleteById } = require('../utils/softDelete')
+const {
+  canManageEmployees,
+  buildEmployeeReadFilter,
+} = require('../services/permissions/moduleAccessPolicy')
 
 const router = express.Router()
 
@@ -39,24 +43,6 @@ const updateEmployeeSchema = Joi.object({
   department:   Joi.string().trim().allow('').max(80).optional(),
   rating:       Joi.number().integer().min(1).max(5).optional(),
 }).min(1)
-
-const normalize = (value = '') => String(value).trim().toLowerCase()
-
-const canManageEmployees = (user) => {
-  if (!user) return false
-  if (user.role === 'super_admin') return true
-  return user.role === 'department_head' && normalize(user.department) === 'hr'
-}
-
-const buildEmployeeReadFilter = (user) => {
-  if (!user) return null
-  if (user.role === 'super_admin' || user.role === 'management') return {}
-
-  const userDepartment = normalize(user.department)
-  if (!userDepartment) return null
-
-  return { department: new RegExp(`^${userDepartment}$`, 'i') }
-}
 
 // GET all employees
 router.get('/', protect, async (req, res) => {

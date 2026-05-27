@@ -67,6 +67,7 @@ const http = require('http')
 const mongoose = require('mongoose')
 const createApp = require('./app')
 const RealtimeServer = require('./realtime/RealtimeServer')
+const { setPrimaryMongoReady } = require('./services/readiness')
 const { TENANT_KEYS, getDefaultTenant, getTenantUri } = require('./config/tenants')
 
 const app = createApp()
@@ -146,7 +147,8 @@ async function startServer() {
 
   httpServer.listen(PORT, () => {
     console.log(`✅ Server running at http://localhost:${PORT}`)
-    console.log(`   Health check: http://localhost:${PORT}/api/health`)
+    console.log(`   Liveness:  http://localhost:${PORT}/api/health`)
+    console.log(`   Readiness: http://localhost:${PORT}/api/ready`)
     console.log('✅ Realtime Socket.IO enabled')
   })
 
@@ -155,12 +157,12 @@ async function startServer() {
 
   try {
     await mongoose.connect(mongoUri)
+    setPrimaryMongoReady(true)
     console.log('✅ Connected to MongoDB')
   } catch (err) {
+    setPrimaryMongoReady(false)
     console.error(`❌ MongoDB connect failed (${mongoUri.split('@')[1]?.split('/')[0] || 'unknown'}): ${err.message}`)
-    // Don't exit — Railway will keep the process alive and Mongoose will
-    // continue retrying. Requests that hit the DB before reconnect will
-    // receive a 500, but the healthcheck stays green.
+    // Don't exit — Railway keeps the process alive. /api/ready stays 503 until DB connects.
   }
 }
 

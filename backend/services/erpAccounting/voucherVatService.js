@@ -8,6 +8,7 @@ const {
   isMetalStockType,
   isMetalTransferType,
 } = require('../../utils/metalStockVoucherTypes')
+const { withSession, writeOpts } = require('../../utils/mongoTransaction')
 
 function createVoucherVatService({
   ensureAccountByCode,
@@ -54,13 +55,13 @@ function createVoucherVatService({
     return toMoney(total)
   }
 
-  const resolveVatPostingAccounts = async ({ user, tx, resolvedAccounts }) => {
+  const resolveVatPostingAccounts = async ({ user, tx, resolvedAccounts, session = null }) => {
     const transactionType = String(tx?.type || '').toLowerCase()
 
     if (isMetalStockOutType(transactionType)) {
-      const mapping = await AccountMapping.findOne({ mappingType: 'vat_output', isActive: true })
+      const mapping = await withSession(AccountMapping.findOne({ mappingType: 'vat_output', isActive: true })
         .select('debitAccountId creditAccountId')
-        .lean()
+        .lean(), session)
 
       let debitAccountId = resolvedAccounts?.debitAccountId || mapping?.debitAccountId || null
       let creditAccountId = mapping?.creditAccountId || null
@@ -72,6 +73,7 @@ function createVoucherVatService({
           name: 'Accounts Receivable',
           accountType: 'Asset',
           currency: tx.currency || BASE_CURRENCY_CODE,
+          session,
         })
         debitAccountId = receivable._id
       }
@@ -82,6 +84,7 @@ function createVoucherVatService({
           name: 'VAT Payable',
           accountType: 'Liability',
           currency: tx.currency || BASE_CURRENCY_CODE,
+          session,
         })
         creditAccountId = vatPayable._id
       }
@@ -94,9 +97,9 @@ function createVoucherVatService({
     }
 
     if (isMetalStockInType(transactionType)) {
-      const mapping = await AccountMapping.findOne({ mappingType: 'vat_input', isActive: true })
+      const mapping = await withSession(AccountMapping.findOne({ mappingType: 'vat_input', isActive: true })
         .select('debitAccountId creditAccountId')
-        .lean()
+        .lean(), session)
 
       let debitAccountId = mapping?.debitAccountId || null
       let creditAccountId = resolvedAccounts?.creditAccountId || mapping?.creditAccountId || null
@@ -108,6 +111,7 @@ function createVoucherVatService({
           name: 'VAT Receivable',
           accountType: 'Asset',
           currency: tx.currency || BASE_CURRENCY_CODE,
+          session,
         })
         debitAccountId = vatReceivable._id
       }
@@ -118,6 +122,7 @@ function createVoucherVatService({
           name: 'Accounts Payable',
           accountType: 'Liability',
           currency: tx.currency || BASE_CURRENCY_CODE,
+          session,
         })
         creditAccountId = payable._id
       }
@@ -132,7 +137,7 @@ function createVoucherVatService({
     return null
   }
 
-  const applyVoucherVatImpact = async ({ user, tx, resolvedAccounts }) => {
+  const applyVoucherVatImpact = async ({ user, tx, resolvedAccounts, session = null }) => {
     const transactionType = String(tx?.type || '').toLowerCase()
     if (!isMetalStockType(transactionType) || isMetalTransferType(transactionType)) return null
 
@@ -142,13 +147,14 @@ function createVoucherVatService({
         referenceId: tx._id,
         isDeleted: { $ne: true },
       },
-      { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
+      { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } },
+      writeOpts(session),
     )
 
     const vatAmount = resolveVoucherVatAmount(tx)
     if (!Number.isFinite(vatAmount) || vatAmount <= 0) return null
 
-    const posting = await resolveVatPostingAccounts({ user, tx, resolvedAccounts })
+    const posting = await resolveVatPostingAccounts({ user, tx, resolvedAccounts, session })
     if (!posting?.debitAccountId || !posting?.creditAccountId) {
       throw new Error('Unable to resolve VAT posting accounts')
     }
@@ -156,7 +162,7 @@ function createVoucherVatService({
       throw new Error('VAT posting debit and credit accounts cannot be identical')
     }
 
-    return Ledger.create({
+    return Ledger.create([{
       date: tx.voucherMeta?.valueDate || tx.date || new Date(),
       debitAccountId: posting.debitAccountId,
       creditAccountId: posting.creditAccountId,
@@ -170,7 +176,7 @@ function createVoucherVatService({
       currency: tx.currency || BASE_CURRENCY_CODE,
       exchangeRate: Number(tx.exchangeRate || 1),
       notes: 'Auto VAT split from voucher line amounts.',
-    })
+    }], writeOpts(session)).then((rows) => rows[0])
   }
 
   return {

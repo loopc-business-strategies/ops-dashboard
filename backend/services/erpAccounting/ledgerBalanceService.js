@@ -3,13 +3,15 @@
  * Keeps aggregation logic out of `erp-accountingContext` wiring.
  *
  * @param {{ Ledger: import('mongoose').Model }} deps
- * @returns {{ getOutstandingForAccount: (accountId: unknown) => Promise<number>, getAgingForAccount: (accountId: unknown, asOfDate?: Date) => Promise<object> }}
+ * @returns {{ getOutstandingForAccount: (accountId: unknown, session?: import('mongoose').ClientSession | null) => Promise<number>, getAgingForAccount: (accountId: unknown, asOfDate?: Date) => Promise<object> }}
  */
+const { withSession } = require('../../utils/mongoTransaction')
+
 function createLedgerBalanceService({ Ledger }) {
-  const getOutstandingForAccount = async (accountId) => {
+  const getOutstandingForAccount = async (accountId, session = null) => {
     if (!accountId) return 0
 
-    const totals = await Ledger.aggregate([
+    const totals = await withSession(Ledger.aggregate([
       {
         $match: {
           isDeleted: { $ne: true },
@@ -33,7 +35,7 @@ function createLedgerBalanceService({ Ledger }) {
           balance: { $sum: '$amountSigned' },
         },
       },
-    ])
+    ]), session)
 
     return totals[0]?.balance || 0
   }

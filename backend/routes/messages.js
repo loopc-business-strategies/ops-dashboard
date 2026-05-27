@@ -3,6 +3,11 @@ const { protect } = require('../middleware/auth')
 const Message = require('../models/Message')
 const { Joi, validateBody, validateQuery } = require('../middleware/validate')
 const { publishRealtimeEvent } = require('../utils/realtimeBus')
+const {
+  normalize,
+  canSeeAllMessages,
+  buildMessageScope,
+} = require('../services/permissions/moduleAccessPolicy')
 
 const router = express.Router()
 
@@ -19,29 +24,6 @@ const createMessageSchema = Joi.object({
   recipientIds: Joi.array().items(Joi.string().hex().length(24)).max(100).optional(),
   recipientNames: Joi.array().items(Joi.string().trim().max(120)).max(100).optional(),
 })
-
-const normalize = (value = '') => String(value).trim().toLowerCase()
-const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-const canSeeEverything = (user) => user?.role === 'super_admin' || user?.role === 'management'
-
-const buildMessageScope = (user) => {
-  if (canSeeEverything(user)) return {}
-
-  const dept = normalize(user?.department)
-  const or = [
-    { senderId: user._id },
-    { recipientIds: user._id },
-    { recipientNames: new RegExp(`^${escapeRegex(user.name)}$`, 'i') },
-    { room: 'All Departments' },
-  ]
-
-  if (dept) {
-    or.push({ department: new RegExp(`^${escapeRegex(dept)}$`, 'i') })
-  }
-
-  return { $or: or }
-}
 
 router.get('/latest', protect, validateQuery(latestQuerySchema), async (req, res) => {
   try {
@@ -72,7 +54,7 @@ router.post('/', protect, validateBody(createMessageSchema), async (req, res) =>
     const safeType = ['group', 'dm'].includes(String(type)) ? String(type) : 'group'
 
     const resolvedDepartment = safeType === 'group'
-      ? (canSeeEverything(req.user) ? normalize(department || req.user.department || 'management') : normalize(req.user.department))
+      ? (canSeeAllMessages(req.user) ? normalize(department || req.user.department || 'management') : normalize(req.user.department))
       : normalize(department || req.user.department)
 
     const parsedRecipientIds = Array.isArray(recipientIds) ? recipientIds.filter(Boolean) : []

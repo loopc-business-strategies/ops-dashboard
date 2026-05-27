@@ -43,6 +43,7 @@ function evaluatePermission(user, key) {
 const ERP_PERMISSION_TO_SUBTAB = {
   canViewAccounts: ['accounts', 'dashboard'],
   canManageAccounts: ['accounts', 'mappings'],
+  canViewMappings: ['mappings'],
   canViewLedger: ['ledger'],
   canViewCustomers: ['customers', 'customer-margin'],
   canManageCustomers: ['customers'],
@@ -92,6 +93,7 @@ export function deriveErpAccessPolicy(user) {
 
   const canViewAccounts = evaluateErpPermission(user, 'canViewAccounts')
   const canManageAccounts = applyManagementReadOnly(user, evaluateErpPermission(user, 'canManageAccounts'))
+  const canViewMappings = evaluateErpPermission(user, 'canViewMappings')
   const canViewLedger = evaluateErpPermission(user, 'canViewLedger')
   const canViewCustomers = evaluateErpPermission(user, 'canViewCustomers')
   const canManageCustomers = applyManagementReadOnly(user, evaluateErpPermission(user, 'canManageCustomers'))
@@ -125,6 +127,7 @@ export function deriveErpAccessPolicy(user) {
     isHRRole,
     canViewAccounts,
     canManageAccounts,
+    canViewMappings,
     canViewLedger,
     canViewCustomers,
     canManageCustomers,

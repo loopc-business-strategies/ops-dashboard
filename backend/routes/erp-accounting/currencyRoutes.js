@@ -1,4 +1,5 @@
 const { normalizeTenant } = require('../../config/tenants')
+const rateLimit = require('express-rate-limit')
 const { publishRealtimeEvent } = require('../../utils/realtimeBus')
 const {
   normalizeBridgeMetalRates,
@@ -31,6 +32,16 @@ function registerCurrencyRoutes(deps) {
     DEFAULT_METAL_RATES,
     BASE_CURRENCY_CODE,
   } = deps
+
+  const isProduction = process.env.NODE_ENV === 'production'
+  const metalRatesBridgeLimiter = rateLimit({
+    windowMs: Number(process.env.METAL_RATES_BRIDGE_RATE_LIMIT_WINDOW_MS || 60 * 1000),
+    max: Number(process.env.METAL_RATES_BRIDGE_RATE_LIMIT_MAX || 120),
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => !isProduction,
+    message: { success: false, message: 'Too many metal rates bridge requests.' },
+  })
 
   const parseCategoryMeta = (category) => {
     const meta = {}
@@ -279,7 +290,7 @@ function registerCurrencyRoutes(deps) {
     }
   })
 
-  router.post('/metal-rates/bridge', async (req, res) => {
+  router.post('/metal-rates/bridge', metalRatesBridgeLimiter, async (req, res) => {
     try {
       const expectedToken = String(process.env.METAL_RATES_BRIDGE_TOKEN || '').trim()
       if (!expectedToken) {

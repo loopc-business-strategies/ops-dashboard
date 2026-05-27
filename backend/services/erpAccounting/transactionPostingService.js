@@ -18,12 +18,16 @@ function createTransactionPostingService(deps) {
     appendTransactionComment,
     appendTransactionAudit,
   } = deps
+  const { withSession, writeOpts } = require('../../utils/mongoTransaction')
 
-  const executePostWorkflowAction = async ({ tx, user, note, fromStatus, options = {} }) => {
+  const executePostWorkflowAction = async ({ tx, user, note, fromStatus, options = {}, session = null }) => {
     if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can post transactions')
     if (tx.status !== 'approved') throw new Error('Transaction must be approved before posting')
 
-    const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean()
+    const baseCurrency = await withSession(
+      Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean(),
+      session,
+    )
     const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
     const fxValidationMessage = validateFxReferenceRateRequirement({
       type: tx.type,
@@ -34,9 +38,9 @@ function createTransactionPostingService(deps) {
     if (fxValidationMessage) throw new Error(fxValidationMessage)
 
     if (tx.type === 'sale' && tx.customerId) {
-      const customer = await Customer.findById(tx.customerId)
+      const customer = await withSession(Customer.findById(tx.customerId), session)
       if (customer && Number(customer.creditLimit || 0) > 0 && customer.ledgerAccountId) {
-        const currentOutstanding = await getOutstandingForAccount(customer.ledgerAccountId)
+        const currentOutstanding = await getOutstandingForAccount(customer.ledgerAccountId, session)
         const projected = Number(currentOutstanding || 0) + Number(tx.amount || 0)
         if (projected > Number(customer.creditLimit || 0)) {
           throw new Error(`Credit limit exceeded for customer ${customer.name}`)
@@ -44,18 +48,25 @@ function createTransactionPostingService(deps) {
       }
     }
 
-    const preparedVoucherImpact = await prepareVoucherInventoryImpact({ user, tx })
+    const preparedVoucherImpact = await prepareVoucherInventoryImpact({ user, tx, session })
 
     const transactionType = String(tx?.type || '').toLowerCase()
     const fixingType = String(tx?.voucherMeta?.fixingType || tx?.metalFixStatus || 'fixed').toLowerCase()
     const isUnfixed = ['sale', 'purchase'].includes(transactionType)
       && ['unfixed', 'non-fixing', 'nonfixing', 'non_fixing'].includes(fixingType)
 
-    const resolved = await resolveTransactionAccounts({ user, tx, mappingOverride: options.mappingOverride || {}, preparedVoucherImpact })
+    const resolved = await resolveTransactionAccounts({
+      user,
+      tx,
+      mappingOverride: options.mappingOverride || {},
+      preparedVoucherImpact,
+      session,
+    })
     await ensurePaymentAdvanceConfirmed({
       tx,
       resolvedAccounts: resolved,
       confirmed: Boolean(options?.mappingOverride?.confirmVendorAdvance),
+      session,
     })
     tx.debitAccountId = resolved.debitAccountId
     tx.creditAccountId = resolved.creditAccountId
@@ -65,19 +76,20 @@ function createTransactionPostingService(deps) {
     if (skipMainLedger) {
       await Ledger.updateMany(
         { referenceId: tx._id, isDeleted: { $ne: true } },
-        { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
+        { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } },
+        writeOpts(session),
       )
       tx.journalEntryId = null
     }
 
     let ledgerEntry = null
     if (!skipMainLedger) {
-      const existingMainEntries = await Ledger.find({
+      const existingMainEntries = await withSession(Ledger.find({
         referenceType: tx.type,
         referenceId: tx._id,
         isDeleted: { $ne: true },
       })
-        .sort({ createdAt: 1, _id: 1 })
+        .sort({ createdAt: 1, _id: 1 }), session)
 
       if (existingMainEntries.length > 1) {
         const keepEntry = existingMainEntries[existingMainEntries.length - 1]
@@ -88,7 +100,8 @@ function createTransactionPostingService(deps) {
         if (staleIds.length) {
           await Ledger.updateMany(
             { _id: { $in: staleIds } },
-            { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
+            { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } },
+            writeOpts(session),
           )
         }
 
@@ -96,14 +109,14 @@ function createTransactionPostingService(deps) {
       }
 
       if (tx.journalEntryId) {
-        ledgerEntry = await Ledger.findOne({ _id: tx.journalEntryId, isDeleted: { $ne: true } })
+        ledgerEntry = await withSession(Ledger.findOne({ _id: tx.journalEntryId, isDeleted: { $ne: true } }), session)
       }
       if (!ledgerEntry) {
-        ledgerEntry = await Ledger.findOne({
+        ledgerEntry = await withSession(Ledger.findOne({
           referenceType: tx.type,
           referenceId: tx._id,
           isDeleted: { $ne: true },
-        }).sort({ createdAt: -1, _id: -1 })
+        }).sort({ createdAt: -1, _id: -1 }), session)
       }
       if (!ledgerEntry) {
         if (!isUnfixed) {
@@ -111,6 +124,7 @@ function createTransactionPostingService(deps) {
             user,
             transaction: tx,
             referenceType: tx.type,
+            session,
           })
         } else {
           const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
@@ -136,7 +150,7 @@ function createTransactionPostingService(deps) {
           const debitAccountId = isDiscountImpact ? resolved.creditAccountId : resolved.debitAccountId
           const creditAccountId = isDiscountImpact ? resolved.debitAccountId : resolved.creditAccountId
 
-          ledgerEntry = await Ledger.create({
+          ledgerEntry = await Ledger.create([{
             date: tx.voucherMeta?.valueDate || tx.date || new Date(),
             debitAccountId,
             creditAccountId,
@@ -151,7 +165,7 @@ function createTransactionPostingService(deps) {
             notes: isDiscountImpact
               ? 'Unfixed voucher - discount-only ledger entry (customer credit impact).'
               : 'Unfixed voucher - premium-only ledger entry (customer debit impact).',
-          })
+          }], writeOpts(session)).then((rows) => rows[0])
         }
       }
 
@@ -163,18 +177,19 @@ function createTransactionPostingService(deps) {
 
     await Ledger.updateMany(
       { referenceType: 'cogs', referenceId: tx._id, isDeleted: { $ne: true } },
-      { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } }
+      { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: user._id } },
+      writeOpts(session),
     )
 
-    await applyVoucherVatImpact({ user, tx, resolvedAccounts: resolved })
-    await applyVoucherInventoryImpact({ user, tx, preparedImpact: preparedVoucherImpact })
+    await applyVoucherVatImpact({ user, tx, resolvedAccounts: resolved, session })
+    await applyVoucherInventoryImpact({ user, tx, preparedImpact: preparedVoucherImpact, session })
 
     tx.status = 'posted'
     tx.postedBy = user._id
     tx.updatedBy = user._id
     appendTransactionComment(tx, user, note, 'posting_note')
     appendTransactionAudit(tx, user, 'post', { fromStatus, toStatus: 'posted', comment: note })
-    await tx.save()
+    await tx.save(writeOpts(session))
     return { transaction: tx, ledgerEntry }
   }
 
