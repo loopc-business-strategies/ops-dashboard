@@ -82,8 +82,20 @@ async function upsertSmokeUser(tenant, password) {
   return { tenant, action: 'updated', id: String(user._id) }
 }
 
+const timeoutMs = Number(process.env.SMOKE_TIMEOUT_MS || 20000)
+
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function verifyProductionLogin(tenant, password) {
-  const response = await fetch(`${API_BASE}/api/auth/login`, {
+  const response = await fetchWithTimeout(`${API_BASE}/api/auth/login`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -105,7 +117,7 @@ async function verifyProductionLogin(tenant, password) {
     ? response.headers.getSetCookie().map((entry) => entry.split(';')[0]).join('; ')
     : String(response.headers.get('set-cookie') || '').split(';')[0]
 
-  const erpRes = await fetch(`${API_BASE}/api/erp-accounting/transactions?limit=1`, {
+  const erpRes = await fetchWithTimeout(`${API_BASE}/api/erp-accounting/transactions?limit=1`, {
     headers: {
       cookie,
       'x-csrf-token': String(body.csrfToken || ''),
