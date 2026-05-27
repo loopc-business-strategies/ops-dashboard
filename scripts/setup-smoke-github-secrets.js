@@ -105,7 +105,7 @@ async function verifyProductionLogin(tenant, password) {
     ? response.headers.getSetCookie().map((entry) => entry.split(';')[0]).join('; ')
     : String(response.headers.get('set-cookie') || '').split(';')[0]
 
-  const erpRes = await fetch(`${API_BASE}/api/erp-accounting/accounts?limit=1`, {
+  const erpRes = await fetch(`${API_BASE}/api/erp-accounting/transactions?limit=1`, {
     headers: {
       cookie,
       'x-csrf-token': String(body.csrfToken || ''),
