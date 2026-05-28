@@ -970,7 +970,10 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     }
 
     const sixMonthsStart = new Date(today.getFullYear(), today.getMonth() - 5, 1)
-    const ledgerFetchStart = periodStart < sixMonthsStart ? periodStart : sixMonthsStart
+    const ytdStart = new Date(today.getFullYear(), 0, 1)
+    const ledgerFetchStart = [periodStart, sixMonthsStart, ytdStart].reduce((earliest, date) => (
+      date < earliest ? date : earliest
+    ))
 
     const [
       accountMetaMap,
@@ -995,7 +998,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       Ledger.find({
         date: { $gte: ledgerFetchStart, $lte: periodEnd },
         isDeleted: { $ne: true },
-      }).select('date amount exchangeRate debitAccountId creditAccountId').lean(),
+      }).select('date amount exchangeRate debitAccountId creditAccountId description referenceType currency paymentType').lean(),
       AccountMapping.find({ isActive: true, mappingType: { $in: ['purchase', 'expense', 'vendor_payment'] } })
         .populate('debitAccountId', 'accountCode accountName accountType')
         .populate('creditAccountId', 'accountCode accountName accountType')
@@ -1026,6 +1029,57 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       .map(([name, amount]) => ({ name, amount: toMoney(amount) }))
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 6)
+    const expenseEntries = periodLedger
+      .filter((entry) => getType(entry.debitAccountId) === 'Expense')
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+    const recentExpenses = expenseEntries.slice(0, 5).map((entry) => {
+      const debitAccount = accountMetaMap.get(String(entry.debitAccountId)) || {}
+      return {
+        date: entry.date,
+        category: debitAccount.accountName || 'Other',
+        description: entry.description || entry.notes || '-',
+        amount: toMoney(entry.amount || 0),
+        paymentMethod: entry.paymentType || (String(entry.referenceType || '').includes('bank') ? 'Bank Transfer' : 'General'),
+      }
+    })
+    const expenseTrendMap = new Map()
+    const ensureExpenseTrendMonth = (date) => {
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      if (!expenseTrendMap.has(key)) {
+        expenseTrendMap.set(key, {
+          key,
+          month: date.toLocaleString('en-US', { month: 'short' }),
+          label: date.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+          year: date.getFullYear(),
+          monthIndex: date.getMonth(),
+          amount: 0,
+          count: 0,
+        })
+      }
+      return expenseTrendMap.get(key)
+    }
+    for (let i = 5; i >= 0; i -= 1) {
+      ensureExpenseTrendMonth(new Date(today.getFullYear(), today.getMonth() - i, 1))
+    }
+    ledgerEntries.forEach((entry) => {
+      if (getType(entry.debitAccountId) !== 'Expense') return
+      const entryDate = new Date(entry.date)
+      if (Number.isNaN(entryDate.getTime())) return
+      const row = ensureExpenseTrendMonth(new Date(entryDate.getFullYear(), entryDate.getMonth(), 1))
+      row.amount += Number(entry.amount || 0)
+      row.count += 1
+    })
+    const expenseMonthlyTrend = Array.from(expenseTrendMap.values())
+      .sort((a, b) => (a.year - b.year) || (a.monthIndex - b.monthIndex))
+      .map((row) => ({ ...row, amount: toMoney(row.amount) }))
+    const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+    const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`
+    const ytdExpenseTotal = ledgerEntries.reduce((sum, entry) => {
+      const entryDate = new Date(entry.date)
+      if (getType(entry.debitAccountId) !== 'Expense' || entryDate < ytdStart || entryDate > periodEnd) return sum
+      return sum + Number(entry.amount || 0)
+    }, 0)
 
     const activityFlow = {
       operating: { inflow: 0, outflow: 0, net: 0, count: 0 },
@@ -1504,6 +1558,12 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       expenses: {
         total: toMoney(expenseTotal),
         breakdown: expenseBreakdown,
+        monthlyTrend: expenseMonthlyTrend,
+        currentMonthTotal: toMoney(expenseTrendMap.get(currentMonthKey)?.amount || 0),
+        lastMonthTotal: toMoney(expenseTrendMap.get(lastMonthKey)?.amount || 0),
+        ytdTotal: toMoney(ytdExpenseTotal),
+        transactionCount: expenseEntries.length,
+        recent: recentExpenses,
       },
       apAr: {
         totalAR: toMoney(totalAR),
