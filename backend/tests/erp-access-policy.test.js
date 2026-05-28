@@ -12,6 +12,10 @@ const {
   canManageDirectDeals,
   canCreateTransaction,
   canCreateTransactionFor,
+  canManageTransactionWorkflow,
+  canCloseLedgerPeriod,
+  canWriteInventory,
+  canManageInventorySettings,
   canViewAccounts,
   canViewMappings,
   canViewAccountSummary,
@@ -261,5 +265,60 @@ describe('ERP accounting access policy', () => {
     expect(canReadErpReferenceData(currenciesUser)).toBe(true)
     expect(canReadErpParties(settingsUser)).toBe(false)
     expect(canReadErpParties(currenciesUser)).toBe(false)
+  })
+
+  test('vouchers-only user can manage transaction workflow but not void ledger repairs', () => {
+    const user = {
+      role: 'department_user',
+      department: 'operations',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            vouchers: { on: true },
+          },
+        },
+      },
+    }
+
+    expect(canCreateTransaction(user)).toBe(true)
+    expect(canManageTransactionWorkflow(user)).toBe(true)
+    expect(canCloseLedgerPeriod(user)).toBe(false)
+    expect(canWriteInventory(user)).toBe(false)
+  })
+
+  test('inventory permission grants write access without finance role', () => {
+    const user = {
+      role: 'department_user',
+      department: 'operations',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            inventory: { on: true },
+          },
+        },
+      },
+    }
+
+    expect(canWriteInventory(user)).toBe(true)
+    expect(canManageInventorySettings(user)).toBe(false)
+  })
+
+  test('direct-deals subtab grants manage access for granular users', () => {
+    const user = {
+      role: 'external',
+      modulePermissions: {
+        erp: {
+          on: true,
+          subs: {
+            'direct-deals': { on: true },
+          },
+        },
+      },
+    }
+
+    expect(canManageDirectDeals(user)).toBe(true)
+    expect(deriveErpAccessPolicy(user).canManageDirectDeals).toBe(true)
   })
 })

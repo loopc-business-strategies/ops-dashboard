@@ -13,7 +13,7 @@ import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
 import { buildMetalRatesFromApiPayload, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
 import { BASE, cfg, fmt, today, S, fieldRow, fieldGroup, labelStyle, inputStyle, readInput, sectionBox, sectionHeader, sectionBody, btn, tabBtn, classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid, classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap, classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName, classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue, classicRightGrid, classicLabel, classicInput, classicReadInput, classicTextAreaRow, metalWin, metalTopInlineRow, metalTopField, emptyLine, normalizeMongoIdField, emptyHeader, DOC_PREFIX_BY_TYPE, getDocYear, parseVoucherDocMeta, buildVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, toFinitePositive, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, getAccountNameValue, isBankLikeAccount, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalStockInVoucherType, isMetalStockOutVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity } from './voucher/voucherTabShared'
 import { buildVoucherTypeConfigs } from './voucher/voucherTypeConfigs'
-import { deriveErpAccessPolicy } from './erp/accessPolicy'
+import { deriveErpAccessPolicy, canCreateTransactionFor } from './erp/accessPolicy'
 
 export default function VoucherTab({ token, user, accounts = [], customers: propCustomers = [], vendors: propVendors = [], currencies = [], reportBranding = null }) {
   const showAccountDetailsTab = false
@@ -27,13 +27,14 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const isOperations = erpAccess.isOperationsRole
   const isProduction = role === 'department_head' && dept === 'production'
   const isManagementOnly = erpAccess.isManagementRole
+  const canManageWorkflow = erpAccess.canManageTransactionWorkflow
 
   const canView = erpAccess.canAccessVouchers || erpAccess.canAccessTransactions
-  const canCreatePayment = isFinance || isSuperAdmin
-  const canCreateReceipt = isFinance || isSales || isSuperAdmin
-  const canCreatePurchase = isFinance || isOperations || isProduction || isSuperAdmin
-  const canCreateSale = isFinance || isSales || isSuperAdmin
-  const isReadOnly = isManagementOnly && !isFinance
+  const canCreatePayment = canCreateTransactionFor(user || {}, 'payment')
+  const canCreateReceipt = canCreateTransactionFor(user || {}, 'receipt')
+  const canCreatePurchase = canCreateTransactionFor(user || {}, 'purchase')
+  const canCreateSale = canCreateTransactionFor(user || {}, 'sale')
+  const isReadOnly = isManagementOnly && !erpAccess.canCreateTransaction
 
   // ─── top-level state ────────────────────────────────────────────────────────
   const [voucherType, setVoucherType] = useState('payment')
@@ -1820,10 +1821,10 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const currentVoucherStatus = currentVoucher?.status || 'draft'
   const canDeleteCurrentVoucher = Boolean(editingId) && !isReadOnly && currentVoucherStatus !== 'posted'
   const canSubmitWorkflow = Boolean(editingId) && !isReadOnly && ['draft', 'returned', 'rejected'].includes(currentVoucherStatus)
-  const canApproveWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && currentVoucherStatus === 'submitted'
-  const canReturnWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(currentVoucherStatus)
-  const canRejectWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && ['submitted', 'approved', 'returned'].includes(currentVoucherStatus)
-  const canPostWorkflow = Boolean(editingId) && (isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(currentVoucherStatus)
+  const canApproveWorkflow = Boolean(editingId) && canManageWorkflow && currentVoucherStatus === 'submitted'
+  const canReturnWorkflow = Boolean(editingId) && canManageWorkflow && ['submitted', 'approved'].includes(currentVoucherStatus)
+  const canRejectWorkflow = Boolean(editingId) && canManageWorkflow && ['submitted', 'approved', 'returned'].includes(currentVoucherStatus)
+  const canPostWorkflow = Boolean(editingId) && canManageWorkflow && ['submitted', 'approved'].includes(currentVoucherStatus)
   const canRevalueCurrentVoucher = Boolean(editingId) && isSuperAdmin && ['payment', 'receipt'].includes(voucherType) && currentVoucherStatus === 'posted'
   const currentAttachments = Array.isArray(currentVoucher?.attachments) ? currentVoucher.attachments : []
   const previewableAttachmentMimeTypes = new Set([
@@ -2265,7 +2266,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                                 {t('submit')}
                               </button>
                             )}
-                            {(isSuperAdmin || isFinance) && v.status === 'submitted' && (
+                            {canManageWorkflow && v.status === 'submitted' && (
                               <button
                                 type="button"
                                 disabled={saving}
@@ -2275,7 +2276,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                                 {t('approve')}
                               </button>
                             )}
-                            {(isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(v.status) && (
+                            {canManageWorkflow && ['submitted', 'approved'].includes(v.status) && (
                               <button
                                 type="button"
                                 disabled={saving}
@@ -2285,7 +2286,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                                 {t('returnForEdit')}
                               </button>
                             )}
-                            {(isSuperAdmin || isFinance) && ['submitted', 'approved', 'returned'].includes(v.status) && (
+                            {canManageWorkflow && ['submitted', 'approved', 'returned'].includes(v.status) && (
                               <button
                                 type="button"
                                 disabled={saving}
@@ -2295,7 +2296,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                                 {t('reject')}
                               </button>
                             )}
-                            {(isSuperAdmin || isFinance) && ['submitted', 'approved'].includes(v.status) && (
+                            {canManageWorkflow && ['submitted', 'approved'].includes(v.status) && (
                               <button
                                 type="button"
                                 disabled={saving}

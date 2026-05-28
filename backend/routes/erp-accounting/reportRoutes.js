@@ -10,6 +10,7 @@ const dashboardReportCache = new Map()
 const DASHBOARD_CACHE_TTL_MS = 60000
 
 const { createReportResponseCache } = require('../../utils/reportResponseCache')
+const rateLimit = require('express-rate-limit')
 const reportCache = createReportResponseCache(60000)
 
 const {
@@ -84,7 +85,17 @@ function registerReportRoutes(deps) {
     computeMarginMetricsRaw,
   )
 
-router.get('/reports/trial-balance', protect, async (req, res) => {
+  const isProduction = process.env.NODE_ENV === 'production'
+  const reportExportLimiter = rateLimit({
+    windowMs: Number(process.env.ERP_REPORT_RATE_LIMIT_WINDOW_MS || 60 * 1000),
+    max: Number(process.env.ERP_REPORT_RATE_LIMIT_MAX || 30),
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => !isProduction,
+    message: { success: false, message: 'Too many report requests. Please wait and try again.' },
+  })
+
+router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const {
@@ -255,7 +266,7 @@ router.get('/reports/trial-balance', protect, async (req, res) => {
   }
 })
 
-router.get('/reports/ledger', protect, async (req, res) => {
+router.get('/reports/ledger', protect, reportExportLimiter, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { accountId, startDate, endDate } = req.query
@@ -321,7 +332,7 @@ router.get('/reports/ledger', protect, async (req, res) => {
   }
 })
 
-router.get('/reports/profit-loss', protect, async (req, res) => {
+router.get('/reports/profit-loss', protect, reportExportLimiter, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { startDate, endDate, comparePrevious = 'false', includeZero = 'false', includeComparisons = 'true' } = req.query
@@ -387,7 +398,7 @@ router.get('/reports/profit-loss', protect, async (req, res) => {
   }
 })
 
-router.get('/reports/balance-sheet', protect, async (req, res) => {
+router.get('/reports/balance-sheet', protect, reportExportLimiter, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { endDate, includeComparisons = 'true' } = req.query
@@ -434,7 +445,7 @@ router.get('/reports/balance-sheet', protect, async (req, res) => {
   }
 })
 
-router.get('/reports/day-book', protect, async (req, res) => {
+router.get('/reports/day-book', protect, reportExportLimiter, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { startDate, endDate, referenceType, minAmount = '0' } = req.query
@@ -496,7 +507,7 @@ router.get('/reports/day-book', protect, async (req, res) => {
   }
 })
 
-router.get('/reports/customer-outstanding', protect, async (req, res) => {
+router.get('/reports/customer-outstanding', protect, reportExportLimiter, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const cacheKey = reportCache.buildKey([req.user?.tenant || req.user?.company || 'default', 'customer-outstanding'])
@@ -559,7 +570,7 @@ router.get('/reports/customer-outstanding', protect, async (req, res) => {
   }
 })
 
-router.get('/reports/vendor-outstanding', protect, async (req, res) => {
+router.get('/reports/vendor-outstanding', protect, reportExportLimiter, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const cacheKey = reportCache.buildKey([req.user?.tenant || req.user?.company || 'default', 'vendor-outstanding'])
@@ -607,7 +618,7 @@ router.get('/reports/vendor-outstanding', protect, async (req, res) => {
   }
 })
 
-router.get('/reports/forex-gain-loss', protect, async (req, res) => {
+router.get('/reports/forex-gain-loss', protect, reportExportLimiter, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { startDate, endDate } = req.query
@@ -942,7 +953,7 @@ router.get('/reports/market-prices/stream', protect, async (req, res) => {
   }
 })
 
-router.get('/reports/dashboard', protect, async (req, res) => {
+router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) => {
   try {
     if (!canReadErpDashboardReport(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
 

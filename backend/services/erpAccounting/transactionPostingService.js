@@ -1,7 +1,6 @@
 function createTransactionPostingService(deps) {
   const {
-    isSuperAdmin,
-    isFinance,
+    canManageTransactionWorkflow,
     Currency,
     BASE_CURRENCY_CODE,
     validateFxReferenceRateRequirement,
@@ -21,7 +20,7 @@ function createTransactionPostingService(deps) {
   const { withSession, writeOpts } = require('../../utils/mongoTransaction')
 
   const executePostWorkflowAction = async ({ tx, user, note, fromStatus, options = {}, session = null }) => {
-    if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can post transactions')
+    if (!canManageTransactionWorkflow(user)) throw new Error('Only Admin/Finance can post transactions')
     if (tx.status !== 'approved') throw new Error('Transaction must be approved before posting')
 
     const baseCurrency = await withSession(

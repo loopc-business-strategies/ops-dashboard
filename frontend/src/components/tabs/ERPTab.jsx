@@ -25,7 +25,7 @@ import ChartOfAccountsTree from './ChartOfAccountsTree'
 import DirectDealsTab from './DirectDealsTab'
 import { MiniBarChart } from './erp/ERPTabCharts'
 import { useERPTabStateAdapter } from './erp/useERPTabStateAdapter'
-import { deriveErpAccessPolicy } from './erp/accessPolicy'
+import { deriveErpAccessPolicy, getAvailableTransactionTypes } from './erp/accessPolicy'
 import {
   ERPAccountsTabContainer,
   ERPEnquiryTabContainer,
@@ -441,6 +441,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
     canAccessErpSettings,
     canAccessCurrencies,
     canAccessFixingRegister,
+    canCreateTransaction,
+    canManageDirectDeals,
+    canManageTransactionWorkflow,
+    canCloseLedgerPeriod,
     canAccessERP,
   } = deriveErpAccessPolicy(user)
   const canLoadReferenceData = canViewAccounts || canAccessTransactions || canAccessVouchers || canViewBalanceEnquiry || canViewLedger || canAccessReports || canAccessCurrencies || canAccessErpSettings || canAccessFixingRegister
@@ -636,13 +640,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     if (inventoryVatSortDir === 'asc') return aVat - bVat
     return bVat - aVat
   })
-  const availableTransactionTypes = isSuperAdmin || isFinance
-    ? ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll']
-    : [
-        ...(isSalesRole ? ['sale', 'receipt'] : []),
-        ...(isOperationsRole ? ['expense', 'purchase'] : []),
-        ...(isHRRole ? ['payroll'] : []),
-      ]
+  const availableTransactionTypes = getAvailableTransactionTypes(user)
   const selectedTransaction = transactions.find((tx) => tx._id === selectedTransactionId) || null
   const rawStatementEntries = accountEnquiryData?.statement?.entries || []
   const resolveFixStatus = (entry) => {
@@ -5006,7 +5004,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     setShowLedgerForm(true)
   }
   const handleRepairJvFxPreview = async () => {
-    if (!isFinance || !token) return
+    if (!canCloseLedgerPeriod || !token) return
     setSaving(true)
     try {
       const data = await erpAccountingAPI.repairJvFxPreview(token, { mode: 'coa' })
@@ -5023,7 +5021,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
   }
   const handleRepairJvFxApply = async () => {
-    if (!isFinance || !token) return
+    if (!canCloseLedgerPeriod || !token) return
     const reason = window.prompt('Maintenance reason (min 8 characters)', 'JV ledger backfill store UZS and FX rate')
     if (!reason || String(reason).trim().length < 8) {
       showNotification('Apply cancelled: reason must be at least 8 characters.')
@@ -7335,7 +7333,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           token={token}
           customers={customers}
           currencies={currencies}
-          canManage={isSuperAdmin || isFinance || isSalesRole}
+          canManage={canManageDirectDeals}
           isSuperAdmin={isSuperAdmin}
         />
       )}

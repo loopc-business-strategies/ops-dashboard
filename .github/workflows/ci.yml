@@ -222,7 +222,10 @@ jobs:
   frontend-e2e:
     name: Frontend E2E (Playwright)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    concurrency:
+      group: frontend-e2e-${{ github.ref }}
+      cancel-in-progress: false
 
     steps:
       - name: Checkout
@@ -241,6 +244,12 @@ jobs:
 
       - name: Sync ERP access policy
         run: npm run sync:erp-access
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
 
       - name: Install Playwright Chromium
         working-directory: frontend

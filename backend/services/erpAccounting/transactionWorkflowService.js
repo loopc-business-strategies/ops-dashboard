@@ -20,8 +20,7 @@ function createTransactionWorkflowAction({
   normalizeTransactionNote,
   appendTransactionComment,
   appendTransactionAudit,
-  isSuperAdmin,
-  isFinance,
+  canManageTransactionWorkflow,
   getTransactionPostingService,
 }) {
   return async function applyTransactionWorkflowAction(tx, user, action, options = {}, session = null) {
@@ -40,7 +39,7 @@ function createTransactionWorkflowAction({
     }
 
     if (action === 'approve') {
-      if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can approve transactions')
+      if (!canManageTransactionWorkflow(user)) throw new Error('Only Admin/Finance can approve transactions')
       if (tx.status !== 'submitted') throw new Error('Only submitted transactions can be approved')
       tx.status = 'approved'
       tx.approvedBy = user._id
@@ -52,7 +51,7 @@ function createTransactionWorkflowAction({
     }
 
     if (action === 'return') {
-      if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can return transactions for edit')
+      if (!canManageTransactionWorkflow(user)) throw new Error('Only Admin/Finance can return transactions for edit')
       if (!['submitted', 'approved'].includes(tx.status)) throw new Error('Only submitted or approved transactions can be returned for edit')
       if (!note) throw new Error('Return reason is required')
       tx.status = 'returned'
@@ -64,7 +63,7 @@ function createTransactionWorkflowAction({
     }
 
     if (action === 'reject') {
-      if (!isSuperAdmin(user) && !isFinance(user)) throw new Error('Only Admin/Finance can reject transactions')
+      if (!canManageTransactionWorkflow(user)) throw new Error('Only Admin/Finance can reject transactions')
       if (!['submitted', 'approved', 'returned'].includes(tx.status)) throw new Error('Only submitted, approved, or returned transactions can be rejected')
       if (!note) throw new Error('Rejection reason is required')
       tx.status = 'rejected'

@@ -143,6 +143,11 @@ const {
   canAccessDirectDeals,
   canManageDirectDeals,
   hasExplicitErpPermissions,
+  canManageTransactionWorkflow,
+  canWriteInventory,
+  canManageInventorySettings,
+  canCloseLedgerPeriod,
+  canEditLedgerEntry,
 } = require('../services/erpAccounting/accessPolicy')
 
 
@@ -271,8 +276,7 @@ const applyTransactionWorkflowAction = createTransactionWorkflowAction({
   normalizeTransactionNote,
   appendTransactionComment,
   appendTransactionAudit,
-  isSuperAdmin,
-  isFinance,
+  canManageTransactionWorkflow,
   getTransactionPostingService: () => transactionPostingService,
 })
 
@@ -339,8 +343,7 @@ const { buildVendorAdvanceConfirmationError, ensurePaymentAdvanceConfirmed } = c
 })
 
 transactionPostingService = createTransactionPostingService({
-  isSuperAdmin,
-  isFinance,
+  canManageTransactionWorkflow,
   Currency,
   BASE_CURRENCY_CODE,
   validateFxReferenceRateRequirement,
@@ -430,7 +433,8 @@ function registerErpAccountingRoutes(router) {
     canViewLedger,
     canCreateTransaction,
     canCreateTransactionFor,
-    isFinance,
+    canEditLedgerEntry,
+    canCloseLedgerPeriod,
     bankSlipUpload,
     ledgerEntrySchema,
     Ledger,
@@ -533,10 +537,8 @@ function registerErpAccountingRoutes(router) {
     ChartOfAccount,
     canAccessInventory,
     canReadErpInventory,
-    isSuperAdmin,
-    isFinance,
-    isOperations,
-    isProduction,
+    canWriteInventory,
+    canManageInventorySettings,
     parsePagination,
     nextInventoryAccountCode,
     toMoney,
@@ -600,6 +602,8 @@ function registerErpAccountingRoutes(router) {
     parsePagination,
     canCreateTransactionFor,
     canAccessOperationalTransactions,
+    canCreateTransaction,
+    canManageTransactionWorkflow,
     isFinance,
     getRoleTransactionTypes,
     BASE_CURRENCY_CODE,

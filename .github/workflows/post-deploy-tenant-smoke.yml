@@ -67,10 +67,14 @@ jobs:
           SMOKE_REQUIRE_AUTH: 'true'
         run: npm run smoke:prod
       - name: Notify Slack on smoke failure
-        if: failure() && secrets.SMOKE_SLACK_WEBHOOK_URL != ''
+        if: failure()
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SMOKE_SLACK_WEBHOOK_URL }}
         run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "Slack webhook not configured; skipping notification."
+            exit 0
+          fi
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           BRANCH="${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}"
           SHA="${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}"
@@ -80,10 +84,14 @@ jobs:
             --data "{\"text\":\"❌ Tenant smoke checks failed for ${GITHUB_REPOSITORY}\\nBranch: ${BRANCH}\\nSHA: ${SHA}\\nRun: ${RUN_URL}\"}"
 
       - name: Notify Teams on smoke failure
-        if: failure() && secrets.SMOKE_TEAMS_WEBHOOK_URL != ''
+        if: failure()
         env:
           TEAMS_WEBHOOK_URL: ${{ secrets.SMOKE_TEAMS_WEBHOOK_URL }}
         run: |
+          if [ -z "$TEAMS_WEBHOOK_URL" ]; then
+            echo "Teams webhook not configured; skipping notification."
+            exit 0
+          fi
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           BRANCH="${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}"
           SHA="${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}"

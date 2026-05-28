@@ -300,6 +300,37 @@ function canManageDirectDeals(user) {
   return evaluateErpPermission(user, 'canManageDirectDeals')
 }
 
+function canManageTransactionWorkflow(user) {
+  if (blocksManagementWrite(user)) return false
+  if (isSuperAdmin(user) || isFinance(user)) return true
+  return canCreateTransaction(user)
+}
+
+function canWriteInventory(user) {
+  if (blocksManagementWrite(user)) return false
+  return canAccessInventory(user)
+}
+
+function canManageInventorySettings(user) {
+  if (blocksManagementWrite(user)) return false
+  if (isSuperAdmin(user) || isFinance(user)) return true
+  return canManageAccounts(user)
+}
+
+function canCloseLedgerPeriod(user) {
+  if (blocksManagementWrite(user)) return false
+  if (isSuperAdmin(user) || isFinance(user)) return true
+  return canViewLedger(user) && canCreateTransaction(user)
+}
+
+function canEditLedgerEntry(user, entry) {
+  if (blocksManagementWrite(user)) return false
+  if (isSuperAdmin(user) || isFinance(user)) return true
+  if (canCreateTransaction(user)) return true
+  const ownerId = String(entry?.createdBy?._id || entry?.createdBy || '')
+  return ownerId && ownerId === String(user?._id || '')
+}
+
 function canViewERPModule(user) {
   if (isSuperAdmin(user)) return true
   if (hasGranularPermissions(user)) {
@@ -343,6 +374,10 @@ function deriveErpAccessPolicy(user) {
     canAccessErpSettings: evaluateErpPermission(user, 'canAccessErpSettings'),
     canAccessCurrencies: evaluateErpPermission(user, 'canAccessCurrencies'),
     canAccessFixingRegister: evaluateErpPermission(user, 'canAccessFixingRegister'),
+    canCreateTransaction: canCreateTransaction(user),
+    canManageDirectDeals: canManageDirectDeals(user),
+    canManageTransactionWorkflow: canManageTransactionWorkflow(user),
+    canCloseLedgerPeriod: canCloseLedgerPeriod(user),
     canAccessERP: hasGranularPermissions(user)
       ? getAllowedErpSubTabs(user).length > 0
       : (canViewERPModule(user) && (
@@ -390,5 +425,10 @@ module.exports = {
   canReadErpParties,
   canAccessDirectDeals,
   canManageDirectDeals,
+  canManageTransactionWorkflow,
+  canWriteInventory,
+  canManageInventorySettings,
+  canCloseLedgerPeriod,
+  canEditLedgerEntry,
   deriveErpAccessPolicy,
 }

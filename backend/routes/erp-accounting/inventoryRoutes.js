@@ -44,10 +44,8 @@ function registerInventoryRoutes(deps) {
     ChartOfAccount,
     canAccessInventory,
     canReadErpInventory,
-    isSuperAdmin,
-    isFinance,
-    isOperations,
-    isProduction,
+    canWriteInventory,
+    canManageInventorySettings,
     parsePagination,
     nextInventoryAccountCode,
     toMoney,
@@ -74,7 +72,7 @@ function registerInventoryRoutes(deps) {
 
   router.post('/inventory/products', protect, validateBody(inventoryProductCreateSchema), async (req, res) => {
     try {
-      if (!canAccessInventory(req.user) || !(isSuperAdmin(req.user) || isFinance(req.user) || isOperations(req.user) || isProduction(req.user))) {
+      if (!canWriteInventory(req.user)) {
         return res.status(403).json({ success: false, message: 'Forbidden' })
       }
 
@@ -117,7 +115,7 @@ function registerInventoryRoutes(deps) {
 
   router.post('/inventory/stock-in', protect, validateBody(stockInSchema), async (req, res) => {
     try {
-      if (!canAccessInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canWriteInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const { itemId, quantity, unitCost, vendorId, currency = 'USD', description = '' } = req.body
       const qty = Number(quantity || 0)
       const cost = Number(unitCost || 0)
@@ -181,7 +179,7 @@ function registerInventoryRoutes(deps) {
 
   router.post('/inventory/stock-out', protect, validateBody(stockOutSchema), async (req, res) => {
     try {
-      if (!canAccessInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canWriteInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const { itemId, quantity, currency = 'USD', description = '' } = req.body
       const qty = Number(quantity || 0)
       if (!itemId || qty <= 0) return res.status(400).json({ success: false, message: 'Item and positive quantity are required' })
@@ -234,7 +232,7 @@ function registerInventoryRoutes(deps) {
 
   router.put('/inventory/products/:id', protect, validateParams(idParamSchema), validateBodyStrict(inventoryProductPatchSchema), async (req, res) => {
     try {
-      if (!canAccessInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canWriteInventory(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const product = await InventoryItem.findById(req.params.id)
       if (!product || product.isDeleted) return res.status(404).json({ success: false, message: 'Product not found' })
 
@@ -261,7 +259,7 @@ function registerInventoryRoutes(deps) {
 
   router.delete('/inventory/products/:id', protect, validateParams(idParamSchema), async (req, res) => {
     try {
-      if (!(isSuperAdmin(req.user) || isFinance(req.user))) return res.status(403).json({ success: false, message: 'Forbidden' })
+      if (!canManageInventorySettings(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
       const product = await InventoryItem.findById(req.params.id)
       if (!product || product.isDeleted) return res.status(404).json({ success: false, message: 'Product not found' })
 
@@ -296,7 +294,7 @@ function registerInventoryRoutes(deps) {
 
   router.delete('/inventory/stock-ledger', protect, requireDestructiveAdminGuard('inventory/stock-ledger'), async (req, res) => {
     try {
-      if (!isSuperAdmin(req.user) && !isFinance(req.user)) {
+      if (!canManageInventorySettings(req.user)) {
         return res.status(403).json({ success: false, message: 'Forbidden' })
       }
       const result = await StockMovement.updateMany(

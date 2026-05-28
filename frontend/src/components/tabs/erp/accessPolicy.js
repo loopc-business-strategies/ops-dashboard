@@ -6,6 +6,8 @@ import {
   hasGranularModulePermissions,
 } from '../../../utils/erpSubTabPermissions'
 
+const TRANSACTION_TYPES = ['expense', 'sale', 'purchase', 'receipt', 'payment', 'payroll', 'metal_receipt', 'metal_payment']
+
 function getRole(user) {
   return String(user?.role || '').toLowerCase()
 }
@@ -44,6 +46,7 @@ const ERP_PERMISSION_TO_SUBTAB = {
   canViewAccounts: ['accounts', 'dashboard'],
   canManageAccounts: ['accounts', 'mappings'],
   canViewMappings: ['mappings'],
+  canManageMappings: ['mappings'],
   canViewLedger: ['ledger'],
   canViewCustomers: ['customers', 'customer-margin'],
   canManageCustomers: ['customers'],
@@ -59,6 +62,7 @@ const ERP_PERMISSION_TO_SUBTAB = {
   canAccessInventory: ['inventory'],
   canAccessVouchers: ['vouchers'],
   canAccessDirectDeals: ['direct-deals'],
+  canManageDirectDeals: ['direct-deals'],
   canAccessErpSettings: ['settings'],
   canAccessCurrencies: ['currencies'],
   canAccessFixingRegister: ['fixing-register'],
@@ -66,6 +70,10 @@ const ERP_PERMISSION_TO_SUBTAB = {
 
 function hasGranularPermissions(user) {
   return hasGranularModulePermissions(user)
+}
+
+function hasExplicitErpPermissions(user) {
+  return user?.modulePermissions?.erp !== undefined
 }
 
 function hasErpSubTab(user, subTabs) {
@@ -81,6 +89,56 @@ function evaluateErpPermission(user, key) {
     if (granularAllowed !== null) return granularAllowed
   }
   return evaluatePermission(user, key)
+}
+
+function canAccessOperationalTransactions(user) {
+  return evaluateErpPermission(user, 'canAccessTransactions')
+    || evaluateErpPermission(user, 'canAccessVouchers')
+    || evaluateErpPermission(user, 'canAccessFixingRegister')
+}
+
+export function canCreateTransaction(user) {
+  return applyManagementReadOnly(user, evaluateErpPermission(user, 'canCreateTransaction'))
+}
+
+export function canCreateTransactionFor(user, transactionType) {
+  if (applyManagementReadOnly(user, false)) return false
+  if (canCreateTransaction(user)) return true
+  if (hasExplicitErpPermissions(user) && canAccessOperationalTransactions(user)) return true
+  const key = String(transactionType || '').toLowerCase()
+  return evaluateRule(user, accessMatrix.transactionTypes[key] || {})
+}
+
+export function canManageTransactionWorkflow(user) {
+  if (applyManagementReadOnly(user, false)) return false
+  if (evaluatePredicate(user, 'isSuperAdmin') || evaluatePredicate(user, 'isFinance')) return true
+  return canCreateTransaction(user)
+}
+
+export function canManageDirectDeals(user) {
+  return applyManagementReadOnly(user, evaluateErpPermission(user, 'canManageDirectDeals'))
+}
+
+export function canCloseLedgerPeriod(user) {
+  if (applyManagementReadOnly(user, false)) return false
+  if (evaluatePredicate(user, 'isSuperAdmin') || evaluatePredicate(user, 'isFinance')) return true
+  return evaluateErpPermission(user, 'canViewLedger') && canCreateTransaction(user)
+}
+
+export function getAvailableTransactionTypes(user) {
+  const isSuperAdmin = evaluatePredicate(user, 'isSuperAdmin')
+  const isFinance = evaluatePredicate(user, 'isFinance')
+  if (isSuperAdmin || isFinance || canCreateTransaction(user)) return TRANSACTION_TYPES
+  if (hasExplicitErpPermissions(user) && canAccessOperationalTransactions(user)) return TRANSACTION_TYPES
+  const isSalesRole = evaluatePredicate(user, 'isSalesRole')
+  const isOperationsRole = evaluatePredicate(user, 'isOperationsRole')
+  const isHRRole = evaluatePredicate(user, 'isHRRole')
+  const dept = getDept(user)
+  const isProduction = getRole(user) === 'department_head' && dept === 'production'
+  if (isSalesRole) return ['sale', 'receipt', 'metal_payment']
+  if (isOperationsRole || isProduction) return ['purchase', 'expense', 'metal_receipt']
+  if (isHRRole) return ['payroll']
+  return []
 }
 
 export function deriveErpAccessPolicy(user) {
@@ -99,7 +157,7 @@ export function deriveErpAccessPolicy(user) {
   const canViewCustomers = evaluateErpPermission(user, 'canViewCustomers')
   const canManageCustomers = applyManagementReadOnly(user, evaluateErpPermission(user, 'canManageCustomers'))
   const canViewBalanceEnquiry = evaluateErpPermission(user, 'canViewAccountSummary')
-  const canUpdateMetalRates = applyManagementReadOnly(user, evaluateErpPermission(user, 'canUpdateMetalRates'))
+  const canUpdateMetalRatesValue = applyManagementReadOnly(user, evaluateErpPermission(user, 'canUpdateMetalRates'))
   const canExportAccountSummary = evaluateErpPermission(user, 'canExportAccountSummary')
   const canAccessTransactions = evaluateErpPermission(user, 'canAccessTransactions')
   const canAccessReports = evaluateErpPermission(user, 'canAccessReports')
@@ -112,6 +170,9 @@ export function deriveErpAccessPolicy(user) {
   const canAccessErpSettings = evaluateErpPermission(user, 'canAccessErpSettings')
   const canAccessCurrencies = evaluateErpPermission(user, 'canAccessCurrencies')
   const canAccessFixingRegister = evaluateErpPermission(user, 'canAccessFixingRegister')
+  const canCreateTransactionValue = canCreateTransaction(user)
+  const canManageDirectDealsValue = canManageDirectDeals(user)
+  const canManageTransactionWorkflowValue = canManageTransactionWorkflow(user)
   const canAccessERP = hasGranularPermissions(user)
     ? getAllowedErpSubTabs(user).length > 0
     : (canViewERPModule(user) && (
@@ -133,7 +194,7 @@ export function deriveErpAccessPolicy(user) {
     canViewCustomers,
     canManageCustomers,
     canViewBalanceEnquiry,
-    canUpdateMetalRates,
+    canUpdateMetalRates: canUpdateMetalRatesValue,
     canExportAccountSummary,
     canAccessTransactions,
     canAccessReports,
@@ -143,9 +204,13 @@ export function deriveErpAccessPolicy(user) {
     canAccessInventory,
     canAccessVouchers,
     canAccessDirectDeals,
+    canManageDirectDeals: canManageDirectDealsValue,
     canAccessErpSettings,
     canAccessCurrencies,
     canAccessFixingRegister,
+    canCreateTransaction: canCreateTransactionValue,
+    canManageTransactionWorkflow: canManageTransactionWorkflowValue,
+    canCloseLedgerPeriod: canCloseLedgerPeriod(user),
     canAccessERP,
   }
 }

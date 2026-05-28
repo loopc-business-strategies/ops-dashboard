@@ -45,6 +45,7 @@ function registerTransactionRoutes(deps) {
     parsePagination,
     canCreateTransactionFor,
     canAccessOperationalTransactions,
+    canManageTransactionWorkflow,
     isFinance,
     getRoleTransactionTypes,
     BASE_CURRENCY_CODE,
@@ -407,7 +408,7 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
     }
 
     const nextType = req.body.type || tx.type
-    if (!canCreateTransactionFor(req.user, nextType) && !isFinance(req.user) && !isSuperAdmin(req.user)) {
+    if (!canCreateTransactionFor(req.user, nextType)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
 
@@ -578,7 +579,7 @@ router.post('/transactions/:id/submit', protect, async (req, res) => {
   try {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
-    if (!canCreateTransactionFor(req.user, tx.type) && !isFinance(req.user) && !isSuperAdmin(req.user)) {
+    if (!canCreateTransactionFor(req.user, tx.type)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
     const result = await applyTransactionWorkflowAction(tx, req.user, 'submit', { comment: req.body?.comment })
@@ -955,7 +956,10 @@ router.post('/transactions/bulk-action', protect, async (req, res) => {
 
     for (const tx of transactions) {
       try {
-        if (!canCreateTransactionFor(req.user, tx.type) && !isFinance(req.user) && !isSuperAdmin(req.user)) {
+        const allowed = action === 'submit'
+          ? canCreateTransactionFor(req.user, tx.type)
+          : canManageTransactionWorkflow(req.user)
+        if (!allowed) {
           throw new Error('Forbidden')
         }
         const actionResult = ['approve', 'post'].includes(action)

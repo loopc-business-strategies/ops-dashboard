@@ -98,6 +98,7 @@ const ERP_PERMISSION_TO_SUBTAB = {
   canAccessInventory: ['inventory'],
   canAccessVouchers: ['vouchers'],
   canAccessDirectDeals: ['direct-deals'],
+  canManageDirectDeals: ['direct-deals'],
   canAccessErpSettings: ['settings'],
   canAccessCurrencies: ['currencies'],
   canAccessFixingRegister: ['fixing-register'],
@@ -139,6 +140,14 @@ function deriveFrontendPolicy(user) {
   const canAccessTransactions = evaluateErpPermission(user, 'canAccessTransactions')
   const canAccessInventory = evaluateErpPermission(user, 'canAccessInventory')
   const canViewCustomers = evaluateErpPermission(user, 'canViewCustomers')
+  const canCreateTransaction = applyManagementReadOnly(user, evaluateErpPermission(user, 'canCreateTransaction'))
+  const canManageDirectDeals = applyManagementReadOnly(user, evaluateErpPermission(user, 'canManageDirectDeals'))
+  const canManageTransactionWorkflow = applyManagementReadOnly(user, false)
+    ? false
+    : (evaluatePredicate(user, 'isSuperAdmin') || evaluatePredicate(user, 'isFinance') || canCreateTransaction)
+  const canCloseLedgerPeriod = applyManagementReadOnly(user, false)
+    ? false
+    : (evaluatePredicate(user, 'isSuperAdmin') || evaluatePredicate(user, 'isFinance') || (evaluateErpPermission(user, 'canViewLedger') && canCreateTransaction))
   return {
     isSuperAdmin: evaluatePredicate(user, 'isSuperAdmin'),
     isDepartmentHead: evaluatePredicate(user, 'isDepartmentHead'),
@@ -163,6 +172,13 @@ function deriveFrontendPolicy(user) {
     canAccessInventory,
     canAccessVouchers: evaluateErpPermission(user, 'canAccessVouchers'),
     canAccessDirectDeals: evaluateErpPermission(user, 'canAccessDirectDeals'),
+    canManageDirectDeals,
+    canAccessErpSettings: evaluateErpPermission(user, 'canAccessErpSettings'),
+    canAccessCurrencies: evaluateErpPermission(user, 'canAccessCurrencies'),
+    canAccessFixingRegister: evaluateErpPermission(user, 'canAccessFixingRegister'),
+    canCreateTransaction,
+    canManageTransactionWorkflow,
+    canCloseLedgerPeriod,
     canAccessERP: hasGranularModulePermissions(user)
       ? getAllowedErpSubTabs(user).length > 0
       : (canViewERPModule(user) && (canViewAccounts || canAccessTransactions || canAccessInventory || canViewCustomers)),
@@ -205,6 +221,13 @@ const parityKeys = [
   'canAccessInventory',
   'canAccessVouchers',
   'canAccessDirectDeals',
+  'canManageDirectDeals',
+  'canAccessErpSettings',
+  'canAccessCurrencies',
+  'canAccessFixingRegister',
+  'canCreateTransaction',
+  'canManageTransactionWorkflow',
+  'canCloseLedgerPeriod',
   'canAccessERP',
 ]
 

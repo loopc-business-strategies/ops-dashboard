@@ -23,7 +23,8 @@ function registerLedgerRoutes(deps) {
     canViewLedger,
     canCreateTransaction,
     canCreateTransactionFor,
-    isFinance,
+    canEditLedgerEntry,
+    canCloseLedgerPeriod,
     bankSlipUpload,
     ledgerEntrySchema,
     Ledger,
@@ -387,8 +388,7 @@ router.put('/ledger/:id', protect, validateParams(idParamSchema), validateBodySt
     const TenantLedger = await Ledger.getTenantModel(req.tenant)
     const entry = await TenantLedger.findById(req.params.id)
     if (!entry) return res.status(404).json({ success: false, message: 'Ledger entry not found' })
-    // Only creator or finance can edit
-    if (entry.createdBy.toString() !== req.user._id.toString() && !isFinance(req.user)) {
+    if (!canEditLedgerEntry(req.user, entry)) {
       return res.status(403).json({ success: false, message: 'Can only edit your own entries' })
     }
     const { date, debitAccountId, creditAccountId, amount, description, referenceType } = req.body
@@ -447,8 +447,7 @@ router.delete('/ledger/:id', protect, validateParams(idParamSchema), async (req,
     const TenantLedger = await Ledger.getTenantModel(req.tenant)
     const entry = await TenantLedger.findById(req.params.id)
     if (!entry) return res.status(404).json({ success: false, message: 'Ledger entry not found' })
-    // Only creator or finance can delete
-    if (entry.createdBy.toString() !== req.user._id.toString() && !isFinance(req.user)) {
+    if (!canEditLedgerEntry(req.user, entry)) {
       return res.status(403).json({ success: false, message: 'Can only delete your own entries' })
     }
     // Create reversal entry instead of hard delete (for audit trail)
@@ -488,8 +487,7 @@ router.delete('/ledger/:id/permanent', protect, validateParams(idParamSchema), r
     const TenantTransaction = await Transaction.getTenantModel(req.tenant)
     const entry = await TenantLedger.findById(req.params.id)
     if (!entry) return res.status(404).json({ success: false, message: 'Ledger entry not found' })
-    // Only creator or finance can permanently delete
-    if (entry.createdBy.toString() !== req.user._id.toString() && !isFinance(req.user)) {
+    if (!canEditLedgerEntry(req.user, entry)) {
       return res.status(403).json({ success: false, message: 'Can only delete your own entries' })
     }
 
@@ -563,7 +561,7 @@ router.put('/ledger/:id/reconcile', protect, validateParams(idParamSchema), asyn
 router.post('/ledger/repair-jv-fx/preview', protect, async (req, res) => {
   try {
     if (!canViewLedger(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    if (!isFinance(req.user)) return res.status(403).json({ success: false, message: 'Finance role required' })
+    if (!canCloseLedgerPeriod(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const TenantLedger = await Ledger.getTenantModel(req.tenant)
     const db = TenantLedger.db
     const mode = String(req.body?.mode || 'coa').toLowerCase()
@@ -590,7 +588,7 @@ router.post('/ledger/repair-jv-fx/preview', protect, async (req, res) => {
 /** Finance + destructive token: apply JV/bank_jv FX backfill for this tenant. */
 router.post('/ledger/repair-jv-fx/apply', protect, requireDestructiveAdminGuard('ledger/repair-jv-fx-apply'), async (req, res) => {
   try {
-    if (!isFinance(req.user)) return res.status(403).json({ success: false, message: 'Finance role required' })
+    if (!canCloseLedgerPeriod(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const TenantLedger = await Ledger.getTenantModel(req.tenant)
     const db = TenantLedger.db
     const mode = String(req.body?.mode || 'coa').toLowerCase()
