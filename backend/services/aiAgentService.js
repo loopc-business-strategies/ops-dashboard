@@ -148,15 +148,48 @@ function readBuildMeta() {
   }
 }
 
-async function callOpenAIChat({ systemPrompt, history, message, model: requestedModel }) {
+async function callOpenAIChat({ systemPrompt, history, message, model: requestedModel, attachments = [] }) {
   const apiKey = String(process.env.OPENAI_API_KEY || '').trim()
   if (!apiKey) return null
 
   const model = resolveOpenAiModel(requestedModel)
+  const attachmentNotes = []
+  const userContent = [{ type: 'text', text: message }]
+
+  for (const file of attachments) {
+    if (file.kind === 'image' && file.imageBase64) {
+      userContent.push({
+        type: 'image_url',
+        image_url: { url: `data:${file.mimeType};base64,${file.imageBase64}` },
+      })
+      attachmentNotes.push(`Image: ${file.name}`)
+    } else if (file.kind === 'audio' && file.audioBase64) {
+      const transcript = await transcribeOpenAIAudio({
+        apiKey,
+        base64: file.audioBase64,
+        mimeType: file.mimeType,
+        filename: file.name,
+      })
+      if (transcript) {
+        attachmentNotes.push(`Audio transcript (${file.name}):\n${transcript}`)
+      } else {
+        attachmentNotes.push(`Audio: ${file.name} (transcription unavailable)`)
+      }
+    } else if (file.textExcerpt) {
+      attachmentNotes.push(`File ${file.name}:\n${file.textExcerpt}`)
+    } else {
+      attachmentNotes.push(`Attachment: ${file.name} (${file.kind}, ${file.summary || ''})`)
+    }
+  }
+
+  const enrichedSystem = attachmentNotes.length
+    ? `${systemPrompt}\n\nUPLOADED FILES:\n${attachmentNotes.join('\n\n---\n\n')}`
+    : systemPrompt
+
   const messages = [
-    { role: 'system', content: systemPrompt },
+    { role: 'system', content: enrichedSystem },
     ...history.slice(-8).map((m) => ({ role: m.role, content: m.content })),
-    { role: 'user', content: message },
+    { role: 'user', content: userContent.length > 1 ? userContent : message },
   ]
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -169,7 +202,7 @@ async function callOpenAIChat({ systemPrompt, history, message, model: requested
       model,
       messages,
       temperature: 0.35,
-      max_tokens: 1200,
+      max_tokens: 1600,
     }),
   })
 
@@ -183,6 +216,26 @@ async function callOpenAIChat({ systemPrompt, history, message, model: requested
   return { reply, model }
 }
 
+async function transcribeOpenAIAudio({ apiKey, base64, mimeType, filename }) {
+  try {
+    const buffer = Buffer.from(base64, 'base64')
+    const form = new FormData()
+    form.append('file', new Blob([buffer], { type: mimeType || 'audio/webm' }), filename || 'audio.webm')
+    form.append('model', 'whisper-1')
+
+    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return String(data?.text || '').trim()
+  } catch {
+    return null
+  }
+}
+
 async function runAgentChat({
   req,
   message,
@@ -191,6 +244,7 @@ async function runAgentChat({
   lastError = null,
   model = null,
   provider = null,
+  attachments = [],
 }) {
   const tenant = String(req.headers['x-tenant'] || req.headers['x-company'] || req.user?.tenant || 'loopc').toLowerCase()
   const selectedProvider = resolveProvider(provider)
@@ -215,15 +269,17 @@ async function runAgentChat({
     build,
     lastError,
     pageContext,
+    attachments,
   }
 
   if (selectedProvider === OPENAI_PROVIDER) {
     const systemPrompt = [
       'You are the LoopC AI agent embedded in the Ops Dashboard.',
       'Be concise and actionable. Use CONTEXT JSON for live numbers.',
+      attachments.length ? 'The user uploaded file(s). Analyze them and answer their question.' : '',
       PRODUCT_KNOWLEDGE,
-      `CONTEXT:\n${JSON.stringify(context, null, 2)}`,
-    ].join('\n')
+      `CONTEXT:\n${JSON.stringify({ ...context, attachments: attachments.map((a) => ({ name: a.name, kind: a.kind, summary: a.summary })) }, null, 2)}`,
+    ].filter(Boolean).join('\n')
 
     try {
       const llmResult = await callOpenAIChat({
@@ -231,6 +287,7 @@ async function runAgentChat({
         history,
         message,
         model: resolveOpenAiModel(model),
+        attachments,
       })
       if (llmResult?.reply) {
         return {
@@ -240,7 +297,7 @@ async function runAgentChat({
           provider: OPENAI_PROVIDER,
           providerLabel: 'ChatGPT',
           model: llmResult.model,
-          contextUsed: { tenant, provider: OPENAI_PROVIDER, hasMetals: Boolean(metals && !metals.error), hasError: Boolean(lastError) },
+          contextUsed: { tenant, provider: OPENAI_PROVIDER, hasMetals: Boolean(metals && !metals.error), hasError: Boolean(lastError), attachmentCount: attachments.length },
         }
       }
     } catch (err) {
@@ -277,6 +334,7 @@ async function runAgentChat({
       hasMetals: Boolean(metals && !metals.error),
       hasError: Boolean(lastError),
       hasSnapshot: Boolean(snapshot),
+      attachmentCount: attachments.length,
     },
   }
 }

@@ -33,6 +33,25 @@ function storeProvider(provider) {
   }
 }
 
+const ACCEPT_UPLOAD = 'image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.csv,.json,.md,.xlsx,.xls,.ppt,.pptx,.xml,.html,.log'
+const MAX_FILES = 5
+
+function formatFileSize(bytes = 0) {
+  const n = Number(bytes) || 0
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function fileKindLabel(file) {
+  const type = String(file?.type || '')
+  if (type.startsWith('image/')) return 'Image'
+  if (type.startsWith('audio/')) return 'Audio'
+  if (type.startsWith('video/')) return 'Video'
+  if (type.includes('pdf')) return 'PDF'
+  return 'Document'
+}
+
 function AgentIcon({ size = 18 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -52,7 +71,11 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
   const [aiConfig, setAiConfig] = useState(null)
   const [selectedProvider, setSelectedProvider] = useState(() => readStoredProvider())
   const [selectedModel, setSelectedModel] = useState('gpt-4o')
+  const [pendingFiles, setPendingFiles] = useState([])
+  const [listening, setListening] = useState(false)
   const scrollRef = useRef(null)
+  const fileInputRef = useRef(null)
+  const recognitionRef = useRef(null)
   const firstName = String(user?.name || 'User').split(' ')[0]
 
   const openAiAvailable = Boolean(aiConfig?.openai?.configured)
@@ -94,7 +117,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
     const chatgptReady = Boolean(aiConfig?.openai?.configured)
     const welcome = chatgptReady
       ? `Hello ${firstName}! 👋 I'm **LoopC Pro**, your built-in AI with **live company data**.\n\nTry **Analyze my company**, **Live metal prices**, **Fix last error**, or ask anything about ERP, CRM, HR, MT4.\n\n**ChatGPT** is also available in Engine above for open-ended questions.`
-      : `Hello ${firstName}! 👋 I'm **LoopC Pro** — built-in AI with **live ERP, CRM, and market data**.\n\nTry **Analyze my company**, **Today's summary**, or ask how to use **vouchers / ledger / MT4**.\n\nNo API key needed — I query your dashboard directly.`
+      : `Hello ${firstName}! 👋 I'm **LoopC Pro** — built-in AI with **live ERP, CRM, and market data**.\n\nTry **Analyze my company**, upload **documents / images / audio / video** with 📎, or use the **mic** for voice.\n\nNo API key needed for built-in mode.`
     setMessages([{ id: 'welcome', role: 'assistant', content: welcome }])
   }, [open, firstName, messages.length, aiConfig?.openai?.configured])
 
@@ -104,13 +127,89 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
     }
   }, [messages, sending, open])
 
-  const sendMessage = useCallback(async (text) => {
-    const trimmed = String(text || '').trim()
-    if (!trimmed || sending) return
+  useEffect(() => () => {
+    try {
+      recognitionRef.current?.stop?.()
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
-    const userMsg = { id: `u-${Date.now()}`, role: 'user', content: trimmed }
+  const addPendingFiles = useCallback((fileList) => {
+    const incoming = Array.from(fileList || [])
+    if (!incoming.length) return
+    setPendingFiles((prev) => {
+      const merged = [...prev, ...incoming].slice(0, MAX_FILES)
+      return merged
+    })
+  }, [])
+
+  const removePendingFile = useCallback((index) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const toggleVoiceInput = useCallback(() => {
+    const SpeechRecognition = typeof window !== 'undefined'
+      && (window.SpeechRecognition || window.webkitSpeechRecognition)
+    if (!SpeechRecognition) {
+      setMessages((prev) => [...prev, {
+        id: `v-${Date.now()}`,
+        role: 'assistant',
+        content: 'Voice input is not supported in this browser. Try Chrome or Edge, or upload an audio file with 📎.',
+      }])
+      return
+    }
+
+    if (listening && recognitionRef.current) {
+      recognitionRef.current.stop()
+      setListening(false)
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'en-US'
+    recognition.interimResults = true
+    recognition.continuous = false
+    recognitionRef.current = recognition
+
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((r) => r[0]?.transcript || '')
+        .join('')
+        .trim()
+      if (transcript) setInput((prev) => (prev ? `${prev} ${transcript}` : transcript))
+    }
+    recognition.onerror = () => setListening(false)
+    recognition.onend = () => setListening(false)
+
+    setListening(true)
+    recognition.start()
+  }, [listening])
+
+  const sendMessage = useCallback(async (text, filesOverride = null) => {
+    const trimmed = String(text || '').trim()
+    const files = filesOverride ?? pendingFiles
+    if ((!trimmed && files.length === 0) || sending) return
+
+    const attachmentMeta = files.map((f) => ({
+      name: f.name,
+      size: f.size,
+      kind: fileKindLabel(f),
+      previewUrl: f.type?.startsWith('image/') ? URL.createObjectURL(f) : null,
+    }))
+
+    const displayContent = trimmed
+      || (files.length === 1 ? `Uploaded **${files[0].name}**` : `Uploaded **${files.length} files**`)
+
+    const userMsg = {
+      id: `u-${Date.now()}`,
+      role: 'user',
+      content: displayContent,
+      attachments: attachmentMeta,
+    }
     setMessages((prev) => [...prev, userMsg])
     setInput('')
+    setPendingFiles([])
     setSending(true)
 
     const useOpenAi = selectedProvider === OPENAI_PROVIDER && openAiAvailable
@@ -121,8 +220,8 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
         .slice(-12)
         .map((m) => ({ role: m.role, content: m.content }))
 
-      const res = await aiApi.chat({
-        message: trimmed,
+      const payload = {
+        message: trimmed || 'Analyze the uploaded file(s).',
         history,
         provider: useOpenAi ? OPENAI_PROVIDER : BUILTIN_PROVIDER,
         model: useOpenAi ? selectedModel : undefined,
@@ -132,7 +231,11 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
           tenant: tenantLabel || '',
         },
         lastError: getLastApiError(),
-      })
+      }
+
+      const res = files.length
+        ? await aiApi.chatWithFiles({ ...payload, files })
+        : await aiApi.chat(payload)
 
       const meta = res?.error && res?.provider === OPENAI_PROVIDER
         ? 'ChatGPT · unavailable'
@@ -156,7 +259,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
     } finally {
       setSending(false)
     }
-  }, [activeTab, messages, openAiAvailable, selectedModel, selectedProvider, sending, tenantLabel])
+  }, [activeTab, messages, openAiAvailable, pendingFiles, selectedModel, selectedProvider, sending, tenantLabel])
 
   const panelStyle = {
     position: 'fixed',
@@ -295,6 +398,29 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
                   {m.content.split(/\*\*(.*?)\*\*/g).map((part, i) => (
                     i % 2 === 1 ? <strong key={i}>{part}</strong> : part
                   ))}
+                  {m.attachments?.length ? (
+                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {m.attachments.map((a, idx) => (
+                        <div key={`${m.id}-att-${idx}`} style={{
+                          fontSize: 11,
+                          padding: '6px 8px',
+                          borderRadius: 8,
+                          background: m.role === 'user' ? 'rgba(255,255,255,0.14)' : '#f3f4f6',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                        >
+                          {a.previewUrl ? (
+                            <img src={a.previewUrl} alt={a.name} style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 6 }} />
+                          ) : (
+                            <span aria-hidden>📎</span>
+                          )}
+                          <span>{a.kind}: {a.name} ({formatFileSize(a.size)})</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   {m.meta ? (
                     <div style={{ marginTop: 6, fontSize: 10, opacity: 0.72 }}>{m.meta}</div>
                   ) : null}
@@ -336,53 +462,119 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
           )}
 
           <form
-            style={{ display: 'flex', gap: 8, padding: '10px 12px 8px', background: '#fff', borderTop: '1px solid #f1f5f9' }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px 8px', background: '#fff', borderTop: '1px solid #f1f5f9' }}
             onSubmit={(e) => {
               e.preventDefault()
               void sendMessage(input)
             }}
           >
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Describe a problem or ask a question…"
-              disabled={sending}
-              style={{
-                flex: 1,
-                border: '1px solid #e5e7eb',
-                borderRadius: 999,
-                padding: '10px 14px',
-                fontSize: 13,
-                outline: 'none',
-              }}
-            />
-            <button
-              type="submit"
-              disabled={sending || !input.trim()}
-              aria-label="Send"
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: '50%',
-                border: 'none',
-                background: 'linear-gradient(135deg, #7c3aed 0%, #10b981 100%)',
-                color: '#fff',
-                cursor: sending || !input.trim() ? 'not-allowed' : 'pointer',
-                opacity: sending || !input.trim() ? 0.6 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 16,
-              }}
-            >
-              ➤
-            </button>
+            {pendingFiles.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {pendingFiles.map((file, idx) => (
+                  <div key={`pending-${file.name}-${idx}`} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 11,
+                    padding: '4px 8px',
+                    borderRadius: 999,
+                    background: '#f3f4f6',
+                    border: '1px solid #e5e7eb',
+                  }}
+                  >
+                    <span>{fileKindLabel(file)}: {file.name}</span>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${file.name}`}
+                      onClick={() => removePendingFile(idx)}
+                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#6b7280' }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={ACCEPT_UPLOAD}
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  addPendingFiles(e.target.files)
+                  e.target.value = ''
+                }}
+              />
+              <button
+                type="button"
+                aria-label="Upload files"
+                disabled={sending || pendingFiles.length >= MAX_FILES}
+                onClick={() => fileInputRef.current?.click()}
+                style={attachBtnStyle}
+                title="Upload document, image, audio, or video"
+              >
+                📎
+              </button>
+              <button
+                type="button"
+                aria-label={listening ? 'Stop voice input' : 'Start voice input'}
+                disabled={sending}
+                onClick={toggleVoiceInput}
+                style={{
+                  ...attachBtnStyle,
+                  background: listening ? '#fef2f2' : '#fff',
+                  color: listening ? '#dc2626' : '#374151',
+                  borderColor: listening ? '#fecaca' : '#e5e7eb',
+                }}
+                title="Voice to text"
+              >
+                {listening ? '⏹' : '🎤'}
+              </button>
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={listening ? 'Listening… speak now' : 'Describe a problem, ask a question, or attach files…'}
+                disabled={sending}
+                style={{
+                  flex: 1,
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 999,
+                  padding: '10px 14px',
+                  fontSize: 13,
+                  outline: 'none',
+                }}
+              />
+              <button
+                type="submit"
+                disabled={sending || (!input.trim() && pendingFiles.length === 0)}
+                aria-label="Send"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #7c3aed 0%, #10b981 100%)',
+                  color: '#fff',
+                  cursor: sending || (!input.trim() && pendingFiles.length === 0) ? 'not-allowed' : 'pointer',
+                  opacity: sending || (!input.trim() && pendingFiles.length === 0) ? 0.6 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 16,
+                  flexShrink: 0,
+                }}
+              >
+                ➤
+              </button>
+            </div>
           </form>
 
           <p style={{ margin: 0, padding: '0 12px 10px', fontSize: 10, color: '#9ca3af', textAlign: 'center', background: '#fff' }}>
             {openAiAvailable
-              ? 'LoopC Pro uses live tenant data. ChatGPT optional for open-ended AI.'
-              : 'LoopC Pro — live ERP/CRM data, analysis, and fix plans. No API key needed.'}
+              ? 'Upload docs, images, audio, video. ChatGPT analyzes media; LoopC Pro reads text/CSV/PDF.'
+              : 'Upload docs, images, audio, video. LoopC Pro extracts text from PDF/CSV/docs.'}
           </p>
         </>
       )}
@@ -412,4 +604,19 @@ const iconBtnStyle = {
   cursor: 'pointer',
   fontSize: 18,
   lineHeight: 1,
+}
+
+const attachBtnStyle = {
+  width: 36,
+  height: 36,
+  borderRadius: '50%',
+  border: '1px solid #e5e7eb',
+  background: '#fff',
+  color: '#374151',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 16,
+  flexShrink: 0,
 }

@@ -273,7 +273,9 @@ function buildCapabilitiesReply(ctx) {
     '3. **Live metal prices** — gold, silver, platinum + MT4 feed status',
     '4. **Fix problems** — step-by-step playbooks from your prompt or last API error',
     '5. **Software help** — vouchers, ledger, inventory, CRM, HR, permissions, MT4',
-    '6. **Navigation** — "where is vouchers?" → exact tab path',
+    '6. **Upload files** — documents, PDF, CSV, images, audio, video (📎 button)',
+    '7. **Voice input** — mic button for speech-to-text (Chrome/Edge)',
+    '8. **Navigation** — "where is vouchers?" → exact tab path',
     '',
     '**Quick prompts:**',
     '- "Analyze my project"',
@@ -345,6 +347,64 @@ function buildHelpReply(ctx, message) {
   ].join('\n')
 }
 
+function buildAttachmentReply(ctx, message) {
+  const files = ctx.snapshot?.attachments || ctx.attachments || []
+  const { user, tenant } = ctx
+  if (!files.length) {
+    return `Hi ${user.name}! Attach a file with the **📎 upload** button, then ask what you want analyzed.`
+  }
+
+  const lines = [
+    `**Uploaded files analysis (${String(tenant).toUpperCase()})**`,
+    `_LoopC Pro · ${files.length} file(s)_`,
+    '',
+  ]
+
+  if (String(message || '').trim() && !/^analyze|review|summarize|what is this|explain/i.test(message)) {
+    lines.push(`**Your question:** ${message.trim()}`, '')
+  }
+
+  files.forEach((file, idx) => {
+    lines.push(`### ${idx + 1}. ${file.name}`)
+    lines.push(`- Type: **${file.kind}** · ${file.summary || `${Math.round((file.size || 0) / 1024)} KB`}`)
+
+    if (file.kind === 'image') {
+      lines.push('- Image received. LoopC built-in cannot vision-analyze — switch **Engine → ChatGPT** for image description, or describe what you need from this image.')
+    } else if (file.kind === 'audio' || file.kind === 'video') {
+      lines.push(`- ${file.kind === 'audio' ? 'Audio' : 'Video'} received. Use **ChatGPT engine** for transcription/analysis, or type what you said.`)
+    } else if (file.textExcerpt) {
+      const excerpt = String(file.textExcerpt).split('\n').slice(0, 12).join('\n')
+      lines.push('', '**Extracted preview:**', '```', excerpt, '```')
+      if (file.stats?.rows) {
+        lines.push(`\n_CSV stats: ${file.stats.rows} data rows, ${file.stats.columns} columns._`)
+      }
+      const keywords = extractKeywords(file.textExcerpt)
+      if (keywords.length) lines.push(`\n**Key terms:** ${keywords.slice(0, 8).join(', ')}`)
+    } else {
+      lines.push('- Binary file stored. Describe what you want checked, or switch to **ChatGPT** for deeper analysis.')
+    }
+    lines.push('')
+  })
+
+  lines.push(
+    '**Next steps:**',
+    '1. Ask a follow-up about the file content',
+    '2. Switch to **ChatGPT** for images, audio transcription, or complex docs',
+    '3. Combine with live data: "compare this invoice to our vendors"',
+  )
+
+  return lines.join('\n')
+}
+
+function extractKeywords(text = '') {
+  const stop = new Set(['the', 'and', 'for', 'with', 'this', 'that', 'from', 'have', 'are', 'was', 'were', 'your', 'you', 'our', 'not', 'but', 'all', 'can', 'will', 'has', 'had'])
+  const counts = {}
+  String(text).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+    .filter((w) => w.length > 3 && !stop.has(w))
+    .forEach((w) => { counts[w] = (counts[w] || 0) + 1 })
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([w]) => w)
+}
+
 function buildGeneralReply(ctx, message) {
   const hit = matchKnowledge(message)
   if (hit?.body) return hit.body
@@ -359,6 +419,7 @@ function buildGeneralReply(ctx, message) {
     '- **Live metal prices** — gold, silver, platinum',
     '- **Fix last error** — diagnose from last API failure',
     '- **What can you do?** — full capability list',
+    '- **📎 Upload** documents, images, audio, or video for analysis',
     '',
     'Or ask how to use **vouchers**, **ledger**, **CRM**, **MT4**, **permissions**.',
   ].join('\n')
@@ -390,6 +451,11 @@ function runBuiltinAgent({ message, context, history = [] }) {
     pageContext: context.pageContext || {},
     lastError: context.lastError,
     savedRates: context.savedRates,
+    attachments: context.attachments || [],
+  }
+
+  if (context.attachments?.length) {
+    return { reply: buildAttachmentReply(ctx, message), intent: 'attachment', mode: 'builtin' }
   }
 
   if (intent === 'fix') {
