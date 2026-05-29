@@ -28,28 +28,21 @@ function MgLoginShell({
   handleSubmit,
   t,
 }) {
+  const fieldBg = 'rgba(5, 16, 29, 0.99)'
   const inputStyle = {
     position: 'absolute',
     width: 410,
     height: 36,
     borderRadius: 4,
     border: 0,
-    background: 'transparent',
+    background: fieldBg,
     color: '#E8EDF4',
     fontSize: 16,
     lineHeight: '36px',
     outline: 'none',
-    padding: 0,
+    padding: '0 10px',
     boxShadow: 'none',
     zIndex: 2,
-  }
-  const valueMaskStyle = {
-    position: 'absolute',
-    height: 34,
-    background: 'rgba(5, 16, 29, 0.99)',
-    borderRadius: 4,
-    zIndex: 1,
-    pointerEvents: 'none',
   }
   const [viewport, setViewport] = useState(() => ({
     width: typeof window === 'undefined' ? 1600 : window.innerWidth,
@@ -114,22 +107,11 @@ function MgLoginShell({
                 borderRadius: 8,
                 padding: '8px 12px',
                 fontSize: 13,
+                zIndex: 4,
               }}
             >
               {error}
             </div>
-          )}
-          {name && (
-            <div
-              aria-hidden="true"
-              style={{
-                ...valueMaskStyle,
-                left: sx(1026),
-                top: sy(372),
-                width: sx(300),
-                height: sy(34),
-              }}
-            />
           )}
           <input
             type="text"
@@ -150,18 +132,6 @@ function MgLoginShell({
             disabled={loading}
             aria-label={t('username')}
           />
-          {password && (
-            <div
-              aria-hidden="true"
-              style={{
-                ...valueMaskStyle,
-                left: sx(1026),
-                top: sy(484),
-                width: sx(300),
-                height: sy(34),
-              }}
-            />
-          )}
           <input
             type={showPass ? 'text' : 'password'}
             value={password}
@@ -183,6 +153,7 @@ function MgLoginShell({
           <button
             type="button"
             onClick={() => setShowPass(!showPass)}
+            disabled={loading}
             style={{
               position: 'absolute',
               left: sx(1344),
@@ -192,13 +163,31 @@ function MgLoginShell({
               border: 0,
               background: 'transparent',
               color: 'transparent',
-              cursor: 'pointer',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              zIndex: 3,
             }}
             aria-label={showPass ? 'Hide password' : 'Show password'}
           />
+          {loading && (
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                left: sx(968),
+                top: sy(551),
+                width: sx(455),
+                height: sy(55),
+                borderRadius: 9,
+                background: '#FFD15A',
+                zIndex: 2,
+                pointerEvents: 'none',
+              }}
+            />
+          )}
           <button
             type="submit"
             disabled={loading}
+            aria-busy={loading}
             style={{
               position: 'absolute',
               left: sx(968),
@@ -207,14 +196,37 @@ function MgLoginShell({
               height: sy(55),
               border: 0,
               borderRadius: 9,
-              background: loading ? 'rgba(255,209,90,0.18)' : 'transparent',
+              background: 'transparent',
               color: loading ? '#071422' : 'transparent',
-              fontSize: 16,
+              fontSize: sx(16),
               fontWeight: 900,
-              cursor: loading ? 'not-allowed' : 'pointer',
+              letterSpacing: loading ? '0.02em' : 0,
+              cursor: loading ? 'wait' : 'pointer',
+              zIndex: 3,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: sx(8),
             }}
           >
-            {loading ? t('signingIn') : 'SIGN IN'}
+            {loading ? (
+              <>
+                <svg
+                  aria-hidden="true"
+                  width={sx(18)}
+                  height={sx(18)}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  style={{ flexShrink: 0, animation: 'mg-login-spin 0.8s linear infinite' }}
+                >
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+                  <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                </svg>
+                {t('signingIn')}
+              </>
+            ) : (
+              <span aria-hidden="true">&nbsp;</span>
+            )}
           </button>
           <div
             aria-hidden="true"
@@ -267,8 +279,21 @@ function MgLoginShell({
         .mg-login-shell input:-webkit-autofill:focus {
           -webkit-text-fill-color: #e8edf4;
           caret-color: #e8edf4;
-          box-shadow: 0 0 0 1000px rgba(4, 14, 26, 0.96) inset;
+          box-shadow: 0 0 0 1000px rgba(5, 16, 29, 0.99) inset;
           transition: background-color 9999s ease-in-out 0s;
+        }
+        .mg-login-shell button[type="submit"] {
+          background-image: none !important;
+        }
+        .mg-login-shell button[type="submit"]:not(:disabled) {
+          color: transparent !important;
+        }
+        .mg-login-shell button[type="submit"]:disabled {
+          color: #071422 !important;
+        }
+        @keyframes mg-login-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
         @media (max-width: 980px) {
           .mg-login-stage {
@@ -345,6 +370,7 @@ function Login() {
       await login(name.trim(), password, company)
       navigate('/dashboard')
     } catch (err) {
+      setLoading(false)
       if (!err.response) {
         setError(t('loginErrNetwork'))
       } else if (err.response.status >= 500) {
@@ -352,8 +378,6 @@ function Login() {
       } else {
         setError(err.response?.data?.message || t('loginErrInvalid'))
       }
-    } finally {
-      setLoading(false)
     }
   }
 

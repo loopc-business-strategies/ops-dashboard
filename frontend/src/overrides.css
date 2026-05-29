@@ -40,6 +40,21 @@ button[type="submit"]:hover,
   transform: translateY(-1px) !important;
 }
 
+/* MG tenant login uses PNG art underneath — keep submit chrome transparent */
+.mg-login-shell button[type="submit"] {
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+.mg-login-shell button[type="submit"]:not(:disabled) {
+  color: transparent !important;
+}
+.mg-login-shell button[type="submit"]:disabled {
+  color: #071422 !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
 /* ── 2. ACTIVE TABS ─────────────────────────────────────
    Fixes: Orange solid background on active tabs (HR, Production, etc.)
    Change: Solid orange bg → no bg, just purple bottom border
