@@ -10,6 +10,11 @@ const {
   resolveNavigation,
   MODULE_GUIDES,
 } = require('./loopcKnowledgeBase')
+const {
+  formatProjectFixReply,
+  buildProjectStructureReply,
+  buildCodeSearchReply,
+} = require('./loopcProjectBrain')
 
 function formatPlaybookReply(playbooks, lastError, pageContext) {
   const lines = ['**Fix plan**']
@@ -273,13 +278,17 @@ function buildCapabilitiesReply(ctx) {
     '3. **Live metal prices** — gold, silver, platinum + MT4 feed status',
     '4. **Fix problems** — step-by-step playbooks from your prompt or last API error',
     '5. **Software help** — vouchers, ledger, inventory, CRM, HR, permissions, MT4',
-    '6. **Upload files** — documents, PDF, CSV, images, audio, video (📎 button)',
+    '6. **Upload files** — documents, PDF, CSV, images, audio, video (upload button)',
     '7. **Voice input** — mic button for speech-to-text (Chrome/Edge)',
-    '8. **Navigation** — "where is vouchers?" → exact tab path',
+    '8. **Project code map** — knows all routes, services, models, fix recipes',
+    '9. **Auto-fix with prompt** — matches errors → exact code files + fix steps',
+    '10. **Navigation** — "where is vouchers?" → exact tab path',
     '',
     '**Quick prompts:**',
-    '- "Analyze my project"',
-    '- "Show low stock"',
+    '- "Analyze my company"',
+    '- "Map project code"',
+    '- "Fix MT4 prices" / "Fix voucher 403"',
+    '- "Search code metal-rates"',
     '- "CRM pipeline status"',
     '- "Fix last error"',
     '- "How do I post a metal voucher?"',
@@ -458,7 +467,18 @@ function runBuiltinAgent({ message, context, history = [] }) {
     return { reply: buildAttachmentReply(ctx, message), intent: 'attachment', mode: 'builtin' }
   }
 
-  if (intent === 'fix') {
+  if (intent === 'fix' || intent === 'auto-fix') {
+    const projectFix = formatProjectFixReply({
+      message,
+      lastError: context.lastError,
+      pageContext: context.pageContext,
+      userName: ctx.user.name,
+    })
+    const hasProjectFix = /Fix 1:/.test(projectFix)
+    if (hasProjectFix) {
+      return { reply: projectFix, intent: 'project-fix', mode: 'builtin' }
+    }
+
     const playbooks = matchFixPlaybooks(message, context.lastError)
     if (playbooks.length > 0) {
       return { reply: formatPlaybookReply(playbooks, context.lastError, context.pageContext), intent, mode: 'builtin' }
@@ -493,6 +513,21 @@ function runBuiltinAgent({ message, context, history = [] }) {
     }
   }
 
+  if (intent === 'project') {
+    const combined = [
+      buildProjectStructureReply(),
+      '',
+      '---',
+      '',
+      '**Live tenant snapshot (now):**',
+      buildSummaryReply(ctx),
+    ].join('\n')
+    return { reply: combined, intent, mode: 'builtin' }
+  }
+  if (intent === 'code-search') {
+    const q = String(message || '').replace(/search code|find code|which file|what file|code path|show.*code/gi, '').trim() || message
+    return { reply: buildCodeSearchReply(q), intent, mode: 'builtin' }
+  }
   if (intent === 'analyze') return { reply: buildAnalyzeReply(ctx), intent, mode: 'builtin' }
   if (intent === 'market') return { reply: buildMarketReply(ctx), intent, mode: 'builtin' }
   if (intent === 'summary') return { reply: buildSummaryReply(ctx), intent, mode: 'builtin' }

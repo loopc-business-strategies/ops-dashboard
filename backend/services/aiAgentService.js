@@ -2,6 +2,7 @@ const fs = require('fs')
 const path = require('path')
 const { runBuiltinAgent } = require('./builtinAgentService')
 const { gatherLoopcSnapshot } = require('./loopcContextService')
+const { getProjectBrainSummary } = require('./loopcProjectBrain')
 
 const BUILTIN_PROVIDER = 'builtin'
 const OPENAI_PROVIDER = 'openai'
@@ -75,7 +76,7 @@ function getAiAgentConfig() {
       {
         id: BUILTIN_PROVIDER,
         label: 'LoopC',
-        description: 'LoopC Pro — live data, company analysis, fix plans, full ERP/CRM help',
+        description: 'LoopC Pro — live data, project code brain, auto-fix recipes, ERP/CRM help',
         available: true,
         default: true,
       },
@@ -92,6 +93,7 @@ function getAiAgentConfig() {
       defaultModel: resolveOpenAiModel(process.env.AI_MODEL),
       models: OPENAI_CHAT_MODELS,
     },
+    projectBrain: getProjectBrainSummary(),
   }
 }
 

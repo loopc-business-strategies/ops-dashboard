@@ -277,7 +277,10 @@ const FIX_PLAYBOOKS = [
 
 const INTENT_PATTERNS = [
   { id: 'fix', patterns: [/fix|error|403|401|500|failed|broken|not work|bug|problem|issue|diagnose|troubleshoot|why.*(fail|error)/i], weight: 3 },
-  { id: 'analyze', patterns: [/analy[sz]e|audit|review|health check|project|company|dashboard status|how am i|overview|snapshot|report on|assessment|full report/i], weight: 3 },
+  { id: 'analyze', patterns: [/analy[sz]e my company|analy[sz]e.*company|company analysis|audit|review|health check|dashboard status|how am i|today.?s snapshot|business report|assessment|full report/i], weight: 3 },
+  { id: 'project', patterns: [/analy[sz]e my project|analy[sz]e.*project|code structure|codebase|architecture|project map|whole project|all code|source code|repo|repository|how is.*built|project brain|map project/i], weight: 4 },
+  { id: 'code-search', patterns: [/search code|find code|which file|what file|where is.*code|code path|show.*code/i], weight: 3 },
+  { id: 'auto-fix', patterns: [/auto.?fix|automatically fix|fix with prompt|fix this|repair|patch|debug code/i], weight: 3 },
   { id: 'market', patterns: [/gold|silver|platinum|metal|market|price|mt4|xau|xag|xpt|spot|ounce|oz/i], weight: 2 },
   { id: 'inventory', patterns: [/inventory|stock|warehouse|low stock|raw material|wip|finished good/i], weight: 2 },
   { id: 'sales', patterns: [/sales|pipeline|deal|crm|revenue|lead|contact|win rate|follow.?up/i], weight: 2 },

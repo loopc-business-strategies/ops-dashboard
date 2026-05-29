@@ -33,10 +33,11 @@ const mockSnapshot = {
 }
 
 describe('builtinAgentService', () => {
-  test('detectBuiltinIntent classifies fix, market, and analyze prompts', () => {
+  test('detectBuiltinIntent classifies fix, market, analyze, and project prompts', () => {
     expect(detectBuiltinIntent('Fix my MT4 prices')).toBe('fix')
     expect(detectBuiltinIntent('What is the gold price today?')).toBe('market')
-    expect(detectBuiltinIntent('Analyze my project')).toBe('analyze')
+    expect(detectBuiltinIntent('Analyze my company')).toBe('analyze')
+    expect(detectBuiltinIntent('Analyze my project code structure')).toBe('project')
     expect(detectBuiltinIntent('What can you do?')).toBe('capabilities')
   })
 

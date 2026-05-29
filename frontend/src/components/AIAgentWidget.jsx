@@ -4,6 +4,7 @@ import { getLastApiError, subscribeLastApiError } from '../utils/lastApiError'
 
 const QUICK_ACTIONS = [
   { id: 'analyze', label: 'Analyze my company', prompt: 'Analyze my company and give me a full report' },
+  { id: 'project', label: 'Map project code', prompt: 'Show my whole project code structure and architecture' },
   { id: 'summary', label: "Today's summary", prompt: "Show today's summary for my dashboard" },
   { id: 'market', label: 'Live metal prices', prompt: 'What are the current gold, silver, and platinum prices?' },
   { id: 'inventory', label: 'Inventory status', prompt: 'Check inventory status and low stock alerts' },
@@ -65,7 +66,7 @@ function UploadIcon({ size = 18 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
-        d="M12 3v10m0 0l3.5-3.5M12 13l-3.5-3.5M5 15v2a2 2 0 002 2h10a2 2 0 002-2v-2"
+        d="M12 16V6m0 0L8.5 9.5M12 6l3.5 3.5M5 18h14"
         stroke="currentColor"
         strokeWidth="1.75"
         strokeLinecap="round"
@@ -175,7 +176,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
     const chatgptReady = Boolean(aiConfig?.openai?.configured)
     const welcome = chatgptReady
       ? `Hello ${firstName}! 👋 I'm **LoopC Pro**, your built-in AI with **live company data**.\n\nTry **Analyze my company**, **Live metal prices**, **Fix last error**, or ask anything about ERP, CRM, HR, MT4.\n\n**ChatGPT** is also available in Engine above for open-ended questions.`
-      : `Hello ${firstName}! 👋 I'm **LoopC Pro** — built-in AI with **live ERP, CRM, and market data**.\n\nTry **Analyze my company**, upload **documents / images / audio / video** with 📎, or use the **mic** for voice.\n\nNo API key needed for built-in mode.`
+      : `Hello ${firstName}! 👋 I'm **LoopC Pro** — I know this **entire project** (routes, services, models, tabs) and your **live ERP/CRM data**.\n\nTry **Map project code**, **Analyze my company**, **Fix …** with any error, or upload files with the upload button.\n\nBuilt-in = free. I auto-match problems to exact code files and fix steps.`
     setMessages([{ id: 'welcome', role: 'assistant', content: welcome }])
   }, [open, firstName, messages.length, aiConfig?.openai?.configured])
 
