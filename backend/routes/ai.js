@@ -63,6 +63,7 @@ router.post('/chat', protect, aiChatLimiter, validateBody(chatSchema), async (re
       provider: result.provider,
       providerLabel: result.providerLabel,
       model: result.model,
+      error: Boolean(result.error),
       contextUsed: result.contextUsed,
     })
   } catch (err) {

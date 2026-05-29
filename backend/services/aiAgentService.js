@@ -1,7 +1,7 @@
 const fs = require('fs')
 const path = require('path')
-const Task = require('../models/Task')
 const { runBuiltinAgent } = require('./builtinAgentService')
+const { gatherLoopcSnapshot } = require('./loopcContextService')
 
 const BUILTIN_PROVIDER = 'builtin'
 const OPENAI_PROVIDER = 'openai'
@@ -28,6 +28,43 @@ function resolveOpenAiModel(requested) {
   return OPENAI_MODEL_IDS.has(model) ? model : 'gpt-4o'
 }
 
+function parseOpenAiErrorBody(raw) {
+  const text = String(raw || '')
+  const jsonStart = text.indexOf('{')
+  if (jsonStart < 0) return null
+  try {
+    return JSON.parse(text.slice(jsonStart))
+  } catch {
+    return null
+  }
+}
+
+function formatOpenAiUserMessage(err) {
+  const raw = String(err?.message || err || '')
+  const parsed = parseOpenAiErrorBody(raw)
+  const code = String(parsed?.error?.code || parsed?.error?.type || '').toLowerCase()
+  const msg = String(parsed?.error?.message || raw)
+
+  if (code === 'insufficient_quota' || /quota|billing details/i.test(msg)) {
+    return [
+      'ChatGPT could not respond — your OpenAI API account has **no billing quota**.',
+      '',
+      '1. Open [platform.openai.com/account/billing](https://platform.openai.com/account/billing)',
+      '2. Add a payment method and a small usage limit (e.g. $5/month)',
+      '3. Try ChatGPT again here',
+      '',
+      'Until then, switch Engine to **LoopC (built-in)** — it is free and uses live dashboard data.',
+    ].join('\n')
+  }
+  if (code === 'invalid_api_key' || /401|invalid.*api.*key|authentication/i.test(raw)) {
+    return 'ChatGPT could not respond — the **OPENAI_API_KEY** on the server is invalid. Ask your admin to check the key on Railway.'
+  }
+  if (/429/.test(raw) && !/quota|billing/i.test(msg)) {
+    return 'ChatGPT is rate-limited right now. Wait a minute and try again, or use **LoopC (built-in)**.'
+  }
+  return `ChatGPT could not respond: ${msg.slice(0, 220)}\n\nTry **LoopC (built-in)** instead.`
+}
+
 function getAiAgentConfig() {
   const openaiReady = isOpenAiConfigured()
   return {
@@ -38,7 +75,7 @@ function getAiAgentConfig() {
       {
         id: BUILTIN_PROVIDER,
         label: 'LoopC',
-        description: 'Built-in — live data, FAQs, fix with prompt',
+        description: 'LoopC Pro — live data, company analysis, fix plans, full ERP/CRM help',
         available: true,
         default: true,
       },
@@ -95,16 +132,8 @@ async function gatherLiveMetalContext(req) {
 
 async function gatherTaskSummary(user) {
   try {
-    const filter = { isDeleted: { $ne: true } }
-    const [open, overdue] = await Promise.all([
-      Task.countDocuments({ ...filter, status: { $nin: ['done', 'cancelled'] } }),
-      Task.countDocuments({
-        ...filter,
-        status: { $nin: ['done', 'cancelled'] },
-        dueDate: { $lt: new Date() },
-      }),
-    ])
-    return { openTasks: open, overdueTasks: overdue, user: user?.name || 'User' }
+    const { gatherTaskSnapshot } = require('./loopcContextService')
+    return gatherTaskSnapshot()
   } catch {
     return { openTasks: null, overdueTasks: null }
   }
@@ -166,17 +195,24 @@ async function runAgentChat({
   const tenant = String(req.headers['x-tenant'] || req.headers['x-company'] || req.user?.tenant || 'loopc').toLowerCase()
   const selectedProvider = resolveProvider(provider)
 
-  const [metals, tasks] = await Promise.all([
-    gatherLiveMetalContext(req),
-    gatherTaskSummary(req.user),
-  ])
+  const build = readBuildMeta()
+  const metals = await gatherLiveMetalContext(req)
+  const snapshot = await gatherLoopcSnapshot({
+    user: req.user,
+    tenant,
+    metals,
+    build,
+    pageContext,
+    lastError,
+  })
 
   const context = {
     user: req.user,
     tenant,
     metals,
-    tasks,
-    build: readBuildMeta(),
+    tasks: snapshot.tasks,
+    snapshot,
+    build,
     lastError,
     pageContext,
   }
@@ -208,11 +244,26 @@ async function runAgentChat({
         }
       }
     } catch (err) {
-      console.warn('[ai-agent] OpenAI failed, using built-in agent:', err?.message || err)
+      console.warn('[ai-agent] OpenAI failed:', err?.message || err)
+      return {
+        reply: formatOpenAiUserMessage(err),
+        intent: 'openai_error',
+        mode: OPENAI_PROVIDER,
+        provider: OPENAI_PROVIDER,
+        providerLabel: 'ChatGPT',
+        model: resolveOpenAiModel(model),
+        error: true,
+        contextUsed: {
+          tenant,
+          provider: OPENAI_PROVIDER,
+          hasMetals: Boolean(metals && !metals.error),
+          hasError: Boolean(lastError),
+        },
+      }
     }
   }
 
-  const builtin = runBuiltinAgent({ message, context })
+  const builtin = runBuiltinAgent({ message, context, history })
   return {
     reply: builtin.reply,
     intent: builtin.intent,
@@ -225,6 +276,7 @@ async function runAgentChat({
       provider: BUILTIN_PROVIDER,
       hasMetals: Boolean(metals && !metals.error),
       hasError: Boolean(lastError),
+      hasSnapshot: Boolean(snapshot),
     },
   }
 }
@@ -240,6 +292,7 @@ module.exports = {
   getAiAgentConfig,
   resolveOpenAiModel,
   resolveProvider,
+  formatOpenAiUserMessage,
   detectIntent,
   PRODUCT_KNOWLEDGE,
   OPENAI_CHAT_MODELS,

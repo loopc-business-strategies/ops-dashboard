@@ -3,16 +3,35 @@ import aiApi from '../api/ai'
 import { getLastApiError, subscribeLastApiError } from '../utils/lastApiError'
 
 const QUICK_ACTIONS = [
-  { id: 'summary', label: "Show today's summary", prompt: "Show today's summary for my dashboard" },
-  { id: 'inventory', label: 'Check inventory status', prompt: 'How do I check inventory status and stock levels?' },
-  { id: 'sales', label: 'Sales performance', prompt: 'Where can I see sales performance and pipeline?' },
-  { id: 'alerts', label: 'View alerts', prompt: 'Show my open tasks and alerts' },
+  { id: 'analyze', label: 'Analyze my company', prompt: 'Analyze my company and give me a full report' },
+  { id: 'summary', label: "Today's summary", prompt: "Show today's summary for my dashboard" },
   { id: 'market', label: 'Live metal prices', prompt: 'What are the current gold, silver, and platinum prices?' },
+  { id: 'inventory', label: 'Inventory status', prompt: 'Check inventory status and low stock alerts' },
+  { id: 'sales', label: 'CRM pipeline', prompt: 'Show CRM pipeline and sales performance' },
+  { id: 'alerts', label: 'View alerts', prompt: 'Show my open tasks and alerts' },
   { id: 'fix', label: 'Fix last error', prompt: 'Diagnose and fix my last application error' },
+  { id: 'help', label: 'What can you do?', prompt: 'What can you do? List your capabilities' },
 ]
 
 const BUILTIN_PROVIDER = 'builtin'
 const OPENAI_PROVIDER = 'openai'
+const PROVIDER_STORAGE_KEY = 'loopc-ai-provider'
+
+function readStoredProvider() {
+  try {
+    return localStorage.getItem(PROVIDER_STORAGE_KEY) || BUILTIN_PROVIDER
+  } catch {
+    return BUILTIN_PROVIDER
+  }
+}
+
+function storeProvider(provider) {
+  try {
+    localStorage.setItem(PROVIDER_STORAGE_KEY, provider)
+  } catch {
+    /* ignore */
+  }
+}
 
 function AgentIcon({ size = 18 }) {
   return (
@@ -31,7 +50,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
   const [lastError, setLastErrorState] = useState(() => getLastApiError())
   const [messages, setMessages] = useState([])
   const [aiConfig, setAiConfig] = useState(null)
-  const [selectedProvider, setSelectedProvider] = useState(BUILTIN_PROVIDER)
+  const [selectedProvider, setSelectedProvider] = useState(() => readStoredProvider())
   const [selectedModel, setSelectedModel] = useState('gpt-4o')
   const scrollRef = useRef(null)
   const firstName = String(user?.name || 'User').split(' ')[0]
@@ -50,7 +69,12 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
       .then((cfg) => {
         if (cancelled) return
         setAiConfig(cfg)
-        setSelectedProvider(BUILTIN_PROVIDER)
+        const openaiReady = Boolean(cfg?.openai?.configured)
+        const stored = readStoredProvider()
+        const nextProvider = openaiReady && stored === OPENAI_PROVIDER
+          ? OPENAI_PROVIDER
+          : BUILTIN_PROVIDER
+        setSelectedProvider(nextProvider)
         if (cfg?.openai?.defaultModel) setSelectedModel(cfg.openai.defaultModel)
       })
       .catch(() => {
@@ -67,12 +91,12 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
 
   useEffect(() => {
     if (!open || messages.length > 0) return
-    setMessages([{
-      id: 'welcome',
-      role: 'assistant',
-      content: `Hello ${firstName}! 👋 I'm **LoopC**, built into this dashboard.\n\nAsk about **market prices**, **ERP help**, or describe a problem and I'll give a **fix plan**. ChatGPT can be enabled later by your admin.`,
-    }])
-  }, [open, firstName, messages.length])
+    const chatgptReady = Boolean(aiConfig?.openai?.configured)
+    const welcome = chatgptReady
+      ? `Hello ${firstName}! 👋 I'm **LoopC Pro**, your built-in AI with **live company data**.\n\nTry **Analyze my company**, **Live metal prices**, **Fix last error**, or ask anything about ERP, CRM, HR, MT4.\n\n**ChatGPT** is also available in Engine above for open-ended questions.`
+      : `Hello ${firstName}! 👋 I'm **LoopC Pro** — built-in AI with **live ERP, CRM, and market data**.\n\nTry **Analyze my company**, **Today's summary**, or ask how to use **vouchers / ledger / MT4**.\n\nNo API key needed — I query your dashboard directly.`
+    setMessages([{ id: 'welcome', role: 'assistant', content: welcome }])
+  }, [open, firstName, messages.length, aiConfig?.openai?.configured])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -110,9 +134,11 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
         lastError: getLastApiError(),
       })
 
-      const meta = res?.provider === OPENAI_PROVIDER
-        ? `ChatGPT · ${res?.model || selectedModel}`
-        : 'LoopC · built-in'
+      const meta = res?.error && res?.provider === OPENAI_PROVIDER
+        ? 'ChatGPT · unavailable'
+        : res?.provider === OPENAI_PROVIDER
+          ? `ChatGPT · ${res?.model || selectedModel}`
+          : 'LoopC · built-in Pro'
 
       setMessages((prev) => [...prev, {
         id: `a-${Date.now()}`,
@@ -205,7 +231,11 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
               <span style={{ opacity: 0.9, whiteSpace: 'nowrap' }}>Engine</span>
               <select
                 value={selectedProvider}
-                onChange={(e) => setSelectedProvider(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setSelectedProvider(next)
+                  storeProvider(next)
+                }}
                 disabled={sending}
                 style={selectStyle}
               >
@@ -350,7 +380,9 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
           </form>
 
           <p style={{ margin: 0, padding: '0 12px 10px', fontSize: 10, color: '#9ca3af', textAlign: 'center', background: '#fff' }}>
-            Built-in LoopC uses live app data. ChatGPT optional later.
+            {openAiAvailable
+              ? 'LoopC Pro uses live tenant data. ChatGPT optional for open-ended AI.'
+              : 'LoopC Pro — live ERP/CRM data, analysis, and fix plans. No API key needed.'}
           </p>
         </>
       )}

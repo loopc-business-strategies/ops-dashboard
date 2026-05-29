@@ -1,110 +1,15 @@
 /**
- * Built-in Ops Dashboard agent — no external LLM required.
- * Uses live app context, playbooks, and prompt keyword matching.
+ * LoopC built-in agent — max capability without external LLM.
+ * Live tenant data, project analysis, knowledge base, fix playbooks, conversation memory.
  */
 
-const SOFTWARE_FAQ = [
-  {
-    keys: ['voucher', 'post voucher', 'create voucher'],
-    answer: 'Open **ERP → Vouchers**. Choose type (payment, receipt, journal, metal stock, etc.), fill header + lines, attach docs if needed, then Save/Post. Metal lines can pull live spot from the top bar when MT4 or market feed is online.',
-  },
-  {
-    keys: ['ledger', 'trial balance', 'account enquiry'],
-    answer: 'Open **ERP → Ledger** for entries and balances. **Reports** tab has trial balance, P&L, and balance sheet. Account enquiry shows party balances and aging.',
-  },
-  {
-    keys: ['permission', '403', 'forbidden', 'cannot save', "can't save"],
-    answer: 'HTTP 403 usually means your role lacks write permission. Super Admin can set granular ERP permissions in **Admin → Users**. Check vouchers, ledger, inventory, and reports access separately.',
-  },
-  {
-    keys: ['mt4', 'bridge', 'waiting mt4', 'price not show', 'live price'],
-    answer: 'Live prices flow: **Equiti MT4 EA** → `api.loopcstrategies.com` bridge → dashboard top bar. In MT4: AutoTrading ON, BridgeToken set, WebRequest allows `https://api.loopcstrategies.com`, symbols like `XAUUSD.pr`, Tenant=mg (or cg/loopc). Check **Terminal → Experts** for successful posts.',
-  },
-  {
-    keys: ['tenant', 'mg', 'cg', 'loopc', 'wrong company'],
-    answer: 'Each company has its own URL: **mg**, **cg**, **loopc** under loopcstrategies.com. Data is isolated per tenant. MT4 EA **Tenant** input must match the site you are logged into.',
-  },
-  {
-    keys: ['inventory', 'stock', 'warehouse'],
-    answer: '**ERP → Inventory** shows stock types, movements, and valuations. Live gold/silver/platinum from the top bar can value metal stock when configured.',
-  },
-]
-
-const FIX_PLAYBOOKS = [
-  {
-    id: 'mt4-prices',
-    match: (text, err) => /mt4|bridge|price|gold|silver|platinum|waiting|ticker|top bar/i.test(text)
-      || (err && /metal|bridge|mt4/i.test(`${err.url} ${err.message}`)),
-    steps: [
-      'Confirm MT4 is logged in (not "Invalid account").',
-      'AutoTrading must be green ON.',
-      'EA **EquitiMetalPriceBridge** on chart with smiley face.',
-      'Inputs: BridgeUrl, BridgeToken, Tenant=your company, symbols XAUUSD.pr / XAGUSD.pr / XPTUSD.pr.',
-      'Experts tab must show: "posted Gold/Silver/Platinum ticks".',
-      'Hard refresh dashboard (Ctrl+F5). Top bar should show USD/OZ · MT4.',
-    ],
-  },
-  {
-    id: 'session',
-    match: (text, err) => /login|session|401|expired|sign in/i.test(text) || err?.status === 401,
-    steps: [
-      'Sign out completely, then sign in again.',
-      'Use the correct tenant URL (mg/cg/loopc).',
-      'Clear site cookies if login loops.',
-      'Contact admin if password was reset.',
-    ],
-  },
-  {
-    id: 'permission',
-    match: (text, err) => /403|forbidden|permission|access denied|not allowed/i.test(text) || err?.status === 403,
-    steps: [
-      'Your role may be read-only for this module.',
-      'Ask Super Admin to review **Admin → Users → permissions**.',
-      'ERP permissions are granular: vouchers, ledger, inventory, reports, vendors.',
-      'Retry after permissions update (refresh page).',
-    ],
-  },
-  {
-    id: 'csrf',
-    match: (text, err) => /csrf/i.test(text) || /csrf/i.test(err?.message || ''),
-    steps: [
-      'Hard refresh the page (Ctrl+F5) to renew CSRF token.',
-      'Sign out and sign in if refresh fails.',
-      'Ensure cookies are enabled for loopcstrategies.com.',
-    ],
-  },
-  {
-    id: 'server',
-    match: (text, err) => /500|502|503|504|server error|backend/i.test(text) || (err?.status >= 500),
-    steps: [
-      'Wait 30 seconds and retry — may be a brief deploy or restart.',
-      'Check https://api.loopcstrategies.com/api/health',
-      'Note exact time + action and contact support if it persists.',
-    ],
-  },
-  {
-    id: 'network',
-    match: (text, err) => /offline|network|connection|failed to fetch/i.test(text) || (!err?.status && err?.message),
-    steps: [
-      'Check internet connection.',
-      'Confirm API is up: /api/health',
-      'Disable VPN/ad-block for api.loopcstrategies.com if requests fail.',
-    ],
-  },
-]
-
-function matchFaq(message = '') {
-  const text = String(message || '').toLowerCase()
-  for (const item of SOFTWARE_FAQ) {
-    if (item.keys.some((k) => text.includes(k))) return item.answer
-  }
-  return null
-}
-
-function matchFixPlaybooks(message = '', lastError = null) {
-  const text = String(message || '')
-  return FIX_PLAYBOOKS.filter((pb) => pb.match(text, lastError))
-}
+const {
+  matchKnowledge,
+  matchFixPlaybooks,
+  detectBuiltinIntent,
+  resolveNavigation,
+  MODULE_GUIDES,
+} = require('./loopcKnowledgeBase')
 
 function formatPlaybookReply(playbooks, lastError, pageContext) {
   const lines = ['**Fix plan**']
@@ -125,33 +30,374 @@ function formatPlaybookReply(playbooks, lastError, pageContext) {
   return lines.join('\n')
 }
 
-function detectBuiltinIntent(message = '') {
-  const text = String(message || '').toLowerCase()
-  if (/fix|error|403|401|500|failed|broken|not work|bug|problem|issue|help me|diagnose/.test(text)) return 'fix'
-  if (/gold|silver|platinum|metal|market|price|mt4|xau|xag/.test(text)) return 'market'
-  if (/inventory|stock|warehouse/.test(text)) return 'inventory'
-  if (/sales|pipeline|deal|crm|revenue/.test(text)) return 'sales'
-  if (/alert|task|overdue|notification/.test(text)) return 'alerts'
-  if (/summary|today|overview|status|snapshot/.test(text)) return 'summary'
-  if (/how|what|where|help|software|erp|voucher|ledger|permission|news/.test(text)) return 'help'
-  return 'general'
+function fmtNum(n, digits = 0) {
+  if (n == null || Number.isNaN(n)) return '—'
+  return Number(n).toLocaleString(undefined, { maximumFractionDigits: digits })
 }
 
-function runBuiltinAgent({ message, context }) {
-  const intent = detectBuiltinIntent(message)
-  const userName = context.user?.name || 'there'
-  const tenant = context.tenant || 'your company'
-  const metals = context.metals || {}
-  const tasks = context.tasks || {}
-  const lastError = context.lastError
-  const pageContext = context.pageContext || {}
+function fmtMoney(n) {
+  if (n == null) return '—'
+  return `$${fmtNum(n, 0)}`
+}
+
+function feedLabel(metals) {
+  if (!metals || metals.error) return 'unavailable'
+  if (!metals.live) return 'offline'
+  const ft = String(metals.feedType || '')
+  if (ft.includes('mt4') || ft === 'mt4-bridge') return 'MT4 live'
+  return 'server market feed'
+}
+
+function buildMarketReply(ctx) {
+  const { user, tenant, metals } = ctx
+  if (metals?.error) {
+    return `Hi ${user.name}! Could not load live prices (${metals.error}). Say **fix MT4 prices** for step-by-step bridge setup.`
+  }
+  const lines = [
+    `**Live metal prices (${String(tenant).toUpperCase()})**`,
+    `- Gold: **${fmtNum(metals.gold, 2)}** ${metals.currency}/${metals.unit}`,
+    `- Silver: **${fmtNum(metals.silver, 2)}**`,
+    `- Platinum: **${fmtNum(metals.platinum, 2)}**`,
+    `- Feed: **${feedLabel(metals)}**`,
+  ]
+  if (metals.updatedAt) lines.push(`- Updated: ${new Date(metals.updatedAt).toLocaleString()}`)
+  if (metals.message) lines.push(`- ${metals.message}`)
+  if (ctx.savedRates && !metals.live) {
+    lines.push(`\n_Saved rates in DB: Gold ${fmtNum(ctx.savedRates.gold, 2)} (${ctx.savedRates.source})_`)
+  }
+  if (!metals.live) lines.push('\nAsk **fix MT4** if you need live bridge prices.')
+  return lines.join('\n')
+}
+
+function buildAlertsSection(snapshot) {
+  if (!snapshot.alerts?.length) return '✅ No critical alerts right now.'
+  return snapshot.alerts.map((a) => {
+    const icon = a.level === 'error' ? '🔴' : a.level === 'warning' ? '🟡' : '🔵'
+    return `${icon} ${a.text}`
+  }).join('\n')
+}
+
+function buildRecommendations(snapshot) {
+  const recs = []
+  const { tasks, erp, crm, metals, lastError } = snapshot
+
+  if (tasks.overdue > 0) recs.push(`Clear **${tasks.overdue} overdue task(s)** — Overview → Tasks`)
+  if (erp.lowStock > 0) recs.push(`Restock **${erp.lowStock} low inventory item(s)** — ERP → Inventory`)
+  if (crm.overdueFollowups > 0) recs.push(`Complete **${crm.overdueFollowups} CRM follow-up(s)** — CRM → Activities`)
+  if (erp.vouchers?.draft > 0) recs.push(`Post or discard **${erp.vouchers.draft} draft voucher(s)** — ERP → Vouchers`)
+  if (metals && !metals.error && !metals.live) recs.push('Restore **MT4 bridge** for live gold/silver/platinum on the top bar')
+  if (lastError?.status === 403) recs.push('Review **user permissions** — Admin → Users')
+  if (lastError?.status === 401) recs.push('**Re-login** — session may have expired')
+
+  if (recs.length === 0) {
+    recs.push('System looks healthy — run reports in ERP or check CRM pipeline for business insights.')
+  }
+  return recs.map((r, i) => `${i + 1}. ${r}`).join('\n')
+}
+
+function buildAnalyzeReply(ctx) {
+  const { user, tenant, snapshot } = ctx
+  const { erp, crm, hr, tasks, metals, build, pageContext } = snapshot
+  const tenantUp = String(tenant).toUpperCase()
+
+  return [
+    `# ${tenantUp} — Company Analysis`,
+    `_Generated by LoopC · ${new Date().toLocaleString()}_`,
+    '',
+    '## Executive summary',
+    `**${user.name}** (${user.role}${user.department ? ` · ${user.department}` : ''}) on **${tenantUp}**.`,
+    `API build \`${(build?.commit || 'unknown').slice(0, 7)}\` · Page: **${pageContext?.tab || 'dashboard'}**`,
+    '',
+    '## Live status',
+    buildMarketReply(ctx).split('\n').slice(1).join('\n'),
+    '',
+    '## Operations',
+    `| Metric | Count |`,
+    `|--------|------:|`,
+    `| Open tasks | **${fmtNum(tasks.open)}** |`,
+    `| Overdue tasks | **${fmtNum(tasks.overdue)}** |`,
+    `| Employees (HR) | **${fmtNum(hr.employees)}** |`,
+    '',
+    '## ERP & Accounting',
+    `| Metric | Count |`,
+    `|--------|------:|`,
+    `| Inventory items | **${fmtNum(erp.inventoryItems)}** |`,
+    `| Low stock alerts | **${fmtNum(erp.lowStock)}** |`,
+    `| Vendors | **${fmtNum(erp.vendors)}** |`,
+    `| Customers | **${fmtNum(erp.customers)}** |`,
+    `| Chart of accounts | **${fmtNum(erp.accounts)}** |`,
+    `| Ledger entries | **${fmtNum(erp.ledgerEntries)}** |`,
+    `| Draft vouchers | **${fmtNum(erp.vouchers?.draft)}** |`,
+    `| Pending approval | **${fmtNum(erp.vouchers?.pending)}** |`,
+    `| Posted vouchers | **${fmtNum(erp.vouchers?.posted)}** |`,
+    '',
+    '## Sales (CRM)',
+    `| Metric | Value |`,
+    `|--------|------:|`,
+    `| Contacts | **${fmtNum(crm.contacts)}** |`,
+    `| Active leads | **${fmtNum(crm.activeLeads)}** |`,
+    `| Hot leads | **${fmtNum(crm.hotLeads)}** |`,
+    `| Pipeline | **${fmtMoney(crm.pipelineValue)}** |`,
+    `| Win rate | **${crm.winRate ?? '—'}%** |`,
+    `| Overdue follow-ups | **${fmtNum(crm.overdueFollowups)}** |`,
+    '',
+    '## Alerts',
+    buildAlertsSection(snapshot),
+    '',
+    '## Recommended actions',
+    buildRecommendations(snapshot),
+    '',
+    '_Ask follow-ups: "low stock details", "recent vouchers", "fix MT4", or "how do vouchers work?"_',
+  ].join('\n')
+}
+
+function buildSummaryReply(ctx) {
+  const { user, tenant, snapshot } = ctx
+  const { tasks, erp, crm, metals, build } = snapshot
+  return [
+    `Hello ${user.name}! **${String(tenant).toUpperCase()} — today's snapshot**`,
+    '',
+    '**Tasks**',
+    `- Open: **${fmtNum(tasks.open)}** · Overdue: **${fmtNum(tasks.overdue)}**`,
+    '',
+    '**ERP**',
+    `- Inventory: **${fmtNum(erp.inventoryItems)}** items (${fmtNum(erp.lowStock)} low stock)`,
+    `- Vouchers: **${fmtNum(erp.vouchers?.draft)}** draft · **${fmtNum(erp.vouchers?.posted)}** posted`,
+    '',
+    '**CRM**',
+    `- Pipeline: **${fmtMoney(crm.pipelineValue)}** · Hot leads: **${fmtNum(crm.hotLeads)}**`,
+    '',
+    '**Market**',
+    `- Gold: **${fmtNum(metals?.gold, 2)}** · Feed: **${feedLabel(metals)}**`,
+    '',
+    `Build: \`${(build?.commit || '?').slice(0, 7)}\` · Agent: **LoopC Pro**`,
+    '',
+    'Say **analyze my company** for the full report.',
+  ].join('\n')
+}
+
+function buildInventoryReply(ctx) {
+  const { user, snapshot } = ctx
+  const { erp, metals } = snapshot
+  const lines = [
+    `**Inventory status (${String(ctx.tenant).toUpperCase()})**`,
+    `- Total items: **${fmtNum(erp.inventoryItems)}**`,
+    `- Below minimum stock: **${fmtNum(erp.lowStock)}**`,
+    `- Live metal feed: **${feedLabel(metals)}**`,
+  ]
+  if (erp.lowStock > 0) {
+    lines.push('\n⚠️ Restock low items in **ERP → Inventory** — filter by quantity vs min threshold.')
+  } else {
+    lines.push('\n✅ No low-stock alerts.')
+  }
+  lines.push('\n**How-to:** ERP → Inventory → add/edit items, set min threshold, link ledger accounts for valuation.')
+  return lines.join('\n')
+}
+
+function buildSalesReply(ctx) {
+  const { user, snapshot } = ctx
+  const { crm } = snapshot
+  return [
+    `**Sales & CRM (${String(ctx.tenant).toUpperCase()})**`,
+    `- Contacts: **${fmtNum(crm.contacts)}**`,
+    `- Active leads: **${fmtNum(crm.activeLeads)}** · Hot: **${fmtNum(crm.hotLeads)}**`,
+    `- Deals in pipeline: **${fmtNum(crm.totalDeals)}** · Value: **${fmtMoney(crm.pipelineValue)}**`,
+    `- Win rate: **${crm.winRate ?? '—'}%**`,
+    `- Overdue follow-ups: **${fmtNum(crm.overdueFollowups)}**`,
+    '',
+    'Open **CRM tab** for pipeline board, lead temperature, and activity calendar.',
+    crm.overdueFollowups > 0 ? '\n🟡 Prioritize overdue CRM follow-ups today.' : '',
+  ].filter(Boolean).join('\n')
+}
+
+function buildFinanceReply(ctx) {
+  const { snapshot } = ctx
+  const { erp } = snapshot
+  return [
+    `**Finance snapshot (${String(ctx.tenant).toUpperCase()})**`,
+    `- Chart of accounts: **${fmtNum(erp.accounts)}**`,
+    `- Ledger entries: **${fmtNum(erp.ledgerEntries)}**`,
+    `- Posted vouchers: **${fmtNum(erp.vouchers?.posted)}**`,
+    `- Draft vouchers: **${fmtNum(erp.vouchers?.draft)}**`,
+    `- Customers: **${fmtNum(erp.customers)}** · Vendors: **${fmtNum(erp.vendors)}**`,
+    '',
+    '**Reports:** ERP → Reports — trial balance, P&L, balance sheet, cash flow.',
+    '**Finance tab:** budgets, expenses, invoices (operational finance).',
+  ].join('\n')
+}
+
+function buildHrReply(ctx) {
+  const { snapshot } = ctx
+  const { hr, tasks } = snapshot
+  return [
+    `**HR snapshot (${String(ctx.tenant).toUpperCase()})**`,
+    `- Employees: **${fmtNum(hr.employees)}**`,
+    `- Open tasks (all depts): **${fmtNum(tasks.open)}**`,
+    '',
+    '**HR tab:** employee records, attendance, leave requests.',
+    'Department heads manage their team; Super Admin sees all.',
+  ].join('\n')
+}
+
+function buildAlertsReply(ctx) {
+  const { user, snapshot } = ctx
+  const { tasks } = snapshot
+  const lines = [
+    `**Alerts for ${user.name}**`,
+    '',
+    buildAlertsSection(snapshot),
+  ]
+  if (tasks.recent?.length) {
+    lines.push('\n**Recent tasks:**')
+    tasks.recent.forEach((t) => {
+      lines.push(`- ${t.title} (${t.status}${t.dueDate ? ` · due ${new Date(t.dueDate).toLocaleDateString()}` : ''})`)
+    })
+  }
+  if (snapshot.erp.recentVouchers?.length) {
+    lines.push('\n**Recent vouchers:**')
+    snapshot.erp.recentVouchers.forEach((v) => {
+      lines.push(`- ${v.type} · ${v.status} · ${fmtMoney(v.amount)}${v.description ? ` — ${v.description}` : ''}`)
+    })
+  }
+  return lines.join('\n')
+}
+
+function buildCapabilitiesReply(ctx) {
+  const { user, tenant } = ctx
+  return [
+    `Hi ${user.name}! I'm **LoopC Pro** — your built-in AI for **${String(tenant).toUpperCase()}**. No API billing required.`,
+    '',
+    '**What I can do (with live data):**',
+    '1. **Analyze my company** — full ERP + CRM + HR + market report',
+    '2. **Today\'s summary** — tasks, inventory, pipeline, metal prices',
+    '3. **Live metal prices** — gold, silver, platinum + MT4 feed status',
+    '4. **Fix problems** — step-by-step playbooks from your prompt or last API error',
+    '5. **Software help** — vouchers, ledger, inventory, CRM, HR, permissions, MT4',
+    '6. **Navigation** — "where is vouchers?" → exact tab path',
+    '',
+    '**Quick prompts:**',
+    '- "Analyze my project"',
+    '- "Show low stock"',
+    '- "CRM pipeline status"',
+    '- "Fix last error"',
+    '- "How do I post a metal voucher?"',
+    '',
+    '_Optional: switch Engine to ChatGPT for open-ended questions (requires OpenAI billing)._',
+  ].join('\n')
+}
+
+function buildNavigateReply(message) {
+  const tab = resolveNavigation(message)
+  if (tab) {
+    return `Open **${tab}** from the main navigation bar.\n\nIf you don't see it, your role may not have that module enabled — ask Super Admin.`
+  }
+  return [
+    '**Main modules:**',
+    '- **ERP** → Vouchers, Ledger, Inventory, Vendors, Reports',
+    '- **CRM** → Contacts, Leads, Deals, Activities',
+    '- **HR** → Employees, Attendance, Leave',
+    '- **Finance** → Budgets, Expenses, Invoices',
+    '- **Operations / Production / Compliance / Training**',
+    '',
+    'Try: "where is vouchers?" or "open CRM pipeline"',
+  ].join('\n')
+}
+
+function buildCompareReply(message) {
+  const lower = String(message).toLowerCase()
+  if (/mt4|market|live/.test(lower)) {
+    return [
+      '**MT4 live vs market fallback vs saved rates:**',
+      '',
+      '| Source | Speed | Accuracy | Requires |',
+      '|--------|-------|----------|----------|',
+      '| **MT4 bridge** | Real-time ticks | Broker spot (Equiti) | EA running + BridgeToken |',
+      '| **Market fallback** | ~minutes | Server/API feed | No MT4 — auto when bridge down |',
+      '| **Saved rates** | Manual | Last entered in ERP Settings | Admin update |',
+      '',
+      'Top bar shows MT4 when bridge is healthy; falls back automatically.',
+    ].join('\n')
+  }
+  if (/draft|posted|voucher/.test(lower)) {
+    return [
+      '**Draft vs Posted vouchers:**',
+      '- **Draft** — editable, no ledger impact',
+      '- **Submitted/Approved** — workflow states before posting',
+      '- **Posted** — creates ledger entries, locked for accounting',
+    ].join('\n')
+  }
+  return 'Ask me to compare specific things: "MT4 vs market prices", "draft vs posted vouchers", "MG vs CG tenants".'
+}
+
+function buildHelpReply(ctx, message) {
+  const hit = matchKnowledge(message)
+  if (hit?.body) return hit.body
+  if (hit?.id === 'navigation') return buildNavigateReply(message)
+
+  const { user, tenant } = ctx
+  return [
+    `Hi ${user.name}! I'm **LoopC Pro** for **${String(tenant).toUpperCase()}**.`,
+    '',
+    '**Topics I know well:**',
+    MODULE_GUIDES.filter((g) => g.body).slice(0, 8).map((g) => `- **${g.title}** — ask about ${g.keys.slice(0, 2).join(', ')}`).join('\n'),
+    '',
+    'Or try: **analyze my company**, **live metal prices**, **fix last error**.',
+  ].join('\n')
+}
+
+function buildGeneralReply(ctx, message) {
+  const hit = matchKnowledge(message)
+  if (hit?.body) return hit.body
+
+  const { user } = ctx
+  return [
+    `Hello ${user.name}!`,
+    '',
+    'Try one of these:',
+    '- **Analyze my company** — full live report',
+    '- **Show today\'s summary** — quick snapshot',
+    '- **Live metal prices** — gold, silver, platinum',
+    '- **Fix last error** — diagnose from last API failure',
+    '- **What can you do?** — full capability list',
+    '',
+    'Or ask how to use **vouchers**, **ledger**, **CRM**, **MT4**, **permissions**.',
+  ].join('\n')
+}
+
+function runBuiltinAgent({ message, context, history = [] }) {
+  const intent = detectBuiltinIntent(message, history)
+  const snapshot = context.snapshot || {
+    user: context.user || { name: 'there' },
+    tenant: context.tenant,
+    erp: context.erp || {},
+    crm: context.crm || {},
+    hr: context.hr || {},
+    tasks: context.tasks || {},
+    metals: context.metals || {},
+    alerts: context.alerts || [],
+    build: context.build || {},
+    pageContext: context.pageContext || {},
+    lastError: context.lastError,
+    savedRates: context.savedRates,
+  }
+
+  const ctx = {
+    user: snapshot.user || { name: context.user?.name || 'there' },
+    tenant: context.tenant || 'your company',
+    metals: context.metals || {},
+    snapshot,
+    build: context.build || {},
+    pageContext: context.pageContext || {},
+    lastError: context.lastError,
+    savedRates: context.savedRates,
+  }
 
   if (intent === 'fix') {
-    const playbooks = matchFixPlaybooks(message, lastError)
+    const playbooks = matchFixPlaybooks(message, context.lastError)
     if (playbooks.length > 0) {
-      return { reply: formatPlaybookReply(playbooks, lastError, pageContext), intent, mode: 'builtin' }
+      return { reply: formatPlaybookReply(playbooks, context.lastError, context.pageContext), intent, mode: 'builtin' }
     }
-    if (lastError?.status || lastError?.message) {
+    if (context.lastError?.status || context.lastError?.message) {
       return {
         reply: formatPlaybookReply([{
           id: 'generic',
@@ -159,109 +405,50 @@ function runBuiltinAgent({ message, context }) {
             'Hard refresh (Ctrl+F5) and retry.',
             'Sign out and back in if session-related.',
             'Copy the error message for your admin.',
+            'Say **fix MT4** or **fix permission 403** for specific playbooks.',
           ],
-        }], lastError, pageContext),
+        }], context.lastError, context.pageContext),
         intent,
         mode: 'builtin',
       }
     }
     return {
       reply: [
-        `Hi ${userName}! I can fix problems from your **prompt** or the **last API error**.`,
+        `Hi ${ctx.user.name}! I can fix problems from your **prompt** or the **last API error**.`,
+        '',
         'Try:',
         '1. Reproduce the problem once (so I capture the error).',
-        '2. Click **Fix last error** or type what failed (e.g. "voucher save 403" or "MT4 prices not showing").',
+        '2. Click **Fix last error** or describe the issue (e.g. "voucher save 403", "MT4 prices missing").',
         '',
-        'Describe: what you clicked, what you expected, and any error text.',
+        'I have playbooks for: MT4, permissions, session, CSRF, server errors, voucher save, deploy.',
       ].join('\n'),
       intent,
       mode: 'builtin',
     }
   }
 
-  if (intent === 'market') {
-    if (metals.error) {
-      return {
-        reply: `Hi ${userName}! Could not load live prices (${metals.error}). Say **fix MT4 prices** for step-by-step bridge setup.`,
-        intent,
-        mode: 'builtin',
-      }
-    }
-    const feed = metals.live
-      ? (String(metals.feedType).includes('mt4') || metals.feedType === 'mt4-bridge' ? 'MT4 live' : 'server market feed')
-      : 'offline'
-    return {
-      reply: [
-        `**Live metal prices (${String(tenant).toUpperCase()})**`,
-        `- Gold: **${metals.gold ? metals.gold.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}** ${metals.currency}/${metals.unit}`,
-        `- Silver: **${metals.silver ? metals.silver.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}**`,
-        `- Platinum: **${metals.platinum ? metals.platinum.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}**`,
-        `- Feed: **${feed}**`,
-        metals.message ? `- ${metals.message}` : '',
-        '\nAsk **fix MT4** if prices are missing.',
-      ].filter(Boolean).join('\n'),
-      intent,
-      mode: 'builtin',
-    }
-  }
+  if (intent === 'analyze') return { reply: buildAnalyzeReply(ctx), intent, mode: 'builtin' }
+  if (intent === 'market') return { reply: buildMarketReply(ctx), intent, mode: 'builtin' }
+  if (intent === 'summary') return { reply: buildSummaryReply(ctx), intent, mode: 'builtin' }
+  if (intent === 'inventory') return { reply: buildInventoryReply(ctx), intent, mode: 'builtin' }
+  if (intent === 'sales') return { reply: buildSalesReply(ctx), intent, mode: 'builtin' }
+  if (intent === 'finance') return { reply: buildFinanceReply(ctx), intent, mode: 'builtin' }
+  if (intent === 'hr') return { reply: buildHrReply(ctx), intent, mode: 'builtin' }
+  if (intent === 'alerts') return { reply: buildAlertsReply(ctx), intent, mode: 'builtin' }
+  if (intent === 'capabilities') return { reply: buildCapabilitiesReply(ctx), intent, mode: 'builtin' }
+  if (intent === 'navigate') return { reply: buildNavigateReply(message), intent, mode: 'builtin' }
+  if (intent === 'compare') return { reply: buildCompareReply(message), intent, mode: 'builtin' }
+  if (intent === 'help') return { reply: buildHelpReply(ctx, message), intent, mode: 'builtin' }
 
-  if (intent === 'alerts' || intent === 'summary') {
-    return {
-      reply: [
-        `Hello ${userName}! **${String(tenant).toUpperCase()} snapshot**`,
-        `- Open tasks: **${tasks.openTasks ?? '—'}**`,
-        `- Overdue tasks: **${tasks.overdueTasks ?? '—'}**`,
-        `- API build: **${(context.build?.commit || 'unknown').slice(0, 7)}**`,
-        `- Agent: **LoopC** (ChatGPT can be enabled later on Railway)`,
-        '\nAsk about **market prices**, **inventory**, or **fix …** for problems.',
-      ].join('\n'),
-      intent,
-      mode: 'builtin',
-    }
-  }
+  const knowledgeHit = matchKnowledge(message)
+  if (knowledgeHit?.body) return { reply: knowledgeHit.body, intent: 'help', mode: 'builtin' }
 
-  if (intent === 'inventory') {
-    return {
-      reply: `Hi ${userName}! **Inventory:** open ERP Inventory tab. For live metal valuation, ensure top bar prices are live (MT4 or market feed).`,
-      intent,
-      mode: 'builtin',
-    }
-  }
-
-  if (intent === 'sales') {
-    return {
-      reply: `Hi ${userName}! **Sales / CRM** tab has pipeline, deals, and contacts. Ask for **today summary** for task counts.`,
-      intent,
-      mode: 'builtin',
-    }
-  }
-
-  const faqHit = matchFaq(message)
-  if (faqHit || intent === 'help') {
-    return {
-      reply: faqHit || [
-        `Hi ${userName}! I am **LoopC**, your built-in assistant for ${String(tenant).toUpperCase()}.`,
-        '- **Market** — "gold price", "MT4 status"',
-        '- **Fix** — describe the problem or use "fix last error"',
-        '- **Software** — vouchers, ledger, permissions, tenants',
-        '\nChatGPT can be added later via OPENAI_API_KEY on Railway.',
-      ].join('\n'),
-      intent: faqHit ? 'help' : intent,
-      mode: 'builtin',
-    }
-  }
-
-  return {
-    reply: `Hello ${userName}! Try: **Show today summary**, **Live metal prices**, **Fix last error**, or ask how to use **vouchers / ledger / MT4**.`,
-    intent: 'general',
-    mode: 'builtin',
-  }
+  return { reply: buildGeneralReply(ctx, message), intent: 'general', mode: 'builtin' }
 }
 
 module.exports = {
   runBuiltinAgent,
   detectBuiltinIntent,
-  matchFaq,
   matchFixPlaybooks,
-  FIX_PLAYBOOKS,
+  matchKnowledge: matchKnowledge,
 }
