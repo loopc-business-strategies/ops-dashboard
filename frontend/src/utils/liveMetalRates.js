@@ -210,19 +210,28 @@ export function resolveLiveMetalKey(name = '') {
   return null
 }
 
+export function formatLiveMetalSourceLabel(source = '') {
+  const src = String(source || '').trim().toLowerCase()
+  if (!src || src === 'waiting-mt4') return ''
+  if (src === MT4_BRIDGE_SOURCE) return 'MT4'
+  if (src === 'metals.dev' || src === 'external-metals') return 'live'
+  if (src === 'mock-realtime') return 'demo'
+  if (['inventory', 'local-metal-rate', 'manual', 'default'].includes(src)) return 'saved'
+  return 'live'
+}
+
 export function metalStatusSubline(snapshot, price, error, metalKey = 'gold') {
   const errorLabel = metalErrorLabel(error)
   if (errorLabel) return errorLabel
 
   const cur = `${snapshot.currency}/${formatLiveMetalUnit(snapshot.unit || 'TOZ')}`
-  const src = String(snapshot.source || '').toLowerCase()
-  const isMt4 = src === MT4_BRIDGE_SOURCE
+  const feedLabel = formatLiveMetalSourceLabel(snapshot.source)
 
-  if (price > 0 && isMt4) {
-    return `${cur} · MT4`
+  if (price > 0 && feedLabel) {
+    return `${cur} · ${feedLabel}`
   }
   if (price > 0) {
     return cur
   }
-  return 'waiting MT4'
+  return 'loading…'
 }

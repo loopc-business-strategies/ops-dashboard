@@ -76,9 +76,14 @@ describe('liveMetalRates helpers', () => {
       null,
     )).toBe('USD/OZ · MT4')
     expect(metalStatusSubline(
-      { currency: 'USD', unit: 'TOZ', source: 'waiting-mt4' },
+      { currency: 'USD', unit: 'TOZ', source: 'metals.dev' },
+      4500,
+      null,
+    )).toBe('USD/OZ · live')
+    expect(metalStatusSubline(
+      { currency: 'USD', unit: 'TOZ', source: '' },
       0,
       null,
-    )).toBe('waiting MT4')
+    )).toBe('loading…')
   })
 })

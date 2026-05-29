@@ -10,7 +10,7 @@ import MGVoucherPrintLayout from './erp/MGVoucherPrintLayout'
 import VoucherAttachmentsPanel from './erp/VoucherAttachmentsPanel'
 import { resolveDocumentBranding } from './erp/documentBranding'
 import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
-import { buildMetalRatesFromApiPayload, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
+import { buildMetalRatesFromApiPayload, marketPricesToRates, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
 import { BASE, cfg, fmt, today, S, fieldRow, fieldGroup, labelStyle, inputStyle, readInput, sectionBox, sectionHeader, sectionBody, btn, tabBtn, classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid, classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap, classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName, classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue, classicRightGrid, classicLabel, classicInput, classicReadInput, classicTextAreaRow, metalWin, metalTopInlineRow, metalTopField, emptyLine, normalizeMongoIdField, emptyHeader, DOC_PREFIX_BY_TYPE, getDocYear, parseVoucherDocMeta, buildVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, toFinitePositive, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, getAccountNameValue, isBankLikeAccount, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalStockInVoucherType, isMetalStockOutVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity } from './voucher/voucherTabShared'
 import { buildVoucherTypeConfigs } from './voucher/voucherTypeConfigs'
 import { deriveErpAccessPolicy, canCreateTransactionFor } from './erp/accessPolicy'
@@ -101,16 +101,34 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       const lg = Number(liveRates?.goldPrice) || 0
       const ls = Number(liveRates?.silverPrice) || 0
       const lp = Number(liveRates?.platinumPrice) || 0
-      if (
-        liveRes.data?.success
-        && liveRes.data?.live
-        && String(liveRates?.source || '').toLowerCase() === 'mt4-bridge'
-        && lg > 0 && ls > 0 && lp > 0
-      ) {
+      if (liveRes.data?.success && liveRes.data?.live && liveRates && lg > 0 && ls > 0 && lp > 0) {
         setLatestMetalRates(buildMetalRatesFromApiPayload(liveRates))
+        return
+      }
+
+      try {
+        const marketRes = await axios.get(`${BASE}/reports/market-prices`, {
+          ...cfg(),
+          params: { currency: 'USD', unit: 'toz', fresh: 1 },
+        })
+        const marketRates = marketPricesToRates(marketRes.data)
+        const mg = Number(marketRates?.goldPrice) || 0
+        const ms = Number(marketRates?.silverPrice) || 0
+        const mp = Number(marketRates?.platinumPrice) || 0
+        if (marketRates && mg > 0 && ms > 0 && mp > 0) {
+          setLatestMetalRates(buildMetalRatesFromApiPayload(marketRates))
+          return
+        }
+      } catch {
+        // Some roles can read vouchers but not reports.
+      }
+
+      const savedRes = await axios.get(`${BASE}/metal-rates`, cfg())
+      if (savedRes.data?.success && savedRes.data?.rates) {
+        setLatestMetalRates(buildMetalRatesFromApiPayload(savedRes.data.rates))
       }
     } catch {
-      // MT4 offline — voucher metal lines stay empty until bridge reconnects
+      // Keep last known rates when refresh fails.
     }
   }, [])
 

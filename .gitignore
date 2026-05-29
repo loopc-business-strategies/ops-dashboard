@@ -32,4 +32,4 @@ eslint-report*.json
 # Generated endpoint mapping artifacts (local analysis output)
 PROJECT-ENDPOINT-ROWMAP.csv
 PROJECT-ENDPOINT-ROWMAP.md
-node_modules
+tools/mt4-price-bridge/mg-production.local.set

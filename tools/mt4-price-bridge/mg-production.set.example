@@ -1,0 +1,9 @@
+BridgeUrl=https://api.loopcstrategies.com/api/erp-accounting/metal-rates/bridge
+BridgeToken=PASTE_FROM_RAILWAY_METAL_RATES_BRIDGE_TOKEN
+Tenant=mg
+GoldSymbol=XAUUSD
+SilverSymbol=XAGUSD
+PlatinumSymbol=XPTUSD
+PostEverySeconds=1
+RequestTimeoutMs=5000
+PrintSuccessfulPosts=1
