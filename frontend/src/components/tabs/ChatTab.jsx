@@ -248,12 +248,15 @@ function ChatTab({ onUnreadChange, onBack }) {
   const [typingChatId,  setTypingChatId]  = useState(null)
   const [toast,         setToast]         = useState(null)
   const [groupForm,     setGroupForm]     = useState({ name:'', dept:'', members:[] })
+  const [participants,  setParticipants]  = useState([])
 
   const messagesEndRef   = useRef(null)
   const inputRef         = useRef(null)
   const activeChatIdRef  = useRef(activeChatId)
   const latestSeenRef    = useRef('')
+  const participantsRef  = useRef([])
   useEffect(() => { activeChatIdRef.current = activeChatId }, [activeChatId])
+  useEffect(() => { participantsRef.current = participants }, [participants])
 
   // unread badge for sidebar
   useEffect(() => {
@@ -289,46 +292,172 @@ function ChatTab({ onUnreadChange, onBack }) {
     return senderKeyFromName(senderName)
   }
 
+  const initialsFor = (name = '') => {
+    const initials = String(name || 'User')
+      .trim()
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase()
+    return initials || 'U'
+  }
+
+  const participantColor = (id = '') => {
+    const palette = ['#0ea5e9', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#2563eb', '#059669']
+    const sum = String(id || '').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
+    return palette[sum % palette.length]
+  }
+
+  const participantToUser = (row) => {
+    const name = row?.fullName || row?.name || row?.email || 'Team member'
+    return {
+      id: String(row?._id || row?.id || name),
+      name,
+      email: row?.email || '',
+      dept: row?.department || row?.role || '',
+      title: row?.title || row?.role || '',
+      employeeCode: row?.employeeCode || '',
+      color: participantColor(row?._id || name),
+      initials: initialsFor(name),
+    }
+  }
+
+  const displayUser = (idOrName) => {
+    const key = String(idOrName || '')
+    const found = participantsRef.current.find((p) => (
+      String(p._id) === key
+      || String(p.id) === key
+      || String(p.name || '').toLowerCase() === key.toLowerCase()
+      || String(p.fullName || '').toLowerCase() === key.toLowerCase()
+      || String(p.email || '').toLowerCase() === key.toLowerCase()
+    ))
+    return found ? participantToUser(found) : getUser(idOrName)
+  }
+
+  const mentionKeysFor = (person) => Array.from(new Set([
+    person?.name,
+    person?.fullName,
+    person?.employeeCode,
+    person?.email,
+    String(person?.name || '').split(/\s+/)[0],
+    String(person?.fullName || '').split(/\s+/)[0],
+  ]
+    .map((value) => String(value || '').trim().replace(/^@/, '').toLowerCase())
+    .filter(Boolean)))
+
+  const extractMentionParticipants = (text) => {
+    const handles = Array.from(new Set(
+      Array.from(String(text || '').matchAll(/@([A-Za-z0-9._-]+)/g))
+        .map((match) => String(match[1] || '').trim().toLowerCase())
+        .filter(Boolean)
+    ))
+    if (!handles.length) return []
+    return participantsRef.current.filter((person) => {
+      const keys = mentionKeysFor(person)
+      return handles.some((handle) => keys.includes(handle))
+    })
+  }
+
+  useEffect(() => {
+    if (!token) return
+    messagesAPI.getParticipants(token)
+      .then((data) => setParticipants(Array.isArray(data.users) ? data.users : []))
+      .catch(() => setParticipants([]))
+  }, [token])
+
+  useEffect(() => {
+    if (!participants.length) return
+    setChats((prev) => {
+      const existing = new Set(prev.map((chat) => chat.id))
+      const directShells = participants
+        .map(participantToUser)
+        .filter((person) => person.id && person.id !== myAuthId && person.id !== myId && !existing.has(`d:${person.id}`))
+        .map((person) => ({
+          id: `d:${person.id}`,
+          type: 'direct',
+          name: person.name,
+          otherId: person.id,
+          unread: 0,
+          muted: false,
+          messages: [],
+        }))
+      return directShells.length ? [...prev, ...directShells] : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [participants.length])
+
   async function loadLatestFromApi(showIncomingToast = false) {
     if (!token) return
     try {
-      const data = await messagesAPI.getLatestMessages(token, 'all', 40)
-      const rows = (data.messages || [])
-        .slice()
-        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
-        .map(m => ({
-          id: m._id,
-          from: senderToSeedId(m.senderName),
-          text: m.text,
-          time: m.createdAt,
-          file: null,
-        }))
-
-      if (!rows.length) return
-
-      const latestId = rows[rows.length - 1].id
+      const data = await messagesAPI.getLatestMessages(token, 'all', 100)
+      const messages = (data.messages || []).slice().sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      const latestId = messages[messages.length - 1]?._id || ''
       const hasNew = latestSeenRef.current && latestSeenRef.current !== latestId
-      latestSeenRef.current = latestId
+      if (latestId) latestSeenRef.current = latestId
 
       setChats((prev) => {
-        const shell = prev.length
-          ? prev
-          : [{
-              id: 'g1',
-              type: 'group',
-              name: 'Team',
-              dept: 'All',
-              members: [],
-              unread: 0,
-              muted: false,
-              messages: [],
-            }]
-        return shell.map((c) => (c.id === 'g1' ? { ...c, messages: rows } : c))
+        const byId = new Map()
+        const ensureChat = (chat) => {
+          if (!byId.has(chat.id)) byId.set(chat.id, { ...chat, messages: chat.messages || [] })
+          return byId.get(chat.id)
+        }
+
+        prev.forEach((chat) => {
+          if (chat.messages?.length) return
+          ensureChat(chat)
+        })
+
+        participantsRef.current.forEach((person) => {
+          const id = String(person._id || person.id || '')
+          if (!id || id === myAuthId) return
+          const p = participantToUser(person)
+          ensureChat({ id: `d:${id}`, type: 'direct', name: p.name, otherId: id, unread: 0, muted: false, messages: [] })
+        })
+
+        messages.forEach((m) => {
+          const senderId = String(m.senderId || senderToSeedId(m.senderName))
+          const recipientIds = Array.isArray(m.recipientIds) ? m.recipientIds.map(String) : []
+          const isDirect = m.type === 'dm'
+          const otherId = isDirect
+            ? (senderId === myAuthId ? (recipientIds.find((id) => id !== myAuthId) || String(m.recipientNames?.[0] || 'direct')) : senderId)
+            : ''
+          const chatId = isDirect ? `d:${otherId}` : `g:${m.room || m.department || 'Team'}`
+          const other = isDirect ? displayUser(otherId) : null
+          const chat = ensureChat({
+            id: chatId,
+            type: isDirect ? 'direct' : 'group',
+            name: isDirect ? (other?.name || String(m.recipientNames?.[0] || 'Direct Message')) : (m.room || 'Team'),
+            dept: m.department || 'All',
+            otherId,
+            members: Array.from(new Set([senderId, ...recipientIds].filter(Boolean))),
+            unread: 0,
+            muted: false,
+            messages: [],
+          })
+          if (!chat.members) chat.members = []
+          chat.members = Array.from(new Set([...chat.members, senderId, ...recipientIds].filter(Boolean)))
+          if (!chat.messages.some((row) => row.id === String(m._id))) {
+            chat.messages.push({
+              id: String(m._id),
+              from: senderId,
+              text: m.text,
+              time: m.createdAt,
+              file: null,
+            })
+          }
+        })
+
+        return Array.from(byId.values()).sort((a, b) => {
+          const at = new Date(a.messages[a.messages.length - 1]?.time || 0).getTime()
+          const bt = new Date(b.messages[b.messages.length - 1]?.time || 0).getTime()
+          return bt - at
+        })
       })
 
       if (showIncomingToast && hasNew) {
-        const m = rows[rows.length - 1]
-        const sender = getUser(m.from)
+        const m = messages[messages.length - 1]
+        const sender = displayUser(m.senderId || senderToSeedId(m.senderName))
         showToast(`New message from ${sender?.name || 'Team'}`, m.text || 'New message', sender?.color || C.accent)
       }
     } catch {
@@ -370,28 +499,48 @@ function ChatTab({ onUnreadChange, onBack }) {
     setTimeout(() => setToast(null), 3200)
   }
 
-  function sendMessage(chatId) {
+  async function sendMessage(chatId) {
     const text = msgText.trim()
     if (!text || !chatId) return
     const newMsg = { id:`m${Date.now()}`, from:myId, text, time:new Date().toISOString(), file:null }
     setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages:[...c.messages, newMsg] } : c))
     setMsgText('')
     const currentChat = chats.find(c => c.id === chatId)
-    messagesAPI.createMessage(token, {
-      type: currentChat?.type === 'direct' ? 'dm' : 'group',
-      room: currentChat?.name || 'All Departments',
-      text,
-      department: user?.department || '',
-      recipientNames: currentChat?.type === 'direct' ? [currentChat?.name].filter(Boolean) : [],
-    }).catch(() => {
+    const mentioned = extractMentionParticipants(text)
+    const mentionedIds = mentioned.map((person) => String(person._id || person.id)).filter(Boolean)
+    const chatRecipientIds = currentChat?.type === 'direct'
+      ? [currentChat?.otherId].filter(Boolean)
+      : (currentChat?.members || []).filter((id) => String(id) !== myAuthId)
+    const recipientIds = Array.from(new Set([...chatRecipientIds, ...mentionedIds].filter(Boolean)))
+    try {
+      const saved = await messagesAPI.createMessage(token, {
+        type: currentChat?.type === 'direct' ? 'dm' : 'group',
+        room: currentChat?.name || 'All Departments',
+        text,
+        department: currentChat?.dept || user?.department || '',
+        recipientIds,
+        recipientNames: currentChat?.type === 'direct' ? [currentChat?.name].filter(Boolean) : [],
+        mentionedUserIds: mentionedIds,
+        mentionedNames: mentioned.map((person) => person.name || person.fullName).filter(Boolean),
+      })
+      if (saved?.message?._id) {
+        setChats(prev => prev.map(c => c.id === chatId ? {
+          ...c,
+          messages: c.messages.map(m => m.id === newMsg.id ? { ...m, id: String(saved.message._id), time: saved.message.createdAt || m.time } : m),
+        } : c))
+      }
+      if (mentionedIds.length) {
+        showToast('Mention sent', `Delivered to ${mentioned.length} mentioned user${mentioned.length === 1 ? '' : 's'}.`)
+      }
+    } catch {
       setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: c.messages.filter(m => m.id !== newMsg.id) } : c))
       showToast('Send failed', 'Message could not be delivered. Please try again.', '#DC2626')
-    })
+    }
     if (!USE_SEED_DATA) return
     const chat = chats.find(c => c.id === chatId)
     if (chat?.type !== 'direct') return
     const otherId = chat.otherId
-    const other   = getUser(otherId)
+    const other   = displayUser(otherId)
     setTypingChatId(chatId)
     const delay = 1200 + Math.random() * 900
     setTimeout(() => {
@@ -522,7 +671,7 @@ function ChatTab({ onUnreadChange, onBack }) {
               <div style={{ padding:'10px 16px 5px', fontSize:10, fontWeight:700, color:'#334155', letterSpacing:'0.1em', textTransform:'uppercase' }}>{t('groups')}</div>
               {groupChats.map(chat => {
                 const last   = chat.messages[chat.messages.length - 1]
-                const sender = last ? getUser(last.from) : null
+                const sender = last ? displayUser(last.from) : null
                 const active = activeChatId === chat.id
                 return (
                   <div
@@ -563,7 +712,7 @@ function ChatTab({ onUnreadChange, onBack }) {
             <>
               <div style={{ padding:'10px 16px 5px', fontSize:10, fontWeight:700, color:'#334155', letterSpacing:'0.1em', textTransform:'uppercase', marginTop:6 }}>{t('directMessages')}</div>
               {directChats.map(chat => {
-                const other  = getUser(chat.otherId)
+                const other  = displayUser(chat.otherId)
                 const last   = chat.messages[chat.messages.length - 1]
                 const active = activeChatId === chat.id
                 return (
@@ -625,8 +774,8 @@ function ChatTab({ onUnreadChange, onBack }) {
                 <div style={{ width:40, height:40, borderRadius:'50%', background:'rgba(0,104,74,0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>👥</div>
               ) : (
                 <div style={{ position:'relative', flexShrink:0 }}>
-                  <div style={{ width:40, height:40, borderRadius:'50%', background:(getUser(activeChat.otherId)?.color || '#334155') + '20', color: getUser(activeChat.otherId)?.color || '#475569', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700 }}>
-                    {getUser(activeChat.otherId)?.initials || '?'}
+                  <div style={{ width:40, height:40, borderRadius:'50%', background:(displayUser(activeChat.otherId)?.color || '#334155') + '20', color: displayUser(activeChat.otherId)?.color || '#475569', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700 }}>
+                    {displayUser(activeChat.otherId)?.initials || '?'}
                   </div>
                   <div style={{ position:'absolute', bottom:0, right:0, width:11, height:11, borderRadius:'50%', background:'#22c55e', border:`2.5px solid #ffffff` }} />
                 </div>
@@ -669,7 +818,7 @@ function ChatTab({ onUnreadChange, onBack }) {
 
               {activeChat.messages.map((msg, idx) => {
                 const isMe    = msg.from === myId
-                const sender  = getUser(msg.from)
+                const sender  = displayUser(msg.from)
                 const prevMsg = activeChat.messages[idx - 1]
                 const sameUser = prevMsg && prevMsg.from === msg.from
                 const showAvatar = !isMe && !sameUser
@@ -718,12 +867,12 @@ function ChatTab({ onUnreadChange, onBack }) {
               {/* Typing indicator */}
               {typingChatId === activeChatId && (
                 <div style={{ display:'flex', alignItems:'flex-end', gap:9, marginTop:12 }}>
-                  <div style={{ width:30, height:30, borderRadius:'50%', background:(getUser(activeChat.otherId)?.color || '#334155') + '20', color: getUser(activeChat.otherId)?.color || '#475569', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, flexShrink:0 }}>
-                    {getUser(activeChat.otherId)?.initials || '?'}
+                  <div style={{ width:30, height:30, borderRadius:'50%', background:(displayUser(activeChat.otherId)?.color || '#334155') + '20', color: displayUser(activeChat.otherId)?.color || '#475569', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, flexShrink:0 }}>
+                    {displayUser(activeChat.otherId)?.initials || '?'}
                   </div>
                   <div style={{ display:'flex', alignItems:'center', gap:8, padding:'12px 16px', borderRadius:16, borderBottomLeftRadius:4, background:C.bubbleIn, fontSize:11, color:'#334155' }}>
                     <TypingDots />
-                    <span>{getUser(activeChat.otherId)?.name} is typing…</span>
+                    <span>{displayUser(activeChat.otherId)?.name} is typing…</span>
                   </div>
                 </div>
               )}
@@ -832,7 +981,7 @@ function ChatTab({ onUnreadChange, onBack }) {
 
             <div style={{ fontSize:11, color:'#334155', fontWeight:600, marginBottom:8, letterSpacing:'0.05em', textTransform:'uppercase' }}>{t('addMembers')}</div>
             <div style={{ maxHeight:160, overflowY:'auto', marginBottom:18, scrollbarWidth:'thin', scrollbarColor:'rgba(0,104,74,0.3) transparent' }}>
-              {SEED_USERS.filter(u => u.id !== myId).map(u => (
+              {(participants.length ? participants.map(participantToUser) : SEED_USERS).filter(u => u.id !== myId && u.id !== myAuthId).map(u => (
                 <label key={u.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:8, cursor:'pointer', transition:'background .15s' }}
                   onMouseEnter={e => e.currentTarget.style.background='rgba(0,104,74,0.06)'}
                   onMouseLeave={e => e.currentTarget.style.background='transparent'}
