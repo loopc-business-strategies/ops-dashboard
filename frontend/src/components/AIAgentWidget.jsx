@@ -61,6 +61,64 @@ function AgentIcon({ size = 18 }) {
   )
 }
 
+function UploadIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3v10m0 0l3.5-3.5M12 13l-3.5-3.5M5 15v2a2 2 0 002 2h10a2 2 0 002-2v-2"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function MicIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M6 11a6 6 0 0012 0M12 17v3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function StopIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" />
+    </svg>
+  )
+}
+
+function SendIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M5 12l12-5-5 12-2-5-5-2z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function AttachmentIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M8 12.5V7.8a3.3 3.3 0 016.6 0v6.4a2.2 2.2 0 01-4.4 0V8.6"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
   const [open, setOpen] = useState(false)
   const [minimized, setMinimized] = useState(false)
@@ -414,7 +472,9 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
                           {a.previewUrl ? (
                             <img src={a.previewUrl} alt={a.name} style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 6 }} />
                           ) : (
-                            <span aria-hidden>📎</span>
+                            <span style={{ display: 'inline-flex', opacity: 0.85 }} aria-hidden>
+                              <AttachmentIcon size={14} />
+                            </span>
                           )}
                           <span>{a.kind}: {a.name} ({formatFileSize(a.size)})</span>
                         </div>
@@ -515,7 +575,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
                 style={attachBtnStyle}
                 title="Upload document, image, audio, or video"
               >
-                📎
+                <UploadIcon size={18} />
               </button>
               <button
                 type="button"
@@ -530,7 +590,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
                 }}
                 title="Voice to text"
               >
-                {listening ? '⏹' : '🎤'}
+                {listening ? <StopIcon size={14} /> : <MicIcon size={18} />}
               </button>
               <input
                 value={input}
@@ -566,7 +626,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
                   flexShrink: 0,
                 }}
               >
-                ➤
+                <SendIcon size={16} />
               </button>
             </div>
           </form>
@@ -612,11 +672,11 @@ const attachBtnStyle = {
   borderRadius: '50%',
   border: '1px solid #e5e7eb',
   background: '#fff',
-  color: '#374151',
+  color: '#4b5563',
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: 16,
   flexShrink: 0,
+  padding: 0,
 }
