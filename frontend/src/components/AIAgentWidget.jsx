@@ -39,7 +39,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
   const openAiAvailable = Boolean(aiConfig?.openai?.configured)
   const providerLabel = selectedProvider === OPENAI_PROVIDER && openAiAvailable
     ? 'ChatGPT'
-    : 'Ops Agent'
+    : 'LoopC'
 
   useEffect(() => subscribeLastApiError(setLastErrorState), [])
 
@@ -56,8 +56,8 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
       .catch(() => {
         if (!cancelled) {
           setAiConfig({
-            providerLabel: 'Ops Agent',
-            providers: [{ id: BUILTIN_PROVIDER, label: 'Ops Agent', available: true }],
+            providerLabel: 'LoopC',
+            providers: [{ id: BUILTIN_PROVIDER, label: 'LoopC', available: true }],
             openai: { configured: false, models: [] },
           })
         }
@@ -70,7 +70,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
     setMessages([{
       id: 'welcome',
       role: 'assistant',
-      content: `Hello ${firstName}! 👋 I'm your **Ops Agent** — built into this dashboard.\n\nAsk about **market prices**, **ERP help**, or describe a problem and I'll give a **fix plan**. ChatGPT can be enabled later by your admin.`,
+      content: `Hello ${firstName}! 👋 I'm **LoopC**, built into this dashboard.\n\nAsk about **market prices**, **ERP help**, or describe a problem and I'll give a **fix plan**. ChatGPT can be enabled later by your admin.`,
     }])
   }, [open, firstName, messages.length])
 
@@ -112,7 +112,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
 
       const meta = res?.provider === OPENAI_PROVIDER
         ? `ChatGPT · ${res?.model || selectedModel}`
-        : 'Ops Agent · built-in'
+        : 'LoopC · built-in'
 
       setMessages((prev) => [...prev, {
         id: `a-${Date.now()}`,
@@ -162,7 +162,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
     return (
       <button
         type="button"
-        aria-label="Open AI Agent"
+        aria-label="Open LoopC"
         onClick={() => { setOpen(true); setMinimized(false) }}
         style={{
           position: 'fixed',
@@ -188,7 +188,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
   }
 
   return (
-    <div style={panelStyle} role="dialog" aria-label="AI Agent">
+    <div style={panelStyle} role="dialog" aria-label="LoopC">
       <div style={headerStyle}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
@@ -196,7 +196,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
               <AgentIcon size={16} />
             </span>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.2 }}>AI Agent</div>
+              <div style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.2 }}>LoopC</div>
               <div style={{ fontSize: 10, opacity: 0.92, marginTop: 2 }}>{providerLabel}</div>
             </div>
           </div>
@@ -209,7 +209,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
                 disabled={sending}
                 style={selectStyle}
               >
-                <option value={BUILTIN_PROVIDER}>Ops Agent (built-in)</option>
+                <option value={BUILTIN_PROVIDER}>LoopC (built-in)</option>
                 <option value={OPENAI_PROVIDER} disabled={!openAiAvailable}>
                   ChatGPT{openAiAvailable ? '' : ' — add API key later'}
                 </option>
@@ -350,7 +350,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
           </form>
 
           <p style={{ margin: 0, padding: '0 12px 10px', fontSize: 10, color: '#9ca3af', textAlign: 'center', background: '#fff' }}>
-            Built-in agent uses live app data. ChatGPT optional later.
+            Built-in LoopC uses live app data. ChatGPT optional later.
           </p>
         </>
       )}

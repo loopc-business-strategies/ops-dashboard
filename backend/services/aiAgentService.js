@@ -32,12 +32,12 @@ function getAiAgentConfig() {
   const openaiReady = isOpenAiConfigured()
   return {
     provider: BUILTIN_PROVIDER,
-    providerLabel: 'Ops Agent',
+    providerLabel: 'LoopC',
     configured: true,
     providers: [
       {
         id: BUILTIN_PROVIDER,
-        label: 'Ops Agent',
+        label: 'LoopC',
         description: 'Built-in — live data, FAQs, fix with prompt',
         available: true,
         default: true,
@@ -183,7 +183,7 @@ async function runAgentChat({
 
   if (selectedProvider === OPENAI_PROVIDER) {
     const systemPrompt = [
-      'You are the Ops Dashboard AI Agent.',
+      'You are the LoopC AI agent embedded in the Ops Dashboard.',
       'Be concise and actionable. Use CONTEXT JSON for live numbers.',
       PRODUCT_KNOWLEDGE,
       `CONTEXT:\n${JSON.stringify(context, null, 2)}`,
@@ -218,7 +218,7 @@ async function runAgentChat({
     intent: builtin.intent,
     mode: BUILTIN_PROVIDER,
     provider: BUILTIN_PROVIDER,
-    providerLabel: 'Ops Agent',
+    providerLabel: 'LoopC',
     model: null,
     contextUsed: {
       tenant,

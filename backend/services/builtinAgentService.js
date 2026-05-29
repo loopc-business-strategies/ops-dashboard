@@ -212,7 +212,7 @@ function runBuiltinAgent({ message, context }) {
         `- Open tasks: **${tasks.openTasks ?? '—'}**`,
         `- Overdue tasks: **${tasks.overdueTasks ?? '—'}**`,
         `- API build: **${(context.build?.commit || 'unknown').slice(0, 7)}**`,
-        `- Agent: **Ops built-in** (ChatGPT can be enabled later on Railway)`,
+        `- Agent: **LoopC** (ChatGPT can be enabled later on Railway)`,
         '\nAsk about **market prices**, **inventory**, or **fix …** for problems.',
       ].join('\n'),
       intent,
@@ -240,7 +240,7 @@ function runBuiltinAgent({ message, context }) {
   if (faqHit || intent === 'help') {
     return {
       reply: faqHit || [
-        `Hi ${userName}! I am the **Ops built-in agent** for ${String(tenant).toUpperCase()}.`,
+        `Hi ${userName}! I am **LoopC**, your built-in assistant for ${String(tenant).toUpperCase()}.`,
         '- **Market** — "gold price", "MT4 status"',
         '- **Fix** — describe the problem or use "fix last error"',
         '- **Software** — vouchers, ledger, permissions, tenants',
