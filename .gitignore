@@ -16,6 +16,7 @@ backend/.env
 # Runtime/generated artifacts
 backend/logs/
 backend/uploads/transactions/
+backend/uploads/loopc/
 backend/reports/
 backend/build-meta.json
 *.log
