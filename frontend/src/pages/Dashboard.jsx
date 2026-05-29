@@ -10,6 +10,7 @@ import { getTenantBranding } from '../config/tenantBranding'
 import { resolveAllowedErpSubTab } from '../utils/erpSubTabPermissions'
 import BuildInfoBadge from '../components/BuildInfoBadge'
 import TopbarMetalTickers from '../components/TopbarMetalTickers'
+import AIAgentWidget from '../components/AIAgentWidget'
 import { startUserNotifications } from '../utils/realtimeSocket'
 
 // Import tab content components
@@ -831,6 +832,12 @@ function Dashboard() {
             </div>
           )}
         </main>
+
+        <AIAgentWidget
+          user={user}
+          activeTab={activeTab}
+          tenantLabel={branding.displayName || company}
+        />
 
       </div>
     </div>
