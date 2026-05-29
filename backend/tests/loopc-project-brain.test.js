@@ -37,8 +37,8 @@ describe('loopcProjectBrain', () => {
 
   test('buildProjectStructureReply includes stats', () => {
     const reply = buildProjectStructureReply()
-    expect(reply).toMatch(/Project Code Map/i)
-    expect(reply).toMatch(/Route files/)
+    expect(reply).toMatch(/Project code map/i)
+    expect(reply).toMatch(/Routes \|/)
   })
 
   test('buildCodeSearchReply finds mt4-related code', () => {

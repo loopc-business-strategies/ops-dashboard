@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import aiApi from '../api/ai'
 import { getLastApiError, subscribeLastApiError } from '../utils/lastApiError'
+import LoopCMessageContent from './LoopCMessageContent'
 
 const QUICK_ACTIONS = [
   { id: 'analyze', label: 'Analyze my company', prompt: 'Analyze my company and give me a full report' },
@@ -432,7 +433,7 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
 
       {!minimized && (
         <>
-          <div ref={scrollRef} style={{ flex: 1, maxHeight: 360, overflowY: 'auto', padding: '14px 14px 8px', background: '#fafafa' }}>
+          <div ref={scrollRef} style={{ flex: 1, maxHeight: 420, overflowY: 'auto', padding: '14px 14px 8px', background: '#fafafa' }}>
             {messages.map((m) => (
               <div
                 key={m.id}
@@ -451,12 +452,9 @@ export default function AIAgentWidget({ user, activeTab, tenantLabel }) {
                   border: m.role === 'user' ? 'none' : '1px solid #e5e7eb',
                   fontSize: 13,
                   lineHeight: 1.45,
-                  whiteSpace: 'pre-wrap',
                 }}
                 >
-                  {m.content.split(/\*\*(.*?)\*\*/g).map((part, i) => (
-                    i % 2 === 1 ? <strong key={i}>{part}</strong> : part
-                  ))}
+                  <LoopCMessageContent content={m.content} variant={m.role === 'user' ? 'user' : 'assistant'} />
                   {m.attachments?.length ? (
                     <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {m.attachments.map((a, idx) => (

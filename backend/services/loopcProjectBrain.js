@@ -333,53 +333,40 @@ function formatProjectFixReply({ message, lastError, pageContext, userName }) {
 function buildProjectStructureReply() {
   const index = loadProjectIndex()
   const arch = index.architecture || {}
-  const lines = [
-    '# Ops Dashboard — Project Code Map',
-    `_Indexed ${index.generatedAt ? new Date(index.generatedAt).toLocaleString() : 'recently'} · LoopC Project Brain_`,
+  const indexed = index.generatedAt ? new Date(index.generatedAt).toLocaleString() : 'recently'
+
+  return [
+    '# Project code map',
+    `Full **ops-dashboard** structure — indexed ${indexed}.`,
     '',
-    '## Stack',
-    `- **${arch.stack || 'Express + MongoDB + React'}**`,
+    '## Platform',
+    `- **Stack:** ${arch.stack || 'Express + MongoDB + React'}`,
     `- **Tenants:** ${(arch.tenants || ['mg', 'cg', 'loopc']).join(', ')}`,
     `- **API:** ${arch.apiBase || 'api.loopcstrategies.com'}`,
     '',
-    '## Codebase size',
-    `| Layer | Count |`,
-    `|-------|------:|`,
-    `| Route files | **${index.stats?.routeFiles ?? '—'}** |`,
-    `| Services | **${index.stats?.serviceFiles ?? '—'}** |`,
-    `| Models | **${index.stats?.modelFiles ?? '—'}** |`,
-    `| Frontend tabs | **${index.stats?.tabFiles ?? '—'}** |`,
-    `| Frontend API modules | **${index.stats?.apiFiles ?? '—'}** |`,
+    '## Codebase',
+    '| Layer | Files |',
+    '|-------|------:|',
+    `| Routes | ${index.stats?.routeFiles ?? '—'} |`,
+    `| Services | ${index.stats?.serviceFiles ?? '—'} |`,
+    `| Models | ${index.stats?.modelFiles ?? '—'} |`,
+    `| UI tabs | ${index.stats?.tabFiles ?? '—'} |`,
     '',
-    '## Key entry points',
-  ]
-
-  for (const [label, file] of Object.entries(arch.keyPaths || {})) {
-    lines.push(`- **${label}:** \`${file}\``)
-  }
-
-  lines.push(
+    '## Main entry points',
+    `- **App server:** \`${arch.keyPaths?.app || 'backend/app.js'}\``,
+    `- **Auth:** \`${arch.keyPaths?.auth || 'backend/middleware/auth.js'}\``,
+    `- **ERP access:** \`${arch.keyPaths?.erpAccess || 'backend/services/erpAccounting/accessPolicy.js'}\``,
+    `- **LoopC AI:** \`${arch.keyPaths?.loopcAi || 'backend/services/builtinAgentService.js'}\``,
+    `- **Dashboard UI:** \`${arch.keyPaths?.dashboard || 'frontend/src/pages/Dashboard.jsx'}\``,
+    `- **MT4 bridge:** \`${arch.keyPaths?.mt4Bridge || 'tools/mt4-price-bridge/EquitiMetalPriceBridge.mq4'}\``,
     '',
-    '## Major API areas',
-    '| Prefix | Route file |',
-    '|--------|------------|',
-  )
-  for (const entry of ROUTE_PREFIX_MAP.slice(0, 10)) {
-    lines.push(`| \`${entry.prefix}\` | \`${entry.file}\` |`)
-  }
-
-  lines.push(
+    '## Core API areas',
+    '| API | Code file |',
+    '|-----|-----------|',
+    ...ROUTE_PREFIX_MAP.slice(0, 8).map((e) => `| \`${e.prefix}\` | \`${e.file}\` |`),
     '',
-    '## How LoopC auto-fix works',
-    '1. You describe the problem or reproduce an error',
-    '2. LoopC matches **symptoms → code files → env vars → fix steps**',
-    '3. **User fixes** (permissions, MT4, refresh) apply immediately',
-    '4. **Dev fixes** point to exact files for your developer to patch',
-    '',
-    'Try: **fix voucher 403**, **fix MT4 prices**, **search code metal-rates**, **analyze my company**',
-  )
-
-  return lines.join('\n')
+    '**Ask next:** "search code voucher", "fix MT4 prices", or **Analyze my company** for live business data.',
+  ].join('\n')
 }
 
 function buildCodeSearchReply(query) {

@@ -69,8 +69,8 @@ describe('builtinAgentService', () => {
       context: { tenant: 'mg', metals: mockSnapshot.metals, snapshot: mockSnapshot },
     })
     expect(result.intent).toBe('analyze')
-    expect(result.reply).toMatch(/Company Analysis/i)
-    expect(result.reply).toMatch(/Inventory items.*42/i)
+    expect(result.reply).toMatch(/Company Analysis|company report/i)
+    expect(result.reply).toMatch(/Inventory \| 42/i)
     expect(result.reply).toMatch(/Pipeline.*120/i)
   })
 
