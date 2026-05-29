@@ -3,6 +3,9 @@ import {
   convertLivePriceUnit,
   fmtMoveRow,
   fmtSpot,
+  isMt4BridgeRates,
+  metalStatusSubline,
+  MT4_BRIDGE_SOURCE,
   resolveEffectiveSpotPrices,
   resolveInventoryValuationUnitCost,
   resolveLiveMetalKey,
@@ -62,5 +65,20 @@ describe('liveMetalRates helpers', () => {
     }
     expect(resolveLiveVoucherMetalRate('XAU', 'Gold', liveRates, 'OZ')).toBe(4500)
     expect(resolveLiveVoucherMetalRate('XAU', 'Gold', liveRates, 'GRAM')).toBeCloseTo(4500 / 31.1034768, 4)
+  })
+
+  test('detects MT4 bridge source and status subline', () => {
+    expect(isMt4BridgeRates({ source: MT4_BRIDGE_SOURCE })).toBe(true)
+    expect(isMt4BridgeRates({ source: 'metals.dev' })).toBe(false)
+    expect(metalStatusSubline(
+      { currency: 'USD', unit: 'TOZ', source: MT4_BRIDGE_SOURCE },
+      4500,
+      null,
+    )).toBe('USD/OZ · MT4')
+    expect(metalStatusSubline(
+      { currency: 'USD', unit: 'TOZ', source: 'waiting-mt4' },
+      0,
+      null,
+    )).toBe('waiting MT4')
   })
 })

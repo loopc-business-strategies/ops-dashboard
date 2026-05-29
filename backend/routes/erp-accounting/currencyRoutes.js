@@ -222,20 +222,25 @@ function registerCurrencyRoutes(deps) {
 
   router.get('/metal-rates/live', protect, async (req, res) => {
     try {
-      // Do not use getLatestMetalRate() alone: a newer *manual* row shadows the MT4 bridge row
-      // (both exist with different `source`). Live tickers need the latest external feed document.
-      const NON_FEED_SOURCES = ['manual', 'default', 'inventory']
+      const staleMs = Math.max(5000, Number(process.env.MT4_LIVE_STALE_MS || 30000))
       const latestFeed = await MetalRate.findOne({
-        source: { $nin: NON_FEED_SOURCES },
+        source: 'mt4-bridge',
         goldPrice: { $gt: 0 },
         silverPrice: { $gt: 0 },
+        platinumPrice: { $gt: 0 },
       }).sort({ updatedAt: -1 })
 
-      if (!latestFeed) {
+      const updatedAt = latestFeed?.updatedAt ? new Date(latestFeed.updatedAt) : null
+      const ageMs = updatedAt ? Date.now() - updatedAt.getTime() : Number.POSITIVE_INFINITY
+      const isFresh = Boolean(latestFeed && ageMs <= staleMs)
+
+      if (!isFresh) {
         return res.json({
           success: true,
           live: false,
-          message: 'Waiting for MT4 live feed.',
+          message: latestFeed
+            ? 'MT4 feed stale — check MT4 bridge and AutoTrading.'
+            : 'Waiting for MT4 live feed.',
           rates: {
             goldPrice: 0,
             silverPrice: 0,
@@ -243,9 +248,11 @@ function registerCurrencyRoutes(deps) {
             priceCurrency: 'USD',
             priceUnit: 'G',
             source: 'waiting-mt4',
-            updatedAt: null,
+            updatedAt: updatedAt || null,
           },
           canUpdate: canUpdateMetalRates(req.user),
+          staleMs,
+          feedAgeMs: Number.isFinite(ageMs) ? ageMs : null,
         })
       }
 
@@ -254,6 +261,8 @@ function registerCurrencyRoutes(deps) {
         live: true,
         rates: buildMetalRatesResponse(latestFeed),
         canUpdate: canUpdateMetalRates(req.user),
+        staleMs,
+        feedAgeMs: ageMs,
       })
     } catch {
       res.status(500).json({ success: false, message: 'Server error' })

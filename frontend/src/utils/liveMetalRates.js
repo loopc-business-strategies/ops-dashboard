@@ -1,5 +1,12 @@
-export const LIVE_METAL_POLL_MS = 60_000
+export const MT4_LIVE_POLL_MS = 5_000
+/** @deprecated Use MT4_LIVE_POLL_MS — live UI is MT4-only now. */
+export const LIVE_METAL_POLL_MS = MT4_LIVE_POLL_MS
+export const MT4_BRIDGE_SOURCE = 'mt4-bridge'
 export const TOPBAR_MARKET_PARAMS = { currency: 'USD', unit: 'toz' }
+
+export function isMt4BridgeRates(rates = {}) {
+  return String(rates?.source || '').trim().toLowerCase() === MT4_BRIDGE_SOURCE
+}
 
 export const GRAMS_PER_TOZ = 31.1034768
 export const GRAMS_PER_KG = 1000
@@ -207,19 +214,14 @@ export function metalStatusSubline(snapshot, price, error, metalKey = 'gold') {
   const errorLabel = metalErrorLabel(error)
   if (errorLabel) return errorLabel
 
-  const cur = `${snapshot.currency}/${formatLiveMetalUnit(snapshot.unit || 'G')}`
+  const cur = `${snapshot.currency}/${formatLiveMetalUnit(snapshot.unit || 'TOZ')}`
   const src = String(snapshot.source || '').toLowerCase()
-  const fromSaved = ['manual', 'inventory', 'default'].includes(src)
-  const fromLiveFeed = Boolean(src && !fromSaved && src !== 'waiting-mt4')
-  const hasRate = Number(snapshot?.[metalKey] || 0) > 0
+  const isMt4 = src === MT4_BRIDGE_SOURCE
 
+  if (price > 0 && isMt4) {
+    return `${cur} · MT4`
+  }
   if (price > 0) {
-    return fromSaved ? `${cur} · saved` : cur
-  }
-  if (fromSaved) {
-    return `${cur} · not set`
-  }
-  if (fromLiveFeed && hasRate) {
     return cur
   }
   return 'waiting MT4'

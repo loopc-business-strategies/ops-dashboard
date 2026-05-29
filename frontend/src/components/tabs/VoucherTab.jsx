@@ -101,19 +101,16 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       const lg = Number(liveRates?.goldPrice) || 0
       const ls = Number(liveRates?.silverPrice) || 0
       const lp = Number(liveRates?.platinumPrice) || 0
-      if (liveRes.data?.success && liveRates && lg > 0 && ls > 0 && lp > 0) {
+      if (
+        liveRes.data?.success
+        && liveRes.data?.live
+        && String(liveRates?.source || '').toLowerCase() === 'mt4-bridge'
+        && lg > 0 && ls > 0 && lp > 0
+      ) {
         setLatestMetalRates(buildMetalRatesFromApiPayload(liveRates))
-        return
-      }
-
-      const res = await axios.get(`${BASE}/metal-rates`, cfg())
-      const rates = res.data?.rates || {}
-      const goldPrice = Number(rates.goldPrice || 0)
-      if (Number.isFinite(goldPrice) && goldPrice > 0) {
-        setLatestMetalRates(buildMetalRatesFromApiPayload(rates))
       }
     } catch {
-      // silently ignore — payment vouchers can still use normal currency rates
+      // MT4 offline — voucher metal lines stay empty until bridge reconnects
     }
   }, [])
 
