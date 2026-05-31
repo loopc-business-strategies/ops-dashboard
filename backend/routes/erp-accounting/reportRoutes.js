@@ -7,7 +7,7 @@ const metalSpotCache = {
 
 /** Short-lived cache for dashboard report responses (per tenant + period). */
 const dashboardReportCache = new Map()
-const DASHBOARD_CACHE_TTL_MS = 60000
+const DASHBOARD_CACHE_TTL_MS = 120000
 
 const { createReportResponseCache } = require('../../utils/reportResponseCache')
 const rateLimit = require('express-rate-limit')

@@ -5,6 +5,8 @@ import { useLanguage } from '../../context/LanguageContext'
 import { getTenantBranding } from '../../config/tenantBranding'
 import erpAccountingAPI from '../../api/erp-accounting'
 import messagesAPI from '../../api/messages'
+import { readSummaryAccountsCache, writeSummaryAccountsCache } from '../../utils/erpSummaryAccountsCache'
+import { readAccountEnquiryCache, writeAccountEnquiryCache } from '../../utils/erpAccountEnquiryCache'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import {
   LEDGER_REFERENCE_TYPES,
@@ -1399,8 +1401,18 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const loadAccounts = async (params = {}) => {
     const isSummaryScope = params.scope === 'summary'
     if (!canLoadReferenceData && !(isSummaryScope && canViewBalanceEnquiry)) return
-    if (isSummaryScope) setSummaryAccountsLoading(true)
-    else setLoading(true)
+    const tenantKey = user?.tenant || user?.company || 'default'
+    if (isSummaryScope) {
+      const cached = readSummaryAccountsCache(tenantKey)
+      if (cached?.length) {
+        setSummaryAccounts(cached)
+        setSummaryAccountsLoading(false)
+      } else {
+        setSummaryAccountsLoading(true)
+      }
+    } else {
+      setLoading(true)
+    }
     try {
       if (isSummaryScope) {
         const data = await erpAccountingAPI.getAccounts(token, { ...params, page: 1, limit: 5000 })
@@ -1409,7 +1421,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
         rows.forEach((item) => {
           if (item?._id) uniqueById.set(item._id, item)
         })
-        setSummaryAccounts(Array.from(uniqueById.values()))
+        const next = Array.from(uniqueById.values())
+        setSummaryAccounts(next)
+        writeSummaryAccountsCache(tenantKey, next)
       } else {
         const data = await erpAccountingAPI.getAccounts(token, params)
         setAccounts(data.accounts || [])
@@ -2779,14 +2793,22 @@ function ERPTab({ focusTab, onNavigateMain }) {
       setEnquiryStatus({ type: 'error', message: 'Please enter account number' })
       return
     }
+    const tenantKey = user?.tenant || user?.company || 'default'
+    const cached = readAccountEnquiryCache(tenantKey, cleanCode)
+    if (cached) {
+      setAccountEnquiryCode(cleanCode)
+      setAccountEnquiryData(cached)
+      setEnquiryLoading(false)
+    }
     try {
       if (shouldOpenModal) setShowEnquiryModal(true)
-      setEnquiryLoading(true)
+      if (!cached) setEnquiryLoading(true)
       setShowEnquiryLookupMenu(false)
       setEnquiryStatus({ type: '', message: '' })
-      const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, { statementLimit: 300 })
+      const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, { statementLimit: 120 })
       setAccountEnquiryCode(cleanCode)
       setAccountEnquiryData(data)
+      writeAccountEnquiryCache(tenantKey, cleanCode, data)
       setStatementFilters({
         startDate: '',
         endDate: '',
@@ -2801,12 +2823,14 @@ function ERPTab({ focusTab, onNavigateMain }) {
       pushEnquiryHistory(data.account)
       setError('')
       setEnquiryStatus({ type: 'success', message: `Account ${data.account.accountCode} summary loaded successfully` })
-      showNotification('✅ Account summary loaded')
+      if (!cached) showNotification('✅ Account summary loaded')
     } catch (e) {
-      setAccountEnquiryData(null)
-      const msg = e.response?.data?.message || 'Failed to fetch account summary'
-      setError(msg)
-      setEnquiryStatus({ type: 'error', message: msg })
+      if (!cached) {
+        setAccountEnquiryData(null)
+        const msg = e.response?.data?.message || 'Failed to fetch account summary'
+        setError(msg)
+        setEnquiryStatus({ type: 'error', message: msg })
+      }
     } finally {
       setEnquiryLoading(false)
     }

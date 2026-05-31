@@ -8,7 +8,8 @@ const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVouch
 const { createReportResponseCache } = require('../../utils/reportResponseCache')
 const { getOutstandingMapForAccounts } = require('../../utils/ledgerBalanceBatch')
 
-const enquiryCache = createReportResponseCache(45000)
+const enquiryCache = createReportResponseCache(120000)
+const summaryAccountsCache = createReportResponseCache(120000)
 const METAL_TRANSFER_LEDGER_TYPES = ['metal_receipt', 'metal_payment']
 
 function registerAccountsRoutes(deps) {
@@ -57,18 +58,34 @@ router.get('/accounts', protect, async (req, res) => {
       if (Array.isArray(scopedIds)) {
         query._id = { $in: scopedIds }
       }
+      const cacheKey = summaryAccountsCache.buildKey([
+        req.user?.tenant || req.user?.company || 'default',
+        req.user?._id || req.user?.id || 'user',
+        'summary-accounts',
+        page,
+        limit,
+      ])
+      const cached = summaryAccountsCache.get(cacheKey)
+      if (cached) return res.json(cached)
+    }
+    const accountQuery = ChartOfAccount.find(query)
+      .select('accountCode accountName accountType openingBalance currency isActive')
+      .sort({ accountCode: 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+    if (!isSummaryScope) {
+      accountQuery.populate('parentAccountId', 'accountName accountCode')
     }
     const [accounts, total] = await Promise.all([
-      ChartOfAccount.find(query)
-        .populate('parentAccountId', 'accountName accountCode')
-        .select('accountCode accountName accountType parentAccountId openingBalance currency isActive')
-        .sort({ accountCode: 1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+      accountQuery,
       ChartOfAccount.countDocuments(query),
     ])
-    res.json({ success: true, accounts, total, page, limit })
+    const payload = { success: true, accounts, total, page, limit }
+    if (isSummaryScope) {
+      summaryAccountsCache.set(cacheKey, payload)
+    }
+    res.json(payload)
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -82,8 +99,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     if (!accountCode) {
       return res.status(400).json({ success: false, message: 'Account number is required' })
     }
-    const rawStatementLimit = Number(req.query.statementLimit || 300)
-    const statementLimit = Math.min(Math.max(Number.isFinite(rawStatementLimit) ? rawStatementLimit : 300, 1), 500)
+    const rawStatementLimit = Number(req.query.statementLimit || 150)
+    const statementLimit = Math.min(Math.max(Number.isFinite(rawStatementLimit) ? rawStatementLimit : 150, 1), 500)
 
     const cacheKey = enquiryCache.buildKey([
       req.user?.tenant || req.user?.company || 'default',
@@ -101,7 +118,9 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     }
 
     const accountMatches = await ChartOfAccount.find(accountQuery)
+      .select('accountCode accountName accountType openingBalance currency isActive createdAt')
       .sort({ isActive: -1, createdAt: 1, _id: 1 })
+      .lean()
 
     if (!accountMatches.length) {
       return res.status(404).json({ success: false, message: 'Account not found' })
@@ -153,21 +172,6 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       .lean()
 
     const transferTxIds = transferMetalTxs.map((tx) => tx._id).filter(Boolean)
-    if (transferTxIds.length) {
-      await Ledger.updateMany(
-        {
-          referenceId: { $in: transferTxIds },
-          isDeleted: { $ne: true },
-        },
-        {
-          $set: {
-            isDeleted: true,
-            deletedAt: new Date(),
-            notes: 'Superseded: metal transfer vouchers are weight-only (no party USD ledger).',
-          },
-        }
-      )
-    }
 
     const ledgerExclusionMatch = {
       isDeleted: { $ne: true },
@@ -175,7 +179,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       referenceType: { $nin: METAL_TRANSFER_LEDGER_TYPES },
     }
 
-    const [debitAgg, creditAgg] = await Promise.all([
+    const [debitAgg, creditAgg, latestRate, baseCurrency] = await Promise.all([
       Ledger.aggregate([
         { $match: { debitAccountId: { $in: targetAccountIds }, ...ledgerExclusionMatch } },
         { $group: { _id: null, total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
@@ -184,6 +188,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         { $match: { creditAccountId: { $in: targetAccountIds }, ...ledgerExclusionMatch } },
         { $group: { _id: null, total: { $sum: { $multiply: ['$amount', { $ifNull: ['$exchangeRate', 1] }] } } } },
       ]),
+      getLatestMetalRate(),
+      Currency.findOne({ baseCurrency: true, isActive: true }).select('code').lean(),
     ])
 
     const debitTotal = Number(debitAgg[0]?.total || 0)
@@ -196,7 +202,6 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       return ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(normalized)
     }
 
-    const latestRate = await getLatestMetalRate()
     const rates = latestRate
       ? {
           goldPrice: Number(latestRate.goldPrice || 0),
@@ -209,7 +214,6 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
           updatedAt: null,
         }
 
-    const baseCurrency = await Currency.findOne({ baseCurrency: true, isActive: true })
     const baseCurrencyCode = String(baseCurrency?.code || BASE_CURRENCY_CODE || 'USD').toUpperCase()
     const accountCurrencyCode = String(account.currency || baseCurrencyCode).toUpperCase()
     const suppressMetalSpotMtm = shouldSuppressSpotMetalMtmForAccountEnquiry(account)
