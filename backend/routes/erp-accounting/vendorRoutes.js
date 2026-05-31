@@ -54,6 +54,7 @@ function registerVendorRoutes(deps) {
     evaluateVendorCompliance,
     buildDocumentExpiryBuckets,
     buildVendorPaymentCalendar,
+    batchVendorPaymentCalendars,
     buildVendorSummary,
     nextVendorCode,
     nextVendorAccountCode,
@@ -134,9 +135,9 @@ function registerVendorRoutes(deps) {
       ])
 
       const vendorIds = vendors.map((vendor) => vendor._id).filter(Boolean)
-      const [summaries, paymentSchedules, latestRate, metalTxs] = await Promise.all([
+      const [summaries, paymentScheduleMap, latestRate, metalTxs] = await Promise.all([
         batchVendorSummaries(vendors),
-        Promise.all(vendors.map((vendor) => buildVendorPaymentCalendar(vendor, { horizonDays: 45 }))),
+        batchVendorPaymentCalendars(vendors, { horizonDays: 45 }),
         typeof getLatestMetalRate === 'function' ? getLatestMetalRate() : Promise.resolve(null),
         vendorIds.length && Transaction
           ? Transaction.find({
@@ -177,6 +178,7 @@ function registerVendorRoutes(deps) {
       const data = vendors.map((vendor, index) => ({
         ...(() => {
           const summary = summaries[index] || {}
+          const paymentSchedule = paymentScheduleMap.get(String(vendor._id || '')) || { calendar: [], alertCounts: {}, totalDue: 0 }
           const rawPosition = metalPositionMap.get(String(vendor._id || '')) || { goldPosition: 0, silverPosition: 0 }
           const goldPosition = roundPosition(rawPosition.goldPosition)
           const silverPosition = roundPosition(rawPosition.silverPosition)
@@ -203,9 +205,9 @@ function registerVendorRoutes(deps) {
               goldPrice: Number(rates.goldPrice || 0),
               silverPrice: Number(rates.silverPrice || 0),
             },
-            nextDue: paymentSchedules[index]?.calendar?.[0] || null,
-            dueAlerts: paymentSchedules[index]?.alertCounts || { overdue: 0, due_soon: 0, upcoming: 0, later: 0 },
-            dueAmount: paymentSchedules[index]?.totalDue || 0,
+            nextDue: paymentSchedule.calendar?.[0] || null,
+            dueAlerts: paymentSchedule.alertCounts || { overdue: 0, due_soon: 0, upcoming: 0, later: 0 },
+            dueAmount: paymentSchedule.totalDue || 0,
           }
         })(),
       }))
@@ -328,10 +330,10 @@ function registerVendorRoutes(deps) {
         Vendor.countDocuments(vendorQuery),
       ])
 
+      const paymentScheduleMap = await batchVendorPaymentCalendars(vendors, { horizonDays })
       const queue = []
-      for (let index = 0; index < vendors.length; index += 1) {
-        const vendor = vendors[index]
-        const schedule = await buildVendorPaymentCalendar(vendor, { horizonDays })
+      vendors.forEach((vendor) => {
+        const schedule = paymentScheduleMap.get(String(vendor._id || '')) || { calendar: [] }
         schedule.calendar
           .filter((entry) => entry.alertLevel === 'overdue')
           .forEach((entry) => {
@@ -378,7 +380,7 @@ function registerVendorRoutes(deps) {
               createdAt: new Date(),
             })
           })
-      }
+      })
 
       queue.sort((a, b) => Number(b.metadata?.overdueDays || 0) - Number(a.metadata?.overdueDays || 0))
       const summary = queue.reduce((acc, row) => {
@@ -582,25 +584,30 @@ function registerVendorRoutes(deps) {
         .populate('ledgerAccountId', 'accountCode accountName accountType currency')
       if (!vendor || vendor.deletedAt) return res.status(404).json({ success: false, message: 'Vendor not found' })
 
-      const [summary, paymentCalendar] = await Promise.all([
+      const [summary, paymentCalendar, recentTransactions, recentLedgerEntries] = await Promise.all([
         buildVendorSummary(vendor),
         buildVendorPaymentCalendar(vendor, { horizonDays: 45 }),
+        Transaction.find({ vendorId: vendor._id, isDeleted: { $ne: true } })
+          .sort({ date: -1, createdAt: -1 })
+          .limit(20)
+          .select('type amount date description currency status journalEntryId')
+          .lean(),
+        vendor.ledgerAccountId?._id
+          ? Ledger.find({
+              isDeleted: { $ne: true },
+              $or: [
+                { debitAccountId: vendor.ledgerAccountId._id },
+                { creditAccountId: vendor.ledgerAccountId._id },
+              ],
+            })
+              .sort({ date: -1, createdAt: -1 })
+              .limit(20)
+              .populate('debitAccountId', 'accountCode accountName')
+              .populate('creditAccountId', 'accountCode accountName')
+              .select('date amount description referenceType currency debitAccountId creditAccountId')
+              .lean()
+          : Promise.resolve([]),
       ])
-      const recentTransactions = await Transaction.find({ vendorId: vendor._id, isDeleted: { $ne: true } })
-        .sort({ date: -1, createdAt: -1 })
-        .limit(20)
-        .select('type amount date description currency status journalEntryId')
-      const recentLedgerEntries = await Ledger.find({
-        $or: [
-          { debitAccountId: vendor.ledgerAccountId?._id },
-          { creditAccountId: vendor.ledgerAccountId?._id },
-        ],
-      })
-        .sort({ date: -1, createdAt: -1 })
-        .limit(20)
-        .populate('debitAccountId', 'accountCode accountName')
-        .populate('creditAccountId', 'accountCode accountName')
-        .select('date amount description referenceType currency debitAccountId creditAccountId')
 
       res.json({
         success: true,
@@ -849,10 +856,10 @@ function registerVendorRoutes(deps) {
         Vendor.countDocuments(vendorQuery),
       ])
 
+      const paymentScheduleMap = await batchVendorPaymentCalendars(vendors, { horizonDays, startDate, endDate })
       const rows = []
-      for (let index = 0; index < vendors.length; index += 1) {
-        const vendor = vendors[index]
-        const schedule = await buildVendorPaymentCalendar(vendor, { horizonDays, startDate, endDate })
+      vendors.forEach((vendor) => {
+        const schedule = paymentScheduleMap.get(String(vendor._id || '')) || { calendar: [] }
         schedule.calendar.forEach((item) => {
           rows.push({
             vendorId: vendor._id,
@@ -863,7 +870,7 @@ function registerVendorRoutes(deps) {
             ...item,
           })
         })
-      }
+      })
 
       rows.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
       const alerts = rows.reduce((acc, row) => {

@@ -22,6 +22,7 @@ function registerTransactionRoutes(deps) {
     Currency,
     Customer,
     Vendor,
+    populateTransactionListQuery,
     populateTransactionQuery,
     normalizeMoneyValue,
     normalizeExchangeRateValue,
@@ -230,25 +231,16 @@ router.get('/transactions', protect, async (req, res) => {
     }
 
     let transactions
-    if (cursor) {
-      transactions = await populateTransactionQuery(Transaction.find(listQuery))
-        .sort({ createdAt: -1, _id: -1 })
-        .limit(limit + 1)
-    } else {
-      transactions = await populateTransactionQuery(Transaction.find(listQuery))
-        .sort({ createdAt: -1, _id: -1 })
-        .skip(skip)
-        .limit(limit + 1)
-    }
-
-    const hasMore = transactions.length > limit
-    const rows = hasMore ? transactions.slice(0, limit) : transactions
-    const nextCursor = hasMore ? encodeCursor(rows[rows.length - 1]) : null
+    const listQueryExec = populateTransactionListQuery(Transaction.find(listQuery))
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
+    if (!cursor) listQueryExec.skip(skip)
 
     const blockedQuery = query.type && query.type.$in && query.type.$in.length === 0
     const metricsMatch = blockedQuery ? { _id: null } : summaryQuery
 
-    const [total, summaryRows] = await Promise.all([
+    const [transactionsResult, total, summaryRows] = await Promise.all([
+      listQueryExec,
       Transaction.countDocuments(metricsMatch),
       Transaction.aggregate([
         { $match: metricsMatch },
@@ -267,6 +259,11 @@ router.get('/transactions', protect, async (req, res) => {
         },
       ]),
     ])
+    transactions = transactionsResult
+
+    const hasMore = transactions.length > limit
+    const rows = hasMore ? transactions.slice(0, limit) : transactions
+    const nextCursor = hasMore ? encodeCursor(rows[rows.length - 1]) : null
 
     const summary = summaryRows[0] || {
       totalCount: 0,

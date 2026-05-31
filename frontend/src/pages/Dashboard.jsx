@@ -14,7 +14,7 @@ import AIAgentWidget from '../components/AIAgentWidget'
 import { startUserNotifications } from '../utils/realtimeSocket'
 
 // Import tab content components
-import OverviewTab     from '../components/tabs/OverviewTab'
+const OverviewTab = lazy(() => import('../components/tabs/OverviewTab'))
 const AdminTab = lazy(() => import('../components/tabs/AdminTab'))
 const HRTab = lazy(() => import('../components/tabs/HRTab'))
 const FinanceTab = lazy(() => import('../components/tabs/FinanceTab'))

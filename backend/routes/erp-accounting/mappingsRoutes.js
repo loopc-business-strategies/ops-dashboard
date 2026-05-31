@@ -34,21 +34,37 @@ router.get('/mappings', protect, async (req, res) => {
       AccountMapping.find({ isActive: true }).select('department').lean(),
     ])
     
-    // Count usage for each mapping
-    const mappingsWithUsage = await Promise.all(
-      mappings.map(async (mapping) => {
-        const usageCount = await Ledger.countDocuments({
+    // Count usage for each mapping in one ledger read instead of N count queries
+    const mappingTypes = [...new Set(mappings.map((mapping) => mapping.mappingType).filter(Boolean))]
+    const pairConditions = mappings
+      .filter((mapping) => mapping.debitAccountId?._id && mapping.creditAccountId?._id)
+      .map((mapping) => ({
+        debitAccountId: mapping.debitAccountId._id,
+        creditAccountId: mapping.creditAccountId._id,
+      }))
+    const usageEntries = pairConditions.length || mappingTypes.length
+      ? await Ledger.find({
+          isDeleted: { $ne: true },
           $or: [
-            { debitAccountId: mapping.debitAccountId._id, creditAccountId: mapping.creditAccountId._id },
-            { referenceType: mapping.mappingType }
-          ]
-        })
-        return {
-          ...mapping.toObject(),
-          usageCount
-        }
-      })
-    )
+            ...(pairConditions.length ? [{ $or: pairConditions }] : []),
+            ...(mappingTypes.length ? [{ referenceType: { $in: mappingTypes } }] : []),
+          ],
+        }).select('debitAccountId creditAccountId referenceType').lean()
+      : []
+
+    const mappingsWithUsage = mappings.map((mapping) => {
+      const debitId = String(mapping.debitAccountId?._id || '')
+      const creditId = String(mapping.creditAccountId?._id || '')
+      const mappingType = String(mapping.mappingType || '')
+      const usageCount = usageEntries.filter((entry) => (
+        (debitId && creditId && String(entry.debitAccountId) === debitId && String(entry.creditAccountId) === creditId)
+        || (mappingType && String(entry.referenceType || '') === mappingType)
+      )).length
+      return {
+        ...mapping.toObject(),
+        usageCount,
+      }
+    })
     
     const summary = { total: summaryDocs.length, shared: 0, byDepartment: {} }
     summaryDocs.forEach((doc) => {

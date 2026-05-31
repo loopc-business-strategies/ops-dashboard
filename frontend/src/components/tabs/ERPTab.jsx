@@ -146,6 +146,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const [dashCustomizeOpen, setDashCustomizeOpen] = useState(false)
   const [dashPickSelected, setDashPickSelected] = useState([])
   const dashDragSrc = useRef(null)
+  const activeTabRef = useRef(activeTab)
   // Dashboard date-range filter
   const [dashDateFrom, setDashDateFrom] = useState(() => {
     const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
@@ -264,6 +265,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const [testMapping, setTestMapping] = useState(null)
   const [accountEnquiryCode, setAccountEnquiryCode] = useState('')
   const [accountEnquiryData, setAccountEnquiryData] = useState(null)
+  const accountEnquiryDataRef = useRef(null)
   const [enquiryLoading, setEnquiryLoading] = useState(false)
   const [enquiryStatus, setEnquiryStatus] = useState({ type: '', message: '' })
   const [statementFilters, setStatementFilters] = useState({
@@ -1415,7 +1417,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
     try {
       if (isSummaryScope) {
-        const data = await erpAccountingAPI.getAccounts(token, { ...params, page: 1, limit: 5000 })
+        const data = await erpAccountingAPI.getAccounts(token, { ...params, page: 1, limit: 500 })
         const rows = data.accounts || []
         const uniqueById = new Map()
         rows.forEach((item) => {
@@ -1452,7 +1454,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     const candidateCode = String(labelPrefixMatch?.[1] || cleanInput).trim()
     return candidateCode
   }
-  const groupedSummaryAccounts = summaryAccounts
+  const groupedSummaryAccounts = useMemo(() => summaryAccounts
     .slice()
     .sort((a, b) => {
       const aType = String(a.accountType || '').trim()
@@ -1471,20 +1473,22 @@ function ERPTab({ focusTab, onNavigateMain }) {
       if (existingGroup) existingGroup.accounts.push(account)
       else groups.push({ type, accounts: [account] })
       return groups
-    }, [])
-  const baseEntryAccountOptions = summaryAccounts.length ? summaryAccounts : accounts
-  const customerVendorLedgerOptions = [...(Array.isArray(customers) ? customers : []), ...(Array.isArray(vendors) ? vendors : [])]
-    .map((party) => party?.ledgerAccountId)
-    .filter((ledger) => ledger && (ledger._id || ledger.accountCode))
-  const seenEntryAccountKeys = new Set()
-  const entryAccountOptions = [...baseEntryAccountOptions, ...customerVendorLedgerOptions].filter((account) => {
-    const key = String(account?._id || account?.accountCode || '').trim()
-    if (!key) return false
-    if (seenEntryAccountKeys.has(key)) return false
-    seenEntryAccountKeys.add(key)
-    return true
-  })
-  const jvComboGroups = ACCOUNT_TYPE_ORDER
+    }, []), [summaryAccounts])
+  const entryAccountOptions = useMemo(() => {
+    const baseEntryAccountOptions = summaryAccounts.length ? summaryAccounts : accounts
+    const customerVendorLedgerOptions = [...(Array.isArray(customers) ? customers : []), ...(Array.isArray(vendors) ? vendors : [])]
+      .map((party) => party?.ledgerAccountId)
+      .filter((ledger) => ledger && (ledger._id || ledger.accountCode))
+    const seenEntryAccountKeys = new Set()
+    return [...baseEntryAccountOptions, ...customerVendorLedgerOptions].filter((account) => {
+      const key = String(account?._id || account?.accountCode || '').trim()
+      if (!key) return false
+      if (seenEntryAccountKeys.has(key)) return false
+      seenEntryAccountKeys.add(key)
+      return true
+    })
+  }, [summaryAccounts, accounts, customers, vendors])
+  const jvComboGroups = useMemo(() => ACCOUNT_TYPE_ORDER
     .map((type) => ({
       label: type,
       options: entryAccountOptions
@@ -1497,7 +1501,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
         .filter((a) => !ACCOUNT_TYPE_ORDER.includes(String(a?.accountType || '').trim()))
         .map((a) => ({ value: String(a._id), label: `${a.accountCode || ''} - ${a.accountName || ''}` })),
     }])
-    .filter((g) => g.options.length > 0)
+    .filter((g) => g.options.length > 0), [entryAccountOptions])
   const isBankJvEligibleAccount = (account) => {
     const code = String(account?.accountCode || '').trim().toUpperCase()
     const name = String(account?.accountName || '').trim().toUpperCase()
@@ -2954,24 +2958,30 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
   }, [customerMarginContextMenu.open, supplierMarginContextMenu.open])
   useEffect(() => {
+    activeTabRef.current = activeTab
+  }, [activeTab])
+  useEffect(() => {
+    accountEnquiryDataRef.current = accountEnquiryData
+  }, [accountEnquiryData])
+  useEffect(() => {
     if (!canAccessERP || !token) {
       setError('You do not have access to the ERP Accounting module.')
       return
     }
     if (!canViewErpSubTab(user, activeTab)) return
-    if (activeTab === 'dashboard') loadDashboard()
-    else if (activeTab === 'accounts') loadAccounts()
+    if (activeTab === 'accounts') loadAccounts()
     else if (activeTab === 'customer-margin') loadCustomers({ limit: 200 })
     else if (activeTab === 'customers') loadCustomers()
     else if (activeTab === 'supplier-margin') loadVendors()
-    else if (activeTab === 'mappings') loadMappings(mappingFilters)
     else if (activeTab === 'transactions' && (canAccessTransactions || canAccessVouchers || canAccessFixingRegister)) loadTransactions()
     else if (activeTab === 'vouchers') loadReportBranding()
     else if (activeTab === 'vendors') {
-      loadVendors()
-      loadVendorPaymentCalendar()
-      loadVendorComplianceSummary()
-      loadVendorOverdueQueue()
+      Promise.all([
+        loadVendors(),
+        loadVendorPaymentCalendar(),
+        loadVendorComplianceSummary(),
+        loadVendorOverdueQueue(),
+      ]).catch(() => {})
     }
     else if (activeTab === 'inventory') {
       loadInventory()
@@ -3039,12 +3049,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
       token,
       tenant: tenantKey,
       onLedgerUpdate: () => {
-        if (activeTab === 'ledger') {
+        if (activeTabRef.current === 'ledger') {
           loadLedger({ cursor: null, cursorHistory: [] })
         }
       },
       onTransactionUpdate: () => {
-        if (activeTab === 'transactions') {
+        if (activeTabRef.current === 'transactions') {
           loadTransactions({ cursor: null, cursorHistory: [] })
         }
       },
@@ -3062,7 +3072,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           silverPrice: String(rates.silverPrice ?? prev.silverPrice),
           priceCurrency: rates.priceCurrency || prev.priceCurrency || 'USD',
         }))
-        if (activeTab === 'enquiry' && accountEnquiryData?.account?.accountCode) {
+        if (activeTabRef.current === 'enquiry' && accountEnquiryDataRef.current?.account?.accountCode) {
           patchAccountEnquiryMetalRates(rates)
         }
       },
@@ -3071,12 +3081,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
       stopRealtime()
       stopMetalRatesRealtime()
     }
-  }, [token, user?.tenant, user?.company, canAccessERP, activeTab, accountEnquiryData?.account?.accountCode])
-  // Re-load dashboard when date range changes
+  }, [token, user?.tenant, user?.company, canAccessERP])
+  // Load dashboard once per tab visit and when date range changes
   useEffect(() => {
-    if (activeTab === 'dashboard' && canLoadDashboard && token) loadDashboard()
+    if (activeTab !== 'dashboard' || !canLoadDashboard || !token) return
+    loadDashboard()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dashDateFrom, dashDateTo])
+  }, [activeTab, dashDateFrom, dashDateTo, token, canLoadDashboard])
   // Auto-refresh every 30 seconds when enabled and on dashboard tab
   useEffect(() => {
     if (!dashAutoRefresh || activeTab !== 'dashboard') return

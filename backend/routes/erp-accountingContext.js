@@ -88,6 +88,7 @@ const { createTransactionPostingService } = require('../services/erpAccounting/t
 const { createLedgerBalanceService } = require('../services/erpAccounting/ledgerBalanceService')
 const { createErpAccountingDirectDealAndExchangeService } = require('../services/erpAccounting/erpAccountingDirectDealAndExchangeService')
 const {
+  populateTransactionListQuery,
   populateTransactionQuery,
   createTransactionWorkflowAction,
 } = require('../services/erpAccounting/transactionWorkflowService')
@@ -328,6 +329,7 @@ const {
   evaluateVendorCompliance,
   buildDocumentExpiryBuckets,
   buildVendorPaymentCalendar,
+  batchVendorPaymentCalendars,
   buildVendorSummary,
   batchVendorSummaries,
 } = vendorComplianceService
@@ -515,6 +517,7 @@ function registerErpAccountingRoutes(router) {
     evaluateVendorCompliance,
     buildDocumentExpiryBuckets,
     buildVendorPaymentCalendar,
+    batchVendorPaymentCalendars,
     buildVendorSummary,
     nextVendorCode,
     nextVendorAccountCode,
@@ -579,6 +582,7 @@ function registerErpAccountingRoutes(router) {
     Currency,
     Customer,
     Vendor,
+    populateTransactionListQuery,
     populateTransactionQuery,
     normalizeMoneyValue,
     normalizeExchangeRateValue,

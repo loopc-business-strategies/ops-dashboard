@@ -122,9 +122,10 @@ function createVendorComplianceService({
   }
 
   const buildVendorSummary = async (vendor) => {
-    const outstandingRaw = await getOutstandingForAccount(vendor.ledgerAccountId?._id)
-    const aging = await getAgingForAccount(vendor.ledgerAccountId?._id)
-    const [purchaseCount, paymentCount, postedAmountSummary, recentTransaction] = await Promise.all([
+    const ledgerAccountId = vendor.ledgerAccountId?._id
+    const [outstandingRaw, aging, purchaseCount, paymentCount, postedAmountSummary, recentTransaction] = await Promise.all([
+      getOutstandingForAccount(ledgerAccountId),
+      getAgingForAccount(ledgerAccountId),
       Transaction.countDocuments({ vendorId: vendor._id, type: 'purchase', isDeleted: { $ne: true }, status: 'posted' }),
       Transaction.countDocuments({ vendorId: vendor._id, type: 'payment', isDeleted: { $ne: true }, status: 'posted' }),
       Transaction.aggregate([
@@ -239,11 +240,6 @@ function createVendorComplianceService({
   }
 
   const buildVendorPaymentCalendar = async (vendor, options = {}) => {
-    const asOfDate = options.asOfDate ? new Date(options.asOfDate) : new Date()
-    const horizonDays = Number(options.horizonDays || 45)
-    const startDate = options.startDate ? new Date(options.startDate) : null
-    const endDate = options.endDate ? new Date(options.endDate) : null
-
     const [purchases, payments] = await Promise.all([
       Transaction.find({
         vendorId: vendor._id,
@@ -252,7 +248,8 @@ function createVendorComplianceService({
         isDeleted: { $ne: true },
       })
         .sort({ date: 1, createdAt: 1 })
-        .select('amount date currency description'),
+        .select('amount date currency description')
+        .lean(),
       Transaction.find({
         vendorId: vendor._id,
         type: 'payment',
@@ -260,8 +257,17 @@ function createVendorComplianceService({
         isDeleted: { $ne: true },
       })
         .sort({ date: 1, createdAt: 1 })
-        .select('amount date currency description'),
+        .select('amount date currency description')
+        .lean(),
     ])
+    return computeVendorPaymentCalendar(vendor, purchases, payments, options)
+  }
+
+  const computeVendorPaymentCalendar = (vendor, purchases, payments, options = {}) => {
+    const asOfDate = options.asOfDate ? new Date(options.asOfDate) : new Date()
+    const horizonDays = Number(options.horizonDays || 45)
+    const startDate = options.startDate ? new Date(options.startDate) : null
+    const endDate = options.endDate ? new Date(options.endDate) : null
 
     const purchaseBuckets = purchases.map((tx) => ({
       txId: tx._id,
@@ -322,10 +328,64 @@ function createVendorComplianceService({
     }
   }
 
+  const batchVendorPaymentCalendars = async (vendors, options = {}) => {
+    if (!Array.isArray(vendors) || !vendors.length) return new Map()
+    const vendorIds = vendors.map((vendor) => vendor._id).filter(Boolean)
+    const [purchases, payments] = await Promise.all([
+      Transaction.find({
+        vendorId: { $in: vendorIds },
+        type: 'purchase',
+        status: 'posted',
+        isDeleted: { $ne: true },
+      })
+        .sort({ date: 1, createdAt: 1 })
+        .select('vendorId amount date currency description')
+        .lean(),
+      Transaction.find({
+        vendorId: { $in: vendorIds },
+        type: 'payment',
+        status: 'posted',
+        isDeleted: { $ne: true },
+      })
+        .sort({ date: 1, createdAt: 1 })
+        .select('vendorId amount date currency description')
+        .lean(),
+    ])
+    const purchasesByVendor = new Map()
+    const paymentsByVendor = new Map()
+    purchases.forEach((tx) => {
+      const vendorId = String(tx.vendorId || '')
+      if (!vendorId) return
+      if (!purchasesByVendor.has(vendorId)) purchasesByVendor.set(vendorId, [])
+      purchasesByVendor.get(vendorId).push(tx)
+    })
+    payments.forEach((tx) => {
+      const vendorId = String(tx.vendorId || '')
+      if (!vendorId) return
+      if (!paymentsByVendor.has(vendorId)) paymentsByVendor.set(vendorId, [])
+      paymentsByVendor.get(vendorId).push(tx)
+    })
+    const calendars = new Map()
+    vendors.forEach((vendor) => {
+      const vendorId = String(vendor._id || '')
+      calendars.set(
+        vendorId,
+        computeVendorPaymentCalendar(
+          vendor,
+          purchasesByVendor.get(vendorId) || [],
+          paymentsByVendor.get(vendorId) || [],
+          options
+        )
+      )
+    })
+    return calendars
+  }
+
   return {
     evaluateVendorCompliance,
     buildDocumentExpiryBuckets,
     buildVendorPaymentCalendar,
+    batchVendorPaymentCalendars,
     buildVendorSummary,
     batchVendorSummaries,
   }

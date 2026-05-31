@@ -50,7 +50,7 @@ router.get('/accounts', protect, async (req, res) => {
     if (!canReadErpReferenceData(req.user)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
-    const summaryMaxLimit = 5000
+    const summaryMaxLimit = 500
     const { page, limit, skip } = parsePagination(req.query, 50, isSummaryScope ? summaryMaxLimit : 200)
     const query = { isActive: true }
     let summaryCacheKey = null
@@ -105,6 +105,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
 
     const cacheKey = enquiryCache.buildKey([
       req.user?.tenant || req.user?.company || 'default',
+      req.user?._id || req.user?.id || 'user',
       'account-enquiry',
       accountCode,
       statementLimit,

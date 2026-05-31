@@ -1,3 +1,12 @@
+function populateTransactionListQuery(query) {
+  return query
+    .populate('customerId', 'name')
+    .populate('vendorId', 'name')
+    .populate('debitAccountId', 'accountCode accountName')
+    .populate('creditAccountId', 'accountCode accountName')
+    .populate('createdBy', 'name')
+}
+
 function populateTransactionQuery(query) {
   return query
     .populate('customerId', 'name')
@@ -90,6 +99,7 @@ function createTransactionWorkflowAction({
 }
 
 module.exports = {
+  populateTransactionListQuery,
   populateTransactionQuery,
   createTransactionWorkflowAction,
 }
