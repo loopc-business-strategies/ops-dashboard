@@ -53,19 +53,20 @@ router.get('/accounts', protect, async (req, res) => {
     const summaryMaxLimit = 5000
     const { page, limit, skip } = parsePagination(req.query, 50, isSummaryScope ? summaryMaxLimit : 200)
     const query = { isActive: true }
+    let summaryCacheKey = null
     if (isSummaryScope) {
       const scopedIds = await getAccountSummaryScope(req.user)
       if (Array.isArray(scopedIds)) {
         query._id = { $in: scopedIds }
       }
-      const cacheKey = summaryAccountsCache.buildKey([
+      summaryCacheKey = summaryAccountsCache.buildKey([
         req.user?.tenant || req.user?.company || 'default',
         req.user?._id || req.user?.id || 'user',
         'summary-accounts',
         page,
         limit,
       ])
-      const cached = summaryAccountsCache.get(cacheKey)
+      const cached = summaryAccountsCache.get(summaryCacheKey)
       if (cached) return res.json(cached)
     }
     const accountQuery = ChartOfAccount.find(query)
@@ -82,8 +83,8 @@ router.get('/accounts', protect, async (req, res) => {
       ChartOfAccount.countDocuments(query),
     ])
     const payload = { success: true, accounts, total, page, limit }
-    if (isSummaryScope) {
-      summaryAccountsCache.set(cacheKey, payload)
+    if (isSummaryScope && summaryCacheKey) {
+      summaryAccountsCache.set(summaryCacheKey, payload)
     }
     res.json(payload)
   } catch {
