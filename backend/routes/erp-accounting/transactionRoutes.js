@@ -3,6 +3,7 @@ function registerTransactionRoutes(deps) {
   const path = require('path')
   const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
   const { reverseMetalVoucherStockForVoid } = require('../../utils/metalVoucherStockReversal')
+  const { normalizeVoucherMetaDocNo } = require('../../utils/voucherDocNo')
   const { runInTransaction, writeOpts } = require('../../utils/mongoTransaction')
   const User = require('../../models/User')
   const Message = require('../../models/Message')
@@ -328,11 +329,11 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
 
     const normalizedMetalFixStatus = normalizeMetalFixStatus(metalFixStatus)
     const voucherMetaPayload = (['sale', 'purchase', 'metal_receipt', 'metal_payment'].includes(String(type || '').toLowerCase()) && normalizedMetalFixStatus)
-      ? {
+      ? normalizeVoucherMetaDocNo(type, {
           ...(voucherMeta || {}),
           fixingType: normalizedMetalFixStatus === 'unfixed' ? 'non-fixing' : 'fixing',
-        }
-      : (voucherMeta || undefined)
+        })
+      : normalizeVoucherMetaDocNo(type, voucherMeta || undefined)
 
     const tx = await Transaction.create({
       type,
@@ -456,6 +457,9 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
       if (normalizedMetalFixStatus) {
         tx.voucherMeta.fixingType = normalizedMetalFixStatus === 'unfixed' ? 'non-fixing' : 'fixing'
       }
+    }
+    if (tx.voucherMeta) {
+      tx.voucherMeta = normalizeVoucherMetaDocNo(tx.type, tx.voucherMeta)
     }
     tx.updatedBy = req.user._id
     appendTransactionAudit(tx, req.user, 'update', { fromStatus: tx.status, toStatus: tx.status, comment: req.body.description || '' })

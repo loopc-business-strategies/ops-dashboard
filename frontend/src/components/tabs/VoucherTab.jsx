@@ -11,7 +11,7 @@ import VoucherAttachmentsPanel from './erp/VoucherAttachmentsPanel'
 import { resolveDocumentBranding } from './erp/documentBranding'
 import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
 import { buildMetalRatesFromApiPayload, marketPricesToRates, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
-import { BASE, cfg, fmt, today, S, fieldRow, fieldGroup, labelStyle, inputStyle, readInput, sectionBox, sectionHeader, sectionBody, btn, tabBtn, classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid, classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap, classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName, classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue, classicRightGrid, classicLabel, classicInput, classicReadInput, classicTextAreaRow, metalWin, metalTopInlineRow, metalTopField, emptyLine, normalizeMongoIdField, emptyHeader, DOC_PREFIX_BY_TYPE, getDocYear, parseVoucherDocMeta, buildVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, toFinitePositive, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, getAccountNameValue, isBankLikeAccount, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalStockInVoucherType, isMetalStockOutVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity } from './voucher/voucherTabShared'
+import { BASE, cfg, fmt, today, S, fieldRow, fieldGroup, labelStyle, inputStyle, readInput, sectionBox, sectionHeader, sectionBody, btn, tabBtn, classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid, classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap, classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName, classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue, classicRightGrid, classicLabel, classicInput, classicReadInput, classicTextAreaRow, metalWin, metalTopInlineRow, metalTopField, emptyLine, normalizeMongoIdField, emptyHeader, DOC_PREFIX_BY_TYPE, getDocYear, parseAnyVoucherDocMeta, parseVoucherDocMeta, buildVoucherDocNo, coerceVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, toFinitePositive, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, getAccountNameValue, isBankLikeAccount, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalStockInVoucherType, isMetalStockOutVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity } from './voucher/voucherTabShared'
 import { buildVoucherTypeConfigs } from './voucher/voucherTypeConfigs'
 import { deriveErpAccessPolicy, canCreateTransactionFor } from './erp/accessPolicy'
 
@@ -703,14 +703,21 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const sortVouchersByDocNo = useCallback((items, type) => {
     const src = Array.isArray(items) ? [...items] : []
     return src.sort((a, b) => {
-      const am = parseVoucherDocMeta(a?.voucherMeta?.vocNo, type)
-      const bm = parseVoucherDocMeta(b?.voucherMeta?.vocNo, type)
+      const am = parseAnyVoucherDocMeta(a?.voucherMeta?.vocNo) || parseVoucherDocMeta(a?.voucherMeta?.vocNo, type)
+      const bm = parseAnyVoucherDocMeta(b?.voucherMeta?.vocNo) || parseVoucherDocMeta(b?.voucherMeta?.vocNo, type)
       const ak = am?.sortKey ?? 0
       const bk = bm?.sortKey ?? 0
       if (ak !== bk) return ak - bk
       return new Date(a?.date || 0).getTime() - new Date(b?.date || 0).getTime()
     })
   }, [])
+
+  const displayVoucherDocNo = useCallback((voucher, typeOverride = voucherType) => {
+    const meta = voucher?.voucherMeta || {}
+    const docDate = meta.docDate || voucher?.date || header.docDate
+    const voucherKind = String(voucher?.type || typeOverride || voucherType || '').toLowerCase()
+    return coerceVoucherDocNo(voucherKind, meta.vocNo, docDate)
+  }, [voucherType, header.docDate])
 
   // ─── load vouchers ───────────────────────────────────────────────────────────
   const loadVouchers = useCallback(async () => {
@@ -769,7 +776,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     const normalizedType = String(voucherTypeOverride || voucherType || '').toLowerCase()
     const currentYear = Number(getDocYear(docDateOverride))
     const nos = src
-      .map((v) => parseVoucherDocMeta(v?.voucherMeta?.vocNo, normalizedType))
+      .map((v) => parseAnyVoucherDocMeta(v?.voucherMeta?.vocNo) || parseVoucherDocMeta(v?.voucherMeta?.vocNo, normalizedType))
       .filter(Boolean)
       .filter((meta) => meta.year === 0 || meta.year === currentYear)
       .map((meta) => meta.seq)
@@ -822,16 +829,26 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       )
       setVouchers(txs)
       if (txs.length > 0) {
-        // open the last (highest vocNo) voucher
         openVoucher(txs[txs.length - 1])
       } else {
-        // Pass txs directly so nextVocNo uses the fresh list, not stale state
         openCreate(txs, type)
       }
     } catch {
-      // fallback: just open blank form
       openCreate(undefined, type)
     }
+  }
+
+  const switchVoucherTab = async (type) => {
+    if (type === voucherType && mode === 'list') {
+      await loadVouchers()
+      return
+    }
+    if (mode === 'create' && !editingId) {
+      const hasData = String(header.partyCode || '').trim() || lineItems.length > 0 || String(header.narration || '').trim()
+      if (hasData && !window.confirm('Discard current unsaved form and switch voucher type?')) return
+    }
+    setVoucherType(type)
+    await openLastOrCreate(type)
   }
 
   const handleModalHeaderMouseDown = (e) => {
@@ -1082,7 +1099,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       currRate: normalizedHeaderRate.toFixed(6),
       currRateSource: isAedVoucher ? 'fixed_aed' : headerRateSource,
       vocDate: v.date ? v.date.slice(0, 10) : today(),
-      vocNo: m.vocNo || '',
+      vocNo: coerceVoucherDocNo(voucherKind, m.vocNo, m.docDate ? m.docDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today())),
       salesman: m.salesman || '',
       docDate: m.docDate ? m.docDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
       valueDate: m.valueDate ? m.valueDate.slice(0, 10) : (v.date ? v.date.slice(0, 10) : today()),
@@ -1360,6 +1377,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       return ''
     }
     const normalizedVoucherType = String(voucherType || '').toLowerCase()
+    const resolvedDocNo = coerceVoucherDocNo(normalizedVoucherType, header.vocNo, header.docDate)
     const isSimpleMetalSave = isMetalTransferVoucherType(normalizedVoucherType)
     const normalizedHeaderCurrency = String(header.currCode || baseCurrencyCode || 'USD').trim().toUpperCase()
     const isReceiptPayment = ['receipt', 'payment'].includes(normalizedVoucherType)
@@ -1374,7 +1392,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       type: voucherType,
       amount: isSimpleMetalSave ? 0.01 : (totals.grandTotal || 0.01),
       date: isSimpleMetalSave ? (header.docDate || header.valueDate || header.vocDate) : (header.valueDate || header.vocDate),
-      description: `${voucherType} voucher ${header.vocNo || ''}`.trim(),
+      description: `${voucherType} voucher ${resolvedDocNo || ''}`.trim(),
       currency: isReceiptPayment ? normalizedHeaderCurrency : baseCurrencyCode,
       exchangeRate: isReceiptPayment ? backendHeaderRate : 1,
       customerId: resolvedParty?.customerId || undefined,
@@ -1384,7 +1402,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         partyName: header.partyName || resolvedParty?.partyName || '',
         partyAccountId: selectedAccount?.accountId || partyLedgerIdFromResolved() || '',
         salesman: header.salesman,
-        vocNo: header.vocNo,
+        vocNo: resolvedDocNo,
         docDate: header.docDate || null,
         valueDate: isSimpleMetalSave ? (header.docDate || header.valueDate || null) : (header.valueDate || null),
         currRateSource: header.currRateSource || 'manual',
@@ -2135,37 +2153,37 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
         <button
           style={tabBtn(voucherType === 'payment')}
-          onClick={() => { setVoucherType('payment'); openLastOrCreate('payment') }}
+          onClick={() => switchVoucherTab('payment')}
         >
           💳 {t('paymentVoucher')}
         </button>
         <button
           style={tabBtn(voucherType === 'receipt')}
-          onClick={() => { setVoucherType('receipt'); openLastOrCreate('receipt') }}
+          onClick={() => switchVoucherTab('receipt')}
         >
           🧾 {t('receiptVoucher')}
         </button>
         <button
           style={tabBtn(voucherType === 'purchase')}
-          onClick={() => { setVoucherType('purchase'); openLastOrCreate('purchase') }}
+          onClick={() => switchVoucherTab('purchase')}
         >
           🟫 Metal Purchase
         </button>
         <button
           style={tabBtn(voucherType === 'sale')}
-          onClick={() => { setVoucherType('sale'); openLastOrCreate('sale') }}
+          onClick={() => switchVoucherTab('sale')}
         >
           🟨 Metal Sale
         </button>
         <button
           style={tabBtn(voucherType === 'metal_receipt')}
-          onClick={() => { setVoucherType('metal_receipt'); openLastOrCreate('metal_receipt') }}
+          onClick={() => switchVoucherTab('metal_receipt')}
         >
           📥 Metal Receipt
         </button>
         <button
           style={tabBtn(voucherType === 'metal_payment')}
-          onClick={() => { setVoucherType('metal_payment'); openLastOrCreate('metal_payment') }}
+          onClick={() => switchVoucherTab('metal_payment')}
         >
           📤 Metal Payment
         </button>
@@ -2242,7 +2260,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                     const fixingDisplay = m.fixingType === 'non-fixing' ? 'Unfixed' : 'Fixed'
                     return (
                       <tr key={v._id} style={{ background: i % 2 === 0 ? S.white : S.bg, borderBottom: `1px solid ${S.border}` }}>
-                        <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', color: S.green }}>{m.vocNo}</td>
+                        <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', color: S.green }}>{displayVoucherDocNo(v)}</td>
                         <td style={{ padding: '0.55rem 0.75rem' }}>{m.docDate ? String(m.docDate).slice(0, 10) : (v.date ? v.date.slice(0, 10) : '-')}</td>
                         {!isSimpleMetalVoucher && (
                           <td style={{ padding: '0.55rem 0.75rem' }}>{m.valueDate ? String(m.valueDate).slice(0, 10) : (v.date ? v.date.slice(0, 10) : '-')}</td>
@@ -2640,10 +2658,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                       <div style={classicRightGrid}>
                         <label style={classicLabel}>Doc No :</label>
                         <input
-                          style={formReadOnly ? classicReadInput : classicInput}
+                          style={classicReadInput}
                           value={header.vocNo}
-                          onChange={e => setHdr('vocNo', e.target.value)}
-                          readOnly={formReadOnly}
+                          readOnly
                         />
 
                         {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? (
