@@ -55,7 +55,12 @@ const buildSessionCookieOptions = (maxAgeMs) => ({
 })
 
 // Helper: send user data + token as response
-const sendToken = async (user, status, res, company) => {
+const isMobileClientRequest = (req) => {
+  const client = String(req?.headers?.['x-client'] || req?.headers?.['X-Client'] || '').trim().toLowerCase()
+  return client === 'mobile' || client === 'mg-mobile'
+}
+
+const sendToken = async (user, status, res, company, req = null) => {
   const tenant = normalizeTenant(company) || getDefaultTenant()
   const settings = await loadAdminSettings(tenant)
   const maxAgeMs = resolveSessionMaxAgeMs(settings)
@@ -67,7 +72,7 @@ const sendToken = async (user, status, res, company) => {
   // Also send CSRF token in response body so cross-domain frontends can store and use it
   res.setHeader('X-CSRF-Token', csrfToken)
   user.password = undefined // never send password
-  res.status(status).json({
+  const payload = {
     success: true,
     csrfToken,
     user: {
@@ -88,7 +93,12 @@ const sendToken = async (user, status, res, company) => {
       modulePermissions: user.modulePermissions,
       company: tenant,
     },
-  })
+  }
+  if (req && isMobileClientRequest(req)) {
+    payload.token = token
+    payload.expiresIn = expiresIn
+  }
+  res.status(status).json(payload)
 }
 
 const validatePasswordForTenant = async (tenant, password) => {
@@ -200,7 +210,7 @@ router.post('/setup', validateBody(setupSchema), async (req, res) => {
       role: 'super_admin',
     })
 
-    await sendToken(user, 201, res, tenant)
+    await sendToken(user, 201, res, tenant, req)
   } catch (err) {
     console.error('Setup error:', err)
     res.status(500).json({ success: false, message: 'Server error.' })
@@ -239,7 +249,7 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
     user.lastLogin = new Date()
     await user.save({ validateBeforeSave: false })
 
-    await sendToken(user, 200, res, tenant)
+    await sendToken(user, 200, res, tenant, req)
   } catch (err) {
     console.error('Login error:', err)
     res.status(500).json({ success: false, message: 'Server error.' })
