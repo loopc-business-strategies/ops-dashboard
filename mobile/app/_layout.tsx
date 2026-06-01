@@ -13,7 +13,16 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isLoading) return
-    const inAuthGroup = segments[0] === 'login'
+
+    const root = segments[0]
+    const inAuthGroup = root === 'login'
+    const onMissingRoute = root === '+not-found'
+
+    if (onMissingRoute) {
+      router.replace(isAuthenticated ? '/(tabs)/home' : '/login')
+      return
+    }
+
     if (!isAuthenticated && !inAuthGroup) {
       router.replace('/login')
     } else if (isAuthenticated && inAuthGroup) {
@@ -37,8 +46,10 @@ export default function RootLayout() {
     <AuthProvider>
       <AuthGate>
         <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
           <Stack.Screen name="login" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="admin-settings" options={{ headerShown: false }} />
           <Stack.Screen
             name="plus-modal"
             options={{

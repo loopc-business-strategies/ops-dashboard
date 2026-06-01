@@ -1,21 +1,25 @@
-import { Link, Stack } from 'expo-router';
-import { StyleSheet } from 'react-native';
-
-import { Text, View } from '@/components/Themed';
+import { Link, Stack } from 'expo-router'
+import { StyleSheet, Text, View } from 'react-native'
+import { mgBranding } from '@/src/config/branding'
+import { useAuth } from '@/src/context/AuthContext'
 
 export default function NotFoundScreen() {
+  const { isAuthenticated } = useAuth()
+  const homeHref = isAuthenticated ? '/(tabs)/home' : '/login'
+
   return (
     <>
-      <Stack.Screen options={{ title: 'Oops!' }} />
+      <Stack.Screen options={{ title: 'Not found', headerShown: false }} />
       <View style={styles.container}>
-        <Text style={styles.title}>This screen doesn't exist.</Text>
-
-        <Link href="/" style={styles.link}>
-          <Text style={styles.linkText}>Go to home screen!</Text>
+        <Text style={styles.title}>This screen doesn&apos;t exist.</Text>
+        <Link href={homeHref} style={styles.link}>
+          <Text style={styles.linkText}>
+            {isAuthenticated ? 'Go to home screen' : 'Go to sign in'}
+          </Text>
         </Link>
       </View>
     </>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -24,10 +28,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+    backgroundColor: '#000',
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
+    color: '#fff',
   },
   link: {
     marginTop: 15,
@@ -35,6 +41,6 @@ const styles = StyleSheet.create({
   },
   linkText: {
     fontSize: 14,
-    color: '#2e78b7',
+    color: mgBranding.colors.secondary,
   },
-});
+})
