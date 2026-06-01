@@ -44,6 +44,16 @@ npm start
 
 Scan the QR code with Expo Go, or press `a` for Android emulator.
 
+**Important:** `npm run dev:mobile` (Expo Go / dev server) is **not** the same as an installed APK. Dev loads JavaScript from your PC live; an APK bundles code at build time. Git push updates Vercel/Railway only — not the mobile app.
+
+| Workflow | When to use |
+|----------|-------------|
+| `npm run dev:mobile` | Daily development on phone via Expo Go |
+| `npm run mobile:build:android:preview` | New APK when native deps change or first install |
+| `npm run mobile:update:preview` | Push JS/UI changes to an already-installed preview APK (no rebuild) |
+
+After the first preview build with `expo-updates`, run `npm run mobile:update:preview` to ship Home/dashboard changes without rebuilding the APK.
+
 ## Auth
 
 Mobile login sends `X-Client: mobile` and expects `{ token, user }` from `POST /api/auth/login` with `company: mg`.

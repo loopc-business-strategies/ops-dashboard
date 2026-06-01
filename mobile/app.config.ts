@@ -44,6 +44,12 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
   },
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
+  updates: {
+    url: 'https://u.expo.dev/3fe355ea-49d0-480f-a0c1-33432daa0e63',
+  },
   extra: {
     tenant: 'mg',
     apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://api.loopcstrategies.com',
