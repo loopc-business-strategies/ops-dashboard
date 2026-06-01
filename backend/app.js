@@ -5,7 +5,7 @@ const fs = require('fs')
 const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
-const rateLimit = require('express-rate-limit')
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit')
 const cookieParser = require('cookie-parser')
 
 const sanitizeMiddleware = require('./middleware/sanitize')
@@ -110,22 +110,37 @@ function createApp() {
 
   app.set('trust proxy', 1)
 
+  const authRateLimitPaths = ['/api/auth/login', '/api/auth/setup']
+
+  const shouldSkipApiRateLimit = (req) => {
+    if (!isProduction) return true
+    const path = String(req.originalUrl || req.url || '').split('?')[0]
+    return authRateLimitPaths.some(
+      (prefix) => path === prefix || path.startsWith(`${prefix}/`)
+    )
+  }
+
   const apiLimiter = rateLimit({
     windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
-    max: Number(process.env.RATE_LIMIT_MAX || 400),
+    max: Number(process.env.RATE_LIMIT_MAX || 800),
     standardHeaders: true,
     legacyHeaders: false,
-    skip: () => !isProduction,
+    skip: shouldSkipApiRateLimit,
     message: { success: false, message: 'Too many requests. Please try again shortly.' },
   })
 
   const authLimiter = rateLimit({
     windowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
-    max: Number(process.env.AUTH_RATE_LIMIT_MAX || 25),
+    max: Number(process.env.AUTH_RATE_LIMIT_MAX || 50),
     standardHeaders: true,
     legacyHeaders: false,
     skip: () => !isProduction,
     skipSuccessfulRequests: true,
+    keyGenerator: (req) => {
+      const ip = ipKeyGenerator(req)
+      const identity = String(req.body?.name || req.body?.email || '').trim().toLowerCase()
+      return identity ? `${ip}:${identity}` : ip
+    },
     message: { success: false, message: 'Too many authentication attempts. Please try again later.' },
   })
 
