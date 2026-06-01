@@ -89,6 +89,24 @@ export function getTenantBranding(tenant) {
   return tenantBranding[key] || defaultBranding
 }
 
+export function getDisabledVoucherTypes(tenant) {
+  const branding = getTenantBranding(tenant)
+  return Array.isArray(branding?.featureFlags?.disabledVoucherTypes)
+    ? branding.featureFlags.disabledVoucherTypes.map((type) => String(type || '').trim().toLowerCase()).filter(Boolean)
+    : []
+}
+
+export function isVoucherTypeEnabled(tenant, type) {
+  const disabled = new Set(getDisabledVoucherTypes(tenant))
+  return !disabled.has(String(type || '').trim().toLowerCase())
+}
+
+export function filterTransactionTypesForTenant(tenant, types = []) {
+  const disabled = new Set(getDisabledVoucherTypes(tenant))
+  if (!disabled.size) return types
+  return types.filter((type) => !disabled.has(String(type || '').trim().toLowerCase()))
+}
+
 export function resolveTenantFromHostname(hostname, fallbackTenant = defaultBranding.key) {
   const fallback = normalizeTenantKey(fallbackTenant) || defaultBranding.key
   const rawHost = String(hostname || '')

@@ -50,6 +50,7 @@ function registerTransactionRoutes(deps) {
     canManageTransactionWorkflow,
     isFinance,
     getRoleTransactionTypes,
+    getDisabledVoucherTypeMessage,
     BASE_CURRENCY_CODE,
     applyPartyAccountPriority,
     StockMovement,
@@ -159,7 +160,7 @@ router.get('/transactions', protect, async (req, res) => {
     const { page, limit, skip } = parsePagination(req.query, 50, 200)
     const cursor = decodeCursor(req.query.cursor)
     const query = { isDeleted: { $ne: true } }
-    const allowedTypes = getRoleTransactionTypes(req.user)
+    const allowedTypes = getRoleTransactionTypes(req.user, req.tenant?.key || req.user?.tenant)
 
     query.type = allowedTypes.length === 1 ? allowedTypes[0] : { $in: allowedTypes }
 
@@ -300,6 +301,10 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
     if (!canCreateTransactionFor(req.user, type)) {
       return res.status(403).json({ success: false, message: 'You are not allowed to create this transaction type' })
     }
+    const disabledTypeMessage = getDisabledVoucherTypeMessage(req.tenant?.key || req.user?.tenant, type)
+    if (disabledTypeMessage) {
+      return res.status(403).json({ success: false, message: disabledTypeMessage })
+    }
 
     const normalizedAmount = normalizeMoneyValue(amount, 'amount')
     const normalizedExchangeRate = normalizeExchangeRateValue(exchangeRate ?? 1)
@@ -408,6 +413,10 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
     const nextType = req.body.type || tx.type
     if (!canCreateTransactionFor(req.user, nextType)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+    const disabledTypeMessage = getDisabledVoucherTypeMessage(req.tenant?.key || req.user?.tenant, nextType)
+    if (disabledTypeMessage) {
+      return res.status(403).json({ success: false, message: disabledTypeMessage })
     }
 
     const validationMessage = validateTransactionPayload({

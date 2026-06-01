@@ -1,4 +1,5 @@
 import accessMatrix from '../../../generated/erp-access-matrix.json'
+import { filterTransactionTypesForTenant } from '../../../config/tenantBranding'
 import {
   canViewErpSubTab,
   canViewERPModule,
@@ -125,19 +126,23 @@ export function canCloseLedgerPeriod(user) {
   return evaluateErpPermission(user, 'canViewLedger') && canCreateTransaction(user)
 }
 
-export function getAvailableTransactionTypes(user) {
+export function getAvailableTransactionTypes(user, tenant) {
   const isSuperAdmin = evaluatePredicate(user, 'isSuperAdmin')
   const isFinance = evaluatePredicate(user, 'isFinance')
-  if (isSuperAdmin || isFinance || canCreateTransaction(user)) return TRANSACTION_TYPES
-  if (hasExplicitErpPermissions(user) && canAccessOperationalTransactions(user)) return TRANSACTION_TYPES
+  if (isSuperAdmin || isFinance || canCreateTransaction(user)) {
+    return filterTransactionTypesForTenant(tenant, TRANSACTION_TYPES)
+  }
+  if (hasExplicitErpPermissions(user) && canAccessOperationalTransactions(user)) {
+    return filterTransactionTypesForTenant(tenant, TRANSACTION_TYPES)
+  }
   const isSalesRole = evaluatePredicate(user, 'isSalesRole')
   const isOperationsRole = evaluatePredicate(user, 'isOperationsRole')
   const isHRRole = evaluatePredicate(user, 'isHRRole')
   const dept = getDept(user)
   const isProduction = getRole(user) === 'department_head' && dept === 'production'
-  if (isSalesRole) return ['sale', 'receipt', 'metal_payment']
-  if (isOperationsRole || isProduction) return ['purchase', 'expense', 'metal_receipt']
-  if (isHRRole) return ['payroll']
+  if (isSalesRole) return filterTransactionTypesForTenant(tenant, ['sale', 'receipt', 'metal_payment'])
+  if (isOperationsRole || isProduction) return filterTransactionTypesForTenant(tenant, ['purchase', 'expense', 'metal_receipt'])
+  if (isHRRole) return filterTransactionTypesForTenant(tenant, ['payroll'])
   return []
 }
 

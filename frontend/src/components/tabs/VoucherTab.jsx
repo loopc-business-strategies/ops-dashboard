@@ -3,7 +3,7 @@ import AccountCombobox from '../AccountCombobox'
 import axios from '../../api/client'
 import { useLanguage } from '../../context/LanguageContext'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
-import { getTenantBranding } from '../../config/tenantBranding'
+import { getTenantBranding, isVoucherTypeEnabled } from '../../config/tenantBranding'
 import DocumentPrintHeader from './erp/DocumentPrintHeader'
 import MGMetalInvoicePrintLayout from './erp/MGMetalInvoicePrintLayout'
 import MGVoucherPrintLayout from './erp/MGVoucherPrintLayout'
@@ -14,6 +14,8 @@ import { buildMetalRatesFromApiPayload, marketPricesToRates, resolveLiveVoucherM
 import { BASE, cfg, fmt, today, S, fieldRow, fieldGroup, labelStyle, inputStyle, readInput, sectionBox, sectionHeader, sectionBody, btn, tabBtn, classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid, classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap, classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName, classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue, classicRightGrid, classicLabel, classicInput, classicReadInput, classicTextAreaRow, metalWin, metalTopInlineRow, metalTopField, emptyLine, normalizeMongoIdField, emptyHeader, DOC_PREFIX_BY_TYPE, getDocYear, parseAnyVoucherDocMeta, parseVoucherDocMeta, buildVoucherDocNo, coerceVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, toFinitePositive, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, getAccountNameValue, isBankLikeAccount, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalStockInVoucherType, isMetalStockOutVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity } from './voucher/voucherTabShared'
 import { buildVoucherTypeConfigs } from './voucher/voucherTypeConfigs'
 import { deriveErpAccessPolicy, canCreateTransactionFor } from './erp/accessPolicy'
+
+const VOUCHER_TAB_TYPES = ['payment', 'receipt', 'purchase', 'sale', 'metal_receipt', 'metal_payment']
 
 export default function VoucherTab({ token, user, accounts = [], customers: propCustomers = [], vendors: propVendors = [], currencies = [], reportBranding = null }) {
   const showAccountDetailsTab = false
@@ -29,15 +31,21 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const isManagementOnly = erpAccess.isManagementRole
   const canManageWorkflow = erpAccess.canManageTransactionWorkflow
 
+  const tenantBranding = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)
+  const tenantKey = tenantBranding?.key || ''
+  const enabledVoucherTypes = VOUCHER_TAB_TYPES.filter((type) => isVoucherTypeEnabled(tenantKey, type))
+
   const canView = erpAccess.canAccessVouchers || erpAccess.canAccessTransactions
-  const canCreatePayment = canCreateTransactionFor(user || {}, 'payment')
-  const canCreateReceipt = canCreateTransactionFor(user || {}, 'receipt')
-  const canCreatePurchase = canCreateTransactionFor(user || {}, 'purchase')
-  const canCreateSale = canCreateTransactionFor(user || {}, 'sale')
+  const canCreatePayment = isVoucherTypeEnabled(tenantKey, 'payment') && canCreateTransactionFor(user || {}, 'payment')
+  const canCreateReceipt = isVoucherTypeEnabled(tenantKey, 'receipt') && canCreateTransactionFor(user || {}, 'receipt')
+  const canCreatePurchase = isVoucherTypeEnabled(tenantKey, 'purchase') && canCreateTransactionFor(user || {}, 'purchase')
+  const canCreateSale = isVoucherTypeEnabled(tenantKey, 'sale') && canCreateTransactionFor(user || {}, 'sale')
+  const canCreateMetalReceipt = isVoucherTypeEnabled(tenantKey, 'metal_receipt') && canCreateTransactionFor(user || {}, 'metal_receipt')
+  const canCreateMetalPayment = isVoucherTypeEnabled(tenantKey, 'metal_payment') && canCreateTransactionFor(user || {}, 'metal_payment')
   const isReadOnly = isManagementOnly && !erpAccess.canCreateTransaction
 
   // ─── top-level state ────────────────────────────────────────────────────────
-  const [voucherType, setVoucherType] = useState('payment')
+  const [voucherType, setVoucherType] = useState(() => enabledVoucherTypes[0] || 'payment')
 
   // ─── own customers/vendors state (always fresh, not stale props) ─────────────
   const [localCustomers, setLocalCustomers] = useState(propCustomers)
@@ -696,9 +704,13 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     ? canCreatePayment
     : voucherType === 'receipt'
       ? canCreateReceipt
-      : (voucherType === 'purchase' || voucherType === 'metal_receipt')
+      : voucherType === 'purchase'
         ? canCreatePurchase
-        : canCreateSale
+        : voucherType === 'metal_receipt'
+          ? canCreateMetalReceipt
+          : voucherType === 'metal_payment'
+            ? canCreateMetalPayment
+            : canCreateSale
 
   const sortVouchersByDocNo = useCallback((items, type) => {
     const src = Array.isArray(items) ? [...items] : []
@@ -741,6 +753,13 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   }, [voucherType, canView, sortVouchersByDocNo])
 
   useEffect(() => { loadVouchers() }, [loadVouchers])
+
+  useEffect(() => {
+    if (enabledVoucherTypes.includes(voucherType)) return
+    const nextType = enabledVoucherTypes[0] || 'payment'
+    setVoucherType(nextType)
+    setMode('list')
+  }, [enabledVoucherTypes, voucherType])
 
   useEffect(() => {
     if (!modalDrag) return
@@ -839,6 +858,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   }
 
   const switchVoucherTab = async (type) => {
+    if (!isVoucherTypeEnabled(tenantKey, type)) return
     if (type === voucherType && mode === 'list') {
       await loadVouchers()
       return
@@ -2151,42 +2171,26 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
 
       {/* ── Voucher type switcher ── */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
-        <button
-          style={tabBtn(voucherType === 'payment')}
-          onClick={() => switchVoucherTab('payment')}
-        >
-          💳 {t('paymentVoucher')}
-        </button>
-        <button
-          style={tabBtn(voucherType === 'receipt')}
-          onClick={() => switchVoucherTab('receipt')}
-        >
-          🧾 {t('receiptVoucher')}
-        </button>
-        <button
-          style={tabBtn(voucherType === 'purchase')}
-          onClick={() => switchVoucherTab('purchase')}
-        >
-          🟫 Metal Purchase
-        </button>
-        <button
-          style={tabBtn(voucherType === 'sale')}
-          onClick={() => switchVoucherTab('sale')}
-        >
-          🟨 Metal Sale
-        </button>
-        <button
-          style={tabBtn(voucherType === 'metal_receipt')}
-          onClick={() => switchVoucherTab('metal_receipt')}
-        >
-          📥 Metal Receipt
-        </button>
-        <button
-          style={tabBtn(voucherType === 'metal_payment')}
-          onClick={() => switchVoucherTab('metal_payment')}
-        >
-          📤 Metal Payment
-        </button>
+        {enabledVoucherTypes.map((type) => {
+          const tabLabels = {
+            payment: { icon: '💳', label: t('paymentVoucher') },
+            receipt: { icon: '🧾', label: t('receiptVoucher') },
+            purchase: { icon: '🟫', label: 'Metal Purchase' },
+            sale: { icon: '🟨', label: 'Metal Sale' },
+            metal_receipt: { icon: '📥', label: 'Metal Receipt' },
+            metal_payment: { icon: '📤', label: 'Metal Payment' },
+          }
+          const tab = tabLabels[type] || { icon: '', label: type }
+          return (
+            <button
+              key={type}
+              style={tabBtn(voucherType === type)}
+              onClick={() => switchVoucherTab(type)}
+            >
+              {tab.icon ? `${tab.icon} ` : ''}{tab.label}
+            </button>
+          )
+        })}
         {mode !== 'list' && (
           <button style={btn('secondary')} onClick={() => setMode('list')}>
             ← Back to List

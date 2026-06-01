@@ -92,15 +92,13 @@ export default function ERPTransactionsTab({
 
   const [selectedTypeFilter, setSelectedTypeFilter] = useState('')
   const [transactionChatDrafts, setTransactionChatDrafts] = useState({})
-  const typeFilterOptions = [
+  const typeFilterOptions = useMemo(() => ([
     { value: '', label: 'All' },
-    { value: 'payment', label: 'Payment' },
-    { value: 'receipt', label: 'Receipt' },
-    { value: 'purchase', label: 'Metal Purchase' },
-    { value: 'sale', label: 'Metal Sale' },
-    { value: 'metal_receipt', label: 'Metal Receipt' },
-    { value: 'metal_payment', label: 'Metal Payment' },
-  ]
+    ...availableTransactionTypes.map((type) => ({
+      value: type,
+      label: TRANSACTION_TYPE_LABELS[type] || type,
+    })),
+  ]), [availableTransactionTypes, TRANSACTION_TYPE_LABELS])
   const filteredTransactions = useMemo(() => {
     if (!selectedTypeFilter) return transactions
     return transactions.filter((tx) => String(tx.type || '').toLowerCase() === selectedTypeFilter)

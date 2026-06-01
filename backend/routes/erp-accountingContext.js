@@ -81,6 +81,7 @@ const {
   normalizeMoneyValue,
   normalizeExchangeRateValue,
   getRoleTransactionTypes,
+  getDisabledVoucherTypeMessage,
   validateTransactionPayload,
 } = require('./erp-accounting/transactionHelpers')
 const { createFxRevaluationService } = require('../services/erpAccounting/fxRevaluationService')
@@ -610,6 +611,7 @@ function registerErpAccountingRoutes(router) {
     canManageTransactionWorkflow,
     isFinance,
     getRoleTransactionTypes,
+    getDisabledVoucherTypeMessage,
     BASE_CURRENCY_CODE,
     applyPartyAccountPriority,
     StockMovement,

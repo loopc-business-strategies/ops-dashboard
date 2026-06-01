@@ -4,6 +4,10 @@
  */
 
 const {
+  filterTransactionTypesForTenant,
+  getDisabledVoucherTypeMessage,
+} = require('../../config/tenantVoucherPolicy')
+const {
   isSuperAdmin,
   isFinance,
   isSales,
@@ -67,13 +71,15 @@ const normalizeExchangeRateValue = (value, field = 'exchange rate') => {
 // ROLE-BASED TRANSACTION ACCESS
 // ==========================================
 
-const getRoleTransactionTypes = (user) => {
-  if (isSuperAdmin(user) || isFinance(user)) return TRANSACTION_TYPES
-  if (hasExplicitErpPermissions(user) && canAccessOperationalTransactions(user)) return TRANSACTION_TYPES
-  if (isSales(user)) return ['sale', 'receipt', 'metal_payment']
-  if (isOperations(user) || isProduction(user)) return ['purchase', 'expense', 'metal_receipt']
-  if (isHR(user)) return ['payroll']
-  return []
+const getRoleTransactionTypes = (user, tenant) => {
+  let types = []
+  if (isSuperAdmin(user) || isFinance(user)) types = TRANSACTION_TYPES
+  else if (hasExplicitErpPermissions(user) && canAccessOperationalTransactions(user)) types = TRANSACTION_TYPES
+  else if (isSales(user)) types = ['sale', 'receipt', 'metal_payment']
+  else if (isOperations(user) || isProduction(user)) types = ['purchase', 'expense', 'metal_receipt']
+  else if (isHR(user)) types = ['payroll']
+  else types = []
+  return filterTransactionTypesForTenant(tenant, types)
 }
 
 // ==========================================
@@ -137,5 +143,7 @@ module.exports = {
   normalizeMoneyValue,
   normalizeExchangeRateValue,
   getRoleTransactionTypes,
+  getDisabledVoucherTypeMessage,
+  filterTransactionTypesForTenant,
   validateTransactionPayload,
 }

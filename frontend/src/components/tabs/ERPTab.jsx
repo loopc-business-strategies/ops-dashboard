@@ -644,7 +644,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     if (inventoryVatSortDir === 'asc') return aVat - bVat
     return bVat - aVat
   })
-  const availableTransactionTypes = getAvailableTransactionTypes(user)
+  const availableTransactionTypes = getAvailableTransactionTypes(user, user?.company || user?.tenant?.key || user?.tenant?.name)
   const selectedTransaction = transactions.find((tx) => tx._id === selectedTransactionId) || null
   const rawStatementEntries = accountEnquiryData?.statement?.entries || []
   const resolveFixStatus = (entry) => {
