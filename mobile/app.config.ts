@@ -48,7 +48,7 @@ const config: ExpoConfig = {
     tenant: 'mg',
     apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://api.loopcstrategies.com',
     eas: {
-      projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID || '',
+      projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID || '3fe355ea-49d0-480f-a0c1-33432daa0e63',
     },
   },
 }
