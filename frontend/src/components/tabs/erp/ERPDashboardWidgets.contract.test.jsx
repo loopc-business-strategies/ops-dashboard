@@ -10,8 +10,35 @@ describe('ERPDashboardWidgets contract', () => {
   })
 
   test('renders expenses empty-state contract', () => {
-    render(<div>{renderERP_DashWidget('expenses', { expenses: { total: 0, breakdown: [] } }, [])}</div>)
+    render(<div>{renderERP_DashWidget('expenses', { expenses: { total: 0, breakdown: [], ytdTotal: 0, monthlyTrend: [] } }, [])}</div>)
     expect(screen.getByText('No expenses in period.')).toBeTruthy()
+  })
+
+  test('renders expenses YTD fallback when current period is empty', () => {
+    render(
+      <div>
+        {renderERP_DashWidget(
+          'expenses',
+          {
+            expenses: {
+              total: 0,
+              breakdown: [],
+              ytdTotal: 15000,
+              currentMonthTotal: 0,
+              lastMonthTotal: 4200,
+              monthlyTrend: [
+                { label: 'May 2026', month: 'May', year: '2026', amount: 4200 },
+                { label: 'Apr 2026', month: 'Apr', year: '2026', amount: 10800 },
+              ],
+            },
+          },
+          []
+        )}
+      </div>
+    )
+
+    expect(screen.getByText(/year-to-date activity/i)).toBeTruthy()
+    expect(screen.getByText('THIS YEAR')).toBeTruthy()
   })
 
   test('renders notifications contract with action link', () => {

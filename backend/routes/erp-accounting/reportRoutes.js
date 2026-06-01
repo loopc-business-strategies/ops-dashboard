@@ -19,6 +19,9 @@ const {
   loadAccountMetaMap,
   buildMonthlyCashFlow,
   computeCustomerPeriodMetrics,
+  getLedgerEntryAmount,
+  isDashboardExpenseLedgerEntry,
+  getDashboardExpenseCategory,
 } = require('../../utils/ledgerBalanceBatch')
 
 const {
@@ -1018,11 +1021,12 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     periodLedger.forEach((entry) => {
       const debitType = getType(entry.debitAccountId)
       const creditType = getType(entry.creditAccountId)
-      if (creditType === 'Income') income += Number(entry.amount || 0)
-      if (debitType === 'Expense') {
-        expenseTotal += Number(entry.amount || 0)
-        const key = accountMetaMap.get(String(entry.debitAccountId))?.accountName || 'Other'
-        expenseByAccount[key] = (expenseByAccount[key] || 0) + Number(entry.amount || 0)
+      if (creditType === 'Income') income += getLedgerEntryAmount(entry)
+      if (isDashboardExpenseLedgerEntry(entry, getType)) {
+        const amount = getLedgerEntryAmount(entry)
+        expenseTotal += amount
+        const key = getDashboardExpenseCategory(entry, accountMetaMap)
+        expenseByAccount[key] = (expenseByAccount[key] || 0) + amount
       }
     })
     const expenseBreakdown = Object.entries(expenseByAccount)
@@ -1030,15 +1034,15 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 6)
     const expenseEntries = periodLedger
-      .filter((entry) => getType(entry.debitAccountId) === 'Expense')
+      .filter((entry) => isDashboardExpenseLedgerEntry(entry, getType))
       .sort((a, b) => new Date(b.date) - new Date(a.date))
     const recentExpenses = expenseEntries.slice(0, 5).map((entry) => {
       const debitAccount = accountMetaMap.get(String(entry.debitAccountId)) || {}
       return {
         date: entry.date,
-        category: debitAccount.accountName || 'Other',
+        category: getDashboardExpenseCategory(entry, accountMetaMap) || debitAccount.accountName || 'Other',
         description: entry.description || entry.notes || '-',
-        amount: toMoney(entry.amount || 0),
+        amount: toMoney(getLedgerEntryAmount(entry)),
         paymentMethod: entry.paymentType || (String(entry.referenceType || '').includes('bank') ? 'Bank Transfer' : 'General'),
       }
     })
@@ -1062,11 +1066,11 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       ensureExpenseTrendMonth(new Date(today.getFullYear(), today.getMonth() - i, 1))
     }
     ledgerEntries.forEach((entry) => {
-      if (getType(entry.debitAccountId) !== 'Expense') return
+      if (!isDashboardExpenseLedgerEntry(entry, getType)) return
       const entryDate = new Date(entry.date)
       if (Number.isNaN(entryDate.getTime())) return
       const row = ensureExpenseTrendMonth(new Date(entryDate.getFullYear(), entryDate.getMonth(), 1))
-      row.amount += Number(entry.amount || 0)
+      row.amount += getLedgerEntryAmount(entry)
       row.count += 1
     })
     const expenseMonthlyTrend = Array.from(expenseTrendMap.values())
@@ -1077,8 +1081,8 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`
     const ytdExpenseTotal = ledgerEntries.reduce((sum, entry) => {
       const entryDate = new Date(entry.date)
-      if (getType(entry.debitAccountId) !== 'Expense' || entryDate < ytdStart || entryDate > periodEnd) return sum
-      return sum + Number(entry.amount || 0)
+      if (!isDashboardExpenseLedgerEntry(entry, getType) || entryDate < ytdStart || entryDate > periodEnd) return sum
+      return sum + getLedgerEntryAmount(entry)
     }, 0)
 
     const activityFlow = {

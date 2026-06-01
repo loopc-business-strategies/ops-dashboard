@@ -1,5 +1,9 @@
 const { describe, expect, test } = require('@jest/globals')
-const { computeAgingFromEntries } = require('../utils/ledgerBalanceBatch')
+const {
+  computeAgingFromEntries,
+  getLedgerEntryAmount,
+  isDashboardExpenseLedgerEntry,
+} = require('../utils/ledgerBalanceBatch')
 
 describe('computeAgingFromEntries', () => {
   test('returns zero receivable when customer credits exceed open debits', () => {
@@ -48,5 +52,31 @@ describe('computeAgingFromEntries', () => {
     const aging = computeAgingFromEntries(entries, accountId, new Date('2026-06-01'))
 
     expect(aging.total).toBe(600)
+  })
+})
+
+describe('dashboard expense helpers', () => {
+  const getType = (accountId) => (String(accountId) === 'expense-1' ? 'Expense' : 'Asset')
+
+  test('counts purchase vouchers even when debited to inventory asset accounts', () => {
+    expect(isDashboardExpenseLedgerEntry({
+      referenceType: 'purchase',
+      debitAccountId: 'inventory-1',
+    }, getType)).toBe(true)
+  })
+
+  test('ignores vendor payments to avoid double counting purchases', () => {
+    expect(isDashboardExpenseLedgerEntry({
+      referenceType: 'vendor_payment',
+      debitAccountId: 'expense-1',
+    }, getType)).toBe(true)
+    expect(isDashboardExpenseLedgerEntry({
+      referenceType: 'vendor_payment',
+      debitAccountId: 'ap-1',
+    }, getType)).toBe(false)
+  })
+
+  test('applies exchange rate to ledger amounts', () => {
+    expect(getLedgerEntryAmount({ amount: 100, exchangeRate: 1.25 })).toBe(125)
   })
 })

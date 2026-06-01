@@ -387,23 +387,29 @@ function ExpensesWidget({ dashboard }) {
   const years = [...new Set(monthlyTrend.map((row) => String(row.year)).filter(Boolean))]
   if (!years.includes(yearFilter)) years.push(yearFilter)
   const COLORS = ['#176B4B', '#49B68D', '#A8D8C0', '#15A8E2', '#6366F1', '#D97706']
-  const segments = breakdown.slice(0, 6).map((item, i) => ({
-    label: item.name,
-    value: Number(item.amount || 0),
-    color: COLORS[i % COLORS.length],
-    pct: total > 0 ? (Number(item.amount || 0) / total) * 100 : 0,
-  }))
-  const filteredTrend = monthlyTrend
-    .filter((row) => String(row.year) === yearFilter)
-    .slice(trendRange === '12m' ? -12 : -6)
-  const maxTrend = Math.max(...filteredTrend.map((row) => Number(row.amount || 0)), 1)
   const currentTotal = Number(exp.currentMonthTotal ?? total)
   const lastMonthTotal = Number(exp.lastMonthTotal || 0)
   const ytdTotal = Number(exp.ytdTotal || total)
   const txCount = Number(exp.transactionCount || 0)
+  const hasExpenseData = total > 0
+    || ytdTotal > 0
+    || monthlyTrend.some((row) => Number(row.amount || 0) > 0)
+  const displayTotal = total > 0 ? total : ytdTotal
+  const segments = (total > 0 ? breakdown : monthlyTrend.filter((row) => Number(row.amount || 0) > 0))
+    .slice(0, 6)
+    .map((item, i) => ({
+      label: item.name || item.label || item.month || 'Other',
+      value: Number(item.amount || 0),
+      color: COLORS[i % COLORS.length],
+      pct: displayTotal > 0 ? (Number(item.amount || 0) / displayTotal) * 100 : 0,
+    }))
   const avgExpense = txCount > 0 ? currentTotal / txCount : 0
   const deltaPct = lastMonthTotal > 0 ? ((currentTotal - lastMonthTotal) / lastMonthTotal) * 100 : 0
   const deltaColor = deltaPct <= 0 ? '#059669' : '#DC2626'
+  const filteredTrend = monthlyTrend
+    .filter((row) => String(row.year) === yearFilter)
+    .slice(trendRange === '12m' ? -12 : -6)
+  const maxTrend = Math.max(...filteredTrend.map((row) => Number(row.amount || 0)), 1)
   const smallControl = {
     border: '1px solid #E5E7EB',
     borderRadius: '0.45rem',
@@ -414,14 +420,19 @@ function ExpensesWidget({ dashboard }) {
     padding: '0.32rem 0.55rem',
   }
 
-  if (total === 0) {
+  if (!hasExpenseData) {
     return <p style={{ fontSize: '0.78rem', color: '#9CA3AF', textAlign: 'center', padding: '0.5rem 0' }}>No expenses in period.</p>
   }
 
   return (
     <div>
+      {total === 0 && ytdTotal > 0 && (
+        <p style={{ fontSize: '0.72rem', color: '#64748B', textAlign: 'center', margin: '0 0 0.55rem' }}>
+          No expenses this month. Showing year-to-date activity.
+        </p>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: '1rem', alignItems: 'center' }}>
-        <ExpenseDonut segments={segments} total={total} size={104} stroke={24} label={fmtCompactCurrency(total)} />
+        <ExpenseDonut segments={segments} total={displayTotal} size={104} stroke={24} label={fmtCompactCurrency(displayTotal)} />
         <div style={{ display: 'grid', gap: '0.42rem', minWidth: 0 }}>
           {segments.map((seg) => (
             <div key={seg.label} style={{ display: 'flex', alignItems: 'center', gap: '0.42rem', fontSize: '0.74rem', color: '#64748B', minWidth: 0 }}>

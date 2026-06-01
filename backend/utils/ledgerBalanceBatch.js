@@ -208,6 +208,33 @@ async function getLedgerBalanceMap(Ledger, { endDate } = {}) {
   return balanceByAccount
 }
 
+const DASHBOARD_EXPENSE_REFERENCE_TYPES = new Set([
+  'expense',
+  'purchase',
+  'payroll',
+  'cogs',
+])
+
+function getLedgerEntryAmount(entry) {
+  return Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
+}
+
+function isDashboardExpenseLedgerEntry(entry, getAccountType) {
+  const ref = String(entry?.referenceType || 'journal').toLowerCase()
+  if (typeof getAccountType === 'function' && getAccountType(entry?.debitAccountId) === 'Expense') return true
+  return DASHBOARD_EXPENSE_REFERENCE_TYPES.has(ref)
+}
+
+function getDashboardExpenseCategory(entry, accountMetaMap) {
+  const accountName = accountMetaMap.get(String(entry?.debitAccountId))?.accountName
+  if (accountName) return accountName
+  const ref = String(entry?.referenceType || 'journal').toLowerCase()
+  if (ref === 'purchase') return 'Purchases'
+  if (ref === 'payroll') return 'Payroll'
+  if (ref === 'cogs') return 'Cost of Goods Sold'
+  return 'Other'
+}
+
 module.exports = {
   getOutstandingMapForAccounts,
   getAgingMapForAccounts,
@@ -216,4 +243,8 @@ module.exports = {
   buildMonthlyCashFlow,
   computeCustomerPeriodMetrics,
   computeAgingFromEntries,
+  getLedgerEntryAmount,
+  isDashboardExpenseLedgerEntry,
+  getDashboardExpenseCategory,
+  DASHBOARD_EXPENSE_REFERENCE_TYPES,
 }
