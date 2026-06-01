@@ -33,4 +33,33 @@ describe('ERPDashboardWidgets contract', () => {
 
     expect(screen.getByText('↗ View All Alerts')).toBeTruthy()
   })
+
+  test('renders AP/AR empty state and deficit styling', () => {
+    render(
+      <div>
+        {renderERP_DashWidget(
+          'apar',
+          {
+            apAr: {
+              totalAR: 0,
+              totalAP: 3388.43,
+              netPosition: -3388.43,
+              arCount: 0,
+              apCount: 2,
+              customerOutstanding: [],
+              supplierOutstanding: [
+                { supplierName: 'Vendor A', outstanding: 2000 },
+                { supplierName: 'Vendor B', outstanding: 1388.43 },
+              ],
+            },
+          },
+          []
+        )}
+      </div>
+    )
+
+    expect(screen.getByText('0 open')).toBeTruthy()
+    expect(screen.getByText('No outstanding balances.')).toBeTruthy()
+    expect(screen.getByText('▼ Deficit')).toBeTruthy()
+  })
 })

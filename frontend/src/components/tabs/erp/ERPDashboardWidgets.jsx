@@ -261,6 +261,8 @@ function APARWidget({ dashboard, onNavigate }) {
   const ap = dashboard?.apAr
   const arRows = ap?.customerOutstanding || []
   const apRows = ap?.supplierOutstanding || []
+  const netPosition = Number(ap?.netPosition || 0)
+  const netFavorable = netPosition >= 0
   const tabSt = (active) => ({
     padding: '0.45rem 0.9rem', fontSize: '0.75rem', fontWeight: active ? '600' : '500',
     color: active ? '#059669' : muted, cursor: 'pointer',
@@ -272,9 +274,15 @@ function APARWidget({ dashboard, onNavigate }) {
       <div style={{ padding: '0.75rem 0.8125rem 0' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '0.625rem' }}>
           {[
-            { label: 'RECEIVABLE (AR)', val: ap?.totalAR, sub: `${ap?.arCount || 0} open`,    vc: '#16A34A', bg: '#DCFCE7' },
-            { label: 'PAYABLE (AP)',    val: ap?.totalAP, sub: `${ap?.apCount || 0} pending`, vc: '#DC2626', bg: '#FEE2E2' },
-            { label: 'NET POSITION',   val: ap?.netPosition, sub: Number(ap?.netPosition || 0) >= 0 ? '▲ Favorable' : '▼ Deficit', vc: '#059669', bg: '#E8F5EF' },
+            { label: 'RECEIVABLE (AR)', val: ap?.totalAR, sub: `${ap?.arCount || 0} open`, vc: '#16A34A', bg: '#DCFCE7' },
+            { label: 'PAYABLE (AP)', val: ap?.totalAP, sub: `${ap?.apCount || 0} pending`, vc: '#DC2626', bg: '#FEE2E2' },
+            {
+              label: 'NET POSITION',
+              val: ap?.netPosition,
+              sub: netFavorable ? '▲ Favorable' : '▼ Deficit',
+              vc: netFavorable ? '#059669' : '#DC2626',
+              bg: netFavorable ? '#E8F5EF' : '#FEE2E2',
+            },
           ].map(c => (
             <div key={c.label} style={{ padding: '0.625rem', borderRadius: '0.5rem', background: c.bg, textAlign: 'center' }}>
               <p style={{ fontSize: '0.62rem', color: muted, fontWeight: '700', letterSpacing: '0.04em', marginBottom: '0.2rem' }}>{c.label}</p>
@@ -297,7 +305,7 @@ function APARWidget({ dashboard, onNavigate }) {
           </tr></thead>
           <tbody>
             {(tab === 'ar' ? arRows : apRows).length === 0
-              ? <tr><td colSpan={3} style={{ padding: '0.75rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem' }}>No data for period.</td></tr>
+              ? <tr><td colSpan={3} style={{ padding: '0.75rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem' }}>No outstanding balances.</td></tr>
               : (tab === 'ar' ? arRows : apRows).slice(0, 6).map((r, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid #F9FAFB' }}>
                   <td style={{ padding: '0.35rem 0.4rem', fontWeight: '500', color: ink }}>{r.customerName || r.supplierName}</td>

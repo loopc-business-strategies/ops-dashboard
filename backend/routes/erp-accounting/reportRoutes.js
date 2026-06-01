@@ -1127,7 +1127,11 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     vendors.forEach((vendor) => {
       if (vendor.ledgerAccountId?._id) balanceAccountIds.add(String(vendor.ledgerAccountId._id))
     })
-    const outstandingMap = await getOutstandingMapForAccounts(Ledger, [...balanceAccountIds])
+    const customerLedgerIds = customers.map((customer) => customer.ledgerAccountId?._id).filter(Boolean)
+    const [outstandingMap, agingMap] = await Promise.all([
+      getOutstandingMapForAccounts(Ledger, [...balanceAccountIds]),
+      getAgingMapForAccounts(Ledger, customerLedgerIds),
+    ])
 
     const cashBankBalances = bankAccounts.map((account) => {
       const balance = outstandingMap.get(String(account._id)) || 0
@@ -1175,12 +1179,15 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     )
 
     // --- AP & AR (via customer / vendor ledger accounts) ---
+    // AR uses open-invoice aging (same as /reports/customer-outstanding), not raw ledger net,
+    // so customer credits/advances do not inflate totals while the detail table stays empty.
     const customerOutstanding = customers.map((customer) => {
       const ledgerId = customer.ledgerAccountId?._id
-      const opening = Number(customer.ledgerAccountId?.openingBalance ?? customer.openingBalance ?? 0)
-      const ledgerNet = ledgerId ? Number(outstandingMap.get(String(ledgerId)) || 0) : 0
-      const outstanding = ledgerId ? opening + ledgerNet : Number(customer.outstandingBalance || 0)
-      return { customerName: customer.name, outstanding: toMoney(outstanding) }
+      const aging = ledgerId
+        ? (agingMap.get(String(ledgerId)) || { total: 0 })
+        : { total: 0 }
+      const outstanding = ledgerId ? Number(aging.total || 0) : Number(customer.outstandingBalance || 0)
+      return { customerName: customer.name, outstanding: toMoney(Math.max(0, outstanding)) }
     })
     const vendorOutstanding = vendors.map((vendor) => {
       const ledgerId = vendor.ledgerAccountId?._id

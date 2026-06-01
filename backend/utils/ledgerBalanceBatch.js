@@ -215,4 +215,5 @@ module.exports = {
   loadAccountMetaMap,
   buildMonthlyCashFlow,
   computeCustomerPeriodMetrics,
+  computeAgingFromEntries,
 }
