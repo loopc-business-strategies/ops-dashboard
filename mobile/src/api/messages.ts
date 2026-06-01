@@ -14,10 +14,14 @@ type LatestMessagesResponse = {
   rows?: ChatMessage[]
 }
 
-export async function fetchLatestMessages(token: string, limit = 40) {
+export async function fetchLatestMessages(
+  token: string,
+  type: 'all' | 'group' = 'all',
+  limit = 40,
+) {
   const data = await apiRequest<LatestMessagesResponse>('/api/messages/latest', {
     token,
-    params: { type: 'all', limit },
+    params: { type, limit },
   })
   return data.messages || data.rows || []
 }
