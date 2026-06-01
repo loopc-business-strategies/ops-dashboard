@@ -50,10 +50,19 @@ Mobile login sends `X-Client: mobile` and expects `{ token, user }` from `POST /
 
 Deploy the backend auth update before testing against production.
 
-## Build (later)
+## Build (EAS — App Store / Play Store)
+
+See **[STORE_RELEASE.md](./STORE_RELEASE.md)** for full steps.
+
+Quick start after `npx eas login` and `npx eas init`:
 
 ```bash
-npx eas build --platform android --profile production
+# Internal test APK (Android)
+npm run mobile:build:android:preview
+
+# Production store builds
+npm run mobile:build:android
+npm run mobile:build:ios
 ```
 
-Configure `eas.json` and Apple/Google developer accounts before store release.
+Configure `mobile/eas.json` submit section before `npm run submit:android` / `submit:ios`.
