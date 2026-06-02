@@ -66,7 +66,7 @@ import {
   resolveEffectiveSpotPrices,
   resolveInventoryValuationUnitCost,
 } from '../../utils/liveMetalRates'
-import { createHtmlExportRoot, downloadBlob, downloadCsv } from './erp/exportHelpers'
+import { downloadBlob, downloadCsv, mountHtmlExportDocument } from './erp/exportHelpers'
 import {
   accumulateUnfixedVoucherRevaluationByMetal,
   buildStatementCurrencyOptions,
@@ -3858,11 +3858,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
   }
   const handlePrintStatement = async () => {
+    let cleanup = () => {}
     try {
       const htmlData = await generateStatementHtml()
       if (!htmlData) return
       const html2pdf = await loadHtmlToPdf()
-      const exportRoot = createHtmlExportRoot(htmlData.html)
+      const mount = await mountHtmlExportDocument(htmlData.html)
+      cleanup = mount.cleanup
       const stamp = new Date().toISOString().slice(0, 10)
       const fileName = `Statement-${htmlData.accountCode}-${stamp}.pdf`
       const worker = html2pdf().set({
@@ -3874,15 +3876,15 @@ function ERPTab({ focusTab, onNavigateMain }) {
           useCORS: true,
           backgroundColor: '#ffffff',
           logging: false,
+          windowWidth: 1120,
         },
         jsPDF: {
           unit: 'mm',
           format: 'a4',
           orientation: 'landscape',
         },
-      }).from(exportRoot).toPdf()
+      }).from(mount.element).toPdf()
       const blobUrl = await worker.outputPdf('bloburl')
-      document.body.removeChild(exportRoot)
       const w = window.open(blobUrl, '_blank')
       if (!w) {
         URL.revokeObjectURL(blobUrl)
@@ -3899,14 +3901,18 @@ function ERPTab({ focusTab, onNavigateMain }) {
     } catch (err) {
       console.error('Statement print error:', err)
       setError('Failed to prepare a color PDF for printing.')
+    } finally {
+      cleanup()
     }
   }
   const handleDownloadStatementPdf = async () => {
+    let cleanup = () => {}
     try {
       const htmlData = await generateStatementHtml()
       if (!htmlData) return
       const html2pdf = await loadHtmlToPdf()
-      const exportRoot = createHtmlExportRoot(htmlData.html)
+      const mount = await mountHtmlExportDocument(htmlData.html)
+      cleanup = mount.cleanup
       const stamp = new Date().toISOString().slice(0, 10)
       await html2pdf().set({
         margin: 0,
@@ -3917,19 +3923,21 @@ function ERPTab({ focusTab, onNavigateMain }) {
           useCORS: true,
           backgroundColor: '#ffffff',
           logging: false,
+          windowWidth: 1120,
         },
         jsPDF: {
           unit: 'mm',
           format: 'a4',
           orientation: 'landscape',
         },
-      }).from(exportRoot).save()
-      document.body.removeChild(exportRoot)
+      }).from(mount.element).save()
       setExportOptionsOpen(false)
       showNotification('✅ Color PDF downloaded')
     } catch (err) {
       console.error('PDF generation error:', err)
       setError('Failed to generate PDF. Please try again.')
+    } finally {
+      cleanup()
     }
   }
   const handleExportEnquiryPdf = () => {
