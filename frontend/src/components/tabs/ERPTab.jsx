@@ -452,11 +452,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const canLoadParties = canViewCustomers || canAccessVendors || canAccessTransactions || canAccessVouchers || canAccessFixingRegister || canAccessDirectDeals
   const canLoadInventoryData = canAccessInventory || canAccessFixingRegister
   const canLoadDashboard = canViewAccounts || canAccessReports
-  const { snapshot: liveMetalSnapshot, error: liveMetalError } = useLiveMetalRates({
-    token,
-    tenant: inventoryTenantKey,
-    enabled: Boolean(token && canAccessERP),
-  })
+  const { snapshot: liveMetalSnapshot, error: liveMetalError } = useLiveMetalRates()
   useEffect(() => {
     const synced = liveRatesToMetalRatesState(liveMetalSnapshot)
     if (!synced) return

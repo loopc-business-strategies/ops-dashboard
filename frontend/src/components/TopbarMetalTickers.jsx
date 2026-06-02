@@ -15,8 +15,8 @@ const METALS = [
  * Tenant top bar: live Gold / Silver / Platinum spot from ERP metal-rates API.
  * Second row shows movement since the previous live snapshot once one exists.
  */
-export default function TopbarMetalTickers({ token, tenant }) {
-  const { snapshot, error } = useLiveMetalRates({ token, tenant })
+export default function TopbarMetalTickers() {
+  const { snapshot, error } = useLiveMetalRates()
 
   const pillBase = {
     display: 'inline-flex',

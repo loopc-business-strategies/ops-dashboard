@@ -1,4 +1,8 @@
-export const MT4_LIVE_POLL_MS = 5_000
+export const MT4_LIVE_POLL_MS = 15_000
+/** Poll interval when market SSE stream is connected (fallback only). */
+export const LIVE_METAL_POLL_STREAM_MS = 60_000
+/** Pause polling after a 429 response. */
+export const LIVE_METAL_RATE_LIMIT_BACKOFF_MS = 90_000
 /** @deprecated Use MT4_LIVE_POLL_MS — live UI is MT4-only now. */
 export const LIVE_METAL_POLL_MS = MT4_LIVE_POLL_MS
 export const MT4_BRIDGE_SOURCE = 'mt4-bridge'
@@ -186,6 +190,7 @@ export function metalErrorLabel(error) {
   const status = Number(error?.status || 0)
   if (status === 401) return 'login required'
   if (status === 403) return 'permission denied'
+  if (status === 429) return 'rate limited'
   if (status === 503) return 'bridge unavailable'
   if (error?.network) return 'backend offline'
   return error?.message || ''

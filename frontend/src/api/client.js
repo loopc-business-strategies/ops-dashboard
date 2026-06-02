@@ -7,7 +7,7 @@ const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_AP
 axios.defaults.withCredentials = true
 installCsrfInterceptor(axios)
 
-const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504])
+const RETRYABLE_STATUS = new Set([408, 500, 502, 503, 504])
 const RETRYABLE_METHODS = new Set(['get', 'head', 'options'])
 const MAX_RETRIES = 2
 

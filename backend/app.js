@@ -111,21 +111,36 @@ function createApp() {
   app.set('trust proxy', 1)
 
   const authRateLimitPaths = ['/api/auth/login', '/api/auth/setup']
+  const rateLimitExcludedPrefixes = [
+    '/api/erp-accounting/metal-rates',
+    '/api/erp-accounting/reports/market-prices',
+    '/api/realtime',
+  ]
 
   const shouldSkipApiRateLimit = (req) => {
     if (!isProduction) return true
     const path = String(req.originalUrl || req.url || '').split('?')[0]
-    return authRateLimitPaths.some(
-      (prefix) => path === prefix || path.startsWith(`${prefix}/`)
+    if (authRateLimitPaths.some(
+      (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+    )) {
+      return true
+    }
+    return rateLimitExcludedPrefixes.some(
+      (prefix) => path === prefix || path.startsWith(`${prefix}/`),
     )
   }
 
   const apiLimiter = rateLimit({
     windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
-    max: Number(process.env.RATE_LIMIT_MAX || 800),
+    max: Number(process.env.RATE_LIMIT_MAX || 1200),
     standardHeaders: true,
     legacyHeaders: false,
     skip: shouldSkipApiRateLimit,
+    keyGenerator: (req) => {
+      const ip = ipKeyGenerator(req)
+      const tenant = String(req.headers['x-tenant'] || req.headers['x-company'] || 'default').trim().toLowerCase()
+      return `${tenant}:${ip}`
+    },
     message: { success: false, message: 'Too many requests. Please try again shortly.' },
   })
 

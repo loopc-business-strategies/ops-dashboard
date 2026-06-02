@@ -11,6 +11,7 @@ import { resolveAllowedErpSubTab } from '../utils/erpSubTabPermissions'
 import BuildInfoBadge from '../components/BuildInfoBadge'
 import TopbarMetalTickers from '../components/TopbarMetalTickers'
 import AIAgentWidget from '../components/AIAgentWidget'
+import { LiveMetalRatesProvider } from '../context/LiveMetalRatesContext'
 import { startUserNotifications } from '../utils/realtimeSocket'
 
 // Import tab content components
@@ -225,6 +226,7 @@ function Dashboard() {
   const hideTimerRef = useRef(null)
 
   const branding = useMemo(() => getTenantBranding(user?.company || company), [company, user?.company])
+  const metalRatesEnabled = Boolean(token && ['mg', 'cg', 'loopc'].includes(branding.key))
   const navItems = getNavItems(perms, t, chatUnread, branding)
 
   useEffect(() => {
@@ -446,6 +448,7 @@ function Dashboard() {
 
 
   return (
+    <LiveMetalRatesProvider token={token} tenant={branding.key} enabled={metalRatesEnabled}>
     <div className="h-screen overflow-hidden" style={{ background: 'var(--bg-base)', display: 'flex', flexDirection: 'row', minHeight: '100vh' }} onMouseMove={handleShellMouseMove}>
 
       {/* Desktop edge sensor: reveal sidebar when mouse nears left/right edge */}
@@ -625,7 +628,7 @@ function Dashboard() {
             <div className="flex items-center justify-end gap-2 flex-nowrap flex-shrink-0 min-w-0">
               {['mg', 'cg', 'loopc'].includes(branding.key) && (
                 <div className="hidden md:flex items-center shrink-0 min-w-0 overflow-hidden">
-                  <TopbarMetalTickers token={token} tenant={branding.key} />
+                  <TopbarMetalTickers />
                 </div>
               )}
               {!['mg', 'cg', 'loopc'].includes(branding.key) && <BuildInfoBadge className="hidden md:inline-flex" />}
@@ -841,6 +844,7 @@ function Dashboard() {
 
       </div>
     </div>
+    </LiveMetalRatesProvider>
   )
 }
 

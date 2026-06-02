@@ -59,7 +59,7 @@ In Railway dashboard, go to **Variables** and add:
 | `MONGO_URI_CG` | (MongoDB Atlas connection string for CG) | `mongodb+srv://user:pass@cluster-cg.xxxxx.mongodb.net/ops-dashboard?retryWrites=true&w=majority` |
 | `MONGO_URI_LOOPC` | (MongoDB Atlas connection string for LoopC) | `mongodb+srv://user:pass@cluster-loopc.xxxxx.mongodb.net/ops-dashboard?retryWrites=true&w=majority` |
 | `RATE_LIMIT_WINDOW_MS` | `900000` | `900000` (15 min) |
-| `RATE_LIMIT_MAX` | `400` | `400` requests per window |
+| `RATE_LIMIT_MAX` | `1200` | `1200` requests per window |
 | `AUTH_RATE_LIMIT_MAX` | `25` | `25` login attempts per window |
 | `CLIENT_URLS` | (set in step 2.3) | Preferred comma-separated list of allowed frontend origins |
 | `CLIENT_URL` | (optional legacy fallback) | Single origin or same comma-separated list |
