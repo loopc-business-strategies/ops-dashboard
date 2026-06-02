@@ -56,7 +56,7 @@ const ERP_PERMISSION_ROWS = [
   { id: 'inventory', label: 'Inventory', icon: '📦' },
   { id: 'vouchers', label: 'Vouchers', icon: '🧾' },
   { id: 'direct-deals', label: 'Direct Deals', icon: '🤝' },
-  { id: 'fixing-register', label: 'Fixing Register', icon: '📌' },
+  { id: 'fixing-register', label: 'Net Position', icon: '📌' },
 ]
 
 const PERMISSIONS_PANEL_HEIGHT = 'min(640px, calc(100vh - 210px))'

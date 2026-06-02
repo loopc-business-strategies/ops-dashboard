@@ -157,7 +157,7 @@ const GROUP_MODULES = [
   { key: 'vendors', label: 'Vendors', desc: 'Manage vendors', icon: '♧', tone: '#E0F2FE' },
   { key: 'inventory', label: 'Inventory', desc: 'Manage inventory', icon: '▧', tone: '#DCFCE7' },
   { key: 'direct-deals', label: 'Direct Deals', desc: 'Manage direct deals', icon: '⌘', tone: '#FEF3C7' },
-  { key: 'fixing-register', label: 'Fixing Register', desc: 'View fixing register', icon: '☷', tone: '#FCE7F3' },
+  { key: 'fixing-register', label: 'Net Position', desc: 'View net position', icon: '☷', tone: '#FCE7F3' },
 ]
 
 const DEFAULT_GROUP_PERMISSIONS = GROUP_MODULES.reduce((acc, item, index) => {

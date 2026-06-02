@@ -52,7 +52,7 @@ export const ERP_PERMISSION_ROWS = [
   { id: 'inventory', label: 'Inventory' },
   { id: 'vouchers', label: 'Vouchers' },
   { id: 'direct-deals', label: 'Direct Deals' },
-  { id: 'fixing-register', label: 'Fixing Register' },
+  { id: 'fixing-register', label: 'Net Position' },
 ] as const
 
 export const ROLE_COLORS: Record<string, { bg: string; text: string }> = {

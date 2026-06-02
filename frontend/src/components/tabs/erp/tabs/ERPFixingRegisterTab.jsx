@@ -36,7 +36,7 @@ export default function ERPFixingRegisterTab({
           <div style={{ borderRadius: '0.6rem', overflow: 'hidden', border: '1px solid #CBD5E1', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', maxWidth: 'min(1200px, 100%)', marginBottom: '1.25rem', position: 'relative', transform: `translate(${fixingRegPanelOffset.x}px, ${fixingRegPanelOffset.y}px)`, transition: fixingRegPanelDrag.active ? 'none' : 'transform 120ms ease-out' }}>
             {/* Header */}
             <div onMouseDown={beginFixingRegPanelDrag} style={{ background: 'var(--purple)', padding: '0.85rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.75rem', position: 'sticky', top: 0, zIndex: 3, cursor: fixingRegPanelDrag.active ? 'grabbing' : 'grab', userSelect: 'none' }}>
-              <span style={{ fontSize: '1rem', fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.03em' }}>Fixing Position Summary + Register</span>
+              <span style={{ fontSize: '1rem', fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.03em' }}>Net Position</span>
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handleFixingRegProceed() }}
@@ -192,7 +192,7 @@ export default function ERPFixingRegisterTab({
 
           {fixingRegLoading && (
             <div style={{ maxWidth: 'min(1200px, 100%)', marginBottom: '0.75rem', padding: '0.85rem 1rem', borderRadius: '0.45rem', border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1E3A8A', fontSize: '0.88rem', fontWeight: '600' }}>
-              Loading fixing register…
+              Loading net position…
             </div>
           )}
 
@@ -296,7 +296,7 @@ export default function ERPFixingRegisterTab({
               <div style={{ marginTop: '1rem', borderRadius: '0.5rem', border: '1px solid #CBD5E1', background: '#FFFFFF', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', overflow: 'hidden', maxWidth: 'min(1200px, 100%)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', gap: '0.75rem', flexWrap: 'wrap', borderBottom: '1px solid #E5E7EB', background: '#FFFBF0' }}>
                   <div>
-                    <h4 style={{ margin: 0, color: C.ink, fontSize: '1.05rem', fontWeight: '700' }}>Fixing Position Summary</h4>
+                    <h4 style={{ margin: 0, color: C.ink, fontSize: '1.05rem', fontWeight: '700' }}>Net Position</h4>
                     <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>Sale, purchase, and direct deal lines for the current filter set.</p>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>

@@ -17,7 +17,7 @@ export type ErpDashWidgetMeta = {
 
 export const ERP_DASH_WIDGETS: ErpDashWidgetMeta[] = [
   { id: 'margins', label: 'Customer & Supplier Margins', icon: '📊' },
-  { id: 'fixing', label: 'Fixing Position Summary', icon: '📌' },
+  { id: 'fixing', label: 'Net Position', icon: '📌' },
   { id: 'bank', label: 'Bank & Cash Balances', icon: '🏦' },
   { id: 'cashflow', label: 'Cash Flow', icon: '💸' },
   { id: 'expenses', label: 'Expenses', icon: '📋' },

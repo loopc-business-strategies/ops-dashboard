@@ -22,7 +22,7 @@ export const ERP_DASH_GRID_COLUMNS = 6
 
 export const ERP_DASH_ALL_WIDGETS = [
   { id: 'margins', label: 'Customer & Supplier Margins', icon: '📊', color: '#ffedd5', desc: 'Equity and margin by customer/supplier', cols: 2 },
-  { id: 'fixing', label: 'Fixing Position Summary', icon: '📌', color: '#fdf2f8', desc: 'Net position by metal (XAU–XPD)', cols: 2, viewTab: 'fixing-register' },
+  { id: 'fixing', label: 'Net Position', icon: '📌', color: '#fdf2f8', desc: 'Metal position by type (XAU–XPD)', cols: 2, viewTab: 'fixing-register' },
   { id: 'bank', label: 'Bank & Cash Balances', icon: '🏦', color: '#ede9fe', desc: 'All account balances overview', cols: 2, viewTab: 'bank' },
   { id: 'cashflow', label: 'Cash Flow', icon: '💸', color: '#dcfce7', desc: 'Monthly inflow / outflow bar chart', cols: 2 },
   { id: 'expenses', label: 'Expenses', icon: '📋', color: '#fef9c3', desc: 'Expense breakdown by category', cols: 1 },
@@ -39,7 +39,7 @@ export const ERP_DASH_WIDGET_COUNT = ERP_DASH_ALL_WIDGETS.length
 
 const ERP_DASH_VALID_IDS = new Set(ERP_DASH_ALL_WIDGETS.map((widget) => widget.id))
 
-/** Keep Customer & Supplier Margins first and Fixing Position Summary immediately to its right when both are enabled. */
+/** Keep Customer & Supplier Margins first and Net Position immediately to its right when both are enabled. */
 export function ensureMarginsThenFixingOrder(ids) {
   const list = Array.isArray(ids) ? ids : []
   const hasM = list.includes('margins')
