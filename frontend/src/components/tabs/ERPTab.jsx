@@ -66,7 +66,7 @@ import {
   resolveEffectiveSpotPrices,
   resolveInventoryValuationUnitCost,
 } from '../../utils/liveMetalRates'
-import { downloadBlob, downloadCsv, mountHtmlExportDocument } from './erp/exportHelpers'
+import { downloadBlob, downloadCsv, printStatementHtml } from './erp/exportHelpers'
 import {
   accumulateUnfixedVoucherRevaluationByMetal,
   buildStatementCurrencyOptions,
@@ -110,7 +110,7 @@ import {
   isSupportedLogoUpload,
 } from './erp/ERPBrandingUtils'
 import { resolveDocumentBranding } from './erp/documentBranding'
-import { loadExcel, loadHtmlToPdf, loadPdfTools } from './erp/lazyExportLibs'
+import { loadExcel, loadPdfTools } from './erp/lazyExportLibs'
 import { ERP_TAB_COLORS as C, TRANSACTION_STATUS_STYLES, formatDateInputLocal } from './erp/erpTabPresentation'
 
 function ERPTab({ focusTab, onNavigateMain }) {
@@ -3858,86 +3858,35 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
   }
   const handlePrintStatement = async () => {
-    let cleanup = () => {}
     try {
       const htmlData = await generateStatementHtml()
       if (!htmlData) return
-      const html2pdf = await loadHtmlToPdf()
-      const mount = await mountHtmlExportDocument(htmlData.html)
-      cleanup = mount.cleanup
-      const stamp = new Date().toISOString().slice(0, 10)
-      const fileName = `Statement-${htmlData.accountCode}-${stamp}.pdf`
-      const worker = html2pdf().set({
-        margin: 0,
-        filename: fileName,
-        image: { type: 'jpeg', quality: 1 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-          windowWidth: 1120,
-        },
-        jsPDF: {
-          unit: 'mm',
-          format: 'a4',
-          orientation: 'landscape',
-        },
-      }).from(mount.element).toPdf()
-      const blobUrl = await worker.outputPdf('bloburl')
-      const w = window.open(blobUrl, '_blank')
-      if (!w) {
-        URL.revokeObjectURL(blobUrl)
-        setError('Popup blocked. Please allow popups for print')
-        return
-      }
-      setTimeout(() => {
-        w.focus()
-        w.print()
-      }, 700)
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
+      await printStatementHtml(htmlData.html)
       setExportOptionsOpen(false)
-      showNotification('✅ Color PDF opened for printing')
+      showNotification('✅ Statement opened for printing')
     } catch (err) {
       console.error('Statement print error:', err)
-      setError('Failed to prepare a color PDF for printing.')
-    } finally {
-      cleanup()
+      if (String(err?.message || '').includes('Popup blocked')) {
+        setError('Popup blocked. Please allow popups for statement printing.')
+      } else {
+        setError('Failed to prepare statement for printing.')
+      }
     }
   }
   const handleDownloadStatementPdf = async () => {
-    let cleanup = () => {}
     try {
       const htmlData = await generateStatementHtml()
       if (!htmlData) return
-      const html2pdf = await loadHtmlToPdf()
-      const mount = await mountHtmlExportDocument(htmlData.html)
-      cleanup = mount.cleanup
-      const stamp = new Date().toISOString().slice(0, 10)
-      await html2pdf().set({
-        margin: 0,
-        filename: `Statement-${htmlData.accountCode}-${stamp}.pdf`,
-        image: { type: 'jpeg', quality: 1 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-          windowWidth: 1120,
-        },
-        jsPDF: {
-          unit: 'mm',
-          format: 'a4',
-          orientation: 'landscape',
-        },
-      }).from(mount.element).save()
+      await printStatementHtml(htmlData.html)
       setExportOptionsOpen(false)
-      showNotification('✅ Color PDF downloaded')
+      showNotification('Choose Save as PDF in the print dialog to download')
     } catch (err) {
       console.error('PDF generation error:', err)
-      setError('Failed to generate PDF. Please try again.')
-    } finally {
-      cleanup()
+      if (String(err?.message || '').includes('Popup blocked')) {
+        setError('Popup blocked. Please allow popups for statement export.')
+      } else {
+        setError('Failed to open statement for PDF export.')
+      }
     }
   }
   const handleExportEnquiryPdf = () => {

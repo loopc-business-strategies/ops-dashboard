@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, test } from 'vitest'
-import { mountHtmlExportDocument } from './exportHelpers'
+import { afterEach, describe, expect, test, vi } from 'vitest'
+import { mountHtmlExportDocument, openStatementHtmlWindow, printStatementHtml } from './exportHelpers'
 
 const sampleHtml = `
   <html>
@@ -26,8 +26,9 @@ describe('exportHelpers – mountHtmlExportDocument', () => {
     cleanup()
   })
 
-  test('renders full HTML document body content in mounted element', async () => {
+  test('targets the .sheet element when present', async () => {
     const { element, cleanup } = await mountHtmlExportDocument(sampleHtml)
+    expect(element.classList.contains('sheet')).toBe(true)
     expect(element.textContent).toContain('Balance C/F')
     cleanup()
   })
@@ -37,5 +38,55 @@ describe('exportHelpers – mountHtmlExportDocument', () => {
     expect(document.querySelector('iframe')).toBeTruthy()
     cleanup()
     expect(document.querySelector('iframe')).toBeNull()
+  })
+})
+
+describe('exportHelpers – statement window helpers', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    document.body.innerHTML = ''
+  })
+
+  test('openStatementHtmlWindow writes HTML into a new tab document', async () => {
+    const mockDoc = {
+      open: vi.fn(),
+      write: vi.fn(),
+      close: vi.fn(),
+      readyState: 'complete',
+      fonts: { ready: Promise.resolve() },
+      images: [],
+      defaultView: null,
+    }
+    const mockWin = {
+      document: mockDoc,
+      focus: vi.fn(),
+      print: vi.fn(),
+    }
+    vi.spyOn(window, 'open').mockReturnValue(mockWin)
+
+    const win = await openStatementHtmlWindow(sampleHtml)
+    expect(win).toBe(mockWin)
+    expect(mockDoc.write).toHaveBeenCalledWith(sampleHtml)
+  })
+
+  test('printStatementHtml opens the statement and triggers browser print', async () => {
+    const mockDoc = {
+      open: vi.fn(),
+      write: vi.fn(),
+      close: vi.fn(),
+      readyState: 'complete',
+      fonts: { ready: Promise.resolve() },
+      images: [],
+      defaultView: null,
+    }
+    const mockWin = {
+      document: mockDoc,
+      focus: vi.fn(),
+      print: vi.fn(),
+    }
+    vi.spyOn(window, 'open').mockReturnValue(mockWin)
+
+    await printStatementHtml(sampleHtml)
+    expect(mockWin.print).toHaveBeenCalled()
   })
 })
