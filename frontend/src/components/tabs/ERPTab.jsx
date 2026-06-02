@@ -58,6 +58,7 @@ import ERPDashboardTab from './erp/tabs/ERPDashboardTab'
 import ERPLedgerTab from './erp/tabs/ERPLedgerTab'
 import ERPTransactionsTab from './erp/tabs/ERPTransactionsTab'
 import ERPReportsTab from './erp/tabs/ERPReportsTab'
+import { trialBalanceRowsForView } from './erp/trialBalanceReportRows'
 import ERPFixingRegisterTab from './erp/tabs/ERPFixingRegisterTab'
 import { startERPRealtimeFeeds, startMetalRatesRealtime } from '../../utils/realtimeSocket'
 import useLiveMetalRates from '../../hooks/useLiveMetalRates'
@@ -320,7 +321,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     startDate: '',
     endDate: '',
     accountType: '',
-    includeZeroAccounts: true,
+    includeZeroAccounts: false,
     sortBy: 'accountCode',
     sortDir: 'asc',
     comparePrevious: true,
@@ -1956,10 +1957,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
       const updates = {}
 
       if (targetView === 'summary' || targetView === 'trial') {
+        const includeZero = targetView === 'summary' ? false : reportFilters.includeZeroAccounts
         updates.trialBalance = await erpAccountingAPI.getTrialBalance(token, {
           ...commonRange,
           ...(reportFilters.accountType ? { accountType: reportFilters.accountType } : {}),
-          includeZero: reportFilters.includeZeroAccounts,
+          includeZero,
           sortBy: reportFilters.sortBy,
           sortDir: reportFilters.sortDir,
         })
@@ -4004,11 +4006,18 @@ function ERPTab({ focusTab, onNavigateMain }) {
       [],
     ]
     if (reportView === 'trial' || reportView === 'summary') {
+      const trialRows = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || [])
       const rows = [...brandingRows, ['Account Code', 'Account Name', 'Type', 'Debit', 'Credit', 'Net']]
-      ;(reports.trialBalance?.trialBalance || []).forEach((row) => {
+      trialRows.forEach((row) => {
         rows.push([row.accountCode, row.accountName, row.accountType, row.debit, row.credit, row.net])
       })
-      return { rows, fileBase: `trial-balance-${stamp}`, sheetName: 'Trial Balance', successLabel: 'Trial balance' }
+      const isSummary = reportView === 'summary'
+      return {
+        rows,
+        fileBase: isSummary ? `summary-${stamp}` : `trial-balance-${stamp}`,
+        sheetName: isSummary ? 'Summary' : 'Trial Balance',
+        successLabel: isSummary ? 'Summary' : 'Trial balance',
+      }
     }
     if (reportView === 'pnl') {
       const rows = [...brandingRows, ['Section', 'Account Code', 'Account Name', 'Amount']]
@@ -4150,7 +4159,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
           <div class="card"><div class="card-label">Trial Credit</div><div class="card-value">${formatMoney(reports.trialBalance?.totalCredit)}</div></div>
           <div class="card"><div class="card-label">Difference</div><div class="card-value">${formatMoney(reports.trialBalance?.difference)}</div></div>
         </div>
-        <div class="section"><p class="section-title">Trial Balance</p><table><thead><tr><th>Code</th><th>Account</th><th>Type</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Net</th></tr></thead><tbody>${(reports.trialBalance?.trialBalance || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td>${row.accountType}</td><td class="num">${formatMoney(row.debit)}</td><td class="num">${formatMoney(row.credit)}</td><td class="num">${formatMoney(row.net)}</td></tr>`).join('')}</tbody></table></div>
+        <div class="section"><p class="section-title">${reportView === 'summary' ? 'Summary' : 'Trial Balance'}</p><table><thead><tr><th>Code</th><th>Account</th><th>Type</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Net</th></tr></thead><tbody>${trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || []).map((row) => `<tr><td>${row.accountCode}</td><td>${row.accountName}</td><td>${row.accountType}</td><td class="num">${formatMoney(row.debit)}</td><td class="num">${formatMoney(row.credit)}</td><td class="num">${formatMoney(row.net)}</td></tr>`).join('')}</tbody></table></div>
         ${signatureBlock}
       `
     }
@@ -4165,7 +4174,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     const { jsPDF, autoTable } = await loadPdfTools()
     const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
     const titleMap = {
-      summary: 'ERP Financial Summary',
+      summary: 'Summary',
       trial: 'Trial Balance',
       pnl: 'Profit & Loss Statement',
       balanceSheet: 'Balance Sheet',
@@ -4205,7 +4214,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     let body = []
     if (reportView === 'trial' || reportView === 'summary') {
       head = [['Code', 'Account', 'Type', 'Debit', 'Credit', 'Net']]
-      body = (reports.trialBalance?.trialBalance || []).map((row) => [
+      body = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || []).map((row) => [
         row.accountCode,
         row.accountName,
         row.accountType,

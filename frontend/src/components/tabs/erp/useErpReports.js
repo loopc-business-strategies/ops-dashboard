@@ -49,10 +49,11 @@ export function useErpReports({
       const updates = {}
 
       if (targetView === 'summary' || targetView === 'trial') {
+        const includeZero = targetView === 'summary' ? false : reportFilters.includeZeroAccounts
         updates.trialBalance = await erpAccountingAPI.getTrialBalance(token, {
           ...commonRange,
           ...(reportFilters.accountType ? { accountType: reportFilters.accountType } : {}),
-          includeZero: reportFilters.includeZeroAccounts,
+          includeZero,
           sortBy: reportFilters.sortBy,
           sortDir: reportFilters.sortDir,
         })

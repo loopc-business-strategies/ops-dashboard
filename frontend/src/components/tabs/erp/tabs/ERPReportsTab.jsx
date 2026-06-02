@@ -1,3 +1,5 @@
+import { trialBalanceRowsForView } from '../trialBalanceReportRows'
+
 export default function ERPReportsTab({
   activeTab,
   C,
@@ -39,7 +41,8 @@ export default function ERPReportsTab({
   const TRIAL_BALANCE_UI_ROW_CAP = 500
   const DAY_BOOK_UI_ROW_CAP = 600
 
-  const trialBalanceFiltered = (reports.trialBalance?.trialBalance || []).filter((row) => {
+  const trialBalanceForView = trialBalanceRowsForView(reportView, reports.trialBalance?.trialBalance || [])
+  const trialBalanceFiltered = trialBalanceForView.filter((row) => {
     const q = String(reportFilters.search || '').toLowerCase().trim()
     if (!q) return true
     return String(row.accountCode || '').toLowerCase().includes(q) || String(row.accountName || '').toLowerCase().includes(q)
@@ -92,10 +95,12 @@ export default function ERPReportsTab({
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: C.ink, fontSize: '0.86rem', fontWeight: '600' }}>
-                  <input type="checkbox" checked={reportFilters.includeZeroAccounts} onChange={(e) => setReportFilters((prev) => ({ ...prev, includeZeroAccounts: e.target.checked }))} />
-                  Include zero-balance accounts
-                </label>
+                {reportView === 'trial' && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: C.ink, fontSize: '0.86rem', fontWeight: '600' }}>
+                    <input type="checkbox" checked={reportFilters.includeZeroAccounts} onChange={(e) => setReportFilters((prev) => ({ ...prev, includeZeroAccounts: e.target.checked }))} />
+                    Include zero-balance accounts
+                  </label>
+                )}
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: C.ink, fontSize: '0.86rem', fontWeight: '600' }}>
                   <input type="checkbox" checked={reportFilters.comparePrevious} onChange={(e) => setReportFilters((prev) => ({ ...prev, comparePrevious: e.target.checked }))} />
                   Compare with previous period
@@ -172,7 +177,14 @@ export default function ERPReportsTab({
                 <span style={{ color: '#1D4ED8' }}>{getReportPeriodLabel()}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-                <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>Trial Balance Detailed</p>
+                <div>
+                  <p style={{ margin: 0, fontWeight: '700', color: C.ink }}>{reportView === 'summary' ? 'Summary' : 'Trial Balance'}</p>
+                  {reportView === 'summary' && (
+                    <p style={{ margin: '0.35rem 0 0', fontSize: '0.82rem', color: C.inkSoft, fontWeight: '600', maxWidth: '520px' }}>
+                      Accounts with a non-zero balance or movement in this period. Use Trial Balance for the full chart including zero-balance lines.
+                    </p>
+                  )}
+                </div>
                 <input placeholder="Search account code/name" value={reportFilters.search} onChange={(e) => setReportFilters((prev) => ({ ...prev, search: e.target.value }))} style={{ ...modalInputStyle, marginBottom: 0, width: '260px' }} />
               </div>
               {trialBalanceFiltered.length > TRIAL_BALANCE_UI_ROW_CAP && (
