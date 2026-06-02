@@ -230,17 +230,34 @@ function FileCard({ file, isMe }) {
     docx: { icon:'📝', bg:'rgba(96,165,250,0.18)',  color:'#60a5fa' },
     doc:  { icon:'📝', bg:'rgba(96,165,250,0.18)',  color:'#60a5fa' },
     img:  { icon:'🖼️', bg:'rgba(34,197,94,0.18)',   color:'#22c55e' },
+    jpg:  { icon:'🖼️', bg:'rgba(34,197,94,0.18)',   color:'#22c55e' },
+    jpeg: { icon:'🖼️', bg:'rgba(34,197,94,0.18)',   color:'#22c55e' },
+    png:  { icon:'🖼️', bg:'rgba(34,197,94,0.18)',   color:'#22c55e' },
+    webp: { icon:'🖼️', bg:'rgba(34,197,94,0.18)',   color:'#22c55e' },
     xlsx: { icon:'📊', bg:'rgba(251,191,36,0.18)',  color:'#fbbf24' },
   }
   const cf = cfgs[file.ext?.toLowerCase()] || { icon:'📎', bg:'rgba(148,163,184,0.18)', color:'#94a3b8' }
+  const openFile = () => {
+    if (file.url) window.open(file.url, '_blank', 'noopener,noreferrer')
+  }
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:6, background:'#f0f2f5', border:`1px solid ${C.border}`, borderRadius:10, padding:'10px 12px', cursor:'pointer' }}>
-      <div style={{ width:36, height:36, borderRadius:8, background:cf.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{cf.icon}</div>
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={openFile}
+      onKeyDown={(e) => { if (e.key === 'Enter') openFile() }}
+      style={{ display:'flex', alignItems:'center', gap:10, marginTop:6, background:'#f0f2f5', border:`1px solid ${C.border}`, borderRadius:10, padding:'10px 12px', cursor: file.url ? 'pointer' : 'default' }}
+    >
+      {file.previewUrl ? (
+        <img src={file.previewUrl} alt={file.name} style={{ width:72, height:72, borderRadius:8, objectFit:'cover', flexShrink:0 }} />
+      ) : (
+        <div style={{ width:36, height:36, borderRadius:8, background:cf.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{cf.icon}</div>
+      )}
       <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontSize:12, fontWeight:600, color:'#1c2a33', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{file.name}</div>
-        <div style={{ fontSize:10, color:'#334155', marginTop:2 }}>{file.size}</div>
+        <div style={{ fontSize:12, fontWeight:600, color: isMe ? '#fff' : '#1c2a33', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{file.name}</div>
+        <div style={{ fontSize:10, color: isMe ? 'rgba(255,255,255,0.75)' : '#334155', marginTop:2 }}>{file.size}</div>
       </div>
-        <div style={{ fontSize:16, color:'#334155', flexShrink:0 }}>⬇️</div>
+      {file.url ? <div style={{ fontSize:16, color: isMe ? 'rgba(255,255,255,0.85)' : '#334155', flexShrink:0 }}>⬇️</div> : null}
     </div>
   )
 }
@@ -289,7 +306,6 @@ function ChatTab({ onUnreadChange, onBack }) {
   const [activeChatId,  setActiveChatId]  = useState(null)
   const [search,        setSearch]        = useState('')
   const [msgText,       setMsgText]       = useState('')
-  const [showAttach,    setShowAttach]    = useState(false)
   const [showGroupModal,setShowGroupModal]= useState(false)
   const [typingChatId,  setTypingChatId]  = useState(null)
   const [toast,         setToast]         = useState(null)
@@ -299,6 +315,7 @@ function ChatTab({ onUnreadChange, onBack }) {
 
   const messagesEndRef   = useRef(null)
   const inputRef         = useRef(null)
+  const fileInputRef     = useRef(null)
   const activeChatIdRef  = useRef(activeChatId)
   const latestSeenRef    = useRef('')
   const participantsRef  = useRef([])
@@ -406,6 +423,46 @@ function ChatTab({ onUnreadChange, onBack }) {
     })
   }
 
+  const formatAttachmentSize = (size = 0) => {
+    if (!size) return ''
+    if (size < 1024) return `${size} B`
+    if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  const attachmentToFile = (attachment) => {
+    if (!attachment?.fileName) return null
+    const name = attachment.originalName || attachment.fileName
+    const ext = name.includes('.') ? name.split('.').pop()?.toLowerCase() : (attachment.kind === 'image' ? 'img' : 'file')
+    return {
+      name,
+      size: formatAttachmentSize(attachment.size),
+      ext,
+      url: messagesAPI.attachmentUrl(attachment.fileName),
+      previewUrl: attachment.kind === 'image' ? messagesAPI.attachmentUrl(attachment.fileName) : null,
+    }
+  }
+
+  const messagePayloadForChat = (currentChat, text) => {
+    const mentioned = extractMentionParticipants(text)
+    const mentionedIds = mentioned.map((person) => String(person._id || person.id)).filter(Boolean)
+    const chatRecipientIds = currentChat?.type === 'direct'
+      ? [currentChat?.otherId].filter(Boolean)
+      : (currentChat?.members || []).filter((id) => String(id) !== myAuthId)
+    const recipientIds = Array.from(new Set([...chatRecipientIds, ...mentionedIds].filter(Boolean)))
+    return {
+      type: currentChat?.type === 'direct' ? 'dm' : 'group',
+      room: currentChat?.room || currentChat?.name || 'All Departments',
+      text,
+      department: currentChat?.dept || user?.department || '',
+      groupId: currentChat?.groupId,
+      recipientIds,
+      recipientNames: currentChat?.type === 'direct' ? [currentChat?.name].filter(Boolean) : [],
+      mentionedUserIds: mentionedIds,
+      mentionedNames: mentioned.map((person) => person.name || person.fullName).filter(Boolean),
+    }
+  }
+
   useEffect(() => {
     if (!token) return
     messagesAPI.getParticipants(token)
@@ -437,8 +494,12 @@ function ChatTab({ onUnreadChange, onBack }) {
   async function loadLatestFromApi(showIncomingToast = false) {
     if (!token) return
     try {
-      const data = await messagesAPI.getLatestMessages(token, 'all', 100)
+      const [data, groupsData] = await Promise.all([
+        messagesAPI.getLatestMessages(token, 'all', 100),
+        messagesAPI.getGroups(token).catch(() => ({ groups: [] })),
+      ])
       const messages = (data.messages || []).slice().sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      const serverGroups = Array.isArray(groupsData.groups) ? groupsData.groups : []
       const latestId = messages[messages.length - 1]?._id || ''
       const hasNew = latestSeenRef.current && latestSeenRef.current !== latestId
       if (latestId) latestSeenRef.current = latestId
@@ -455,6 +516,23 @@ function ChatTab({ onUnreadChange, onBack }) {
           ensureChat(chat)
         })
 
+        serverGroups.forEach((group) => {
+          const groupId = String(group._id || '')
+          if (!groupId) return
+          ensureChat({
+            id: `g:${groupId}`,
+            groupId,
+            room: group.room,
+            type: 'group',
+            name: group.name || group.room || 'Group',
+            dept: group.department || 'All',
+            members: Array.isArray(group.memberIds) ? group.memberIds.map(String) : [],
+            unread: 0,
+            muted: false,
+            messages: [],
+          })
+        })
+
         participantsRef.current.forEach((person) => {
           const id = String(person._id || person.id || '')
           if (!id || id === myAuthId) return
@@ -469,13 +547,17 @@ function ChatTab({ onUnreadChange, onBack }) {
           const otherId = isDirect
             ? (senderId === myAuthId ? (recipientIds.find((id) => id !== myAuthId) || String(m.recipientNames?.[0] || 'direct')) : senderId)
             : ''
-          const chatId = isDirect ? `d:${otherId}` : `g:${m.room || m.department || 'Team'}`
+          const chatId = isDirect
+            ? `d:${otherId}`
+            : (m.groupId ? `g:${m.groupId}` : `g:${m.room || m.department || 'Team'}`)
           const other = isDirect ? displayUser(otherId) : null
           const chat = ensureChat({
             id: chatId,
             type: isDirect ? 'direct' : 'group',
             name: isDirect ? (other?.name || String(m.recipientNames?.[0] || 'Direct Message')) : (m.room || 'Team'),
             dept: m.department || 'All',
+            groupId: m.groupId ? String(m.groupId) : undefined,
+            room: m.room,
             otherId,
             members: Array.from(new Set([senderId, ...recipientIds].filter(Boolean))),
             unread: 0,
@@ -485,12 +567,13 @@ function ChatTab({ onUnreadChange, onBack }) {
           if (!chat.members) chat.members = []
           chat.members = Array.from(new Set([...chat.members, senderId, ...recipientIds].filter(Boolean)))
           if (!chat.messages.some((row) => row.id === String(m._id))) {
+            const attachment = Array.isArray(m.attachments) && m.attachments[0] ? attachmentToFile(m.attachments[0]) : null
             chat.messages.push({
               id: String(m._id),
               from: senderId,
               text: m.text,
               time: m.createdAt,
-              file: null,
+              file: attachment,
             })
           }
         })
@@ -553,31 +636,17 @@ function ChatTab({ onUnreadChange, onBack }) {
     setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages:[...c.messages, newMsg] } : c))
     setMsgText('')
     const currentChat = chats.find(c => c.id === chatId)
-    const mentioned = extractMentionParticipants(text)
-    const mentionedIds = mentioned.map((person) => String(person._id || person.id)).filter(Boolean)
-    const chatRecipientIds = currentChat?.type === 'direct'
-      ? [currentChat?.otherId].filter(Boolean)
-      : (currentChat?.members || []).filter((id) => String(id) !== myAuthId)
-    const recipientIds = Array.from(new Set([...chatRecipientIds, ...mentionedIds].filter(Boolean)))
+    const payload = messagePayloadForChat(currentChat, text)
     try {
-      const saved = await messagesAPI.createMessage(token, {
-        type: currentChat?.type === 'direct' ? 'dm' : 'group',
-        room: currentChat?.name || 'All Departments',
-        text,
-        department: currentChat?.dept || user?.department || '',
-        recipientIds,
-        recipientNames: currentChat?.type === 'direct' ? [currentChat?.name].filter(Boolean) : [],
-        mentionedUserIds: mentionedIds,
-        mentionedNames: mentioned.map((person) => person.name || person.fullName).filter(Boolean),
-      })
+      const saved = await messagesAPI.createMessage(token, payload)
       if (saved?.message?._id) {
         setChats(prev => prev.map(c => c.id === chatId ? {
           ...c,
           messages: c.messages.map(m => m.id === newMsg.id ? { ...m, id: String(saved.message._id), time: saved.message.createdAt || m.time } : m),
         } : c))
       }
-      if (mentionedIds.length) {
-        showToast('Mention sent', `Delivered to ${mentioned.length} mentioned user${mentioned.length === 1 ? '' : 's'}.`)
+      if (payload.mentionedUserIds?.length) {
+        showToast('Mention sent', `Delivered to ${payload.mentionedUserIds.length} mentioned user${payload.mentionedUserIds.length === 1 ? '' : 's'}.`)
       }
     } catch {
       setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: c.messages.filter(m => m.id !== newMsg.id) } : c))
@@ -605,35 +674,92 @@ function ChatTab({ onUnreadChange, onBack }) {
     }, delay)
   }
 
-  function sendFile(type) {
-    setShowAttach(false)
-    if (!activeChatId) return
-    if (!USE_SEED_DATA) {
-      showToast('Attachments', 'File attachments use real storage in production; demo files are disabled.')
-      return
-    }
-    const files = {
-      PDF:  { name:'project_report.pdf',   size:'312 KB', ext:'pdf'  },
-      DOC:  { name:'status_update.docx',   size:'128 KB', ext:'docx' },
-      IMG:  { name:'site_photo.jpg',        size:'2.4 MB', ext:'img'  },
-      XLSX: { name:'data_export.xlsx',      size:'89 KB',  ext:'xlsx' },
-    }
-    const f = files[type]
-    const newMsg = { id:`m${Date.now()}`, from:myId, text:'', time:new Date().toISOString(), file:f }
-    setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, messages:[...c.messages, newMsg] } : c))
-    showToast('📎 File Sent', f.name + ' uploaded successfully')
+  function triggerFilePick() {
+    fileInputRef.current?.click()
   }
 
-  function createGroup() {
+  async function handleFileSelected(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !activeChatId) return
+
+    const currentChat = chats.find((c) => c.id === activeChatId)
+    const optimisticId = `m${Date.now()}`
+    const optimisticFile = {
+      name: file.name,
+      size: formatAttachmentSize(file.size),
+      ext: file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() : 'file',
+    }
+    const newMsg = { id: optimisticId, from: myId, text: '', time: new Date().toISOString(), file: optimisticFile }
+    setChats((prev) => prev.map((c) => (c.id === activeChatId ? { ...c, messages: [...c.messages, newMsg] } : c)))
+
+    const formData = new FormData()
+    formData.append('file', file)
+    const payload = messagePayloadForChat(currentChat, '')
+    Object.entries(payload).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return
+      if (Array.isArray(value)) formData.append(key, JSON.stringify(value))
+      else formData.append(key, String(value))
+    })
+
+    try {
+      const saved = await messagesAPI.createMessageWithAttachment(token, formData)
+      const attachment = Array.isArray(saved?.message?.attachments) && saved.message.attachments[0]
+        ? attachmentToFile(saved.message.attachments[0])
+        : optimisticFile
+      if (saved?.message?._id) {
+        setChats((prev) => prev.map((c) => (c.id === activeChatId ? {
+          ...c,
+          messages: c.messages.map((m) => (
+            m.id === optimisticId
+              ? { ...m, id: String(saved.message._id), time: saved.message.createdAt || m.time, file: attachment }
+              : m
+          )),
+        } : c)))
+      }
+      showToast('📎 File sent', file.name)
+    } catch {
+      setChats((prev) => prev.map((c) => (
+        c.id === activeChatId ? { ...c, messages: c.messages.filter((m) => m.id !== optimisticId) } : c
+      )))
+      showToast('Upload failed', 'Attachment could not be sent.', '#DC2626')
+    }
+  }
+
+  async function createGroup() {
     if (!groupForm.name.trim()) return
-    const members = [...new Set([myId, ...groupForm.members])]
-    const g = { id:`g${Date.now()}`, type:'group', name:groupForm.name.trim(), dept:groupForm.dept, description: groupForm.description, members, unread:0, muted:false, messages:[] }
-    setChats(prev => [g, ...prev])
-    setGroupForm(defaultGroupForm())
-    setGroupMemberSearch('')
-    setShowGroupModal(false)
-    setTimeout(() => openChat(g.id), 80)
-    showToast('✅ Group Created', g.name + ' is ready to use')
+    try {
+      const memberIds = groupForm.members.filter(Boolean)
+      const saved = await messagesAPI.createGroup(token, {
+        name: groupForm.name.trim(),
+        department: groupForm.dept,
+        description: groupForm.description,
+        memberIds,
+      })
+      const group = saved?.group
+      if (!group?._id) throw new Error('Group not created')
+      const g = {
+        id: `g:${group._id}`,
+        groupId: String(group._id),
+        room: group.room,
+        type: 'group',
+        name: group.name || groupForm.name.trim(),
+        dept: group.department || groupForm.dept,
+        description: group.description || groupForm.description,
+        members: (group.memberIds || memberIds).map(String),
+        unread: 0,
+        muted: false,
+        messages: [],
+      }
+      setChats((prev) => [g, ...prev.filter((chat) => chat.id !== g.id)])
+      setGroupForm(defaultGroupForm())
+      setGroupMemberSearch('')
+      setShowGroupModal(false)
+      setTimeout(() => openChat(g.id), 80)
+      showToast('✅ Group Created', g.name + ' is ready to use')
+    } catch (err) {
+      showToast('Group failed', err?.response?.data?.message || err?.message || 'Could not create group.', '#DC2626')
+    }
   }
 
   const q            = search.toLowerCase()
@@ -958,28 +1084,14 @@ function ChatTab({ onUnreadChange, onBack }) {
 
                 {/* Attach */}
                 <div style={{ position:'relative' }}>
-                  <IBtn title="Attach file" onClick={() => setShowAttach(a => !a)}><IconAttach /></IBtn>
-                  {showAttach && (
-                    <div style={{ position:'absolute', bottom:'calc(100% + 8px)', left:0, background:'#ffffff', border:`1px solid ${C.border}`, borderRadius:14, padding:10, display:'flex', gap:8, zIndex:20, boxShadow:'0 8px 24px rgba(0,0,0,0.12)' }}>
-                      {[
-                        { type:'PDF',  icon:'📄', label:'PDF',   bg:'rgba(239,68,68,0.18)'  },
-                        { type:'DOC',  icon:'📝', label:'Word',  bg:'rgba(96,165,250,0.18)' },
-                        { type:'IMG',  icon:'🖼️', label:'Photo', bg:'rgba(34,197,94,0.18)'  },
-                        { type:'XLSX', icon:'📊', label:'File',  bg:'rgba(251,191,36,0.18)' },
-                      ].map(opt => (
-                        <button
-                          key={opt.type}
-                          onClick={() => sendFile(opt.type)}
-                          style={{ width:58, height:58, borderRadius:12, border:'none', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4, fontSize:10, fontWeight:600, color:'#fff', background:opt.bg, transition:'all .2s' }}
-                          onMouseEnter={e => e.currentTarget.style.transform='translateY(-2px)'}
-                          onMouseLeave={e => e.currentTarget.style.transform='none'}
-                        >
-                          <span style={{ fontSize:20 }}>{opt.icon}</span>
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <IBtn title="Attach file" onClick={triggerFilePick}><IconAttach /></IBtn>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.gif,.txt,.wav,.mp3,.m4a,.webm"
+                    style={{ display:'none' }}
+                    onChange={handleFileSelected}
+                  />
                 </div>
 
                 {/* Input box */}
@@ -1215,8 +1327,6 @@ function ChatTab({ onUnreadChange, onBack }) {
         </div>
       )}
 
-      {/* Click outside to close attach popup */}
-      {showAttach && <div style={{ position:'fixed', inset:0, zIndex:10 }} onClick={() => setShowAttach(false)} />}
     </div>
   )
 }

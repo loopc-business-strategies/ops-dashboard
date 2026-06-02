@@ -76,6 +76,7 @@ function createErpUploadMiddleware({ transactionAttachmentMimeTypes }) {
 }
 
 module.exports = {
+  createDiskUpload,
   createErpUploadMiddleware,
   resolveUploadDir,
 }

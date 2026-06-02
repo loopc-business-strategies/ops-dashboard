@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { ActivityIndicator, View } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { AuthProvider, useAuth } from '@/src/context/AuthContext'
+import { ChatProvider } from '@/src/context/ChatContext'
 import { mgBranding } from '@/src/config/branding'
 
 export { ErrorBoundary } from 'expo-router'
@@ -45,10 +46,12 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <AuthGate>
-        <Stack screenOptions={{ headerShown: false }}>
+        <ChatProvider>
+          <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="login" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="chat" options={{ headerShown: false }} />
           <Stack.Screen name="admin-settings" options={{ headerShown: false }} />
           <Stack.Screen
             name="plus-modal"
@@ -59,6 +62,7 @@ export default function RootLayout() {
             }}
           />
         </Stack>
+        </ChatProvider>
       </AuthGate>
     </AuthProvider>
   )

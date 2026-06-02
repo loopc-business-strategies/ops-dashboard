@@ -7,7 +7,7 @@ Read-only MG companion app (iOS / Android) for the ops-dashboard platform.
 - **Home** — live metals + all 9 ERP dashboard cards (margins, fixing, bank, cash flow, expenses, volume, AP/AR, chat preview, alerts)
 - **ERP** — module hub (expand in future updates)
 - **+** — quick actions placeholder (coming soon modal)
-- **Chat** — read team messages
+- **Chat** — team chat (DMs, groups, send messages, @mentions, create group)
 - **Settings** — profile & sign out
 
 ## Setup

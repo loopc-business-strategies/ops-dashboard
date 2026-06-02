@@ -53,3 +53,34 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
   return data as T
 }
+
+export async function apiUploadRequest<T>(
+  path: string,
+  formData: FormData,
+  token: string | null = authToken,
+): Promise<T> {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'x-tenant': TENANT,
+    'x-company': TENANT,
+    'X-Client': 'mobile',
+  }
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const res = await fetch(buildUrl(path), {
+    method: 'POST',
+    headers,
+    body: formData,
+  })
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const message = typeof data?.message === 'string' ? data.message : `Upload failed (${res.status})`
+    throw new Error(message)
+  }
+  return data as T
+}
+
+export function attachmentRequestUrl(fileName: string) {
+  return buildUrl(`/api/messages/attachments/${encodeURIComponent(fileName)}`)
+}

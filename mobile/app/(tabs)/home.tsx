@@ -86,7 +86,7 @@ export default function HomeScreen() {
           icon={widget.icon}
           title={widget.label}
           footerLabel={widget.id === 'chat' ? 'Open full chat →' : undefined}
-          onFooterPress={widget.id === 'chat' ? () => router.push('/(tabs)/chat') : undefined}
+          onFooterPress={widget.id === 'chat' ? () => router.push('/(tabs)/chat' as never) : undefined}
         >
           {renderDashboardWidget({
             id: widget.id,

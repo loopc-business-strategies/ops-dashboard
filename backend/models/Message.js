@@ -38,8 +38,23 @@ const messageSchema = new mongoose.Schema(
     },
     text: {
       type: String,
-      required: [true, 'Message text is required'],
       trim: true,
+      default: '',
+    },
+    attachments: {
+      type: [{
+        fileName: { type: String, trim: true, required: true },
+        originalName: { type: String, trim: true, default: '' },
+        mimeType: { type: String, trim: true, default: 'application/octet-stream' },
+        size: { type: Number, default: 0 },
+        kind: { type: String, enum: ['file', 'image', 'audio'], default: 'file' },
+      }],
+      default: [],
+    },
+    groupId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ChatGroup',
+      default: null,
     },
   },
   { timestamps: true }
