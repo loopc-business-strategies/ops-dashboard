@@ -109,11 +109,31 @@ export type DashboardPayload = {
   generatedAt?: string
 }
 
-export type LiveMetalRates = {
-  success?: boolean
+/** Single row of metal prices as returned inside `rates` from GET /metal-rates/live */
+export type LiveMetalRatesRow = {
   goldPrice?: number
   silverPrice?: number
+  platinumPrice?: number
+  priceCurrency?: string
+  priceUnit?: string
+  sourceGoldPrice?: number
+  sourceSilverPrice?: number
+  sourcePlatinumPrice?: number
+  sourceUnit?: string
   source?: string
+  updatedAt?: string | null
+}
+
+/** Full JSON from GET /api/erp-accounting/metal-rates/live */
+export type LiveMetalRatesResponse = {
+  success?: boolean
+  live?: boolean
+  feedType?: string
+  message?: string
+  rates?: LiveMetalRatesRow
+  staleMs?: number
+  feedAgeMs?: number | null
+  canUpdate?: boolean
 }
 
 export async function fetchDashboard(token: string, startDate = monthStartISO(), endDate = todayISO()) {
@@ -124,5 +144,5 @@ export async function fetchDashboard(token: string, startDate = monthStartISO(),
 }
 
 export async function fetchLiveMetalRates(token: string) {
-  return apiRequest<LiveMetalRates>('/api/erp-accounting/metal-rates/live', { token })
+  return apiRequest<LiveMetalRatesResponse>('/api/erp-accounting/metal-rates/live', { token })
 }

@@ -1,15 +1,23 @@
 import { SymbolView } from 'expo-symbols'
 import { Tabs, useRouter } from 'expo-router'
 import { Platform, StyleSheet } from 'react-native'
+import { LiveMetalTickerProvider } from '@/src/context/LiveMetalTickerContext'
 import { PlusTabButton } from '@/src/components/PlusTabButton'
+import { MgTabsHeader } from '@/src/components/MgTabsHeader'
 import { mgBranding } from '@/src/config/branding'
 
 export default function TabLayout() {
   const router = useRouter()
 
   return (
+    <LiveMetalTickerProvider>
     <Tabs
       screenOptions={{
+        headerShown: true,
+        header: (props) => (
+          <MgTabsHeader options={props.options} route={props.route} />
+        ),
+        headerShadowVisible: false,
         headerStyle: { backgroundColor: mgBranding.colors.primary },
         headerTintColor: '#FFFFFF',
         headerTitleStyle: { fontWeight: '700' },
@@ -73,6 +81,7 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </LiveMetalTickerProvider>
   )
 }
 
