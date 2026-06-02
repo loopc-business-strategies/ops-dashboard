@@ -94,8 +94,8 @@ export async function generateStatementHtml(ctx) {
     if (isSelectedMetalEntry) runningPureWeight += signedPureWeight
     return `
         <tr>
-          <td>${escapeHtml(resolveStatementReceiptNo(entry) || '-')}</td>
-          <td>${escapeHtml(formatDateForHeader(entry.date) || formatStatementDate(entry.date) || '-')}</td>
+          <td class="col-doc">${escapeHtml(resolveStatementReceiptNo(entry) || '-')}</td>
+          <td class="col-date">${escapeHtml(formatDateForHeader(entry.date) || formatStatementDate(entry.date) || '-')}</td>
           <td class="narration">${escapeHtml(buildNarration(entry))}</td>
           <td class="num">${escapeHtml(formatBlankable(convertStatementDisplayAmount(debitUsd), 2))}</td>
           <td class="num">${escapeHtml(formatBlankable(convertStatementDisplayAmount(creditUsd), 2))}</td>
@@ -161,9 +161,8 @@ export async function generateStatementHtml(ctx) {
           <style>
             @page { size: A4 landscape; margin: 10mm; }
             :root {
-              --soa-yellow: #FFD56A;
-              --soa-yellow-border: #8B7A43;
-              --soa-border: #4B5563;
+              --soa-header-bg: #E8ECF1;
+              --soa-border: #374151;
               --soa-ink: #111827;
             }
             body { font-family: Arial, Helvetica, sans-serif; color: var(--soa-ink); margin: 0; padding: 16px 18px; background: #FFFFFF; color-adjust: exact; -webkit-print-color-adjust: exact; }
@@ -180,16 +179,18 @@ export async function generateStatementHtml(ctx) {
             .party-name { font-size: 16px; font-weight: 800; margin-bottom: 6px; text-transform: uppercase; }
             .party-address { font-size: 13px; line-height: 1.25; white-space: pre-line; }
             table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 0; table-layout: fixed; }
-            th, td { border: 1.4px solid var(--soa-border); padding: 7px 6px; vertical-align: middle; color-adjust: exact; -webkit-print-color-adjust: exact; }
-            thead th { background: var(--soa-yellow); color: #111111; font-weight: 800; text-align: center; color-adjust: exact; -webkit-print-color-adjust: exact; }
-            .subhead th { background: var(--soa-yellow); font-size: 13px; color: #111111; color-adjust: exact; -webkit-print-color-adjust: exact; }
-            td { text-align: center; }
+            th, td { border: 1.4px solid var(--soa-border); padding: 7px 8px; vertical-align: middle; color-adjust: exact; -webkit-print-color-adjust: exact; }
+            thead th { background: var(--soa-header-bg); color: #1F2937; font-weight: 800; text-align: center; border-color: var(--soa-border); color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .subhead th { background: var(--soa-header-bg); font-size: 13px; color: #1F2937; border-color: var(--soa-border); color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .subhead th.num-head { text-align: right; padding-right: 8px; }
+            .col-doc { text-align: left; }
+            .col-date { text-align: center; }
             .narration { text-align: left; }
-            .num { text-align: right; white-space: nowrap; }
+            .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; padding-right: 8px; }
             .opening td { font-weight: 800; background: #FFFFFF; color-adjust: exact; -webkit-print-color-adjust: exact; }
-            .carry-label { text-align: center; font-weight: 800; }
+            .carry-label { text-align: left; font-weight: 800; }
             .footer { margin-top: 12px; display: flex; justify-content: space-between; font-size: 15px; font-style: italic; color: #111111; }
-            .print-note { margin-top: 8px; font-size: 11px; color: #B45309; text-align: right; }
+            .print-note { margin-top: 8px; font-size: 11px; color: #6B7280; text-align: right; }
             @media print { 
               body { padding: 0; color-adjust: exact; -webkit-print-color-adjust: exact; } 
               .print-note { display: none; } 
@@ -218,15 +219,15 @@ export async function generateStatementHtml(ctx) {
             </div>
             <table>
               <colgroup>
-                <col style="width:12%;" />
-                <col style="width:7%;" />
-                <col style="width:20%;" />
-                <col style="width:10%;" />
-                <col style="width:10%;" />
-                <col style="width:10%;" />
-                <col style="width:10.5%;" />
-                <col style="width:10.5%;" />
-                <col style="width:10%;" />
+                <col style="width:11%;" />
+                <col style="width:8%;" />
+                <col style="width:22%;" />
+                <col style="width:9.5%;" />
+                <col style="width:9.5%;" />
+                <col style="width:9.5%;" />
+                <col style="width:9.5%;" />
+                <col style="width:9.5%;" />
+                <col style="width:9.5%;" />
               </colgroup>
               <thead>
                 <tr>
@@ -237,12 +238,12 @@ export async function generateStatementHtml(ctx) {
                   <th colspan="3">${escapeHtml(statementMetalCode)}(GMS)</th>
                 </tr>
                 <tr class="subhead">
-                  <th>Debit</th>
-                  <th>Credit</th>
-                  <th>Balance</th>
-                  <th>Debit</th>
-                  <th>Credit</th>
-                  <th>Balance</th>
+                  <th class="num-head">Debit</th>
+                  <th class="num-head">Credit</th>
+                  <th class="num-head">Balance</th>
+                  <th class="num-head">Debit</th>
+                  <th class="num-head">Credit</th>
+                  <th class="num-head">Balance</th>
                 </tr>
               </thead>
               <tbody>
@@ -258,7 +259,8 @@ export async function generateStatementHtml(ctx) {
                 </tr>
                 ${bodyRows}
                 <tr class="opening">
-                  <td class="carry-label" colspan="3">Balance C/F</td>
+                  <td colspan="2"></td>
+                  <td class="carry-label">Balance C/F</td>
                   <td class="num">${escapeHtml(formatBlankable(convertStatementDisplayAmount(totalDebitUsd), 2))}</td>
                   <td class="num">${escapeHtml(formatBlankable(convertStatementDisplayAmount(totalCreditUsd), 2))}</td>
                   <td class="num">${escapeHtml(formatDrCr(convertStatementDisplayAmount(closingUsdBalance), 2))}</td>
