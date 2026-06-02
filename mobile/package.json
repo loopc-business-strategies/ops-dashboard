@@ -39,8 +39,8 @@
     "build:preview:ios": "npx eas-cli build --platform ios --profile preview --non-interactive",
     "build:production:android": "npx eas-cli build --platform android --profile production --non-interactive",
     "build:production:ios": "npx eas-cli build --platform ios --profile production --non-interactive",
-    "update:preview": "npx eas-cli update --channel preview --non-interactive",
-    "update:production": "npx eas-cli update --channel production --non-interactive",
+    "update:preview": "npx eas-cli update --channel preview --environment preview --message \"MG Ops preview update\" --non-interactive",
+    "update:production": "npx eas-cli update --channel production --environment production --message \"MG Ops production update\" --non-interactive",
     "submit:android": "npx eas-cli submit --platform android --profile production --latest --non-interactive",
     "submit:ios": "npx eas-cli submit --platform ios --profile production --latest --non-interactive"
   },
