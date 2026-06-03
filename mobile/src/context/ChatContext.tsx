@@ -10,7 +10,7 @@ import {
 import { startChatMessageEvents } from '@/src/realtime/chatSse'
 import { useAuth } from '@/src/context/AuthContext'
 import type { ChatAttachment, ChatConversation, ChatParticipant } from '@/src/types/chat'
-import { buildConversations, extractMentionParticipants, participantFromRow } from '@/src/utils/chat'
+import { buildConversations, extractMentionParticipants, onlyMongoIds, participantFromRow, isMongoIdString } from '@/src/utils/chat'
 
 type ChatContextValue = {
   conversations: ChatConversation[]
@@ -40,17 +40,21 @@ function buildMessagePayload(
     chat.type === 'direct'
       ? [chat.otherId].filter((id): id is string => Boolean(id))
       : (chat.members || []).filter((id) => String(id) !== String(myAuthId))
-  const recipientIds = Array.from(new Set([...chatRecipientIds, ...mentionedIds]))
+  const recipientIdsCombined = Array.from(new Set([...chatRecipientIds, ...mentionedIds]))
+  const recipientIds = onlyMongoIds(recipientIdsCombined)
+  const mentionedUserIds = onlyMongoIds(mentionedIds)
+  const groupId =
+    chat.groupId && isMongoIdString(String(chat.groupId)) ? String(chat.groupId).trim() : undefined
 
   return {
     type: chat.type === 'direct' ? ('dm' as const) : ('group' as const),
     room: chat.room || chat.name || 'All Departments',
     text: text.trim(),
     department: chat.dept || userDept || '',
-    groupId: chat.groupId,
+    ...(groupId ? { groupId } : {}),
     recipientIds,
     recipientNames: chat.type === 'direct' ? [chat.name].filter(Boolean) : [],
-    mentionedUserIds: mentionedIds,
+    mentionedUserIds,
     mentionedNames: mentioned.map((p) => p.name).filter(Boolean),
   }
 }
@@ -165,7 +169,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         } else {
           void refresh().catch(() => undefined)
         }
-      } catch {
+      } catch (err) {
         setConversations((prev) =>
           prev.map((c) =>
             c.id === chatId
@@ -173,7 +177,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
               : c,
           ),
         )
-        throw new Error('Message could not be sent')
+        throw err instanceof Error ? err : new Error('Message could not be sent')
       }
     },
     [token, conversations, myAuthId, participants, user?.department],
@@ -262,7 +266,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         } else {
           void refresh().catch(() => undefined)
         }
-      } catch {
+      } catch (err) {
         setConversations((prev) =>
           prev.map((c) =>
             c.id === chatId
@@ -270,7 +274,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
               : c,
           ),
         )
-        throw new Error('Attachment could not be sent')
+        throw err instanceof Error ? err : new Error('Attachment could not be sent')
       }
     },
     [token, conversations, myAuthId, participants, user?.department],

@@ -1,6 +1,17 @@
 import type { ChatGroupRow, ChatMessage } from '@/src/api/messages'
 import type { ChatAttachment, ChatConversation, ChatMessageRow, ChatParticipant } from '@/src/types/chat'
 
+/** 24-char hex Mongo ObjectId string (Joi-aligned with backend message routes). */
+export function isMongoIdString(id: string): boolean {
+  return /^[a-f\d]{24}$/i.test(String(id || '').trim())
+}
+
+export function onlyMongoIds(ids: (string | undefined)[]): string[] {
+  return Array.from(
+    new Set(ids.map((id) => String(id || '').trim()).filter((id) => id.length > 0 && isMongoIdString(id))),
+  )
+}
+
 export function initialsFor(name: string) {
   const parts = String(name || 'U').trim().split(/\s+/).filter(Boolean)
   if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
