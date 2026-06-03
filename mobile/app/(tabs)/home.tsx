@@ -13,13 +13,11 @@ import { renderDashboardWidget } from '@/src/components/dashboard/renderDashboar
 import { ERP_DASH_WIDGETS } from '@/src/constants/erpDashboardWidgets'
 import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
-import { useLiveMetalTickerState } from '@/src/context/LiveMetalTickerContext'
 import { fetchDashboard, type DashboardPayload } from '@/src/api/dashboard'
 import { fetchLatestMessages, type ChatMessage } from '@/src/api/messages'
 
 export default function HomeScreen() {
   const { token } = useAuth()
-  const { reload: reloadMetals } = useLiveMetalTickerState()
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(true)
@@ -35,7 +33,6 @@ export default function HomeScreen() {
       const [dash, messagesRaw] = await Promise.all([
         fetchDashboard(token),
         fetchLatestMessages(token, 'group', 10).catch(() => [] as ChatMessage[]),
-        reloadMetals(),
       ])
       setDashboard(dash)
       setChatMessages(messagesRaw)
@@ -45,7 +42,7 @@ export default function HomeScreen() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [token, reloadMetals])
+  }, [token])
 
   useFocusEffect(
     useCallback(() => {

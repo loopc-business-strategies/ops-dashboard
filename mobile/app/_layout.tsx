@@ -3,6 +3,7 @@ import { ActivityIndicator, View } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { AuthProvider, useAuth } from '@/src/context/AuthContext'
 import { ChatProvider } from '@/src/context/ChatContext'
+import { NotificationsProvider } from '@/src/context/NotificationsContext'
 import { mgBranding } from '@/src/config/branding'
 
 export { ErrorBoundary } from 'expo-router'
@@ -47,21 +48,23 @@ export default function RootLayout() {
     <AuthProvider>
       <AuthGate>
         <ChatProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="login" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="chat" options={{ headerShown: false }} />
-          <Stack.Screen name="admin-settings" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="plus-modal"
-            options={{
-              presentation: 'modal',
-              headerShown: true,
-              title: 'Quick actions',
-            }}
-          />
-        </Stack>
+          <NotificationsProvider>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="login" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="chat" options={{ headerShown: false }} />
+              <Stack.Screen name="admin-settings" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="plus-modal"
+                options={{
+                  presentation: 'modal',
+                  headerShown: true,
+                  title: 'Quick actions',
+                }}
+              />
+            </Stack>
+          </NotificationsProvider>
         </ChatProvider>
       </AuthGate>
     </AuthProvider>
