@@ -4,7 +4,7 @@ type RequestOptions = {
   method?: string
   token?: string | null
   body?: unknown
-  params?: Record<string, string | number | undefined>
+  params?: Record<string, string | number | boolean | undefined>
 }
 
 let authToken: string | null = null

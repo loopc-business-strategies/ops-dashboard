@@ -141,7 +141,8 @@ export default function ERPReportsTab({
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+          <div style={{ overflowX: 'auto', marginBottom: '1rem', WebkitOverflowScrolling: 'touch' }}>
+            <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'nowrap', minWidth: 'min-content', paddingBottom: '2px' }}>
             {[
               ['summary', 'Summary'],
               ['trial', 'Trial Balance'],
@@ -163,11 +164,13 @@ export default function ERPReportsTab({
                   color: reportView === id ? '#fff' : C.ink,
                   fontWeight: '600',
                   cursor: 'pointer',
+                  flexShrink: 0,
                 }}
               >
                 {label}
               </button>
             ))}
+            </div>
           </div>
 
           {(reportView === 'summary' || reportView === 'trial') && (

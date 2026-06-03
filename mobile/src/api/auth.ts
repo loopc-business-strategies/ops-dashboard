@@ -1,6 +1,8 @@
 import { apiRequest } from '@/src/api/client'
 import { TENANT } from '@/src/config/tenant'
 
+import type { ModulePermissions } from '@/src/constants/admin'
+
 export type AuthUser = {
   id: string
   name: string
@@ -9,6 +11,8 @@ export type AuthUser = {
   role?: string
   department?: string
   company?: string
+  allowedModules?: string[]
+  modulePermissions?: ModulePermissions
 }
 
 type LoginResponse = {
