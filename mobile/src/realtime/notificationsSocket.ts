@@ -21,6 +21,7 @@ export type NotificationSocket = Socket
 export function createNotificationsSocket(token: string): NotificationSocket {
   return io(buildNotificationsSocketUrl(), {
     transports: ['websocket', 'polling'],
+    withCredentials: false,
     extraHeaders: {
       'x-tenant': TENANT,
       'x-company': TENANT,

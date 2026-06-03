@@ -39,6 +39,7 @@
     "web": "expo start --web",
     "build:preview:android": "npx eas-cli build --platform android --profile preview --non-interactive",
     "build:preview:ios": "npx eas-cli build --platform ios --profile preview --non-interactive",
+    "build:preview:ios-simulator": "npx eas-cli build --platform ios --profile preview-simulator --non-interactive",
     "build:production:android": "npx eas-cli build --platform android --profile production --non-interactive",
     "build:production:ios": "npx eas-cli build --platform ios --profile production --non-interactive",
     "update:preview": "npx eas-cli update --channel preview --environment preview --message \"MG Ops preview update\" --non-interactive",

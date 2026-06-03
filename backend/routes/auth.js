@@ -66,15 +66,20 @@ const sendToken = async (user, status, res, company, req = null) => {
   const maxAgeMs = resolveSessionMaxAgeMs(settings)
   const expiresIn = resolveJwtExpiresIn(maxAgeMs)
   const token = createToken(user._id, tenant, expiresIn)
-  res.cookie('sessionToken', token, buildSessionCookieOptions(maxAgeMs))
-  const csrfToken = generateCsrfToken()
-  setCsrfCookie(res, csrfToken)
-  // Also send CSRF token in response body so cross-domain frontends can store and use it
-  res.setHeader('X-CSRF-Token', csrfToken)
+  const mobile = Boolean(req && isMobileClientRequest(req))
+
+  // Mobile uses Bearer + SecureStore only. Avoid Set-Cookie sessionToken: native fetch may persist
+  // it and then mutating /api/* hits CSRF (session cookie without x-csrf-token from the app).
+  let csrfToken = null
+  if (!mobile) {
+    res.cookie('sessionToken', token, buildSessionCookieOptions(maxAgeMs))
+    csrfToken = generateCsrfToken()
+    setCsrfCookie(res, csrfToken)
+    res.setHeader('X-CSRF-Token', csrfToken)
+  }
   user.password = undefined // never send password
   const payload = {
     success: true,
-    csrfToken,
     user: {
       id:             user._id,
       name:           user.name,
@@ -94,7 +99,8 @@ const sendToken = async (user, status, res, company, req = null) => {
       company: tenant,
     },
   }
-  if (req && isMobileClientRequest(req)) {
+  if (!mobile && csrfToken) payload.csrfToken = csrfToken
+  if (mobile) {
     payload.token = token
     payload.expiresIn = expiresIn
   }
@@ -260,13 +266,16 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
 // GET /api/auth/me — get my profile
 // ==========================================
 router.get('/me', protect, (req, res) => {
-  // Always issue/refresh CSRF token so cross-domain frontends can store it
-  const csrfToken = generateCsrfToken()
-  setCsrfCookie(res, csrfToken)
-  res.setHeader('X-CSRF-Token', csrfToken)
+  const mobile = isMobileClientRequest(req)
+  let csrfToken = null
+  if (!mobile) {
+    csrfToken = generateCsrfToken()
+    setCsrfCookie(res, csrfToken)
+    res.setHeader('X-CSRF-Token', csrfToken)
+  }
   res.json({
     success: true,
-    csrfToken,
+    ...(csrfToken ? { csrfToken } : {}),
     user: {
       id:             req.user._id,
       name:           req.user.name,

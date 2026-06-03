@@ -54,6 +54,14 @@ Scan the QR code with Expo Go, or press `a` for Android emulator.
 
 After the first preview build with `expo-updates`, run `npm run mobile:update:preview` to ship Home/dashboard changes without rebuilding the APK.
 
+## iOS: device vs Simulator (EAS)
+
+| Install target | Command | Notes |
+|----------------|---------|--------|
+| **Physical iPhone** | `npm run build:preview:ios` | Profile `preview` (`ios.simulator: false`). Install from Expo **Builds** when finished; Apple may require registered **UDIDs** for ad hoc. Same **preview** OTA channel as Android preview. |
+| **iOS Simulator (Mac)** | `npm run build:preview:ios-simulator` | Profile `preview-simulator` (`ios.simulator: true`). Download the artifact from Expo; extract and install with `eas build:run` or `xcrun simctl install` per [Expo iOS Simulator](https://docs.expo.dev/build-reference/simulators/). |
+| **Local dev** | `npm start`, then press `i` | Uses your machine’s Metro bundle and `.env`; not the same binary as EAS. |
+
 ## Auth
 
 Mobile login sends `X-Client: mobile` and expects `{ token, user }` from `POST /api/auth/login` with `company: mg`.

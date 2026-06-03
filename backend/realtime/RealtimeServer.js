@@ -98,11 +98,36 @@ function buildSocketOrigins() {
   return origins.length ? origins : ['http://localhost:5173']
 }
 
+/** Allow browser allowlist + React Native (no Origin / Expo exp://) without disabling credentials for web. */
+function buildSocketCorsOriginValidator() {
+  const allowedList = buildSocketOrigins()
+  const isProduction = process.env.NODE_ENV === 'production'
+  return (origin, callback) => {
+    if (!origin) return callback(null, true)
+    if (allowedList.includes(origin)) return callback(null, true)
+    if (origin.startsWith('exp://') || origin.startsWith('exps://')) return callback(null, true)
+    if (!isProduction) {
+      try {
+        const url = new URL(origin)
+        const local =
+          url.hostname === 'localhost' ||
+          url.hostname === '127.0.0.1' ||
+          url.hostname === '::1' ||
+          url.hostname.endsWith('.localhost')
+        if (local) return callback(null, true)
+      } catch {
+        // ignore
+      }
+    }
+    callback(new Error('Not allowed by CORS'))
+  }
+}
+
 class RealtimeServer {
   constructor(httpServer) {
     this.io = socketIO(httpServer, {
       cors: {
-        origin: buildSocketOrigins(),
+        origin: buildSocketCorsOriginValidator(),
         credentials: true,
       },
       transports: ['websocket', 'polling'],

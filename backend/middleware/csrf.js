@@ -32,9 +32,16 @@ function clearCsrfCookie(res) {
   res.clearCookie(CSRF_COOKIE_NAME, { ...csrfCookieOptions, maxAge: undefined })
 }
 
+function hasBearerCredential(req) {
+  const auth = String(req.headers.authorization || req.headers.Authorization || '').trim()
+  return /^Bearer\s+\S+/i.test(auth)
+}
+
 function enforceCsrfProtection(req, res, next) {
   if (!isMutatingMethod(req.method)) return next()
   if (shouldBypassPath(req.path)) return next()
+  // API clients using Authorization Bearer are not subject to cookie-forging CSRF the same way.
+  if (hasBearerCredential(req)) return next()
 
   const hasSessionCookie = Boolean(req.cookies?.sessionToken)
   if (!hasSessionCookie) return next()
@@ -57,4 +64,5 @@ module.exports = {
   setCsrfCookie,
   clearCsrfCookie,
   enforceCsrfProtection,
+  hasBearerCredential,
 }

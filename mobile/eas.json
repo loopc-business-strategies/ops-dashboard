@@ -25,6 +25,16 @@
         "EXPO_PUBLIC_API_URL": "https://api.loopcstrategies.com"
       }
     },
+    "preview-simulator": {
+      "distribution": "internal",
+      "channel": "preview",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.loopcstrategies.com"
+      }
+    },
     "production": {
       "autoIncrement": true,
       "channel": "production",

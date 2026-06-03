@@ -126,4 +126,40 @@ describe('CSRF protection for cookie-auth mutating routes', () => {
     expect(res.status).toBe(201)
     expect(res.body.success).toBe(true)
   })
+
+  test('mobile login does not set sessionToken cookie (Bearer-only clients)', async () => {
+    const user = await createTenantUser('loopc')
+    const login = await request(app)
+      .post('/api/auth/login')
+      .set('X-Client', 'mobile')
+      .set('x-tenant', 'loopc')
+      .send({ company: 'loopc', name: user.name, password: 'password123' })
+
+    expect(login.status).toBe(200)
+    expect(login.body.token).toBeTruthy()
+    const setCookie = login.headers['set-cookie'] || []
+    const joined = Array.isArray(setCookie) ? setCookie.join(';') : String(setCookie)
+    expect(joined).not.toMatch(/sessionToken=/)
+  })
+
+  test('mutating request skips CSRF when Authorization Bearer is present', async () => {
+    const user = await createTenantUser('loopc')
+    const agent = request.agent(app)
+
+    const login = await agent
+      .post('/api/auth/login')
+      .send({ company: 'loopc', name: user.name, password: 'password123' })
+
+    expect(login.status).toBe(200)
+    const sessionJwt = readCookieValue(login.headers['set-cookie'] || [], 'sessionToken')
+    expect(sessionJwt).toBeTruthy()
+
+    const allowed = await agent
+      .post('/api/auth/refresh')
+      .set('Authorization', `Bearer ${sessionJwt}`)
+      .send({})
+
+    expect(allowed.status).toBe(200)
+    expect(allowed.body.success).toBe(true)
+  })
 })
