@@ -25,16 +25,34 @@ const latestQuerySchema = Joi.object({
   limit: Joi.number().integer().min(1).max(100).optional(),
 })
 
+/** Multipart sends JSON arrays as strings; JSON bodies send real arrays — accept both. */
+function jsonOrArrayOf(schemaItem, max = 100) {
+  return Joi.alternatives().try(
+    Joi.array().items(schemaItem).max(max),
+    Joi.string().custom((value, helpers) => {
+      try {
+        const parsed = JSON.parse(String(value || '[]'))
+        if (!Array.isArray(parsed)) return helpers.error('any.invalid')
+        const { error, value: coerced } = Joi.array().items(schemaItem).max(max).validate(parsed)
+        if (error) return helpers.error('any.invalid')
+        return coerced
+      } catch {
+        return helpers.error('any.invalid')
+      }
+    }),
+  ).optional()
+}
+
 const createMessageSchema = Joi.object({
   type: Joi.string().valid('group', 'dm').optional(),
   room: Joi.string().allow('').max(120).optional(),
   text: Joi.string().trim().max(4000).allow('').optional(),
   department: Joi.string().allow('').max(80).optional(),
   groupId: Joi.string().hex().length(24).optional(),
-  recipientIds: Joi.array().items(Joi.string().hex().length(24)).max(100).optional(),
-  recipientNames: Joi.array().items(Joi.string().trim().max(120)).max(100).optional(),
-  mentionedUserIds: Joi.array().items(Joi.string().hex().length(24)).max(100).optional(),
-  mentionedNames: Joi.array().items(Joi.string().trim().max(120)).max(100).optional(),
+  recipientIds: jsonOrArrayOf(Joi.string().hex().length(24)),
+  recipientNames: jsonOrArrayOf(Joi.string().trim().max(120)),
+  mentionedUserIds: jsonOrArrayOf(Joi.string().hex().length(24)),
+  mentionedNames: jsonOrArrayOf(Joi.string().trim().max(120)),
 })
 
 const createGroupSchema = Joi.object({

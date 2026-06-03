@@ -24,15 +24,24 @@ export type AppNotificationItem = {
 
 function mapPayloadToItem(payload: NotificationPayload): AppNotificationItem {
   const data = (payload?.data || {}) as Record<string, unknown>
-  const isMention = payload?.type === 'transaction_chat_mention'
+  const type = String(payload?.type || '')
+  const isTxnMention = type === 'transaction_chat_mention'
+  const isChatMention = type === 'chat_mention'
   const senderName = typeof data.senderName === 'string' ? data.senderName : ''
   const messageText = typeof data.message === 'string' ? data.message : ''
+  const room = typeof data.room === 'string' ? data.room : ''
+  const title = isTxnMention
+    ? 'Transaction chat mention'
+    : isChatMention
+      ? 'Chat mention'
+      : 'New notification'
+  const message = isTxnMention || isChatMention
+    ? `${senderName || 'Someone'} mentioned you${room ? ` in ${room}` : ''}: ${messageText || ''}`
+    : messageText || type || 'Notification received'
   return {
     id: `rt-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    title: isMention ? 'Transaction chat mention' : 'New notification',
-    message: isMention
-      ? `${senderName || 'A user'} mentioned you: ${messageText || ''}`
-      : messageText || String(payload?.type || '') || 'Notification received',
+    title,
+    message,
     createdAt:
       payload?.timestamp instanceof Date
         ? payload.timestamp

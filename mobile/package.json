@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "packageManager": "npm@10.8.2",
   "dependencies": {
+    "@microsoft/fetch-event-source": "^2.0.1",
     "expo": "~56.0.8",
     "expo-constants": "~56.0.16",
     "expo-document-picker": "~56.0.4",

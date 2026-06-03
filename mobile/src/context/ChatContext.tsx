@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import {
   createGroup as createGroupApi,
   createMessage,
@@ -7,6 +7,7 @@ import {
   fetchLatestMessages,
   fetchParticipants,
 } from '@/src/api/messages'
+import { startChatMessageEvents } from '@/src/realtime/chatSse'
 import { useAuth } from '@/src/context/AuthContext'
 import type { ChatAttachment, ChatConversation, ChatParticipant } from '@/src/types/chat'
 import { buildConversations, extractMentionParticipants, participantFromRow } from '@/src/utils/chat'
@@ -38,7 +39,7 @@ function buildMessagePayload(
   const chatRecipientIds: string[] =
     chat.type === 'direct'
       ? [chat.otherId].filter((id): id is string => Boolean(id))
-      : (chat.members || []).filter((id) => id !== myAuthId)
+      : (chat.members || []).filter((id) => String(id) !== String(myAuthId))
   const recipientIds = Array.from(new Set([...chatRecipientIds, ...mentionedIds]))
 
   return {
@@ -91,6 +92,23 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval)
   }, [token, refresh])
 
+  useEffect(() => {
+    if (!token || !myAuthId) return undefined
+    let debounce: ReturnType<typeof setTimeout> | null = null
+    const scheduleRefresh = () => {
+      if (debounce) clearTimeout(debounce)
+      debounce = setTimeout(() => {
+        debounce = null
+        refresh().catch(() => undefined)
+      }, 400)
+    }
+    const stop = startChatMessageEvents(token, scheduleRefresh)
+    return () => {
+      if (debounce) clearTimeout(debounce)
+      stop()
+    }
+  }, [token, myAuthId, refresh])
+
   const getConversation = useCallback(
     (id: string) => conversations.find((c) => c.id === id),
     [conversations],
@@ -104,7 +122,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     async (chatId: string, text: string) => {
       if (!token || !text.trim()) return
       const chat = conversations.find((c) => c.id === chatId)
-      if (!chat) return
+      if (!chat) {
+        throw new Error('Conversation not loaded. Pull to refresh on Chat, then try again.')
+      }
 
       const optimisticId = `local-${Date.now()}`
       const optimistic = {
@@ -141,6 +161,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                 : c,
             ),
           )
+          void refresh().catch(() => undefined)
+        } else {
+          void refresh().catch(() => undefined)
         }
       } catch {
         setConversations((prev) =>
@@ -160,7 +183,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     async (chatId: string, file: { uri: string; name: string; mimeType?: string }) => {
       if (!token) return
       const chat = conversations.find((c) => c.id === chatId)
-      if (!chat) return
+      if (!chat) {
+        throw new Error('Conversation not loaded. Pull to refresh on Chat, then try again.')
+      }
 
       const optimisticId = `local-${Date.now()}`
       const optimisticAttachment: ChatAttachment = {
@@ -201,6 +226,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       if (payload.recipientNames?.length) {
         formData.append('recipientNames', JSON.stringify(payload.recipientNames))
       }
+      if (payload.mentionedUserIds?.length) {
+        formData.append('mentionedUserIds', JSON.stringify(payload.mentionedUserIds))
+      }
+      if (payload.mentionedNames?.length) {
+        formData.append('mentionedNames', JSON.stringify(payload.mentionedNames))
+      }
 
       try {
         const saved = await createMessageWithAttachment(token, formData)
@@ -227,6 +258,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                 : c,
             ),
           )
+          void refresh().catch(() => undefined)
+        } else {
+          void refresh().catch(() => undefined)
         }
       } catch {
         setConversations((prev) =>
