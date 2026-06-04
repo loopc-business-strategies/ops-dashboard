@@ -139,6 +139,8 @@ npx vercel --prod --token=$VERCEL_TOKEN
 
 Monitor at: https://vercel.com/projects/ops-dashboard
 
+**CLI “Not authorized”:** run `npx vercel login` once on your machine, or set `VERCEL_TOKEN` (account **Settings → Tokens**) and pass `--token`. Pushing to `main` still deploys via the GitHub integration without the CLI.
+
 ### Manual Deployment to Railway (Backend)
 
 ```bash

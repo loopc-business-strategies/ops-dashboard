@@ -114,6 +114,13 @@ import { resolveDocumentBranding } from './erp/documentBranding'
 import { loadExcel, loadPdfTools } from './erp/lazyExportLibs'
 import { ERP_TAB_COLORS as C, TRANSACTION_STATUS_STYLES, formatDateInputLocal } from './erp/erpTabPresentation'
 
+/** Stored rate = USD per 1 unit of foreign currency, from quote "1 USD = n units" (n > 0). */
+function exchangeRateFromUnitsPerUsd(unitsPerUsd) {
+  const n = Number(String(unitsPerUsd ?? '').trim())
+  if (!Number.isFinite(n) || n <= 0) return null
+  return 1 / n
+}
+
 function ERPTab({ focusTab, onNavigateMain }) {
   const { user, token } = useAuth()
   const inventoryTenantKey = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)?.key || ''
@@ -227,7 +234,14 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const [jvMode, setJvMode] = useState('journal')
   const [ledgerVoucherTab, setLedgerVoucherTab] = useState('journal')
   const [jvEditEntryIds, setJvEditEntryIds] = useState([]) // IDs of entries being edited (empty = new JV)
-  const [currencyForm, setCurrencyForm] = useState({ code: '', name: '', symbol: '', exchangeRate: 1, baseCurrency: false })
+  const [currencyForm, setCurrencyForm] = useState({
+    code: '',
+    name: '',
+    symbol: '',
+    exchangeRate: 1,
+    baseCurrency: false,
+    oneUsdEquals: '',
+  })
   const [usdConversion, setUsdConversion] = useState({ usdAmount: '1', targetCode: 'UZS' })
   const [mappingForm, setMappingForm] = useState({ mappingType: '', debitAccountId: '', creditAccountId: '', department: '', description: '' })
   const [mappingFilters, setMappingFilters] = useState({ department: '' })
@@ -5073,12 +5087,16 @@ function ERPTab({ focusTab, onNavigateMain }) {
       }
     }
     if (type === 'currency') {
+      const r = Number(record.exchangeRate || 0)
+      const unitsPerUsd =
+        !record.baseCurrency && Number.isFinite(r) && r > 0 ? 1 / r : ''
       formState = {
         code: record.code || '',
         name: record.name || '',
         symbol: record.symbol || '',
         exchangeRate: record.exchangeRate || 1,
         baseCurrency: Boolean(record.baseCurrency),
+        oneUsdEquals: unitsPerUsd === '' ? '' : String(unitsPerUsd),
       }
     }
     if (type === 'customer') {
@@ -5117,9 +5135,19 @@ function ERPTab({ focusTab, onNavigateMain }) {
         await loadMappings()
       }
       if (editState.type === 'currency') {
+        let nextRate = Number(editState.form.exchangeRate || 1)
+        const fromQuote = exchangeRateFromUnitsPerUsd(editState.form.oneUsdEquals)
+        if (!editState.form.baseCurrency && fromQuote !== null) nextRate = fromQuote
+        if (editState.form.baseCurrency) nextRate = 1
+        if (!editState.form.baseCurrency && (!Number.isFinite(nextRate) || nextRate <= 0)) {
+          setError('Enter a positive exchange rate or a valid 1 USD = (units) quote.')
+          setSaving(false)
+          return
+        }
+        const { oneUsdEquals: _omitQuote, ...currencyPayload } = editState.form
         await erpAccountingAPI.updateCurrency(token, editState.record._id, {
-          ...editState.form,
-          exchangeRate: Number(editState.form.exchangeRate || 1),
+          ...currencyPayload,
+          exchangeRate: nextRate,
         })
         await loadCurrencies()
       }
@@ -5145,13 +5173,19 @@ function ERPTab({ focusTab, onNavigateMain }) {
       setError('Currency code, name, and symbol are required')
       return
     }
+    let exchangeRate = Number(currencyForm.exchangeRate || 1)
+    const fromQuote = exchangeRateFromUnitsPerUsd(currencyForm.oneUsdEquals)
+    if (!currencyForm.baseCurrency && fromQuote !== null) exchangeRate = fromQuote
+    if (currencyForm.baseCurrency) exchangeRate = 1
+    if (!currencyForm.baseCurrency && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
+      setError('For a non-base currency, enter a positive exchange rate (USD per 1 unit) or use 1 USD = (units).')
+      return
+    }
     setSaving(true)
     try {
-      await erpAccountingAPI.createCurrency(token, {
-        ...currencyForm,
-        exchangeRate: Number(currencyForm.exchangeRate || 1),
-      })
-      setCurrencyForm({ code: '', name: '', symbol: '', exchangeRate: 1, baseCurrency: false })
+      const { oneUsdEquals: _omitQuote, ...currencyBody } = currencyForm
+      await erpAccountingAPI.createCurrency(token, { ...currencyBody, exchangeRate })
+      setCurrencyForm({ code: '', name: '', symbol: '', exchangeRate: 1, baseCurrency: false, oneUsdEquals: '' })
       setShowCurrencyForm(false)
       await loadCurrencies()
       showNotification('✅ Currency created successfully')
@@ -6709,7 +6743,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
             <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
               <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>Rate Direction (vs USD)</h4>
               <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.82rem' }}>
-                Exchange rate stores <strong>USD value of 1 unit</strong> of the selected currency. Example: AED 0.2723 means 1 AED = 0.2723 USD.
+                Exchange rate stores <strong>USD value of 1 unit</strong> of the selected currency. Example: AED 0.2723 means 1 AED = 0.2723 USD. When adding or editing, you can instead fill <strong>1 USD = (units)</strong> — the app saves <code>1 ÷ that number</code> so the grid matches (e.g. INR 85.6).
               </p>
             </div>
             <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
@@ -6772,15 +6806,41 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   min="0"
                   placeholder="Exchange Rate"
                   value={currencyForm.exchangeRate}
-                  onChange={(e) => setCurrencyForm({ ...currencyForm, exchangeRate: e.target.value })}
+                  onChange={(e) => setCurrencyForm({ ...currencyForm, exchangeRate: e.target.value, oneUsdEquals: '' })}
                   style={modalInputStyle}
+                  disabled={currencyForm.baseCurrency}
+                />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="1 USD = (units of this currency)"
+                  value={currencyForm.oneUsdEquals}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    const r = exchangeRateFromUnitsPerUsd(v)
+                    setCurrencyForm({
+                      ...currencyForm,
+                      oneUsdEquals: v,
+                      exchangeRate: r !== null ? String(r) : currencyForm.exchangeRate,
+                    })
+                  }}
+                  style={modalInputStyle}
+                  disabled={currencyForm.baseCurrency}
                 />
               </div>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: C.ink, marginTop: '0.6rem' }}>
                 <input
                   type="checkbox"
                   checked={currencyForm.baseCurrency}
-                  onChange={(e) => setCurrencyForm({ ...currencyForm, baseCurrency: e.target.checked })}
+                  onChange={(e) => {
+                    const base = e.target.checked
+                    setCurrencyForm({
+                      ...currencyForm,
+                      baseCurrency: base,
+                      exchangeRate: base ? 1 : currencyForm.exchangeRate,
+                      oneUsdEquals: base ? '' : currencyForm.oneUsdEquals,
+                    })
+                  }}
                 />
                 Set as base currency
               </label>
@@ -6937,15 +6997,51 @@ function ERPTab({ focusTab, onNavigateMain }) {
                     type="number"
                     step="0.0001"
                     value={editState.form.exchangeRate || 1}
-                    onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, exchangeRate: e.target.value } }))}
+                    onChange={(e) => setEditState((prev) => ({
+                      ...prev,
+                      form: { ...prev.form, exchangeRate: e.target.value, oneUsdEquals: '' },
+                    }))}
                     placeholder="Exchange Rate"
                     style={modalInputStyle}
+                    disabled={Boolean(editState.form.baseCurrency)}
                   />
+                  {!editState.form.baseCurrency && (
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={editState.form.oneUsdEquals ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        const r = exchangeRateFromUnitsPerUsd(v)
+                        setEditState((prev) => ({
+                          ...prev,
+                          form: {
+                            ...prev.form,
+                            oneUsdEquals: v,
+                            exchangeRate: r !== null ? String(r) : prev.form.exchangeRate,
+                          },
+                        }))
+                      }}
+                      placeholder="1 USD = (units of this currency)"
+                      style={modalInputStyle}
+                    />
+                  )}
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: C.ink, marginBottom: '0.75rem' }}>
                     <input
                       type="checkbox"
                       checked={Boolean(editState.form.baseCurrency)}
-                      onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, baseCurrency: e.target.checked } }))}
+                      onChange={(e) => {
+                        const base = e.target.checked
+                        setEditState((prev) => ({
+                          ...prev,
+                          form: {
+                            ...prev.form,
+                            baseCurrency: base,
+                            exchangeRate: base ? 1 : prev.form.exchangeRate,
+                            oneUsdEquals: base ? '' : prev.form.oneUsdEquals,
+                          },
+                        }))
+                      }}
                     />
                     Set as base currency
                   </label>

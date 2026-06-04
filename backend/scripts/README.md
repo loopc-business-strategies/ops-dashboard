@@ -173,6 +173,7 @@ The table below predates the workspace registry and uses a few descriptive label
 | `search-all-joshua.js` | read-only | See script source before use. |
 | `search-ooo-mark-all-collections-cg.js` | read-only | See script source before use. |
 | `search-test-accounts-cg.js` | read-only | See script source before use. |
+| `destructive/provision-inr-currency.js` | writes data | Upserts optional **INR** (Indian Rupee) for `--tenant=loopc` (or mg/cg/all). Dry run without `--apply`; default quote `1 USD = 85.6 INR` via `--inr-per-usd=`. Same destructive guard tokens as other quarantined scripts. |
 | `seed-currency-master-all-tenants.js` | writes data | See script source before use. |
 | `destructive/seed-erp-accounting.js` | writes data | See script source before use. |
 | `set-fx-mapping-to-cash-all-tenants.js` | dry-run/apply or writes data | See script source before use. |
