@@ -342,7 +342,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const [detailsPanelResize, setDetailsPanelResize] = useState({ active: false, pointerX: 0, pointerY: 0, startW: 500, startH: 520 })
   const detailsPanelRef = useRef(null)
   const statementAuditPreferenceKey = `${ENQUIRY_STATEMENT_AUDIT_TOGGLE_STORAGE_KEY}:${String(user?._id || user?.email || 'anonymous')}`
-  const [excessCurrency, setExcessCurrency] = useState('USD')
+  const [excessCurrency, setExcessCurrency] = useState('')
   const [transactions, setTransactions] = useState([])
   const [vendors, setVendors] = useState([])
   const [inventoryProducts, setInventoryProducts] = useState([])
@@ -713,7 +713,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const goldPriceUSD = effectiveSpotPrices.goldPriceUSD
   const silverPriceUSD = effectiveSpotPrices.silverPriceUSD
   const totalFunds = accountEnquiryData ? Number(accountEnquiryData.balances?.netBalance || 0) : 0
-  const modalStatementCurrency = 'USD'  // Trading platform uses USD
+  const modalStatementCurrency = erpBaseCurrencyCode
   const rawUnfixedMetalDedupeKeys = new Set()
   const rawUnfixedStatementMetalHint = rawStatementEntries.reduce((acc, entry) => {
     if (resolveFixStatus(entry) !== 'unfixed') return acc
@@ -753,7 +753,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     || accountEnquiryData?.account?.currency
     || modalStatementCurrency,
   ).trim().toUpperCase()
-  const baseCurrencyCode = String(currencies.find((currency) => currency.baseCurrency)?.code || 'USD').toUpperCase()
+  const baseCurrencyCode = erpBaseCurrencyCode
   const statementFilterCurrencyOptions = buildStatementCurrencyOptions({
     includeAll: true,
     currencies,
@@ -1045,7 +1045,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const modalExcessDisplay = modalDisplayMetrics.excess
   const modalMarginPctDisplay = modalDisplayMetrics.marginPercent
   const modalFundsRows = [
-    { currency: 'USD', limits: 0, value: modalTotalFundsDisplay },
+    { currency: baseCurrencyCode, limits: 0, value: modalTotalFundsDisplay },
   ]
   const metalFixingEntries = filteredStatementEntries
     .map((entry) => {
@@ -7541,8 +7541,14 @@ function ERPTab({ focusTab, onNavigateMain }) {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <label style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Excess</label>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <select value={excessCurrency} onChange={(e) => setExcessCurrency(e.target.value)} style={{ border: '1px solid #CBD5E0', borderRadius: '0.4rem', background: '#FFFFFF', fontSize: '0.85rem', padding: '0.3rem 0.5rem', fontWeight: '600' }}>
-                            <option value="USD">USD</option>
+                          <select
+                            value={excessCurrency || baseCurrencyCode}
+                            onChange={(e) => setExcessCurrency(e.target.value)}
+                            style={{ border: '1px solid #CBD5E0', borderRadius: '0.4rem', background: '#FFFFFF', fontSize: '0.85rem', padding: '0.3rem 0.5rem', fontWeight: '600' }}
+                          >
+                            {(statementDisplayCurrencyOptions.length ? statementDisplayCurrencyOptions : [baseCurrencyCode]).map((currencyCode) => (
+                              <option key={currencyCode} value={currencyCode}>{currencyCode}</option>
+                            ))}
                           </select>
                           <span style={{ color: getAccountEnquirySignedMetricColor(modalExcessDisplay, { marginAmount: modalMarginAmt, netDirection: accountEnquiryData?.balances?.netDirection }), fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>
                             {formatAccountEnquiryExcessDisplay({

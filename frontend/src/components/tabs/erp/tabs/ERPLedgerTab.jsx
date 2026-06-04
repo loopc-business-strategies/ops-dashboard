@@ -500,10 +500,12 @@ export default function ERPLedgerTab({
                           if (isJournalJv && voucher.documentFaceAmount != null && voucher.documentCurrencyCode) {
                             return (
                               <div title={lineHint || undefined}>
-                                <span>{Number(voucher.documentFaceAmount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                                <span style={{ marginLeft: '0.25rem', fontSize: '0.72rem', color: C.inkSoft, fontWeight: '600' }}>{voucher.documentCurrencyCode}</span>
+                                <div style={{ fontWeight: '700' }}>
+                                  <span>{baseEq.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                  <span style={{ marginLeft: '0.25rem', fontSize: '0.72rem', color: C.inkSoft, fontWeight: '600' }}>{baseSym}</span>
+                                </div>
                                 <div style={{ fontSize: '0.68rem', color: C.inkSoft, marginTop: '0.12rem', fontWeight: '600' }}>
-                                  ≈ {baseEq.toLocaleString(undefined, { maximumFractionDigits: 2 })} {baseSym}
+                                  ≈ {Number(voucher.documentFaceAmount).toLocaleString(undefined, { maximumFractionDigits: 2 })} {voucher.documentCurrencyCode}
                                 </div>
                                 {lineHint ? (
                                   <div style={{ fontSize: '0.68rem', color: C.inkSoft, marginTop: '0.12rem', fontWeight: '600' }}>{lineHint}</div>
