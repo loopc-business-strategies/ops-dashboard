@@ -450,7 +450,32 @@ router.delete('/ledger/:id', protect, validateParams(idParamSchema), async (req,
     if (!canEditLedgerEntry(req.user, entry)) {
       return res.status(403).json({ success: false, message: 'Can only delete your own entries' })
     }
-    // Create reversal entry instead of hard delete (for audit trail)
+    const refType = String(entry.referenceType || '').toLowerCase()
+    const isManualJv = refType === 'journal' || refType === 'bank_jv'
+
+    if (isManualJv) {
+      entry.isDeleted = true
+      entry.deletedAt = new Date()
+      entry.updatedBy = req.user._id
+      await entry.save()
+      await TenantLedger.updateMany(
+        { referenceType: 'reversal', referenceId: entry._id, isDeleted: { $ne: true } },
+        { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: req.user._id } },
+      )
+      const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+      emitRealtime(req, (realtimeServer) => {
+        if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
+          realtimeServer.broadcastLedgerUpdate(tenantKey, {
+            action: 'deleted',
+            entryId: String(entry._id),
+            referenceType: entry.referenceType,
+          })
+        }
+      })
+      return res.json({ success: true, message: 'Journal voucher line removed' })
+    }
+
+    // Other types: create reversal entry instead of hard delete (for audit trail)
     const reversalEntry = await TenantLedger.create({
       date: new Date(),
       debitAccountId: entry.creditAccountId,
@@ -460,6 +485,7 @@ router.delete('/ledger/:id', protect, validateParams(idParamSchema), async (req,
       referenceType: 'reversal',
       referenceId: entry._id,
       currency: entry.currency,
+      exchangeRate: Number(entry.exchangeRate || 1),
       createdBy: req.user._id,
       department: req.user.department,
     })

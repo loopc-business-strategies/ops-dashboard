@@ -584,7 +584,7 @@ export default function ERPLedgerTab({
                           {voucher.attachmentUrl && (
                             <a href={`${(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')}${voucher.attachmentUrl}`} target="_blank" rel="noreferrer" style={{ padding: '0.35rem 0.5rem', background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'none' }}>Slip</a>
                           )}
-                          <button onClick={() => handleReverseLedger(voucher)} title="Reverse voucher" style={{ padding: '0.35rem 0.5rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Reverse</button>
+                          <button onClick={() => handleReverseLedger(voucher)} title="Remove this voucher from the ledger" style={{ padding: '0.35rem 0.5rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Remove</button>
                         </div>
                       </td>
                     </tr>

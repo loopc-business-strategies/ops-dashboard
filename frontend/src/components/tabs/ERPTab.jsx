@@ -5373,15 +5373,15 @@ function ERPTab({ focusTab, onNavigateMain }) {
       : [entry?._id].filter(Boolean)
     const lineLabel = entryIds.length > 1 ? `${entryIds.length} ledger lines` : 'ledger entry'
     const voucherLabel = extractLedgerJvDocNoFromDescription(entry?.description) || entry?.referenceType || 'entry'
-    if (!window.confirm(`Reverse ${voucherLabel} (${lineLabel})? This will create offsetting entries.`)) return
+    if (!window.confirm(`Remove ${voucherLabel} (${lineLabel}) from the ledger? This hides the voucher; balances will exclude these lines.`)) return
     try {
       setSaving(true)
       await Promise.all(entryIds.map((id) => erpAccountingAPI.deleteLedgerEntry(token, id)))
       await loadLedger()
       setError('')
-      showNotification(`✅ Voucher reversed successfully (${entryIds.length} line${entryIds.length === 1 ? '' : 's'})`)
+      showNotification(`✅ Voucher removed (${entryIds.length} line${entryIds.length === 1 ? '' : 's'})`)
     } catch (e) {
-      setError(e.response?.data?.message || 'Failed to reverse entry')
+      setError(e.response?.data?.message || 'Failed to remove voucher')
     } finally {
       setSaving(false)
     }
