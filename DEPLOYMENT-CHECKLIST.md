@@ -136,7 +136,7 @@ The repo root [vercel.json](vercel.json) rewrites **`/api/*`** on **`*.vercel.ap
 - **Expectation:** Preview deployments are for **UI review** unless you configure a **non-production API** and adjust rewrites for your preview host pattern.
 - **Production traffic:** Use your real tenant hostnames (e.g. `mg.yourdomain.com`) where rewrites send `/api` to Railway.
 - **SPA deep links (`/dashboard`, etc.):** `vercel.json` sets **`cleanUrls: false`** so the fallback rewrite to **`/index.html`** works. In Vercel → **Project → Settings**, do **not** turn on **Clean URLs** if it conflicts with that (it can break client-side routes and show Vercel’s generic `NOT_FOUND`).
-- **Hostnames:** Production `/api` proxy matches **`mg` / `cg` / `loopc` / `app`** on **`*.loopcstrategies.com`** or **`*.loopstrategies.com`** (both spellings). If you use another apex domain, add it to the `has` host regex in [vercel.json](vercel.json).
+- **Hostnames:** Production `/api` proxy matches **`mg` / `cg` / `loopc` / `app`** on **`*.loopcstrategies.com`** only. If you add another apex domain, update the `has` host regex in [vercel.json](vercel.json).
 
 ### 3.5 Redeploy without a new Git commit
 

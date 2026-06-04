@@ -10,7 +10,7 @@
     {
       "source": "/api/(.*)",
       "has": [
-        { "type": "host", "value": "(mg|cg|loopc|app)\\.(loopcstrategies|loopstrategies)\\.com" }
+        { "type": "host", "value": "(mg|cg|loopc|app)\\.loopcstrategies\\.com" }
       ],
       "destination": "https://api.loopcstrategies.com/api/$1"
     },
