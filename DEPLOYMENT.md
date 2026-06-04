@@ -139,7 +139,7 @@ npx vercel --prod --token=$VERCEL_TOKEN
 
 Monitor at: https://vercel.com/projects/ops-dashboard
 
-**Root Directory:** may be **repository root** (empty) or **`frontend`** — root [`vercel.json`](vercel.json) detects the layout and stages the Vite build into `.vercel-output`. See [DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md) Step **3.0**. Clear dashboard **Install / Build** overrides so `vercel.json` is used.
+**Root Directory:** may be **repository root** (empty) or **`frontend`** — root [`vercel.json`](vercel.json) runs [`scripts/vercel-build.sh`](scripts/vercel-build.sh), which stages Vite output into **`.vercel-output`** at the git root and **mirrors** it under **`frontend/.vercel-output`** when the monorepo layout exists (so Vercel can find the folder when Root Directory is `frontend`). See [DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md) Step **3.0**. Clear dashboard **Install / Build** overrides so `vercel.json` is used.
 
 **CLI “Not authorized”:** run `npx vercel login` once on your machine, or set `VERCEL_TOKEN` (account **Settings → Tokens**) and pass `--token`. Pushing to `main` still deploys via the GitHub integration without the CLI.
 
