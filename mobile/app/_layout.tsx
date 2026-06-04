@@ -5,6 +5,9 @@ import { AuthProvider, useAuth } from '@/src/context/AuthContext'
 import { ChatProvider } from '@/src/context/ChatContext'
 import { NotificationsProvider } from '@/src/context/NotificationsContext'
 import { mgBranding } from '@/src/config/branding'
+import { initMobileSentry } from '@/src/lib/sentryInit'
+
+initMobileSentry()
 
 export { ErrorBoundary } from 'expo-router'
 

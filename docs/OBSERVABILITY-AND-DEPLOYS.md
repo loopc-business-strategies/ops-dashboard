@@ -28,3 +28,5 @@ If `vercel link` fails with “Could not retrieve Project Settings”, the GitHu
 
 - `DEPLOYMENT.md` — broader deployment checklist.
 - `ENV-VARS-QUICK-REFERENCE.md` — environment variables for API and metals feeds.
+- `docs/INCIDENT-RUNBOOK.md` — one-page triage for outages.
+- `docs/OBSERVABILITY-SENTRY.md` — optional Sentry (backend, web, Expo).

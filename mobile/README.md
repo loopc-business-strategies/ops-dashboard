@@ -28,6 +28,10 @@ For Android emulator, `10.0.2.2` maps to host `localhost:5000`. For physical dev
 
 Production default: `https://api.loopcstrategies.com`
 
+### Optional: Sentry
+
+Set `EXPO_PUBLIC_SENTRY_DSN` in EAS environment variables (and optionally `EXPO_PUBLIC_SENTRY_ENVIRONMENT`). Init runs from `src/lib/sentryInit.ts` when the app loads. See repo `docs/OBSERVABILITY-SENTRY.md`. Native changes may require a new EAS build after upgrading `@sentry/react-native`.
+
 ## Run
 
 From repo root:

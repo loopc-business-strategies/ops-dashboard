@@ -4,9 +4,18 @@
 
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import * as Sentry from '@sentry/react'
 import axios from './api/client'
 import App from './App'
 import './index.css'
+
+const sentryDsn = import.meta.env.VITE_SENTRY_DSN
+if (sentryDsn) {
+  Sentry.init({
+    dsn: sentryDsn,
+    environment: import.meta.env.VITE_SENTRY_ENVIRONMENT || import.meta.env.MODE,
+  })
+}
 
 const resolveTenantLocalhostUrl = (rawUrl) => {
   const input = String(rawUrl || '')

@@ -51,6 +51,15 @@ MONGO_URI_CG=mongodb+srv://admin:YourPassword123@ops-dashboard-cg.a1b2c3d.mongod
 MONGO_URI_LOOPC=mongodb+srv://admin:YourPassword123@ops-dashboard-loopc.a1b2c3d.mongodb.net/ops-dashboard?retryWrites=true&w=majority
 ```
 
+### Optional: Sentry (error reporting)
+
+See `docs/OBSERVABILITY-SENTRY.md`. When set, unhandled Express errors are sent to Sentry.
+
+```
+SENTRY_DSN=https://<key>@<org>.ingest.sentry.io/<project>
+SENTRY_ENVIRONMENT=production
+```
+
 ### Rate Limiting (Optional, use defaults if not specified)
 
 ```
@@ -82,6 +91,13 @@ VITE_API_URL=https://api.yourdomain.com
 ```
 
 **Note:** Set this AFTER Railway custom domain is live.
+
+### Optional: Sentry (browser errors)
+
+```
+VITE_SENTRY_DSN=https://<key>@<org>.ingest.sentry.io/<project>
+VITE_SENTRY_ENVIRONMENT=production
+```
 
 ### Build & Output (Usually auto-detected, verify settings)
 

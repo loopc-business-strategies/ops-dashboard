@@ -13,6 +13,15 @@ const { requestLoggerMiddleware } = require('./middleware/logger')
 const { bindTenantContext } = require('./middleware/tenantContext')
 const { enforceCsrfProtection } = require('./middleware/csrf')
 
+const Sentry = require('@sentry/node')
+const sentryEnabled = Boolean(String(process.env.SENTRY_DSN || '').trim())
+if (sentryEnabled) {
+  Sentry.init({
+    dsn: String(process.env.SENTRY_DSN).trim(),
+    environment: String(process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development').trim(),
+  })
+}
+
 const authRoutes = require('./routes/auth')
 const employeeRoutes = require('./routes/employees')
 const taskRoutes = require('./routes/tasks')
@@ -287,6 +296,7 @@ function createApp() {
 
   app.use((err, req, res, next) => {
     console.error('Unhandled error:', err)
+    if (sentryEnabled) Sentry.captureException(err)
     res.status(500).json({ success: false, message: 'Something went wrong.' })
   })
 
