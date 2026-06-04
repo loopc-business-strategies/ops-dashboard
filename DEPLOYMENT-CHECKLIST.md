@@ -99,8 +99,8 @@ Root [`vercel.json`](vercel.json) supports **either** layout:
 
 | Vercel **Root Directory** | What the build does |
 |---------------------------|---------------------|
-| **Empty** (repo root) | `npm ci --prefix frontend`, `npm run build --prefix frontend`, copies `frontend/dist` → `.vercel-output` |
-| **`frontend`** | `npm ci` / `npm run build` in that folder, copies `dist` → `.vercel-output` |
+| **Empty** (repo root) | [`scripts/vercel-install.sh`](../scripts/vercel-install.sh) / [`scripts/vercel-build.sh`](../scripts/vercel-build.sh) run from git root: `npm ci --prefix frontend`, build, copy `frontend/dist` → `.vercel-output` |
+| **`frontend`** | Same scripts (commands `cd` to `git rev-parse --show-toplevel` first), then in-folder `npm ci` / `npm run build` and copy `dist` → `.vercel-output` |
 
 `outputDirectory` is always **`.vercel-output`** (gitignored). Use **empty** root or **`frontend`**; both work.
 
@@ -113,7 +113,7 @@ Root [`vercel.json`](vercel.json) supports **either** layout:
 2. Click **Add New** → **Project**
 3. Select your ops-dashboard GitHub repo
 4. Set **Root Directory** to **empty** (repo root) or **`frontend`** — see **3.0** above
-5. Deploy; build settings come from root `vercel.json` (`framework: null`, Vite via `npm run build --prefix frontend` or in-folder `npm run build`)
+5. Deploy; `vercel.json` runs short wrappers (under Vercel’s 256-char limit) that `cd` to the git root then [`scripts/vercel-install.sh`](../scripts/vercel-install.sh) / [`scripts/vercel-build.sh`](../scripts/vercel-build.sh)
 
 ### 3.2 Add Environment Variables
 

@@ -1,7 +1,7 @@
 {
   "framework": null,
-  "installCommand": "sh -c 'if [ -d frontend ]; then npm ci --prefix frontend; else npm ci; fi'",
-  "buildCommand": "sh -c 'set -e; if [ -d frontend ]; then npm run build --prefix frontend && rm -rf .vercel-output && mkdir -p .vercel-output && cp -a frontend/dist/. .vercel-output/; else npm run build && rm -rf .vercel-output && mkdir -p .vercel-output && cp -a dist/. .vercel-output/; fi'",
+  "installCommand": "sh -c 'cd \"$(git rev-parse --show-toplevel)\" && sh scripts/vercel-install.sh'",
+  "buildCommand": "sh -c 'cd \"$(git rev-parse --show-toplevel)\" && sh scripts/vercel-build.sh'",
   "outputDirectory": ".vercel-output",
   "rewrites": [
     {
