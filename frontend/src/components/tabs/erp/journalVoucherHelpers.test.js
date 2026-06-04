@@ -10,6 +10,7 @@ import {
   resolveJvModeMeta,
   groupJvLedgerEntries,
   validateJvLines,
+  reconstructJvEditLines,
 } from './journalVoucherHelpers'
 
 describe('journal voucher helpers', () => {
@@ -172,6 +173,124 @@ describe('journal voucher helpers', () => {
     expect(grouped).toHaveLength(1)
     expect(grouped[0].documentCurrencyCode).toBe('INR')
     expect(grouped[0].documentFaceAmount).toBe(150)
+  })
+
+  test('reconstructJvEditLines emits two UI rows per posting when Dr/Cr accounts repeat (5 → 10 lines)', () => {
+    const ctx = {
+      baseCurrencyCode: 'USD',
+      convertJvAmount: (amount) => Number(amount),
+      inferJvAccountCurrency: () => 'USD',
+      inferLegacyJvBatchDisplayFc: () => null,
+    }
+    const drAcc = { _id: '6200id', accountCode: '6200', accountName: 'Payroll' }
+    const crAcc = { _id: '1100id', accountCode: '110011', accountName: 'Bank' }
+    const mk = (id, amount, createdAt) => ({
+      _id: id,
+      referenceType: 'journal',
+      date: '2026-06-04',
+      createdAt,
+      description: 'Jv/2026/0001 — office',
+      notes: 'Header narr',
+      amount,
+      currency: 'USD',
+      exchangeRate: 1,
+      debitAccountId: drAcc,
+      creditAccountId: crAcc,
+    })
+    const entries = [
+      mk('p1', 10, '2026-06-04T10:00:01.000Z'),
+      mk('p2', 20, '2026-06-04T10:00:02.000Z'),
+      mk('p3', 30, '2026-06-04T10:00:03.000Z'),
+      mk('p4', 40, '2026-06-04T10:00:04.000Z'),
+      mk('p5', 50, '2026-06-04T10:00:05.000Z'),
+    ]
+    const rep = entries[2]
+    const out = reconstructJvEditLines(entries, rep, ctx)
+    expect(out.lines).toHaveLength(10)
+    expect(out.jvEditEntryIds).toEqual(['p1', 'p2', 'p3', 'p4', 'p5'])
+    const drTotal = out.lines.filter((l) => l.debit !== '' && l.debit != null).reduce((s, l) => s + Number(l.debit), 0)
+    const crTotal = out.lines.filter((l) => l.credit !== '' && l.credit != null).reduce((s, l) => s + Number(l.credit), 0)
+    expect(drTotal).toBe(150)
+    expect(crTotal).toBe(150)
+    expect(out.headerDocNo).toBe('Jv/2026/0001')
+    expect(out.narration).toBe('Header narr')
+    const validation = validateJvLines({
+      lines: out.lines,
+      baseCurrencyCode: 'USD',
+      inferJvAccountCurrency: () => 'USD',
+      convertJvAmount: (amount) => Number(amount),
+    })
+    expect(validation.isBalanced).toBe(true)
+    const alloc = allocateJvLedgerEntries(validation.activeLines)
+    expect(alloc.error).toBe('')
+    expect(alloc.entries).toHaveLength(5)
+  })
+
+  test('reconstructJvEditLines emits four lines for two postings with different debit accounts', () => {
+    const ctx = {
+      baseCurrencyCode: 'USD',
+      convertJvAmount: (amount) => Number(amount),
+      inferJvAccountCurrency: () => 'USD',
+      inferLegacyJvBatchDisplayFc: () => null,
+    }
+    const bank = { _id: 'b1', accountCode: '110011', accountName: 'Bank' }
+    const d6200 = { _id: 'd62', accountCode: '6200', accountName: 'A' }
+    const d6300 = { _id: 'd63', accountCode: '6300', accountName: 'B' }
+    const entries = [
+      {
+        _id: 'a',
+        referenceType: 'journal',
+        date: '2026-06-05',
+        createdAt: '2026-06-05T08:00:00.000Z',
+        description: 'Jv/2026/0002 — mixed',
+        amount: 100,
+        currency: 'USD',
+        debitAccountId: d6200,
+        creditAccountId: bank,
+      },
+      {
+        _id: 'b',
+        referenceType: 'journal',
+        date: '2026-06-05',
+        createdAt: '2026-06-05T08:00:01.000Z',
+        description: 'Jv/2026/0002 — mixed',
+        amount: 200,
+        currency: 'USD',
+        debitAccountId: d6300,
+        creditAccountId: bank,
+      },
+    ]
+    const out = reconstructJvEditLines(entries, entries[0], ctx)
+    expect(out.lines).toHaveLength(4)
+    expect(out.lines[0].accountId).toBe('d62')
+    expect(out.lines[1].accountId).toBe('b1')
+    expect(out.lines[2].accountId).toBe('d63')
+    expect(out.lines[3].accountId).toBe('b1')
+  })
+
+  test('reconstructJvEditLines parses line-level description from third em-dash segment', () => {
+    const ctx = {
+      baseCurrencyCode: 'USD',
+      convertJvAmount: (amount) => Number(amount),
+      inferJvAccountCurrency: () => 'USD',
+      inferLegacyJvBatchDisplayFc: () => null,
+    }
+    const drAcc = { _id: 'd1', accountCode: '4000', accountName: 'Rev' }
+    const crAcc = { _id: 'c1', accountCode: '1000', accountName: 'Cash' }
+    const entries = [{
+      _id: 'x1',
+      referenceType: 'journal',
+      date: '2026-01-01',
+      createdAt: '2026-01-01T12:00:00.000Z',
+      description: 'Jv/2026/0009 — header note — line detail here',
+      amount: 5,
+      currency: 'USD',
+      debitAccountId: drAcc,
+      creditAccountId: crAcc,
+    }]
+    const out = reconstructJvEditLines(entries, entries[0], ctx)
+    expect(out.lines[0].description).toBe('line detail here')
+    expect(out.lines[1].description).toBe('line detail here')
   })
 
   test('validates balanced JV rows and returns normalized active lines', () => {

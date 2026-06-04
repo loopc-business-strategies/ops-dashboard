@@ -95,8 +95,10 @@ import {
   createJvHeader as createNextJvHeader,
   emptyJvLine,
   extractLedgerJvDocNoFromDescription,
+  filterJvEditableEntries,
   inferLegacyJvBatchDisplayFc,
   normalizeJvCurrencyCode,
+  reconstructJvEditLines,
   resolveJvModeMeta,
 } from './erp/journalVoucherHelpers'
 const VoucherTab = lazy(() => import('./VoucherTab'))
@@ -4742,68 +4744,24 @@ function ERPTab({ focusTab, onNavigateMain }) {
       setError(e.response?.data?.message || 'Failed to load JV lines for editing')
       return
     }
-    const reversedEntryIds = new Set(
-      docMatchedEntries
-        .filter((e) => String(e?.referenceType || '').toLowerCase() === 'reversal')
-        .map((e) => String(e?.referenceId || String(e?.description || '').match(/REVERSAL of Entry\s+([a-f0-9]{24})/i)?.[1] || '').trim())
-        .filter(Boolean),
-    )
-    const entryDateKey = entry?.date ? new Date(entry.date).toISOString().slice(0, 10) : ''
-    const editableEntries = docMatchedEntries.filter((e) => {
-      const refType = String(e?.referenceType || '').toLowerCase()
-      if (refType !== entryMode) return false
-      const rowDateKey = e?.date ? new Date(e.date).toISOString().slice(0, 10) : ''
-      if (entryDateKey && rowDateKey !== entryDateKey) return false
-      return !reversedEntryIds.has(String(e?._id || ''))
+    const editableEntries = filterJvEditableEntries(docMatchedEntries, entry, entryMode)
+    const reconstructed = reconstructJvEditLines(editableEntries, entry, {
+      baseCurrencyCode,
+      normalizeJvCurrencyCode,
+      convertJvAmount,
+      inferJvAccountCurrency,
+      inferLegacyJvBatchDisplayFc,
     })
-    // Reconstruct JV lines by grouping debit and credit sides by account
-    const debitMap = new Map()
-    const creditMap = new Map()
-    const firstEntryCur = normalizeJvCurrencyCode((editableEntries[0] || entry).currency || baseCurrencyCode)
-    const allEntriesSameCur = editableEntries.length > 0 && editableEntries.every((row) => (
-      normalizeJvCurrencyCode(row.currency || firstEntryCur) === firstEntryCur
-    ))
-    const showAsBatchCur = allEntriesSameCur && firstEntryCur !== normalizeJvCurrencyCode(baseCurrencyCode)
-    editableEntries.forEach((e) => {
-      const entryCur = normalizeJvCurrencyCode(e.currency || baseCurrencyCode)
-      const drId = e.debitAccountId?._id
-      const crId = e.creditAccountId?._id
-      if (drId) {
-        const displayDebit = showAsBatchCur
-          ? Number(e.amount || 0)
-          : convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(drId))
-        const debitAmount = Number.isFinite(Number(displayDebit)) ? Number(displayDebit) : Number(e.amount || 0)
-        if (!debitMap.has(drId)) {
-          debitMap.set(drId, { accountId: drId, accountInput: `${e.debitAccountId.accountCode} - ${e.debitAccountId.accountName}`, debit: 0, description: '' })
-        }
-        debitMap.get(drId).debit = Number((debitMap.get(drId).debit + debitAmount).toFixed(2))
-      }
-      if (crId) {
-        const displayCredit = showAsBatchCur
-          ? Number(e.amount || 0)
-          : convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(crId))
-        const creditAmount = Number.isFinite(Number(displayCredit)) ? Number(displayCredit) : Number(e.amount || 0)
-        if (!creditMap.has(crId)) {
-          creditMap.set(crId, { accountId: crId, accountInput: `${e.creditAccountId.accountCode} - ${e.creditAccountId.accountName}`, credit: 0, description: '' })
-        }
-        creditMap.get(crId).credit = Number((creditMap.get(crId).credit + creditAmount).toFixed(2))
-      }
+    setJvMode(reconstructed.entryMode)
+    setJvEditEntryIds(reconstructed.jvEditEntryIds)
+    setJvLines(reconstructed.lines)
+    setNextJvLineId(reconstructed.nextJvLineId)
+    setJvHeader({
+      docNo: reconstructed.headerDocNo,
+      date: reconstructed.entryDate,
+      narration: reconstructed.narration,
+      currency: reconstructed.headerCurrency,
     })
-    let id = 1
-    const lines = [
-      ...Array.from(debitMap.values()).map((d) => ({ id: id++, accountId: d.accountId, accountInput: d.accountInput, description: d.description, debit: d.debit, credit: '' })),
-      ...Array.from(creditMap.values()).map((c) => ({ id: id++, accountId: c.accountId, accountInput: c.accountInput, description: c.description, debit: '', credit: c.credit })),
-    ]
-    const narration = editableEntries[0]?.notes || ''
-    const headerDocNo = (docNo && hasDocPrefix) ? docNo : `${resolveJvModeMeta(entryMode).prefix}-EDIT-${entry._id.slice(-6)}`
-    const legacyBatchFc = inferLegacyJvBatchDisplayFc(editableEntries, baseCurrencyCode)
-    const headerCurrency = legacyBatchFc
-      || normalizeJvCurrencyCode((editableEntries[0] || entry).currency || baseCurrencyCode)
-    setJvMode(entryMode)
-    setJvEditEntryIds(editableEntries.map((e) => e._id))
-    setJvLines(lines)
-    setNextJvLineId(id)
-    setJvHeader({ docNo: headerDocNo, date: new Date((editableEntries[0] || entry).date).toISOString().slice(0, 10), narration, currency: headerCurrency })
     setJvModalOffset({ x: 0, y: 0 })
     setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
     setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })

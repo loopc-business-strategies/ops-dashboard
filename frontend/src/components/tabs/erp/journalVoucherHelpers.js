@@ -462,7 +462,17 @@ function filterJvEditableEntries(docMatchedEntries, entry, entryMode) {
   })
 }
 
-/** Rebuild JV modal lines from ledger entries (same-account debit/credit aggregation as UI). */
+/** Per-posting line detail saved after header in `description` (em dash segments). */
+function extractJvPostingLineDescription(description = '') {
+  const parts = String(description || '').split(' — ')
+  if (parts.length >= 3) return parts.slice(2).join(' — ').trim()
+  return ''
+}
+
+/**
+ * Rebuild JV modal lines: one debit row + one credit row per ledger posting (preserves
+ * multiple postings that share the same accounts). Order matches FIFO pairing on save.
+ */
 function reconstructJvEditLines(editableEntries, entry, {
   baseCurrencyCode = 'USD',
   normalizeJvCurrencyCode: normCur = normalizeJvCurrencyCode,
@@ -470,64 +480,77 @@ function reconstructJvEditLines(editableEntries, entry, {
   inferJvAccountCurrency,
   inferLegacyJvBatchDisplayFc,
 } = {}) {
-  const debitMap = new Map()
-  const creditMap = new Map()
-  editableEntries.forEach((e) => {
+  const sorted = [...(editableEntries || [])].sort((a, b) => {
+    const aTs = new Date(a?.createdAt || a?.date || 0).getTime()
+    const bTs = new Date(b?.createdAt || b?.date || 0).getTime()
+    if (aTs !== bTs) return aTs - bTs
+    return String(a?._id || '').localeCompare(String(b?._id || ''))
+  })
+
+  const firstEntryCur = normCur((sorted[0] || entry)?.currency || baseCurrencyCode)
+  const allEntriesSameCur = sorted.length > 0 && sorted.every((row) => (
+    normCur(row.currency || firstEntryCur) === firstEntryCur
+  ))
+  const showAsBatchCur = allEntriesSameCur && firstEntryCur !== normCur(baseCurrencyCode)
+
+  let id = 1
+  const lines = []
+  for (const e of sorted) {
     const entryCur = normCur(e.currency || baseCurrencyCode)
     const drId = e.debitAccountId?._id
     const crId = e.creditAccountId?._id
-    if (drId) {
-      const displayDebit = convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(drId))
+    const lineDesc = extractJvPostingLineDescription(e.description)
+    if (drId && e.debitAccountId) {
+      const displayDebit = showAsBatchCur
+        ? Number(e.amount || 0)
+        : convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(drId))
       const debitAmount = Number.isFinite(Number(displayDebit)) ? Number(displayDebit) : Number(e.amount || 0)
-      if (!debitMap.has(drId)) {
-        debitMap.set(drId, {
-          accountId: drId,
-          accountInput: `${e.debitAccountId.accountCode} - ${e.debitAccountId.accountName}`,
-          debit: 0,
-          description: '',
-        })
-      }
-      debitMap.get(drId).debit = Number((debitMap.get(drId).debit + debitAmount).toFixed(2))
+      lines.push({
+        id: id++,
+        accountId: drId,
+        accountInput: `${e.debitAccountId.accountCode} - ${e.debitAccountId.accountName}`,
+        description: lineDesc,
+        debit: Number(debitAmount.toFixed(2)),
+        credit: '',
+      })
     }
-    if (crId) {
-      const displayCredit = convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(crId))
+    if (crId && e.creditAccountId) {
+      const displayCredit = showAsBatchCur
+        ? Number(e.amount || 0)
+        : convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(crId))
       const creditAmount = Number.isFinite(Number(displayCredit)) ? Number(displayCredit) : Number(e.amount || 0)
-      if (!creditMap.has(crId)) {
-        creditMap.set(crId, {
-          accountId: crId,
-          accountInput: `${e.creditAccountId.accountCode} - ${e.creditAccountId.accountName}`,
-          credit: 0,
-          description: '',
-        })
-      }
-      creditMap.get(crId).credit = Number((creditMap.get(crId).credit + creditAmount).toFixed(2))
+      lines.push({
+        id: id++,
+        accountId: crId,
+        accountInput: `${e.creditAccountId.accountCode} - ${e.creditAccountId.accountName}`,
+        description: lineDesc,
+        debit: '',
+        credit: Number(creditAmount.toFixed(2)),
+      })
     }
-  })
-  let id = 1
-  const lines = [
-    ...Array.from(debitMap.values()).map((d) => ({ id: id++, accountId: d.accountId, accountInput: d.accountInput, description: d.description, debit: d.debit, credit: '' })),
-    ...Array.from(creditMap.values()).map((c) => ({ id: id++, accountId: c.accountId, accountInput: c.accountInput, description: c.description, debit: '', credit: c.credit })),
-  ]
+  }
+
   const rawDesc = String(entry.description || '')
   const docNoHead = (rawDesc.includes(' — ') ? rawDesc.split(' — ') : rawDesc.split(' - '))[0]?.trim() || ''
   const docNo = docNoHead
   const hasDocPrefix = /^(jv|bnkjv)[/-]/i.test(String(docNo || ''))
   const entryMode = String(entry?.referenceType || '').toLowerCase() === 'bank_jv' ? 'bank_jv' : 'journal'
-  const narration = editableEntries[0]?.notes || ''
-  const headerDocNo = (docNo && hasDocPrefix) ? docNo : `${resolveJvModeMeta(entryMode).prefix}-EDIT-${entry._id.slice(-6)}`
-  const legacyBatchFc = inferLegacyJvBatchDisplayFc(editableEntries, baseCurrencyCode)
+  const narration = sorted[0]?.notes || ''
+  const entryIdStr = String(entry?._id || '')
+  const headerDocNo = (docNo && hasDocPrefix) ? docNo : `${resolveJvModeMeta(entryMode).prefix}-EDIT-${entryIdStr.slice(-6)}`
+  const legacyBatchFc = inferLegacyJvBatchDisplayFc(sorted, baseCurrencyCode)
   const headerCurrency = legacyBatchFc
-    || normCur((editableEntries[0] || entry).currency || baseCurrencyCode)
+    || normCur((sorted[0] || entry).currency || baseCurrencyCode)
   return {
     lines,
     nextJvLineId: id,
     narration,
     headerDocNo,
     headerCurrency,
-    jvEditEntryIds: editableEntries.map((e) => e._id),
+    jvEditEntryIds: sorted.map((row) => row._id),
     entryMode,
     hasDocPrefix,
-    entryDate: new Date((editableEntries[0] || entry).date).toISOString().slice(0, 10),
+    entryDate: new Date((sorted[0] || entry).date).toISOString().slice(0, 10),
   }
 }
 
