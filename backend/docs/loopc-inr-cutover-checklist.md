@@ -22,6 +22,11 @@ Run only after backup and finance approval. Cutover script: [`revalue-loopc-inr-
 - [ ] **USD (or other FC) receipt/payment**: reference rate + line rate; posted amounts in INR; FX gain/loss journal only when rules say so.
 - [ ] **Metal rates** (manual PUT): new rows use `priceCurrency` from tenant base (INR after cutover).
 
+## USD row still at rate 1 (INR base)
+
+- [ ] **Edit USD** in Currency Master: set **INR per 1 USD**, or run  
+  `node backend/scripts/fix-usd-exchange-when-inr-base.js --tenant=loopc --inr-per-usd=83.5` (preview), then add `--apply`.
+
 ## Known limitations
 
 - Script **does not** rewrite `transactions` / `voucherMeta` historical fields (`amountLC`, old `exchangeRate` on stored vouchers). Reports that read raw voucher JSON may not match printed history until a separate data cleanup, if ever required.

@@ -117,9 +117,9 @@ import { resolveDocumentBranding } from './erp/documentBranding'
 import { loadExcel, loadPdfTools } from './erp/lazyExportLibs'
 import { ERP_TAB_COLORS as C, TRANSACTION_STATUS_STYLES, formatDateInputLocal } from './erp/erpTabPresentation'
 
-/** Stored rate = USD per 1 unit of foreign currency, from quote "1 USD = n units" (n > 0). */
-function exchangeRateFromUnitsPerUsd(unitsPerUsd) {
-  const n = Number(String(unitsPerUsd ?? '').trim())
+/** Stored rate = base currency units per 1 unit of this row’s currency, from quote "1 {base} = n units" (n > 0). */
+function exchangeRateFromUnitsPerBase(unitsPerBase) {
+  const n = Number(String(unitsPerBase ?? '').trim())
   if (!Number.isFinite(n) || n <= 0) return null
   return 1 / n
 }
@@ -203,6 +203,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const [ledger, setLedger] = useState([])
   const [mappings, setMappings] = useState([])
   const [currencies, setCurrencies] = useState([])
+  const erpBaseCurrencyCode = useMemo(
+    () => String(currencies.find((c) => c.baseCurrency)?.code || 'USD').trim().toUpperCase() || 'USD',
+    [currencies],
+  )
   const [dashboard, setDashboard] = useState(null)
   const [loading, setLoading] = useState(false)
   const [summaryAccountsLoading, setSummaryAccountsLoading] = useState(false)
@@ -485,9 +489,20 @@ function ERPTab({ focusTab, onNavigateMain }) {
   const selectedUsdConversionCurrency = currencies.find((currency) => currency.code === usdConversion.targetCode) || null
   const selectedUsdConversionRate = Number(selectedUsdConversionCurrency?.exchangeRate || 0)
   const usdAmountValue = Number(usdConversion.usdAmount || 0)
-  const usdToTargetAmount = Number.isFinite(usdAmountValue) && usdAmountValue >= 0 && selectedUsdConversionRate > 0
-    ? (usdAmountValue / selectedUsdConversionRate)
-    : 0
+  const usdMasterRow = currencies.find((currency) => String(currency.code || '').toUpperCase() === 'USD') || null
+  const basePerUsd = Number(usdMasterRow?.exchangeRate || 0)
+  const usdToTargetAmount = (() => {
+    if (!Number.isFinite(usdAmountValue) || usdAmountValue < 0) return 0
+    if (!selectedUsdConversionCurrency || selectedUsdConversionRate <= 0) return 0
+    const targetCode = String(usdConversion.targetCode || '').toUpperCase()
+    if (targetCode === 'USD') return usdAmountValue
+    if (erpBaseCurrencyCode === 'USD') {
+      return usdAmountValue / selectedUsdConversionRate
+    }
+    if (!Number.isFinite(basePerUsd) || basePerUsd <= 0) return 0
+    const baseAmount = usdAmountValue * basePerUsd
+    return baseAmount / selectedUsdConversionRate
+  })()
   const inventoryMappingProducts = inventoryProducts.filter((item) => String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
   const inventoryCatalogProducts = inventoryProducts.filter((item) => String(item?.category || '').includes('recordType=product'))
   const legacyInventoryProducts = inventoryProducts.filter((item) => !String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
@@ -5149,11 +5164,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
       }
       if (editState.type === 'currency') {
         let nextRate = Number(editState.form.exchangeRate || 1)
-        const fromQuote = exchangeRateFromUnitsPerUsd(editState.form.oneUsdEquals)
+        const fromQuote = exchangeRateFromUnitsPerBase(editState.form.oneUsdEquals)
         if (!editState.form.baseCurrency && fromQuote !== null) nextRate = fromQuote
         if (editState.form.baseCurrency) nextRate = 1
         if (!editState.form.baseCurrency && (!Number.isFinite(nextRate) || nextRate <= 0)) {
-          setError('Enter a positive exchange rate or a valid 1 USD = (units) quote.')
+          setError(`Enter a positive exchange rate or a valid 1 ${erpBaseCurrencyCode} = (units) quote.`)
           setSaving(false)
           return
         }
@@ -5187,11 +5202,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
       return
     }
     let exchangeRate = Number(currencyForm.exchangeRate || 1)
-    const fromQuote = exchangeRateFromUnitsPerUsd(currencyForm.oneUsdEquals)
+    const fromQuote = exchangeRateFromUnitsPerBase(currencyForm.oneUsdEquals)
     if (!currencyForm.baseCurrency && fromQuote !== null) exchangeRate = fromQuote
     if (currencyForm.baseCurrency) exchangeRate = 1
     if (!currencyForm.baseCurrency && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
-      setError('For a non-base currency, enter a positive exchange rate (USD per 1 unit) or use 1 USD = (units).')
+      setError(`For a non-base currency, enter a positive exchange rate (${erpBaseCurrencyCode} per 1 unit) or use 1 ${erpBaseCurrencyCode} = (units).`)
       return
     }
     setSaving(true)
@@ -6717,7 +6732,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
             <div>
               <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Currency Master</h3>
               <p style={{ margin: '0.3rem 0 0', color: C.inkSoft, fontSize: '0.84rem' }}>
-                Manage currency code master and conversion rates vs USD for all ERP postings.
+                {`Manage currency code master and conversion rates vs ${erpBaseCurrencyCode} for all ERP postings.`}
               </p>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -6754,13 +6769,18 @@ function ERPTab({ focusTab, onNavigateMain }) {
               </p>
             </div>
             <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-              <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>Rate Direction (vs USD)</h4>
+              <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>{`Rate Direction (vs ${erpBaseCurrencyCode})`}</h4>
               <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.82rem' }}>
-                Exchange rate stores <strong>USD value of 1 unit</strong> of the selected currency. Example: AED 0.2723 means 1 AED = 0.2723 USD. When adding or editing, you can instead fill <strong>1 USD = (units)</strong> — the app saves <code>1 ÷ that number</code> so the grid matches (e.g. INR 85.6).
+                Exchange rate stores the <strong>{erpBaseCurrencyCode}</strong> value of <strong>1 unit</strong> of that currency code (base units per 1 unit of FC). Example when base is USD: AED 0.2723 means 1 AED = 0.2723 USD. When base is INR: USD 83.5 means 1 USD = 83.5 INR. When adding or editing, you can instead fill <strong>1 {erpBaseCurrencyCode} = (units)</strong> — the app saves <code>1 ÷ that number</code> so the grid matches.
               </p>
             </div>
             <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-              <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>USD Converter</h4>
+              <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>USD amount converter</h4>
+              <p style={{ margin: '0 0 0.45rem', color: C.inkSoft, fontSize: '0.72rem' }}>
+                {erpBaseCurrencyCode === 'USD'
+                  ? 'Uses stored rates (USD per 1 unit of the target currency).'
+                  : `Converts USD → ${erpBaseCurrencyCode} using the USD row, then → target using each row’s ${erpBaseCurrencyCode} per 1 unit.`}
+              </p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
                 <input
                   type="number"
@@ -6785,10 +6805,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 {usdConversion.usdAmount || '0'} USD = <strong style={{ color: C.ink }}>{Number(usdToTargetAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</strong> {usdConversion.targetCode || '---'}
               </p>
               <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.75rem' }}>
-                1 {usdConversion.targetCode || '---'} = <strong style={{ color: C.ink }}>{Number(selectedUsdConversionRate || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</strong> USD
+                1 {usdConversion.targetCode || '---'} = <strong style={{ color: C.ink }}>{Number(selectedUsdConversionRate || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</strong> {erpBaseCurrencyCode}
               </p>
               <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.72rem' }}>
-                Rate used: {selectedUsdConversionRate > 0 ? selectedUsdConversionRate.toFixed(6) : 'N/A'} USD per {usdConversion.targetCode || 'unit'}
+                Rate used: {selectedUsdConversionRate > 0 ? selectedUsdConversionRate.toFixed(6) : 'N/A'} {erpBaseCurrencyCode} per {usdConversion.targetCode || 'unit'}
               </p>
             </div>
           </div>
@@ -6826,11 +6846,11 @@ function ERPTab({ focusTab, onNavigateMain }) {
                 <input
                   type="text"
                   inputMode="decimal"
-                  placeholder="1 USD = (units of this currency)"
+                  placeholder={`1 ${erpBaseCurrencyCode} = (units of this currency)`}
                   value={currencyForm.oneUsdEquals}
                   onChange={(e) => {
                     const v = e.target.value
-                    const r = exchangeRateFromUnitsPerUsd(v)
+                    const r = exchangeRateFromUnitsPerBase(v)
                     setCurrencyForm({
                       ...currencyForm,
                       oneUsdEquals: v,
@@ -6875,7 +6895,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Name</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Symbol</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Exchange Rate</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>1 USD =</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>{`1 ${erpBaseCurrencyCode} =`}</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Base</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Active</th>
                   <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Actions</th>
@@ -6888,7 +6908,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
                     <td style={{ padding: '0.75rem', color: C.t2 }}>{c.name}</td>
                     <td style={{ padding: '0.75rem', color: C.t2 }}>{c.symbol || '-'}</td>
                     <td style={{ padding: '0.75rem', color: C.t2 }}>{Number(c.exchangeRate || 0).toFixed(6)}</td>
-                    <td style={{ padding: '0.75rem', color: C.t2 }}>{Number(c.exchangeRate || 0) > 0 ? Number(1 / Number(c.exchangeRate || 1)).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '-'}</td>
+                    <td style={{ padding: '0.75rem', color: C.t2 }}>
+                      {c.baseCurrency
+                        ? '—'
+                        : (Number(c.exchangeRate || 0) > 0
+                          ? Number(1 / Number(c.exchangeRate || 1)).toLocaleString(undefined, { maximumFractionDigits: 4 })
+                          : '-')}
+                    </td>
                     <td style={{ padding: '0.75rem', color: c.baseCurrency ? C.s1 : C.t2 }}>{c.baseCurrency ? '✓ Base' : '-'}</td>
                     <td style={{ padding: '0.75rem', color: c.isActive ? '#065F46' : C.inkSoft }}>{c.isActive ? 'Active' : 'Inactive'}</td>
                     <td style={{ padding: '0.75rem' }}>
@@ -7025,7 +7051,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                       value={editState.form.oneUsdEquals ?? ''}
                       onChange={(e) => {
                         const v = e.target.value
-                        const r = exchangeRateFromUnitsPerUsd(v)
+                        const r = exchangeRateFromUnitsPerBase(v)
                         setEditState((prev) => ({
                           ...prev,
                           form: {
@@ -7035,7 +7061,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                           },
                         }))
                       }}
-                      placeholder="1 USD = (units of this currency)"
+                      placeholder={`1 ${erpBaseCurrencyCode} = (units of this currency)`}
                       style={modalInputStyle}
                     />
                   )}

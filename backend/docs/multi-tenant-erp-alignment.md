@@ -6,6 +6,7 @@ Voucher ledger **formulas** are shared in code; cross-tenant differences usually
 
 - Script: [`revalue-loopc-inr-base-cutover.js`](../scripts/destructive/revalue-loopc-inr-base-cutover.js) (LoopC only; dry-run by default).
 - Checklist: [`loopc-inr-cutover-checklist.md`](loopc-inr-cutover-checklist.md).
+- If INR is base but **USD** still shows rate `1`, run [`fix-usd-exchange-when-inr-base.js`](../scripts/fix-usd-exchange-when-inr-base.js) (`--tenant=loopc --inr-per-usd=...`, then `--apply`).
 
 ## 1. Currency `exchangeRate` alignment
 
