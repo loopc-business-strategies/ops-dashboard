@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+require('./_destructive-guard')({ scriptName: __filename })
 /**
  * Remove all MG metal purchase and metal receipt vouchers (soft-delete + ledger/stock cleanup).
  *
