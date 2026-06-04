@@ -64,7 +64,7 @@ export default function ERPLedgerTab({
   const visibleJvLedgerEntries = activeTab === 'ledger'
     ? ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab)
     : []
-  const groupedJvVouchers = groupJvLedgerEntries(visibleJvLedgerEntries)
+  const groupedJvVouchers = groupJvLedgerEntries(visibleJvLedgerEntries, { baseCurrencyCode })
 
   return (
     <>
@@ -162,6 +162,9 @@ export default function ERPLedgerTab({
             const jvValidation = getJvValidation(jvLines)
             const jvTotalDebit = jvValidation.totalDebit
             const jvTotalCredit = jvValidation.totalCredit
+            const jvDisplayDebit = jvValidation.displayDebitTotal ?? jvValidation.totalDebit
+            const jvDisplayCredit = jvValidation.displayCreditTotal ?? jvValidation.totalCredit
+            const jvTotalCurrencyLabel = jvValidation.displayTotalCurrency || baseCurrencyCode
             const jvDifference = jvValidation.difference
             const jvIsBalanced = jvValidation.isBalanced
             const cellSt = { padding: '0.28rem 0.4rem', border: '1px solid #D1D5DB', background: '#fff', color: C.ink, borderRadius: '0.25rem', fontSize: '0.875rem', width: '100%', boxSizing: 'border-box' }
@@ -332,8 +335,8 @@ export default function ERPLedgerTab({
                   <tfoot>
                     <tr style={{ background: '#F1F5F9', borderTop: '2px solid #CBD5E1' }}>
                       <td colSpan={3} style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '700', fontSize: '0.82rem', color: C.ink }}>TOTAL</td>
-                      <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#1D4ED8' }}>{jvTotalDebit > 0 ? jvTotalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
-                      <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#DC2626' }}>{jvTotalCredit > 0 ? jvTotalCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+                      <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#1D4ED8' }}>{jvDisplayDebit > 0 ? jvDisplayDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+                      <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#DC2626' }}>{jvDisplayCredit > 0 ? jvDisplayCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
                       <td></td>
                     </tr>
                   </tfoot>
@@ -346,19 +349,19 @@ export default function ERPLedgerTab({
                   {jvValidation.hasLineIssues
                     ? Object.values(jvValidation.lineIssuesById)[0]
                     : jvIsBalanced
-                    ? `✓ Balanced — Total = ${jvTotalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${baseCurrencyCode}`
-                    : `⚠ Debit and Credit totals are not balanced (diff: ${Math.abs(jvDifference).toFixed(2)})`}
+                    ? `✓ Balanced — Total = ${jvDisplayDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${jvTotalCurrencyLabel}`
+                    : `⚠ Debit and Credit totals are not balanced (diff: ${Math.abs(jvDifference).toFixed(2)} ${baseCurrencyCode})`}
                 </div>
               )}
 
               <div style={{ margin: '0.5rem 1rem 0', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(140px, 1fr))', gap: '0.45rem' }}>
                 <div style={{ border: '1px solid #BFDBFE', background: '#EFF6FF', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
                   <div style={{ color: '#1D4ED8', fontSize: '0.72rem', fontWeight: '700' }}>Total Debit</div>
-                  <div style={{ color: '#1E3A8A', fontWeight: '800' }}>{jvTotalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div style={{ color: '#1E3A8A', fontWeight: '800' }}>{jvDisplayDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </div>
                 <div style={{ border: '1px solid #FECACA', background: '#FEF2F2', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
                   <div style={{ color: '#DC2626', fontSize: '0.72rem', fontWeight: '700' }}>Total Credit</div>
-                  <div style={{ color: '#991B1B', fontWeight: '800' }}>{jvTotalCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div style={{ color: '#991B1B', fontWeight: '800' }}>{jvDisplayCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </div>
                 <div style={{ border: `1px solid ${jvIsBalanced ? '#86EFAC' : '#FDE68A'}`, background: jvIsBalanced ? '#ECFDF5' : '#FFFBEB', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
                   <div style={{ color: jvIsBalanced ? '#166534' : '#92400E', fontSize: '0.72rem', fontWeight: '700' }}>Difference</div>
@@ -493,6 +496,21 @@ export default function ERPLedgerTab({
                           const useLegacyFc = Boolean(legacyFc && dispRate > 0)
                           const isJournalJv = String(voucher.referenceType || '').toLowerCase() === 'journal'
                           const lineHint = voucher.lineCount > 1 ? `${voucher.lineCount} ledger lines` : ''
+
+                          if (isJournalJv && voucher.documentFaceAmount != null && voucher.documentCurrencyCode) {
+                            return (
+                              <div title={lineHint || undefined}>
+                                <span>{Number(voucher.documentFaceAmount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                <span style={{ marginLeft: '0.25rem', fontSize: '0.72rem', color: C.inkSoft, fontWeight: '600' }}>{voucher.documentCurrencyCode}</span>
+                                <div style={{ fontSize: '0.68rem', color: C.inkSoft, marginTop: '0.12rem', fontWeight: '600' }}>
+                                  ≈ {baseEq.toLocaleString(undefined, { maximumFractionDigits: 2 })} {baseSym}
+                                </div>
+                                {lineHint ? (
+                                  <div style={{ fontSize: '0.68rem', color: C.inkSoft, marginTop: '0.12rem', fontWeight: '600' }}>{lineHint}</div>
+                                ) : null}
+                              </div>
+                            )
+                          }
 
                           if (isJournalJv) {
                             return (

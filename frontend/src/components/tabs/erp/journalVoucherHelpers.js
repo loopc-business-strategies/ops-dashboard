@@ -169,7 +169,8 @@ const sumJvLedgerBaseAmount = (entries = []) =>
  * Collapse paired ledger postings (one row per debit/credit pair) into voucher-level rows
  * for journal and bank_jv list views.
  */
-const groupJvLedgerEntries = (entries = []) => {
+const groupJvLedgerEntries = (entries = [], opts = {}) => {
+  const baseNorm = normalizeJvCurrencyCode(opts.baseCurrencyCode || 'USD') || 'USD'
   const buckets = new Map()
   for (const entry of entries || []) {
     const key = jvLedgerGroupKey(entry)
@@ -192,6 +193,12 @@ const groupJvLedgerEntries = (entries = []) => {
       || extractLedgerJvDetailFromDescription(representative?.description)
       || '—'
 
+    const repCur = normalizeJvCurrencyCode(representative?.currency || '')
+    const allSameCur = sorted.length > 0 && sorted.every((e) => normalizeJvCurrencyCode(e?.currency || repCur) === repCur)
+    const documentFaceAmount = allSameCur && repCur && repCur !== baseNorm
+      ? Number(sorted.reduce((sum, e) => sum + Number(e?.amount || 0), 0).toFixed(2))
+      : null
+
     return {
       key,
       entries: sorted,
@@ -205,6 +212,8 @@ const groupJvLedgerEntries = (entries = []) => {
       debitAccounts: summarizeJvLedgerAccountCodes(sorted, 'debit'),
       creditAccounts: summarizeJvLedgerAccountCodes(sorted, 'credit'),
       totalBaseAmount: sumJvLedgerBaseAmount(sorted),
+      documentCurrencyCode: documentFaceAmount != null ? repCur : '',
+      documentFaceAmount,
       attachmentUrl: sorted.find((entry) => entry?.attachmentUrl)?.attachmentUrl || '',
       autoTxNo: sorted.find((entry) => entry?.autoTxNo)?.autoTxNo || '',
       chequeNo: sorted.find((entry) => entry?.chequeNo)?.chequeNo || '',

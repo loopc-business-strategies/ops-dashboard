@@ -104,7 +104,7 @@ describe('journal voucher helpers', () => {
       },
     ]
 
-    const grouped = groupJvLedgerEntries(entries)
+    const grouped = groupJvLedgerEntries(entries, { baseCurrencyCode: 'USD' })
     expect(grouped).toHaveLength(2)
     expect(grouped[0].voucherNo).toBe('BnkJV/2026/0004')
     expect(grouped[0].lineCount).toBe(2)
@@ -137,10 +137,41 @@ describe('journal voucher helpers', () => {
       },
     ]
 
-    const grouped = groupJvLedgerEntries(entries)
+    const grouped = groupJvLedgerEntries(entries, { baseCurrencyCode: 'USD' })
     expect(grouped).toHaveLength(1)
     expect(grouped[0].lineCount).toBe(2)
     expect(grouped[0].voucherNo).toBe('Jv/2026/0001')
+  })
+
+  test('groupJvLedgerEntries exposes documentFaceAmount when all lines share a non-base currency', () => {
+    const entries = [
+      {
+        _id: 'j1',
+        referenceType: 'journal',
+        date: '2026-06-04',
+        description: 'Jv/2026/0002 — rent',
+        amount: 100,
+        exchangeRate: 0.012,
+        currency: 'INR',
+        debitAccountId: { accountCode: '6200' },
+        creditAccountId: { accountCode: '110011' },
+      },
+      {
+        _id: 'j2',
+        referenceType: 'journal',
+        date: '2026-06-04',
+        description: 'Jv/2026/0002 — rent',
+        amount: 50,
+        exchangeRate: 0.012,
+        currency: 'INR',
+        debitAccountId: { accountCode: '6201' },
+        creditAccountId: { accountCode: '110011' },
+      },
+    ]
+    const grouped = groupJvLedgerEntries(entries, { baseCurrencyCode: 'USD' })
+    expect(grouped).toHaveLength(1)
+    expect(grouped[0].documentCurrencyCode).toBe('INR')
+    expect(grouped[0].documentFaceAmount).toBe(150)
   })
 
   test('validates balanced JV rows and returns normalized active lines', () => {

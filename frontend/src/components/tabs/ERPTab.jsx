@@ -4586,11 +4586,18 @@ function ERPTab({ focusTab, onNavigateMain }) {
     const activeLines = []
     let totalDebit = 0
     let totalCredit = 0
+    let totalDebitRaw = 0
+    let totalCreditRaw = 0
+    const headerCur = normalizeJvCurrencyCode(jvHeader.currency || baseCurrencyCode)
+    const baseNorm = normalizeJvCurrencyCode(baseCurrencyCode)
+    const useDocCurrency = headerCur !== baseNorm
     lines.forEach((line, index) => {
       const debit = Number(line.debit || 0)
       const credit = Number(line.credit || 0)
       const debitRawValue = Number.isFinite(debit) && debit > 0 ? debit : 0
       const creditRawValue = Number.isFinite(credit) && credit > 0 ? credit : 0
+      totalDebitRaw += debitRawValue
+      totalCreditRaw += creditRawValue
       const accountId = String(line.accountId || '').trim()
       const hasNarration = String(line.description || '').trim().length > 0
       const hasAmount = debitRawValue > 0 || creditRawValue > 0
@@ -4598,19 +4605,19 @@ function ERPTab({ focusTab, onNavigateMain }) {
       let debitValue = debitRawValue
       let creditValue = creditRawValue
       if (accountId) {
-        const accountCurrency = inferJvAccountCurrency(accountId)
+        const lineAmountCurrency = useDocCurrency ? headerCur : inferJvAccountCurrency(accountId)
         if (debitRawValue > 0) {
-          const normalizedDebit = convertJvAmount(debitRawValue, accountCurrency, baseCurrencyCode)
+          const normalizedDebit = convertJvAmount(debitRawValue, lineAmountCurrency, baseNorm)
           if (!Number.isFinite(normalizedDebit) || normalizedDebit <= 0) {
-            lineIssuesById[line.id] = `Row ${index + 1}: Missing or invalid currency rate for ${accountCurrency}`
+            lineIssuesById[line.id] = `Row ${index + 1}: Missing or invalid currency rate for ${lineAmountCurrency}`
           } else {
             debitValue = normalizedDebit
           }
         }
         if (creditRawValue > 0) {
-          const normalizedCredit = convertJvAmount(creditRawValue, accountCurrency, baseCurrencyCode)
+          const normalizedCredit = convertJvAmount(creditRawValue, lineAmountCurrency, baseNorm)
           if (!Number.isFinite(normalizedCredit) || normalizedCredit <= 0) {
-            lineIssuesById[line.id] = `Row ${index + 1}: Missing or invalid currency rate for ${accountCurrency}`
+            lineIssuesById[line.id] = `Row ${index + 1}: Missing or invalid currency rate for ${lineAmountCurrency}`
           } else {
             creditValue = normalizedCredit
           }
@@ -4641,11 +4648,20 @@ function ERPTab({ focusTab, onNavigateMain }) {
     const hasCredit = totalCredit > 0
     const isBalanced = hasDebit && hasCredit && Math.abs(difference) < 0.005
     const canSave = !hasLineIssues && isBalanced && activeLines.length > 1
+    const displayTotalCurrency = useDocCurrency ? headerCur : baseNorm
+    const displayDebitTotal = useDocCurrency ? Number(totalDebitRaw.toFixed(2)) : totalDebit
+    const displayCreditTotal = useDocCurrency ? Number(totalCreditRaw.toFixed(2)) : totalCredit
     return {
       activeLines,
       lineIssuesById,
       totalDebit,
       totalCredit,
+      totalDebitRaw,
+      totalCreditRaw,
+      useDocCurrency,
+      displayTotalCurrency,
+      displayDebitTotal,
+      displayCreditTotal,
       difference,
       isBalanced,
       canSave,
@@ -4743,12 +4759,19 @@ function ERPTab({ focusTab, onNavigateMain }) {
     // Reconstruct JV lines by grouping debit and credit sides by account
     const debitMap = new Map()
     const creditMap = new Map()
+    const firstEntryCur = normalizeJvCurrencyCode((editableEntries[0] || entry).currency || baseCurrencyCode)
+    const allEntriesSameCur = editableEntries.length > 0 && editableEntries.every((row) => (
+      normalizeJvCurrencyCode(row.currency || firstEntryCur) === firstEntryCur
+    ))
+    const showAsBatchCur = allEntriesSameCur && firstEntryCur !== normalizeJvCurrencyCode(baseCurrencyCode)
     editableEntries.forEach((e) => {
       const entryCur = normalizeJvCurrencyCode(e.currency || baseCurrencyCode)
       const drId = e.debitAccountId?._id
       const crId = e.creditAccountId?._id
       if (drId) {
-        const displayDebit = convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(drId))
+        const displayDebit = showAsBatchCur
+          ? Number(e.amount || 0)
+          : convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(drId))
         const debitAmount = Number.isFinite(Number(displayDebit)) ? Number(displayDebit) : Number(e.amount || 0)
         if (!debitMap.has(drId)) {
           debitMap.set(drId, { accountId: drId, accountInput: `${e.debitAccountId.accountCode} - ${e.debitAccountId.accountName}`, debit: 0, description: '' })
@@ -4756,7 +4779,9 @@ function ERPTab({ focusTab, onNavigateMain }) {
         debitMap.get(drId).debit = Number((debitMap.get(drId).debit + debitAmount).toFixed(2))
       }
       if (crId) {
-        const displayCredit = convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(crId))
+        const displayCredit = showAsBatchCur
+          ? Number(e.amount || 0)
+          : convertJvAmount(e.amount, entryCur, inferJvAccountCurrency(crId))
         const creditAmount = Number.isFinite(Number(displayCredit)) ? Number(displayCredit) : Number(e.amount || 0)
         if (!creditMap.has(crId)) {
           creditMap.set(crId, { accountId: crId, accountInput: `${e.creditAccountId.accountCode} - ${e.creditAccountId.accountName}`, credit: 0, description: '' })
@@ -4899,7 +4924,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       <table>
         <thead><tr><th>No.</th><th>Account</th><th>Narration</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="5">No JV rows</td></tr>'}</tbody>
-        <tfoot><tr><td colspan="3" class="num">Total</td><td class="num">${validation.totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td class="num">${validation.totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr></tfoot>
+        <tfoot><tr><td colspan="3" class="num">Total</td><td class="num">${(validation.displayDebitTotal ?? validation.totalDebit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td class="num">${(validation.displayCreditTotal ?? validation.totalCredit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr></tfoot>
       </table>
       <div class="note">${escapeHtml(jvHeader.narration || '')}</div>
       <div class="signatures">
@@ -4926,12 +4951,35 @@ function ERPTab({ focusTab, onNavigateMain }) {
       setError('Debit and Credit totals are not balanced')
       return
     }
-    const debitQueue = validation.activeLines
-      .filter((line) => line.debit > 0)
-      .map((line) => ({ ...line, remaining: Number(line.debit.toFixed(2)) }))
-    const creditQueue = validation.activeLines
-      .filter((line) => line.credit > 0)
-      .map((line) => ({ ...line, remaining: Number(line.credit.toFixed(2)) }))
+    const headerCur = normalizeJvCurrencyCode(jvHeader.currency || baseCurrencyCode)
+    const baseCur = normalizeJvCurrencyCode(baseCurrencyCode)
+    const useDocCurrency = Boolean(validation.useDocCurrency)
+
+    let debitQueue
+    let creditQueue
+    if (useDocCurrency) {
+      debitQueue = jvLines
+        .filter((line) => String(line.accountId || '').trim() && Number(line.debit || 0) > 0)
+        .map((line) => ({
+          accountId: line.accountId,
+          description: String(line.description || '').trim(),
+          remaining: Number(Number(line.debit || 0).toFixed(2)),
+        }))
+      creditQueue = jvLines
+        .filter((line) => String(line.accountId || '').trim() && Number(line.credit || 0) > 0)
+        .map((line) => ({
+          accountId: line.accountId,
+          description: String(line.description || '').trim(),
+          remaining: Number(Number(line.credit || 0).toFixed(2)),
+        }))
+    } else {
+      debitQueue = validation.activeLines
+        .filter((line) => line.debit > 0)
+        .map((line) => ({ ...line, remaining: Number(line.debit.toFixed(2)) }))
+      creditQueue = validation.activeLines
+        .filter((line) => line.credit > 0)
+        .map((line) => ({ ...line, remaining: Number(line.credit.toFixed(2)) }))
+    }
     if (!debitQueue.length || !creditQueue.length) {
       setError('JV requires at least one debit row and one credit row')
       return
@@ -4971,8 +5019,6 @@ function ERPTab({ focusTab, onNavigateMain }) {
       return s
     }
     const jvGroupId = makeJvGroupObjectId()
-    const headerCur = normalizeJvCurrencyCode(jvHeader.currency || baseCurrencyCode)
-    const baseCur = normalizeJvCurrencyCode(baseCurrencyCode)
     let headerFxRate = 1
     if (headerCur !== baseCur) {
       const curRow = currencies.find((c) => normalizeJvCurrencyCode(c?.code) === headerCur)
@@ -4981,12 +5027,14 @@ function ERPTab({ focusTab, onNavigateMain }) {
         setError(`Cannot post in ${headerCur}: add an active ${headerCur} currency with exchangeRate (vs ${baseCur}) in Master → Currencies.`)
         return
       }
-      for (const row of entries) {
-        const fcRaw = Number(row.amount) / headerFxRate
-        const postAmt = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
-        if (!Number.isFinite(postAmt) || postAmt <= 0) {
-          setError('A JV line would round to zero in the header currency; adjust amounts or the FX rate.')
-          return
+      if (!useDocCurrency) {
+        for (const row of entries) {
+          const fcRaw = Number(row.amount) / headerFxRate
+          const postAmt = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
+          if (!Number.isFinite(postAmt) || postAmt <= 0) {
+            setError('A JV line would round to zero in the header currency; adjust amounts or the FX rate.')
+            return
+          }
         }
       }
     }
@@ -5003,10 +5051,16 @@ function ERPTab({ focusTab, onNavigateMain }) {
         let postCurrency = baseCur
         let postRate = 1
         if (headerCur !== baseCur) {
-          const fcRaw = pairBase / headerFxRate
-          postAmount = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
-          postCurrency = headerCur
-          postRate = headerFxRate
+          if (useDocCurrency) {
+            postAmount = pairBase
+            postCurrency = headerCur
+            postRate = headerFxRate
+          } else {
+            const fcRaw = pairBase / headerFxRate
+            postAmount = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
+            postCurrency = headerCur
+            postRate = headerFxRate
+          }
         }
         return erpAccountingAPI.createLedgerEntry(token, {
           date: jvHeader.date,
