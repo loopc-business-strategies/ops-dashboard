@@ -3,8 +3,8 @@
   "framework": null,
   "trailingSlash": false,
   "cleanUrls": false,
-  "installCommand": "sh -c 'cd \"$(git rev-parse --show-toplevel)\" && sh scripts/vercel-install.sh'",
-  "buildCommand": "sh -c 'cd \"$(git rev-parse --show-toplevel)\" && sh scripts/vercel-build.sh'",
+  "installCommand": "npm ci --prefix frontend",
+  "buildCommand": "npm run build --prefix frontend",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {

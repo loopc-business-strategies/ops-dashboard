@@ -100,7 +100,7 @@ This repo’s [`vercel.json`](vercel.json) expects the Vercel project **Root Dir
 | Requirement | Detail |
 |---------------|--------|
 | **Root Directory** | **Empty** (monorepo root) so `outputDirectory` **`frontend/dist`** matches the Vite build output |
-| **Install / build** | Wrappers `cd` to `$(git rev-parse --show-toplevel)` then run [`scripts/vercel-install.sh`](../scripts/vercel-install.sh) (`npm ci --prefix frontend`) and [`scripts/vercel-build.sh`](../scripts/vercel-build.sh) (`npm run build --prefix frontend`) |
+| **Install / build** | Root [`vercel.json`](../vercel.json): `npm ci --prefix frontend` and `npm run build --prefix frontend` (no `git`; works on Vercel’s checkout). Optional local parity: [`scripts/vercel-install.sh`](../scripts/vercel-install.sh), [`scripts/vercel-build.sh`](../scripts/vercel-build.sh) |
 | **Output** | Vite writes to **`frontend/dist`**; Vercel publishes that folder as the static deployment |
 
 If **Root Directory** is set to **`frontend`**, `frontend/dist` in `vercel.json` would resolve incorrectly (`frontend/frontend/dist`). **Change Root Directory to empty** and redeploy.

@@ -139,7 +139,7 @@ npx vercel --prod --token=$VERCEL_TOKEN
 
 Monitor at: https://vercel.com/projects/ops-dashboard
 
-**Root Directory:** must be the **repository root** (empty), **not** `frontend`, so [`vercel.json`](vercel.json) `outputDirectory` **`frontend/dist`** matches the Vite build. Install/build use [`scripts/vercel-install.sh`](scripts/vercel-install.sh) and [`scripts/vercel-build.sh`](scripts/vercel-build.sh) after `cd` to the git root. See [DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md) Step **3.0**. Clear dashboard **Install / Build / Output Directory** overrides so `vercel.json` is used.
+**Root Directory:** must be the **repository root** (empty), **not** `frontend`, so [`vercel.json`](vercel.json) `outputDirectory` **`frontend/dist`** matches the Vite build. Install/build are **`npm ci --prefix frontend`** and **`npm run build --prefix frontend`** in `vercel.json` (no git dependency). See [DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md) Step **3.0**. Clear dashboard **Install / Build / Output Directory** overrides so `vercel.json` is used; remove any legacy **`vercel-output`** output override.
 
 If the Vercel **Overview** preview shows **`404: NOT_FOUND`**, check **Deployments → latest → Build Logs** for a failed build, and confirm **Root Directory** is empty—wrong root often yields an empty static bundle.
 
