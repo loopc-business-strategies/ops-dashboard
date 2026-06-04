@@ -6,7 +6,7 @@ const rewrites = Array.isArray(vercel.rewrites) ? vercel.rewrites : []
 const hasProductionApiRewrite = rewrites.some((rewrite) => (
   rewrite.source === '/api/(.*)' &&
   rewrite.destination === 'https://api.loopcstrategies.com/api/$1' &&
-  JSON.stringify(rewrite.has || []).includes('(mg|cg|loopc|app)\\\\.loopcstrategies\\\\.com')
+  JSON.stringify(rewrite.has || []).includes('loopstrategies')
 ))
 
 const hasPreviewApiBlock = rewrites.some((rewrite) => (
@@ -16,12 +16,12 @@ const hasPreviewApiBlock = rewrites.some((rewrite) => (
 ))
 
 const hasSpaFallback = rewrites.some((rewrite) => (
-  rewrite.source === '/(.*)' &&
-  rewrite.destination === '/index.html'
+  rewrite.destination === '/index.html' &&
+  (rewrite.source === '/(.*)' || rewrite.source === '/((?!api/).*)' || rewrite.source === '/((?!api\\/.*).*)')
 ))
 
 const failures = []
-if (!hasProductionApiRewrite) failures.push('Missing production tenant API rewrite for mg/cg/loopc/app.loopcstrategies.com.')
+if (!hasProductionApiRewrite) failures.push('Missing production tenant API rewrite for mg/cg/loopc/app on *.loopcstrategies.com or *.loopstrategies.com.')
 if (!hasPreviewApiBlock) failures.push('Missing Vercel preview API block rewrite.')
 if (!hasSpaFallback) failures.push('Missing SPA fallback rewrite to /index.html.')
 

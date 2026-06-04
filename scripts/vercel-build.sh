@@ -24,3 +24,12 @@ if [ -f "$ROOT/frontend/package.json" ]; then
   mkdir -p "$ROOT/frontend/vercel-output"
   cp -a "$ROOT/vercel-output"/. "$ROOT/frontend/vercel-output/"
 fi
+
+if [ ! -f "$ROOT/vercel-output/index.html" ]; then
+  echo "vercel-build: missing $ROOT/vercel-output/index.html (Vite build output not copied)" >&2
+  exit 1
+fi
+if [ -f "$ROOT/frontend/package.json" ] && [ ! -f "$ROOT/frontend/vercel-output/index.html" ]; then
+  echo "vercel-build: missing $ROOT/frontend/vercel-output/index.html for frontend-root Vercel projects" >&2
+  exit 1
+fi
