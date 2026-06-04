@@ -9,7 +9,7 @@ export type TrialBalanceRow = {
   accountType?: string
 }
 
-/** Same rules as web `trialBalanceReportRows.js`. */
+/** Same rules as web `trialBalanceReportRows.js` (Summary: non-zero net only). */
 export function trialBalanceRowsForView(
   reportView: string,
   rows: TrialBalanceRow[] | null | undefined,
@@ -17,9 +17,7 @@ export function trialBalanceRowsForView(
   const list = rows || []
   if (reportView !== 'summary') return list
   return list.filter((row) => {
-    const d = Math.abs(Number(row.debit ?? 0))
-    const c = Math.abs(Number(row.credit ?? 0))
     const n = Math.abs(Number(row.net ?? 0))
-    return d > TRIAL_BALANCE_AMOUNT_EPS || c > TRIAL_BALANCE_AMOUNT_EPS || n > TRIAL_BALANCE_AMOUNT_EPS
+    return n > TRIAL_BALANCE_AMOUNT_EPS
   })
 }
