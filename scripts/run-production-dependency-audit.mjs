@@ -9,6 +9,7 @@ const workspaces = [
   { label: 'workspace root', cwd: rootDir },
   { label: 'backend', cwd: path.join(rootDir, 'backend') },
   { label: 'frontend', cwd: path.join(rootDir, 'frontend') },
+  { label: 'mobile', cwd: path.join(rootDir, 'mobile') },
 ]
 
 function runAudit({ cwd, advisory = false }) {

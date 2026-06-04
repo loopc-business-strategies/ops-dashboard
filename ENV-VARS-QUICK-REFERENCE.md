@@ -58,6 +58,10 @@ See `docs/OBSERVABILITY-SENTRY.md`. When set, unhandled Express errors are sent 
 ```
 SENTRY_DSN=https://<key>@<org>.ingest.sentry.io/<project>
 SENTRY_ENVIRONMENT=production
+# Optional — release grouping in Sentry (commit SHA is auto-detected when unset)
+SENTRY_RELEASE=<git-sha-or-label>
+# Optional — 0 to 1; default 0 (performance tracing off)
+SENTRY_TRACES_SAMPLE_RATE=0
 ```
 
 ### Rate Limiting (Optional, use defaults if not specified)
@@ -97,6 +101,9 @@ VITE_API_URL=https://api.yourdomain.com
 ```
 VITE_SENTRY_DSN=https://<key>@<org>.ingest.sentry.io/<project>
 VITE_SENTRY_ENVIRONMENT=production
+# Optional — Vercel sets VITE_VERCEL_GIT_COMMIT_SHA on deploy; override with:
+# VITE_SENTRY_RELEASE=<label>
+# VITE_SENTRY_TRACES_SAMPLE_RATE=0
 ```
 
 ### Build & Output (Usually auto-detected, verify settings)
@@ -104,6 +111,18 @@ VITE_SENTRY_ENVIRONMENT=production
 - **Framework Preset:** Vite
 - **Build Command:** `npm run build`
 - **Output Directory:** `dist`
+
+### Expo / EAS — Mobile (optional)
+
+See [docs/OBSERVABILITY-SENTRY.md](docs/OBSERVABILITY-SENTRY.md). Set in **Expo** → your app → **Environment variables** (per profile: preview / production):
+
+```
+EXPO_PUBLIC_API_URL=https://api.yourdomain.com
+EXPO_PUBLIC_SENTRY_DSN=https://<key>@<org>.ingest.sentry.io/<project>
+EXPO_PUBLIC_SENTRY_ENVIRONMENT=production
+# EXPO_PUBLIC_SENTRY_RELEASE=<git-sha-or-eas-build-id>
+# EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=0
+```
 
 ---
 

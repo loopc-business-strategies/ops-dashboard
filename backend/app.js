@@ -16,9 +16,22 @@ const { enforceCsrfProtection } = require('./middleware/csrf')
 const Sentry = require('@sentry/node')
 const sentryEnabled = Boolean(String(process.env.SENTRY_DSN || '').trim())
 if (sentryEnabled) {
+  const sentryRelease = String(
+    process.env.SENTRY_RELEASE
+      || process.env.RAILWAY_GIT_COMMIT_SHA
+      || process.env.GITHUB_SHA
+      || process.env.COMMIT_SHA
+      || '',
+  ).trim()
+  const tracesRaw = process.env.SENTRY_TRACES_SAMPLE_RATE
+  const tracesSampleRate = tracesRaw === undefined || tracesRaw === ''
+    ? 0
+    : Math.min(1, Math.max(0, Number(tracesRaw)))
   Sentry.init({
     dsn: String(process.env.SENTRY_DSN).trim(),
     environment: String(process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development').trim(),
+    ...(sentryRelease ? { release: sentryRelease } : {}),
+    tracesSampleRate: Number.isFinite(tracesSampleRate) ? tracesSampleRate : 0,
   })
 }
 
@@ -304,6 +317,3 @@ function createApp() {
 }
 
 module.exports = createApp
-
-
-// Railway deploy: 2026-05-07T16:49:12

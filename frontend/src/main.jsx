@@ -11,9 +11,20 @@ import './index.css'
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN
 if (sentryDsn) {
+  const sentryRelease = String(
+    import.meta.env.VITE_SENTRY_RELEASE
+      || import.meta.env.VITE_VERCEL_GIT_COMMIT_SHA
+      || '',
+  ).trim()
+  const tracesRaw = import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE
+  const tracesSampleRate = tracesRaw === undefined || tracesRaw === ''
+    ? 0
+    : Math.min(1, Math.max(0, Number(tracesRaw)))
   Sentry.init({
     dsn: sentryDsn,
     environment: import.meta.env.VITE_SENTRY_ENVIRONMENT || import.meta.env.MODE,
+    ...(sentryRelease ? { release: sentryRelease } : {}),
+    tracesSampleRate: Number.isFinite(tracesSampleRate) ? tracesSampleRate : 0,
   })
 }
 

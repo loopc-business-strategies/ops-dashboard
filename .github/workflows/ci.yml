@@ -190,6 +190,29 @@ jobs:
         working-directory: frontend
         run: npm run test:unit
 
+  mobile-typecheck:
+    name: Mobile TypeScript
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Typecheck mobile
+        working-directory: mobile
+        run: npm run typecheck
+
   frontend-build:
     name: Frontend Build
     runs-on: ubuntu-latest
@@ -277,12 +300,14 @@ jobs:
             package-lock.json
             backend/package-lock.json
             frontend/package-lock.json
+            mobile/package-lock.json
 
       - name: Install dependencies
         run: |
           npm ci
           npm ci --prefix backend
           npm ci --prefix frontend
+          npm ci --prefix mobile
 
       - name: Run advisory npm audit (all dependencies)
         run: node scripts/run-production-dependency-audit.mjs --advisory
@@ -304,12 +329,14 @@ jobs:
             package-lock.json
             backend/package-lock.json
             frontend/package-lock.json
+            mobile/package-lock.json
 
       - name: Install production dependencies
         run: |
           npm ci
           npm ci --prefix backend
           npm ci --prefix frontend
+          npm ci --prefix mobile
 
       - name: Fail on high/critical production vulnerabilities
         run: node scripts/run-production-dependency-audit.mjs

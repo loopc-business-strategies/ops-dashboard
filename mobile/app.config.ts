@@ -17,7 +17,6 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.loopc.mg.ops',
-    versionCode: 1,
     adaptiveIcon: {
       backgroundColor: '#005B96',
       foregroundImage: './assets/images/android-icon-foreground.png',

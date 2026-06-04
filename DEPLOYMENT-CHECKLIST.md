@@ -115,6 +115,22 @@ In Vercel dashboard, go to **Settings** → **Environment Variables** and add:
 
 Frontend will auto-deploy from Git. Wait for deployment to complete.
 
+### 3.4 Preview URLs and `/api` on `*.vercel.app`
+
+The repo root [vercel.json](vercel.json) rewrites **`/api/*`** on **`*.vercel.app`** hosts to a static JSON response (`frontend/public/api-preview-disabled.json`). That **blocks the browser from calling production** when someone opens a Vercel preview URL with production-shaped env vars.
+
+- **Expectation:** Preview deployments are for **UI review** unless you configure a **non-production API** and adjust rewrites for your preview host pattern.
+- **Production traffic:** Use your real tenant hostnames (e.g. `mg.yourdomain.com`) where rewrites send `/api` to Railway.
+
+### 3.5 Redeploy without a new Git commit
+
+- **Git-connected project:** Vercel dashboard → **Deployments** → **⋯** on the deployment you want → **Redeploy**.
+- **CLI / CI:** Install [Vercel CLI](https://vercel.com/docs/cli), run `vercel login` locally, or use a **`VERCEL_TOKEN`** with `vercel deploy --prod` from a trusted environment.
+
+### 3.6 CI Node version vs Railway
+
+GitHub Actions uses **Node 24** for this repo’s workflows. Ensure the **Node version** on Railway (and local dev) is **20+** and ideally aligned with CI to avoid rare runtime differences.
+
 ---
 
 ## Step 4: Set Up Custom Domains

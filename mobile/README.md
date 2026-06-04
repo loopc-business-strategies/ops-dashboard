@@ -30,7 +30,13 @@ Production default: `https://api.loopcstrategies.com`
 
 ### Optional: Sentry
 
-Set `EXPO_PUBLIC_SENTRY_DSN` in EAS environment variables (and optionally `EXPO_PUBLIC_SENTRY_ENVIRONMENT`). Init runs from `src/lib/sentryInit.ts` when the app loads. See repo `docs/OBSERVABILITY-SENTRY.md`. Native changes may require a new EAS build after upgrading `@sentry/react-native`.
+Set `EXPO_PUBLIC_SENTRY_DSN` in EAS environment variables (and optionally `EXPO_PUBLIC_SENTRY_ENVIRONMENT`, `EXPO_PUBLIC_SENTRY_RELEASE`, `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`). Init runs from `src/lib/sentryInit.ts` when the app loads. See repo `docs/OBSERVABILITY-SENTRY.md`. Native changes may require a new EAS build after upgrading `@sentry/react-native`.
+
+## Checks
+
+```bash
+npm run typecheck
+```
 
 ## Run
 
