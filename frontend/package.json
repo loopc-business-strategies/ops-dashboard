@@ -38,6 +38,12 @@
     "vitest": "^4.1.6"
   },
   "overrides": {
-    "uuid": "^14.0.0"
+    "uuid": "^14.0.0",
+    "glob": "^13.0.0",
+    "exceljs": {
+      "archiver": "^7.0.1",
+      "unzipper": "^0.12.3"
+    },
+    "lodash.isequal": "npm:fast-deep-equal@^3.1.3"
   }
 }
