@@ -17,6 +17,7 @@
     "prune:customer-accounts": "node scripts/destructive/prune-customer-accounts.js",
     "migrate:mapping-departments": "node scripts/backfill-mapping-departments.js",
     "smoke:erp": "node scripts/smoke-erp-api.js",
+    "void:transaction:api": "node scripts/void-transaction-via-api.js",
     "test": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest",
     "test:fast": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest tests/permissions.test.js",
     "test:erp-accounting": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest tests/erpAccounting",
