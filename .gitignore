@@ -12,9 +12,6 @@ backend/.env
 
 # Deployment tool state
 .vercel/
-# Local Vercel staging (build script); not required in git — safe to delete after local builds.
-vercel-output/
-frontend/vercel-output/
 
 # Runtime/generated artifacts
 backend/logs/

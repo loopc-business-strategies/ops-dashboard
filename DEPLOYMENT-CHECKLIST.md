@@ -95,16 +95,17 @@ CLIENT_URLS=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yo
 
 ### 3.0 Root Directory (Vercel)
 
-Root [`vercel.json`](vercel.json) supports **either** layout:
+This repo’s [`vercel.json`](vercel.json) expects the Vercel project **Root Directory** to be the **repository root** (leave the field **empty**), **not** `frontend`.
 
-| Vercel **Root Directory** | What the build does |
-|---------------------------|---------------------|
-| **Empty** (repo root) | [`scripts/vercel-install.sh`](../scripts/vercel-install.sh) / [`scripts/vercel-build.sh`](../scripts/vercel-build.sh) run from git root: `npm ci --prefix frontend`, build, copy `frontend/dist` → **`vercel-output`** |
-| **`frontend`** | Same scripts (commands `cd` to `git rev-parse --show-toplevel` first), then in-folder `npm ci` / `npm run build` and copy `dist` → **`vercel-output`** |
+| Requirement | Detail |
+|---------------|--------|
+| **Root Directory** | **Empty** (monorepo root) so `outputDirectory` **`frontend/dist`** matches the Vite build output |
+| **Install / build** | Wrappers `cd` to `$(git rev-parse --show-toplevel)` then run [`scripts/vercel-install.sh`](../scripts/vercel-install.sh) (`npm ci --prefix frontend`) and [`scripts/vercel-build.sh`](../scripts/vercel-build.sh) (`npm run build --prefix frontend`) |
+| **Output** | Vite writes to **`frontend/dist`**; Vercel publishes that folder as the static deployment |
 
-`outputDirectory` is **`vercel-output`** (no leading `.` — hidden-style names can be skipped on deploy). The build script writes it at the **git root** and, when `frontend/` exists, **mirrors** it to **`frontend/vercel-output`** so deploys work whether Vercel **Root Directory** is empty or **`frontend`**. Those folders are gitignored only as local build artifacts.
+If **Root Directory** is set to **`frontend`**, `frontend/dist` in `vercel.json` would resolve incorrectly (`frontend/frontend/dist`). **Change Root Directory to empty** and redeploy.
 
-- [ ] **Vercel → Project → Settings → General → Root Directory:** empty (repo root) **or** `frontend` — clear any **Install / Build Command** overrides in the dashboard unless you intentionally override `vercel.json`
+- [ ] **Vercel → Project → Settings → General → Root Directory:** **empty** (repository root) — clear any **Install / Build / Output Directory** overrides so [`vercel.json`](vercel.json) is used
 - [ ] **Production Git branch:** `main` (matches [DEPLOYMENT.md](DEPLOYMENT.md))
 - [ ] **Git:** GitHub repo `loopc-business-strategies/ops-dashboard` connected so pushes deploy without the CLI
 
@@ -112,8 +113,8 @@ Root [`vercel.json`](vercel.json) supports **either** layout:
 1. Log into [vercel.com](https://vercel.com)
 2. Click **Add New** → **Project**
 3. Select your ops-dashboard GitHub repo
-4. Set **Root Directory** to **empty** (repo root) or **`frontend`** — see **3.0** above
-5. Deploy; `vercel.json` runs short wrappers (under Vercel’s 256-char limit) that `cd` to the git root then [`scripts/vercel-install.sh`](../scripts/vercel-install.sh) / [`scripts/vercel-build.sh`](../scripts/vercel-build.sh)
+4. Leave **Root Directory** **empty** (repository root), per **3.0** above
+5. Deploy; build settings come from root [`vercel.json`](vercel.json) (`framework: null`, Vite via `npm run build --prefix frontend`, output **`frontend/dist`**)
 
 ### 3.2 Add Environment Variables
 
@@ -178,8 +179,6 @@ If **tenant subdomains** (`mg.`, `cg.`, …) show **Valid Configuration** but th
 2. At your DNS host (registrar, Cloudflare, etc.): for the **apex** / **`@`** / **`loopcstrategies.com`**, remove conflicting **A**, **AAAA**, or **CNAME** rows, then add only what Vercel lists.
 3. If you use **Cloudflare**: either set the apex to **DNS only** (grey cloud) for that record when Vercel asks for it, or follow Vercel’s proxy note for that domain.
 4. Wait for propagation (often 5–30 minutes); refresh the domain row in Vercel until the warning clears.
-
-If you **do not** need the naked domain to serve this app, you can **remove** `loopcstrategies.com` from the project and keep only the tenant subdomains—or add a **redirect** in Vercel from the apex to a subdomain (e.g. `https://loopc.loopcstrategies.com`).
 
 ### 4.3 Update DNS Records
 
