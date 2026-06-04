@@ -694,6 +694,12 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const receiptPaymentFcSum = isReceiptOrPaymentVoucher
     ? effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountFC) || 0), 0)
     : 0
+  const receiptPaymentNetAmtLabelCurrency = (() => {
+    if (!isReceiptOrPaymentVoucher || receiptPaymentFcSum <= 0) return ''
+    const line = effectiveLineItems.find((l) => (parseFloat(l.amountFC) || 0) > 0)
+    const code = String(line?.currCode || '').trim().toUpperCase()
+    return code || 'FC'
+  })()
   const receiptPaymentLegacyGrand = effectiveLineItems.reduce(
     (s, l) => s + (parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0),
     0,
@@ -3328,7 +3334,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                         )}
                         {!isSimpleMetalVoucher && (
                         <tr style={{ background: '#F1F3F6' }}>
-                          <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>{`Net Amt (${header.currCode || 'USD'}) :`}</td>
+                          <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>{`Net Amt (${receiptPaymentNetAmtLabelCurrency || header.currCode || 'USD'}) :`}</td>
                           <td style={{ padding: '0.24rem 0.65rem', textAlign: 'right', fontWeight: '800', color: S.green, fontSize: '0.87rem' }}>{fmt(totals.grandTotal)}</td>
                         </tr>
                         )}

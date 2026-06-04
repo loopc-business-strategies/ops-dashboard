@@ -4,7 +4,10 @@ import {
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
   calculateAccountSummaryMetrics,
+  formatAccountEnquiryExcessDisplay,
   formatMarginExcessDisplay,
+  getAccountEnquirySignedMetricColor,
+  normalizeAccountEnquiryNetDirection,
   normalizeStatementCurrencyCode,
   resolveExposureDirection,
   resolveUnfixedBookedExposureSign,
@@ -201,6 +204,39 @@ describe('statement helpers', () => {
     expect(formatMarginExcessDisplay(-4.68, (value) => value.toFixed(2))).toBe('Short 4.68')
     expect(formatMarginExcessDisplay(10, (value) => value.toFixed(2))).toBe('Excess 10.00')
     expect(formatMarginExcessDisplay(0, (value) => value.toFixed(2))).toBe('0.00')
+  })
+
+  test('account enquiry excess: zero margin + credit direction avoids misleading Short', () => {
+    expect(formatAccountEnquiryExcessDisplay({
+      excess: -3314.12,
+      marginAmount: 0,
+      netDirection: 'Credit',
+      formatValue: (v) => v.toFixed(2),
+    })).toBe('Favorable 3314.12')
+    expect(formatAccountEnquiryExcessDisplay({
+      excess: -3314.12,
+      marginAmount: 0.02,
+      netDirection: 'Credit',
+      formatValue: (v) => v.toFixed(2),
+    })).toBe('Short 3314.12')
+    expect(formatAccountEnquiryExcessDisplay({
+      excess: 100,
+      marginAmount: 0,
+      netDirection: 'Debit',
+      formatValue: (v) => v.toFixed(2),
+    })).toBe('Excess 100.00')
+  })
+
+  test('getAccountEnquirySignedMetricColor favors credit balance when margin is negligible', () => {
+    expect(getAccountEnquirySignedMetricColor(-3314, { marginAmount: 0, netDirection: 'Credit' })).toBe('#15803d')
+    expect(getAccountEnquirySignedMetricColor(-3314, { marginAmount: 1, netDirection: 'Credit' })).toBe('#c0392b')
+    expect(getAccountEnquirySignedMetricColor(3314, { marginAmount: 0, netDirection: 'Debit' })).toBe('#111827')
+  })
+
+  test('normalizeAccountEnquiryNetDirection', () => {
+    expect(normalizeAccountEnquiryNetDirection('Credit')).toBe('credit')
+    expect(normalizeAccountEnquiryNetDirection('Dr')).toBe('debit')
+    expect(normalizeAccountEnquiryNetDirection('Flat')).toBe('flat')
   })
 
   test('export opening USD balance derives from closing minus period movement', () => {

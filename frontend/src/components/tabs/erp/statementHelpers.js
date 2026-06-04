@@ -290,3 +290,49 @@ export function formatMarginExcessDisplay(value, formatValue = (amount) => Strin
   if (num > 0) return `Excess ${formatValue(num)}`
   return `Short ${formatValue(Math.abs(num))}`
 }
+
+/** Below this, account enquiry treats margin as absent for Short/Favorable wording. */
+export const ACCOUNT_ENQUIRY_NEGLIGIBLE_MARGIN = 0.005
+
+export function normalizeAccountEnquiryNetDirection(netDirection) {
+  const raw = String(netDirection || '').trim().toLowerCase()
+  if (raw === 'credit' || raw === 'cr') return 'credit'
+  if (raw === 'debit' || raw === 'dr') return 'debit'
+  return 'flat'
+}
+
+/**
+ * Account Details (enquiry) excess label: when margin @ 2% is ~zero, a credit-direction
+ * ledger balance must not be labeled "Short" — that is favorable prepayment / liability credit.
+ */
+export function formatAccountEnquiryExcessDisplay({
+  excess = 0,
+  marginAmount = 0,
+  netDirection = '',
+  formatValue = (amount) => String(amount),
+} = {}) {
+  const marginValue = Math.abs(Number(marginAmount || 0))
+  const excessNum = Number(excess || 0)
+  if (marginValue >= ACCOUNT_ENQUIRY_NEGLIGIBLE_MARGIN) {
+    return formatMarginExcessDisplay(excessNum, formatValue)
+  }
+  if (Math.abs(excessNum) < ACCOUNT_ENQUIRY_NEGLIGIBLE_MARGIN) return formatValue(0)
+  if (normalizeAccountEnquiryNetDirection(netDirection) === 'credit' && excessNum < 0) {
+    return `Favorable ${formatValue(Math.abs(excessNum))}`
+  }
+  return formatMarginExcessDisplay(excessNum, formatValue)
+}
+
+/** Color for signed enquiry metrics (net equity, excess): credit + no margin + negative signed => favorable green. */
+export function getAccountEnquirySignedMetricColor(value, { marginAmount = 0, netDirection = '' } = {}) {
+  const num = Number(value || 0)
+  const marginValue = Math.abs(Number(marginAmount || 0))
+  if (
+    marginValue < ACCOUNT_ENQUIRY_NEGLIGIBLE_MARGIN
+    && normalizeAccountEnquiryNetDirection(netDirection) === 'credit'
+    && num < 0
+  ) {
+    return '#15803d'
+  }
+  return num >= 0 ? '#111827' : '#c0392b'
+}

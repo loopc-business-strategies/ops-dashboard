@@ -73,7 +73,8 @@ import {
   buildStatementCurrencyOptions,
   buildStatementMetalOptions,
   calculateAccountSummaryMetrics,
-  formatMarginExcessDisplay,
+  formatAccountEnquiryExcessDisplay,
+  getAccountEnquirySignedMetricColor,
   normalizeStatementCurrencyCode,
   resolveExposureDirection,
   matchesStatementMetal,
@@ -7460,7 +7461,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
                       {/* Net Equity */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Net Equity</span>
-                        <span style={{ color: getSignedColor(modalNetEquityDisplay), fontWeight: '700', fontSize: '1rem' }}>
+                        <span style={{ color: getAccountEnquirySignedMetricColor(modalNetEquityDisplay, { marginAmount: modalMarginAmt, netDirection: accountEnquiryData?.balances?.netDirection }), fontWeight: '700', fontSize: '1rem' }}>
                           {formatDirectionalBalance(modalNetEquityDisplay, { preferredDirection: resolveExposureDirection(modalNetEquityDisplay) })}
                         </span>
                       </div>
@@ -7476,8 +7477,13 @@ function ERPTab({ focusTab, onNavigateMain }) {
                           <select value={excessCurrency} onChange={(e) => setExcessCurrency(e.target.value)} style={{ border: '1px solid #CBD5E0', borderRadius: '0.4rem', background: '#FFFFFF', fontSize: '0.85rem', padding: '0.3rem 0.5rem', fontWeight: '600' }}>
                             <option value="USD">USD</option>
                           </select>
-                          <span style={{ color: getSignedColor(modalExcessDisplay), fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>
-                            {formatMarginExcessDisplay(modalExcessDisplay, (value) => formatStatementValue(value, 2))}
+                          <span style={{ color: getAccountEnquirySignedMetricColor(modalExcessDisplay, { marginAmount: modalMarginAmt, netDirection: accountEnquiryData?.balances?.netDirection }), fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>
+                            {formatAccountEnquiryExcessDisplay({
+                              excess: modalExcessDisplay,
+                              marginAmount: modalMarginAmt,
+                              netDirection: accountEnquiryData?.balances?.netDirection,
+                              formatValue: (value) => formatStatementValue(value, 2),
+                            })}
                           </span>
                         </div>
                       </div>
