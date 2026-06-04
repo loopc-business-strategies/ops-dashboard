@@ -300,19 +300,37 @@ export default function ErpReportsScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{reportView === 'summary' ? 'Summary' : 'Trial Balance'}</Text>
           <Text style={styles.meta}>
-            Debit {(trialBalance as { totalDebit?: number }).totalDebit ?? 0} · Credit{' '}
-            {(trialBalance as { totalCredit?: number }).totalCredit ?? 0}
+            Debit {fmt((trialBalance as { totalDebit?: number }).totalDebit)} · Credit{' '}
+            {fmt((trialBalance as { totalCredit?: number }).totalCredit)}
           </Text>
+          <Text
+            style={[
+              styles.meta,
+              (trialBalance as { balanced?: boolean }).balanced ? styles.trialOk : styles.trialWarn,
+            ]}
+          >
+            {(trialBalance as { balanced?: boolean }).balanced ? 'Balanced' : 'Difference Found'}
+          </Text>
+          {!(trialBalance as { balanced?: boolean }).balanced &&
+          (trialBalance as { difference?: number }).difference != null ? (
+            <Text style={styles.metaSmall}>
+              Difference {fmt((trialBalance as { difference?: number }).difference)}
+            </Text>
+          ) : null}
           {trialRows.length > TRIAL_UI_CAP ? (
             <Text style={styles.meta}>Showing first {TRIAL_UI_CAP} of {trialRows.length} rows.</Text>
           ) : null}
           {trialShown.map((row, i) => (
-            <View key={`${row.accountCode}-${i}`} style={styles.row}>
+            <View key={`${row.accountCode}-${i}`} style={[styles.row, styles.rowTrial]}>
               <Text style={styles.rowCode}>{row.accountCode}</Text>
-              <Text style={styles.rowName} numberOfLines={2}>
-                {row.accountName}
-              </Text>
-              <Text style={styles.rowRight}>{fmt(row.net)}</Text>
+              <View style={styles.rowMain}>
+                <Text style={styles.rowNameBlock} numberOfLines={2}>
+                  {row.accountName}
+                </Text>
+                <Text style={styles.rowSub}>
+                  Dr {fmt(row.debit)} · Cr {fmt(row.credit)} · Net {fmtSigned(row.net)}
+                </Text>
+              </View>
             </View>
           ))}
         </View>
@@ -553,6 +571,9 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8, color: mgBranding.colors.text },
   meta: { fontSize: 12, color: mgBranding.colors.muted, marginBottom: 8 },
+  metaSmall: { fontSize: 11, color: '#B91C1C', marginBottom: 6, fontWeight: '600' },
+  trialOk: { fontSize: 13, color: '#0284C7', fontWeight: '700', marginBottom: 8 },
+  trialWarn: { fontSize: 13, color: '#B91C1C', fontWeight: '700', marginBottom: 8 },
   subhead: { marginTop: 12, marginBottom: 6, fontSize: 14, fontWeight: '700', color: mgBranding.colors.text },
   row: {
     flexDirection: 'row',
@@ -562,8 +583,12 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
     gap: 8,
   },
+  rowTrial: { alignItems: 'flex-start' },
   rowCode: { width: 56, fontSize: 11, fontWeight: '700', color: mgBranding.colors.text },
+  rowMain: { flex: 1, minWidth: 0 },
+  rowNameBlock: { fontSize: 13, color: mgBranding.colors.text },
   rowName: { flex: 1, fontSize: 13, color: mgBranding.colors.text },
+  rowSub: { marginTop: 4, fontSize: 11, color: mgBranding.colors.muted, fontWeight: '600' },
   rowRight: { fontSize: 12, fontWeight: '600', color: mgBranding.colors.text },
   accountPick: { maxHeight: 220, marginBottom: 8 },
   accRow: { flexDirection: 'row', paddingVertical: 8, gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F3F4F6' },
