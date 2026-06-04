@@ -2,7 +2,7 @@
   "framework": null,
   "installCommand": "sh -c 'cd \"$(git rev-parse --show-toplevel)\" && sh scripts/vercel-install.sh'",
   "buildCommand": "sh -c 'cd \"$(git rev-parse --show-toplevel)\" && sh scripts/vercel-build.sh'",
-  "outputDirectory": ".vercel-output",
+  "outputDirectory": "vercel-output",
   "rewrites": [
     {
       "source": "/api/(.*)",

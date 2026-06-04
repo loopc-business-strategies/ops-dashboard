@@ -12,7 +12,9 @@ backend/.env
 
 # Deployment tool state
 .vercel/
-# .vercel-output/ — not ignored: Vercel must see this folder after build (Root Directory = repo or frontend).
+# Local Vercel staging (build script); not required in git — safe to delete after local builds.
+vercel-output/
+frontend/vercel-output/
 
 # Runtime/generated artifacts
 backend/logs/

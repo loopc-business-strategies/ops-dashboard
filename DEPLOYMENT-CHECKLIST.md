@@ -99,10 +99,10 @@ Root [`vercel.json`](vercel.json) supports **either** layout:
 
 | Vercel **Root Directory** | What the build does |
 |---------------------------|---------------------|
-| **Empty** (repo root) | [`scripts/vercel-install.sh`](../scripts/vercel-install.sh) / [`scripts/vercel-build.sh`](../scripts/vercel-build.sh) run from git root: `npm ci --prefix frontend`, build, copy `frontend/dist` → `.vercel-output` |
-| **`frontend`** | Same scripts (commands `cd` to `git rev-parse --show-toplevel` first), then in-folder `npm ci` / `npm run build` and copy `dist` → `.vercel-output` |
+| **Empty** (repo root) | [`scripts/vercel-install.sh`](../scripts/vercel-install.sh) / [`scripts/vercel-build.sh`](../scripts/vercel-build.sh) run from git root: `npm ci --prefix frontend`, build, copy `frontend/dist` → **`vercel-output`** |
+| **`frontend`** | Same scripts (commands `cd` to `git rev-parse --show-toplevel` first), then in-folder `npm ci` / `npm run build` and copy `dist` → **`vercel-output`** |
 
-`outputDirectory` is always **`.vercel-output`**. The build script writes it at the **git root** and, when `frontend/` exists, **mirrors** it to **`frontend/.vercel-output`** so deploys work whether Vercel **Root Directory** is empty or **`frontend`** (Vercel resolves `outputDirectory` under that root). That folder is **not** gitignored so Vercel can always collect it.
+`outputDirectory` is **`vercel-output`** (no leading `.` — hidden-style names can be skipped on deploy). The build script writes it at the **git root** and, when `frontend/` exists, **mirrors** it to **`frontend/vercel-output`** so deploys work whether Vercel **Root Directory** is empty or **`frontend`**. Those folders are gitignored only as local build artifacts.
 
 - [ ] **Vercel → Project → Settings → General → Root Directory:** empty (repo root) **or** `frontend` — clear any **Install / Build Command** overrides in the dashboard unless you intentionally override `vercel.json`
 - [ ] **Production Git branch:** `main` (matches [DEPLOYMENT.md](DEPLOYMENT.md))

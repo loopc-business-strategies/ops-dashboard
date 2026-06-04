@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
-# Vercel build: stage Vite output to .vercel-output (see root vercel.json).
+# Vercel build: stage Vite output to vercel-output (see root vercel.json).
+# Use a non-hidden directory name — dot-prefixed paths can be skipped or mishandled.
 # When Vercel "Root Directory" is `frontend`, outputDirectory is resolved under
 # `frontend/` — mirror the staged bundle there as well as at repo root.
 set -e
@@ -14,12 +15,12 @@ else
   SRC="$ROOT/dist"
 fi
 
-rm -rf "$ROOT/.vercel-output"
-mkdir -p "$ROOT/.vercel-output"
-cp -a "$SRC"/. "$ROOT/.vercel-output/"
+rm -rf "$ROOT/vercel-output"
+mkdir -p "$ROOT/vercel-output"
+cp -a "$SRC"/. "$ROOT/vercel-output/"
 
 if [ -f "$ROOT/frontend/package.json" ]; then
-  rm -rf "$ROOT/frontend/.vercel-output"
-  mkdir -p "$ROOT/frontend/.vercel-output"
-  cp -a "$ROOT/.vercel-output"/. "$ROOT/frontend/.vercel-output/"
+  rm -rf "$ROOT/frontend/vercel-output"
+  mkdir -p "$ROOT/frontend/vercel-output"
+  cp -a "$ROOT/vercel-output"/. "$ROOT/frontend/vercel-output/"
 fi
