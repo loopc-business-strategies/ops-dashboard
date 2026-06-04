@@ -2,6 +2,11 @@
 
 Voucher ledger **formulas** are shared in code; cross-tenant differences usually come from **per-database** master data. Use these scripts from `backend/` with `.env` URIs set (`MONGO_URI_MG`, `MONGO_URI_CG`, `MONGO_URI_LOOPC`).
 
+## LoopC INR base cutover (ledger + currency master)
+
+- Script: [`revalue-loopc-inr-base-cutover.js`](../scripts/destructive/revalue-loopc-inr-base-cutover.js) (LoopC only; dry-run by default).
+- Checklist: [`loopc-inr-cutover-checklist.md`](loopc-inr-cutover-checklist.md).
+
 ## 1. Currency `exchangeRate` alignment
 
 Copies `exchangeRate` from a source tenant to targets for **matching currency codes** only. Does **not** change `baseCurrency` flags.

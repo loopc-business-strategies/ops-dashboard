@@ -70,6 +70,13 @@ function registerCurrencyRoutes(deps) {
     BASE_CURRENCY_CODE,
   } = deps
 
+  const resolveTenantBaseCurrencyCode = async () => {
+    const base = await Currency.findOne({ baseCurrency: true, isActive: { $ne: false } })
+      .select('code')
+      .lean()
+    return String(base?.code || BASE_CURRENCY_CODE || 'USD').trim().toUpperCase() || 'USD'
+  }
+
   const {
     fetchExternalMetalPrices,
     buildFallbackMetalPrices,
@@ -341,6 +348,7 @@ function registerCurrencyRoutes(deps) {
 
   router.get('/metal-rates/live', protect, async (req, res) => {
     try {
+      const baseCurrencyCode = await resolveTenantBaseCurrencyCode()
       const staleMs = Math.max(5000, Number(process.env.MT4_LIVE_STALE_MS || 30000))
       const latestFeed = await MetalRate.findOne({
         source: 'mt4-bridge',
@@ -385,7 +393,7 @@ function registerCurrencyRoutes(deps) {
             goldPrice: 0,
             silverPrice: 0,
             platinumPrice: 0,
-            priceCurrency: 'USD',
+            priceCurrency: baseCurrencyCode,
             priceUnit: 'G',
             source: 'waiting-mt4',
             updatedAt: updatedAt || null,
@@ -416,7 +424,7 @@ function registerCurrencyRoutes(deps) {
       const goldPrice = Number(req.body.goldPrice)
       const silverPrice = Number(req.body.silverPrice)
       const platinumPrice = Number(req.body.platinumPrice || 0)
-      const priceCurrency = BASE_CURRENCY_CODE
+      const priceCurrency = await resolveTenantBaseCurrencyCode()
 
       if (!Number.isFinite(goldPrice) || goldPrice <= 0 || !Number.isFinite(silverPrice) || silverPrice <= 0) {
         return res.status(400).json({ success: false, message: 'Gold and silver rates must be greater than zero' })
