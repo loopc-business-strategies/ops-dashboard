@@ -11,6 +11,7 @@ import {
   groupJvLedgerEntries,
   validateJvLines,
   reconstructJvEditLines,
+  extractJvPostingLineDescription,
 } from './journalVoucherHelpers'
 
 describe('journal voucher helpers', () => {
@@ -291,6 +292,64 @@ describe('journal voucher helpers', () => {
     const out = reconstructJvEditLines(entries, entries[0], ctx)
     expect(out.lines[0].description).toBe('line detail here')
     expect(out.lines[1].description).toBe('line detail here')
+  })
+
+  test('reconstructJvEditLines restores two-segment lineDesc when header notes empty', () => {
+    const ctx = {
+      baseCurrencyCode: 'USD',
+      convertJvAmount: (amount) => Number(amount),
+      inferJvAccountCurrency: () => 'USD',
+      inferLegacyJvBatchDisplayFc: () => null,
+    }
+    const drAcc = { _id: 'd1', accountCode: '6200', accountName: 'Payroll' }
+    const crAcc = { _id: 'c1', accountCode: '110011', accountName: 'Bank' }
+    const entries = [{
+      _id: 'x1',
+      referenceType: 'journal',
+      date: '2026-06-04',
+      createdAt: '2026-06-04T12:00:00.000Z',
+      description: 'Jv/2026/0001 — row line text',
+      notes: '',
+      amount: 100,
+      currency: 'USD',
+      debitAccountId: drAcc,
+      creditAccountId: crAcc,
+    }]
+    const out = reconstructJvEditLines(entries, entries[0], ctx)
+    expect(out.lines[0].description).toBe('row line text')
+    expect(out.lines[1].description).toBe('row line text')
+  })
+
+  test('reconstructJvEditLines leaves row description empty when second segment is header notes only', () => {
+    const ctx = {
+      baseCurrencyCode: 'USD',
+      convertJvAmount: (amount) => Number(amount),
+      inferJvAccountCurrency: () => 'USD',
+      inferLegacyJvBatchDisplayFc: () => null,
+    }
+    const drAcc = { _id: 'd1', accountCode: '6200', accountName: 'Payroll' }
+    const crAcc = { _id: 'c1', accountCode: '110011', accountName: 'Bank' }
+    const entries = [{
+      _id: 'x1',
+      referenceType: 'journal',
+      date: '2026-06-04',
+      createdAt: '2026-06-04T12:00:00.000Z',
+      description: 'Jv/2026/0001 — OFFICE RENT',
+      notes: 'OFFICE RENT',
+      amount: 100,
+      currency: 'USD',
+      debitAccountId: drAcc,
+      creditAccountId: crAcc,
+    }]
+    const out = reconstructJvEditLines(entries, entries[0], ctx)
+    expect(out.lines[0].description).toBe('')
+    expect(out.lines[1].description).toBe('')
+  })
+
+  test('extractJvPostingLineDescription handles two vs three segments with notes', () => {
+    expect(extractJvPostingLineDescription('Jv/2026/0001 — per-line only', '')).toBe('per-line only')
+    expect(extractJvPostingLineDescription('Jv/2026/0001 — OFFICE RENT', 'OFFICE RENT')).toBe('')
+    expect(extractJvPostingLineDescription('Jv/2026/0001 — OFFICE RENT — dr | cr', 'OFFICE RENT')).toBe('dr | cr')
   })
 
   test('validates balanced JV rows and returns normalized active lines', () => {

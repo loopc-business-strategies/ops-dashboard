@@ -462,10 +462,22 @@ function filterJvEditableEntries(docMatchedEntries, entry, entryMode) {
   })
 }
 
-/** Per-posting line detail saved after header in `description` (em dash segments). */
-function extractJvPostingLineDescription(description = '') {
+/**
+ * Per-posting line detail from stored `description` (em dash segments).
+ * When header narration is empty, save format is `docNo — lineDesc` (2 segments); when set,
+ * line-specific text is `docNo — narr — lineDesc` (3+ segments). Use batch `notes` to tell
+ * apart header-only second segment vs line text.
+ */
+function extractJvPostingLineDescription(description = '', batchHeaderNotes = '') {
   const parts = String(description || '').split(' — ')
   if (parts.length >= 3) return parts.slice(2).join(' — ').trim()
+  if (parts.length === 2) {
+    const tail = parts[1].trim()
+    if (!tail) return ''
+    const notesNorm = String(batchHeaderNotes || '').trim()
+    if (notesNorm && tail === notesNorm) return ''
+    return tail
+  }
   return ''
 }
 
@@ -492,6 +504,7 @@ function reconstructJvEditLines(editableEntries, entry, {
     normCur(row.currency || firstEntryCur) === firstEntryCur
   ))
   const showAsBatchCur = allEntriesSameCur && firstEntryCur !== normCur(baseCurrencyCode)
+  const batchNotes = String(sorted[0]?.notes || '').trim()
 
   let id = 1
   const lines = []
@@ -499,7 +512,7 @@ function reconstructJvEditLines(editableEntries, entry, {
     const entryCur = normCur(e.currency || baseCurrencyCode)
     const drId = e.debitAccountId?._id
     const crId = e.creditAccountId?._id
-    const lineDesc = extractJvPostingLineDescription(e.description)
+    const lineDesc = extractJvPostingLineDescription(e.description, batchNotes)
     if (drId && e.debitAccountId) {
       const displayDebit = showAsBatchCur
         ? Number(e.amount || 0)
@@ -718,6 +731,7 @@ export {
   createJvHeader,
   extractLedgerJvDocNoFromDescription,
   extractLedgerJvDetailFromDescription,
+  extractJvPostingLineDescription,
   inferLegacyJvBatchDisplayFc,
   inferLegacyJvRowDisplayFc,
   groupJvLedgerEntries,
