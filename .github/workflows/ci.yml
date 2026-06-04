@@ -213,6 +213,10 @@ jobs:
         working-directory: mobile
         run: npm run typecheck
 
+      - name: Unit tests mobile
+        working-directory: mobile
+        run: npm test
+
   frontend-build:
     name: Frontend Build
     runs-on: ubuntu-latest

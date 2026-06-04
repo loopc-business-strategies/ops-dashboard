@@ -49,3 +49,4 @@ If you remove the DSN, Sentry stays inert (no network calls).
 - [INCIDENT-RUNBOOK.md](./INCIDENT-RUNBOOK.md)
 - [ENV-VARS-QUICK-REFERENCE.md](../ENV-VARS-QUICK-REFERENCE.md) — add Sentry lines there in your fork if you want a single checklist
 - [FRONTEND-LINT-SCOPE.md](./FRONTEND-LINT-SCOPE.md) — which frontend paths ESLint enforces in CI
+- [SENTRY-RELEASE-SETUP.md](./SENTRY-RELEASE-SETUP.md) — release and trace sampling on Railway, Vercel, and EAS

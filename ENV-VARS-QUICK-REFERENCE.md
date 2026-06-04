@@ -53,7 +53,7 @@ MONGO_URI_LOOPC=mongodb+srv://admin:YourPassword123@ops-dashboard-loopc.a1b2c3d.
 
 ### Optional: Sentry (error reporting)
 
-See `docs/OBSERVABILITY-SENTRY.md`. When set, unhandled Express errors are sent to Sentry.
+See `docs/OBSERVABILITY-SENTRY.md` and **`docs/SENTRY-RELEASE-SETUP.md`** (release labels and trace sampling on each host).
 
 ```
 SENTRY_DSN=https://<key>@<org>.ingest.sentry.io/<project>

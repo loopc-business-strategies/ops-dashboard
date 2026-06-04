@@ -36,7 +36,10 @@ Set `EXPO_PUBLIC_SENTRY_DSN` in EAS environment variables (and optionally `EXPO_
 
 ```bash
 npm run typecheck
+npm test
 ```
+
+`npm audit` may report **moderate** issues in transitive Expo tooling (`uuid` chain); **`npm audit --omit=dev --audit-level=high`** is used in CI for production gates. Prefer Dependabot Expo bumps over `npm audit fix --force`.
 
 ## Run
 
