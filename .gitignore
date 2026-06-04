@@ -12,6 +12,7 @@ backend/.env
 
 # Deployment tool state
 .vercel/
+.vercel-output/
 
 # Runtime/generated artifacts
 backend/logs/

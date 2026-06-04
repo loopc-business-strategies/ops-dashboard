@@ -1,8 +1,8 @@
 {
   "framework": null,
-  "installCommand": "cd frontend && npm ci",
-  "buildCommand": "cd frontend && npm run build",
-  "outputDirectory": "frontend/dist",
+  "installCommand": "sh -c 'if [ -d frontend ]; then npm ci --prefix frontend; else npm ci; fi'",
+  "buildCommand": "sh -c 'set -e; if [ -d frontend ]; then npm run build --prefix frontend && rm -rf .vercel-output && mkdir -p .vercel-output && cp -a frontend/dist/. .vercel-output/; else npm run build && rm -rf .vercel-output && mkdir -p .vercel-output && cp -a dist/. .vercel-output/; fi'",
+  "outputDirectory": ".vercel-output",
   "rewrites": [
     {
       "source": "/api/(.*)",

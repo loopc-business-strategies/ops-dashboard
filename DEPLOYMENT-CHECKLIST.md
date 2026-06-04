@@ -93,22 +93,27 @@ CLIENT_URLS=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yo
 
 ## Step 3: Set Up Vercel Frontend
 
-### 3.0 Root Directory (required for this repo)
+### 3.0 Root Directory (Vercel)
 
-The canonical config is repo root [`vercel.json`](vercel.json): **`installCommand` / `buildCommand` use `cd frontend && …`** and **`outputDirectory` is `frontend/dist`**. That only works if the Vercel project **Root Directory** is the **repository root** (leave the field **empty** or **`.`**), **not** `frontend`.
+Root [`vercel.json`](vercel.json) supports **either** layout:
 
-- [ ] **Vercel → Project → Settings → General → Root Directory:** empty / monorepo root (not `frontend`)
+| Vercel **Root Directory** | What the build does |
+|---------------------------|---------------------|
+| **Empty** (repo root) | `npm ci --prefix frontend`, `npm run build --prefix frontend`, copies `frontend/dist` → `.vercel-output` |
+| **`frontend`** | `npm ci` / `npm run build` in that folder, copies `dist` → `.vercel-output` |
+
+`outputDirectory` is always **`.vercel-output`** (gitignored). Use **empty** root or **`frontend`**; both work.
+
+- [ ] **Vercel → Project → Settings → General → Root Directory:** empty (repo root) **or** `frontend` — clear any **Install / Build Command** overrides in the dashboard unless you intentionally override `vercel.json`
 - [ ] **Production Git branch:** `main` (matches [DEPLOYMENT.md](DEPLOYMENT.md))
 - [ ] **Git:** GitHub repo `loopc-business-strategies/ops-dashboard` connected so pushes deploy without the CLI
-
-If you previously set Root Directory to `frontend`, change it to root and **Redeploy** (Deployments → ⋯ → Redeploy).
 
 ### 3.1 Connect GitHub Repository
 1. Log into [vercel.com](https://vercel.com)
 2. Click **Add New** → **Project**
 3. Select your ops-dashboard GitHub repo
-4. Leave **Root Directory** empty (repository root), per **3.0** above
-5. Deploy; build settings are taken from root `vercel.json` (`framework: null`, Vite build via `cd frontend && npm run build`)
+4. Set **Root Directory** to **empty** (repo root) or **`frontend`** — see **3.0** above
+5. Deploy; build settings come from root `vercel.json` (`framework: null`, Vite via `npm run build --prefix frontend` or in-folder `npm run build`)
 
 ### 3.2 Add Environment Variables
 
