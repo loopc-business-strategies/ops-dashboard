@@ -4630,6 +4630,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
     const headerCur = normalizeJvCurrencyCode(jvHeader.currency || baseCurrencyCode)
     const baseNorm = normalizeJvCurrencyCode(baseCurrencyCode)
     const useDocCurrency = headerCur !== baseNorm
+    // LoopC INR-base: journal lines are entered in voucher (header) currency; do not re-interpret
+    // per GL account currency when header === base (avoids USD-tagged COA inflating INR totals).
+    const loopcJournalHeaderLineCurrency = inventoryTenantKey === 'loopc' && jvMode === 'journal'
+    const treatLineAmountsAsHeaderCurrency = Boolean(loopcJournalHeaderLineCurrency || useDocCurrency)
     lines.forEach((line, index) => {
       const debit = Number(line.debit || 0)
       const credit = Number(line.credit || 0)
@@ -4644,7 +4648,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       let debitValue = debitRawValue
       let creditValue = creditRawValue
       if (accountId) {
-        const lineAmountCurrency = useDocCurrency ? headerCur : inferJvAccountCurrency(accountId)
+        const lineAmountCurrency = treatLineAmountsAsHeaderCurrency ? headerCur : inferJvAccountCurrency(accountId)
         if (debitRawValue > 0) {
           const normalizedDebit = convertJvAmount(debitRawValue, lineAmountCurrency, baseNorm)
           if (!Number.isFinite(normalizedDebit) || normalizedDebit <= 0) {
@@ -4687,9 +4691,10 @@ function ERPTab({ focusTab, onNavigateMain }) {
     const hasCredit = totalCredit > 0
     const isBalanced = hasDebit && hasCredit && Math.abs(difference) < 0.005
     const canSave = !hasLineIssues && isBalanced && activeLines.length > 1
-    const displayTotalCurrency = useDocCurrency ? headerCur : baseNorm
-    const displayDebitTotal = useDocCurrency ? Number(totalDebitRaw.toFixed(2)) : totalDebit
-    const displayCreditTotal = useDocCurrency ? Number(totalCreditRaw.toFixed(2)) : totalCredit
+    const displayTotalCurrency = treatLineAmountsAsHeaderCurrency ? headerCur : baseNorm
+    const displayDebitTotal = treatLineAmountsAsHeaderCurrency ? Number(totalDebitRaw.toFixed(2)) : totalDebit
+    const displayCreditTotal = treatLineAmountsAsHeaderCurrency ? Number(totalCreditRaw.toFixed(2)) : totalCredit
+    const useRawJvLineAmountsForSave = Boolean(useDocCurrency || loopcJournalHeaderLineCurrency)
     return {
       activeLines,
       lineIssuesById,
@@ -4698,6 +4703,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       totalDebitRaw,
       totalCreditRaw,
       useDocCurrency,
+      useRawJvLineAmountsForSave,
       displayTotalCurrency,
       displayDebitTotal,
       displayCreditTotal,
@@ -4948,11 +4954,12 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
     const headerCur = normalizeJvCurrencyCode(jvHeader.currency || baseCurrencyCode)
     const baseCur = normalizeJvCurrencyCode(baseCurrencyCode)
-    const useDocCurrency = Boolean(validation.useDocCurrency)
+    const strictUseDocCurrency = Boolean(validation.useDocCurrency)
+    const useRawJvLineAmountsForSave = Boolean(validation.useRawJvLineAmountsForSave)
 
     let debitQueue
     let creditQueue
-    if (useDocCurrency) {
+    if (useRawJvLineAmountsForSave) {
       debitQueue = jvLines
         .filter((line) => String(line.accountId || '').trim() && Number(line.debit || 0) > 0)
         .map((line) => ({
@@ -5022,7 +5029,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
         setError(`Cannot post in ${headerCur}: add an active ${headerCur} currency with exchangeRate (vs ${baseCur}) in Master → Currencies.`)
         return
       }
-      if (!useDocCurrency) {
+      if (!strictUseDocCurrency) {
         for (const row of entries) {
           const fcRaw = Number(row.amount) / headerFxRate
           const postAmt = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
@@ -5046,7 +5053,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
         let postCurrency = baseCur
         let postRate = 1
         if (headerCur !== baseCur) {
-          if (useDocCurrency) {
+          if (strictUseDocCurrency) {
             postAmount = pairBase
             postCurrency = headerCur
             postRate = headerFxRate
