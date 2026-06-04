@@ -170,6 +170,17 @@ GitHub Actions uses **Node 24** for this repo’s workflows. Ensure the **Node v
 4. Vercel will provide DNS instructions for each
 5. Note all CNAME targets
 
+### 4.2.1 Apex domain (`loopcstrategies.com`) — “DNS Change Recommended”
+
+If **tenant subdomains** (`mg.`, `cg.`, …) show **Valid Configuration** but the **root domain** shows **DNS Change Recommended**, the apex record at your DNS provider does not yet match what Vercel expects (the root zone cannot use a plain **CNAME** the same way as subdomains).
+
+1. In Vercel: **ops-dashboard** → **Settings** → **Domains** → open **`loopcstrategies.com`** → use **Edit** / **Learn more** and copy the **exact** **A** / **AAAA** (or ALIAS) values Vercel shows for the apex (IPs can change; always use the dashboard, not a third-party list).
+2. At your DNS host (registrar, Cloudflare, etc.): for the **apex** / **`@`** / **`loopcstrategies.com`**, remove conflicting **A**, **AAAA**, or **CNAME** rows, then add only what Vercel lists.
+3. If you use **Cloudflare**: either set the apex to **DNS only** (grey cloud) for that record when Vercel asks for it, or follow Vercel’s proxy note for that domain.
+4. Wait for propagation (often 5–30 minutes); refresh the domain row in Vercel until the warning clears.
+
+If you **do not** need the naked domain to serve this app, you can **remove** `loopcstrategies.com` from the project and keep only the tenant subdomains—or add a **redirect** in Vercel from the apex to a subdomain (e.g. `https://loopc.loopcstrategies.com`).
+
 ### 4.3 Update DNS Records
 
 In your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.):
