@@ -146,8 +146,8 @@ Legend:
 
 | Method | Endpoint | Permission Summary | Enforcing Helper(s) | Source Ref(s) |
 |---|---|---|---|---|
-| GET | /api/messages/latest | Authenticated, scope-filtered by role/message visibility | protect + buildMessageScope | backend/middleware/auth.js:24; backend/routes/messages.js:28 |
-| POST | /api/messages | Authenticated | protect + buildMessageScope | backend/middleware/auth.js:24; backend/routes/messages.js:28 |
+| GET | /api/messages/latest | Authenticated, involved-only (DMs + member groups + legacy sender/recipient) | protect + buildMessageScopeForUser | backend/middleware/auth.js:24; backend/routes/messages.js:28 |
+| POST | /api/messages | Authenticated | protect | backend/middleware/auth.js:24; backend/routes/messages.js:28 |
 | GET | /api/realtime/events | Authenticated | protect (SSE stream) | backend/routes/realtime.js:7 |
 
 ### Department State

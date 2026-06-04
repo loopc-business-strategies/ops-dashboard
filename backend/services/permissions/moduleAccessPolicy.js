@@ -240,18 +240,40 @@ function canSeeAllMessages(user) {
   return isSuperAdmin(user) || isManagement(user)
 }
 
-function buildMessageScope(user) {
-  if (canSeeAllMessages(user)) return {}
-  const dept = userDept(user)
-  return {
-    $or: [
-      { senderId: user._id },
-      { recipientIds: user._id },
-      { recipientNames: new RegExp(`^${escapeRegex(normalize(user.name))}$`, 'i') },
-      { room: /^All Departments$/i },
-      ...(dept ? [{ department: new RegExp(`^${escapeRegex(dept)}$`, 'i') }] : []),
-    ],
+/**
+ * Involved-only chat visibility for all roles: DMs the user participates in,
+ * group messages for groups in `memberGroupIds`, plus legacy group rows without
+ * groupId if the user is sender or in recipientIds.
+ *
+ * @param {object} user - req.user
+ * @param {import('mongoose').Types.ObjectId[]|string[]} memberGroupIds - from ChatGroup distinct for groups the user is in
+ */
+function buildMessageScopeForUser(user, memberGroupIds = []) {
+  if (!user?._id) return { _id: { $exists: false } }
+  const uid = user._id
+  const name = normalize(user.name)
+  const clauses = []
+
+  const dmOr = [{ senderId: uid }, { recipientIds: uid }]
+  if (name) {
+    dmOr.push({ recipientNames: new RegExp(`^${escapeRegex(name)}$`, 'i') })
   }
+  clauses.push({ type: 'dm', $or: dmOr })
+
+  const groupIds = (memberGroupIds || []).filter(Boolean)
+  if (groupIds.length) {
+    clauses.push({ type: 'group', groupId: { $in: groupIds } })
+  }
+
+  clauses.push({
+    type: 'group',
+    $and: [
+      { $or: [{ groupId: null }, { groupId: { $exists: false } }] },
+      { $or: [{ senderId: uid }, { recipientIds: uid }] },
+    ],
+  })
+
+  return { $or: clauses }
 }
 
 // ─── CRM ──────────────────────────────────────────────────────────────────────
@@ -385,7 +407,7 @@ module.exports = {
   scopedAttendanceDepartment,
   canTouchAttendanceDepartment,
   canSeeAllMessages,
-  buildMessageScope,
+  buildMessageScopeForUser,
   isSalesHead,
   isSalesRep,
   canViewCrm,

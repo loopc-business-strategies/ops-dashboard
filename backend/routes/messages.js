@@ -9,8 +9,7 @@ const { Joi, validateBody, validateQuery } = require('../middleware/validate')
 const { publishRealtimeEvent } = require('../utils/realtimeBus')
 const {
   normalize,
-  canSeeAllMessages,
-  buildMessageScope,
+  buildMessageScopeForUser,
   isSuperAdmin,
   isDepartmentHead,
 } = require('../services/permissions/moduleAccessPolicy')
@@ -89,12 +88,16 @@ function canManageGroups(user) {
   return isSuperAdmin(user) || isDepartmentHead(user)
 }
 
+/** Groups the user belongs to or created (same rules for every role). */
 function buildGroupScope(user) {
-  if (canSeeAllMessages(user)) return { isActive: true }
   return {
     isActive: true,
     $or: [{ memberIds: user._id }, { createdBy: user._id }],
   }
+}
+
+async function resolveMemberGroupIds(user) {
+  return ChatGroup.distinct('_id', buildGroupScope(user))
 }
 
 async function resolveUsers({ ids = [], names = [] }) {
@@ -186,9 +189,7 @@ async function createMessageRecord(req, res) {
   }
 
   const resolvedDepartment = safeType === 'group'
-    ? (canSeeAllMessages(req.user)
-      ? normalize(department || resolvedGroup?.department || req.user.department || 'management')
-      : normalize(resolvedGroup?.department || req.user.department))
+    ? normalize(resolvedGroup?.department || req.user.department || 'management')
     : normalize(department || req.user.department)
 
   const recipientUsers = await resolveUsers({
@@ -377,7 +378,8 @@ router.get('/latest', protect, validateQuery(latestQuerySchema), async (req, res
   try {
     const { type = 'all' } = req.query
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20))
-    const query = buildMessageScope(req.user)
+    const memberGroupIds = await resolveMemberGroupIds(req.user)
+    const query = { ...buildMessageScopeForUser(req.user, memberGroupIds) }
 
     if (type !== 'all') {
       query.type = String(type)
@@ -398,8 +400,9 @@ router.get('/attachments/:filename', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid filename' })
     }
 
+    const memberGroupIds = await resolveMemberGroupIds(req.user)
     const message = await Message.findOne({
-      ...buildMessageScope(req.user),
+      ...buildMessageScopeForUser(req.user, memberGroupIds),
       'attachments.fileName': filename,
     })
     if (!message) {

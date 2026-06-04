@@ -11,6 +11,7 @@ const {
   canAccessDepartmentStateModule,
   canManageAttendance,
   canSeeAllMessages,
+  buildMessageScopeForUser,
   canEditInventory,
   resolveModuleAccess,
   erp,
@@ -91,6 +92,25 @@ describe('moduleAccessPolicy', () => {
     expect(canAccessDepartmentStateModule(user({ role: 'department_head', department: 'government' }), 'compliance')).toBe(true)
     expect(canAccessDepartmentStateModule(user({ role: 'department_head', department: 'hr' }), 'training')).toBe(true)
     expect(canAccessDepartmentStateModule(user({ role: 'department_head', department: 'sales' }), 'finance')).toBe(false)
+  })
+
+  test('buildMessageScopeForUser scopes DMs, member groups, and legacy group rows', () => {
+    const uid = '507f1f77bcf86cd799439011'
+    const gid = '507f1f77bcf86cd799439012'
+    const user = { _id: uid, name: 'Alice' }
+    const scope = buildMessageScopeForUser(user, [gid])
+    expect(scope.$or).toHaveLength(3)
+    expect(scope.$or[0]).toMatchObject({ type: 'dm' })
+    expect(scope.$or[1]).toEqual({ type: 'group', groupId: { $in: [gid] } })
+    expect(scope.$or[2].type).toBe('group')
+    expect(scope.$or[2].$and).toBeDefined()
+  })
+
+  test('buildMessageScopeForUser without groups omits groupId clause', () => {
+    const user = { _id: '507f1f77bcf86cd799439011', name: 'Bob' }
+    const scope = buildMessageScopeForUser(user, [])
+    expect(scope.$or).toHaveLength(2)
+    expect(scope.$or.find((c) => c.groupId)).toBeUndefined()
   })
 
   test('attendance and messages helpers preserve role semantics', () => {

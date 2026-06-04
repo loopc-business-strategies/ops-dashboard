@@ -136,4 +136,98 @@ describe('chat messages API', () => {
     expect(download.status).toBe(200)
     expect(download.headers['content-type']).toMatch(/pdf/)
   })
+
+  test('user not in chat group does not see group messages in /latest', async () => {
+    const head = await createUser({ role: 'department_head', department: 'operations', name: 'Head' })
+    const member = await createUser({ name: 'Member' })
+    const outsider = await createUser({ name: 'Outsider' })
+
+    const groupRes = await request(app)
+      .post('/api/messages/groups')
+      .set('Authorization', `Bearer ${tokenFor(head)}`)
+      .send({
+        name: 'Private Ops',
+        department: 'operations',
+        memberIds: [member._id.toString()],
+      })
+
+    expect(groupRes.status).toBe(201)
+    const gid = groupRes.body.group._id
+
+    const postRes = await request(app)
+      .post('/api/messages')
+      .set('Authorization', `Bearer ${tokenFor(head)}`)
+      .send({
+        type: 'group',
+        groupId: gid,
+        text: 'Members-only note',
+      })
+    expect(postRes.status).toBe(201)
+
+    const memberLatest = await request(app)
+      .get('/api/messages/latest?limit=50')
+      .set('Authorization', `Bearer ${tokenFor(member)}`)
+
+    expect(memberLatest.status).toBe(200)
+    expect(memberLatest.body.messages.some((m) => m.text === 'Members-only note')).toBe(true)
+
+    const outsiderLatest = await request(app)
+      .get('/api/messages/latest?limit=50')
+      .set('Authorization', `Bearer ${tokenFor(outsider)}`)
+
+    expect(outsiderLatest.status).toBe(200)
+    expect(outsiderLatest.body.messages.some((m) => m.text === 'Members-only note')).toBe(false)
+  })
+
+  test('super_admin not in a group does not see that group in /groups', async () => {
+    const head = await createUser({ role: 'department_head', department: 'operations' })
+    const member = await createUser({ name: 'OnlyMember' })
+
+    const groupRes = await request(app)
+      .post('/api/messages/groups')
+      .set('Authorization', `Bearer ${tokenFor(head)}`)
+      .send({
+        name: 'Team Alpha',
+        memberIds: [member._id.toString()],
+      })
+    expect(groupRes.status).toBe(201)
+
+    const admin = await createUser({ role: 'super_admin', name: 'Solo Admin' })
+
+    const groups = await request(app)
+      .get('/api/messages/groups')
+      .set('Authorization', `Bearer ${tokenFor(admin)}`)
+
+    expect(groups.status).toBe(200)
+    const names = (groups.body.groups || []).map((g) => g.name)
+    expect(names).not.toContain('Team Alpha')
+  })
+
+  test('DM only visible to participants', async () => {
+    const alice = await createUser({ name: 'Alice DM' })
+    const bob = await createUser({ name: 'Bob DM' })
+    const eve = await createUser({ name: 'Eve' })
+
+    const dmRes = await request(app)
+      .post('/api/messages')
+      .set('Authorization', `Bearer ${tokenFor(alice)}`)
+      .send({
+        type: 'dm',
+        recipientIds: [bob._id.toString()],
+        text: 'Secret handshake',
+      })
+    expect(dmRes.status).toBe(201)
+
+    const bobLatest = await request(app)
+      .get('/api/messages/latest?limit=20&type=dm')
+      .set('Authorization', `Bearer ${tokenFor(bob)}`)
+    expect(bobLatest.status).toBe(200)
+    expect(bobLatest.body.messages.some((m) => m.text === 'Secret handshake')).toBe(true)
+
+    const eveLatest = await request(app)
+      .get('/api/messages/latest?limit=20&type=dm')
+      .set('Authorization', `Bearer ${tokenFor(eve)}`)
+    expect(eveLatest.status).toBe(200)
+    expect(eveLatest.body.messages.some((m) => m.text === 'Secret handshake')).toBe(false)
+  })
 })
