@@ -12,7 +12,7 @@ backend/.env
 
 # Deployment tool state
 .vercel/
-.vercel-output/
+# .vercel-output/ — not ignored: Vercel must see this folder after build (Root Directory = repo or frontend).
 
 # Runtime/generated artifacts
 backend/logs/

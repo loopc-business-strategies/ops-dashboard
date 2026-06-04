@@ -1,13 +1,25 @@
 #!/usr/bin/env sh
 # Vercel build: stage Vite output to .vercel-output (see root vercel.json).
+# When Vercel "Root Directory" is `frontend`, outputDirectory is resolved under
+# `frontend/` — mirror the staged bundle there as well as at repo root.
 set -e
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$ROOT"
+
 if [ -d frontend ] && [ -f frontend/package.json ]; then
   npm run build --prefix frontend
-  SRC=frontend/dist
+  SRC="$ROOT/frontend/dist"
 else
   npm run build
-  SRC=dist
+  SRC="$ROOT/dist"
 fi
-rm -rf .vercel-output
-mkdir -p .vercel-output
-cp -a "$SRC"/. .vercel-output/
+
+rm -rf "$ROOT/.vercel-output"
+mkdir -p "$ROOT/.vercel-output"
+cp -a "$SRC"/. "$ROOT/.vercel-output/"
+
+if [ -f "$ROOT/frontend/package.json" ]; then
+  rm -rf "$ROOT/frontend/.vercel-output"
+  mkdir -p "$ROOT/frontend/.vercel-output"
+  cp -a "$ROOT/.vercel-output"/. "$ROOT/frontend/.vercel-output/"
+fi
