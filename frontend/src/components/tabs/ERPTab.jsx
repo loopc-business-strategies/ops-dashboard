@@ -777,6 +777,15 @@ function ERPTab({ focusTab, onNavigateMain }) {
     const converted = convertJvAmount(numeric, modalStatementCurrency, statementDisplayCurrency)
     return Number.isFinite(converted) ? converted : numeric
   }
+  const spotMetalQuoteCurrency = normalizeStatementCurrencyCode(
+    accountEnquiryData?.metals?.priceCurrency || 'USD',
+  ).trim().toUpperCase()
+  const convertMetalSpotDisplayAmount = (value) => {
+    const numeric = Number(value || 0)
+    if (!Number.isFinite(numeric)) return 0
+    const converted = convertJvAmount(numeric, spotMetalQuoteCurrency, statementDisplayCurrency)
+    return Number.isFinite(converted) ? converted : numeric
+  }
   const formatStatementValue = (value, digits = 2) => {
     const num = Number(value || 0)
     return num.toLocaleString(undefined, {
@@ -898,6 +907,21 @@ function ERPTab({ focusTab, onNavigateMain }) {
     })
   }
   const statementEntries = combineVoucherStatementRows(rawStatementEntries)
+  {
+    const sortStatementNewestFirst = (left, right) => {
+      const leftDate = new Date(left?.date || 0).getTime()
+      const rightDate = new Date(right?.date || 0).getTime()
+      if (rightDate !== leftDate) return rightDate - leftDate
+      return String(right?._id || '').localeCompare(String(left?._id || ''))
+    }
+    const sorted = [...statementEntries].sort(sortStatementNewestFirst)
+    let rb = Number(accountEnquiryData?.balances?.netBalance ?? 0)
+    if (!Number.isFinite(rb)) rb = 0
+    for (const row of sorted) {
+      row.runningBalance = rb
+      rb -= Number(row?.signedAmount || 0)
+    }
+  }
   const deriveStatementUnfixedMetalBalances = (entries) => entries.reduce((acc, entry) => {
     if (resolveFixStatus(entry) !== 'unfixed') return acc
     const st = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
@@ -930,6 +954,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
     statementUnfixedVoucherRevaluationByMetal.gold
     + statementUnfixedVoucherRevaluationByMetal.silver
     + statementUnfixedVoucherRevaluationByMetal.other
+  const useVoucherRevaluation = !enquirySuppressMetalSpotMtm && Math.abs(statementUnfixedVoucherRevaluation) > 0.000001
   const xauSpotValue = xauBalance * goldPriceUSD
   const xagSpotValue = xagBalance * silverPriceUSD
   let xauCurrentValue
@@ -941,7 +966,6 @@ function ERPTab({ focusTab, onNavigateMain }) {
     xagCurrentValue = xagSpotValue
     modalRevaluation = xauSpotValue + xagSpotValue
   } else {
-    const useVoucherRevaluation = Math.abs(statementUnfixedVoucherRevaluation) > 0.000001
     xauCurrentValue = useVoucherRevaluation
       ? statementUnfixedVoucherRevaluationByMetal.gold
       : xauSpotValue
@@ -959,24 +983,30 @@ function ERPTab({ focusTab, onNavigateMain }) {
     return Math.abs(totalFunds) / grams
   }
   const breakEvenPrice = resolvePayableBreakEvenPrice(xauBalance)
+  const displayModalPositionCurrentValue = (spotBasedValue, bookedValue) => {
+    if (enquirySuppressMetalSpotMtm || !useVoucherRevaluation) {
+      return convertMetalSpotDisplayAmount(spotBasedValue)
+    }
+    return convertStatementDisplayAmount(bookedValue)
+  }
   const modalPositionRows = accountEnquiryData ? [
     {
       key: 'xau',
       type: 'XAU',
       limits: 0,
       balance: xauBalance,
-      price: goldPriceUSD,
-      currentValue: xauCurrentValue,
-      breakEven: breakEvenPrice,
+      price: convertMetalSpotDisplayAmount(goldPriceUSD),
+      currentValue: displayModalPositionCurrentValue(xauSpotValue, statementUnfixedVoucherRevaluationByMetal.gold),
+      breakEven: convertStatementDisplayAmount(breakEvenPrice),
     },
     {
       key: 'xag',
       type: 'XAG',
       limits: 0,
       balance: xagBalance,
-      price: silverPriceUSD,
-      currentValue: xagCurrentValue,
-      breakEven: resolvePayableBreakEvenPrice(xagBalance),
+      price: convertMetalSpotDisplayAmount(silverPriceUSD),
+      currentValue: displayModalPositionCurrentValue(xagSpotValue, statementUnfixedVoucherRevaluationByMetal.silver),
+      breakEven: convertStatementDisplayAmount(resolvePayableBreakEvenPrice(xagBalance)),
     },
   ] : []
   const buildPureWeightRunningBalancesByEntryKey = (entries, selectedMetalCode) => {
@@ -2858,7 +2888,7 @@ function ERPTab({ focusTab, onNavigateMain }) {
       if (!cached) setEnquiryLoading(true)
       setShowEnquiryLookupMenu(false)
       setEnquiryStatus({ type: '', message: '' })
-      const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, { statementLimit: 120 })
+      const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, { statementLimit: 120, refresh: '1' })
       setAccountEnquiryCode(cleanCode)
       setAccountEnquiryData(data)
       writeAccountEnquiryCache(tenantKey, cleanCode, data)

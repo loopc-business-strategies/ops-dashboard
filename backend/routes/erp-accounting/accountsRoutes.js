@@ -110,7 +110,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       accountCode,
       statementLimit,
     ])
-    const cached = enquiryCache.get(cacheKey)
+    const skipEnquiryCache = String(req.query.refresh || req.query.nocache || '').trim() === '1'
+    const cached = skipEnquiryCache ? null : enquiryCache.get(cacheKey)
     if (cached) return res.json(cached)
 
     const scopedIds = await getAccountSummaryScope(req.user)
@@ -991,7 +992,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       },
       positions,
     }
-    enquiryCache.set(cacheKey, enquiryPayload)
+    if (!skipEnquiryCache) enquiryCache.set(cacheKey, enquiryPayload)
     res.json(enquiryPayload)
   } catch (e) {
     console.error('Account enquiry error:', e)
