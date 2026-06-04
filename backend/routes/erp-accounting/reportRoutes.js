@@ -221,6 +221,18 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       })
     }
 
+    // When includeZero is false, drop accounts with no material debit, credit, or net (matches
+    // frontend Summary filtering in trialBalanceReportRows.js — seeding already included every chart line).
+    const TRIAL_BALANCE_ZERO_ROWS_EPS = 1e-6
+    if (!parseBool(includeZero, true)) {
+      trialBalance = trialBalance.filter((row) => {
+        const d = Math.abs(Number(row.debit ?? 0))
+        const c = Math.abs(Number(row.credit ?? 0))
+        const n = Math.abs(Number(row.net ?? 0))
+        return d > TRIAL_BALANCE_ZERO_ROWS_EPS || c > TRIAL_BALANCE_ZERO_ROWS_EPS || n > TRIAL_BALANCE_ZERO_ROWS_EPS
+      })
+    }
+
     if (accountType) {
       trialBalance = trialBalance.filter((row) => row.accountType === accountType)
     }
