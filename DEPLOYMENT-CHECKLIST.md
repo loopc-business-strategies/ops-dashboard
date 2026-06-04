@@ -93,13 +93,22 @@ CLIENT_URLS=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yo
 
 ## Step 3: Set Up Vercel Frontend
 
+### 3.0 Root Directory (required for this repo)
+
+The canonical config is repo root [`vercel.json`](vercel.json): **`installCommand` / `buildCommand` use `cd frontend && …`** and **`outputDirectory` is `frontend/dist`**. That only works if the Vercel project **Root Directory** is the **repository root** (leave the field **empty** or **`.`**), **not** `frontend`.
+
+- [ ] **Vercel → Project → Settings → General → Root Directory:** empty / monorepo root (not `frontend`)
+- [ ] **Production Git branch:** `main` (matches [DEPLOYMENT.md](DEPLOYMENT.md))
+- [ ] **Git:** GitHub repo `loopc-business-strategies/ops-dashboard` connected so pushes deploy without the CLI
+
+If you previously set Root Directory to `frontend`, change it to root and **Redeploy** (Deployments → ⋯ → Redeploy).
+
 ### 3.1 Connect GitHub Repository
 1. Log into [vercel.com](https://vercel.com)
 2. Click **Add New** → **Project**
 3. Select your ops-dashboard GitHub repo
-4. Set **Root Directory** to `frontend` (if using monorepo)
-5. Framework: Vite (auto-detected)
-6. Click **Deploy**
+4. Leave **Root Directory** empty (repository root), per **3.0** above
+5. Deploy; build settings are taken from root `vercel.json` (`framework: null`, Vite build via `cd frontend && npm run build`)
 
 ### 3.2 Add Environment Variables
 

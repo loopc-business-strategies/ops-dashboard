@@ -1652,6 +1652,107 @@ describe('ERP accounting transactions workflow', () => {
     expect(paymentJournal).toBeFalsy()
   })
 
+  // Regression: frontend used to send sum(amountLC) as transaction.amount for receipt/payment while
+  // amountLC is already USD-equivalent — backend multiplies by exchangeRate again (double FX).
+  // VoucherTab now sends sum(amountFC) in document currency. Posted vouchers saved with the old
+  // bug need void/repost or a manual adjusting entry after deploy.
+  test('INR receipt main ledger uses single USD conversion when transaction.amount is FC (not LC sum)', async () => {
+    const financeUser = await createUser({ name: 'INR Receipt FC Tester' })
+    const receivableAccount = await ChartOfAccount.create({
+      accountName: 'Customer Receivable INR FC',
+      accountCode: '1107',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const customer = await Customer.create({
+      name: 'INR FC Customer',
+      ledgerAccountId: receivableAccount._id,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    await Currency.create({
+      code: 'USD',
+      name: 'US Dollar',
+      symbol: '$',
+      exchangeRate: 1,
+      baseCurrency: true,
+      isActive: true,
+    })
+    const inrPerUsd = 85
+    const usdPerInr = 1 / inrPerUsd
+    await Currency.create({
+      code: 'INR',
+      name: 'Indian Rupee',
+      symbol: '₹',
+      exchangeRate: usdPerInr,
+      isActive: true,
+    })
+
+    const fcInr = 283258
+    const amountLcUsd = fcInr * usdPerInr
+
+    const createRes = await request(app)
+      .post('/api/erp-accounting/transactions')
+      .set(authHeader(financeUser))
+      .send({
+        type: 'receipt',
+        amount: fcInr,
+        description: 'INR receipt FC amount regression',
+        currency: 'INR',
+        exchangeRate: usdPerInr,
+        customerId: customer._id.toString(),
+        voucherMeta: {
+          referenceExchangeRate: usdPerInr,
+          lineItems: [{
+            type: 'cash',
+            currCode: 'INR',
+            currRate: usdPerInr,
+            amountFC: fcInr,
+            amountLC: amountLcUsd,
+            amountWithVAT: amountLcUsd,
+          }],
+        },
+      })
+
+    expect(createRes.status).toBe(201)
+    const txId = createRes.body.transaction._id
+
+    const submitRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/submit`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Submit INR FC receipt' })
+    expect(submitRes.status).toBe(200)
+
+    const approveRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/approve`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Approve INR FC receipt' })
+    expect(approveRes.status).toBe(200)
+
+    const postRes = await request(app)
+      .post(`/api/erp-accounting/transactions/${txId}/post`)
+      .set(authHeader(financeUser))
+      .send({ comment: 'Post INR FC receipt' })
+    expect(postRes.status).toBe(200)
+
+    const mainLedger = await queryInTenant(() => Ledger.findOne({
+      referenceId: txId,
+      referenceType: 'receipt',
+      isDeleted: { $ne: true },
+    }))
+    expect(mainLedger).toBeTruthy()
+    const expectedBaseUsd = fcInr * usdPerInr
+    expect(Number(mainLedger.amount)).toBeCloseTo(expectedBaseUsd, 2)
+
+    const fxJournal = await queryInTenant(() => Ledger.findOne({
+      referenceId: txId,
+      referenceType: 'journal',
+      isDeleted: { $ne: true },
+    }))
+    expect(fxJournal).toBeFalsy()
+  })
+
   test('does not post FX journal for rounded multi-line payment totals when FC and line rates match reference rate', async () => {
     const financeUser = await createUser({ name: 'FX Rounded Multi Line Tester' })
     const payableAccount = await ChartOfAccount.create({

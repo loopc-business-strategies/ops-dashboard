@@ -688,6 +688,17 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     return hasDraftContent ? [...lineItems, draftLine] : lineItems
   })()
 
+  // Receipt/payment: `amountLC` / amountWithVAT are USD-equivalent (FC / display rate). `transaction.amount`
+  // must be FC in document currency so the backend applies `exchangeRate` once. Net total shows FC received/paid.
+  const isReceiptOrPaymentVoucher = ['receipt', 'payment'].includes(String(voucherType || '').toLowerCase())
+  const receiptPaymentFcSum = isReceiptOrPaymentVoucher
+    ? effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountFC) || 0), 0)
+    : 0
+  const receiptPaymentLegacyGrand = effectiveLineItems.reduce(
+    (s, l) => s + (parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0),
+    0,
+  )
+
   const totals = {
     grossWeightTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.grossWeight) || 0), 0),
     pureWeightTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.pureWeight) || 0), 0),
@@ -697,7 +708,10 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     makingTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.makingCharges) || 0), 0),
     total: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountLC) || 0), 0),
     vatAmount: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.vatAmountLC) || 0), 0),
-    grandTotal: effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0), 0),
+    grandTotal:
+      isReceiptOrPaymentVoucher && receiptPaymentFcSum > 0
+        ? receiptPaymentFcSum
+        : receiptPaymentLegacyGrand,
   }
 
   const canCreate = voucherType === 'payment'
@@ -1408,9 +1422,18 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
       return
     }
 
+    const receiptPaymentDocTotal = isReceiptPayment
+      ? effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountFC) || 0), 0)
+      : 0
+    const resolvedDocAmount = isSimpleMetalSave
+      ? 0.01
+      : isReceiptPayment && receiptPaymentDocTotal > 0
+        ? receiptPaymentDocTotal
+        : (totals.grandTotal || 0.01)
+
     const payload = {
       type: voucherType,
-      amount: isSimpleMetalSave ? 0.01 : (totals.grandTotal || 0.01),
+      amount: resolvedDocAmount,
       date: isSimpleMetalSave ? (header.docDate || header.valueDate || header.vocDate) : (header.valueDate || header.vocDate),
       description: `${voucherType} voucher ${resolvedDocNo || ''}`.trim(),
       currency: isReceiptPayment ? normalizedHeaderCurrency : baseCurrencyCode,
@@ -1454,7 +1477,9 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
         ? { metalFixStatus: normalizeVoucherFixingType(header.fixingType) === 'non-fixing' ? 'unfixed' : 'fixed' }
         : {}),
     }
-    const payloadLineTotal = effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0), 0)
+    const payloadLineTotal = isReceiptPayment && receiptPaymentDocTotal > 0
+      ? receiptPaymentDocTotal
+      : effectiveLineItems.reduce((s, l) => s + (parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || 0), 0)
     payload.amount = isSimpleMetalSave ? 0.01 : (payloadLineTotal || 0.01)
     setSaving(true)
     try {
@@ -2251,7 +2276,14 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
                 <tbody>
                   {filteredVouchers.map((v, i) => {
                     const m = v.voucherMeta || {}
-                    const grand = (m.lineItems || []).reduce((s, l) => s + (l.amountWithVAT || l.amountLC || 0), 0)
+                    const isRpList = ['receipt', 'payment'].includes(String(voucherType || '').toLowerCase())
+                    const grand = (m.lineItems || []).reduce((s, l) => {
+                      if (isRpList) {
+                        const fc = parseFloat(l.amountFC)
+                        if (Number.isFinite(fc) && fc !== 0) return s + fc
+                      }
+                      return s + (parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || parseFloat(l.amountFC) || 0)
+                    }, 0)
                     const statusColors = {
                       draft: { bg: '#FEF3C7', color: '#92400E' },
                       submitted: { bg: '#DBEAFE', color: '#1D4ED8' },
