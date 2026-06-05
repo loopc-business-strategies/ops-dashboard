@@ -78,8 +78,16 @@ REQUEST_BODY_LIMIT=100kb
 
 **Set this AFTER you have your Vercel domains configured:**
 
+Use **`CLIENT_URLS`** (preferred) for every browser origin that calls the API, comma-separated, **no trailing slashes**. Include tenant subdomains **and** the apex marketing URL if the SPA is ever loaded from it (otherwise browsers send `Origin: https://yourdomain.com` and the API rejects the request with `CORS: origin not allowed` — see `backend/app.js`).
+
 ```
-CLIENT_URL=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com,http://mg.localhost:5173,http://cg.localhost:5173,http://loopc.localhost:5173
+CLIENT_URLS=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com,https://yourdomain.com,http://mg.localhost:5173,http://cg.localhost:5173,http://loopc.localhost:5173
+```
+
+Legacy **`CLIENT_URL`** (optional): same list; the server merges both into one allowlist.
+
+```
+CLIENT_URL=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com,https://yourdomain.com,http://mg.localhost:5173,http://cg.localhost:5173,http://loopc.localhost:5173
 ```
 
 ---

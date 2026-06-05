@@ -69,10 +69,10 @@ In Railway dashboard, go to **Variables** and add:
 
 ### 2.3 Set CORS and Frontend Origins
 
-After you have your Vercel domain, add:
+After you have your Vercel domain, add every **exact** `Origin` the browser will use (comma-separated, no trailing slash). That includes tenant subdomains, any **Vercel preview** URLs you allow, and the **apex** site if users open the app at `https://yourdomain.com` (not only `https://mg.yourdomain.com`, etc.). Missing an origin causes `OPTIONS` preflights to fail with `CORS: origin not allowed` in production.
 
 ```
-CLIENT_URLS=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com,http://mg.localhost:5173,http://cg.localhost:5173,http://loopc.localhost:5173
+CLIENT_URLS=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.yourdomain.com,https://app.yourdomain.com,https://yourdomain.com,http://mg.localhost:5173,http://cg.localhost:5173,http://loopc.localhost:5173
 ```
 
 ### 2.4 Deploy Backend
