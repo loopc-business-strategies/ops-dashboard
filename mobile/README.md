@@ -32,6 +32,8 @@ Production default: `https://api.loopcstrategies.com`
 
 Set `EXPO_PUBLIC_SENTRY_DSN` in EAS environment variables (and optionally `EXPO_PUBLIC_SENTRY_ENVIRONMENT`, `EXPO_PUBLIC_SENTRY_RELEASE`, `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`). Init runs from `src/lib/sentryInit.ts` when the app loads. See repo `docs/OBSERVABILITY-SENTRY.md`. Native changes may require a new EAS build after upgrading `@sentry/react-native`.
 
+**EAS Android release builds:** the `@sentry/react-native` config plugin runs `sentry-cli` during Gradle. Without a Sentry org/project and auth, that step fails (e.g. “organization ID or slug is required”). `eas.json` sets `SENTRY_DISABLE_AUTO_UPLOAD` and `SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD` to `true` on all build profiles so EAS succeeds without Sentry server credentials. To **re-enable** source map and native debug uploads: remove those two keys from the profile `env` blocks (or override them in the EAS dashboard), add EAS secrets `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` (or pass `organization` / `project` in the Expo plugin config per [Sentry Expo setup](https://docs.sentry.io/platforms/react-native/manual-setup/expo/)).
+
 ## Checks
 
 ```bash
