@@ -6,6 +6,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import { useAuth } from '../../context/AuthContext'
 import erpAPI from '../../api/erp'
+import tasksAPI from '../../api/tasks'
 import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
@@ -94,16 +95,6 @@ const INIT_INVENTORY = [
   { id:'INV-004', item:'Lubricant Oil (5L)',       stock:12,  min:4,   sup:'LocalSupply KZ',     last:'Apr 12, 2025', st:'Sufficient' },
   { id:'INV-005', item:'Processing Reagent',       stock:180, min:200, sup:'ChemEx Corp',        last:'Apr 8, 2025',  st:'Low Stock' },
   { id:'INV-006', item:'Safety Equipment Kit',     stock:0,   min:5,   sup:'LocalSupply KZ',     last:'Mar 20, 2025', st:'Critical' },
-]
-
-const INIT_TASKS = [
-  { id:1, title:'Escalate customs clearance — KazMach conveyor belt', assign:'Bilal R.',  pri:'High',   due:'Apr 15, 2025', st:'In Progress', sec:'Supply Chain' },
-  { id:2, title:'Schedule security review for Route RAIL-1',          assign:'Ahmad Y.',  pri:'High',   due:'Apr 18, 2025', st:'To Do',       sec:'Security' },
-  { id:3, title:'Draft contract renewal — KazTrans LLC',              assign:'Omar K.',   pri:'Medium', due:'Apr 25, 2025', st:'To Do',       sec:'Vendor Contracts' },
-  { id:4, title:'Restock Safety Equipment Kit (stock = 0)',           assign:'Bilal R.',  pri:'High',   due:'Apr 16, 2025', st:'Blocked',     sec:'Inventory' },
-  { id:5, title:'GS-002 contract draft review',                       assign:'Omar K.',   pri:'Medium', due:'Apr 18, 2025', st:'In Progress', sec:'Gold Sourcing' },
-  { id:6, title:'Update GPS tracking for Route KAZ-2',                assign:'Bilal R.',  pri:'Low',    due:'Apr 22, 2025', st:'To Do',       sec:'Transport' },
-  { id:7, title:'Quarterly OEE review with SinoTech',                 assign:'Omar K.',   pri:'Low',    due:'Apr 30, 2025', st:'Done',        sec:'Supply Chain' },
 ]
 
 const INIT_CHECKLIST = [
@@ -1038,8 +1029,114 @@ function BarChart({ bars, height }) {
   )
 }
 
+const OPS_TASK_DEPT = 'operations'
+const OPS_TASK_MODULE = 'operations-task-board'
+const OPS_LINKED_SECTION_OPTS = ['Supply Chain', 'Gold Sourcing', 'Transport', 'Security', 'Vendor Contracts', 'Inventory']
+
+function dueToInputDate(d) {
+  if (!d) return ''
+  const x = new Date(d)
+  if (Number.isNaN(x.getTime())) return ''
+  return x.toISOString().slice(0, 10)
+}
+
+function apiStatusToUiSt(s) {
+  const key = String(s || '').toLowerCase()
+  const m = {
+    todo: 'To Do',
+    'in-progress': 'In Progress',
+    blocked: 'Blocked',
+    'under-review': 'In Progress',
+    done: 'Done',
+    cancelled: 'Done',
+  }
+  return m[key] || 'To Do'
+}
+
+function uiStToApiStatus(st) {
+  const m = { 'To Do': 'todo', 'In Progress': 'in-progress', Blocked: 'blocked', Done: 'done' }
+  return m[st] || 'todo'
+}
+
+function apiPriToUi(p) {
+  const x = String(p || '').toLowerCase()
+  if (x === 'critical' || x === 'high') return 'High'
+  if (x === 'medium') return 'Medium'
+  return 'Low'
+}
+
+function uiPriToApi(p) {
+  if (p === 'High') return 'high'
+  if (p === 'Medium') return 'medium'
+  return 'low'
+}
+
+function linkedSectionFromApi(t) {
+  const lr = (t.linkedRecord || '').trim()
+  if (lr) return lr.slice(0, 120)
+  return 'Supply Chain'
+}
+
+function mapApiTaskToOpsRow(t) {
+  const d = dueToInputDate(t.dueDate)
+  return {
+    id: t._id,
+    _api: t,
+    title: t.title || '',
+    desc: t.description || '',
+    assign: t.assignedTo || 'Unassigned',
+    pri: apiPriToUi(t.priority),
+    due: d || 'TBD',
+    st: apiStatusToUiSt(t.status),
+    sec: linkedSectionFromApi(t),
+    comments: Array.isArray(t.comments) ? [...t.comments] : [],
+  }
+}
+
+function buildOpsCreatePayload(f) {
+  return {
+    title: f.title.trim(),
+    description: (f.desc || '').trim(),
+    assignedTo: (f.assign || '').trim() || undefined,
+    department: OPS_TASK_DEPT,
+    linkedRecord: String(f.sec || '').trim().slice(0, 120),
+    module: OPS_TASK_MODULE,
+    status: uiStToApiStatus(f.st),
+    priority: uiPriToApi(f.pri),
+    dueDate: f.due && f.due !== 'TBD' ? f.due : undefined,
+  }
+}
+
+function buildOpsUpdatePayload(f) {
+  return {
+    title: f.title.trim(),
+    description: (f.desc || '').trim(),
+    assignedTo: (f.assign || '').trim() || undefined,
+    linkedRecord: String(f.sec || '').trim().slice(0, 120),
+    module: OPS_TASK_MODULE,
+    status: uiStToApiStatus(f.st),
+    priority: uiPriToApi(f.pri),
+    dueDate: f.due && f.due !== 'TBD' ? f.due : undefined,
+  }
+}
+
+function normalizeOpsTaskForm(initial) {
+  if (!initial) return { title: '', desc: '', assign: '', pri: 'High', due: '', sec: 'Supply Chain', st: 'To Do', comments: [] }
+  return {
+    id: initial.id,
+    title: initial.title || '',
+    desc: initial.desc || '',
+    assign: initial.assign || '',
+    pri: initial.pri || 'High',
+    due: initial.due && initial.due !== 'TBD' ? initial.due : '',
+    sec: initial.sec || 'Supply Chain',
+    st: initial.st || 'To Do',
+    comments: Array.isArray(initial.comments) ? initial.comments : [],
+  }
+}
+
 // ─── TAB: Task Board ────────────────────────────────────────────────────────────
-function TabTasks({ tasks, setTasks, canEdit, isExternal, showToast, onOpenAdd, setModal }) {
+function TabTasks({ tasks, canEdit, isExternal, onOpenAdd, setModal, onDeleteOpsTask, canDeleteOpsTask }) {
   if (isExternal) return <Restrict text="Task board is not available to vendors." />
   const cols = [
     { key:'To Do',       color:C.t3 },
@@ -1068,10 +1165,18 @@ function TabTasks({ tasks, setTasks, canEdit, isExternal, showToast, onOpenAdd, 
               <div style={{ padding:10, display:'flex', flexDirection:'column', gap:7 }}>
                 {items.map(t => {
                   const priC = t.pri==='High'?C.red:t.pri==='Medium'?C.yellow:C.cyan
+                  const nProg = (t.comments || []).length
+                  const descPreview = (t.desc || '').trim()
                   return (
                     <div key={t.id} onClick={() => canEdit && setModal({ type:'task-edit', data:t })} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:'11px 12px', cursor: canEdit ? 'pointer' : 'default' }}>
                       <div style={{ fontSize:12, fontWeight:700, color:C.t1, marginBottom:5 }}>{t.title}</div>
-                      <div style={{ fontSize:11, color:C.t3 }}>{t.sec}</div>
+                      {descPreview && (
+                        <div style={{ fontSize:10, color:C.t3, lineHeight:1.35, marginBottom:6, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{descPreview}</div>
+                      )}
+                      <div style={{ fontSize:11, color:C.t3, display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
+                        <span>{t.sec}</span>
+                        {nProg > 0 && <span style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:20, background:'rgba(0,180,216,.12)', color:C.cyan, border:'1px solid rgba(0,180,216,.25)', flexShrink:0 }}>{nProg} update{nProg !== 1 ? 's' : ''}</span>}
+                      </div>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
                         <span style={{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:20, background:`${priC}15`, color:priC, border:`1px solid ${priC}30` }}>{t.pri}</span>
                         <div style={{ fontSize:10, color:C.t4 }}>👤 {t.assign}</div>
@@ -1108,7 +1213,9 @@ function TabTasks({ tasks, setTasks, canEdit, isExternal, showToast, onOpenAdd, 
                     <td style={TD}><span style={{ fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:20, background:'rgba(0,180,216,.12)', color:C.cyan, border:'1px solid rgba(0,180,216,.3)' }}>{t.sec}</span></td>
                     {canEdit && <td style={TD}>
                       <button onClick={() => setModal({ type:'task-edit', data:t })} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--purple)', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
-                      <button onClick={() => { setTasks(p => p.filter(x=>x.id!==t.id)); showToast('Deleted','Task removed') }} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
+                      {canDeleteOpsTask(t) && (
+                        <button onClick={() => onDeleteOpsTask(t)} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
+                      )}
                     </td>}
                   </tr>
                 )
@@ -1145,24 +1252,74 @@ function ModalSupplier({ initial, onClose, onSave }) {
   )
 }
 
-function ModalTask({ initial, onClose, onSave }) {
-  const [f, setF] = useState(initial ? { ...initial } : { title:'', assign:'', pri:'High', due:'', sec:'Supply Chain', st:'To Do' })
+function ModalTask({ initial, onClose, onSave, onAddProgress }) {
+  const [f, setF] = useState(() => normalizeOpsTaskForm(initial))
+  const [progressNote, setProgressNote] = useState('')
+  const [progressBusy, setProgressBusy] = useState(false)
   const s = k => e => setF(p => ({...p,[k]:e.target.value}))
   const isEdit = !!initial
+
+  const sortedComments = useMemo(() => {
+    const list = [...(f.comments || [])]
+    return list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+  }, [f.comments])
+
+  async function handleAddProgress() {
+    const text = progressNote.trim()
+    if (!text || !f.id || !onAddProgress) return
+    setProgressBusy(true)
+    try {
+      await onAddProgress(f.id, text)
+      setProgressNote('')
+    } catch {
+      /* parent shows toast */
+    } finally {
+      setProgressBusy(false)
+    }
+  }
+
   return (
     <Modal title={isEdit ? 'Edit Task' : 'Add Task'} sub={isEdit ? 'Update task details' : 'Create a new operations task'} onClose={onClose} onSave={() => f.title.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Add Task'}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-        <div><ML>Task Title</ML><MI value={f.title} onChange={s('title')} placeholder="Task description" /></div>
+        <div><ML>Task Title</ML><MI value={f.title} onChange={s('title')} placeholder="Short title" /></div>
         <div><ML>Assigned To</ML><MI value={f.assign} onChange={s('assign')} placeholder="Team member" /></div>
       </div>
+      <ML>Description</ML>
+      <MTA value={f.desc} onChange={s('desc')} placeholder="Project / task details..." />
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
         <div><ML>Priority</ML><MS value={f.pri} onChange={s('pri')}>{['High','Medium','Low'].map(o=><option key={o}>{o}</option>)}</MS></div>
         <div><ML>Due Date</ML><input type="date" value={f.due} onChange={s('due')} style={IS} /></div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-        <div><ML>Linked Section</ML><MS value={f.sec} onChange={s('sec')}>{['Supply Chain','Gold Sourcing','Transport','Security','Vendor Contracts','Inventory'].map(o=><option key={o}>{o}</option>)}</MS></div>
+        <div>
+          <ML>Linked Section</ML>
+          <MS value={f.sec} onChange={s('sec')}>
+            {!OPS_LINKED_SECTION_OPTS.includes(f.sec) && f.sec ? <option value={f.sec}>{f.sec}</option> : null}
+            {OPS_LINKED_SECTION_OPTS.map(o => <option key={o} value={o}>{o}</option>)}
+          </MS>
+        </div>
         <div><ML>Status</ML><MS value={f.st} onChange={s('st')}>{['To Do','In Progress','Blocked','Done'].map(o=><option key={o}>{o}</option>)}</MS></div>
       </div>
+      {isEdit && f.id && onAddProgress && (
+        <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
+          <div style={{ fontSize:12, fontWeight:800, color:C.t1, marginBottom:8 }}>Progress updates</div>
+          <div style={{ maxHeight:180, overflowY:'auto', marginBottom:10, display:'flex', flexDirection:'column', gap:8 }}>
+            {sortedComments.length === 0 && <div style={{ fontSize:11, color:C.t4 }}>No updates yet.</div>}
+            {sortedComments.map((c, i) => (
+              <div key={c._id || `${c.createdAt}-${i}`} style={{ fontSize:11, background:'rgba(0,0,0,.03)', border:`1px solid ${C.border}`, borderRadius:8, padding:'8px 10px' }}>
+                <div style={{ fontWeight:700, color:C.t2, marginBottom:2 }}>{c.author || '—'}</div>
+                <div style={{ fontSize:10, color:C.t4, marginBottom:4 }}>{c.createdAt ? new Date(c.createdAt).toLocaleString() : ''}</div>
+                <div style={{ color:C.t3, lineHeight:1.45, whiteSpace:'pre-wrap' }}>{c.text}</div>
+              </div>
+            ))}
+          </div>
+          <ML>Add progress update</ML>
+          <MTA value={progressNote} onChange={e => setProgressNote(e.target.value)} placeholder="What changed?" />
+          <div style={{ marginTop:8 }}>
+            <button type="button" disabled={progressBusy || !progressNote.trim()} onClick={handleAddProgress} style={{ ...B.pri, ...B.sm, opacity: progressBusy || !progressNote.trim() ? 0.5 : 1 }}>{progressBusy ? 'Saving…' : 'Log update'}</button>
+          </div>
+        </div>
+      )}
     </Modal>
   )
 }
@@ -1376,7 +1533,7 @@ export default function OperationsTab() {
   const perms = usePermissions()
   const isAdmin    = perms.isSuperAdmin
   const { t } = useLanguage()
-    const { token } = useAuth()
+  const { token, user } = useAuth()
   const TABS = useMemo(() => getOpsTabs(t), [t])
   const isHead     = perms.isDepartmentHead
   const isMgmt     = perms.isManagement
@@ -1413,7 +1570,22 @@ export default function OperationsTab() {
     }, [token])
 
     useEffect(() => { loadInventory() }, [loadInventory])
-  const [tasks,     setTasks]     = useState(USE_SEED_DATA ? INIT_TASKS : [])
+  const [tasks, setTasks] = useState([])
+
+  const loadOpsTasks = useCallback(async () => {
+    if (!token) return
+    try {
+      const data = await tasksAPI.getTasks(token)
+      const list = data.tasks || []
+      const arr = Array.isArray(list) ? list : []
+      const ops = arr.filter((t) => String(t.department || '').toLowerCase() === OPS_TASK_DEPT)
+      setTasks(ops.map(mapApiTaskToOpsRow))
+    } catch {
+      setTasks([])
+    }
+  }, [token])
+
+  useEffect(() => { loadOpsTasks() }, [loadOpsTasks])
   const [checklist, setChecklist] = useState(USE_SEED_DATA ? INIT_CHECKLIST : [])
   const [notifs,    setNotifs]    = useState(USE_SEED_DATA ? INIT_NOTIFS : [])
   const [modal,     setModal]     = useState({ type:null, data:null })
@@ -1436,13 +1608,64 @@ export default function OperationsTab() {
     setSuppliers(p => p.map(x => x.id===f.id ? { ...x, ...f } : x))
     closeModal(); showToast('Supplier Updated', f.name + ' updated')
   }
-  function addTask(f) {
-    setTasks(p => [...p, { id:Date.now(), title:f.title.trim(), assign:f.assign||'Unassigned', pri:f.pri, due:f.due||'TBD', st:f.st, sec:f.sec }])
-    closeModal(); showToast('Task Added', f.title.trim() + ' added')
+  async function addTask(f) {
+    try {
+      const res = await tasksAPI.createTask(token, buildOpsCreatePayload(f))
+      const row = mapApiTaskToOpsRow(res.task)
+      setTasks((p) => [row, ...p])
+      closeModal()
+      showToast('Task Added', `${f.title.trim()} added`)
+    } catch {
+      showToast('Error', 'Failed to create task')
+    }
   }
-  function editTask(f) {
-    setTasks(p => p.map(x => x.id===f.id ? { ...x, ...f } : x))
-    closeModal(); showToast('Task Updated', f.title + ' updated')
+  async function editTask(f) {
+    try {
+      const res = await tasksAPI.updateTask(token, f.id, buildOpsUpdatePayload(f))
+      const row = mapApiTaskToOpsRow(res.task)
+      setTasks((p) => p.map((x) => (x.id === row.id ? row : x)))
+      closeModal()
+      showToast('Task Updated', `${f.title} updated`)
+    } catch {
+      showToast('Error', 'Failed to update task')
+    }
+  }
+
+  const canDeleteOpsTask = (row) => {
+    const taskApi = row?._api
+    if (!taskApi) return false
+    if (isAdmin || isHead) return true
+    const createdByMe =
+      (taskApi.createdById && taskApi.createdById === user?.id) ||
+      String(taskApi.createdBy || '').toLowerCase() === String(user?.name || '').toLowerCase()
+    return isUser && createdByMe
+  }
+
+  async function deleteOpsTask(row) {
+    if (!window.confirm(`Delete task "${row.title}"?`)) return
+    try {
+      await tasksAPI.deleteTask(token, row.id)
+      setTasks((p) => p.filter((x) => x.id !== row.id))
+      closeModal()
+      showToast('Deleted', 'Task removed')
+    } catch {
+      showToast('Error', 'Failed to delete task')
+    }
+  }
+
+  async function addTaskProgress(taskId, text) {
+    const trimmed = String(text || '').trim()
+    if (!trimmed) return
+    try {
+      const res = await tasksAPI.addComment(token, taskId, trimmed)
+      const row = mapApiTaskToOpsRow(res.task)
+      setTasks((p) => p.map((x) => (x.id === row.id ? row : x)))
+      setModal((prev) => (prev.type === 'task-edit' && prev.data?.id === taskId ? { type: 'task-edit', data: row } : prev))
+      showToast('Progress logged', 'Update saved')
+    } catch (e) {
+      showToast('Error', 'Failed to add progress update')
+      throw e
+    }
   }
   function addIncident(f) {
     const newInc = { id:`INC-${String(incidents.length+4).padStart(3,'0')}`, date:'Today', route:f.route, vendor:f.vendor, type:f.type, sev:f.sev, st:'Open', res:f.desc||'Under review' }
@@ -1516,7 +1739,7 @@ export default function OperationsTab() {
   }
 
   const unreadCount = notifs.filter(n => !n.read).length
-  const shared = { suppliers, setSuppliers, gold, setGold, routes, setRoutes, secVendors, setSecVendors, incidents, setIncidents, vendors, setVendors, inventory, setInventory, tasks, setTasks, checklist, setChecklist, canEdit, isAdmin, isHead, isMgmt, isUser, isExternal, showToast, setModal }
+  const shared = { suppliers, setSuppliers, gold, setGold, routes, setRoutes, secVendors, setSecVendors, incidents, setIncidents, vendors, setVendors, inventory, setInventory, tasks, setTasks, checklist, setChecklist, canEdit, isAdmin, isHead, isMgmt, isUser, isExternal, showToast, setModal, onDeleteOpsTask: deleteOpsTask, canDeleteOpsTask }
 
   return (
     <ModuleTabColumn style={{ fontFamily: 'inherit', color: C.t1 }}>
@@ -1553,8 +1776,8 @@ export default function OperationsTab() {
 
       {modal.type === 'supplier-add'   && <ModalSupplier      onClose={closeModal} onSave={addSupplier} />}
       {modal.type === 'supplier-edit'  && <ModalSupplier      initial={modal.data} onClose={closeModal} onSave={editSupplier} />}
-      {modal.type === 'task-add'       && <ModalTask          onClose={closeModal} onSave={addTask} />}
-      {modal.type === 'task-edit'      && <ModalTask          initial={modal.data} onClose={closeModal} onSave={editTask} />}
+      {modal.type === 'task-add'       && <ModalTask key="ops-task-add" onClose={closeModal} onSave={addTask} />}
+      {modal.type === 'task-edit'      && <ModalTask key={`ops-task-edit-${modal.data?.id}-${(modal.data?.comments || []).length}`} initial={modal.data} onClose={closeModal} onSave={editTask} onAddProgress={addTaskProgress} />}
       {modal.type === 'incident-add'   && <ModalIncident      onClose={closeModal} onSave={addIncident} />}
       {modal.type === 'incident-edit'  && <ModalIncident      initial={modal.data} onClose={closeModal} onSave={editIncident} />}
       {modal.type === 'gold-add'       && <ModalGoldChannel   onClose={closeModal} onSave={addGold} />}
