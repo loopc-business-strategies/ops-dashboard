@@ -1044,28 +1044,6 @@ const OPS_LINKED_LABEL_KEY = {
   'Vendor Contracts': 'opsLinkedVendorContracts',
   Inventory: 'opsLinkedInventory',
 }
-const OPS_TEMPLATES_KEY = 'opsProjectsTemplates_v1'
-const OPS_TEMPLATES_KEY_LEGACY = 'opsTaskBoardTemplates_v1'
-
-function readOpsTemplatesFromStorage() {
-  try {
-    let raw = localStorage.getItem(OPS_TEMPLATES_KEY)
-    if (raw) {
-      const x = JSON.parse(raw)
-      return Array.isArray(x) ? x : []
-    }
-    raw = localStorage.getItem(OPS_TEMPLATES_KEY_LEGACY)
-    if (raw) {
-      localStorage.setItem(OPS_TEMPLATES_KEY, raw)
-      const x = JSON.parse(raw)
-      return Array.isArray(x) ? x : []
-    }
-  } catch {
-    /* ignore */
-  }
-  return []
-}
-
 /** Align with backend TASK_STALE_MS: prefer VITE_OPS_PROJECTS_STALE_DAYS, else VITE_TASK_STALE_DAYS (1–366). */
 const STALE_TASK_DAYS_RAW = Number(
   import.meta.env?.VITE_OPS_PROJECTS_STALE_DAYS ?? import.meta.env?.VITE_TASK_STALE_DAYS
@@ -1075,11 +1053,6 @@ const STALE_TASK_DAYS =
     ? Math.min(366, Math.max(1, Math.floor(STALE_TASK_DAYS_RAW)))
     : 7
 const STALE_TASK_MS = STALE_TASK_DAYS * 24 * 60 * 60 * 1000
-
-const OPS_PROJECT_PRESETS = [
-  { name: 'Logo / branding', fields: { title: 'New branding deliverable', desc: 'Scope, milestones, and approvals.', sec: 'Supply Chain', pri: 'High', st: 'To Do' } },
-  { name: 'Route review', fields: { title: 'Transport route review', desc: 'Risk, escort, and timeline.', sec: 'Transport', pri: 'Medium', st: 'To Do' } },
-]
 
 function dueToInputDate(d) {
   if (!d) return ''
@@ -1142,29 +1115,6 @@ function linkedSectionFromApi(t) {
   return 'Supply Chain'
 }
 
-/** Maps API TaskTemplate.defaults into Ops project-add form fields. */
-function mapTaskTemplateDefaultsToOpsForm(defaults) {
-  const d = defaults || {}
-  const lr = String(d.linkedRecord || '').trim()
-  const sec = lr || 'Supply Chain'
-  const checklist = Array.isArray(d.checklist)
-    ? d.checklist.map((c, i) => ({
-        title: c.title || '',
-        done: Boolean(c.done),
-        order: typeof c.order === 'number' ? c.order : i,
-      }))
-    : []
-  return {
-    title: d.title || '',
-    desc: d.description || '',
-    sec,
-    pri: apiPriToUi(d.priority),
-    st: apiStatusToUiSt(d.status),
-    tags: Array.isArray(d.tags) ? [...d.tags] : [],
-    checklist,
-  }
-}
-
 function isStaleTask(t) {
   if (!t?.updatedAt || String(t.status || '').toLowerCase() === 'done') return false
   try {
@@ -1220,6 +1170,11 @@ function mapApiTaskToOpsRow(t) {
     stale: isStaleTask(t),
     notifyText: '',
   }
+}
+
+/** Prefer `project` / `projects`; tolerate older API bodies that used `task` / `tasks`. */
+function projectDocFromApiResponse(res) {
+  return res?.project ?? res?.task ?? null
 }
 
 function buildOpsExtendedPayload(f) {
@@ -1382,32 +1337,9 @@ function TabProjects({
   canDeleteOpsProject,
   onArchiveProject,
   onUnarchiveProject,
-  serverTemplateRefreshKey = 0,
 }) {
   const { t: tr } = useLanguage()
-  const { token } = useAuth()
   if (isExternal) return <Restrict text={tr('opsProjectsRestrictExternal')} />
-  const [serverTemplates, setServerTemplates] = useState([])
-  useEffect(() => {
-    if (!token) {
-      setServerTemplates([])
-      return undefined
-    }
-    let cancelled = false
-    projectsAPI
-      .listTaskTemplates()
-      .then((res) => {
-        if (cancelled) return
-        setServerTemplates(Array.isArray(res.templates) ? res.templates : [])
-      })
-      .catch(() => {
-        if (!cancelled) setServerTemplates([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [token, serverTemplateRefreshKey])
-  const extraTemplates = useMemo(() => readOpsTemplatesFromStorage(), [])
   const visible = useMemo(() => tasks.filter((t) => showArchived || !t.archivedAt), [tasks, showArchived])
   const openCount = useMemo(() => visible.filter((t) => t.st !== 'Done').length, [visible])
   const doneCount = useMemo(() => visible.filter((t) => t.st === 'Done').length, [visible])
@@ -1432,53 +1364,6 @@ function TabProjects({
               <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
               {tr('opsShowArchived')}
             </label>
-            <MS
-              value=""
-              onChange={(e) => {
-                const v = e.target.value
-                if (!v) return
-                if (v.startsWith('p:')) {
-                  const i = Number(v.slice(2))
-                  const p = OPS_PROJECT_PRESETS[i]
-                  if (p) setModal({ type: 'project-add', data: { ...p.fields } })
-                  e.target.value = ''
-                  return
-                }
-                if (v.startsWith('s:')) {
-                  const id = v.slice(2)
-                  const tpl = serverTemplates.find((x) => String(x._id) === id)
-                  if (tpl?.defaults) {
-                    setModal({ type: 'project-add', data: { ...mapTaskTemplateDefaultsToOpsForm(tpl.defaults) } })
-                  }
-                  e.target.value = ''
-                  return
-                }
-                if (v.startsWith('x:')) {
-                  const i = Number(v.slice(2))
-                  const p = extraTemplates[i]
-                  if (p?.fields) setModal({ type: 'project-add', data: { ...p.fields } })
-                  e.target.value = ''
-                }
-              }}
-              style={{ ...IS, maxWidth: 170, marginBottom: 0 }}
-            >
-              <option value="">{tr('opsApplyTemplate')}</option>
-              {OPS_PROJECT_PRESETS.map((p, i) => (
-                <option key={p.name} value={`p:${i}`}>
-                  {p.name}
-                </option>
-              ))}
-              {extraTemplates.map((p, i) => (
-                <option key={`xt-${i}`} value={`x:${i}`}>
-                  {p.name || `Saved ${i + 1}`}
-                </option>
-              ))}
-              {serverTemplates.map((tpl) => (
-                <option key={`srv-${tpl._id}`} value={`s:${tpl._id}`}>
-                  {tpl.name} {tr('opsTeamTemplateTag')}
-                </option>
-              ))}
-            </MS>
             <button type="button" style={B.pri} onClick={onOpenAdd}>
               {tr('opsAddProject')}
             </button>
@@ -1739,7 +1624,6 @@ function ModalProject({
   onProjectPatched,
   onArchive,
   onUnarchive,
-  onServerTemplatesInvalidate,
 }) {
   const { t: lt } = useLanguage()
   const [f, setF] = useState(() => normalizeOpsProjectForm(initial))
@@ -2042,8 +1926,9 @@ function ModalProject({
               if (!file) return
               try {
                 const res = await projectsAPI.uploadProjectAttachment(token, f.id, file)
-                if (res.project) {
-                  const row = mapApiTaskToOpsRow(res.project)
+                const doc = projectDocFromApiResponse(res)
+                if (doc) {
+                  const row = mapApiTaskToOpsRow(doc)
                   setF(normalizeOpsProjectForm(row))
                   onProjectPatched?.(row)
                 }
@@ -2067,8 +1952,9 @@ function ModalProject({
                     if (!window.confirm(lt('opsModalRemoveFileConfirm'))) return
                     try {
                       const res = await projectsAPI.deleteProjectAttachment(token, f.id, a.fileName)
-                      if (res.project) {
-                        const row = mapApiTaskToOpsRow(res.project)
+                      const doc = projectDocFromApiResponse(res)
+                      if (doc) {
+                        const row = mapApiTaskToOpsRow(doc)
                         setF(normalizeOpsProjectForm(row))
                         onProjectPatched?.(row)
                       }
@@ -2090,74 +1976,6 @@ function ModalProject({
         <div style={{ marginTop: 8 }}>
           <button type="button" onClick={() => onArchive(f)} style={{ ...B.warn, ...B.sm }}>
             {lt('opsModalArchive')}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              try {
-                const name = window.prompt(lt('opsModalTemplateNamePrompt'), f.title?.slice(0, 40) || lt('opsModalMyTemplate'))
-                if (!name) return
-                const prev = readOpsTemplatesFromStorage()
-                const next = [
-                  {
-                    name,
-                    fields: {
-                      title: f.title,
-                      desc: f.desc,
-                      sec: f.sec,
-                      pri: f.pri,
-                      st: f.st,
-                      tags: f.tags,
-                      checklist: f.checklist,
-                      alsoNotifyIds: f.alsoNotifyIds,
-                      alsoNotifyNames: f.alsoNotifyNames,
-                    },
-                  },
-                  ...(Array.isArray(prev) ? prev : []),
-                ].slice(0, 20)
-                localStorage.setItem(OPS_TEMPLATES_KEY, JSON.stringify(next))
-                showToast?.(lt('opsModalTemplateSavedLocal'), `"${name}"`)
-              } catch {
-                showToast?.(lt('error'), lt('opsModalTemplateLocalError'))
-              }
-            }}
-            style={{ ...B.sec, ...B.sm, marginLeft: 8 }}
-          >
-            {lt('opsModalSaveLocalTemplate')}
-          </button>
-          <button
-            type="button"
-            onClick={async () => {
-              const name = window.prompt(lt('opsModalTemplateNamePrompt'), f.title?.slice(0, 40) || lt('opsModalMyTemplate'))
-              if (!name?.trim() || !token) return
-              try {
-                await projectsAPI.createTaskTemplate({
-                  name: name.trim(),
-                  defaults: {
-                    title: f.title,
-                    description: f.desc,
-                    linkedRecord: f.sec,
-                    status: uiStToApiStatus(f.st),
-                    priority: uiPriToApi(f.pri),
-                    tags: f.tags,
-                    checklist: (f.checklist || [])
-                      .filter((c) => c && String(c.title || '').trim())
-                      .map((c, i) => ({
-                        title: String(c.title).trim(),
-                        done: Boolean(c.done),
-                        order: typeof c.order === 'number' ? c.order : i,
-                      })),
-                  },
-                })
-                showToast?.(lt('opsModalTemplateSavedTeam'), name.trim())
-                onServerTemplatesInvalidate?.()
-              } catch {
-                showToast?.(lt('error'), lt('opsModalTemplateTeamError'))
-              }
-            }}
-            style={{ ...B.sec, ...B.sm, marginLeft: 8 }}
-          >
-            {lt('opsModalSaveTeamTemplate')}
           </button>
         </div>
       )}
@@ -2444,19 +2262,20 @@ export default function OperationsTab() {
   const [tasks, setTasks] = useState([])
   const [showArchivedOpsProjects, setShowArchivedOpsProjects] = useState(false)
   const [taskAssignees, setTaskAssignees] = useState([])
-  const [serverTemplateRefreshKey, setServerTemplateRefreshKey] = useState(0)
-  const bumpServerTemplates = useCallback(() => setServerTemplateRefreshKey((k) => k + 1), [])
 
   const loadOpsProjects = useCallback(async () => {
-    if (!token) return
+    if (!token) return []
     try {
       const data = await projectsAPI.getProjects(token)
-      const list = data.projects || []
+      const list = data.projects ?? data.tasks ?? []
       const arr = Array.isArray(list) ? list : []
       const ops = arr.filter((t) => String(t.department || '').toLowerCase() === OPS_PROJECTS_DEPT)
-      setTasks(ops.map(mapApiTaskToOpsRow))
+      const rows = ops.map(mapApiTaskToOpsRow)
+      setTasks(rows)
+      return rows
     } catch {
       setTasks([])
+      return []
     }
   }, [token])
 
@@ -2523,7 +2342,14 @@ export default function OperationsTab() {
   async function createOpsProject(f) {
     try {
       const res = await projectsAPI.createProject(token, buildOpsCreatePayload(f))
-      const row = mapApiTaskToOpsRow(res.project)
+      const doc = projectDocFromApiResponse(res)
+      if (!doc) {
+        await loadOpsProjects()
+        closeModal()
+        showToast('Project added', `${f.title.trim()} added`)
+        return
+      }
+      const row = mapApiTaskToOpsRow(doc)
       setTasks((p) => [row, ...p])
       closeModal()
       showToast('Project added', `${f.title.trim()} added`)
@@ -2534,7 +2360,14 @@ export default function OperationsTab() {
   async function updateOpsProject(f) {
     try {
       const res = await projectsAPI.updateProject(token, f.id, buildOpsUpdatePayload(f))
-      const row = mapApiTaskToOpsRow(res.project)
+      const doc = projectDocFromApiResponse(res)
+      if (!doc) {
+        await loadOpsProjects()
+        closeModal()
+        showToast('Project updated', `${f.title} updated`)
+        return
+      }
+      const row = mapApiTaskToOpsRow(doc)
       setTasks((p) => p.map((x) => (x.id === row.id ? row : x)))
       closeModal()
       showToast('Project updated', `${f.title} updated`)
@@ -2570,7 +2403,17 @@ export default function OperationsTab() {
     if (!trimmed) return
     try {
       const res = await projectsAPI.addProjectComment(token, taskId, trimmed)
-      const row = mapApiTaskToOpsRow(res.project)
+      const doc = projectDocFromApiResponse(res)
+      if (!doc) {
+        const rows = await loadOpsProjects()
+        const row = rows.find((r) => String(r.id) === String(taskId))
+        if (row) {
+          setModal((prev) => (prev.type === 'project-edit' && prev.data?.id === taskId ? { type: 'project-edit', data: row } : prev))
+        }
+        showToast('Progress logged', 'Update saved')
+        return
+      }
+      const row = mapApiTaskToOpsRow(doc)
       setTasks((p) => p.map((x) => (x.id === row.id ? row : x)))
       setModal((prev) => (prev.type === 'project-edit' && prev.data?.id === taskId ? { type: 'project-edit', data: row } : prev))
       showToast('Progress logged', 'Update saved')
@@ -2727,7 +2570,6 @@ export default function OperationsTab() {
           onOpenAdd={() => setModal({ type: 'project-add', data: null })}
           onArchiveProject={archiveOpsProjectRow}
           onUnarchiveProject={unarchiveOpsProjectRow}
-          serverTemplateRefreshKey={serverTemplateRefreshKey}
         />
       )}
 
@@ -2744,7 +2586,6 @@ export default function OperationsTab() {
           allOpsProjects={tasks}
           token={token}
           showToast={showToast}
-          onServerTemplatesInvalidate={bumpServerTemplates}
         />
       )}
       {modal.type === 'project-edit'      && (
@@ -2762,7 +2603,6 @@ export default function OperationsTab() {
           onProjectPatched={mergeOpsProjectPatched}
           onArchive={(ff) => archiveOpsProjectRow({ id: ff.id, title: ff.title })}
           onUnarchive={(ff) => unarchiveOpsProjectRow({ id: ff.id, title: ff.title })}
-          onServerTemplatesInvalidate={bumpServerTemplates}
         />
       )}
       {modal.type === 'incident-add'   && <ModalIncident      onClose={closeModal} onSave={addIncident} />}
