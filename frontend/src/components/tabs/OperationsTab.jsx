@@ -1132,6 +1132,7 @@ function isStaleTask(t) {
 
 function mapApiTaskToOpsRow(t) {
   const d = dueToInputDate(t.dueDate)
+  const startD = dueToInputDate(t.startDate)
   const checklist = Array.isArray(t.checklist)
     ? t.checklist.map((c, i) => ({
         title: c.title || '',
@@ -1148,6 +1149,7 @@ function mapApiTaskToOpsRow(t) {
     assignToId: t.assignedToId ? String(t.assignedToId) : '',
     pri: apiPriToUi(t.priority),
     due: d || 'TBD',
+    start: startD || '',
     st: apiStatusToUiSt(t.status),
     sec: linkedSectionFromApi(t),
     comments: Array.isArray(t.comments) ? [...t.comments] : [],
@@ -1223,6 +1225,7 @@ function buildOpsCreatePayload(f) {
     status: uiStToApiStatus(f.st),
     priority: uiPriToApi(f.pri),
     dueDate: f.due && f.due !== 'TBD' ? f.due : undefined,
+    startDate: f.start && String(f.start).trim() ? f.start : null,
     reminderAt: f.reminderAt ? new Date(f.reminderAt).toISOString() : undefined,
     notifyText: (f.notifyText || '').trim() || undefined,
     alsoNotifyIds: alsoNotifyIds.length ? alsoNotifyIds : undefined,
@@ -1248,6 +1251,7 @@ function buildOpsUpdatePayload(f) {
     status: uiStToApiStatus(f.st),
     priority: uiPriToApi(f.pri),
     dueDate: f.due && f.due !== 'TBD' ? f.due : undefined,
+    startDate: f.start && String(f.start).trim() ? f.start : null,
     reminderAt: f.reminderAt ? new Date(f.reminderAt).toISOString() : undefined,
     notifyText: (f.notifyText || '').trim() || undefined,
     alsoNotifyIds: alsoNotifyIds.length ? alsoNotifyIds : undefined,
@@ -1264,6 +1268,7 @@ function defaultOpsProjectForm() {
     assignToId: '',
     pri: 'High',
     due: '',
+    start: '',
     sec: 'Supply Chain',
     st: 'To Do',
     comments: [],
@@ -1306,6 +1311,7 @@ function normalizeOpsProjectForm(initial) {
     assignToId: initial.assignToId || '',
     pri: initial.pri || 'High',
     due: initial.due && initial.due !== 'TBD' ? initial.due : '',
+    start: initial.start && initial.start !== 'TBD' ? initial.start : '',
     sec: initial.sec || 'Supply Chain',
     st: initial.st || 'To Do',
     comments: Array.isArray(initial.comments) ? initial.comments : [],
@@ -1473,7 +1479,11 @@ function TabProjects({
                         <div style={{ fontSize: 10, color: C.t4 }}>👤 {t.assign}</div>
                       </div>
                       <div style={{ fontSize: 10, color: C.t4, marginTop: 5 }}>
-                        📅 {tr('opsProjectsDueLabel')} {t.due}
+                        {tr('opsProjectsStartLabel')}{' '}
+                        {t.start || tr('opsModalDash')}
+                      </div>
+                      <div style={{ fontSize: 10, color: C.t4, marginTop: 3 }}>
+                        {tr('opsProjectsDueLabel')} {t.due}
                       </div>
                       {t.reminderAt && <div style={{ fontSize: 9, color: C.pur, marginTop: 3 }}>⏰ {tr('opsProjectsReminderSet')}</div>}
                       {t.autoArchiveAt && !t.archivedAt && (
@@ -1496,7 +1506,7 @@ function TabProjects({
       <TableWrap>
         <TableHead title={tr('opsProjectsListViewTitle')} />
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1020 }}>
             <thead>
               <tr>
                 {[
@@ -1504,6 +1514,7 @@ function TabProjects({
                   tr('opsThAssigned'),
                   tr('opsThPriority'),
                   tr('opsThDue'),
+                  tr('opsThStart'),
                   tr('opsThStatus'),
                   tr('opsThSection'),
                   tr('opsThMeta'),
@@ -1531,6 +1542,7 @@ function TabProjects({
                       <Badge s={t.pri} />
                     </td>
                     <td style={{ ...TD, color: C.t3 }}>{t.due}</td>
+                    <td style={{ ...TD, color: C.t3 }}>{t.start || tr('opsModalDash')}</td>
                     <td style={TD}>
                       <Badge s={t.st} />
                     </td>
@@ -1707,7 +1719,7 @@ function ModalProject({
       </div>
       <ML>{lt('opsModalFieldDescription')}</ML>
       <MTA value={f.desc} onChange={s('desc')} placeholder={lt('opsModalDescPlaceholder')} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
         <div>
           <ML>{lt('opsModalFieldPriority')}</ML>
           <MS value={f.pri} onChange={s('pri')}>
@@ -1722,6 +1734,10 @@ function ModalProject({
               </option>
             ))}
           </MS>
+        </div>
+        <div>
+          <ML>{lt('opsModalFieldStart')}</ML>
+          <input type="date" value={f.start} onChange={s('start')} style={IS} />
         </div>
         <div>
           <ML>{lt('opsModalFieldDue')}</ML>
