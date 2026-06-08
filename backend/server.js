@@ -159,6 +159,24 @@ async function startServer() {
     await mongoose.connect(mongoUri)
     setPrimaryMongoReady(true)
     console.log('✅ Connected to MongoDB')
+    try {
+      const { startTaskReminderJob } = require('./jobs/taskReminderJob')
+      startTaskReminderJob()
+    } catch (e) {
+      console.warn('[startup] task reminder job not started:', e.message)
+    }
+    try {
+      const { startTaskStaleCommentJob } = require('./jobs/taskStaleCommentJob')
+      startTaskStaleCommentJob()
+    } catch (e) {
+      console.warn('[startup] task stale comment job not started:', e.message)
+    }
+    try {
+      const { startTaskRulesJob } = require('./jobs/taskRulesJob')
+      startTaskRulesJob()
+    } catch (e) {
+      console.warn('[startup] task rules job not started:', e.message)
+    }
   } catch (err) {
     setPrimaryMongoReady(false)
     console.error(`❌ MongoDB connect failed (${mongoUri.split('@')[1]?.split('/')[0] || 'unknown'}): ${err.message}`)

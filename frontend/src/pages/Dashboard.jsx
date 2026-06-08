@@ -12,7 +12,7 @@ import BuildInfoBadge from '../components/BuildInfoBadge'
 import TopbarMetalTickers from '../components/TopbarMetalTickers'
 import AIAgentWidget from '../components/AIAgentWidget'
 import { LiveMetalRatesProvider } from '../context/LiveMetalRatesContext'
-import { startUserNotifications } from '../utils/realtimeSocket'
+import { startUserNotifications, startProjectsSse } from '../utils/realtimeSocket'
 
 // Import tab content components
 const OverviewTab = lazy(() => import('../components/tabs/OverviewTab'))
@@ -380,6 +380,26 @@ function Dashboard() {
       },
     })
   }, [token, user])
+
+  useEffect(() => {
+    if (!token || !user) return undefined
+    return startProjectsSse({
+      onReminderDue: (data) => {
+        const title = data?.title || 'Task'
+        setNotifications((prev) => [
+          {
+            id: `rt-rem-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            title: t('opsProjectsReminderToastTitle'),
+            msg: `${t('opsProjectsReminderToastBody')} ${title}`,
+            time: 'Just now',
+            read: false,
+            dotColor: 'bg-amber-400',
+          },
+          ...prev,
+        ])
+      },
+    })
+  }, [token, user, t])
 
   // Sync active tab from URL search params
   useEffect(() => {

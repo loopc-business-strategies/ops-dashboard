@@ -6,8 +6,11 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import { useAuth } from '../../context/AuthContext'
 import erpAPI from '../../api/erp'
-import tasksAPI from '../../api/tasks'
+import projectsAPI from '../../api/projects'
+import authAPI from '../../api/auth'
+import hrAPI from '../../api/hr'
 import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
+import AccountCombobox from '../AccountCombobox'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -41,7 +44,7 @@ function getOpsTabs(t) {
     { id:'inventory', label:`📦 ${t('inventory')}` },
     { id:'map',       label:`🗺️ ${t('liveMap')}` },
     { id:'analytics', label:`📈 ${t('analytics')}` },
-    { id:'tasks',     label:`📋 ${t('taskBoard')}` },
+    { id:'projects',     label:`📋 ${t('opsProjectsNav')}` },
   ]
 }
 
@@ -142,6 +145,7 @@ const BADGE_MAP = {
   'Done':                  { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
   'Contract Signed':       { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
   'In Progress':           { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
+  'Under review':        { bg:'rgba(var(--purple-rgb),.15)',  color:'var(--purple)', b:'rgba(var(--purple-rgb),.3)' },
   'Advance Paid':          { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
   'Pending':               { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
   'Pending Review':        { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
@@ -1029,9 +1033,53 @@ function BarChart({ bars, height }) {
   )
 }
 
-const OPS_TASK_DEPT = 'operations'
-const OPS_TASK_MODULE = 'operations-task-board'
+const OPS_PROJECTS_DEPT = 'operations'
+const OPS_PROJECTS_MODULE = 'operations-projects'
 const OPS_LINKED_SECTION_OPTS = ['Supply Chain', 'Gold Sourcing', 'Transport', 'Security', 'Vendor Contracts', 'Inventory']
+const OPS_LINKED_LABEL_KEY = {
+  'Supply Chain': 'opsLinkedSupplyChain',
+  'Gold Sourcing': 'opsLinkedGoldSourcing',
+  Transport: 'opsLinkedTransport',
+  Security: 'opsLinkedSecurity',
+  'Vendor Contracts': 'opsLinkedVendorContracts',
+  Inventory: 'opsLinkedInventory',
+}
+const OPS_TEMPLATES_KEY = 'opsProjectsTemplates_v1'
+const OPS_TEMPLATES_KEY_LEGACY = 'opsTaskBoardTemplates_v1'
+
+function readOpsTemplatesFromStorage() {
+  try {
+    let raw = localStorage.getItem(OPS_TEMPLATES_KEY)
+    if (raw) {
+      const x = JSON.parse(raw)
+      return Array.isArray(x) ? x : []
+    }
+    raw = localStorage.getItem(OPS_TEMPLATES_KEY_LEGACY)
+    if (raw) {
+      localStorage.setItem(OPS_TEMPLATES_KEY, raw)
+      const x = JSON.parse(raw)
+      return Array.isArray(x) ? x : []
+    }
+  } catch {
+    /* ignore */
+  }
+  return []
+}
+
+/** Align with backend TASK_STALE_MS: prefer VITE_OPS_PROJECTS_STALE_DAYS, else VITE_TASK_STALE_DAYS (1–366). */
+const STALE_TASK_DAYS_RAW = Number(
+  import.meta.env?.VITE_OPS_PROJECTS_STALE_DAYS ?? import.meta.env?.VITE_TASK_STALE_DAYS
+)
+const STALE_TASK_DAYS =
+  Number.isFinite(STALE_TASK_DAYS_RAW) && STALE_TASK_DAYS_RAW > 0
+    ? Math.min(366, Math.max(1, Math.floor(STALE_TASK_DAYS_RAW)))
+    : 7
+const STALE_TASK_MS = STALE_TASK_DAYS * 24 * 60 * 60 * 1000
+
+const OPS_PROJECT_PRESETS = [
+  { name: 'Logo / branding', fields: { title: 'New branding deliverable', desc: 'Scope, milestones, and approvals.', sec: 'Supply Chain', pri: 'High', st: 'To Do' } },
+  { name: 'Route review', fields: { title: 'Transport route review', desc: 'Risk, escort, and timeline.', sec: 'Transport', pri: 'Medium', st: 'To Do' } },
+]
 
 function dueToInputDate(d) {
   if (!d) return ''
@@ -1040,13 +1088,22 @@ function dueToInputDate(d) {
   return x.toISOString().slice(0, 10)
 }
 
+function fmtShortDt(dt) {
+  if (!dt) return '—'
+  try {
+    return new Date(dt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  } catch {
+    return '—'
+  }
+}
+
 function apiStatusToUiSt(s) {
   const key = String(s || '').toLowerCase()
   const m = {
     todo: 'To Do',
     'in-progress': 'In Progress',
     blocked: 'Blocked',
-    'under-review': 'In Progress',
+    'under-review': 'Under review',
     done: 'Done',
     cancelled: 'Done',
   }
@@ -1054,18 +1111,26 @@ function apiStatusToUiSt(s) {
 }
 
 function uiStToApiStatus(st) {
-  const m = { 'To Do': 'todo', 'In Progress': 'in-progress', Blocked: 'blocked', Done: 'done' }
+  const m = {
+    'To Do': 'todo',
+    'In Progress': 'in-progress',
+    'Under review': 'under-review',
+    Blocked: 'blocked',
+    Done: 'done',
+  }
   return m[st] || 'todo'
 }
 
 function apiPriToUi(p) {
   const x = String(p || '').toLowerCase()
-  if (x === 'critical' || x === 'high') return 'High'
+  if (x === 'critical') return 'Critical'
+  if (x === 'high') return 'High'
   if (x === 'medium') return 'Medium'
   return 'Low'
 }
 
 function uiPriToApi(p) {
+  if (p === 'Critical') return 'critical'
   if (p === 'High') return 'high'
   if (p === 'Medium') return 'medium'
   return 'low'
@@ -1077,146 +1142,555 @@ function linkedSectionFromApi(t) {
   return 'Supply Chain'
 }
 
+/** Maps API TaskTemplate.defaults into Ops project-add form fields. */
+function mapTaskTemplateDefaultsToOpsForm(defaults) {
+  const d = defaults || {}
+  const lr = String(d.linkedRecord || '').trim()
+  const sec = lr || 'Supply Chain'
+  const checklist = Array.isArray(d.checklist)
+    ? d.checklist.map((c, i) => ({
+        title: c.title || '',
+        done: Boolean(c.done),
+        order: typeof c.order === 'number' ? c.order : i,
+      }))
+    : []
+  return {
+    title: d.title || '',
+    desc: d.description || '',
+    sec,
+    pri: apiPriToUi(d.priority),
+    st: apiStatusToUiSt(d.status),
+    tags: Array.isArray(d.tags) ? [...d.tags] : [],
+    checklist,
+  }
+}
+
+function isStaleTask(t) {
+  if (!t?.updatedAt || String(t.status || '').toLowerCase() === 'done') return false
+  try {
+    let last = new Date(t.updatedAt).getTime()
+    const comments = Array.isArray(t.comments) ? t.comments : []
+    for (const c of comments) {
+      const ct = c?.createdAt ? new Date(c.createdAt).getTime() : 0
+      if (ct > last) last = ct
+    }
+    return Date.now() - last > STALE_TASK_MS
+  } catch {
+    return false
+  }
+}
+
 function mapApiTaskToOpsRow(t) {
   const d = dueToInputDate(t.dueDate)
+  const checklist = Array.isArray(t.checklist)
+    ? t.checklist.map((c, i) => ({
+        title: c.title || '',
+        done: Boolean(c.done),
+        order: typeof c.order === 'number' ? c.order : i,
+      }))
+    : []
   return {
     id: t._id,
     _api: t,
     title: t.title || '',
     desc: t.description || '',
     assign: t.assignedTo || 'Unassigned',
+    assignToId: t.assignedToId ? String(t.assignedToId) : '',
     pri: apiPriToUi(t.priority),
     due: d || 'TBD',
     st: apiStatusToUiSt(t.status),
     sec: linkedSectionFromApi(t),
     comments: Array.isArray(t.comments) ? [...t.comments] : [],
+    reminderAt: t.reminderAt ? new Date(t.reminderAt).toISOString().slice(0, 16) : '',
+    archivedAt: t.archivedAt || null,
+    autoArchiveAt: t.autoArchiveAt || null,
+    createdBy: t.createdBy || '',
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+    alsoNotifyIds: (t.alsoNotifyIds || []).map((id) => String(id)),
+    alsoNotifyNames: Array.isArray(t.alsoNotifyNames) ? [...t.alsoNotifyNames] : [],
+    tags: Array.isArray(t.tags) ? [...t.tags] : [],
+    checklist,
+    blockedReason: t.blockedReason || '',
+    blockedByTaskId: t.blockedByTaskId ? String(t.blockedByTaskId) : '',
+    dependsOn: (t.dependsOn || []).map((x) => String(x)),
+    estimateHours: t.estimateHours != null && !Number.isNaN(Number(t.estimateHours)) ? String(t.estimateHours) : '',
+    loggedHours: t.loggedHours != null && !Number.isNaN(Number(t.loggedHours)) ? String(t.loggedHours) : '',
+    attachments: Array.isArray(t.attachments) ? [...t.attachments] : [],
+    stale: isStaleTask(t),
+    notifyText: '',
+  }
+}
+
+function buildOpsExtendedPayload(f) {
+  const tags = Array.isArray(f.tags) ? [...new Set(f.tags.map((x) => String(x).trim()).filter(Boolean))].slice(0, 20).map((x) => x.slice(0, 40)) : []
+  const checklist = Array.isArray(f.checklist)
+    ? f.checklist
+        .filter((c) => c && String(c.title || '').trim())
+        .slice(0, 40)
+        .map((c, i) => ({
+          title: String(c.title).trim().slice(0, 200),
+          done: Boolean(c.done),
+          order: typeof c.order === 'number' && !Number.isNaN(c.order) ? c.order : i,
+        }))
+    : []
+  const blockedReason = f.st === 'Blocked' ? String(f.blockedReason || '').trim().slice(0, 500) : ''
+  const blockedByTaskId = f.st === 'Blocked' && f.blockedByTaskId ? String(f.blockedByTaskId).trim() : ''
+  const dependsOn = Array.isArray(f.dependsOn) ? [...new Set(f.dependsOn.filter(Boolean).map(String))] : []
+  const eh = f.estimateHours === '' || f.estimateHours == null ? null : Number(f.estimateHours)
+  const lh = f.loggedHours === '' || f.loggedHours == null ? null : Number(f.loggedHours)
+  return {
+    tags,
+    checklist,
+    blockedReason,
+    blockedByTaskId: blockedByTaskId || undefined,
+    dependsOn: dependsOn.length ? dependsOn : [],
+    estimateHours: eh != null && !Number.isNaN(eh) ? eh : null,
+    loggedHours: lh != null && !Number.isNaN(lh) ? lh : null,
   }
 }
 
 function buildOpsCreatePayload(f) {
+  const ext = buildOpsExtendedPayload(f)
+  const hex24 = (s) => /^[a-f0-9]{24}$/i.test(String(s))
+  const alsoNotifyIds = Array.isArray(f.alsoNotifyIds) ? [...new Set(f.alsoNotifyIds.filter(hex24))].slice(0, 50) : []
+  const alsoNotifyNames = Array.isArray(f.alsoNotifyNames)
+    ? [...new Set(f.alsoNotifyNames.map((x) => String(x).trim()).filter(Boolean))].slice(0, 50)
+    : []
   return {
     title: f.title.trim(),
     description: (f.desc || '').trim(),
     assignedTo: (f.assign || '').trim() || undefined,
-    department: OPS_TASK_DEPT,
+    assignedToId: f.assignToId ? String(f.assignToId).trim() : undefined,
+    department: OPS_PROJECTS_DEPT,
     linkedRecord: String(f.sec || '').trim().slice(0, 120),
-    module: OPS_TASK_MODULE,
+    module: OPS_PROJECTS_MODULE,
     status: uiStToApiStatus(f.st),
     priority: uiPriToApi(f.pri),
     dueDate: f.due && f.due !== 'TBD' ? f.due : undefined,
+    reminderAt: f.reminderAt ? new Date(f.reminderAt).toISOString() : undefined,
+    notifyText: (f.notifyText || '').trim() || undefined,
+    alsoNotifyIds: alsoNotifyIds.length ? alsoNotifyIds : undefined,
+    alsoNotifyNames: alsoNotifyNames.length ? alsoNotifyNames : undefined,
+    ...ext,
   }
 }
 
 function buildOpsUpdatePayload(f) {
+  const ext = buildOpsExtendedPayload(f)
+  const hex24 = (s) => /^[a-f0-9]{24}$/i.test(String(s))
+  const alsoNotifyIds = Array.isArray(f.alsoNotifyIds) ? [...new Set(f.alsoNotifyIds.filter(hex24))].slice(0, 50) : []
+  const alsoNotifyNames = Array.isArray(f.alsoNotifyNames)
+    ? [...new Set(f.alsoNotifyNames.map((x) => String(x).trim()).filter(Boolean))].slice(0, 50)
+    : []
   return {
     title: f.title.trim(),
     description: (f.desc || '').trim(),
     assignedTo: (f.assign || '').trim() || undefined,
+    assignedToId: f.assignToId ? String(f.assignToId).trim() : undefined,
     linkedRecord: String(f.sec || '').trim().slice(0, 120),
-    module: OPS_TASK_MODULE,
+    module: OPS_PROJECTS_MODULE,
     status: uiStToApiStatus(f.st),
     priority: uiPriToApi(f.pri),
     dueDate: f.due && f.due !== 'TBD' ? f.due : undefined,
+    reminderAt: f.reminderAt ? new Date(f.reminderAt).toISOString() : undefined,
+    notifyText: (f.notifyText || '').trim() || undefined,
+    alsoNotifyIds: alsoNotifyIds.length ? alsoNotifyIds : undefined,
+    alsoNotifyNames: alsoNotifyNames.length ? alsoNotifyNames : undefined,
+    ...ext,
   }
 }
 
-function normalizeOpsTaskForm(initial) {
-  if (!initial) return { title: '', desc: '', assign: '', pri: 'High', due: '', sec: 'Supply Chain', st: 'To Do', comments: [] }
+function defaultOpsProjectForm() {
+  return {
+    title: '',
+    desc: '',
+    assign: '',
+    assignToId: '',
+    pri: 'High',
+    due: '',
+    sec: 'Supply Chain',
+    st: 'To Do',
+    comments: [],
+    reminderAt: '',
+    notifyText: '',
+    alsoNotifyIds: [],
+    alsoNotifyNames: [],
+    tags: [],
+    checklist: [],
+    blockedReason: '',
+    blockedByTaskId: '',
+    dependsOn: [],
+    estimateHours: '',
+    loggedHours: '',
+    attachments: [],
+  }
+}
+
+function normalizeOpsProjectForm(initial) {
+  const base = defaultOpsProjectForm()
+  if (!initial) return base
+  if (!initial.id) {
+    return {
+      ...base,
+      ...initial,
+      comments: Array.isArray(initial.comments) ? initial.comments : [],
+      tags: Array.isArray(initial.tags) ? initial.tags : [],
+      checklist: Array.isArray(initial.checklist) ? initial.checklist : [],
+      dependsOn: Array.isArray(initial.dependsOn) ? initial.dependsOn : [],
+      alsoNotifyIds: Array.isArray(initial.alsoNotifyIds) ? initial.alsoNotifyIds.map(String) : [],
+      alsoNotifyNames: Array.isArray(initial.alsoNotifyNames) ? [...initial.alsoNotifyNames] : [],
+      attachments: Array.isArray(initial.attachments) ? initial.attachments : [],
+    }
+  }
   return {
     id: initial.id,
     title: initial.title || '',
     desc: initial.desc || '',
     assign: initial.assign || '',
+    assignToId: initial.assignToId || '',
     pri: initial.pri || 'High',
     due: initial.due && initial.due !== 'TBD' ? initial.due : '',
     sec: initial.sec || 'Supply Chain',
     st: initial.st || 'To Do',
     comments: Array.isArray(initial.comments) ? initial.comments : [],
+    reminderAt: initial.reminderAt || '',
+    notifyText: initial.notifyText || '',
+    alsoNotifyIds: Array.isArray(initial.alsoNotifyIds) ? initial.alsoNotifyIds.map(String) : [],
+    alsoNotifyNames: Array.isArray(initial.alsoNotifyNames) ? [...initial.alsoNotifyNames] : [],
+    tags: Array.isArray(initial.tags) ? initial.tags : [],
+    checklist: Array.isArray(initial.checklist) ? initial.checklist : [],
+    blockedReason: initial.blockedReason || '',
+    blockedByTaskId: initial.blockedByTaskId || '',
+    dependsOn: Array.isArray(initial.dependsOn) ? initial.dependsOn : [],
+    estimateHours: initial.estimateHours != null ? String(initial.estimateHours) : '',
+    loggedHours: initial.loggedHours != null ? String(initial.loggedHours) : '',
+    attachments: Array.isArray(initial.attachments) ? initial.attachments : [],
   }
 }
 
-// ─── TAB: Task Board ────────────────────────────────────────────────────────────
-function TabTasks({ tasks, canEdit, isExternal, onOpenAdd, setModal, onDeleteOpsTask, canDeleteOpsTask }) {
-  if (isExternal) return <Restrict text="Task board is not available to vendors." />
+// ─── TAB: Projects ────────────────────────────────────────────────────────────
+function TabProjects({
+  tasks,
+  showArchived,
+  setShowArchived,
+  canEdit,
+  isExternal,
+  onOpenAdd,
+  setModal,
+  onDeleteOpsProject,
+  canDeleteOpsProject,
+  onArchiveProject,
+  onUnarchiveProject,
+  serverTemplateRefreshKey = 0,
+}) {
+  const { t: tr } = useLanguage()
+  const { token } = useAuth()
+  if (isExternal) return <Restrict text={tr('opsProjectsRestrictExternal')} />
+  const [serverTemplates, setServerTemplates] = useState([])
+  useEffect(() => {
+    if (!token) {
+      setServerTemplates([])
+      return undefined
+    }
+    let cancelled = false
+    projectsAPI
+      .listTaskTemplates()
+      .then((res) => {
+        if (cancelled) return
+        setServerTemplates(Array.isArray(res.templates) ? res.templates : [])
+      })
+      .catch(() => {
+        if (!cancelled) setServerTemplates([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [token, serverTemplateRefreshKey])
+  const extraTemplates = useMemo(() => readOpsTemplatesFromStorage(), [])
+  const visible = useMemo(() => tasks.filter((t) => showArchived || !t.archivedAt), [tasks, showArchived])
+  const openCount = useMemo(() => visible.filter((t) => t.st !== 'Done').length, [visible])
+  const doneCount = useMemo(() => visible.filter((t) => t.st === 'Done').length, [visible])
+
   const cols = [
-    { key:'To Do',       color:C.t3 },
-    { key:'In Progress', color:C.yellow },
-    { key:'Blocked',     color:C.red },
-    { key:'Done',        color:C.green },
+    { key: 'To Do', labelKey: 'opsColTodo', color: C.t3 },
+    { key: 'In Progress', labelKey: 'opsColInProgress', color: C.yellow },
+    { key: 'Under review', labelKey: 'opsColUnderReview', color: C.pur },
+    { key: 'Blocked', labelKey: 'opsColBlocked', color: C.red },
+    { key: 'Done', labelKey: 'opsColDone', color: C.green },
   ]
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
-      <SH title="Operations Task Board" sub={`${tasks.filter(t=>t.st!=='Done').length} open tasks · ${tasks.filter(t=>t.st==='Done').length} completed`}>
-        {canEdit && <button style={B.pri} onClick={onOpenAdd}>+ Add Task</button>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <SH
+        title={tr('opsProjectsTitle')}
+        sub={`${openCount} ${tr('opsProjectsOpen')} · ${doneCount} ${tr('opsProjectsCompleted')}${showArchived ? ` ${tr('opsProjectsIncArchived')}` : ''}`}
+      >
+        {canEdit && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <label style={{ fontSize: 11, color: C.t3, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+              {tr('opsShowArchived')}
+            </label>
+            <MS
+              value=""
+              onChange={(e) => {
+                const v = e.target.value
+                if (!v) return
+                if (v.startsWith('p:')) {
+                  const i = Number(v.slice(2))
+                  const p = OPS_PROJECT_PRESETS[i]
+                  if (p) setModal({ type: 'project-add', data: { ...p.fields } })
+                  e.target.value = ''
+                  return
+                }
+                if (v.startsWith('s:')) {
+                  const id = v.slice(2)
+                  const tpl = serverTemplates.find((x) => String(x._id) === id)
+                  if (tpl?.defaults) {
+                    setModal({ type: 'project-add', data: { ...mapTaskTemplateDefaultsToOpsForm(tpl.defaults) } })
+                  }
+                  e.target.value = ''
+                  return
+                }
+                if (v.startsWith('x:')) {
+                  const i = Number(v.slice(2))
+                  const p = extraTemplates[i]
+                  if (p?.fields) setModal({ type: 'project-add', data: { ...p.fields } })
+                  e.target.value = ''
+                }
+              }}
+              style={{ ...IS, maxWidth: 170, marginBottom: 0 }}
+            >
+              <option value="">{tr('opsApplyTemplate')}</option>
+              {OPS_PROJECT_PRESETS.map((p, i) => (
+                <option key={p.name} value={`p:${i}`}>
+                  {p.name}
+                </option>
+              ))}
+              {extraTemplates.map((p, i) => (
+                <option key={`xt-${i}`} value={`x:${i}`}>
+                  {p.name || `Saved ${i + 1}`}
+                </option>
+              ))}
+              {serverTemplates.map((tpl) => (
+                <option key={`srv-${tpl._id}`} value={`s:${tpl._id}`}>
+                  {tpl.name} {tr('opsTeamTemplateTag')}
+                </option>
+              ))}
+            </MS>
+            <button type="button" style={B.pri} onClick={onOpenAdd}>
+              {tr('opsAddProject')}
+            </button>
+          </div>
+        )}
       </SH>
 
-      {/* Kanban */}
-      <div style={{ display:'flex', gap:12, overflowX:'auto', paddingBottom:8 }}>
-        {cols.map(col => {
-          const items = tasks.filter(t => t.st === col.key)
+      <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
+        {cols.map((col) => {
+          const items = visible.filter((t) => t.st === col.key)
           return (
-            <div key={col.key} style={{ minWidth:220, width:220, background:C.card2, border:`1px solid ${C.border}`, borderRadius:12, display:'flex', flexDirection:'column', flexShrink:0, position:'relative', overflow:'hidden' }}>
-              <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:col.color }} />
-              <div style={{ padding:'12px 14px 10px', borderBottom:`1px solid ${C.border}` }}>
-                <div style={{ fontSize:12, fontWeight:800, color:C.t1 }}>{col.key}</div>
-                <div style={{ fontSize:10, fontWeight:600, color:col.color, marginTop:3 }}>{items.length} task{items.length!==1?'s':''}</div>
+            <div
+              key={col.key}
+              style={{
+                minWidth: 200,
+                width: 200,
+                background: C.card2,
+                border: `1px solid ${C.border}`,
+                borderRadius: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                flexShrink: 0,
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: col.color }} />
+              <div style={{ padding: '12px 14px 10px', borderBottom: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: C.t1 }}>{tr(col.labelKey)}</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: col.color, marginTop: 3 }}>
+                  {items.length} {items.length === 1 ? tr('opsProjectsCountOne') : tr('opsProjectsCountMany')}
+                </div>
               </div>
-              <div style={{ padding:10, display:'flex', flexDirection:'column', gap:7 }}>
-                {items.map(t => {
-                  const priC = t.pri==='High'?C.red:t.pri==='Medium'?C.yellow:C.cyan
+              <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {items.map((t) => {
+                  const priC = t.pri === 'Critical' || t.pri === 'High' ? C.red : t.pri === 'Medium' ? C.yellow : C.cyan
                   const nProg = (t.comments || []).length
                   const descPreview = (t.desc || '').trim()
+                  const cl = t.checklist || []
+                  const chkPct = cl.length ? Math.round((100 * cl.filter((c) => c.done).length) / cl.length) : null
                   return (
-                    <div key={t.id} onClick={() => canEdit && setModal({ type:'task-edit', data:t })} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:'11px 12px', cursor: canEdit ? 'pointer' : 'default' }}>
-                      <div style={{ fontSize:12, fontWeight:700, color:C.t1, marginBottom:5 }}>{t.title}</div>
+                    <div
+                      key={t.id}
+                      onClick={() => canEdit && setModal({ type: 'project-edit', data: t })}
+                      style={{
+                        background: C.card,
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 8,
+                        padding: '11px 12px',
+                        cursor: canEdit ? 'pointer' : 'default',
+                        opacity: t.archivedAt ? 0.65 : 1,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: C.t1, flex: 1 }}>{t.title}</div>
+                        {t.stale && (
+                          <span style={{ fontSize: 8, fontWeight: 800, padding: '2px 5px', borderRadius: 4, background: 'rgba(255,214,0,.2)', color: '#92400e', flexShrink: 0 }}>{tr('opsStaleBadge')}</span>
+                        )}
+                      </div>
                       {descPreview && (
-                        <div style={{ fontSize:10, color:C.t3, lineHeight:1.35, marginBottom:6, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{descPreview}</div>
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: C.t3,
+                            lineHeight: 1.35,
+                            marginBottom: 6,
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {descPreview}
+                        </div>
                       )}
-                      <div style={{ fontSize:11, color:C.t3, display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
+                      <div style={{ fontSize: 10, color: C.t4, marginBottom: 4 }}>
+                        {t.createdBy ? `${tr('opsProjectsMetaBy')} ${t.createdBy}` : ''}
+                        {t.updatedAt ? ` · ${tr('opsProjectsMetaUpd')} ${fmtShortDt(t.updatedAt)}` : ''}
+                      </div>
+                      {chkPct != null && (
+                        <div style={{ fontSize: 10, color: C.t3, marginBottom: 4 }}>
+                          {tr('opsProjectsChecklistPct')}: {chkPct}%
+                        </div>
+                      )}
+                      <div style={{ fontSize: 11, color: C.t3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                         <span>{t.sec}</span>
-                        {nProg > 0 && <span style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:20, background:'rgba(0,180,216,.12)', color:C.cyan, border:'1px solid rgba(0,180,216,.25)', flexShrink:0 }}>{nProg} update{nProg !== 1 ? 's' : ''}</span>}
+                        {nProg > 0 && (
+                          <span
+                            style={{
+                              fontSize: 9,
+                              fontWeight: 700,
+                              padding: '2px 6px',
+                              borderRadius: 20,
+                              background: 'rgba(0,180,216,.12)',
+                              color: C.cyan,
+                              border: '1px solid rgba(0,180,216,.25)',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {nProg}{' '}
+                            {nProg === 1 ? tr('opsProjectsUpdateSingular') : tr('opsProjectsUpdatePlural')}
+                          </span>
+                        )}
                       </div>
-                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
-                        <span style={{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:20, background:`${priC}15`, color:priC, border:`1px solid ${priC}30` }}>{t.pri}</span>
-                        <div style={{ fontSize:10, color:C.t4 }}>👤 {t.assign}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: `${priC}15`, color: priC, border: `1px solid ${priC}30` }}>{t.pri}</span>
+                        <div style={{ fontSize: 10, color: C.t4 }}>👤 {t.assign}</div>
                       </div>
-                      <div style={{ fontSize:10, color:C.t4, marginTop:5 }}>📅 Due: {t.due}</div>
+                      <div style={{ fontSize: 10, color: C.t4, marginTop: 5 }}>
+                        📅 {tr('opsProjectsDueLabel')} {t.due}
+                      </div>
+                      {t.reminderAt && <div style={{ fontSize: 9, color: C.pur, marginTop: 3 }}>⏰ {tr('opsProjectsReminderSet')}</div>}
+                      {t.autoArchiveAt && !t.archivedAt && (
+                        <div style={{ fontSize: 9, color: C.t3, marginTop: 3 }}>
+                          📦 {tr('opsAutoArchiveHint')} {fmtShortDt(t.autoArchiveAt)}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
-                {!items.length && <div style={{ fontSize:11, color:C.t4, textAlign:'center', padding:'16px 0' }}>No tasks</div>}
+                {!items.length && (
+                  <div style={{ fontSize: 11, color: C.t4, textAlign: 'center', padding: '16px 0' }}>{tr('opsNoProjectsInColumn')}</div>
+                )}
               </div>
             </div>
           )
         })}
       </div>
 
-      {/* Table view */}
       <TableWrap>
-        <TableHead title="Task List View" />
-        <div style={{ overflowX:'auto' }}>
-          <table style={{ width:'100%', borderCollapse:'collapse', minWidth:750 }}>
-            <thead><tr>
-              {['Task','Assigned To','Priority','Due Date','Status','Section', ...(canEdit?['Actions']:[])].map(h => <th key={h} style={TH}>{h}</th>)}
-            </tr></thead>
+        <TableHead title={tr('opsProjectsListViewTitle')} />
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+            <thead>
+              <tr>
+                {[
+                  tr('opsThProject'),
+                  tr('opsThAssigned'),
+                  tr('opsThPriority'),
+                  tr('opsThDue'),
+                  tr('opsThStatus'),
+                  tr('opsThSection'),
+                  tr('opsThMeta'),
+                  ...(canEdit ? [tr('opsThActions')] : []),
+                ].map((h, i) => (
+                  <th key={i} style={TH}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
-              {tasks.map(t => {
-                const rowBg = t.st==='Blocked'?'rgba(255,71,87,.04)':t.st==='Done'?'rgba(0,200,150,.03)':''
+              {visible.map((t) => {
+                const rowBg = t.st === 'Blocked' ? 'rgba(255,71,87,.04)' : t.st === 'Done' ? 'rgba(0,200,150,.03)' : ''
                 return (
-                  <tr key={t.id} style={{ background:rowBg }}>
-                    <td style={{ ...TD, fontWeight:700, color:C.t1 }}>{t.title}</td>
-                    <td style={{ ...TD, color:C.t2 }}>{t.assign}</td>
-                    <td style={TD}><Badge s={t.pri} /></td>
-                    <td style={{ ...TD, color:C.t3 }}>{t.due}</td>
-                    <td style={TD}><Badge s={t.st} /></td>
-                    <td style={TD}><span style={{ fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:20, background:'rgba(0,180,216,.12)', color:C.cyan, border:'1px solid rgba(0,180,216,.3)' }}>{t.sec}</span></td>
-                    {canEdit && <td style={TD}>
-                      <button onClick={() => setModal({ type:'task-edit', data:t })} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--purple)', fontSize:12, fontWeight:700, fontFamily:'inherit', marginRight:8 }}>Edit</button>
-                      {canDeleteOpsTask(t) && (
-                        <button onClick={() => onDeleteOpsTask(t)} style={{ background:'none', border:'none', cursor:'pointer', color:C.red, fontSize:12, fontWeight:700, fontFamily:'inherit' }}>Del</button>
+                  <tr key={t.id} style={{ background: rowBg }}>
+                    <td style={{ ...TD, fontWeight: 700, color: C.t1 }}>
+                      {t.title}
+                      {t.stale && (
+                        <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 800, color: '#92400e' }}> {tr('opsStaleBadge')}</span>
                       )}
-                    </td>}
+                    </td>
+                    <td style={{ ...TD, color: C.t2 }}>{t.assign}</td>
+                    <td style={TD}>
+                      <Badge s={t.pri} />
+                    </td>
+                    <td style={{ ...TD, color: C.t3 }}>{t.due}</td>
+                    <td style={TD}>
+                      <Badge s={t.st} />
+                    </td>
+                    <td style={TD}>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: 'rgba(0,180,216,.12)', color: C.cyan, border: '1px solid rgba(0,180,216,.3)' }}>{t.sec}</span>
+                    </td>
+                    <td style={{ ...TD, fontSize: 10, color: C.t4 }}>
+                      {t.createdBy ? `${t.createdBy} · ` : ''}
+                      {t.updatedAt ? fmtShortDt(t.updatedAt) : tr('opsModalDash')}
+                      {t.archivedAt ? ` · ${tr('opsArchived')}` : ''}
+                    </td>
+                    {canEdit && (
+                      <td style={TD}>
+                        <button
+                          type="button"
+                          onClick={() => setModal({ type: 'project-edit', data: t })}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--purple)', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', marginRight: 8 }}
+                        >
+                          {tr('edit')}
+                        </button>
+                        {!t.archivedAt && onArchiveProject && (
+                          <button
+                            type="button"
+                            onClick={() => onArchiveProject(t)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t3, fontSize: 12, fontWeight: 700, fontFamily: 'inherit', marginRight: 8 }}
+                          >
+                            {tr('opsBtnArchive')}
+                          </button>
+                        )}
+                        {t.archivedAt && onUnarchiveProject && (
+                          <button
+                            type="button"
+                            onClick={() => onUnarchiveProject(t)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.green, fontSize: 12, fontWeight: 700, fontFamily: 'inherit', marginRight: 8 }}
+                          >
+                            {tr('opsBtnUnarchive')}
+                          </button>
+                        )}
+                        {canDeleteOpsProject(t) && (
+                          <button type="button" onClick={() => onDeleteOpsProject(t)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.red, fontSize: 12, fontWeight: 700, fontFamily: 'inherit' }}>
+                            {tr('opsBtnDel')}
+                          </button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 )
               })}
@@ -1252,12 +1726,27 @@ function ModalSupplier({ initial, onClose, onSave }) {
   )
 }
 
-function ModalTask({ initial, onClose, onSave, onAddProgress }) {
-  const [f, setF] = useState(() => normalizeOpsTaskForm(initial))
+function ModalProject({
+  initial,
+  onClose,
+  onSave,
+  onAddProgress,
+  assigneeGroups = [],
+  isDepartmentUser,
+  allOpsProjects = [],
+  token,
+  showToast,
+  onProjectPatched,
+  onArchive,
+  onUnarchive,
+  onServerTemplatesInvalidate,
+}) {
+  const { t: lt } = useLanguage()
+  const [f, setF] = useState(() => normalizeOpsProjectForm(initial))
   const [progressNote, setProgressNote] = useState('')
   const [progressBusy, setProgressBusy] = useState(false)
-  const s = k => e => setF(p => ({...p,[k]:e.target.value}))
-  const isEdit = !!initial
+  const s = k => e => setF((p) => ({ ...p, [k]: e.target.value }))
+  const isEdit = !!(initial && initial.id)
 
   const sortedComments = useMemo(() => {
     const list = [...(f.comments || [])]
@@ -1279,44 +1768,426 @@ function ModalTask({ initial, onClose, onSave, onAddProgress }) {
   }
 
   return (
-    <Modal title={isEdit ? 'Edit Task' : 'Add Task'} sub={isEdit ? 'Update task details' : 'Create a new operations task'} onClose={onClose} onSave={() => f.title.trim() && onSave(f)} saveLabel={isEdit ? 'Save Changes' : 'Add Task'}>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-        <div><ML>Task Title</ML><MI value={f.title} onChange={s('title')} placeholder="Short title" /></div>
-        <div><ML>Assigned To</ML><MI value={f.assign} onChange={s('assign')} placeholder="Team member" /></div>
-      </div>
-      <ML>Description</ML>
-      <MTA value={f.desc} onChange={s('desc')} placeholder="Project / task details..." />
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-        <div><ML>Priority</ML><MS value={f.pri} onChange={s('pri')}>{['High','Medium','Low'].map(o=><option key={o}>{o}</option>)}</MS></div>
-        <div><ML>Due Date</ML><input type="date" value={f.due} onChange={s('due')} style={IS} /></div>
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+    <Modal
+      title={isEdit ? lt('opsModalTitleEdit') : lt('opsModalTitleAdd')}
+      sub={isEdit ? lt('opsModalSubEdit') : lt('opsModalSubAdd')}
+      onClose={onClose}
+      onSave={() => f.title.trim() && onSave(f)}
+      saveLabel={isEdit ? lt('opsModalSaveChanges') : lt('opsModalSaveAdd')}
+    >
+      {isEdit && initial?.archivedAt && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: '10px 12px',
+            borderRadius: 8,
+            background: 'rgba(148, 163, 184, 0.12)',
+            border: `1px solid ${C.border}`,
+          }}
+        >
+          <div style={{ fontSize: 11, color: C.t2, lineHeight: 1.45, marginBottom: 8 }}>{lt('opsArchivedProjectBanner')}</div>
+          {onUnarchive && (
+            <button type="button" onClick={() => onUnarchive({ id: f.id, title: f.title })} style={{ ...B.succ, ...B.sm }}>
+              {lt('opsBtnUnarchive')}
+            </button>
+          )}
+        </div>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div>
-          <ML>Linked Section</ML>
-          <MS value={f.sec} onChange={s('sec')}>
-            {!OPS_LINKED_SECTION_OPTS.includes(f.sec) && f.sec ? <option value={f.sec}>{f.sec}</option> : null}
-            {OPS_LINKED_SECTION_OPTS.map(o => <option key={o} value={o}>{o}</option>)}
+          <ML>{lt('opsModalFieldTitle')}</ML>
+          <MI value={f.title} onChange={s('title')} placeholder={lt('opsModalPlaceholderShortTitle')} />
+        </div>
+        <div>
+          <ML>{lt('opsModalFieldAssign')}</ML>
+          {assigneeGroups.length > 0 ? (
+            <div style={{ marginBottom: 12 }}>
+              <AccountCombobox
+                groups={assigneeGroups}
+                value={f.assignToId || ''}
+                disabled={Boolean(isDepartmentUser && !isEdit)}
+                placeholder={lt('opsModalAssignSearchPlaceholder')}
+                style={{ ...IS, marginBottom: 0 }}
+                onChange={(id, label) => setF((p) => ({ ...p, assignToId: id || '', assign: label || '' }))}
+              />
+            </div>
+          ) : (
+            <MI
+              value={f.assign}
+              onChange={s('assign')}
+              placeholder={lt('opsModalAssignManualPlaceholder')}
+              disabled={Boolean(isDepartmentUser && !isEdit)}
+            />
+          )}
+        </div>
+      </div>
+      <ML>{lt('opsModalFieldDescription')}</ML>
+      <MTA value={f.desc} onChange={s('desc')} placeholder={lt('opsModalDescPlaceholder')} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div>
+          <ML>{lt('opsModalFieldPriority')}</ML>
+          <MS value={f.pri} onChange={s('pri')}>
+            {[
+              ['Critical', 'opsPriCritical'],
+              ['High', 'opsPriHigh'],
+              ['Medium', 'opsPriMedium'],
+              ['Low', 'opsPriLow'],
+            ].map(([val, k]) => (
+              <option key={val} value={val}>
+                {lt(k)}
+              </option>
+            ))}
           </MS>
         </div>
-        <div><ML>Status</ML><MS value={f.st} onChange={s('st')}>{['To Do','In Progress','Blocked','Done'].map(o=><option key={o}>{o}</option>)}</MS></div>
+        <div>
+          <ML>{lt('opsModalFieldDue')}</ML>
+          <input type="date" value={f.due} onChange={s('due')} style={IS} />
+        </div>
       </div>
-      {isEdit && f.id && onAddProgress && (
-        <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
-          <div style={{ fontSize:12, fontWeight:800, color:C.t1, marginBottom:8 }}>Progress updates</div>
-          <div style={{ maxHeight:180, overflowY:'auto', marginBottom:10, display:'flex', flexDirection:'column', gap:8 }}>
-            {sortedComments.length === 0 && <div style={{ fontSize:11, color:C.t4 }}>No updates yet.</div>}
-            {sortedComments.map((c, i) => (
-              <div key={c._id || `${c.createdAt}-${i}`} style={{ fontSize:11, background:'rgba(0,0,0,.03)', border:`1px solid ${C.border}`, borderRadius:8, padding:'8px 10px' }}>
-                <div style={{ fontWeight:700, color:C.t2, marginBottom:2 }}>{c.author || '—'}</div>
-                <div style={{ fontSize:10, color:C.t4, marginBottom:4 }}>{c.createdAt ? new Date(c.createdAt).toLocaleString() : ''}</div>
-                <div style={{ color:C.t3, lineHeight:1.45, whiteSpace:'pre-wrap' }}>{c.text}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div>
+          <ML>{lt('opsModalFieldLinked')}</ML>
+          <MS value={f.sec} onChange={s('sec')}>
+            {!OPS_LINKED_SECTION_OPTS.includes(f.sec) && f.sec ? <option value={f.sec}>{f.sec}</option> : null}
+            {OPS_LINKED_SECTION_OPTS.map((o) => (
+              <option key={o} value={o}>
+                {lt(OPS_LINKED_LABEL_KEY[o])}
+              </option>
+            ))}
+          </MS>
+        </div>
+        <div>
+          <ML>{lt('opsModalFieldStatus')}</ML>
+          <MS value={f.st} onChange={s('st')}>
+            {[
+              ['To Do', 'opsStatusTodo'],
+              ['In Progress', 'opsStatusInProgress'],
+              ['Under review', 'opsStatusUnderReview'],
+              ['Blocked', 'opsStatusBlocked'],
+              ['Done', 'opsStatusDone'],
+            ].map(([val, k]) => (
+              <option key={val} value={val}>
+                {lt(k)}
+              </option>
+            ))}
+          </MS>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div>
+          <ML>{lt('opsModalFieldReminder')}</ML>
+          <input type="datetime-local" value={f.reminderAt || ''} onChange={s('reminderAt')} style={IS} />
+        </div>
+        <div>
+          <ML>{lt('opsModalFieldHours')}</ML>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <MI
+              type="number"
+              min="0"
+              step="0.25"
+              value={f.estimateHours}
+              onChange={s('estimateHours')}
+              placeholder={lt('opsModalHoursEst')}
+              style={{ ...IS, marginBottom: 0 }}
+            />
+            <MI
+              type="number"
+              min="0"
+              step="0.25"
+              value={f.loggedHours}
+              onChange={s('loggedHours')}
+              placeholder={lt('opsModalHoursLogged')}
+              style={{ ...IS, marginBottom: 0 }}
+            />
+          </div>
+        </div>
+      </div>
+      <ML>{lt('opsModalFieldTags')}</ML>
+      <MI
+        value={(f.tags || []).join(', ')}
+        onChange={(e) => {
+          const parts = e.target.value
+            .split(',')
+            .map((x) => x.trim())
+            .filter(Boolean)
+            .slice(0, 20)
+          setF((p) => ({ ...p, tags: parts }))
+        }}
+        placeholder={lt('opsModalTagsPlaceholder')}
+      />
+      {f.st === 'Blocked' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <ML>{lt('opsModalBlockedReason')}</ML>
+            <MI value={f.blockedReason} onChange={s('blockedReason')} placeholder={lt('opsModalBlockedReasonPh')} />
+          </div>
+          <div>
+            <ML>{lt('opsModalBlockedBy')}</ML>
+            <MS value={f.blockedByTaskId || ''} onChange={s('blockedByTaskId')}>
+              <option value="">{lt('opsModalNoneDash')}</option>
+              {allOpsProjects
+                .filter((t) => t.id !== f.id)
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {(t.title || '').slice(0, 60)}
+                  </option>
+                ))}
+            </MS>
+          </div>
+        </div>
+      )}
+      <ML>{lt('opsModalChecklistHeading')}</ML>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+        {(f.checklist || []).map((row, idx) => (
+          <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="checkbox"
+              checked={Boolean(row.done)}
+              onChange={(e) =>
+                setF((p) => ({
+                  ...p,
+                  checklist: (p.checklist || []).map((c, i) => (i === idx ? { ...c, done: e.target.checked } : c)),
+                }))
+              }
+            />
+            <MI
+              value={row.title}
+              onChange={(e) =>
+                setF((p) => ({
+                  ...p,
+                  checklist: (p.checklist || []).map((c, i) => (i === idx ? { ...c, title: e.target.value } : c)),
+                }))
+              }
+              placeholder={lt('opsModalChecklistStepPh')}
+              style={{ ...IS, marginBottom: 0, flex: 1 }}
+            />
+            <button
+              type="button"
+              onClick={() => setF((p) => ({ ...p, checklist: (p.checklist || []).filter((_c, i) => i !== idx) }))}
+              style={{ ...B.ghost, ...B.sm }}
+              aria-label={lt('opsModalRemoveChecklistItem')}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() =>
+            setF((p) => ({
+              ...p,
+              checklist: [...(p.checklist || []), { title: '', done: false, order: (p.checklist || []).length }],
+            }))
+          }
+          style={{ ...B.sec, ...B.sm, alignSelf: 'flex-start' }}
+        >
+          {lt('opsModalChecklistAdd')}
+        </button>
+      </div>
+      <ML>{lt('opsModalDependsOn')}</ML>
+      <select
+        multiple
+        size={Math.min(6, Math.max(3, (allOpsProjects || []).filter((t) => t.id !== f.id).length))}
+        value={f.dependsOn || []}
+        onChange={(e) => {
+          const values = Array.from(e.target.selectedOptions).map((o) => o.value)
+          setF((p) => ({ ...p, dependsOn: values }))
+        }}
+        style={{ ...IS, minHeight: 72, marginBottom: 12 }}
+      >
+        {(allOpsProjects || [])
+          .filter((t) => t.id !== f.id)
+          .map((t) => (
+            <option key={t.id} value={t.id}>
+              {(t.title || '').slice(0, 80)}
+            </option>
+          ))}
+      </select>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div>
+          <ML>{lt('opsModalNotifyMessage')}</ML>
+          <MI value={f.notifyText} onChange={s('notifyText')} placeholder={lt('opsModalNotifyPlaceholder')} />
+        </div>
+        <div>
+          <ML>{lt('opsModalAlsoNotify')}</ML>
+          <select
+            multiple
+            className="ops-also-notify"
+            value={f.alsoNotifyIds || []}
+            onChange={(e) => {
+              const values = Array.from(e.target.selectedOptions).map((o) => o.value)
+              const opts = assigneeGroups[0]?.options || []
+              const names = opts.filter((o) => values.includes(String(o.value))).map((o) => o.label)
+              setF((p) => ({ ...p, alsoNotifyIds: values, alsoNotifyNames: names }))
+            }}
+            style={{ ...IS, minHeight: 72, marginBottom: 0 }}
+          >
+            {(assigneeGroups[0]?.options || [])
+              .filter((o) => String(o.value) !== String(f.assignToId || ''))
+              .map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+          </select>
+        </div>
+      </div>
+      {isEdit && f.id && token && (
+        <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+          <ML>{lt('opsModalAttachments')}</ML>
+          <input
+            type="file"
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              try {
+                const res = await projectsAPI.uploadProjectAttachment(token, f.id, file)
+                if (res.project) {
+                  const row = mapApiTaskToOpsRow(res.project)
+                  setF(normalizeOpsProjectForm(row))
+                  onProjectPatched?.(row)
+                }
+                showToast?.(lt('opsModalUploadedTitle'), file.name)
+              } catch {
+                showToast?.(lt('error'), lt('opsModalUploadFailed'))
+              }
+              e.target.value = ''
+            }}
+            style={{ fontSize: 12, marginBottom: 8 }}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(f.attachments || []).map((a) => (
+              <div key={a.fileName} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: C.t2 }}>
+                <a href={a.url || `#`} target="_blank" rel="noreferrer" style={{ color: 'var(--purple)' }}>
+                  {a.originalName || a.fileName}
+                </a>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!window.confirm(lt('opsModalRemoveFileConfirm'))) return
+                    try {
+                      const res = await projectsAPI.deleteProjectAttachment(token, f.id, a.fileName)
+                      if (res.project) {
+                        const row = mapApiTaskToOpsRow(res.project)
+                        setF(normalizeOpsProjectForm(row))
+                        onProjectPatched?.(row)
+                      }
+                      showToast?.(lt('opsModalRemovedTitle'), a.originalName || '')
+                    } catch {
+                      showToast?.(lt('error'), lt('opsModalDeleteFailed'))
+                    }
+                  }}
+                  style={{ ...B.ghost, ...B.sm }}
+                >
+                  {lt('opsModalRemove')}
+                </button>
               </div>
             ))}
           </div>
-          <ML>Add progress update</ML>
-          <MTA value={progressNote} onChange={e => setProgressNote(e.target.value)} placeholder="What changed?" />
-          <div style={{ marginTop:8 }}>
-            <button type="button" disabled={progressBusy || !progressNote.trim()} onClick={handleAddProgress} style={{ ...B.pri, ...B.sm, opacity: progressBusy || !progressNote.trim() ? 0.5 : 1 }}>{progressBusy ? 'Saving…' : 'Log update'}</button>
+        </div>
+      )}
+      {isEdit && onArchive && !initial?.archivedAt && (
+        <div style={{ marginTop: 8 }}>
+          <button type="button" onClick={() => onArchive(f)} style={{ ...B.warn, ...B.sm }}>
+            {lt('opsModalArchive')}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                const name = window.prompt(lt('opsModalTemplateNamePrompt'), f.title?.slice(0, 40) || lt('opsModalMyTemplate'))
+                if (!name) return
+                const prev = readOpsTemplatesFromStorage()
+                const next = [
+                  {
+                    name,
+                    fields: {
+                      title: f.title,
+                      desc: f.desc,
+                      sec: f.sec,
+                      pri: f.pri,
+                      st: f.st,
+                      tags: f.tags,
+                      checklist: f.checklist,
+                      alsoNotifyIds: f.alsoNotifyIds,
+                      alsoNotifyNames: f.alsoNotifyNames,
+                    },
+                  },
+                  ...(Array.isArray(prev) ? prev : []),
+                ].slice(0, 20)
+                localStorage.setItem(OPS_TEMPLATES_KEY, JSON.stringify(next))
+                showToast?.(lt('opsModalTemplateSavedLocal'), `"${name}"`)
+              } catch {
+                showToast?.(lt('error'), lt('opsModalTemplateLocalError'))
+              }
+            }}
+            style={{ ...B.sec, ...B.sm, marginLeft: 8 }}
+          >
+            {lt('opsModalSaveLocalTemplate')}
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              const name = window.prompt(lt('opsModalTemplateNamePrompt'), f.title?.slice(0, 40) || lt('opsModalMyTemplate'))
+              if (!name?.trim() || !token) return
+              try {
+                await projectsAPI.createTaskTemplate({
+                  name: name.trim(),
+                  defaults: {
+                    title: f.title,
+                    description: f.desc,
+                    linkedRecord: f.sec,
+                    status: uiStToApiStatus(f.st),
+                    priority: uiPriToApi(f.pri),
+                    tags: f.tags,
+                    checklist: (f.checklist || [])
+                      .filter((c) => c && String(c.title || '').trim())
+                      .map((c, i) => ({
+                        title: String(c.title).trim(),
+                        done: Boolean(c.done),
+                        order: typeof c.order === 'number' ? c.order : i,
+                      })),
+                  },
+                })
+                showToast?.(lt('opsModalTemplateSavedTeam'), name.trim())
+                onServerTemplatesInvalidate?.()
+              } catch {
+                showToast?.(lt('error'), lt('opsModalTemplateTeamError'))
+              }
+            }}
+            style={{ ...B.sec, ...B.sm, marginLeft: 8 }}
+          >
+            {lt('opsModalSaveTeamTemplate')}
+          </button>
+        </div>
+      )}
+      {isEdit && f.id && onAddProgress && (
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: C.t1, marginBottom: 8 }}>{lt('opsModalProgressHeading')}</div>
+          <div style={{ maxHeight: 180, overflowY: 'auto', marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {sortedComments.length === 0 && <div style={{ fontSize: 11, color: C.t4 }}>{lt('opsModalNoProgressYet')}</div>}
+            {sortedComments.map((c, i) => (
+              <div
+                key={c._id || `${c.createdAt}-${i}`}
+                style={{ fontSize: 11, background: 'rgba(0,0,0,.03)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px' }}
+              >
+                <div style={{ fontWeight: 700, color: C.t2, marginBottom: 2 }}>{c.author || lt('opsModalDash')}</div>
+                <div style={{ fontSize: 10, color: C.t4, marginBottom: 4 }}>{c.createdAt ? new Date(c.createdAt).toLocaleString() : ''}</div>
+                <div style={{ color: C.t3, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{c.text}</div>
+              </div>
+            ))}
+          </div>
+          <ML>{lt('opsModalAddProgressLabel')}</ML>
+          <MTA value={progressNote} onChange={(e) => setProgressNote(e.target.value)} placeholder={lt('opsModalProgressPlaceholder')} />
+          <div style={{ marginTop: 8 }}>
+            <button
+              type="button"
+              disabled={progressBusy || !progressNote.trim()}
+              onClick={handleAddProgress}
+              style={{ ...B.pri, ...B.sm, opacity: progressBusy || !progressNote.trim() ? 0.5 : 1 }}
+            >
+              {progressBusy ? lt('saving') : lt('opsModalLogProgress')}
+            </button>
           </div>
         </div>
       )}
@@ -1571,21 +2442,62 @@ export default function OperationsTab() {
 
     useEffect(() => { loadInventory() }, [loadInventory])
   const [tasks, setTasks] = useState([])
+  const [showArchivedOpsProjects, setShowArchivedOpsProjects] = useState(false)
+  const [taskAssignees, setTaskAssignees] = useState([])
+  const [serverTemplateRefreshKey, setServerTemplateRefreshKey] = useState(0)
+  const bumpServerTemplates = useCallback(() => setServerTemplateRefreshKey((k) => k + 1), [])
 
-  const loadOpsTasks = useCallback(async () => {
+  const loadOpsProjects = useCallback(async () => {
     if (!token) return
     try {
-      const data = await tasksAPI.getTasks(token)
-      const list = data.tasks || []
+      const data = await projectsAPI.getProjects(token)
+      const list = data.projects || []
       const arr = Array.isArray(list) ? list : []
-      const ops = arr.filter((t) => String(t.department || '').toLowerCase() === OPS_TASK_DEPT)
+      const ops = arr.filter((t) => String(t.department || '').toLowerCase() === OPS_PROJECTS_DEPT)
       setTasks(ops.map(mapApiTaskToOpsRow))
     } catch {
       setTasks([])
     }
   }, [token])
 
-  useEffect(() => { loadOpsTasks() }, [loadOpsTasks])
+  useEffect(() => { loadOpsProjects() }, [loadOpsProjects])
+
+  const loadProjectAssignees = useCallback(async () => {
+    if (!token) return
+    try {
+      const isSuperAdmin = user?.role === 'super_admin'
+      const [usersRes, employeesRes] = await Promise.allSettled([
+        isSuperAdmin ? authAPI.getUsers(token) : Promise.resolve({ users: [] }),
+        hrAPI.getEmployees(token),
+      ])
+      const userList =
+        usersRes.status === 'fulfilled' ? (usersRes.value.users || []).map((u) => ({ id: u.id || u._id, name: u.name, department: u.department || '' })) : []
+      const employeeList =
+        employeesRes.status === 'fulfilled' ? (employeesRes.value.employees || []).map((e) => ({ id: e._id, name: e.name, department: e.department || '' })) : []
+      const taskNames = Array.from(new Set(tasks.map((t) => t.assign).filter(Boolean))).map((name) => ({ id: name, name, department: '' }))
+      const merged = [...userList, ...employeeList, ...taskNames]
+      const uniqueByName = []
+      const seen = new Set()
+      merged.forEach((p) => {
+        const key = (p.name || '').toLowerCase().trim()
+        if (!key || seen.has(key)) return
+        seen.add(key)
+        uniqueByName.push(p)
+      })
+      setTaskAssignees(uniqueByName)
+    } catch {
+      setTaskAssignees([])
+    }
+  }, [token, user?.role, tasks])
+
+  useEffect(() => {
+    if (token && activeTab === 'projects') loadProjectAssignees()
+  }, [token, activeTab, loadProjectAssignees])
+
+  const assigneeGroups = useMemo(() => {
+    if (!taskAssignees.length) return []
+    return [{ label: 'Team', options: taskAssignees.map((a) => ({ value: String(a.id), label: a.name })) }]
+  }, [taskAssignees])
   const [checklist, setChecklist] = useState(USE_SEED_DATA ? INIT_CHECKLIST : [])
   const [notifs,    setNotifs]    = useState(USE_SEED_DATA ? INIT_NOTIFS : [])
   const [modal,     setModal]     = useState({ type:null, data:null })
@@ -1608,30 +2520,30 @@ export default function OperationsTab() {
     setSuppliers(p => p.map(x => x.id===f.id ? { ...x, ...f } : x))
     closeModal(); showToast('Supplier Updated', f.name + ' updated')
   }
-  async function addTask(f) {
+  async function createOpsProject(f) {
     try {
-      const res = await tasksAPI.createTask(token, buildOpsCreatePayload(f))
-      const row = mapApiTaskToOpsRow(res.task)
+      const res = await projectsAPI.createProject(token, buildOpsCreatePayload(f))
+      const row = mapApiTaskToOpsRow(res.project)
       setTasks((p) => [row, ...p])
       closeModal()
-      showToast('Task Added', `${f.title.trim()} added`)
+      showToast('Project added', `${f.title.trim()} added`)
     } catch {
-      showToast('Error', 'Failed to create task')
+      showToast('Error', 'Failed to create project')
     }
   }
-  async function editTask(f) {
+  async function updateOpsProject(f) {
     try {
-      const res = await tasksAPI.updateTask(token, f.id, buildOpsUpdatePayload(f))
-      const row = mapApiTaskToOpsRow(res.task)
+      const res = await projectsAPI.updateProject(token, f.id, buildOpsUpdatePayload(f))
+      const row = mapApiTaskToOpsRow(res.project)
       setTasks((p) => p.map((x) => (x.id === row.id ? row : x)))
       closeModal()
-      showToast('Task Updated', `${f.title} updated`)
+      showToast('Project updated', `${f.title} updated`)
     } catch {
-      showToast('Error', 'Failed to update task')
+      showToast('Error', 'Failed to update project')
     }
   }
 
-  const canDeleteOpsTask = (row) => {
+  const canDeleteOpsProject = (row) => {
     const taskApi = row?._api
     if (!taskApi) return false
     if (isAdmin || isHead) return true
@@ -1641,30 +2553,65 @@ export default function OperationsTab() {
     return isUser && createdByMe
   }
 
-  async function deleteOpsTask(row) {
-    if (!window.confirm(`Delete task "${row.title}"?`)) return
+  async function deleteOpsProject(row) {
+    if (!window.confirm(`Delete project "${row.title}"?`)) return
     try {
-      await tasksAPI.deleteTask(token, row.id)
+      await projectsAPI.deleteProject(token, row.id)
       setTasks((p) => p.filter((x) => x.id !== row.id))
       closeModal()
-      showToast('Deleted', 'Task removed')
+      showToast('Deleted', 'Project removed')
     } catch {
-      showToast('Error', 'Failed to delete task')
+      showToast('Error', 'Failed to delete project')
     }
   }
 
-  async function addTaskProgress(taskId, text) {
+  async function addOpsProjectProgress(taskId, text) {
     const trimmed = String(text || '').trim()
     if (!trimmed) return
     try {
-      const res = await tasksAPI.addComment(token, taskId, trimmed)
-      const row = mapApiTaskToOpsRow(res.task)
+      const res = await projectsAPI.addProjectComment(token, taskId, trimmed)
+      const row = mapApiTaskToOpsRow(res.project)
       setTasks((p) => p.map((x) => (x.id === row.id ? row : x)))
-      setModal((prev) => (prev.type === 'task-edit' && prev.data?.id === taskId ? { type: 'task-edit', data: row } : prev))
+      setModal((prev) => (prev.type === 'project-edit' && prev.data?.id === taskId ? { type: 'project-edit', data: row } : prev))
       showToast('Progress logged', 'Update saved')
     } catch (e) {
       showToast('Error', 'Failed to add progress update')
       throw e
+    }
+  }
+
+  function mergeOpsProjectPatched(row) {
+    setTasks((p) => p.map((x) => (x.id === row.id ? row : x)))
+    setModal((prev) => (prev.type === 'project-edit' && prev.data?.id === row.id ? { type: 'project-edit', data: row } : prev))
+  }
+
+  async function unarchiveOpsProjectRow(row) {
+    if (!row?.id || !window.confirm(`${t('opsUnarchiveConfirm')} "${row.title}"?`)) return
+    try {
+      await projectsAPI.updateProject(token, row.id, {
+        archivedAt: null,
+        notifyText: `${user?.name || 'User'} restored ${row.title} from archive`,
+      })
+      await loadOpsProjects()
+      setModal((prev) => (prev.data?.id === row.id ? { type: null, data: null } : prev))
+      showToast(t('opsUnarchiveToastTitle'), row.title)
+    } catch {
+      showToast('Error', 'Failed to unarchive')
+    }
+  }
+
+  async function archiveOpsProjectRow(row) {
+    if (!row?.id || !window.confirm(`Archive project "${row.title}"?`)) return
+    try {
+      await projectsAPI.updateProject(token, row.id, {
+        archivedAt: new Date().toISOString(),
+        notifyText: `${user?.name || 'User'} archived ${row.title}`,
+      })
+      await loadOpsProjects()
+      setModal((prev) => (prev.data?.id === row.id ? { type: null, data: null } : prev))
+      showToast('Archived', row.title)
+    } catch {
+      showToast('Error', 'Failed to archive')
     }
   }
   function addIncident(f) {
@@ -1739,7 +2686,7 @@ export default function OperationsTab() {
   }
 
   const unreadCount = notifs.filter(n => !n.read).length
-  const shared = { suppliers, setSuppliers, gold, setGold, routes, setRoutes, secVendors, setSecVendors, incidents, setIncidents, vendors, setVendors, inventory, setInventory, tasks, setTasks, checklist, setChecklist, canEdit, isAdmin, isHead, isMgmt, isUser, isExternal, showToast, setModal, onDeleteOpsTask: deleteOpsTask, canDeleteOpsTask }
+  const shared = { suppliers, setSuppliers, gold, setGold, routes, setRoutes, secVendors, setSecVendors, incidents, setIncidents, vendors, setVendors, inventory, setInventory, tasks, setTasks, checklist, setChecklist, canEdit, isAdmin, isHead, isMgmt, isUser, isExternal, showToast, setModal, onDeleteOpsProject: deleteOpsProject, canDeleteOpsProject }
 
   return (
     <ModuleTabColumn style={{ fontFamily: 'inherit', color: C.t1 }}>
@@ -1772,12 +2719,52 @@ export default function OperationsTab() {
       {activeTab === 'inventory' && <TabInventory  {...shared} onDeleteInventory={deleteInventoryItem} />}
       {activeTab === 'map'       && <TabMap        {...shared} />}
       {activeTab === 'analytics' && <TabAnalytics  {...shared} />}
-      {activeTab === 'tasks'     && <TabTasks      {...shared} onOpenAdd={() => setModal({ type:'task-add', data:null })} />}
+      {activeTab === 'projects'     && (
+        <TabProjects
+          {...shared}
+          showArchived={showArchivedOpsProjects}
+          setShowArchived={setShowArchivedOpsProjects}
+          onOpenAdd={() => setModal({ type: 'project-add', data: null })}
+          onArchiveProject={archiveOpsProjectRow}
+          onUnarchiveProject={unarchiveOpsProjectRow}
+          serverTemplateRefreshKey={serverTemplateRefreshKey}
+        />
+      )}
 
       {modal.type === 'supplier-add'   && <ModalSupplier      onClose={closeModal} onSave={addSupplier} />}
       {modal.type === 'supplier-edit'  && <ModalSupplier      initial={modal.data} onClose={closeModal} onSave={editSupplier} />}
-      {modal.type === 'task-add'       && <ModalTask key="ops-task-add" onClose={closeModal} onSave={addTask} />}
-      {modal.type === 'task-edit'      && <ModalTask key={`ops-task-edit-${modal.data?.id}-${(modal.data?.comments || []).length}`} initial={modal.data} onClose={closeModal} onSave={editTask} onAddProgress={addTaskProgress} />}
+      {modal.type === 'project-add'       && (
+        <ModalProject
+          key={`ops-project-add-${modal.data ? JSON.stringify(modal.data) : 'empty'}`}
+          initial={modal.data}
+          onClose={closeModal}
+          onSave={createOpsProject}
+          assigneeGroups={assigneeGroups}
+          isDepartmentUser={isUser}
+          allOpsProjects={tasks}
+          token={token}
+          showToast={showToast}
+          onServerTemplatesInvalidate={bumpServerTemplates}
+        />
+      )}
+      {modal.type === 'project-edit'      && (
+        <ModalProject
+          key={`ops-project-edit-${modal.data?.id}-${(modal.data?.comments || []).length}`}
+          initial={modal.data}
+          onClose={closeModal}
+          onSave={updateOpsProject}
+          onAddProgress={addOpsProjectProgress}
+          assigneeGroups={assigneeGroups}
+          isDepartmentUser={isUser}
+          allOpsProjects={tasks}
+          token={token}
+          showToast={showToast}
+          onProjectPatched={mergeOpsProjectPatched}
+          onArchive={(ff) => archiveOpsProjectRow({ id: ff.id, title: ff.title })}
+          onUnarchive={(ff) => unarchiveOpsProjectRow({ id: ff.id, title: ff.title })}
+          onServerTemplatesInvalidate={bumpServerTemplates}
+        />
+      )}
       {modal.type === 'incident-add'   && <ModalIncident      onClose={closeModal} onSave={addIncident} />}
       {modal.type === 'incident-edit'  && <ModalIncident      initial={modal.data} onClose={closeModal} onSave={editIncident} />}
       {modal.type === 'gold-add'       && <ModalGoldChannel   onClose={closeModal} onSave={addGold} />}

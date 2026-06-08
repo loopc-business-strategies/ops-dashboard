@@ -1309,7 +1309,7 @@
     "frontend/src/api/finance.js",
     "frontend/src/api/hr.js",
     "frontend/src/api/messages.js",
-    "frontend/src/api/tasks.js",
+    "frontend/src/api/projects.js",
     "frontend/src/api/training.js"
   ],
   "architecture": {

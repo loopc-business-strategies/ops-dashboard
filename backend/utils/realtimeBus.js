@@ -6,7 +6,7 @@ bus.setMaxListeners(200)
 const publishRealtimeEvent = (payload = {}) => {
   const event = {
     type: String(payload.type || '').trim() || 'unknown',
-    tenant: String(payload.tenant || '').trim() || 'default',
+    tenant: String(payload.tenant || '').trim().toLowerCase() || 'default',
     time: new Date().toISOString(),
     data: payload.data || {},
   }

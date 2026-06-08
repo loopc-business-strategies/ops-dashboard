@@ -32,7 +32,7 @@ for (const tenant of TENANTS) {
 const ENDPOINTS = [
   '/api/auth/me',
   '/api/hr/employees',
-  '/api/tasks',
+  '/api/projects',
   '/api/attendance/summary',
   '/api/messages/latest?type=all&limit=5',
   '/api/crm/dashboard',

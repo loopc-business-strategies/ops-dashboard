@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
-import tasksAPI from '../../api/tasks'
+import projectsAPI from '../../api/projects'
 import authAPI from '../../api/auth'
 import hrAPI from '../../api/hr'
 import attendanceAPI from '../../api/attendance'
@@ -271,7 +271,7 @@ function OverviewTab({ onNavigate }) {
   const [attendanceStatusFilter, setAttendanceStatusFilter] = useState('all')
   const [attendanceSearch, setAttendanceSearch] = useState('')
   const [ackedAlerts, setAckedAlerts] = useState({})
-  const tasksSectionRef = useRef(null)
+  const projectsSectionRef = useRef(null)
   const messagesSectionRef = useRef(null)
   const highlightTimerRef = useRef(null)
   const [highlightTarget, setHighlightTarget] = useState('')
@@ -345,31 +345,31 @@ function OverviewTab({ onNavigate }) {
   const runTaskShortcut = (kind) => {
     if (kind === 'create') {
       if (!canCreateTasks) {
-        showToast('Task creation is disabled for this role')
+        showToast('Project creation is disabled for this role')
       } else {
         openTaskComposer()
       }
       setTaskView('list')
-      focusSection(tasksSectionRef)
-      highlightSection('tasks')
+      focusSection(projectsSectionRef)
+      highlightSection('projects')
       return
     }
 
     if (kind === 'my') {
       setTaskView('list')
       setTaskFilter('my')
-      focusSection(tasksSectionRef)
-      highlightSection('tasks')
-      showToast('Showing My Tasks')
+      focusSection(projectsSectionRef)
+      highlightSection('projects')
+      showToast('Showing My Projects')
       return
     }
 
     if (kind === 'overdue') {
       setTaskView('list')
       setTaskFilter('overdue')
-      focusSection(tasksSectionRef)
-      highlightSection('tasks')
-      showToast('Showing Overdue Tasks')
+      focusSection(projectsSectionRef)
+      highlightSection('projects')
+      showToast('Showing Overdue Projects')
       return
     }
 
@@ -384,8 +384,8 @@ function OverviewTab({ onNavigate }) {
   const loadTasks = async () => {
     setLoadingTasks(true)
     try {
-      const data = await tasksAPI.getTasks(token)
-      setTasks(data.tasks || [])
+      const data = await projectsAPI.getProjects(token)
+      setTasks(data.projects || [])
     } catch {
       setTasks([])
     } finally {
@@ -505,6 +505,7 @@ function OverviewTab({ onNavigate }) {
     source.addEventListener('task.updated', onTaskEvent)
     source.addEventListener('task.deleted', onTaskEvent)
     source.addEventListener('task.commented', onTaskEvent)
+    source.addEventListener('task.reminder_due', onTaskEvent)
     source.addEventListener('message.created', onMessageEvent)
 
     return () => {
@@ -512,6 +513,7 @@ function OverviewTab({ onNavigate }) {
       source.removeEventListener('task.updated', onTaskEvent)
       source.removeEventListener('task.deleted', onTaskEvent)
       source.removeEventListener('task.commented', onTaskEvent)
+      source.removeEventListener('task.reminder_due', onTaskEvent)
       source.removeEventListener('message.created', onMessageEvent)
       source.close()
     }
@@ -722,9 +724,9 @@ function OverviewTab({ onNavigate }) {
       }
 
       if (editingTaskId) {
-        await tasksAPI.updateTask(token, editingTaskId, payload)
+        await projectsAPI.updateProject(token, editingTaskId, payload)
       } else {
-        await tasksAPI.createTask(token, payload)
+        await projectsAPI.createProject(token, payload)
       }
       await loadTasks()
       await loadAttendanceAndMessages()
@@ -740,7 +742,7 @@ function OverviewTab({ onNavigate }) {
 
   const onTaskStatusChange = async (task, status) => {
     try {
-      await tasksAPI.updateTask(token, task._id, { status, notifyText: `${user?.name || 'User'} changed task status to ${statusLabel(status)}` })
+      await projectsAPI.updateProject(token, task._id, { status, notifyText: `${user?.name || 'User'} changed task status to ${statusLabel(status)}` })
       setTasks((prev) => prev.map((t) => (t._id === task._id ? { ...t, status } : t)))
       await loadAttendanceAndMessages()
       showToast('Task status updated')
@@ -757,7 +759,7 @@ function OverviewTab({ onNavigate }) {
     const text = (commentText[task._id] || '').trim()
     if (!text) return
     try {
-      await tasksAPI.addComment(token, task._id, text)
+      await projectsAPI.addProjectComment(token, task._id, text)
       setCommentText((prev) => ({ ...prev, [task._id]: '' }))
       await loadTasks()
       await loadAttendanceAndMessages()
@@ -770,7 +772,7 @@ function OverviewTab({ onNavigate }) {
   const onDeleteTask = async (task) => {
     if (!window.confirm(`Delete task "${task.title}"?`)) return
     try {
-      await tasksAPI.deleteTask(token, task._id)
+      await projectsAPI.deleteProject(token, task._id)
       await loadTasks()
       await loadAttendanceAndMessages()
       if (expandedTaskId === task._id) setExpandedTaskId('')
@@ -782,7 +784,7 @@ function OverviewTab({ onNavigate }) {
 
   const onDuplicateTask = async (task) => {
     try {
-      await tasksAPI.createTask(token, {
+      await projectsAPI.createProject(token, {
         title: `${task.title} (Copy)`,
         description: task.description,
         assignedToId: task.assignedToId || undefined,
@@ -806,7 +808,7 @@ function OverviewTab({ onNavigate }) {
 
   const onArchiveTask = async (task) => {
     try {
-      await tasksAPI.updateTask(token, task._id, { archivedAt: new Date().toISOString(), notifyText: `${user?.name || 'User'} archived ${task.title}` })
+      await projectsAPI.updateProject(token, task._id, { archivedAt: new Date().toISOString(), notifyText: `${user?.name || 'User'} archived ${task.title}` })
       await loadTasks()
       await loadAttendanceAndMessages()
       showToast('Task archived')
@@ -819,7 +821,7 @@ function OverviewTab({ onNavigate }) {
     const reminderAt = window.prompt('Set reminder date and time (YYYY-MM-DDTHH:mm)', task.reminderAt ? new Date(task.reminderAt).toISOString().slice(0, 16) : '')
     if (!reminderAt) return
     try {
-      await tasksAPI.updateTask(token, task._id, { reminderAt, notifyText: `Reminder set for ${task.title} at ${fmtDateTime(reminderAt)}` })
+      await projectsAPI.updateProject(token, task._id, { reminderAt, notifyText: `Reminder set for ${task.title} at ${fmtDateTime(reminderAt)}` })
       await loadTasks()
       await loadAttendanceAndMessages()
       showToast('Reminder scheduled')
@@ -1137,7 +1139,7 @@ function OverviewTab({ onNavigate }) {
         </div>
       </Section>
 
-      <div ref={tasksSectionRef} className={`rounded-2xl transition-all duration-700 ${highlightTarget === 'tasks' ? 'ring-2 ring-emerald-400/70 ring-offset-2 ring-offset-gray-100 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]' : ''}`}>
+      <div ref={projectsSectionRef} className={`rounded-2xl transition-all duration-700 ${highlightTarget === 'projects' ? 'ring-2 ring-emerald-400/70 ring-offset-2 ring-offset-gray-100 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]' : ''}`}>
       <Section
         title="Tasks Command Center"
         action={
@@ -1180,7 +1182,7 @@ function OverviewTab({ onNavigate }) {
             <option value="all">All Priority</option>
             {PRIORITY_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
-          <input className="input-field flex-1 min-w-[180px]" placeholder="Search tasks" value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} />
+          <input className="input-field flex-1 min-w-[180px]" placeholder="Search projects" value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} />
           {canCreateTasks && (
             <button onClick={() => showTaskCreate ? resetTaskComposer() : openTaskComposer()} className="px-3 py-2 text-sm rounded-lg border border-emerald-300 bg-emerald-100 text-emerald-800">
               + Create Task
@@ -1243,9 +1245,9 @@ function OverviewTab({ onNavigate }) {
         )}
 
         {loadingTasks ? (
-          <div className="text-sm text-gray-600 py-6">Loading tasks...</div>
+          <div className="text-sm text-gray-600 py-6">Loading projects...</div>
         ) : filteredTasks.length === 0 ? (
-          <div className="text-sm text-gray-600 py-6 border border-dashed border-gray-300 rounded-xl text-center">No tasks match current filters</div>
+          <div className="text-sm text-gray-600 py-6 border border-dashed border-gray-300 rounded-xl text-center">No projects match current filters</div>
         ) : taskView === 'list' ? (
           <div className="space-y-3">
             {filteredTasks.map((task) => {

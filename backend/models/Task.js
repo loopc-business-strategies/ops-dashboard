@@ -72,6 +72,83 @@ const taskSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    /** When set, background job sets `archivedAt` after status → done/cancelled (see TASK_RULE_AUTO_ARCHIVE_MS). */
+    autoArchiveAt: {
+      type: Date,
+      default: null,
+    },
+    /** Last `dueDate` value for which we sent the “due soon” notification (dedupe per due). */
+    dueProximityNotifiedForDue: {
+      type: Date,
+      default: null,
+    },
+
+    /** Persisted for reminder / update notifications (same shape as API body). */
+    alsoNotifyIds: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+      default: [],
+    },
+    alsoNotifyNames: {
+      type: [{ type: String, trim: true, maxlength: 120 }],
+      default: [],
+    },
+
+    tags: {
+      type: [{ type: String, trim: true, maxlength: 40 }],
+      default: [],
+    },
+    checklist: {
+      type: [
+        {
+          title: { type: String, trim: true, maxlength: 200 },
+          done: { type: Boolean, default: false },
+          order: { type: Number, default: 0 },
+        },
+      ],
+      default: [],
+    },
+    blockedReason: {
+      type: String,
+      trim: true,
+      default: '',
+      maxlength: 500,
+    },
+    blockedByTaskId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Task',
+      default: null,
+    },
+    dependsOn: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Task' }],
+      default: [],
+    },
+    estimateHours: {
+      type: Number,
+      default: null,
+      min: 0,
+      max: 100000,
+    },
+    loggedHours: {
+      type: Number,
+      default: null,
+      min: 0,
+      max: 100000,
+    },
+    attachments: {
+      type: [
+        {
+          fileName: { type: String, trim: true, required: true },
+          originalName: { type: String, trim: true, default: '' },
+          mimeType: { type: String, trim: true, default: 'application/octet-stream' },
+          size: { type: Number, default: 0 },
+          url: { type: String, trim: true, default: '' },
+          uploadedBy: { type: String, trim: true, default: '' },
+          uploadedById: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+          uploadedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
 
     // Notes/doubts added by the assigned user
     comments: [

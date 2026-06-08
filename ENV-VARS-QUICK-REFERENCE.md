@@ -25,7 +25,31 @@ Attach a **persistent volume** to the backend service (for example mount path `/
 UPLOAD_STORAGE_ROOT=/app/uploads
 ```
 
-The deploy `startCommand` creates `transactions`, `bank-slips`, `vendor-documents`, and `crm-contacts` under this root. Optional overrides per type: `TRANSACTION_UPLOAD_DIR`, `BANK_SLIP_UPLOAD_DIR`, `VENDOR_DOCUMENT_UPLOAD_DIR`, `CRM_CONTACT_UPLOAD_DIR` (see `backend/services/erpAccounting/uploadMiddleware.js`).
+The deploy `startCommand` creates `transactions`, `bank-slips`, `vendor-documents`, `crm-contacts`, and `task-attachments` under this root. Optional overrides per type: `TRANSACTION_UPLOAD_DIR`, `BANK_SLIP_UPLOAD_DIR`, `VENDOR_DOCUMENT_UPLOAD_DIR`, `CRM_CONTACT_UPLOAD_DIR` (see `backend/services/erpAccounting/uploadMiddleware.js`).
+
+### Operations projects (optional jobs & webhooks)
+
+```
+# Reminder sweep (clears reminderAt, DM assignee + stored also-notify list); default on
+# TASK_REMINDER_JOB=false
+
+# Stale comment job (append system comment); default off — set true to enable
+# TASK_STALE_COMMENT_JOB=true
+# TASK_STALE_COMMENT_INTERVAL_MS=86400000
+# TASK_STALE_MS=604800000         # ms; match UI: VITE_OPS_PROJECTS_STALE_DAYS × 86400000 (or legacy VITE_TASK_STALE_DAYS; default 7 days)
+# TASK_STALE_COMMENT_TEXT=
+
+# Outbound webhooks — URLs alone do nothing until explicitly enabled
+# TASK_WEBHOOK_ENABLED=true
+# TASK_WEBHOOK_URLS=https://example.com/hook
+# TASK_WEBHOOK_SECRET=            # optional HMAC → X-Task-Signature; each POST includes unique webhookDeliveryId for consumer dedupe
+
+# Task rules job (auto-archive done tasks after delay; due-soon DM + webhook within N hours of due) — default off; opt in:
+# TASK_RULES_JOB=true
+# TASK_RULES_INTERVAL_MS=600000
+# TASK_RULE_AUTO_ARCHIVE_MS=604800000   # default 7d after status → done/cancelled
+# TASK_DUE_PROXIMITY_HOURS=48
+```
 
 **⚠️ Generate secure JWT_SECRET:**
 ```bash
@@ -103,6 +127,15 @@ VITE_API_URL=https://api.yourdomain.com
 ```
 
 **Note:** Set this AFTER Railway custom domain is live.
+
+### Optional: Operations projects (stale badge)
+
+Keep the **inactivity window** in sync with the backend stale-comment job: backend uses `TASK_STALE_MS` (milliseconds); the UI uses whole days via **`VITE_OPS_PROJECTS_STALE_DAYS`** (preferred) or legacy `VITE_TASK_STALE_DAYS` (default **7**). Example for 14 days: set `VITE_OPS_PROJECTS_STALE_DAYS=14` and `TASK_STALE_MS=1209600000` (14 × 86400000).
+
+```
+# VITE_OPS_PROJECTS_STALE_DAYS=7
+# VITE_TASK_STALE_DAYS=7
+```
 
 ### Optional: Sentry (browser errors)
 

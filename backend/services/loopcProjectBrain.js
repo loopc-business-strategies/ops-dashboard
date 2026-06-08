@@ -20,7 +20,7 @@ const ROUTE_PREFIX_MAP = [
   { prefix: '/api/erp-accounting/direct-deals', file: 'backend/routes/erp-accounting/directDealsRoutes.js', service: 'backend/services/erpAccounting/erpAccountingDirectDealAndExchangeService.js', tab: 'ERP → Direct Deals' },
   { prefix: '/api/auth', file: 'backend/routes/auth.js', service: 'backend/middleware/auth.js', tab: 'Login / Admin → Users' },
   { prefix: '/api/crm', file: 'backend/routes/crm.js', tab: 'CRM / Sales' },
-  { prefix: '/api/tasks', file: 'backend/routes/tasks.js', tab: 'Overview → Tasks' },
+  { prefix: '/api/projects', file: 'backend/routes/tasks.js', tab: 'Overview → Projects' },
   { prefix: '/api/ai', file: 'backend/routes/ai.js', service: 'backend/services/aiAgentService.js', tab: 'LoopC widget' },
   { prefix: '/api/erp/inventory', file: 'backend/routes/erp.js', tab: 'Operations → Inventory' },
 ]

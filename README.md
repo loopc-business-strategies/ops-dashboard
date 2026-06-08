@@ -12,6 +12,7 @@ Multi-tenant operations and ERP platform for mg, cg, and loopc companies.
 - Observability, health checks, and Vercel/Railway notes: `docs/OBSERVABILITY-AND-DEPLOYS.md`
 - Historical analyses (may be stale): `docs/archive/README.md`
 - **Local & CI testing commands:** `docs/TESTING.md`
+- **MongoDB backups & task data safety:** `docs/MONGODB-BACKUPS-AND-DATA-SAFETY.md`
 
 **Windows-only development:** see `docs/WINDOWS-DEV.md` (Jest, Mongo memory server / VC++ redist, Node version). **CI uses Node 24** (`.github/workflows/ci.yml`); use the same major locally when debugging “passes in CI, fails locally.”
 

@@ -237,7 +237,7 @@ async function createMessageRecord(req, res) {
 
   publishRealtimeEvent({
     type: 'message.created',
-    tenant: req.tenant?.key,
+    tenant: String(req.tenant || 'default').trim().toLowerCase(),
     data: {
       id: message._id,
       room: message.room,

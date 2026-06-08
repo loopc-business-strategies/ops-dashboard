@@ -158,12 +158,12 @@ describe('Authorization guards', () => {
     await Task.create({ title: 'HR task', department: 'hr' })
 
     const res = await request(app)
-      .get('/api/tasks')
+      .get('/api/projects')
       .set('Authorization', `Bearer ${tokenFor(opsUser)}`)
 
     expect(res.status).toBe(200)
-    expect(res.body.tasks.length).toBe(1)
-    expect(res.body.tasks[0].department).toBe('operations')
+    expect(res.body.projects.length).toBe(1)
+    expect(res.body.projects[0].department).toBe('operations')
   })
 
   test('management is read-only for task updates', async () => {
@@ -171,7 +171,7 @@ describe('Authorization guards', () => {
     const task = await Task.create({ title: 'Read only update', department: 'operations' })
 
     const res = await request(app)
-      .put(`/api/tasks/${task._id.toString()}`)
+      .put(`/api/projects/${task._id.toString()}`)
       .set('Authorization', `Bearer ${tokenFor(manager)}`)
       .send({ status: 'done' })
 
@@ -187,7 +187,7 @@ describe('Authorization guards', () => {
     })
 
     const res = await request(app)
-      .put(`/api/tasks/${task._id.toString()}`)
+      .put(`/api/projects/${task._id.toString()}`)
       .set('Authorization', `Bearer ${tokenFor(opsUser)}`)
       .send({ status: 'done' })
 
@@ -198,11 +198,11 @@ describe('Authorization guards', () => {
     const head = await createUser({ role: 'department_head', department: 'finance' })
 
     const res = await request(app)
-      .post('/api/tasks')
+      .post('/api/projects')
       .set('Authorization', `Bearer ${tokenFor(head)}`)
       .send({ title: 'Finance action', department: 'hr' })
 
     expect(res.status).toBe(201)
-    expect(res.body.task.department).toBe('finance')
+    expect(res.body.project.department).toBe('finance')
   })
 })

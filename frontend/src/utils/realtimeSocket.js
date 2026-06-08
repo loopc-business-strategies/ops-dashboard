@@ -76,6 +76,35 @@ export const startMetalRatesRealtime = ({ token, tenant, onRatesUpdate }) => {
   }
 }
 
+export const startProjectsSse = ({ onReminderDue }) => {
+  if (typeof onReminderDue !== 'function') return () => {}
+
+  const base = resolveRealtimeBaseUrl()
+  if (!base) return () => {}
+
+  const url = `${base.replace(/\/$/, '')}/api/realtime/events`
+  const source = new EventSource(url, { withCredentials: true })
+
+  const onReminder = (ev) => {
+    try {
+      const data = JSON.parse(ev.data || '{}')
+      onReminderDue(data)
+    } catch {
+      onReminderDue({})
+    }
+  }
+
+  source.addEventListener('task.reminder_due', onReminder)
+
+  return () => {
+    source.removeEventListener('task.reminder_due', onReminder)
+    source.close()
+  }
+}
+
+/** @deprecated Use {@link startProjectsSse}; kept for external/legacy imports. */
+export const startTaskBoardSse = startProjectsSse
+
 export const startUserNotifications = ({ token, onNotification }) => {
   if (typeof onNotification !== 'function') return () => {}
 

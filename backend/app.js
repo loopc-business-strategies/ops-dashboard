@@ -38,6 +38,7 @@ if (sentryEnabled) {
 const authRoutes = require('./routes/auth')
 const employeeRoutes = require('./routes/employees')
 const taskRoutes = require('./routes/tasks')
+const taskTemplateRoutes = require('./routes/taskTemplates')
 const erpRoutes = require('./routes/erp')
 const erpAccountingRoutes = require('./routes/erp-accounting')
 const attendanceRoutes = require('./routes/attendance')
@@ -277,7 +278,9 @@ function createApp() {
 
   app.use('/api/auth', authRoutes)
   app.use('/api/hr/employees', employeeRoutes)
-  app.use('/api/tasks', taskRoutes)
+  app.use('/api/projects', taskRoutes)
+  app.use('/api/tasks', taskRoutes) // legacy URL (e.g. stored attachment paths)
+  app.use('/api/task-templates', taskTemplateRoutes)
   app.use('/api/erp', erpRoutes)
   app.use('/api/erp-accounting', erpAccountingRoutes)
   app.use('/api/attendance', attendanceRoutes)

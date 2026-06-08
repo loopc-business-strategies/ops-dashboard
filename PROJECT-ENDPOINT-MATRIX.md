@@ -9,7 +9,7 @@ Scope: backend route ownership, frontend tab-to-endpoint dependencies, and metho
 |---|---|---|---|
 | backend/routes/auth.js | /api/auth | Authentication, session lifecycle, and user administration | /setup, /login, /me, /logout, /refresh, /users, /users/:id/role, /users/:id/permissions, /users/:id/toggle |
 | backend/routes/employees.js | /api/hr/employees | HR employee records | /, /:id |
-| backend/routes/tasks.js | /api/tasks | Cross-department tasks with comments and notifications | /, /:id, /:id/comments |
+| backend/routes/tasks.js | /api/projects (legacy: /api/tasks) | Cross-department projects (tasks collection) with comments and notifications | /, /:id, /:id/comments |
 | backend/routes/attendance.js | /api/attendance | Attendance records, summaries, and leave workflow | /records, /summary, /me, /leave, /leave/:id/decision |
 | backend/routes/messages.js | /api/messages | Group and DM messaging | /latest, / |
 | backend/routes/realtime.js | /api/realtime | Realtime stream for UI updates | /events |
@@ -41,7 +41,7 @@ Scope: backend route ownership, frontend tab-to-endpoint dependencies, and metho
 
 | Frontend Tab Component | API Modules Used | Backend Endpoints Hit | Backend Owner |
 |---|---|---|---|
-| frontend/src/components/tabs/OverviewTab.jsx | api/tasks, api/auth, api/hr, api/attendance, api/messages | /api/tasks*, /api/auth/users, /api/hr/employees*, /api/attendance/*, /api/messages/*, /api/realtime/events | tasks, auth, employees, attendance, messages, realtime |
+| frontend/src/components/tabs/OverviewTab.jsx | api/projects, api/auth, api/hr, api/attendance, api/messages | /api/projects*, /api/auth/users, /api/hr/employees*, /api/attendance/*, /api/messages/*, /api/realtime/events | projects, auth, employees, attendance, messages, realtime |
 | frontend/src/components/tabs/ChatTab.jsx | api/messages | /api/messages/latest, /api/messages, /api/realtime/events | messages, realtime |
 | frontend/src/components/tabs/AdminTab.jsx | api/auth | /api/auth/users*, /api/auth/users/:id/role, /api/auth/users/:id/permissions, /api/auth/users/:id/toggle | auth |
 | frontend/src/components/tabs/HRTab.jsx | api/hr | /api/hr/employees* | employees |
@@ -69,7 +69,7 @@ Legend:
 |---|---|---|---|---|
 | Auth users (/api/auth/users*) | SA only | SA only | SA only | SA only |
 | Employees (/api/hr/employees*) | SA, MGMT, HR DH, scoped others | SA, HR DH | SA, HR DH (scoped checks) | SA, HR DH (scoped checks) |
-| Tasks (/api/tasks*) | SA/MGMT full, DH dept, DU scoped, EXT allowed modules | Any non-read-only role (not MGMT/EXT) | SA full, DH same dept, DU assigned/creator; MGMT/EXT denied mutate | SA; DH same dept; DU creator only |
+| Tasks (/api/projects*; legacy /api/tasks*) | SA/MGMT full, DH dept, DU scoped, EXT allowed modules | Any non-read-only role (not MGMT/EXT) | SA full, DH same dept, DU assigned/creator; MGMT/EXT denied mutate | SA; DH same dept; DU creator only |
 | Attendance (/api/attendance*) | Role-scoped by department/self | Most roles can submit records/leave with restrictions; MGMT blocked for leave submit | Leave decisions: super admin and department heads (including HR head) | No delete endpoint |
 | Messages (/api/messages*) | Scoped by role and message scope; SA/MGMT broadest | Authenticated users | Not exposed | Not exposed |
 | CRM (/api/crm*) | Authenticated, role-filtered by sales helpers | Sales roles (SA, Sales DH, Sales DU depending entity) | Sales roles; some endpoints tighter | SA only for core entity delete endpoints |
@@ -120,15 +120,15 @@ Legend:
 | PUT | /api/hr/employees/:id | SA or HR DH with scope checks | protect + canManageEmployees | backend/middleware/auth.js:24; backend/routes/employees.js:44 |
 | DELETE | /api/hr/employees/:id | SA or HR DH with scope checks | protect + canManageEmployees | backend/middleware/auth.js:24; backend/routes/employees.js:44 |
 
-### Tasks
+### Projects (tasks collection)
 
 | Method | Endpoint | Permission Summary | Enforcing Helper(s) | Source Ref(s) |
 |---|---|---|---|---|
-| GET | /api/tasks | Authenticated, role-scoped visibility | protect + buildTaskReadFilter | backend/middleware/auth.js:24; backend/routes/tasks.js:153 |
-| POST | /api/tasks | Any non-read-only role (not MGMT/EXT) | protect + canCreateTask | backend/middleware/auth.js:24; backend/routes/tasks.js:70 |
-| PUT | /api/tasks/:id | SA; DH same dept; DU assigned/creator; MGMT/EXT denied | protect + canViewTask + canMutateTask | backend/middleware/auth.js:24; backend/routes/tasks.js:129; backend/routes/tasks.js:79 |
-| POST | /api/tasks/:id/comments | Can view task and not read-only role | protect + canViewTask + isReadOnlyRole | backend/middleware/auth.js:24; backend/routes/tasks.js:129; backend/routes/tasks.js:68 |
-| DELETE | /api/tasks/:id | SA; DH same dept; DU creator only | protect + canDeleteTask | backend/middleware/auth.js:24; backend/routes/tasks.js:92 |
+| GET | /api/projects | Authenticated, role-scoped visibility | protect + buildTaskReadFilter | backend/middleware/auth.js:24; backend/routes/tasks.js:153 |
+| POST | /api/projects | Any non-read-only role (not MGMT/EXT) | protect + canCreateTask | backend/middleware/auth.js:24; backend/routes/tasks.js:70 |
+| PUT | /api/projects/:id | SA; DH same dept; DU assigned/creator; MGMT/EXT denied | protect + canViewTask + canMutateTask | backend/middleware/auth.js:24; backend/routes/tasks.js:129; backend/routes/tasks.js:79 |
+| POST | /api/projects/:id/comments | Can view project and not read-only role | protect + canViewTask + isReadOnlyRole | backend/middleware/auth.js:24; backend/routes/tasks.js:129; backend/routes/tasks.js:68 |
+| DELETE | /api/projects/:id | SA; DH same dept; DU creator only | protect + canDeleteTask | backend/middleware/auth.js:24; backend/routes/tasks.js:92 |
 
 ### Attendance
 

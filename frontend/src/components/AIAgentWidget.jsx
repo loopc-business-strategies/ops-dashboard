@@ -10,7 +10,7 @@ const QUICK_ACTIONS = [
   { id: 'market', label: 'Live metal prices', prompt: 'What are the current gold, silver, and platinum prices?' },
   { id: 'inventory', label: 'Inventory status', prompt: 'Check inventory status and low stock alerts' },
   { id: 'sales', label: 'CRM pipeline', prompt: 'Show CRM pipeline and sales performance' },
-  { id: 'alerts', label: 'View alerts', prompt: 'Show my open tasks and alerts' },
+  { id: 'alerts', label: 'View alerts', prompt: 'Show my open projects and alerts' },
   { id: 'fix', label: 'Fix last error', prompt: 'Diagnose and fix my last application error' },
   { id: 'help', label: 'What can you do?', prompt: 'What can you do? List your capabilities' },
 ]
