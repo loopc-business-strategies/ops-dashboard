@@ -25,6 +25,11 @@ const taskSchema = new mongoose.Schema(
       ref: 'User',
       default: null,
     },
+    /** All assignees (equal edit rights for department_user when listed). Legacy single field: assignedToId = first. */
+    assignedToIds: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+      default: [],
+    },
     createdBy: {
       type: String,
       trim: true,

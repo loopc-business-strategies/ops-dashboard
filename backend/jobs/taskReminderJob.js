@@ -38,6 +38,7 @@ async function sweepDueRemindersForTenant(tenantKey) {
     if (sender?._id) {
       const recipients = taskMessageRecipients({
         assignedToId: task.assignedToId,
+        assignedToIds: task.assignedToIds,
         assignedTo: task.assignedTo,
         alsoNotifyIds: (task.alsoNotifyIds || []).map((id) => String(id)),
         alsoNotifyNames: task.alsoNotifyNames || [],

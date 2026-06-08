@@ -7,7 +7,13 @@ const { publishRealtimeEvent } = require('../utils/realtimeBus')
 const { normalize, canCreateTask, canDeleteTask } = require('../services/permissions/moduleAccessPolicy')
 const { taskMessageRecipients, createTaskMessage } = require('../utils/taskDm')
 const { emitTaskWebhook } = require('../utils/taskWebhooks')
-const { extendedFieldsFromBody, parseAlsoNotifyForDb, assertRelatedTasksSameDepartment } = require('../utils/taskBodyHelpers')
+const {
+  extendedFieldsFromBody,
+  parseAlsoNotifyForDb,
+  assertRelatedTasksSameDepartment,
+  extractNormalizedAssignees,
+  MAX_TASK_ASSIGNEES,
+} = require('../utils/taskBodyHelpers')
 
 const router = express.Router()
 
@@ -46,8 +52,9 @@ const createTemplateSchema = Joi.object({
 const instantiateSchema = Joi.object({
   title: Joi.string().trim().min(2).max(200).optional(),
   description: Joi.string().allow('').max(4000).optional(),
-  assignedTo: Joi.string().allow('').max(120).optional(),
+  assignedTo: Joi.string().allow('').max(500).optional(),
   assignedToId: Joi.string().hex().length(24).allow('', null).optional(),
+  assignedToIds: Joi.array().items(Joi.string().hex().length(24)).max(MAX_TASK_ASSIGNEES).optional(),
   linkedRecord: Joi.string().allow('').max(120).optional(),
   module: Joi.string().allow('').max(80).optional(),
   status: Joi.string().valid('todo', 'in-progress', 'blocked', 'under-review', 'done', 'cancelled').optional(),
@@ -187,6 +194,25 @@ router.post('/:id/instantiate', protect, validateParams(templateIdParam), valida
       payload.department = userDept
       payload.assignedTo = req.user.name
       payload.assignedToId = req.user._id
+      payload.assignedToIds = [req.user._id]
+    } else {
+      const ex = extractNormalizedAssignees(merged)
+      if (ex) {
+        payload.assignedToIds = ex.assignedToIds
+        payload.assignedToId = ex.assignedToId
+        payload.assignedTo = ex.assignedTo
+      } else if (payload.assignedToId) {
+        const ex2 = extractNormalizedAssignees({
+          assignedToIds: [String(payload.assignedToId)],
+          assignedTo: payload.assignedTo || '',
+        })
+        payload.assignedToIds = ex2.assignedToIds
+        payload.assignedToId = ex2.assignedToId
+        payload.assignedTo = ex2.assignedTo
+      } else {
+        payload.assignedToIds = []
+        payload.assignedToId = null
+      }
     }
 
     const refErr = await assertRelatedTasksSameDepartment(Task, payload.department, {
@@ -199,6 +225,7 @@ router.post('/:id/instantiate', protect, validateParams(templateIdParam), valida
 
     const recipients = taskMessageRecipients({
       assignedToId: payload.assignedToId,
+      assignedToIds: payload.assignedToIds,
       assignedTo: payload.assignedTo,
       alsoNotifyIds: (alsoNotifyDb.alsoNotifyIds || []).map(String),
       alsoNotifyNames: alsoNotifyDb.alsoNotifyNames,

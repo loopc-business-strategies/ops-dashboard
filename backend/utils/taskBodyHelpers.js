@@ -1,6 +1,37 @@
 const mongoose = require('mongoose')
 const { normalize } = require('../services/permissions/moduleAccessPolicy')
 
+const MAX_TASK_ASSIGNEES = 20
+
+/** Normalize assignee list: dedupe ObjectIds, cap length, sync legacy assignedToId (first) and assignedTo string. */
+function extractNormalizedAssignees(body = {}) {
+  const hasArray = Object.prototype.hasOwnProperty.call(body, 'assignedToIds')
+  if (hasArray) {
+    const idObjs = [...new Set((body.assignedToIds || [])
+      .filter((id) => mongoose.Types.ObjectId.isValid(String(id)))
+      .map((id) => new mongoose.Types.ObjectId(String(id))))].slice(0, MAX_TASK_ASSIGNEES)
+    const assignedToId = idObjs.length ? idObjs[0] : null
+    const assignedTo =
+      body.assignedTo != null && String(body.assignedTo).trim()
+        ? String(body.assignedTo).trim().slice(0, 500)
+        : ''
+    return { assignedToIds: idObjs, assignedToId, assignedTo }
+  }
+  if (body.assignedToId != null || body.assignedTo != null) {
+    const id =
+      body.assignedToId && mongoose.Types.ObjectId.isValid(String(body.assignedToId))
+        ? new mongoose.Types.ObjectId(String(body.assignedToId))
+        : null
+    const idObjs = id ? [id] : []
+    const assignedTo =
+      body.assignedTo != null && String(body.assignedTo).trim()
+        ? String(body.assignedTo).trim().slice(0, 500)
+        : ''
+    return { assignedToIds: idObjs, assignedToId: id, assignedTo }
+  }
+  return null
+}
+
 function extendedFieldsFromBody(body = {}) {
   const tags = Array.isArray(body.tags)
     ? [...new Set(body.tags.map((t) => String(t).trim()).filter(Boolean))].slice(0, 20).map((t) => t.slice(0, 40))
@@ -72,4 +103,6 @@ module.exports = {
   extendedFieldsFromBody,
   parseAlsoNotifyForDb,
   assertRelatedTasksSameDepartment,
+  extractNormalizedAssignees,
+  MAX_TASK_ASSIGNEES,
 }

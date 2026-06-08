@@ -82,15 +82,25 @@ function isTaskCreator(user, task) {
   return Boolean(byId || byName)
 }
 
+function isUserInTaskAssigneeIds(user, task) {
+  if (!user?._id || !task) return false
+  const uid = user._id.toString()
+  if (Array.isArray(task.assignedToIds) && task.assignedToIds.length) {
+    return task.assignedToIds.some((id) => id && id.toString() === uid)
+  }
+  return false
+}
+
 function canMutateTask(user, task) {
   if (!user || !task) return false
   if (isSuperAdmin(user)) return true
   if (isReadOnlyRole(user.role)) return false
   if (user.role === 'department_head') return userDept(user) === normalize(task.department)
   if (user.role === 'department_user') {
+    const mineByCoAssignee = isUserInTaskAssigneeIds(user, task)
     const mineById = task.assignedToId && task.assignedToId.toString() === user._id.toString()
     const mineByName = normalize(task.assignedTo) === normalize(user.name)
-    return Boolean(mineById || mineByName || isTaskCreator(user, task))
+    return Boolean(mineByCoAssignee || mineById || mineByName || isTaskCreator(user, task))
   }
   return false
 }
@@ -118,10 +128,11 @@ function canViewTask(user, task) {
   }
 
   if (user.role === 'department_user') {
+    const mineByCoAssignee = isUserInTaskAssigneeIds(user, task)
     const mineById = task.assignedToId && task.assignedToId.toString() === user._id.toString()
     const mineByName = normalize(task.assignedTo) === normalize(user.name)
     const mineByDepartment = userDept(user) && userDept(user) === taskDepartment
-    return Boolean(mineById || mineByName || mineByDepartment)
+    return Boolean(mineByCoAssignee || mineById || mineByName || mineByDepartment)
   }
 
   return false
@@ -148,6 +159,7 @@ function buildTaskReadFilter(user) {
     const or = []
     if (dept) or.push({ department: new RegExp(`^${escapeRegex(dept)}$`, 'i') })
     or.push({ assignedToId: user._id })
+    or.push({ assignedToIds: user._id })
     or.push({ assignedTo: new RegExp(`^${escapeRegex(normalize(user.name))}$`, 'i') })
     return { $or: or }
   }

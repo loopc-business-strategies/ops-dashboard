@@ -94,6 +94,7 @@ async function sweepDueProximityForTenant(tenantKey) {
     if (sender?._id) {
       const recipients = taskMessageRecipients({
         assignedToId: updated.assignedToId,
+        assignedToIds: updated.assignedToIds,
         assignedTo: updated.assignedTo,
         alsoNotifyIds: (updated.alsoNotifyIds || []).map(String),
         alsoNotifyNames: updated.alsoNotifyNames || [],

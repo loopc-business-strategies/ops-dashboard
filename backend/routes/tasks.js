@@ -29,10 +29,43 @@ const {
 const { dependsOnReachesTask } = require('../utils/taskDependencyValidation')
 const { emitTaskWebhook } = require('../utils/taskWebhooks')
 const { taskMessageRecipients, createTaskMessage } = require('../utils/taskDm')
-const { extendedFieldsFromBody, parseAlsoNotifyForDb, assertRelatedTasksSameDepartment } = require('../utils/taskBodyHelpers')
+const {
+  extendedFieldsFromBody,
+  parseAlsoNotifyForDb,
+  assertRelatedTasksSameDepartment,
+  extractNormalizedAssignees,
+  MAX_TASK_ASSIGNEES,
+} = require('../utils/taskBodyHelpers')
 const { applyAutomationDerivedFields } = require('../utils/taskRulesHelpers')
 
 const router = express.Router()
+
+function assigneeIdsSignature(doc) {
+  const ids = doc.assignedToIds && doc.assignedToIds.length
+    ? [...doc.assignedToIds.map(String)].sort().join(',')
+    : doc.assignedToId
+      ? String(doc.assignedToId)
+      : ''
+  return `${ids}|${doc.assignedTo || ''}`
+}
+
+/** Merge assignee fields for PUT when body touches assignee keys. */
+function extractNormalizedAssigneePatchForUpdate(body, existingTask) {
+  if (
+    !Object.prototype.hasOwnProperty.call(body, 'assignedToIds') &&
+    body.assignedToId === undefined &&
+    body.assignedTo === undefined
+  ) {
+    return null
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'assignedToIds')) {
+    return extractNormalizedAssignees({ assignedToIds: body.assignedToIds, assignedTo: body.assignedTo })
+  }
+  return extractNormalizedAssignees({
+    assignedToId: body.assignedToId !== undefined ? body.assignedToId : existingTask.assignedToId,
+    assignedTo: body.assignedTo !== undefined ? body.assignedTo : existingTask.assignedTo,
+  })
+}
 
 function uploadRoot() {
   return process.env.UPLOAD_STORAGE_ROOT || path.join(__dirname, '..', 'uploads')
@@ -73,8 +106,9 @@ const listTasksQuerySchema = Joi.object({
 const createTaskSchema = Joi.object({
   title: Joi.string().trim().min(2).max(200).required(),
   description: Joi.string().allow('').max(4000).optional(),
-  assignedTo: Joi.string().allow('').max(120).optional(),
+  assignedTo: Joi.string().allow('').max(500).optional(),
   assignedToId: Joi.string().hex().length(24).allow('', null).optional(),
+  assignedToIds: Joi.array().items(Joi.string().hex().length(24)).max(MAX_TASK_ASSIGNEES).optional(),
   department: Joi.string().allow('').max(80).optional(),
   module: Joi.string().allow('').max(80).optional(),
   linkedRecord: Joi.string().allow('').max(120).optional(),
@@ -107,8 +141,9 @@ const createTaskSchema = Joi.object({
 const updateTaskSchema = Joi.object({
   title: Joi.string().trim().min(2).max(200).optional(),
   description: Joi.string().allow('').max(4000).optional(),
-  assignedTo: Joi.string().allow('').max(120).optional(),
+  assignedTo: Joi.string().allow('').max(500).optional(),
   assignedToId: Joi.string().hex().length(24).allow('', null).optional(),
+  assignedToIds: Joi.array().items(Joi.string().hex().length(24)).max(MAX_TASK_ASSIGNEES).optional(),
   department: Joi.string().allow('').max(80).optional(),
   module: Joi.string().allow('').max(80).optional(),
   linkedRecord: Joi.string().allow('').max(120).optional(),
@@ -186,6 +221,18 @@ function coerceDbUpdatePayload(patch) {
   }
   if (out.alsoNotifyNames !== undefined) {
     out.alsoNotifyNames = [...new Set((out.alsoNotifyNames || []).map((n) => String(n).trim()).filter(Boolean))].slice(0, 50).map((n) => n.slice(0, 120))
+  }
+  if (out.assignedToIds !== undefined) {
+    out.assignedToIds = [...new Set((out.assignedToIds || []).filter((id) => mongoose.Types.ObjectId.isValid(id)).map((id) => new mongoose.Types.ObjectId(id)))].slice(
+      0,
+      MAX_TASK_ASSIGNEES
+    )
+  }
+  if (out.assignedToId !== undefined) {
+    out.assignedToId =
+      out.assignedToId && mongoose.Types.ObjectId.isValid(out.assignedToId)
+        ? new mongoose.Types.ObjectId(out.assignedToId)
+        : null
   }
   return out
 }
@@ -274,6 +321,25 @@ router.post('/', protect, validateBody(createTaskSchema), async (req, res) => {
       payload.department = userDept
       payload.assignedTo = req.user.name
       payload.assignedToId = req.user._id
+      payload.assignedToIds = [req.user._id]
+    } else {
+      const ex = extractNormalizedAssignees(req.body)
+      if (ex) {
+        payload.assignedToIds = ex.assignedToIds
+        payload.assignedToId = ex.assignedToId
+        payload.assignedTo = ex.assignedTo
+      } else if (payload.assignedToId) {
+        const ex2 = extractNormalizedAssignees({
+          assignedToIds: [String(payload.assignedToId)],
+          assignedTo: payload.assignedTo || '',
+        })
+        payload.assignedToIds = ex2.assignedToIds
+        payload.assignedToId = ex2.assignedToId
+        payload.assignedTo = ex2.assignedTo
+      } else {
+        payload.assignedToIds = []
+        payload.assignedToId = null
+      }
     }
 
     const refErr = await assertRelatedTasksSameDepartment(Task, payload.department, {
@@ -286,6 +352,7 @@ router.post('/', protect, validateBody(createTaskSchema), async (req, res) => {
 
     const recipients = taskMessageRecipients({
       assignedToId: payload.assignedToId,
+      assignedToIds: payload.assignedToIds,
       assignedTo: payload.assignedTo,
       alsoNotifyIds: (alsoNotifyDb.alsoNotifyIds || []).map(String),
       alsoNotifyNames: alsoNotifyDb.alsoNotifyNames,
@@ -327,8 +394,6 @@ router.put('/:id', protect, validateParams(taskIdParamSchema), validateBody(upda
     }
 
     let updatePayload = req.body
-    const prevAssignedTo = task.assignedTo
-    const prevAssignedToId = task.assignedToId ? task.assignedToId.toString() : ''
     const prevStatus = task.status
     const prevPriority = task.priority
 
@@ -344,7 +409,9 @@ router.put('/:id', protect, validateParams(taskIdParamSchema), validateBody(upda
     }
 
     const { notifyText, alsoNotifyIds, alsoNotifyNames, ...dbUpdatePayloadRaw } = updatePayload
-    let dbUpdatePayload = coerceDbUpdatePayload(dbUpdatePayloadRaw)
+    const assigneePatch = extractNormalizedAssigneePatchForUpdate(updatePayload, task)
+    const mergedRaw = assigneePatch ? { ...dbUpdatePayloadRaw, ...assigneePatch } : dbUpdatePayloadRaw
+    let dbUpdatePayload = coerceDbUpdatePayload(mergedRaw)
     dbUpdatePayload = applyAutomationDerivedFields(dbUpdatePayload, task)
 
     if (dbUpdatePayload.dependsOn !== undefined && dbUpdatePayload.dependsOn.length) {
@@ -368,7 +435,7 @@ router.put('/:id', protect, validateParams(taskIdParamSchema), validateBody(upda
 
     const updatedTask = await Task.findByIdAndUpdate(req.params.id, dbUpdatePayload, { returnDocument: 'after', runValidators: true })
 
-    const assigneeChanged = (updatedTask.assignedTo || '') !== (prevAssignedTo || '') || String(updatedTask.assignedToId || '') !== prevAssignedToId
+    const assigneeChanged = assigneeIdsSignature(task) !== assigneeIdsSignature(updatedTask)
     const statusChanged = updatedTask.status !== prevStatus
     const priorityChanged = updatedTask.priority !== prevPriority
     const prevNotifySig = `${[...(task.alsoNotifyIds || []).map(String)].sort().join(',')}|${(task.alsoNotifyNames || []).join('\x1e')}`
@@ -380,6 +447,7 @@ router.put('/:id', protect, validateParams(taskIdParamSchema), validateBody(upda
       const notifyNames = Array.isArray(alsoNotifyNames) ? alsoNotifyNames : updatedTask.alsoNotifyNames || []
       const recipients = taskMessageRecipients({
         assignedToId: updatedTask.assignedToId,
+        assignedToIds: updatedTask.assignedToIds,
         assignedTo: updatedTask.assignedTo,
         alsoNotifyIds: notifyIds,
         alsoNotifyNames: notifyNames,
@@ -433,6 +501,7 @@ router.post('/:id/comments', protect, validateParams(taskIdParamSchema), validat
 
     const recipients = taskMessageRecipients({
       assignedToId: task.assignedToId,
+      assignedToIds: task.assignedToIds,
       assignedTo: task.assignedTo,
       alsoNotifyIds: (task.alsoNotifyIds || []).map((id) => String(id)),
       alsoNotifyNames: task.alsoNotifyNames || [],
@@ -565,6 +634,7 @@ router.delete('/:id', protect, validateParams(taskIdParamSchema), async (req, re
 
     const recipients = taskMessageRecipients({
       assignedToId: task.assignedToId,
+      assignedToIds: task.assignedToIds,
       assignedTo: task.assignedTo,
       alsoNotifyIds: (task.alsoNotifyIds || []).map((id) => String(id)),
       alsoNotifyNames: task.alsoNotifyNames || [],

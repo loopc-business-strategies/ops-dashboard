@@ -119,6 +119,18 @@ const DEFAULT_TASK_FORM = {
   reminderAt: '',
 }
 
+/** Whether the task is assigned to this user (supports assignedToIds + legacy fields). */
+function taskAssignedToCurrentUser(task, userId, userName) {
+  const uid = userId != null ? String(userId) : ''
+  const nameLow = (userName || '').toLowerCase()
+  const idList =
+    Array.isArray(task.assignedToIds) && task.assignedToIds.length ? task.assignedToIds.map((x) => String(x)) : []
+  if (uid && idList.includes(uid)) return true
+  if (uid && task.assignedToId && String(task.assignedToId) === uid) return true
+  if (nameLow && String(task.assignedTo || '').toLowerCase() === nameLow) return true
+  return false
+}
+
 const DEPT_STATUS = {
   healthy: 'border-green-500/40',
   attention: 'border-yellow-500/40',
@@ -524,7 +536,12 @@ function OverviewTab({ onNavigate }) {
     const activeTasks = tasks.filter((t) => !t.archivedAt)
     if (perms.isSuperAdmin || perms.isManagement) return activeTasks
     if (perms.isDepartmentHead) return activeTasks.filter((t) => (t.department || '').toLowerCase() === (user?.department || '').toLowerCase())
-    if (perms.isDepartmentUser) return activeTasks.filter((t) => t.assignedToId === user?.id || (t.assignedTo || '').toLowerCase() === (user?.name || '').toLowerCase() || (t.createdBy || '').toLowerCase() === (user?.name || '').toLowerCase())
+    if (perms.isDepartmentUser)
+      return activeTasks.filter(
+        (t) =>
+          taskAssignedToCurrentUser(t, user?.id, user?.name) ||
+          (t.createdBy || '').toLowerCase() === (user?.name || '').toLowerCase()
+      )
     if (perms.isExternal) return activeTasks.filter((t) => (user?.allowedModules || []).includes(t.department))
     return []
   }, [tasks, perms.isSuperAdmin, perms.isManagement, perms.isDepartmentHead, perms.isDepartmentUser, perms.isExternal, user?.department, user?.id, user?.name, user?.allowedModules])
@@ -534,7 +551,7 @@ function OverviewTab({ onNavigate }) {
 
   const taskStats = useMemo(() => {
     const source = scopedTasks
-    const mine = source.filter((t) => t.assignedToId === user?.id || (t.assignedTo || '').toLowerCase() === (user?.name || '').toLowerCase())
+    const mine = source.filter((t) => taskAssignedToCurrentUser(t, user?.id, user?.name))
     const overdue = source.filter((t) => t.dueDate && new Date(t.dueDate) < todayStart && t.status !== 'done')
     const dueToday = source.filter((t) => t.dueDate && new Date(t.dueDate) >= todayStart && new Date(t.dueDate) <= todayEnd && t.status !== 'done')
     const completed = source.filter((t) => t.status === 'done')
@@ -552,7 +569,7 @@ function OverviewTab({ onNavigate }) {
   const filteredTasks = useMemo(() => {
     let list = [...scopedTasks]
 
-    if (taskFilter === 'my') list = list.filter((t) => t.assignedToId === user?.id || (t.assignedTo || '').toLowerCase() === (user?.name || '').toLowerCase())
+    if (taskFilter === 'my') list = list.filter((t) => taskAssignedToCurrentUser(t, user?.id, user?.name))
     if (taskFilter === 'overdue') list = list.filter((t) => t.dueDate && new Date(t.dueDate) < todayStart && t.status !== 'done')
     if (taskFilter === 'due-today') list = list.filter((t) => t.dueDate && new Date(t.dueDate) >= todayStart && new Date(t.dueDate) <= todayEnd && t.status !== 'done')
     if (taskFilter === 'this-week') {
@@ -685,7 +702,7 @@ function OverviewTab({ onNavigate }) {
   const canUpdateTask = (task) => {
     if (perms.isManagement || perms.isExternal) return false
     if (perms.isSuperAdmin || perms.isDepartmentHead) return true
-    const mine = task.assignedToId === user?.id || (task.assignedTo || '').toLowerCase() === (user?.name || '').toLowerCase()
+    const mine = taskAssignedToCurrentUser(task, user?.id, user?.name)
     const createdByMe = (task.createdById && task.createdById === user?.id) || (task.createdBy || '').toLowerCase() === (user?.name || '').toLowerCase()
     return perms.isDepartmentUser && (mine || createdByMe)
   }

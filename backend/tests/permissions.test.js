@@ -194,6 +194,27 @@ describe('Authorization guards', () => {
     expect(res.status).toBe(403)
   })
 
+  test('department user can update task when their id is in assignedToIds (co-assignee)', async () => {
+    const alice = await createUser({ role: 'department_user', department: 'operations', name: 'Alice Co' })
+    const bob = await createUser({ role: 'department_user', department: 'operations', name: 'Bob Primary' })
+    const task = await Task.create({
+      title: 'Co-assigned task',
+      department: 'operations',
+      assignedToId: bob._id,
+      assignedTo: 'Bob Primary, Alice Co',
+      assignedToIds: [alice._id, bob._id],
+    })
+
+    const res = await request(app)
+      .put(`/api/projects/${task._id.toString()}`)
+      .set('Authorization', `Bearer ${tokenFor(alice)}`)
+      .send({ status: 'done' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(res.body.project.status).toBe('done')
+  })
+
   test('department head task creation is pinned to own department', async () => {
     const head = await createUser({ role: 'department_head', department: 'finance' })
 

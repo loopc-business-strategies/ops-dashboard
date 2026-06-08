@@ -3,11 +3,18 @@
 const Message = require('../models/Message')
 const { normalize } = require('../services/permissions/moduleAccessPolicy')
 
-const taskMessageRecipients = ({ assignedToId, assignedTo, alsoNotifyIds = [], alsoNotifyNames = [] }) => {
+const taskMessageRecipients = ({ assignedToId, assignedToIds, assignedTo, alsoNotifyIds = [], alsoNotifyNames = [] }) => {
   const ids = Array.isArray(alsoNotifyIds) ? [...alsoNotifyIds] : []
   const names = Array.isArray(alsoNotifyNames) ? [...alsoNotifyNames] : []
 
-  if (assignedToId) ids.push(assignedToId)
+  const assigneeIds = Array.isArray(assignedToIds) && assignedToIds.length
+    ? assignedToIds
+    : assignedToId
+      ? [assignedToId]
+      : []
+  for (const id of assigneeIds) {
+    if (id) ids.push(id)
+  }
   if (assignedTo) names.push(assignedTo)
 
   return {

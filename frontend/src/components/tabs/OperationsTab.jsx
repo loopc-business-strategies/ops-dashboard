@@ -1035,6 +1035,8 @@ function BarChart({ bars, height }) {
 
 const OPS_PROJECTS_DEPT = 'operations'
 const OPS_PROJECTS_MODULE = 'operations-projects'
+/** Match backend MAX_TASK_ASSIGNEES */
+const MAX_OPS_ASSIGNEES = 20
 const OPS_LINKED_SECTION_OPTS = ['Supply Chain', 'Gold Sourcing', 'Transport', 'Security', 'Vendor Contracts', 'Inventory']
 const OPS_LINKED_LABEL_KEY = {
   'Supply Chain': 'opsLinkedSupplyChain',
@@ -1130,6 +1132,55 @@ function isStaleTask(t) {
   }
 }
 
+function assigneesFromApiTask(t) {
+  const ids =
+    Array.isArray(t.assignedToIds) && t.assignedToIds.length
+      ? [...new Set(t.assignedToIds.map((id) => String(id)))]
+      : t.assignedToId
+        ? [String(t.assignedToId)]
+        : []
+  const parts = (t.assignedTo || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  return ids.map((id, i) => ({
+    id,
+    name: parts[i] ?? parts[0] ?? '—',
+  }))
+}
+
+function syncAssignFieldsFromAssignees(assignees) {
+  const list = Array.isArray(assignees) ? assignees.filter((a) => a && a.id) : []
+  return {
+    assignees: list,
+    assign: list.map((a) => a.name).join(', '),
+    assignToId: list[0]?.id || '',
+  }
+}
+
+function buildOpsAssigneeApiFields(f) {
+  const hex24 = (s) => /^[a-f0-9]{24}$/i.test(String(s))
+  if (Array.isArray(f.assignees)) {
+    const valid = f.assignees.filter((a) => a && hex24(a.id))
+    if (valid.length) {
+      const capped = valid.slice(0, MAX_OPS_ASSIGNEES)
+      return {
+        assignedToIds: capped.map((a) => String(a.id).trim()),
+        assignedTo: capped.map((a) => (a.name || '').trim() || 'User').join(', '),
+        assignedToId: String(capped[0].id).trim(),
+      }
+    }
+    const manual = (f.assign || '').trim() || (f.assignToId && hex24(f.assignToId))
+    if (!manual) {
+      return { assignedToIds: [], assignedToId: null, assignedTo: '' }
+    }
+  }
+  return {
+    assignedTo: (f.assign || '').trim() || undefined,
+    assignedToId: f.assignToId && hex24(f.assignToId) ? String(f.assignToId).trim() : undefined,
+  }
+}
+
 function mapApiTaskToOpsRow(t) {
   const d = dueToInputDate(t.dueDate)
   const startD = dueToInputDate(t.startDate)
@@ -1140,13 +1191,17 @@ function mapApiTaskToOpsRow(t) {
         order: typeof c.order === 'number' ? c.order : i,
       }))
     : []
+  const assignees = assigneesFromApiTask(t)
+  const assign =
+    assignees.length > 0 ? assignees.map((a) => a.name).join(', ') : t.assignedTo || 'Unassigned'
   return {
     id: t._id,
     _api: t,
     title: t.title || '',
     desc: t.description || '',
-    assign: t.assignedTo || 'Unassigned',
-    assignToId: t.assignedToId ? String(t.assignedToId) : '',
+    assignees,
+    assign,
+    assignToId: assignees[0]?.id || '',
     pri: apiPriToUi(t.priority),
     due: d || 'TBD',
     start: startD || '',
@@ -1214,11 +1269,11 @@ function buildOpsCreatePayload(f) {
   const alsoNotifyNames = Array.isArray(f.alsoNotifyNames)
     ? [...new Set(f.alsoNotifyNames.map((x) => String(x).trim()).filter(Boolean))].slice(0, 50)
     : []
+  const assignPart = buildOpsAssigneeApiFields(f)
   return {
     title: f.title.trim(),
     description: (f.desc || '').trim(),
-    assignedTo: (f.assign || '').trim() || undefined,
-    assignedToId: f.assignToId ? String(f.assignToId).trim() : undefined,
+    ...assignPart,
     department: OPS_PROJECTS_DEPT,
     linkedRecord: String(f.sec || '').trim().slice(0, 120),
     module: OPS_PROJECTS_MODULE,
@@ -1241,11 +1296,11 @@ function buildOpsUpdatePayload(f) {
   const alsoNotifyNames = Array.isArray(f.alsoNotifyNames)
     ? [...new Set(f.alsoNotifyNames.map((x) => String(x).trim()).filter(Boolean))].slice(0, 50)
     : []
+  const assignPart = buildOpsAssigneeApiFields(f)
   return {
     title: f.title.trim(),
     description: (f.desc || '').trim(),
-    assignedTo: (f.assign || '').trim() || undefined,
-    assignedToId: f.assignToId ? String(f.assignToId).trim() : undefined,
+    ...assignPart,
     linkedRecord: String(f.sec || '').trim().slice(0, 120),
     module: OPS_PROJECTS_MODULE,
     status: uiStToApiStatus(f.st),
@@ -1264,6 +1319,7 @@ function defaultOpsProjectForm() {
   return {
     title: '',
     desc: '',
+    assignees: [],
     assign: '',
     assignToId: '',
     pri: 'High',
@@ -1290,10 +1346,18 @@ function defaultOpsProjectForm() {
 function normalizeOpsProjectForm(initial) {
   const base = defaultOpsProjectForm()
   if (!initial) return base
+  const assigneesFromInitial =
+    Array.isArray(initial.assignees) && initial.assignees.length
+      ? initial.assignees.map((a) => ({ id: String(a.id), name: String(a.name || '').trim() || '—' }))
+      : initial.assignToId
+        ? [{ id: String(initial.assignToId), name: (initial.assign || '').split(',')[0].trim() || '—' }]
+        : []
+  const assignSync = syncAssignFieldsFromAssignees(assigneesFromInitial)
   if (!initial.id) {
     return {
       ...base,
       ...initial,
+      ...assignSync,
       comments: Array.isArray(initial.comments) ? initial.comments : [],
       tags: Array.isArray(initial.tags) ? initial.tags : [],
       checklist: Array.isArray(initial.checklist) ? initial.checklist : [],
@@ -1307,8 +1371,7 @@ function normalizeOpsProjectForm(initial) {
     id: initial.id,
     title: initial.title || '',
     desc: initial.desc || '',
-    assign: initial.assign || '',
-    assignToId: initial.assignToId || '',
+    ...assignSync,
     pri: initial.pri || 'High',
     due: initial.due && initial.due !== 'TBD' ? initial.due : '',
     start: initial.start && initial.start !== 'TBD' ? initial.start : '',
@@ -1638,11 +1701,26 @@ function ModalProject({
   onUnarchive,
 }) {
   const { t: lt } = useLanguage()
+  const { user } = useAuth()
   const [f, setF] = useState(() => normalizeOpsProjectForm(initial))
   const [progressNote, setProgressNote] = useState('')
   const [progressBusy, setProgressBusy] = useState(false)
+  const [assignPickerKey, setAssignPickerKey] = useState(0)
+  const [alsoNotifyPickerKey, setAlsoNotifyPickerKey] = useState(0)
   const s = k => e => setF((p) => ({ ...p, [k]: e.target.value }))
   const isEdit = !!(initial && initial.id)
+
+  const assigneeIdSet = useMemo(() => new Set((f.assignees || []).map((a) => String(a.id))), [f.assignees])
+
+  useEffect(() => {
+    if (isDepartmentUser && !isEdit && user?.id) {
+      setF((prev) => {
+        if (prev.assignees?.length) return prev
+        const self = { id: String(user.id), name: user.name || '' }
+        return { ...prev, ...syncAssignFieldsFromAssignees([self]) }
+      })
+    }
+  }, [isDepartmentUser, isEdit, user?.id, user?.name])
 
   const sortedComments = useMemo(() => {
     const list = [...(f.comments || [])]
@@ -1698,14 +1776,72 @@ function ModalProject({
           <ML>{lt('opsModalFieldAssign')}</ML>
           {assigneeGroups.length > 0 ? (
             <div style={{ marginBottom: 12 }}>
-              <AccountCombobox
-                groups={assigneeGroups}
-                value={f.assignToId || ''}
-                disabled={Boolean(isDepartmentUser && !isEdit)}
-                placeholder={lt('opsModalAssignSearchPlaceholder')}
-                style={{ ...IS, marginBottom: 0 }}
-                onChange={(id, label) => setF((p) => ({ ...p, assignToId: id || '', assign: label || '' }))}
-              />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+                {(f.assignees || []).map((a) => (
+                  <span
+                    key={a.id}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '4px 8px',
+                      borderRadius: 999,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      background: 'rgba(var(--purple-rgb),0.1)',
+                      border: '1px solid rgba(var(--purple-rgb),0.2)',
+                      color: C.t2,
+                    }}
+                  >
+                    {a.name}
+                    {!(isDepartmentUser && !isEdit) && (
+                      <button
+                        type="button"
+                        aria-label={lt('opsModalRemove')}
+                        onClick={() =>
+                          setF((p) => ({
+                            ...p,
+                            ...syncAssignFieldsFromAssignees((p.assignees || []).filter((x) => String(x.id) !== String(a.id))),
+                          }))
+                        }
+                        style={{
+                          border: 'none',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          padding: 0,
+                          marginLeft: 2,
+                          fontSize: 12,
+                          lineHeight: 1,
+                          color: C.t3,
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+              {!(isDepartmentUser && !isEdit) && (f.assignees || []).length < MAX_OPS_ASSIGNEES ? (
+                <>
+                  <AccountCombobox
+                    key={`assign-pick-${assignPickerKey}`}
+                    groups={assigneeGroups}
+                    value=""
+                    placeholder={lt('opsModalAssignAddPlaceholder')}
+                    style={{ ...IS, marginBottom: 4 }}
+                    onChange={(id, label) => {
+                      if (!id) return
+                      setF((p) => {
+                        const cur = p.assignees || []
+                        if (cur.some((x) => String(x.id) === String(id)) || cur.length >= MAX_OPS_ASSIGNEES) return p
+                        return { ...p, ...syncAssignFieldsFromAssignees([...cur, { id: String(id), name: label || id }]) }
+                      })
+                      setAssignPickerKey((k) => k + 1)
+                    }}
+                  />
+                  <div style={{ fontSize: 10, color: C.t4, lineHeight: 1.35 }}>{lt('opsModalMultiPickerHint')}</div>
+                </>
+              ) : null}
             </div>
           ) : (
             <MI
@@ -1910,26 +2046,92 @@ function ModalProject({
         </div>
         <div>
           <ML>{lt('opsModalAlsoNotify')}</ML>
-          <select
-            multiple
-            className="ops-also-notify"
-            value={f.alsoNotifyIds || []}
-            onChange={(e) => {
-              const values = Array.from(e.target.selectedOptions).map((o) => o.value)
-              const opts = assigneeGroups[0]?.options || []
-              const names = opts.filter((o) => values.includes(String(o.value))).map((o) => o.label)
-              setF((p) => ({ ...p, alsoNotifyIds: values, alsoNotifyNames: names }))
-            }}
-            style={{ ...IS, minHeight: 72, marginBottom: 0 }}
-          >
-            {(assigneeGroups[0]?.options || [])
-              .filter((o) => String(o.value) !== String(f.assignToId || ''))
-              .map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-          </select>
+          {assigneeGroups.length > 0 ? (
+            <div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+                {(f.alsoNotifyIds || []).map((nid, idx) => {
+                  const optLabel = (assigneeGroups[0]?.options || []).find((o) => String(o.value) === String(nid))?.label
+                  const name = (f.alsoNotifyNames && f.alsoNotifyNames[idx]) || optLabel || String(nid)
+                  return (
+                    <span
+                      key={`${nid}-${idx}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '4px 8px',
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: 'rgba(6, 95, 70, 0.08)',
+                        border: '1px solid rgba(6, 95, 70, 0.22)',
+                        color: C.t2,
+                      }}
+                    >
+                      {name}
+                      <button
+                        type="button"
+                        aria-label={lt('opsModalRemove')}
+                        onClick={() =>
+                          setF((p) => {
+                            const ids = [...(p.alsoNotifyIds || [])]
+                            const names = [...(p.alsoNotifyNames || [])]
+                            const i = ids.findIndex((x) => String(x) === String(nid))
+                            if (i >= 0) {
+                              ids.splice(i, 1)
+                              names.splice(i, 1)
+                            }
+                            return { ...p, alsoNotifyIds: ids, alsoNotifyNames: names }
+                          })
+                        }
+                        style={{
+                          border: 'none',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          padding: 0,
+                          marginLeft: 2,
+                          fontSize: 12,
+                          lineHeight: 1,
+                          color: C.t3,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )
+                })}
+              </div>
+              <AccountCombobox
+                key={`also-pick-${alsoNotifyPickerKey}`}
+                groups={[
+                  {
+                    label: assigneeGroups[0]?.label || 'Team',
+                    options: (assigneeGroups[0]?.options || []).filter(
+                      (o) => !assigneeIdSet.has(String(o.value)) && !(f.alsoNotifyIds || []).map(String).includes(String(o.value))
+                    ),
+                  },
+                ]}
+                value=""
+                placeholder={lt('opsModalAlsoNotifyAddPlaceholder')}
+                style={{ ...IS, marginBottom: 4 }}
+                onChange={(id, label) => {
+                  if (!id) return
+                  setF((p) => {
+                    const ids = [...(p.alsoNotifyIds || [])]
+                    const names = [...(p.alsoNotifyNames || [])]
+                    if (ids.includes(String(id)) || assigneeIdSet.has(String(id)) || ids.length >= 50) return p
+                    ids.push(String(id))
+                    names.push(label || id)
+                    return { ...p, alsoNotifyIds: ids, alsoNotifyNames: names }
+                  })
+                  setAlsoNotifyPickerKey((k) => k + 1)
+                }}
+              />
+              <div style={{ fontSize: 10, color: C.t4, lineHeight: 1.35, marginTop: 2 }}>{lt('opsModalMultiPickerHint')}</div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: C.t4, lineHeight: 1.4 }}>{lt('opsModalAlsoNotifyNoTeam')}</div>
+          )}
         </div>
       </div>
       {isEdit && f.id && token && (
