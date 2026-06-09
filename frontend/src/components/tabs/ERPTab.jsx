@@ -116,35 +116,8 @@ import {
 import { resolveDocumentBranding } from './erp/documentBranding'
 import { loadExcel, loadPdfTools } from './erp/lazyExportLibs'
 import { ERP_TAB_COLORS as C, TRANSACTION_STATUS_STYLES, formatDateInputLocal } from './erp/erpTabPresentation'
-
-/** Stored rate = base currency units per 1 unit of this row’s currency, from quote "1 {base} = n units" (n > 0). */
-function exchangeRateFromUnitsPerBase(unitsPerBase) {
-  const n = Number(String(unitsPerBase ?? '').trim())
-  if (!Number.isFinite(n) || n <= 0) return null
-  return 1 / n
-}
-
-/**
- * Resolve a currency row by code (case-insensitive, trim). If multiple rows share the same code
- * (e.g. legacy duplicates), prefer active rows; for non-base codes prefer non-base rows and
- * the highest exchangeRate so the converter matches the table.
- */
-function resolveCurrencyRowByCode(currencies, rawCode, baseCurrencyCode = 'USD') {
-  const want = String(rawCode || '').trim().toUpperCase()
-  if (!want) return null
-  const base = String(baseCurrencyCode || 'USD').trim().toUpperCase() || 'USD'
-  const list = Array.isArray(currencies) ? currencies : []
-  let matches = list.filter((c) => String(c?.code || '').trim().toUpperCase() === want)
-  if (!matches.length) return null
-  matches = matches.filter((c) => c?.isActive !== false)
-  if (!matches.length) return null
-  if (want === base) {
-    return matches.find((c) => c.baseCurrency) || matches[0]
-  }
-  const nonBase = matches.filter((c) => !c.baseCurrency)
-  const pool = nonBase.length ? nonBase : matches
-  return pool.slice().sort((a, b) => Number(b?.exchangeRate || 0) - Number(a?.exchangeRate || 0))[0]
-}
+import { exchangeRateFromUnitsPerBase, resolveCurrencyRowByCode } from './erp/erpCurrencyRowHelpers'
+import StatementExportOptionsModal from './erp/StatementExportOptionsModal'
 
 function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpToTransactionConsumed }) {
   const { user, token } = useAuth()
@@ -7885,71 +7858,12 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
           </div>
         </div>
       )}
-      {/* Export Options Modal */}
-      {exportOptionsOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: '#fff', borderRadius: '0.75rem', padding: '2rem', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0, 0, 0, 0.2)' }}>
-            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontWeight: '700', color: '#111827' }}>Export Statement</h3>
-            <p style={{ margin: '0 0 1.5rem 0', color: '#6B7280', fontSize: '0.95rem' }}>Choose how you'd like to export the statement:</p>
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-              <button
-                onClick={handlePrintStatement}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  background: '#3B82F6',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.95rem',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                }}
-                onMouseEnter={(e) => e.target.style.background = '#2563EB'}
-                onMouseLeave={(e) => e.target.style.background = '#3B82F6'}
-              >
-                🖨 Print
-              </button>
-              <button
-                onClick={handleDownloadStatementPdf}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  background: '#10B981',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.95rem',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                }}
-                onMouseEnter={(e) => e.target.style.background = '#059669'}
-                onMouseLeave={(e) => e.target.style.background = '#10B981'}
-              >
-                ⬇ Download PDF
-              </button>
-              <button
-                onClick={() => setExportOptionsOpen(false)}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  background: '#6B7280',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.95rem',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                }}
-                onMouseEnter={(e) => e.target.style.background = '#4B5563'}
-                onMouseLeave={(e) => e.target.style.background = '#6B7280'}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <StatementExportOptionsModal
+        open={exportOptionsOpen}
+        onClose={() => setExportOptionsOpen(false)}
+        onPrint={handlePrintStatement}
+        onDownloadPdf={handleDownloadStatementPdf}
+      />
     </div>
   )
 }

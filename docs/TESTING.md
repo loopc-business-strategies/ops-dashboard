@@ -2,6 +2,8 @@
 
 ## Quick checks (repo root)
 
+Use **Node 24** locally when mirroring CI (see **`.nvmrc`** at the repo root and `docs/WINDOWS-DEV.md`).
+
 ```powershell
 npm run lint
 ```

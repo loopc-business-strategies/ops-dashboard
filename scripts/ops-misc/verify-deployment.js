@@ -4,7 +4,7 @@
  * Multi-Tenant Deployment Verification Script
  * 
  * Tests that mg, cg, and loopc subdomains work correctly with proper isolation
- * Usage: node verify-deployment.js
+ * Usage: node scripts/ops-misc/verify-deployment.js
  */
 
 const http = require('http');

@@ -14,7 +14,9 @@ Multi-tenant operations and ERP platform for mg, cg, and loopc companies.
 - **Local & CI testing commands:** `docs/TESTING.md`
 - **MongoDB backups & task data safety:** `docs/MONGODB-BACKUPS-AND-DATA-SAFETY.md`
 
-**Windows-only development:** see `docs/WINDOWS-DEV.md` (Jest, Mongo memory server / VC++ redist, Node version). **CI uses Node 24** (`.github/workflows/ci.yml`); use the same major locally when debugging “passes in CI, fails locally.”
+**Windows-only development:** see `docs/WINDOWS-DEV.md` (Jest, Mongo memory server / VC++ redist, Node version). **CI uses Node 24** (`.github/workflows/ci.yml`). At the repo root, **`.nvmrc`** pins **24** for `nvm use`, `fnm use`, or Volta so local runs match CI when debugging “passes in CI, fails locally.”
+
+**Ad-hoc ops / cleanup scripts** (historically at the repo root) live under **`scripts/ops-misc/`** — see `scripts/ops-misc/README.md`. Example: `node scripts/ops-misc/verify-deployment.js`. Root **`ops_dashboard*.html`** scratch exports are listed in **`.gitignore`** and should not be committed.
 
 **Linting:** `npm run lint` runs repository guardrails **and** strict ESLint on **all production `frontend/src/components/tabs/erp/**/*.js`** (tests excluded, `--max-warnings=0`). **`npm run lint:eslint`** still scans all of **`frontend/src`** for broader cleanup (legacy warnings allowed).
 

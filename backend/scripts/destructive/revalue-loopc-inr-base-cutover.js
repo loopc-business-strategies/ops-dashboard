@@ -1,3 +1,5 @@
+require('./_destructive-guard')({ scriptName: __filename, allowDryRunNoApply: true })
+
 /**
  * LoopC only: revalue posted ledger amounts from USD-base to INR-base, then flip Currency master
  * so INR is base (rate 1) and non-INR rows store "INR per 1 unit of FC" (USD row = inrPerUsd).
@@ -17,8 +19,6 @@
  *
  * Env: MONGO_URI_LOOPC, dotenv from backend/.env; DESTRUCTIVE_ADMIN_CONFIRM_TOKEN or CLEANUP_CONFIRM_TOKEN
  */
-require('./_destructive-guard')({ scriptName: __filename, allowDryRunNoApply: true })
-
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') })
 const dns = require('dns')
 const mongoose = require('mongoose')

@@ -48,7 +48,7 @@ Then rerun `npm run test:fast` or `npm run test:integration:erp`.
 
 ## Match CI Node version
 
-GitHub Actions uses **Node 24**. On Windows, use **nvm-windows** or the official installer to run the same major version when debugging “passes in CI, fails locally” issues.
+GitHub Actions uses **Node 24**. The repo root **`.nvmrc`** file pins **24** for **nvm**, **fnm**, or **Volta** (`nvm use` / `fnm use` from the checkout). On Windows, use **nvm-windows** or the official installer to run the same major version when debugging “passes in CI, fails locally” issues.
 
 ## Frontend Vitest
 

@@ -482,8 +482,59 @@ function extractJvPostingLineDescription(description = '', batchHeaderNotes = ''
 }
 
 /**
- * Rebuild JV modal lines: one debit row + one credit row per ledger posting (preserves
- * multiple postings that share the same accounts). Order matches FIFO pairing on save.
+ * Merge consecutive JV edit lines that post the same side (debit-only or credit-only) to the
+ * same account — typical when several ledger rows share one cash/bank line on edit.
+ */
+function mergeConsecutiveJvLinesSameAccountAndSide(lines) {
+  if (!Array.isArray(lines) || lines.length < 2) return lines
+  const out = []
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    const d = Number(line.debit || 0)
+    const c = Number(line.credit || 0)
+    const aid = String(line.accountId || '')
+    if (aid && d > 0 && !c) {
+      let total = d
+      let j = i + 1
+      while (j < lines.length) {
+        const l2 = lines[j]
+        const d2 = Number(l2.debit || 0)
+        const c2 = Number(l2.credit || 0)
+        if (String(l2.accountId || '') === aid && d2 > 0 && !c2) {
+          total += d2
+          j += 1
+        } else break
+      }
+      out.push({ ...line, debit: Number(total.toFixed(2)), credit: '' })
+      i = j
+      continue
+    }
+    if (aid && c > 0 && !d) {
+      let total = c
+      let j = i + 1
+      while (j < lines.length) {
+        const l2 = lines[j]
+        const d2 = Number(l2.debit || 0)
+        const c2 = Number(l2.credit || 0)
+        if (String(l2.accountId || '') === aid && c2 > 0 && !d2) {
+          total += c2
+          j += 1
+        } else break
+      }
+      out.push({ ...line, debit: '', credit: Number(total.toFixed(2)) })
+      i = j
+      continue
+    }
+    out.push(line)
+    i += 1
+  }
+  return out
+}
+
+/**
+ * Rebuild JV modal lines from ledger rows. Consecutive same-account debit (or credit) lines are
+ * merged for editing. Order follows FIFO sort on createdAt/date then _id.
  */
 function reconstructJvEditLines(editableEntries, entry, {
   baseCurrencyCode = 'USD',
@@ -543,6 +594,8 @@ function reconstructJvEditLines(editableEntries, entry, {
     }
   }
 
+  const mergedLines = mergeConsecutiveJvLinesSameAccountAndSide(lines)
+
   const rawDesc = String(entry.description || '')
   const docNoHead = (rawDesc.includes(' — ') ? rawDesc.split(' — ') : rawDesc.split(' - '))[0]?.trim() || ''
   const docNo = docNoHead
@@ -554,8 +607,14 @@ function reconstructJvEditLines(editableEntries, entry, {
   const legacyBatchFc = inferLegacyJvBatchDisplayFc(sorted, baseCurrencyCode)
   const headerCurrency = legacyBatchFc
     || normCur((sorted[0] || entry).currency || baseCurrencyCode)
+  const primaryRow = sorted[0] || entry
+  const dateRaw = primaryRow?.date || primaryRow?.createdAt || entry?.date || entry?.createdAt
+  const parsedEntryDate = new Date(dateRaw)
+  const entryDate = Number.isFinite(parsedEntryDate.getTime())
+    ? parsedEntryDate.toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10)
   return {
-    lines,
+    lines: mergedLines,
     nextJvLineId: id,
     narration,
     headerDocNo,
@@ -563,7 +622,7 @@ function reconstructJvEditLines(editableEntries, entry, {
     jvEditEntryIds: sorted.map((row) => row._id),
     entryMode,
     hasDocPrefix,
-    entryDate: new Date((sorted[0] || entry).date).toISOString().slice(0, 10),
+    entryDate,
   }
 }
 

@@ -36,3 +36,13 @@ tools/mt4-price-bridge/mg-production.local.set
 
 # Local archives (do not commit)
 *.rar
+
+# Browser / tool cookie jars and similar scratch files at repo root
+mg.cookies
+cg.cookies
+loopc.cookies
+*.cookiejar
+
+# Local HTML exports / scratch dashboards (prefer not to commit)
+ops_dashboard.html
+ops_dashboard.local.html
