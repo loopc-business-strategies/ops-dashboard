@@ -28,12 +28,31 @@ axios.interceptors.response.use(
   (response) => response,
   async (error) => {
     const config = error?.config
+    const status = Number(error?.response?.status || 0)
+    const bodyMsg = String(error?.response?.data?.message || '')
+    const isCsrf403 = status === 403 && /csrf validation failed/i.test(bodyMsg)
+
+    // One retry: session cookie can be newer than the in-memory x-csrf-token (e.g. after refresh, or
+    // cross-host cookie confusion). GET /auth/me returns the token matching the current cookie.
+    if (isCsrf403 && config && !config.__csrfResyncAttempted) {
+      config.__csrfResyncAttempted = true
+      try {
+        const { default: authAPI } = await import('./auth.js')
+        const data = await authAPI.getMe()
+        if (data?.csrfToken) {
+          axios.defaults.headers.common['x-csrf-token'] = String(data.csrfToken).trim()
+        }
+        return axios.request(config)
+      } catch {
+        // fall through — surface original error
+      }
+    }
+
     if (!config || config.__retryCount >= MAX_RETRIES) {
       return Promise.reject(error)
     }
 
     const method = String(config.method || 'get').toLowerCase()
-    const status = Number(error?.response?.status || 0)
     const shouldRetry = RETRYABLE_METHODS.has(method)
       && (RETRYABLE_STATUS.has(status) || !error.response)
 
