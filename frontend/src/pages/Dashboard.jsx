@@ -1,7 +1,7 @@
 // FILE: src/pages/Dashboard.jsx
 // Main dashboard shell — sidebar navigation + lazy-loaded tab modules.
 
-import React, { Component, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
@@ -110,6 +110,19 @@ function mapRealtimeNotificationPayload(payload) {
   }
 }
 
+/** Resolves ChatTab row id (`d:userId` / `g:groupId`) from Socket notification payload. */
+function resolveChatTargetIdFromSocketPayload(payload) {
+  const type = String(payload?.type || '')
+  const data = payload?.data || {}
+  if (type !== 'chat_message' && type !== 'chat_mention') return null
+  const ch = String(data.channelType || '').toLowerCase()
+  const senderId = String(data.senderId || '').trim()
+  const groupId = String(data.groupId || '').trim()
+  if (ch === 'dm' && /^[a-f\d]{24}$/i.test(senderId)) return `d:${senderId}`
+  if (ch === 'group' && /^[a-f\d]{24}$/i.test(groupId)) return `g:${groupId}`
+  return null
+}
+
 // ── Sidebar nav item ────────────────────────────
 function NavItem({ label, active, onClick, badge }) {
   return (
@@ -178,13 +191,20 @@ function getNavItems(perms, t, chatUnread = 0, branding) {
 }
 
 // ── Render the content for each tab ────────────
-function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab) {
+function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps = {}) {
   switch (tabId) {
     case 'overview':
       return <OverviewTab onNavigate={setActiveTab} />
 
     case 'chat':
-      return <ChatTab onUnreadChange={setChatUnread} onBack={() => setActiveTab('erp')} />
+      return (
+        <ChatTab
+          onUnreadChange={setChatUnread}
+          onBack={() => setActiveTab('erp')}
+          openChatId={chatTabProps.openChatId}
+          onOpenChatIdConsumed={chatTabProps.onOpenChatIdConsumed}
+        />
+      )
 
     case 'admin':
       return <AdminTab />
@@ -225,11 +245,11 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab) {
   }
 }
 
-function renderTabContent(tabId, setActiveTab, setChatUnread, erpSubTab) {
+function renderTabContent(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps = {}) {
   return (
     <TabErrorBoundary resetKey={tabId}>
       <Suspense fallback={<TabLoadingFallback />}>
-        {renderTab(tabId, setActiveTab, setChatUnread, erpSubTab)}
+        {renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps)}
       </Suspense>
     </TabErrorBoundary>
   )
@@ -255,6 +275,7 @@ function Dashboard() {
   const [notifOpen, setNotifOpen] = useState(false)
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
+  const [pendingChatOpenId, setPendingChatOpenId] = useState(null)
   const langMenuRef = useRef(null)
   const notifMenuRef = useRef(null)
   const accountMenuRef = useRef(null)
@@ -272,6 +293,12 @@ function Dashboard() {
   const branding = useMemo(() => getTenantBranding(user?.company || company), [company, user?.company])
   const metalRatesEnabled = Boolean(token && ['mg', 'cg', 'loopc'].includes(branding.key))
   const navItems = getNavItems(perms, t, chatUnread, branding)
+  const notifUnreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications])
+  const consumeOpenChatId = useCallback(() => setPendingChatOpenId(null), [])
+  const chatTabRealtimeProps = useMemo(
+    () => ({ openChatId: pendingChatOpenId, onOpenChatIdConsumed: consumeOpenChatId }),
+    [pendingChatOpenId, consumeOpenChatId],
+  )
 
   useEffect(() => {
     const firstAllowed = navItems[0]
@@ -380,6 +407,11 @@ function Dashboard() {
 
   useEffect(() => {
     if (!notifOpen) return
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+  }, [notifOpen])
+
+  useEffect(() => {
+    if (!notifOpen) return
     const handler = (e) => {
       if (notifMenuRef.current && !notifMenuRef.current.contains(e.target)) {
         setNotifOpen(false)
@@ -407,6 +439,7 @@ function Dashboard() {
       token,
       onNotification: (payload) => {
         const { title, msg, dotColor } = mapRealtimeNotificationPayload(payload)
+        const chatTargetId = resolveChatTargetIdFromSocketPayload(payload)
         setNotifications((prev) => [
           {
             id: `rt-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -415,6 +448,7 @@ function Dashboard() {
             time: 'Just now',
             read: false,
             dotColor,
+            chatTargetId,
           },
           ...prev,
         ])
@@ -435,6 +469,7 @@ function Dashboard() {
             time: 'Just now',
             read: false,
             dotColor: 'bg-amber-400',
+            chatTargetId: null,
           },
           ...prev,
         ])
@@ -482,6 +517,14 @@ function Dashboard() {
     setErpSubTab(subTab)
     if (!isDesktop) closeSidebar()
   }
+
+  const handleNotificationRowActivate = useCallback((n) => {
+    if (!n?.chatTargetId) return
+    setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)))
+    setNotifOpen(false)
+    setActiveTab('chat')
+    setPendingChatOpenId(n.chatTargetId)
+  }, [])
 
   const toggleSidebar = () => {
     clearHideTimer()
@@ -715,9 +758,9 @@ function Dashboard() {
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .53-.21 1.04-.59 1.41L4 17h5m6 0a3 3 0 11-6 0m6 0H9" />
                   </svg>
-                  {notifications.length > 0 && (
+                  {notifUnreadCount > 0 && (
                     <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 15, height: 15, borderRadius: 999, background: '#ef4444', color: '#fff', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', fontWeight: 700 }}>
-                      {notifications.length}
+                      {notifUnreadCount > 99 ? '99+' : notifUnreadCount}
                     </span>
                   )}
                 </button>
@@ -742,7 +785,25 @@ function Dashboard() {
                         No notifications yet.
                       </div>
                     ) : notifications.map((n) => (
-                      <div key={n.id} style={{ padding: '10px 12px', borderBottom: '1px solid #F3F4F6' }}>
+                      <div
+                        key={n.id}
+                        role={n.chatTargetId ? 'button' : undefined}
+                        tabIndex={n.chatTargetId ? 0 : undefined}
+                        onClick={() => { if (n.chatTargetId) handleNotificationRowActivate(n) }}
+                        onKeyDown={(e) => {
+                          if (!n.chatTargetId) return
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            handleNotificationRowActivate(n)
+                          }
+                        }}
+                        style={{
+                          padding: '10px 12px',
+                          borderBottom: '1px solid #F3F4F6',
+                          cursor: n.chatTargetId ? 'pointer' : 'default',
+                          opacity: n.read ? 0.72 : 1,
+                        }}
+                      >
                         <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827' }}>{n.title}</p>
                         {n.msg && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#4B5563' }}>{n.msg}</p>}
                         <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7280' }}>{n.time}</p>
@@ -888,11 +949,11 @@ function Dashboard() {
         >
           {activeTab === 'chat' ? (
             <div className="flex-1 min-h-0 flex flex-col">
-              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab)}
+              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, chatTabRealtimeProps)}
             </div>
           ) : (
             <div className="flex-1 min-h-0" style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
-              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab)}
+              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, chatTabRealtimeProps)}
             </div>
           )}
         </main>

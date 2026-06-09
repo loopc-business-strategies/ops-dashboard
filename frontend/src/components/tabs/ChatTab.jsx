@@ -297,7 +297,7 @@ function IBtn({ onClick, title, children, style = {} }) {
 // ─────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────
-function ChatTab({ onUnreadChange, onBack }) {
+function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsumed }) {
   const { user, token }  = useAuth()
   const perms     = usePermissions()
   const { t } = useLanguage()
@@ -623,6 +623,15 @@ function ChatTab({ onUnreadChange, onBack }) {
     setMsgText('')
     setChats(prev => prev.map(c => c.id === id ? { ...c, unread:0 } : c))
   }
+
+  useEffect(() => {
+    if (!openChatId || typeof onOpenChatIdConsumed !== 'function') return
+    if (!chats.some((c) => c.id === openChatId)) return
+    setActiveChatId(openChatId)
+    setMsgText('')
+    setChats((prev) => prev.map((c) => (c.id === openChatId ? { ...c, unread: 0 } : c)))
+    onOpenChatIdConsumed()
+  }, [openChatId, chats, onOpenChatIdConsumed])
 
   function showToast(title, text, color = C.accent) {
     setToast({ title, text, color })
