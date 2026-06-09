@@ -262,6 +262,28 @@ async function createMessageRecord(req, res) {
     })
   }
 
+  const senderId = String(req.user._id)
+  const mentionedIdSet = new Set(mentionedOnly.map((u) => String(u._id)))
+  const messageRecipientIds = (message.recipientIds || [])
+    .map(String)
+    .filter((id) => id && /^[a-f\d]{24}$/i.test(id) && id !== senderId && !mentionedIdSet.has(id))
+  if (messageRecipientIds.length) {
+    emitUserNotifications(
+      req,
+      messageRecipientIds.map((id) => ({ _id: id })),
+      'chat_message',
+      {
+        messageId: String(message._id),
+        message: message.text || (attachment?.originalName ? `Attachment: ${attachment.originalName}` : 'New message'),
+        room: message.room,
+        channelType: message.type,
+        senderId,
+        senderName: String(req.user.name || ''),
+        createdAt: message.createdAt,
+      },
+    )
+  }
+
   return res.status(201).json({
     success: true,
     message,

@@ -85,6 +85,15 @@ function mapRealtimeNotificationPayload(payload) {
       dotColor: 'bg-blue-400',
     }
   }
+  if (type === 'chat_message') {
+    const isDm = String(data.channelType || '') === 'dm'
+    const who = String(data.senderName || 'Someone').trim() || 'Someone'
+    return {
+      title: isDm ? `Message from ${who}` : `Chat: ${String(data.room || 'Group').trim() || 'Group'}`,
+      msg: isDm ? (msg || 'New direct message') : `${who}: ${msg || 'New message'}`,
+      dotColor: 'bg-sky-400',
+    }
+  }
   if (type === 'transaction_approved') {
     return { title: 'Voucher approved', msg: msg || 'Your voucher was approved.', dotColor: 'bg-emerald-400' }
   }

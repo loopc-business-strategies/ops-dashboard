@@ -24,10 +24,18 @@ function isLikelyExpoPushToken(token) {
 
 function buildCopy(type, data = {}) {
   const msg = typeof data.message === 'string' ? data.message.trim() : ''
+  const sender = String(data.senderName || '').trim() || 'Someone'
+
+  if (type === 'chat_message') {
+    const isDm = String(data.channelType || '') === 'dm'
+    const title = (isDm ? `DM · ${sender}` : `Chat · ${String(data.room || 'Group').trim() || 'Group'}`).slice(0, MAX_TITLE)
+    const body = (isDm ? msg : `${sender}: ${msg}`).slice(0, MAX_BODY) || 'New message'
+    return { title, body }
+  }
+
   if (msg) {
     return { title: 'MG Ops', body: msg.slice(0, MAX_BODY) }
   }
-  const sender = String(data.senderName || '').trim() || 'Someone'
   switch (type) {
     case 'transaction_chat_mention':
       return {
