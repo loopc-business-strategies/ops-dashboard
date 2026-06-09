@@ -36,12 +36,16 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
   const pollPausedUntilRef = useRef(0)
   const pollTimerRef = useRef(null)
 
-  const applyRates = useCallback((rates) => {
+  const applyRates = useCallback((rates, options = {}) => {
     if (!rates) return
+    const allowNonMt4Override = Boolean(options.allowNonMt4Override)
 
     const incomingMt4 = isMt4BridgeRates(rates)
     const currentMt4 = isMt4BridgeRates({ source: sourceRef.current })
-    if (!incomingMt4 && currentMt4) return
+    // Block EventSource / misc non-MT4 ticks from replacing an active MT4 stream,
+    // but allow GET /metal-rates/live when the server returns feedType "market"
+    // (stale or missing MT4 — see docs/MT4_METAL_PRICE_BRIDGE.md).
+    if (!incomingMt4 && currentMt4 && !allowNonMt4Override) return
 
     const useSourceToz = normalizeMarketUnit(rates.sourceUnit || rates.priceUnit) === 'TOZ'
     const pickPrice = (sourceValue, storedValue) => {
@@ -90,7 +94,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
       const s = Number(liveRates?.silverPrice) || 0
       const p = Number(liveRates?.platinumPrice) || 0
       if (live?.success && live?.live && liveRates && g > 0 && s > 0 && p > 0) {
-        applyRates(liveRates)
+        applyRates(liveRates, { allowNonMt4Override: live.feedType === 'market' })
         return
       }
 

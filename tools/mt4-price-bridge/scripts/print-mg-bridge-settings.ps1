@@ -28,9 +28,9 @@ try {
   Write-Host "   BridgeUrl=$bridgeUrl"
   Write-Host "   BridgeToken=$token"
   Write-Host '   Tenant=mg'
-  Write-Host '   GoldSymbol=XAUUSD'
-  Write-Host '   SilverSymbol=XAGUSD'
-  Write-Host '   PlatinumSymbol=XPTUSD'
+  Write-Host '   GoldSymbol=XAUUSD.pr'
+  Write-Host '   SilverSymbol=XAGUSD.pr'
+  Write-Host '   PlatinumSymbol=XPTUSD.pr'
   Write-Host '   PostEverySeconds=1'
   Write-Host ''
   Write-Host '3) Enable AutoTrading (toolbar green button).'
@@ -43,9 +43,9 @@ try {
     "BridgeUrl=$bridgeUrl"
     "BridgeToken=$token"
     'Tenant=mg'
-    'GoldSymbol=XAUUSD'
-    'SilverSymbol=XAGUSD'
-    'PlatinumSymbol=XPTUSD'
+    'GoldSymbol=XAUUSD.pr'
+    'SilverSymbol=XAGUSD.pr'
+    'PlatinumSymbol=XPTUSD.pr'
     'PostEverySeconds=1'
     'RequestTimeoutMs=5000'
     'PrintSuccessfulPosts=1'

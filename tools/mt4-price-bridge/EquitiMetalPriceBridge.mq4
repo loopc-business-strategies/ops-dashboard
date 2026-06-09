@@ -1,13 +1,13 @@
 #property strict
-#property version   "1.02"
+#property version   "1.03"
 #property description "Posts live Equiti MT4 metal quotes to the Ops Dashboard backend."
 
 input string BridgeUrl = "http://localhost:5000/api/erp-accounting/metal-rates/bridge";
 input string BridgeToken = "";
 input string Tenant = "mg";
-input string GoldSymbol = "XAUUSD";
-input string SilverSymbol = "XAGUSD";
-input string PlatinumSymbol = "XPTUSD";
+input string GoldSymbol = "XAUUSD.pr";
+input string SilverSymbol = "XAGUSD.pr";
+input string PlatinumSymbol = "XPTUSD.pr";
 input int PostEverySeconds = 1;
 input int RequestTimeoutMs = 5000;
 input bool PrintSuccessfulPosts = true;

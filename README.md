@@ -23,7 +23,7 @@ Multi-tenant operations and ERP platform for mg, cg, and loopc companies.
 **Frontend tests:** **`npm run test:frontend`** (used by **`deploy:railway`**) runs **`npm test`** (jsdom Vitest) **and** **`npm run test:unit`** (Node Vitest), matching CI’s frontend job.
 
 **Normal releases:** With the repo connected to **Vercel** and **Railway**, pushing to **`main`** is enough—both platforms pick up the commit automatically. You do not need local `npx vercel` or `railway` for day-to-day deploys. Use those CLIs only for manual redeploys or when setting up CI with `VERCEL_TOKEN` / a fresh `railway login`; headless environments (e.g. some agent sandboxes) often lack OAuth, which is why CLI deploy can fail there even when GitHub integrations succeed.
-- Optional server-side metal **market** feeds (reports / saved rates): `METALS_DEV_API_KEY`, `FRED_API_KEY`, or `ALPHA_VANTAGE_API_KEY`; optional **`METALS_SPOT_MOCK_REALTIME=true`** for synthetic ticks in dev — see `ENV-VARS-QUICK-REFERENCE.md`. The MG top bar can receive live Gold/Silver/Platinum ticks from `tools/mt4-price-bridge`.
+- Optional server-side metal **market** feeds (reports / saved rates): `METALS_DEV_API_KEY`, `FRED_API_KEY`, or `ALPHA_VANTAGE_API_KEY`; optional **`METALS_SPOT_MOCK_REALTIME=true`** for synthetic ticks in dev — see `ENV-VARS-QUICK-REFERENCE.md`. The MG top bar can receive live Gold/Silver/Platinum ticks from `tools/mt4-price-bridge`. **MT4 bridge checklist and troubleshooting:** `docs/MT4_METAL_PRICE_BRIDGE.md`.
 
 ## GitHub Actions Setup (One-Shot)
 This repo includes the post-deploy tenant smoke workflow:
