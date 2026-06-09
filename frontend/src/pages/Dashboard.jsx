@@ -13,6 +13,7 @@ import TopbarMetalTickers from '../components/TopbarMetalTickers'
 import AIAgentWidget from '../components/AIAgentWidget'
 import { LiveMetalRatesProvider } from '../context/LiveMetalRatesContext'
 import { startUserNotifications, startProjectsSse } from '../utils/realtimeSocket'
+import { resolveChatTargetIdFromSocketPayload } from '../utils/notificationChatTarget'
 
 // Import tab content components
 const OverviewTab = lazy(() => import('../components/tabs/OverviewTab'))
@@ -108,19 +109,6 @@ function mapRealtimeNotificationPayload(payload) {
     msg: msg || type || 'Notification received',
     dotColor: 'bg-green-400',
   }
-}
-
-/** Resolves ChatTab row id (`d:userId` / `g:groupId`) from Socket notification payload. */
-function resolveChatTargetIdFromSocketPayload(payload) {
-  const type = String(payload?.type || '')
-  const data = payload?.data || {}
-  if (type !== 'chat_message' && type !== 'chat_mention') return null
-  const ch = String(data.channelType || '').toLowerCase()
-  const senderId = String(data.senderId || '').trim()
-  const groupId = String(data.groupId || '').trim()
-  if (ch === 'dm' && /^[a-f\d]{24}$/i.test(senderId)) return `d:${senderId}`
-  if (ch === 'group' && /^[a-f\d]{24}$/i.test(groupId)) return `g:${groupId}`
-  return null
 }
 
 /** ERP Transactions deep-link from `transaction_chat_mention` socket payload. */
