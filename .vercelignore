@@ -1,0 +1,8 @@
+# Vercel CLI uploads the working directory; .gitignore does not apply the same way.
+# Exclude local artifacts that can exceed the ~2 GiB upload limit.
+
+*.rar
+mobile.rar
+
+# Reinstalled during `npm ci --prefix frontend` on Vercel
+**/node_modules
