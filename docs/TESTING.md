@@ -8,7 +8,7 @@ Use **Node 24** locally when mirroring CI (see **`.nvmrc`** at the repo root and
 npm run lint
 ```
 
-Runs workspace guardrails plus **strict ESLint** on production `frontend/src/components/tabs/erp/**/*.js` (`--max-warnings=0`).
+Runs workspace guardrails plus **strict ESLint** on production `frontend/src/components/tabs/erp/**/*.{js,jsx}` and `frontend/src/api/**/*.js` (`--max-warnings=0`).
 
 To lint the **entire** `frontend/src` tree (same flat config; may report many warnings outside the ERP tab):
 

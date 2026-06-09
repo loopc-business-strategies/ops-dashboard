@@ -1,37 +1,15 @@
-const https = require('https')
+const { createMakeRequest, assertLoginConfigured, loginPayloadForApi } = require('./_opsMiscEnv')
 
-const makeRequest = (method, path, data = null, headers = {}) => new Promise((resolve, reject) => {
-  const url = new URL('https://api.loopcstrategies.com' + path)
-  const options = {
-    method,
-    hostname: url.hostname,
-    port: url.port || 443,
-    path: url.pathname + url.search,
-    headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': 'mg', ...headers },
-  }
-  const req = https.request(options, (res) => {
-    let body = ''
-    res.on('data', (chunk) => (body += chunk))
-    res.on('end', () => {
-      try {
-        resolve({ status: res.statusCode, data: JSON.parse(body) })
-      } catch (e) {
-        resolve({ status: res.statusCode, data: body })
-      }
-    })
-  })
-  req.on('error', reject)
-  if (data) req.write(JSON.stringify(data))
-  req.end()
-})
+const makeRequest = createMakeRequest()
 
 ;(async () => {
   try {
     console.log('\n=== Final MG Deployment & Cleanup Verification ===\n')
 
     // Login
+    assertLoginConfigured()
     console.log('[1] Authenticating...')
-    let loginRes = await makeRequest('POST', '/api/auth/login', { username: 'Nan', password: '123456' })
+    let loginRes = await makeRequest('POST', '/api/auth/login', loginPayloadForApi())
     if (loginRes.status !== 200) throw new Error(`Login failed: ${loginRes.status}`)
     const token = loginRes.data.token
     const authHeaders = { 'Authorization': `Bearer ${token}` }

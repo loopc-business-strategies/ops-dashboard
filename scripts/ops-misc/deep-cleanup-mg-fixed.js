@@ -1,37 +1,15 @@
-const https = require('https')
+const { createMakeRequest, assertLoginConfigured, loginPayloadForApi } = require('./_opsMiscEnv')
 
-const makeRequest = (method, path, data = null, headers = {}) => new Promise((resolve, reject) => {
-  const url = new URL('https://api.loopcstrategies.com' + path)
-  const options = {
-    method,
-    hostname: url.hostname,
-    port: url.port || 443,
-    path: url.pathname + url.search,
-    headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': 'mg', ...headers },
-  }
-  const req = https.request(options, (res) => {
-    let body = ''
-    res.on('data', (chunk) => (body += chunk))
-    res.on('end', () => {
-      try {
-        resolve({ status: res.statusCode, data: JSON.parse(body) })
-      } catch (e) {
-        resolve({ status: res.statusCode, data: body })
-      }
-    })
-  })
-  req.on('error', reject)
-  if (data) req.write(JSON.stringify(data))
-  req.end()
-})
+const makeRequest = createMakeRequest()
 
 ;(async () => {
   try {
     console.log('\n=== Deep MG Cleanup (Authenticated) ===\n')
 
     // Step 1: Login with correct field
+    assertLoginConfigured()
     console.log('[1/5] Logging in as Nan...')
-    let loginRes = await makeRequest('POST', '/api/auth/login', { name: 'Nan', password: '123456' })
+    let loginRes = await makeRequest('POST', '/api/auth/login', loginPayloadForApi())
     if (loginRes.status !== 200) {
       console.log(`Login status: ${loginRes.status}`)
       console.log(`Response: ${JSON.stringify(loginRes.data).slice(0, 300)}`)

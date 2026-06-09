@@ -18,7 +18,7 @@ Multi-tenant operations and ERP platform for mg, cg, and loopc companies.
 
 **Ad-hoc ops / cleanup scripts** (historically at the repo root) live under **`scripts/ops-misc/`** — see `scripts/ops-misc/README.md`. Example: `node scripts/ops-misc/verify-deployment.js`. Root **`ops_dashboard*.html`** scratch exports are listed in **`.gitignore`** and should not be committed.
 
-**Linting:** `npm run lint` runs repository guardrails **and** strict ESLint on **all production `frontend/src/components/tabs/erp/**/*.js`** (tests excluded, `--max-warnings=0`). **`npm run lint:eslint`** still scans all of **`frontend/src`** for broader cleanup (legacy warnings allowed).
+**Linting:** `npm run lint` runs repository guardrails **and** strict ESLint on **all production `frontend/src/components/tabs/erp/**/*.{js,jsx}`** and **`frontend/src/api/**/*.js`** (tests excluded, `--max-warnings=0`). **`npm run lint:eslint`** still scans all of **`frontend/src`** for broader cleanup (legacy warnings allowed).
 
 **CI backend tests:** the **Backend Fast Tests** job runs `test:fast` and **`test:erp-accounting`**. **Backend full Jest** runs **`npm test`** on all suites (same as local `cd backend && npm test`). **Backend Integration** runs tenant routing, tenant isolation, and ERP transactions in parallel. Root **`npm run test:backend`** still adds guardrails + sync before the full suite.
 

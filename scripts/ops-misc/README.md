@@ -1,8 +1,23 @@
 # Ad-hoc ops scripts
 
+**Security:** Do not put real production passwords in source. HTTPS scripts load optional `backend/.env` and repo-root `.env.local` when `dotenv` is available, and read **`OPS_MISC_*`** variables below. Authenticated scripts exit with instructions if login env is missing.
+
 These Node scripts were consolidated from the **repository root** so the top level stays focused on the workspace (`package.json`, `frontend/`, `backend/`, etc.).
 
 They are **not** part of the production app, CI guardrails, or `npm run` workflows unless documented elsewhere. Review each file before running: many hit live APIs or contain tenant-specific assumptions.
+
+## Environment (HTTPS helpers)
+
+| Variable | Purpose |
+|----------|---------|
+| `OPS_MISC_API_BASE` | API origin (e.g. `https://api.example.com`). Falls back to `SMOKE_API_BASE`, then `https://api.loopcstrategies.com`. |
+| `OPS_MISC_TENANT_ID` | Value for `X-Tenant-ID` (default `mg`). |
+| `OPS_MISC_LOGIN_NAME` or `OPS_MISC_LOGIN_USERNAME` | Login identifier for `/api/auth/login`. |
+| `OPS_MISC_LOGIN_PASSWORD` | **Required** for scripts that authenticate. |
+| `OPS_MISC_LOGIN_USE_USERNAME_FIELD` | If `1` or `true`, send `{ username, password }` instead of `{ name, password }`. |
+| `OPS_MISC_PROBE_*` | Used only by `verify-deployment.js` for non-destructive auth endpoint probes (`OPS_MISC_PROBE_COMPANY`, `OPS_MISC_PROBE_NAME`, `OPS_MISC_PROBE_PASSWORD`; defaults are non-credential placeholders). |
+
+Shared helpers live in [`_opsMiscEnv.js`](_opsMiscEnv.js).
 
 ## Running
 

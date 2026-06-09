@@ -115,7 +115,7 @@ import {
 } from './erp/ERPBrandingUtils'
 import { resolveDocumentBranding } from './erp/documentBranding'
 import { loadExcel, loadPdfTools } from './erp/lazyExportLibs'
-import { ERP_TAB_COLORS as C, TRANSACTION_STATUS_STYLES, formatDateInputLocal } from './erp/erpTabPresentation'
+import { ERP_TAB_COLORS as C, TRANSACTION_STATUS_STYLES, formatDateInputLocal, ERP_EMPTY_CARD_STYLE, ERP_MODAL_BACKDROP_STYLE, ERP_MODAL_CARD_STYLE, ERP_MODAL_INPUT_STYLE } from './erp/erpTabPresentation'
 import { exchangeRateFromUnitsPerBase, resolveCurrencyRowByCode } from './erp/erpCurrencyRowHelpers'
 import StatementExportOptionsModal from './erp/StatementExportOptionsModal'
 
@@ -1103,42 +1103,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
   const transactionPageCount = Math.max(1, Math.ceil(Number(transactionMeta.total || 0) / Number(transactionMeta.limit || 25)))
   const isTransactionEditMode = Boolean(editingTransactionId)
   const allVisibleTransactionsSelected = Boolean(transactions.length) && transactions.every((tx) => selectedTransactionIds.includes(tx._id))
-  const emptyCardStyle = {
-    background: '#F9FAFB',
-    border: '1px dashed #D1D5DB',
-    borderRadius: '0.5rem',
-    padding: '1rem',
-    color: C.inkSoft,
-    fontSize: '0.875rem',
-  }
-  const modalBackdropStyle = {
-    position: 'fixed',
-    inset: 0,
-    background: 'rgba(17, 24, 39, 0.45)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 60,
-    padding: '1rem',
-  }
-  const modalCardStyle = {
-    width: 'min(540px, 100%)',
-    background: '#FFFFFF',
-    borderRadius: '0.75rem',
-    boxShadow: '0 18px 50px rgba(15, 23, 42, 0.2)',
-    padding: '1.25rem',
-  }
-  const modalInputStyle = {
-    display: 'block',
-    width: '100%',
-    padding: '0.65rem 0.75rem',
-    marginBottom: '0.75rem',
-    background: '#F9FAFB',
-    border: '1px solid #D1D5DB',
-    color: C.ink,
-    borderRadius: '0.5rem',
-  }
-  const detailsPanelIsFloating = detailsPanel.floating || detailsPanel.pinned
+ = detailsPanel.floating || detailsPanel.pinned
   const getCurrentDetailsPanelGeometry = () => {
     const rect = detailsPanelRef.current?.getBoundingClientRect()
     if (!rect) {
@@ -5916,7 +5881,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
         beginJvModalResize={beginJvModalResize}
         ledgerFilters={ledgerFilters}
         setLedgerFilters={setLedgerFilters}
-        modalInputStyle={modalInputStyle}
+        modalInputStyle={ERP_MODAL_INPUT_STYLE}
         LEDGER_DEPARTMENTS={LEDGER_DEPARTMENTS}
         LEDGER_REFERENCE_TYPES={LEDGER_REFERENCE_TYPES}
         accounts={accounts}
@@ -6124,7 +6089,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
             </div>
           </div>
           {!canViewBalanceEnquiry ? (
-            <div style={{ ...emptyCardStyle, borderStyle: 'solid', background: '#FEF2F2', color: '#991B1B' }}>Account summary access restricted. Ask an admin to enable the Account Summary ERP permission for this user.</div>
+            <div style={{ ...ERP_EMPTY_CARD_STYLE, borderStyle: 'solid', background: '#FEF2F2', color: '#991B1B' }}>Account summary access restricted. Ask an admin to enable the Account Summary ERP permission for this user.</div>
           ) : (
             <>
               <div style={{ marginBottom: '1rem' }}>
@@ -6241,13 +6206,13 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
       <ERPTransactionsTab
         activeTab={activeTab}
         C={C}
-        emptyCardStyle={emptyCardStyle}
+        emptyCardStyle={ERP_EMPTY_CARD_STYLE}
         transactionSummary={transactionSummary}
         selectedTransactionId={selectedTransactionId}
         setSelectedTransactionId={setSelectedTransactionId}
         transactionFilters={transactionFilters}
         setTransactionFilters={setTransactionFilters}
-        modalInputStyle={modalInputStyle}
+        modalInputStyle={ERP_MODAL_INPUT_STYLE}
         availableTransactionTypes={availableTransactionTypes}
         TRANSACTION_TYPE_LABELS={TRANSACTION_TYPE_LABELS}
         loadTransactions={loadTransactions}
@@ -6301,7 +6266,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
       <ERPReportsTab
         activeTab={activeTab}
         C={C}
-        modalInputStyle={modalInputStyle}
+        modalInputStyle={ERP_MODAL_INPUT_STYLE}
         reportFilters={reportFilters}
         setReportFilters={setReportFilters}
         ACCOUNT_TYPES={ACCOUNT_TYPES}
@@ -6310,7 +6275,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
         handleExportReportXlsx={handleExportReportXlsx}
         handleExportReportPdf={handleExportReportPdf}
         handlePrintCurrentReport={handlePrintCurrentReport}
-        emptyCardStyle={emptyCardStyle}
+        emptyCardStyle={ERP_EMPTY_CARD_STYLE}
         reports={reports}
         reportView={reportView}
         setReportView={setReportView}
@@ -6330,8 +6295,8 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
         loading={loading}
         voucherSource={voucherSource}
         setVoucherSource={setVoucherSource}
-        modalBackdropStyle={modalBackdropStyle}
-        modalCardStyle={modalCardStyle}
+        modalBackdropStyle={ERP_MODAL_BACKDROP_STYLE}
+        modalCardStyle={ERP_MODAL_CARD_STYLE}
         voucherSourceLoading={voucherSourceLoading}
         handleOpenVoucherSource={handleOpenVoucherSource}
         handleJumpToTransaction={handleJumpToTransaction}
@@ -6340,8 +6305,8 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
       <ERPVendorsTab
         activeTab={activeTab}
         C={C}
-        modalInputStyle={modalInputStyle}
-        emptyCardStyle={emptyCardStyle}
+        modalInputStyle={ERP_MODAL_INPUT_STYLE}
+        emptyCardStyle={ERP_EMPTY_CARD_STYLE}
         saving={saving}
         canManageVendors={canManageVendors}
         vendorSummary={vendorSummary}
@@ -6379,7 +6344,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
       <ERPInventoryTab
         activeTab={activeTab}
         C={C}
-        modalInputStyle={modalInputStyle}
+        modalInputStyle={ERP_MODAL_INPUT_STYLE}
         isSuperAdmin={isSuperAdmin}
         isFinance={isFinance}
         saving={saving}
@@ -6459,7 +6424,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
               Upload one company logo here. It is used automatically by vouchers, statements, report printouts, and PDF exports for the active tenant.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) repeat(3, minmax(130px, 0.7fr)) auto', gap: '0.65rem', alignItems: 'center' }}>
-              <select value={selectedBrandingKey} onChange={(e) => handleSelectBrandingProfile(e.target.value)} style={modalInputStyle}>
+              <select value={selectedBrandingKey} onChange={(e) => handleSelectBrandingProfile(e.target.value)} style={ERP_MODAL_INPUT_STYLE}>
                 {brandingProfiles.map((profile) => (
                   <option key={profile.key} value={profile.key}>{brandingOptionLabel(profile)}{profile.isDefault ? ' (Default)' : ''}</option>
                 ))}
@@ -6471,7 +6436,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                 placeholder="Width"
                 value={brandingForm.logoWidth}
                 onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoWidth: e.target.value }))}
-                style={modalInputStyle}
+                style={ERP_MODAL_INPUT_STYLE}
               />
               <input
                 type="number"
@@ -6480,18 +6445,18 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                 placeholder="Height"
                 value={brandingForm.logoHeight}
                 onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoHeight: e.target.value }))}
-                style={modalInputStyle}
+                style={ERP_MODAL_INPUT_STYLE}
               />
               <select
                 value={brandingForm.logoFit}
                 onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoFit: e.target.value }))}
-                style={modalInputStyle}
+                style={ERP_MODAL_INPUT_STYLE}
               >
                 <option value="contain">Contain</option>
                 <option value="cover">Cover</option>
                 <option value="fill">Fill</option>
               </select>
-              <label style={{ ...modalInputStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginBottom: 0 }}>
+              <label style={{ ...ERP_MODAL_INPUT_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginBottom: 0 }}>
                 Upload Logo
                 <input type="file" accept={LOGO_UPLOAD_ACCEPT} onChange={(e) => handleBrandingLogoFile(e.target.files?.[0])} style={{ display: 'none' }} />
               </label>
@@ -6515,7 +6480,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
               <select
                 value={inventoryStockCodeSettings.format}
                 onChange={(e) => setInventoryStockCodeSettings((prev) => ({ ...prev, format: e.target.value }))}
-                style={modalInputStyle}
+                style={ERP_MODAL_INPUT_STYLE}
               >
                 <option value="metal-purity">GOLD-9999</option>
                 <option value="prefix-metal-purity">RM-GOLD-9999</option>
@@ -6525,7 +6490,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                 value={inventoryStockCodeSettings.prefix}
                 onChange={(e) => setInventoryStockCodeSettings((prev) => ({ ...prev, prefix: e.target.value.toUpperCase() }))}
                 disabled={inventoryStockCodeSettings.format !== 'prefix-metal-purity'}
-                style={inventoryStockCodeSettings.format !== 'prefix-metal-purity' ? { ...modalInputStyle, background: '#F8FAFC', color: C.inkSoft } : modalInputStyle}
+                style={inventoryStockCodeSettings.format !== 'prefix-metal-purity' ? { ...ERP_MODAL_INPUT_STYLE, background: '#F8FAFC', color: C.inkSoft } : ERP_MODAL_INPUT_STYLE}
               />
             </div>
             <p style={{ margin: '0.6rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>
@@ -6536,7 +6501,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
             <h4 style={{ color: C.ink, marginBottom: '1rem', fontWeight: '700' }}>Report Branding</h4>
             <form onSubmit={handleSaveBranding} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', border: `1px solid ${C.p2}`, marginBottom: '1rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) repeat(2, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                <select value={selectedBrandingKey} onChange={(e) => handleSelectBrandingProfile(e.target.value)} style={modalInputStyle}>
+                <select value={selectedBrandingKey} onChange={(e) => handleSelectBrandingProfile(e.target.value)} style={ERP_MODAL_INPUT_STYLE}>
                   {brandingProfiles.map((profile) => (
                     <option key={profile.key} value={profile.key}>{brandingOptionLabel(profile)}{profile.isDefault ? ' (Default)' : ''}</option>
                   ))}
@@ -6549,9 +6514,9 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                     setSelectedBrandingKey(nextKey)
                     setBrandingForm((prev) => ({ ...prev, key: nextKey }))
                   }}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
-                <label style={{ ...modalInputStyle, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: 0 }}>
+                <label style={{ ...ERP_MODAL_INPUT_STYLE, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: 0 }}>
                   <input
                     type="checkbox"
                     checked={Boolean(brandingForm.isDefault)}
@@ -6571,55 +6536,55 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                   placeholder="Entity Name"
                   value={brandingForm.entityName}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, entityName: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="Branch / Unit"
                   value={brandingForm.branchName}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, branchName: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="Company Name"
                   value={brandingForm.companyName}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, companyName: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="Legal Name"
                   value={brandingForm.legalName}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, legalName: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="Company Address"
                   value={brandingForm.address}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, address: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="Company Phone"
                   value={brandingForm.phone}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, phone: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="TRN / Tax Registration"
                   value={brandingForm.trn}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, trn: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="Report Subtitle"
                   value={brandingForm.reportSubtitle}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, reportSubtitle: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="Footer Text"
                   value={brandingForm.reportFooter}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, reportFooter: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.75rem', alignItems: 'start', marginBottom: '0.75rem' }}>
@@ -6627,9 +6592,9 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                   placeholder="Logo URL or paste data URL"
                   value={brandingForm.logoUrl}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoUrl: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
-                <label style={{ ...modalInputStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginBottom: 0 }}>
+                <label style={{ ...ERP_MODAL_INPUT_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginBottom: 0 }}>
                   Upload Logo
                   <input
                     type="file"
@@ -6662,7 +6627,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                   placeholder="Logo Width"
                   value={brandingForm.logoWidth}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoWidth: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   type="number"
@@ -6671,12 +6636,12 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                   placeholder="Logo Height"
                   value={brandingForm.logoHeight}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoHeight: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <select
                   value={brandingForm.logoFit}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoFit: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 >
                   <option value="contain">Contain</option>
                   <option value="cover">Cover / Crop</option>
@@ -6718,37 +6683,37 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                   placeholder="Prepared By Title"
                   value={brandingForm.preparedByTitle}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, preparedByTitle: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="Prepared By Name"
                   value={brandingForm.preparedByName}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, preparedByName: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="Reviewed By Title"
                   value={brandingForm.reviewedByTitle}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, reviewedByTitle: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="Reviewed By Name"
                   value={brandingForm.reviewedByName}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, reviewedByName: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="Approved By Title"
                   value={brandingForm.approvedByTitle}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, approvedByTitle: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="Approved By Name"
                   value={brandingForm.approvedByName}
                   onChange={(e) => setBrandingForm((prev) => ({ ...prev, approvedByName: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -6838,12 +6803,12 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                   placeholder="USD Amount"
                   value={usdConversion.usdAmount}
                   onChange={(e) => setUsdConversion((prev) => ({ ...prev, usdAmount: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <select
                   value={usdConversion.targetCode}
                   onChange={(e) => setUsdConversion((prev) => ({ ...prev, targetCode: e.target.value }))}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 >
                   {currencies.map((currency) => (
                     <option key={currency._id || currency.code} value={currency.code}>{currency.code} - {currency.name}</option>
@@ -6868,19 +6833,19 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                   placeholder="Currency Code"
                   value={currencyForm.code}
                   onChange={(e) => setCurrencyForm({ ...currencyForm, code: e.target.value.toUpperCase() })}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="Currency Name"
                   value={currencyForm.name}
                   onChange={(e) => setCurrencyForm({ ...currencyForm, name: e.target.value })}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   placeholder="Symbol"
                   value={currencyForm.symbol}
                   onChange={(e) => setCurrencyForm({ ...currencyForm, symbol: e.target.value })}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                 />
                 <input
                   type="number"
@@ -6889,7 +6854,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                   placeholder="Exchange Rate"
                   value={currencyForm.exchangeRate}
                   onChange={(e) => setCurrencyForm({ ...currencyForm, exchangeRate: e.target.value, oneUsdEquals: '' })}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                   disabled={currencyForm.baseCurrency}
                 />
                 <input
@@ -6906,7 +6871,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                       exchangeRate: r !== null ? String(r) : currencyForm.exchangeRate,
                     })
                   }}
-                  style={modalInputStyle}
+                  style={ERP_MODAL_INPUT_STYLE}
                   disabled={currencyForm.baseCurrency}
                 />
               </div>
@@ -6981,8 +6946,8 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
         </div>
       )}
       {editState.record && (
-        <div style={modalBackdropStyle} onClick={closeEditModal}>
-          <div style={modalCardStyle} onClick={(e) => e.stopPropagation()}>
+        <div style={ERP_MODAL_BACKDROP_STYLE} onClick={closeEditModal}>
+          <div style={ERP_MODAL_CARD_STYLE} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginTop: 0, marginBottom: '1rem', color: C.ink, fontSize: '1.1rem', fontWeight: '700' }}>
               Edit {editState.type.charAt(0).toUpperCase() + editState.type.slice(1)}
             </h3>
@@ -6993,25 +6958,25 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                     value={editState.form.accountName || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, accountName: e.target.value } }))}
                     placeholder="Account Name"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     value={editState.form.description || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))}
                     placeholder="Description"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     value={editState.form.department || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, department: e.target.value } }))}
                     placeholder="Department"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     value={editState.form.currency || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, currency: e.target.value } }))}
                     placeholder="Currency"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                 </>
               )}
@@ -7021,12 +6986,12 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                     value={editState.form.mappingType || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, mappingType: e.target.value } }))}
                     placeholder="Mapping Type"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <select
                     value={editState.form.debitAccountId || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, debitAccountId: e.target.value } }))}
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   >
                     <option value="">Select Debit Account</option>
                     {accounts.map((account) => (
@@ -7036,7 +7001,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                   <select
                     value={editState.form.creditAccountId || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditAccountId: e.target.value } }))}
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   >
                     <option value="">Select Credit Account</option>
                     {accounts.map((account) => (
@@ -7046,7 +7011,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                   <select
                     value={editState.form.department || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, department: e.target.value } }))}
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   >
                     <option value="">Shared / All Departments</option>
                     {LEDGER_DEPARTMENTS.map((department) => (
@@ -7057,7 +7022,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                     value={editState.form.description || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))}
                     placeholder="Description"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                 </>
               )}
@@ -7067,19 +7032,19 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                     value={editState.form.code || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, code: e.target.value.toUpperCase() } }))}
                     placeholder="Code"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     value={editState.form.name || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))}
                     placeholder="Name"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     value={editState.form.symbol || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, symbol: e.target.value } }))}
                     placeholder="Symbol"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     type="number"
@@ -7090,7 +7055,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                       form: { ...prev.form, exchangeRate: e.target.value, oneUsdEquals: '' },
                     }))}
                     placeholder="Exchange Rate"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                     disabled={Boolean(editState.form.baseCurrency)}
                   />
                   {!editState.form.baseCurrency && (
@@ -7111,7 +7076,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                         }))
                       }}
                       placeholder={`1 ${erpBaseCurrencyCode} = (units of this currency)`}
-                      style={modalInputStyle}
+                      style={ERP_MODAL_INPUT_STYLE}
                     />
                   )}
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: C.ink, marginBottom: '0.75rem' }}>
@@ -7141,31 +7106,31 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                     value={editState.form.name || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))}
                     placeholder="Customer Name"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     value={editState.form.phone || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, phone: e.target.value } }))}
                     placeholder="Phone"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     value={editState.form.email || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, email: e.target.value } }))}
                     placeholder="Email"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     value={editState.form.address || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, address: e.target.value } }))}
                     placeholder="Address"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     value={editState.form.gstVat || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, gstVat: e.target.value } }))}
                     placeholder="GST/VAT"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     type="number"
@@ -7173,26 +7138,26 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                     value={editState.form.creditLimit || 0}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditLimit: e.target.value } }))}
                     placeholder="Credit Limit"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     type="number"
                     value={editState.form.paymentTermsDays || 0}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, paymentTermsDays: e.target.value } }))}
                     placeholder="Payment Terms (Days)"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     value={editState.form.currency || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, currency: e.target.value.toUpperCase() } }))}
                     placeholder="Currency"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     value={editState.form.notes || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, notes: e.target.value } }))}
                     placeholder="Notes"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                 </>
               )}
@@ -7202,12 +7167,12 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                     type="date"
                     value={editState.form.date || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, date: e.target.value } }))}
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <select
                     value={editState.form.debitAccountId || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, debitAccountId: e.target.value } }))}
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   >
                     <option value="">Select Debit Account</option>
                     {accounts.map((acc) => (
@@ -7217,7 +7182,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                   <select
                     value={editState.form.creditAccountId || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, creditAccountId: e.target.value } }))}
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   >
                     <option value="">Select Credit Account</option>
                     {accounts.map((acc) => (
@@ -7230,18 +7195,18 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                     value={editState.form.amount || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, amount: parseFloat(e.target.value) || 0 } }))}
                     placeholder="Amount"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <input
                     value={editState.form.description || ''}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))}
                     placeholder="Description"
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   />
                   <select
                     value={editState.form.referenceType || 'journal'}
                     onChange={(e) => setEditState((prev) => ({ ...prev, form: { ...prev.form, referenceType: e.target.value } }))}
-                    style={modalInputStyle}
+                    style={ERP_MODAL_INPUT_STYLE}
                   >
                     <option value="journal">Journal</option>
                     <option value="invoice">Invoice</option>
@@ -7290,8 +7255,8 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
       )}
       {/* TEST MAPPING MODAL */}
       {showMappingTest && testMapping && (
-        <div style={modalBackdropStyle} onClick={() => setShowMappingTest(false)}>
-          <div style={modalCardStyle} onClick={(e) => e.stopPropagation()}>
+        <div style={ERP_MODAL_BACKDROP_STYLE} onClick={() => setShowMappingTest(false)}>
+          <div style={ERP_MODAL_CARD_STYLE} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginBottom: '1rem', color: C.ink, fontWeight: '700' }}>
               Test Mapping: {testMapping.mappingType}
             </h3>
@@ -7624,7 +7589,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                             type="date"
                             value={statementFilters.startDate}
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, startDate: e.target.value }))}
-                            style={modalInputStyle}
+                            style={ERP_MODAL_INPUT_STYLE}
                           />
                         </label>
                         <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
@@ -7633,7 +7598,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                             type="date"
                             value={statementFilters.endDate}
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, endDate: e.target.value }))}
-                            style={modalInputStyle}
+                            style={ERP_MODAL_INPUT_STYLE}
                           />
                         </label>
                         <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
@@ -7641,7 +7606,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                           <select
                             value={statementFilters.referenceType}
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, referenceType: e.target.value }))}
-                            style={modalInputStyle}
+                            style={ERP_MODAL_INPUT_STYLE}
                           >
                             <option value="">All Types</option>
                             {statementReferenceTypes.map((type) => (
@@ -7654,7 +7619,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                           <select
                             value={statementFilters.department}
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, department: e.target.value }))}
-                            style={modalInputStyle}
+                            style={ERP_MODAL_INPUT_STYLE}
                           >
                             <option value="">All Departments</option>
                             {statementDepartments.map((department) => (
@@ -7667,7 +7632,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                           <select
                             value={statementFilters.fixStatus}
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, fixStatus: e.target.value }))}
-                            style={modalInputStyle}
+                            style={ERP_MODAL_INPUT_STYLE}
                           >
                             <option value="">All Fixing Status</option>
                             <option value="fixed">Fixed Only</option>
@@ -7696,7 +7661,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                           <select
                             value={statementFilters.foreignCurrency}
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, foreignCurrency: e.target.value }))}
-                            style={modalInputStyle}
+                            style={ERP_MODAL_INPUT_STYLE}
                           >
                             {statementFilterCurrencyOptions.map((currencyCode) => (
                               <option key={currencyCode} value={currencyCode === 'ALL' ? '' : currencyCode}>
@@ -7728,7 +7693,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                             <select
                               value={statementFilters.metalCommodity || ''}
                               onChange={(e) => setStatementFilters((prev) => ({ ...prev, metalCommodity: e.target.value }))}
-                              style={{ ...modalInputStyle, marginBottom: 0, opacity: statementMetalCommodityEnabled ? 1 : 0.55 }}
+                              style={{ ...ERP_MODAL_INPUT_STYLE, marginBottom: 0, opacity: statementMetalCommodityEnabled ? 1 : 0.55 }}
                               disabled={!statementMetalCommodityEnabled}
                             >
                               <option value="">All Metals</option>
@@ -7743,7 +7708,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
                           <select
                             value={statementFilters.showAmountIn || statementDisplayCurrency}
                             onChange={(e) => setStatementFilters((prev) => ({ ...prev, showAmountIn: e.target.value }))}
-                            style={modalInputStyle}
+                            style={ERP_MODAL_INPUT_STYLE}
                           >
                             {statementDisplayCurrencyOptions.map((currencyCode) => (
                               <option key={currencyCode} value={currencyCode}>{currencyCode}</option>

@@ -19,6 +19,19 @@ const COMPANY_BRANDING = {
   loopc: { displayName: 'LoopC', logoText: 'LC', color: 'green' },
 };
 
+function trimProbe(s) {
+  return String(s ?? '').trim()
+}
+
+/** Non-production credentials for endpoint existence checks only. */
+function probeAuthBody() {
+  return {
+    company: trimProbe(process.env.OPS_MISC_PROBE_COMPANY || 'loopc'),
+    name: trimProbe(process.env.OPS_MISC_PROBE_NAME || '__ops_misc_probe__'),
+    password: trimProbe(process.env.OPS_MISC_PROBE_PASSWORD || '__ops_misc_probe__'),
+  }
+}
+
 let results = {
   passed: [],
   failed: [],
@@ -184,7 +197,7 @@ async function testAuthEndpoints() {
     try {
       const res = await request(`${API_URL}${ep.path}`, {
         method: ep.method,
-        body: { company: 'loopc', name: 'test', password: 'test' },
+        body: probeAuthBody(),
       });
 
       if (res.status !== 404) {

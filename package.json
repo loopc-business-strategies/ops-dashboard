@@ -21,7 +21,7 @@
     "mobile:update:production": "npm --prefix mobile run update:production",
     "lint": "npm run check:tracked-paths && npm run check:destructive-guards && npm run check:risk-guardrails && npm run check:vercel-rewrites && npm run lint:eslint:ci",
     "lint:eslint": "eslint frontend/src",
-    "lint:eslint:ci": "node ./node_modules/eslint/bin/eslint.js \"frontend/src/components/tabs/erp/**/*.js\" \"frontend/src/api/**/*.js\" --ignore-pattern \"**/*.test.js\" --ignore-pattern \"**/*.node.test.js\" --ignore-pattern \"**/*.contract.test.js\" --max-warnings=0",
+    "lint:eslint:ci": "node ./node_modules/eslint/bin/eslint.js \"frontend/src/components/tabs/erp/**/*.js\" \"frontend/src/components/tabs/erp/**/*.jsx\" \"frontend/src/api/**/*.js\" --ignore-pattern \"**/*.test.js\" --ignore-pattern \"**/*.test.jsx\" --ignore-pattern \"**/*.node.test.js\" --ignore-pattern \"**/*.contract.test.js\" --ignore-pattern \"**/*.contract.test.jsx\" --max-warnings=0",
     "lint:eslint:repo": "node ./node_modules/eslint/bin/eslint.js frontend/src",
     "check:tracked-paths": "node scripts/check-forbidden-tracked-paths.mjs",
     "check:dependency-audit": "node scripts/run-production-dependency-audit.mjs",
