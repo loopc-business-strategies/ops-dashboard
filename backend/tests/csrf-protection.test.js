@@ -96,6 +96,31 @@ describe('CSRF protection for cookie-auth mutating routes', () => {
     expect(allowed.body.success).toBe(true)
   })
 
+  test('POST /api/auth/refresh returns csrfToken matching new Set-Cookie', async () => {
+    const user = await createTenantUser('loopc')
+    const agent = request.agent(app)
+
+    const login = await agent
+      .post('/api/auth/login')
+      .send({ company: 'loopc', name: user.name, password: 'password123' })
+
+    expect(login.status).toBe(200)
+    const csrfBefore = readCookieValue(login.headers['set-cookie'] || [], 'csrfToken')
+    expect(csrfBefore).toBeTruthy()
+
+    const refresh = await agent
+      .post('/api/auth/refresh')
+      .set('x-csrf-token', csrfBefore)
+      .send({})
+
+    expect(refresh.status).toBe(200)
+    expect(refresh.body.csrfToken).toBeTruthy()
+    expect(refresh.body.csrfToken).not.toBe(csrfBefore)
+
+    const csrfAfter = readCookieValue(refresh.headers['set-cookie'] || [], 'csrfToken')
+    expect(csrfAfter).toBe(refresh.body.csrfToken)
+  })
+
   test('accepts alternate x-xsrf-token header alias', async () => {
     const user = await createTenantUser('loopc')
     const agent = request.agent(app)

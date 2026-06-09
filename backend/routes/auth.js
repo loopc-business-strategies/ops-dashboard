@@ -384,9 +384,21 @@ router.post('/refresh', protect, async (req, res) => {
     const maxAgeMs = resolveSessionMaxAgeMs(settings)
     const expiresIn = resolveJwtExpiresIn(maxAgeMs)
     const token = createToken(user._id, req.tenant, expiresIn)
+    const mobile = isMobileClientRequest(req)
     res.cookie('sessionToken', token, buildSessionCookieOptions(maxAgeMs))
-    setCsrfCookie(res)
-    res.json({ success: true, message: 'Session refreshed.' })
+    // Must return the same CSRF value we Set-Cookie, or cross-origin browsers (SPA → api.*)
+    // cannot read the cookie and will keep sending a stale x-csrf-token from memory.
+    let csrfToken = null
+    if (!mobile) {
+      csrfToken = generateCsrfToken()
+      setCsrfCookie(res, csrfToken)
+      res.setHeader('X-CSRF-Token', csrfToken)
+    }
+    res.json({
+      success: true,
+      message: 'Session refreshed.',
+      ...(csrfToken ? { csrfToken } : {}),
+    })
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' })
   }
