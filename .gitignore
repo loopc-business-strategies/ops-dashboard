@@ -33,3 +33,6 @@ eslint-report*.json
 PROJECT-ENDPOINT-ROWMAP.csv
 PROJECT-ENDPOINT-ROWMAP.md
 tools/mt4-price-bridge/mg-production.local.set
+
+# Local archives (do not commit)
+*.rar

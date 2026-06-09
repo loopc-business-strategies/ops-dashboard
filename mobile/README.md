@@ -28,6 +28,16 @@ For Android emulator, `10.0.2.2` maps to host `localhost:5000`. For physical dev
 
 Production default: `https://api.loopcstrategies.com`
 
+### Native `android/` and `ios/` in Git
+
+The **`android/`** tree is tracked in this repository. **`ios/`** is not generated on Windows: Expo skips the iOS native project when you run `expo prebuild` from Windows. To add or refresh **`ios/`** for commits, run on **macOS or Linux** from `mobile/`:
+
+```bash
+npx expo prebuild --platform ios
+```
+
+Then commit the resulting `ios/` folder. CI and teammates on Mac can keep `ios/` in sync the same way after dependency or config changes.
+
 ### Optional: Sentry
 
 Set `EXPO_PUBLIC_SENTRY_DSN` in EAS environment variables (and optionally `EXPO_PUBLIC_SENTRY_ENVIRONMENT`, `EXPO_PUBLIC_SENTRY_RELEASE`, `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`). Init runs from `src/lib/sentryInit.ts` when the app loads. See repo `docs/OBSERVABILITY-SENTRY.md`. Native changes may require a new EAS build after upgrading `@sentry/react-native`.
