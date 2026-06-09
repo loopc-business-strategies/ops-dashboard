@@ -13,6 +13,17 @@ const { requestLoggerMiddleware } = require('./middleware/logger')
 const { bindTenantContext } = require('./middleware/tenantContext')
 const { enforceCsrfProtection } = require('./middleware/csrf')
 
+/** Client closed connection or aborted body read (express.json / raw-body); not an app bug. */
+function isClientAbortError(err) {
+  if (!err) return false
+  const code = err.code
+  if (code === 'ECONNRESET' || code === 'EPIPE' || code === 'ECONNABORTED') return true
+  if (err.type === 'request.aborted') return true
+  const msg = String(err.message || '').toLowerCase()
+  if (msg.includes('request aborted')) return true
+  return false
+}
+
 const Sentry = require('@sentry/node')
 const sentryEnabled = Boolean(String(process.env.SENTRY_DSN || '').trim())
 if (sentryEnabled) {
@@ -32,6 +43,10 @@ if (sentryEnabled) {
     environment: String(process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development').trim(),
     ...(sentryRelease ? { release: sentryRelease } : {}),
     tracesSampleRate: Number.isFinite(tracesSampleRate) ? tracesSampleRate : 0,
+    beforeSend(event, hint) {
+      if (isClientAbortError(hint && hint.originalException)) return null
+      return event
+    },
   })
 }
 
@@ -311,9 +326,15 @@ function createApp() {
   })
 
   app.use((err, req, res, next) => {
+    if (isClientAbortError(err)) {
+      if (!res.headersSent) res.status(400).end()
+      return
+    }
     console.error('Unhandled error:', err)
     if (sentryEnabled) Sentry.captureException(err)
-    res.status(500).json({ success: false, message: 'Something went wrong.' })
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: 'Something went wrong.' })
+    }
   })
 
   return app
