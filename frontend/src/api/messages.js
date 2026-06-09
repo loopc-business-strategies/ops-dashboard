@@ -23,10 +23,9 @@ const deleteGroup = async (_token, id) =>
 const createMessage = async (_token, data) =>
   (await axios.post(BASE, data)).data
 
+/** Do not set Content-Type manually — the boundary is required; axios sets it from FormData. */
 const createMessageWithAttachment = async (_token, formData) =>
-  (await axios.post(BASE, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })).data
+  (await axios.post(BASE, formData)).data
 
 const attachmentUrl = (fileName) => `${BASE}/attachments/${encodeURIComponent(fileName)}`
 

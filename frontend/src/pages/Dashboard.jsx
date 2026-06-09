@@ -212,6 +212,7 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps =
           onBack={() => setActiveTab('erp')}
           openChatId={chatTabProps.openChatId}
           onOpenChatIdConsumed={chatTabProps.onOpenChatIdConsumed}
+          focusComposerNonce={chatTabProps.focusComposerNonce || 0}
         />
       )
 
@@ -292,6 +293,8 @@ function Dashboard() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [pendingChatOpenId, setPendingChatOpenId] = useState(null)
+  /** Bumped when opening Chat from the bell so the message composer receives focus. */
+  const [chatComposerFocusNonce, setChatComposerFocusNonce] = useState(0)
   const [pendingErpJumpTransactionId, setPendingErpJumpTransactionId] = useState(null)
   const langMenuRef = useRef(null)
   const notifMenuRef = useRef(null)
@@ -314,8 +317,12 @@ function Dashboard() {
   const consumeOpenChatId = useCallback(() => setPendingChatOpenId(null), [])
   const consumeErpJumpTransaction = useCallback(() => setPendingErpJumpTransactionId(null), [])
   const chatTabRealtimeProps = useMemo(
-    () => ({ openChatId: pendingChatOpenId, onOpenChatIdConsumed: consumeOpenChatId }),
-    [pendingChatOpenId, consumeOpenChatId],
+    () => ({
+      openChatId: pendingChatOpenId,
+      onOpenChatIdConsumed: consumeOpenChatId,
+      focusComposerNonce: chatComposerFocusNonce,
+    }),
+    [pendingChatOpenId, consumeOpenChatId, chatComposerFocusNonce],
   )
   const erpTabRealtimeProps = useMemo(
     () => ({
@@ -551,6 +558,7 @@ function Dashboard() {
       setNotifOpen(false)
       setActiveTab('chat')
       setPendingChatOpenId(n.chatTargetId)
+      setChatComposerFocusNonce((v) => v + 1)
       return
     }
     if (n?.erpTransactionId) {

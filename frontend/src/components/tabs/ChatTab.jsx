@@ -297,7 +297,7 @@ function IBtn({ onClick, title, children, style = {} }) {
 // ─────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────
-function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsumed }) {
+function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsumed, focusComposerNonce = 0 }) {
   const { user, token }  = useAuth()
   const perms     = usePermissions()
   const { t } = useLanguage()
@@ -332,6 +332,16 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior:'smooth' }) }, [activeChatId, chats])
   useEffect(() => { if (activeChatId) setTimeout(() => inputRef.current?.focus(), 60) }, [activeChatId])
+
+  /** Bell / deep-link: focus composer after Chat tab is visible (nonce from Dashboard). */
+  useEffect(() => {
+    if (!focusComposerNonce) return undefined
+    const id = window.setTimeout(() => {
+      inputRef.current?.focus()
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, 140)
+    return () => window.clearTimeout(id)
+  }, [focusComposerNonce])
 
   const myAuthId = String(user?._id || user?.id || 'me')
 
@@ -638,6 +648,10 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
       setChats((prev) => prev.map((c) => (c.id === openChatId ? { ...c, unread: 0 } : c)))
       pendingDeepLinkChatRef.current = { id: null, attempts: 0 }
       onOpenChatIdConsumed()
+      window.setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+        inputRef.current?.focus()
+      }, 80)
       return undefined
     }
 
@@ -721,6 +735,7 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
     event.target.value = ''
     if (!file || !activeChatId) return
 
+    const caption = msgText.trim()
     const currentChat = chats.find((c) => c.id === activeChatId)
     const optimisticId = `m${Date.now()}`
     const optimisticFile = {
@@ -728,12 +743,12 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
       size: formatAttachmentSize(file.size),
       ext: file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() : 'file',
     }
-    const newMsg = { id: optimisticId, from: myId, text: '', time: new Date().toISOString(), file: optimisticFile }
+    const newMsg = { id: optimisticId, from: myId, text: caption, time: new Date().toISOString(), file: optimisticFile }
     setChats((prev) => prev.map((c) => (c.id === activeChatId ? { ...c, messages: [...c.messages, newMsg] } : c)))
 
     const formData = new FormData()
     formData.append('file', file)
-    const payload = messagePayloadForChat(currentChat, '')
+    const payload = messagePayloadForChat(currentChat, caption)
     Object.entries(payload).forEach(([key, value]) => {
       if (value === undefined || value === null || value === '') return
       if (Array.isArray(value)) formData.append(key, JSON.stringify(value))
@@ -755,6 +770,7 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
           )),
         } : c)))
       }
+      setMsgText('')
       showToast('📎 File sent', file.name)
     } catch {
       setChats((prev) => prev.map((c) => (
