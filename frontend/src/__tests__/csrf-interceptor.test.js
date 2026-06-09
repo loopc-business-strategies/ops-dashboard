@@ -21,6 +21,14 @@ describe('csrf interceptor utility', () => {
     expect(getConfig.headers['x-csrf-token']).toBeUndefined()
   })
 
+  it('falls back to axios defaults when csrf cookie is absent', () => {
+    const axiosInstance = {
+      defaults: { headers: { common: { 'x-csrf-token': 'from-defaults' } } },
+    }
+    const postConfig = applyCsrfHeader({ method: 'post', headers: {} }, document, axiosInstance)
+    expect(postConfig.headers['x-csrf-token']).toBe('from-defaults')
+  })
+
   it('installs request interceptor that applies csrf header', () => {
     document.cookie = 'csrfToken=token-via-install'
 

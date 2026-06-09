@@ -142,6 +142,27 @@ describe('CSRF protection for cookie-auth mutating routes', () => {
     expect(joined).not.toMatch(/sessionToken=/)
   })
 
+  test('GET /api/auth/me reuses existing csrf cookie instead of rotating each request', async () => {
+    const user = await createTenantUser('loopc')
+    const agent = request.agent(app)
+
+    const login = await agent
+      .post('/api/auth/login')
+      .send({ company: 'loopc', name: user.name, password: 'password123' })
+
+    expect(login.status).toBe(200)
+    const csrfAfterLogin = readCookieValue(login.headers['set-cookie'] || [], 'csrfToken')
+    expect(csrfAfterLogin).toBeTruthy()
+
+    const me1 = await agent.get('/api/auth/me').send()
+    expect(me1.status).toBe(200)
+    expect(me1.body.csrfToken).toBe(csrfAfterLogin)
+
+    const me2 = await agent.get('/api/auth/me').send()
+    expect(me2.status).toBe(200)
+    expect(me2.body.csrfToken).toBe(csrfAfterLogin)
+  })
+
   test('mutating request skips CSRF when Authorization Bearer is present', async () => {
     const user = await createTenantUser('loopc')
     const agent = request.agent(app)

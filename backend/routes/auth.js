@@ -276,9 +276,17 @@ router.get('/me', protect, (req, res) => {
   const mobile = isMobileClientRequest(req)
   let csrfToken = null
   if (!mobile) {
-    csrfToken = generateCsrfToken()
-    setCsrfCookie(res, csrfToken)
-    res.setHeader('X-CSRF-Token', csrfToken)
+    // Reuse the existing cookie token when present so parallel /me calls (e.g. React Strict Mode)
+    // or a slow first response cannot rotate the cookie out from under the axios default header.
+    const existing = String(req.cookies?.csrfToken || '').trim()
+    if (existing) {
+      csrfToken = existing
+      res.setHeader('X-CSRF-Token', csrfToken)
+    } else {
+      csrfToken = generateCsrfToken()
+      setCsrfCookie(res, csrfToken)
+      res.setHeader('X-CSRF-Token', csrfToken)
+    }
   }
   res.json({
     success: true,
