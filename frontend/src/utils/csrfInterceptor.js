@@ -8,8 +8,53 @@ const getCookie = (name, cookieSource = document) => {
   return value ? decodeURIComponent(value.slice(target.length)) : ''
 }
 
+const resolveRequestHostname = (config, axiosInstance) => {
+  if (axiosInstance?.getUri) {
+    try {
+      return new URL(axiosInstance.getUri(config)).hostname
+    } catch {
+      /* fall through */
+    }
+  }
+  const url = String(config?.url || '')
+  try {
+    if (/^https?:\/\//i.test(url)) return new URL(url).hostname
+  } catch {
+    /* fall through */
+  }
+  const base = String(config?.baseURL ?? axiosInstance?.defaults?.baseURL ?? '')
+  try {
+    if (/^https?:\/\//i.test(base)) return new URL(url || '/', base).hostname
+  } catch {
+    /* fall through */
+  }
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    try {
+      return new URL(url || '/', window.location.origin).hostname
+    } catch {
+      /* fall through */
+    }
+  }
+  return ''
+}
+
+/** Only read csrfToken from document when the XHR target host matches the page — avoids wrong token when API is on api.* and cookies are host-scoped. */
+const shouldReadDocumentCsrfCookie = (config, axiosInstance, cookieSource) => {
+  if (cookieSource !== document || typeof window === 'undefined') return true
+  const pageHost = String(window.location.hostname || '').toLowerCase()
+  const reqHost = String(resolveRequestHostname(config, axiosInstance) || '').toLowerCase()
+  if (!reqHost) return true
+  return reqHost === pageHost
+}
+
 const readCommonCsrf = (axiosInstance) => {
-  const raw = axiosInstance?.defaults?.headers?.common?.['x-csrf-token']
+  const common = axiosInstance?.defaults?.headers?.common
+  if (!common) return ''
+  if (typeof common.get === 'function') {
+    const v = common.get('x-csrf-token')
+    if (v != null && String(v).trim()) return String(v).trim()
+  }
+  const raw = common['x-csrf-token']
   if (raw == null) return ''
   return String(raw).trim()
 }
@@ -30,7 +75,10 @@ const applyCsrfHeader = (config, cookieSource = document, axiosInstance = null) 
   const method = String(config?.method || 'get').toUpperCase()
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return config
 
-  let csrfToken = getCookie('csrfToken', cookieSource).trim()
+  let csrfToken = ''
+  if (shouldReadDocumentCsrfCookie(config, axiosInstance, cookieSource)) {
+    csrfToken = getCookie('csrfToken', cookieSource).trim()
+  }
   if (!csrfToken) csrfToken = readCommonCsrf(axiosInstance)
   if (!csrfToken) return config
 

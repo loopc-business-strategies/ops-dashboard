@@ -29,6 +29,32 @@ describe('csrf interceptor utility', () => {
     expect(postConfig.headers['x-csrf-token']).toBe('from-defaults')
   })
 
+  it('ignores page csrf cookie when API host differs from page host', () => {
+    document.cookie = 'csrfToken=wrong-from-page'
+    const axiosInstance = {
+      defaults: {
+        baseURL: 'https://api.loopcstrategies.com',
+        headers: { common: { 'x-csrf-token': 'correct-from-api-session' } },
+      },
+      getUri(cfg) {
+        const rel = cfg?.url || ''
+        if (/^https?:\/\//i.test(rel)) return rel
+        const b = String(this.defaults.baseURL || '').replace(/\/$/, '')
+        return `${b}${rel.startsWith('/') ? '' : '/'}${rel}`
+      },
+    }
+    vi.stubGlobal('window', {
+      location: { hostname: 'mg.loopcstrategies.com', origin: 'https://mg.loopcstrategies.com' },
+    })
+    const postConfig = applyCsrfHeader(
+      { method: 'post', url: '/api/messages', headers: {} },
+      document,
+      axiosInstance,
+    )
+    expect(postConfig.headers['x-csrf-token']).toBe('correct-from-api-session')
+    vi.unstubAllGlobals()
+  })
+
   it('installs request interceptor that applies csrf header', () => {
     document.cookie = 'csrfToken=token-via-install'
 
