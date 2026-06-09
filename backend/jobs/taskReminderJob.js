@@ -47,7 +47,8 @@ async function sweepDueRemindersForTenant(tenantKey) {
         { _id: sender._id, name: sender.name || 'System' },
         task,
         `Reminder: ${task.title}`,
-        recipients
+        recipients,
+        tenantKey,
       )
     }
 

@@ -1,3 +1,4 @@
+const { resolveRequestTenantKey } = require('../../config/tenants')
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
 const { runJvLedgerFxBackfillOnNativeDb } = require('../../services/jvLedgerFxBackfill')
 const { Joi, validateBodyStrict, validateParams } = require('../../middleware/validate')
@@ -358,7 +359,7 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
       }),
     })
 
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       realtimeServer.broadcastLedgerEntry(String(debitAccountId), entry)
       realtimeServer.broadcastLedgerEntry(String(creditAccountId), entry)
@@ -424,7 +425,7 @@ router.put('/ledger/:id', protect, validateParams(idParamSchema), validateBodySt
       }
     }
     const updated = await TenantLedger.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' })
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
         realtimeServer.broadcastLedgerUpdate(tenantKey, {
@@ -462,7 +463,7 @@ router.delete('/ledger/:id', protect, validateParams(idParamSchema), async (req,
         { referenceType: 'reversal', referenceId: entry._id, isDeleted: { $ne: true } },
         { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: req.user._id } },
       )
-      const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+      const tenantKey = String(resolveRequestTenantKey(req) || 'default')
       emitRealtime(req, (realtimeServer) => {
         if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
           realtimeServer.broadcastLedgerUpdate(tenantKey, {
@@ -489,7 +490,7 @@ router.delete('/ledger/:id', protect, validateParams(idParamSchema), async (req,
       createdBy: req.user._id,
       department: req.user.department,
     })
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
         realtimeServer.broadcastLedgerUpdate(tenantKey, {
@@ -531,7 +532,7 @@ router.delete('/ledger/:id/permanent', protect, validateParams(idParamSchema), r
     entry.notes = [entry.notes, `Permanent delete reason: ${req.destructiveAction.reason}`].filter(Boolean).join('\n')
     await entry.save()
 
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
         realtimeServer.broadcastLedgerUpdate(tenantKey, {
@@ -563,7 +564,7 @@ router.put('/ledger/:id/reconcile', protect, validateParams(idParamSchema), asyn
       { $set: { bankReconciled: nextReconciled, updatedBy: req.user._id } }
     )
 
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
         realtimeServer.broadcastLedgerUpdate(tenantKey, {
@@ -625,7 +626,7 @@ router.post('/ledger/repair-jv-fx/apply', protect, requireDestructiveAdminGuard(
       forceCurrency,
       verbose: false,
     })
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
         realtimeServer.broadcastLedgerUpdate(tenantKey, {

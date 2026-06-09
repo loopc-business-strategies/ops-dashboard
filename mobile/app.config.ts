@@ -30,6 +30,7 @@ const config: ExpoConfig = {
   },
   plugins: [
     'expo-router',
+    'expo-notifications',
     'expo-secure-store',
     '@sentry/react-native',
     [

@@ -8,6 +8,7 @@ function registerTransactionRoutes(deps) {
   const User = require('../../models/User')
   const Message = require('../../models/Message')
   const { publishRealtimeEvent } = require('../../utils/realtimeBus')
+  const { resolveRequestTenantKey } = require('../../config/tenants')
   const {
     router,
     protect,
@@ -160,7 +161,7 @@ router.get('/transactions', protect, async (req, res) => {
     const { page, limit, skip } = parsePagination(req.query, 50, 200)
     const cursor = decodeCursor(req.query.cursor)
     const query = { isDeleted: { $ne: true } }
-    const allowedTypes = getRoleTransactionTypes(req.user, req.tenant?.key || req.user?.tenant)
+    const allowedTypes = getRoleTransactionTypes(req.user, resolveRequestTenantKey(req))
 
     query.type = allowedTypes.length === 1 ? allowedTypes[0] : { $in: allowedTypes }
 
@@ -301,7 +302,7 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
     if (!canCreateTransactionFor(req.user, type)) {
       return res.status(403).json({ success: false, message: 'You are not allowed to create this transaction type' })
     }
-    const disabledTypeMessage = getDisabledVoucherTypeMessage(req.tenant?.key || req.user?.tenant, type)
+    const disabledTypeMessage = getDisabledVoucherTypeMessage(resolveRequestTenantKey(req), type)
     if (disabledTypeMessage) {
       return res.status(403).json({ success: false, message: disabledTypeMessage })
     }
@@ -362,7 +363,7 @@ router.post('/transactions', protect, validateBody(transactionCreateSchema), asy
     appendTransactionAudit(tx, req.user, 'create', { fromStatus: '', toStatus: 'draft', comment: description })
     await tx.save()
 
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
         realtimeServer.broadcastTransactionUpdate(tenantKey, {
@@ -414,7 +415,7 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
     if (!canCreateTransactionFor(req.user, nextType)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
-    const disabledTypeMessage = getDisabledVoucherTypeMessage(req.tenant?.key || req.user?.tenant, nextType)
+    const disabledTypeMessage = getDisabledVoucherTypeMessage(resolveRequestTenantKey(req), nextType)
     if (disabledTypeMessage) {
       return res.status(403).json({ success: false, message: disabledTypeMessage })
     }
@@ -474,7 +475,7 @@ router.put('/transactions/:id', protect, strictBody(transactionPatchSchema), asy
     appendTransactionAudit(tx, req.user, 'update', { fromStatus: tx.status, toStatus: tx.status, comment: req.body.description || '' })
     await tx.save()
 
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
         realtimeServer.broadcastTransactionUpdate(tenantKey, {
@@ -524,7 +525,7 @@ router.post('/transactions/:id/void', protect, requireTransactionVoidRole, requi
       await tx.save(writeOpts(session))
     })
 
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
         realtimeServer.broadcastTransactionUpdate(tenantKey, {
@@ -567,7 +568,7 @@ router.delete('/transactions/:id', protect, async (req, res) => {
     appendTransactionAudit(tx, req.user, 'delete', { fromStatus: tx.status, toStatus: tx.status })
     await tx.save()
 
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
         realtimeServer.broadcastTransactionUpdate(tenantKey, {
@@ -594,7 +595,7 @@ router.post('/transactions/:id/submit', protect, async (req, res) => {
     }
     const result = await applyTransactionWorkflowAction(tx, req.user, 'submit', { comment: req.body?.comment })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
         realtimeServer.broadcastTransactionUpdate(tenantKey, {
@@ -621,7 +622,7 @@ router.post('/transactions/:id/approve', protect, async (req, res) => {
       return applyTransactionWorkflowAction(freshTx, req.user, 'approve', { comment: req.body?.comment }, session)
     })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
         realtimeServer.broadcastTransactionUpdate(tenantKey, {
@@ -634,11 +635,16 @@ router.post('/transactions/:id/approve', protect, async (req, res) => {
       // Notify the transaction owner that their submission was approved
       const ownerId = String(result.transaction.createdBy || '')
       if (ownerId && typeof realtimeServer.sendUserNotification === 'function') {
+        const ref =
+          String(result.transaction?.voucherMeta?.vocNo || result.transaction?.voucherMeta?.refNo || '').trim()
+            || String(result.transaction._id)
+        const by = String(req.user?.name || req.user?._id || '')
         realtimeServer.sendUserNotification(ownerId, 'transaction_approved', {
           transactionId: String(result.transaction._id),
           type: result.transaction.type,
-          approvedBy: String(req.user?.name || req.user?._id || ''),
-        })
+          approvedBy: by,
+          message: `Your ${result.transaction.type} voucher${ref ? ` (${ref})` : ''} was approved by ${by}.`,
+        }, resolveRequestTenantKey(req))
       }
     })
     res.json({ success: true, transaction: populated })
@@ -661,7 +667,7 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
       return applyTransactionWorkflowAction(freshTx, req.user, 'post', { comment: req.body?.comment, mappingOverride: req.body || {} }, session)
     })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
         realtimeServer.broadcastTransactionUpdate(tenantKey, {
@@ -769,7 +775,7 @@ router.post('/transactions/:id/comments', protect, async (req, res) => {
 
       publishRealtimeEvent({
         type: 'message.created',
-        tenant: req.tenant?.key,
+        tenant: resolveRequestTenantKey(req),
         data: {
           id: deliveredMessage._id,
           room: deliveredMessage.room,
@@ -794,7 +800,7 @@ router.post('/transactions/:id/comments', protect, async (req, res) => {
           senderName: String(req.user?.name || ''),
           type: tx.type,
           createdAt: new Date().toISOString(),
-        })
+        }, resolveRequestTenantKey(req))
       })
     })
 
@@ -887,7 +893,7 @@ router.post('/transactions/:id/return', protect, async (req, res) => {
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
     const result = await applyTransactionWorkflowAction(tx, req.user, 'return', { comment: req.body?.comment })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
         realtimeServer.broadcastTransactionUpdate(tenantKey, {
@@ -900,12 +906,18 @@ router.post('/transactions/:id/return', protect, async (req, res) => {
       // Notify the transaction owner their submission was returned for revision
       const ownerId = String(result.transaction.createdBy || '')
       if (ownerId && typeof realtimeServer.sendUserNotification === 'function') {
+        const ref =
+          String(result.transaction?.voucherMeta?.vocNo || result.transaction?.voucherMeta?.refNo || '').trim()
+            || String(result.transaction._id)
+        const by = String(req.user?.name || req.user?._id || '')
+        const comment = String(req.body?.comment || '')
         realtimeServer.sendUserNotification(ownerId, 'transaction_returned', {
           transactionId: String(result.transaction._id),
           type: result.transaction.type,
-          returnedBy: String(req.user?.name || req.user?._id || ''),
-          comment: String(req.body?.comment || ''),
-        })
+          returnedBy: by,
+          comment,
+          message: `Your ${result.transaction.type} voucher${ref ? ` (${ref})` : ''} was returned by ${by}.${comment ? ` Note: ${comment}` : ''}`,
+        }, resolveRequestTenantKey(req))
       }
     })
     res.json({ success: true, transaction: populated })
@@ -920,7 +932,7 @@ router.post('/transactions/:id/reject', protect, async (req, res) => {
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
     const result = await applyTransactionWorkflowAction(tx, req.user, 'reject', { comment: req.body?.comment })
     const populated = await populateTransactionQuery(Transaction.findById(result.transaction._id))
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastTransactionUpdate === 'function') {
         realtimeServer.broadcastTransactionUpdate(tenantKey, {
@@ -933,12 +945,18 @@ router.post('/transactions/:id/reject', protect, async (req, res) => {
       // Notify the transaction owner their submission was rejected
       const ownerId = String(result.transaction.createdBy || '')
       if (ownerId && typeof realtimeServer.sendUserNotification === 'function') {
+        const ref =
+          String(result.transaction?.voucherMeta?.vocNo || result.transaction?.voucherMeta?.refNo || '').trim()
+            || String(result.transaction._id)
+        const by = String(req.user?.name || req.user?._id || '')
+        const comment = String(req.body?.comment || '')
         realtimeServer.sendUserNotification(ownerId, 'transaction_rejected', {
           transactionId: String(result.transaction._id),
           type: result.transaction.type,
-          rejectedBy: String(req.user?.name || req.user?._id || ''),
-          comment: String(req.body?.comment || ''),
-        })
+          rejectedBy: by,
+          comment,
+          message: `Your ${result.transaction.type} voucher${ref ? ` (${ref})` : ''} was rejected by ${by}.${comment ? ` Reason: ${comment}` : ''}`,
+        }, resolveRequestTenantKey(req))
       }
     })
     res.json({ success: true, transaction: populated })
@@ -986,7 +1004,7 @@ router.post('/transactions/bulk-action', protect, async (req, res) => {
     }
 
     const refreshed = await populateTransactionQuery(Transaction.find({ _id: { $in: results.successIds } }))
-    const tenantKey = String(req.tenant?.key || req.user?.tenant || 'default')
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
     emitRealtime(req, (realtimeServer) => {
       if (typeof realtimeServer.broadcastTransactionUpdate === 'function' && results.successIds.length) {
         realtimeServer.broadcastTransactionUpdate(tenantKey, {

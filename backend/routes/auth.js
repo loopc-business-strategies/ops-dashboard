@@ -8,6 +8,8 @@
 //   POST /api/auth/setup            ← one-time first admin creation
 //   POST /api/auth/login            ← login with name + password
 //   GET  /api/auth/me               ← get my own profile
+//   POST /api/auth/me/push-token    ← register Expo push token (mobile)
+//   DELETE /api/auth/me/push-token  ← remove Expo push token
 //   GET  /api/auth/users            ← list all users (super_admin only)
 //   POST /api/auth/users            ← create new user (super_admin only)
 //   PUT  /api/auth/users/:id/role   ← change role (super_admin only)
@@ -27,6 +29,7 @@ const {
   resolveSessionMaxAgeMs,
   resolveJwtExpiresIn,
 } = require('../services/adminSettings')
+const { isLikelyExpoPushToken } = require('../services/expoPushNotifications')
 
 const router = express.Router()
 
@@ -123,6 +126,10 @@ const loginSchema = Joi.object({
   company: Joi.string().trim().valid('mg', 'cg', 'loopc').optional(),
   name: Joi.string().trim().min(2).max(80).required(),
   password: Joi.string().min(1).max(128).required(),
+})
+
+const expoPushTokenSchema = Joi.object({
+  token: Joi.string().trim().min(24).max(512).required(),
 })
 
 const userIdParamSchema = Joi.object({
@@ -297,6 +304,51 @@ router.get('/me', protect, (req, res) => {
       createdAt:      req.user.createdAt,
     },
   })
+})
+
+// ==========================================
+// POST /api/auth/me/push-token — register Expo push token (mobile)
+// ==========================================
+router.post('/me/push-token', protect, validateBody(expoPushTokenSchema), async (req, res) => {
+  try {
+    const token = String(req.body.token).trim()
+    if (!isLikelyExpoPushToken(token)) {
+      return res.status(400).json({ success: false, message: 'Invalid Expo push token format.' })
+    }
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const user = await TenantUser.findById(req.user._id)
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
+
+    const existing = Array.isArray(user.expoPushTokens)
+      ? user.expoPushTokens.map((e) => ({ token: String(e.token || ''), updatedAt: e.updatedAt || new Date() }))
+      : []
+    const deduped = existing.filter((e) => e.token && e.token !== token)
+    deduped.unshift({ token, updatedAt: new Date() })
+    user.expoPushTokens = deduped.slice(0, 8)
+    await user.save({ validateBeforeSave: false })
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Push token registration error:', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+// ==========================================
+// DELETE /api/auth/me/push-token — remove token (e.g. on logout)
+// ==========================================
+router.delete('/me/push-token', protect, validateBody(expoPushTokenSchema), async (req, res) => {
+  try {
+    const token = String(req.body.token).trim()
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const user = await TenantUser.findById(req.user._id)
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
+    user.expoPushTokens = (user.expoPushTokens || []).filter((e) => String(e?.token || '') !== token)
+    await user.save({ validateBeforeSave: false })
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Push token delete error:', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
 })
 
 router.post('/logout', protect, (req, res) => {

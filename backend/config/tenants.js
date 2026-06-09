@@ -57,6 +57,16 @@ function getTenantUri(tenant) {
   return uri || null
 }
 
+/**
+ * Tenant key for the current HTTP request (auth sets `req.tenant` as a string; some code used `req.tenant.key`).
+ * Use for Socket.IO rooms, SSE publish tenant, and tenant-scoped ERP helpers.
+ */
+function resolveRequestTenantKey(req) {
+  if (!req) return 'default'
+  const raw = req.tenant?.key ?? req.tenant ?? req.user?.tenant
+  return normalizeTenant(raw) || 'default'
+}
+
 module.exports = {
   TENANT_KEYS,
   TENANTS,
@@ -64,4 +74,5 @@ module.exports = {
   getDefaultTenant,
   resolveTenantFromHost,
   getTenantUri,
+  resolveRequestTenantKey,
 }

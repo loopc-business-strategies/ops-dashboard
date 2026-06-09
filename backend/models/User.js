@@ -163,6 +163,17 @@ const userSchema = new mongoose.Schema(
     },
 
     lastLogin: Date,
+
+    /** Expo push tokens for this user (mobile). Max length enforced in routes. */
+    expoPushTokens: {
+      type: [
+        {
+          token: { type: String, trim: true, maxlength: 512 },
+          updatedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
   },
   {
     timestamps: true, // auto-adds createdAt and updatedAt

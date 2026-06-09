@@ -45,3 +45,19 @@ export async function logout(token: string) {
     token,
   })
 }
+
+export async function registerPushToken(sessionToken: string, expoPushToken: string) {
+  return apiRequest<{ success: boolean }>('/api/auth/me/push-token', {
+    method: 'POST',
+    token: sessionToken,
+    body: { token: expoPushToken },
+  })
+}
+
+export async function deletePushToken(sessionToken: string, expoPushToken: string) {
+  return apiRequest<{ success: boolean }>('/api/auth/me/push-token', {
+    method: 'DELETE',
+    token: sessionToken,
+    body: { token: expoPushToken },
+  })
+}

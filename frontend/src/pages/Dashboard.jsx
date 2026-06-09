@@ -66,6 +66,41 @@ function TabLoadingFallback() {
   )
 }
 
+/** Maps Socket.IO `/notifications` payload to bell UI (see backend `sendUserNotification` types). */
+function mapRealtimeNotificationPayload(payload) {
+  const type = String(payload?.type || '')
+  const data = payload?.data || {}
+  const msg = typeof data.message === 'string' ? data.message : ''
+  if (type === 'transaction_chat_mention') {
+    return {
+      title: 'Transaction chat mention',
+      msg: `${data.senderName || 'A user'} mentioned you: ${data.message || ''}`,
+      dotColor: 'bg-blue-400',
+    }
+  }
+  if (type === 'chat_mention') {
+    return {
+      title: 'Chat mention',
+      msg: `${data.senderName || 'Someone'} mentioned you${data.room ? ` in ${data.room}` : ''}: ${msg || ''}`,
+      dotColor: 'bg-blue-400',
+    }
+  }
+  if (type === 'transaction_approved') {
+    return { title: 'Voucher approved', msg: msg || 'Your voucher was approved.', dotColor: 'bg-emerald-400' }
+  }
+  if (type === 'transaction_returned') {
+    return { title: 'Voucher returned', msg: msg || 'Your voucher was returned for revision.', dotColor: 'bg-amber-400' }
+  }
+  if (type === 'transaction_rejected') {
+    return { title: 'Voucher rejected', msg: msg || 'Your voucher was rejected.', dotColor: 'bg-red-400' }
+  }
+  return {
+    title: 'New notification',
+    msg: msg || type || 'Notification received',
+    dotColor: 'bg-green-400',
+  }
+}
+
 // ── Sidebar nav item ────────────────────────────
 function NavItem({ label, active, onClick, badge }) {
   return (
@@ -362,18 +397,15 @@ function Dashboard() {
     return startUserNotifications({
       token,
       onNotification: (payload) => {
-        const data = payload?.data || {}
-        const isTransactionChatMention = payload?.type === 'transaction_chat_mention'
+        const { title, msg, dotColor } = mapRealtimeNotificationPayload(payload)
         setNotifications((prev) => [
           {
             id: `rt-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            title: isTransactionChatMention ? 'Transaction chat mention' : 'New notification',
-            msg: isTransactionChatMention
-              ? `${data.senderName || 'A user'} mentioned you: ${data.message || ''}`
-              : data.message || payload?.type || 'Notification received',
+            title,
+            msg,
             time: 'Just now',
             read: false,
-            dotColor: isTransactionChatMention ? 'bg-blue-400' : 'bg-green-400',
+            dotColor,
           },
           ...prev,
         ])

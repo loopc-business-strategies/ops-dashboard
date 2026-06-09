@@ -34,7 +34,13 @@ function mapPayloadToItem(payload: NotificationPayload): AppNotificationItem {
     ? 'Transaction chat mention'
     : isChatMention
       ? 'Chat mention'
-      : 'New notification'
+      : type === 'transaction_approved'
+        ? 'Voucher approved'
+        : type === 'transaction_returned'
+          ? 'Voucher returned'
+          : type === 'transaction_rejected'
+            ? 'Voucher rejected'
+            : 'New notification'
   const message = isTxnMention || isChatMention
     ? `${senderName || 'Someone'} mentioned you${room ? ` in ${room}` : ''}: ${messageText || ''}`
     : messageText || type || 'Notification received'

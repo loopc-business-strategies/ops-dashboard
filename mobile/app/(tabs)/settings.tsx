@@ -34,7 +34,10 @@ export default function SettingsScreen() {
         <Text style={styles.label}>App</Text>
         <Text style={styles.meta}>MG Ops Mobile v{Constants.expoConfig?.version || '1.0.0'}</Text>
         <Text style={styles.meta}>View-only companion app</Text>
-        <Text style={styles.meta}>Push notifications — coming soon</Text>
+        <Text style={styles.meta}>
+          Push: enabled after you allow notifications; the server must have EXPO_ACCESS_TOKEN (Expo) to
+          deliver alerts when the app is in the background.
+        </Text>
       </View>
 
       <Pressable style={styles.logoutBtn} onPress={() => logout()}>

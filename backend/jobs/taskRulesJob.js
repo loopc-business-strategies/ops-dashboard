@@ -104,7 +104,8 @@ async function sweepDueProximityForTenant(tenantKey) {
         sender,
         updated,
         `Due soon (within ${hours}h): "${updated.title}" — due ${dueStr}`,
-        recipients
+        recipients,
+        tenantKey,
       )
     }
 

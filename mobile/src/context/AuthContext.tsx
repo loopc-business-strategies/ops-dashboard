@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store'
 import { setAuthToken } from '@/src/api/client'
 import * as authApi from '@/src/api/auth'
 import type { AuthUser } from '@/src/api/auth'
+import { registerExpoPushAndPost, unregisterExpoPushFromBackend } from '@/src/services/expoPushRegistration'
 
 const TOKEN_KEY = 'mg_ops_session_token'
 
@@ -51,6 +52,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setIsLoading(false))
   }, [applySession, refreshUser])
 
+  useEffect(() => {
+    if (!token) return undefined
+    let cancelled = false
+    void (async () => {
+      try {
+        await registerExpoPushAndPost(token)
+      } catch {
+        if (!cancelled) {
+          // Permission denied or network — ignore
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [token, user?.id])
+
   const login = useCallback(async (name: string, password: string) => {
     const data = await authApi.login(name.trim(), password)
     if (!data.token) {
@@ -60,6 +78,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [applySession])
 
   const logout = useCallback(async () => {
+    try {
+      if (token) await unregisterExpoPushFromBackend(token)
+    } catch {
+      // ignore
+    }
     try {
       if (token) await authApi.logout(token)
     } catch {

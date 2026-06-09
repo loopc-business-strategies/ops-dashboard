@@ -4,6 +4,7 @@ const Task = require('../models/Task')
 const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
 const { publishRealtimeEvent } = require('../utils/realtimeBus')
+const { resolveRequestTenantKey } = require('../config/tenants')
 const { normalize, canCreateTask, canDeleteTask } = require('../services/permissions/moduleAccessPolicy')
 const { taskMessageRecipients, createTaskMessage } = require('../utils/taskDm')
 const { emitTaskWebhook } = require('../utils/taskWebhooks')
@@ -230,11 +231,11 @@ router.post('/:id/instantiate', protect, validateParams(templateIdParam), valida
       alsoNotifyIds: (alsoNotifyDb.alsoNotifyIds || []).map(String),
       alsoNotifyNames: alsoNotifyDb.alsoNotifyNames,
     })
-    await createTaskMessage(req.user, task, merged.notifyText || `New task from template "${tpl.name}": ${task.title}`, recipients)
+    await createTaskMessage(req.user, task, merged.notifyText || `New task from template "${tpl.name}": ${task.title}`, recipients, resolveRequestTenantKey(req))
 
     publishRealtimeEvent({
       type: 'task.created',
-      tenant: String(req.tenant || 'default').trim().toLowerCase(),
+      tenant: resolveRequestTenantKey(req),
       data: { id: task._id, title: task.title, status: task.status, assignedTo: task.assignedTo },
     })
     emitTaskWebhook('task.created', {

@@ -13,6 +13,7 @@ const multer = require('multer')
 const Task    = require('../models/Task')
 const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams, validateQuery } = require('../middleware/validate')
+const { resolveRequestTenantKey } = require('../config/tenants')
 const { publishRealtimeEvent } = require('../utils/realtimeBus')
 const { softDeleteById } = require('../utils/softDelete')
 const {
@@ -357,11 +358,11 @@ router.post('/', protect, validateBody(createTaskSchema), async (req, res) => {
       alsoNotifyIds: (alsoNotifyDb.alsoNotifyIds || []).map(String),
       alsoNotifyNames: alsoNotifyDb.alsoNotifyNames,
     })
-    await createTaskMessage(req.user, task, notifyText || `New task assigned: ${task.title}`, recipients)
+    await createTaskMessage(req.user, task, notifyText || `New task assigned: ${task.title}`, recipients, resolveRequestTenantKey(req))
 
     publishRealtimeEvent({
       type: 'task.created',
-      tenant: String(req.tenant || 'default').trim().toLowerCase(),
+      tenant: resolveRequestTenantKey(req),
       data: { id: task._id, title: task.title, status: task.status, assignedTo: task.assignedTo },
     })
 
@@ -459,12 +460,12 @@ router.put('/:id', protect, validateParams(taskIdParamSchema), validateBody(upda
       if (alsoNotifyChanged && !assigneeChanged && !statusChanged && !priorityChanged && !notifyText) {
         parts.push('also-notify list updated')
       }
-      await createTaskMessage(req.user, updatedTask, notifyText || `Task updated: ${updatedTask.title}${parts.length ? ` (${parts.join(', ')})` : ''}`, recipients)
+      await createTaskMessage(req.user, updatedTask, notifyText || `Task updated: ${updatedTask.title}${parts.length ? ` (${parts.join(', ')})` : ''}`, recipients, resolveRequestTenantKey(req))
     }
 
     publishRealtimeEvent({
       type: 'task.updated',
-      tenant: String(req.tenant || 'default').trim().toLowerCase(),
+      tenant: resolveRequestTenantKey(req),
       data: { id: updatedTask._id, title: updatedTask.title, status: updatedTask.status, assignedTo: updatedTask.assignedTo },
     })
 
@@ -506,11 +507,11 @@ router.post('/:id/comments', protect, validateParams(taskIdParamSchema), validat
       alsoNotifyIds: (task.alsoNotifyIds || []).map((id) => String(id)),
       alsoNotifyNames: task.alsoNotifyNames || [],
     })
-    await createTaskMessage(req.user, task, `${req.user.name} commented on task: ${task.title}`, recipients)
+    await createTaskMessage(req.user, task, `${req.user.name} commented on task: ${task.title}`, recipients, resolveRequestTenantKey(req))
 
     publishRealtimeEvent({
       type: 'task.commented',
-      tenant: String(req.tenant || 'default').trim().toLowerCase(),
+      tenant: resolveRequestTenantKey(req),
       data: { id: task._id, title: task.title, commentBy: req.user.name },
     })
 
@@ -639,11 +640,11 @@ router.delete('/:id', protect, validateParams(taskIdParamSchema), async (req, re
       alsoNotifyIds: (task.alsoNotifyIds || []).map((id) => String(id)),
       alsoNotifyNames: task.alsoNotifyNames || [],
     })
-    await createTaskMessage(req.user, task, `Task removed: ${task.title}`, recipients)
+    await createTaskMessage(req.user, task, `Task removed: ${task.title}`, recipients, resolveRequestTenantKey(req))
 
     publishRealtimeEvent({
       type: 'task.deleted',
-      tenant: String(req.tenant || 'default').trim().toLowerCase(),
+      tenant: resolveRequestTenantKey(req),
       data: { id: task._id, title: task.title },
     })
 

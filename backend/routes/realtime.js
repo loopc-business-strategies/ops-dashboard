@@ -1,11 +1,12 @@
 const express = require('express')
 const { protect } = require('../middleware/auth')
 const { bus } = require('../utils/realtimeBus')
+const { resolveRequestTenantKey } = require('../config/tenants')
 
 const router = express.Router()
 
 router.get('/events', protect, (req, res) => {
-  const tenantKey = String(req.tenant?.key || req.tenant || req.user?.tenant || 'default')
+  const tenantKey = resolveRequestTenantKey(req)
     .trim()
     .toLowerCase() || 'default'
 

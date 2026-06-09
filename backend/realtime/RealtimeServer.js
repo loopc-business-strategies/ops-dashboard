@@ -7,6 +7,7 @@ const socketIO = require('socket.io')
 const jwt = require('jsonwebtoken')
 const User = require('../models/User')
 const { normalizeTenant, resolveTenantFromHost } = require('../config/tenants')
+const { sendExpoPushToUser } = require('../services/expoPushNotifications')
 
 function resolveSocketTenantSubscription(socket, requestedTenant) {
   const authenticatedTenant = normalizeTenant(socket?.tenant)
@@ -332,13 +333,19 @@ class RealtimeServer {
    * @param {String} userId - User ID
    * @param {String} type - Notification type
    * @param {Object} data - Notification data
+   * @param {String} [tenantKey] - mg/cg/loopc for Expo push (optional)
    */
-  sendUserNotification(userId, type, data) {
+  sendUserNotification(userId, type, data, tenantKey) {
     this.io.of('/notifications').to(`user:${userId}`).emit('notification', {
       type,
       timestamp: new Date(),
       data,
     })
+    if (tenantKey) {
+      sendExpoPushToUser(tenantKey, userId, type, data).catch((err) => {
+        console.warn('[expo-push] async error:', err?.message || err)
+      })
+    }
   }
 
   /**

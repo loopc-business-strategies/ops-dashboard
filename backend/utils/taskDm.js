@@ -2,6 +2,7 @@
 
 const Message = require('../models/Message')
 const { normalize } = require('../services/permissions/moduleAccessPolicy')
+const { publishRealtimeEvent } = require('./realtimeBus')
 
 const taskMessageRecipients = ({ assignedToId, assignedToIds, assignedTo, alsoNotifyIds = [], alsoNotifyNames = [] }) => {
   const ids = Array.isArray(alsoNotifyIds) ? [...alsoNotifyIds] : []
@@ -23,12 +24,15 @@ const taskMessageRecipients = ({ assignedToId, assignedToIds, assignedTo, alsoNo
   }
 }
 
-const createTaskMessage = async (user, task, text, recipients) => {
+/**
+ * @param {string} [tenantKey] – mg / cg / loopc (or `default`); drives SSE `message.created` for Chat
+ */
+const createTaskMessage = async (user, task, text, recipients, tenantKey = 'default') => {
   if (!text || !String(text).trim()) return
   if (!recipients.recipientIds.length && !recipients.recipientNames.length) return
   if (!user?._id) return
 
-  await Message.create({
+  const message = await Message.create({
     type: 'dm',
     room: `Task: ${task.title}`,
     department: normalize(task.department),
@@ -37,6 +41,20 @@ const createTaskMessage = async (user, task, text, recipients) => {
     recipientIds: recipients.recipientIds,
     recipientNames: recipients.recipientNames,
     text: String(text).trim(),
+  })
+
+  const tenant = String(tenantKey || 'default').trim().toLowerCase() || 'default'
+  publishRealtimeEvent({
+    type: 'message.created',
+    tenant,
+    data: {
+      id: message._id,
+      room: message.room,
+      type: message.type,
+      senderName: message.senderName,
+      createdAt: message.createdAt,
+      recipientIds: (message.recipientIds || []).map(String),
+    },
   })
 }
 

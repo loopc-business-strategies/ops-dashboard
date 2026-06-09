@@ -7,6 +7,7 @@ const ChatGroup = require('../models/ChatGroup')
 const User = require('../models/User')
 const { Joi, validateBody, validateQuery } = require('../middleware/validate')
 const { publishRealtimeEvent } = require('../utils/realtimeBus')
+const { resolveRequestTenantKey } = require('../config/tenants')
 const {
   normalize,
   buildMessageScopeForUser,
@@ -126,10 +127,11 @@ async function resolveUsers({ ids = [], names = [] }) {
 function emitUserNotifications(req, users, type, data) {
   const realtimeServer = req.app.get('realtimeServer')
   if (!realtimeServer || typeof realtimeServer.sendUserNotification !== 'function') return
+  const tenantKey = resolveRequestTenantKey(req)
   users.forEach((target) => {
     const targetId = String(target?._id || '')
     if (!targetId || targetId === String(req.user._id)) return
-    realtimeServer.sendUserNotification(targetId, type, data)
+    realtimeServer.sendUserNotification(targetId, type, data, tenantKey)
   })
 }
 
@@ -237,7 +239,7 @@ async function createMessageRecord(req, res) {
 
   publishRealtimeEvent({
     type: 'message.created',
-    tenant: String(req.tenant || 'default').trim().toLowerCase(),
+    tenant: resolveRequestTenantKey(req),
     data: {
       id: message._id,
       room: message.room,
