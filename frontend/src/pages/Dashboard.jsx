@@ -123,6 +123,15 @@ function resolveChatTargetIdFromSocketPayload(payload) {
   return null
 }
 
+/** ERP Transactions deep-link from `transaction_chat_mention` socket payload. */
+function resolveErpTransactionIdFromSocketPayload(payload) {
+  const type = String(payload?.type || '')
+  const data = payload?.data || {}
+  if (type !== 'transaction_chat_mention') return null
+  const txId = String(data.transactionId || '').trim()
+  return /^[a-f\d]{24}$/i.test(txId) ? txId : null
+}
+
 // ── Sidebar nav item ────────────────────────────
 function NavItem({ label, active, onClick, badge }) {
   return (
@@ -191,7 +200,7 @@ function getNavItems(perms, t, chatUnread = 0, branding) {
 }
 
 // ── Render the content for each tab ────────────
-function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps = {}) {
+function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps = {}, erpTabProps = {}) {
   switch (tabId) {
     case 'overview':
       return <OverviewTab onNavigate={setActiveTab} />
@@ -231,7 +240,14 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps =
       return <TrainingTab />
 
     case 'erp':
-      return <ERPTab focusTab={erpSubTab} onNavigateMain={setActiveTab} />
+      return (
+        <ERPTab
+          focusTab={erpSubTab}
+          onNavigateMain={setActiveTab}
+          jumpToTransactionId={erpTabProps.jumpToTransactionId}
+          onJumpToTransactionConsumed={erpTabProps.onJumpToTransactionConsumed}
+        />
+      )
 
     case 'procurement-plus':
       return <ProcurementPlusTab />
@@ -245,11 +261,11 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps =
   }
 }
 
-function renderTabContent(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps = {}) {
+function renderTabContent(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps = {}, erpTabProps = {}) {
   return (
     <TabErrorBoundary resetKey={tabId}>
       <Suspense fallback={<TabLoadingFallback />}>
-        {renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps)}
+        {renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps, erpTabProps)}
       </Suspense>
     </TabErrorBoundary>
   )
@@ -276,6 +292,7 @@ function Dashboard() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [pendingChatOpenId, setPendingChatOpenId] = useState(null)
+  const [pendingErpJumpTransactionId, setPendingErpJumpTransactionId] = useState(null)
   const langMenuRef = useRef(null)
   const notifMenuRef = useRef(null)
   const accountMenuRef = useRef(null)
@@ -295,9 +312,17 @@ function Dashboard() {
   const navItems = getNavItems(perms, t, chatUnread, branding)
   const notifUnreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications])
   const consumeOpenChatId = useCallback(() => setPendingChatOpenId(null), [])
+  const consumeErpJumpTransaction = useCallback(() => setPendingErpJumpTransactionId(null), [])
   const chatTabRealtimeProps = useMemo(
     () => ({ openChatId: pendingChatOpenId, onOpenChatIdConsumed: consumeOpenChatId }),
     [pendingChatOpenId, consumeOpenChatId],
+  )
+  const erpTabRealtimeProps = useMemo(
+    () => ({
+      jumpToTransactionId: pendingErpJumpTransactionId,
+      onJumpToTransactionConsumed: consumeErpJumpTransaction,
+    }),
+    [pendingErpJumpTransactionId, consumeErpJumpTransaction],
   )
 
   useEffect(() => {
@@ -407,11 +432,6 @@ function Dashboard() {
 
   useEffect(() => {
     if (!notifOpen) return
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-  }, [notifOpen])
-
-  useEffect(() => {
-    if (!notifOpen) return
     const handler = (e) => {
       if (notifMenuRef.current && !notifMenuRef.current.contains(e.target)) {
         setNotifOpen(false)
@@ -440,6 +460,7 @@ function Dashboard() {
       onNotification: (payload) => {
         const { title, msg, dotColor } = mapRealtimeNotificationPayload(payload)
         const chatTargetId = resolveChatTargetIdFromSocketPayload(payload)
+        const erpTransactionId = resolveErpTransactionIdFromSocketPayload(payload)
         setNotifications((prev) => [
           {
             id: `rt-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -449,6 +470,7 @@ function Dashboard() {
             read: false,
             dotColor,
             chatTargetId,
+            erpTransactionId,
           },
           ...prev,
         ])
@@ -470,6 +492,7 @@ function Dashboard() {
             read: false,
             dotColor: 'bg-amber-400',
             chatTargetId: null,
+            erpTransactionId: null,
           },
           ...prev,
         ])
@@ -518,12 +541,25 @@ function Dashboard() {
     if (!isDesktop) closeSidebar()
   }
 
+  const handleMarkAllNotificationsRead = useCallback(() => {
+    setNotifications((prev) => prev.map((x) => ({ ...x, read: true })))
+  }, [])
+
   const handleNotificationRowActivate = useCallback((n) => {
-    if (!n?.chatTargetId) return
-    setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)))
-    setNotifOpen(false)
-    setActiveTab('chat')
-    setPendingChatOpenId(n.chatTargetId)
+    if (n?.chatTargetId) {
+      setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)))
+      setNotifOpen(false)
+      setActiveTab('chat')
+      setPendingChatOpenId(n.chatTargetId)
+      return
+    }
+    if (n?.erpTransactionId) {
+      setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)))
+      setNotifOpen(false)
+      setActiveTab('erp')
+      setErpSubTab('transactions')
+      setPendingErpJumpTransactionId(n.erpTransactionId)
+    }
   }, [])
 
   const toggleSidebar = () => {
@@ -748,6 +784,9 @@ function Dashboard() {
               {/* Notification dropdown */}
               <div className="relative" ref={notifMenuRef}>
                 <button
+                  type="button"
+                  aria-label="Notifications"
+                  aria-expanded={notifOpen}
                   onClick={() => setNotifOpen(v => !v)}
                   className="relative h-7 w-7 rounded-lg transition-all inline-flex items-center justify-center"
                   style={{
@@ -777,21 +816,49 @@ function Dashboard() {
                       border: '1px solid #E5E7EB',
                       boxShadow: '0 12px 28px rgba(15,23,42,0.2)',
                     }}>
-                    <div style={{ padding: '10px 12px', borderBottom: '1px solid #E5E7EB', fontWeight: 700, color: '#111827' }}>
-                      Notifications
+                    <div
+                      style={{
+                        padding: '10px 12px',
+                        borderBottom: '1px solid #E5E7EB',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 8,
+                      }}
+                    >
+                      <span style={{ fontWeight: 700, color: '#111827' }}>Notifications</span>
+                      {notifUnreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleMarkAllNotificationsRead}
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: '#2563eb',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '2px 4px',
+                          }}
+                        >
+                          Mark all read
+                        </button>
+                      )}
                     </div>
                     {notifications.length === 0 ? (
                       <div style={{ padding: '14px 12px', color: '#6B7280', fontSize: 12 }}>
                         No notifications yet.
                       </div>
-                    ) : notifications.map((n) => (
+                    ) : notifications.map((n) => {
+                      const actionable = Boolean(n.chatTargetId || n.erpTransactionId)
+                      return (
                       <div
                         key={n.id}
-                        role={n.chatTargetId ? 'button' : undefined}
-                        tabIndex={n.chatTargetId ? 0 : undefined}
-                        onClick={() => { if (n.chatTargetId) handleNotificationRowActivate(n) }}
+                        role={actionable ? 'button' : undefined}
+                        tabIndex={actionable ? 0 : undefined}
+                        onClick={() => { if (actionable) handleNotificationRowActivate(n) }}
                         onKeyDown={(e) => {
-                          if (!n.chatTargetId) return
+                          if (!actionable) return
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault()
                             handleNotificationRowActivate(n)
@@ -800,7 +867,7 @@ function Dashboard() {
                         style={{
                           padding: '10px 12px',
                           borderBottom: '1px solid #F3F4F6',
-                          cursor: n.chatTargetId ? 'pointer' : 'default',
+                          cursor: actionable ? 'pointer' : 'default',
                           opacity: n.read ? 0.72 : 1,
                         }}
                       >
@@ -808,7 +875,8 @@ function Dashboard() {
                         {n.msg && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#4B5563' }}>{n.msg}</p>}
                         <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7280' }}>{n.time}</p>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -949,11 +1017,11 @@ function Dashboard() {
         >
           {activeTab === 'chat' ? (
             <div className="flex-1 min-h-0 flex flex-col">
-              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, chatTabRealtimeProps)}
+              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
             </div>
           ) : (
             <div className="flex-1 min-h-0" style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
-              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, chatTabRealtimeProps)}
+              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
             </div>
           )}
         </main>

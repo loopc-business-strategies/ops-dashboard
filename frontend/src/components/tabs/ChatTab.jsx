@@ -319,6 +319,8 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
   const activeChatIdRef  = useRef(activeChatId)
   const latestSeenRef    = useRef('')
   const participantsRef  = useRef([])
+  /** Tracks deep-link retries when `openChatId` is not yet in `chats` (e.g. list still loading). */
+  const pendingDeepLinkChatRef = useRef({ id: null, attempts: 0 })
   useEffect(() => { activeChatIdRef.current = activeChatId }, [activeChatId])
   useEffect(() => { participantsRef.current = participants }, [participants])
 
@@ -625,12 +627,39 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
   }
 
   useEffect(() => {
-    if (!openChatId || typeof onOpenChatIdConsumed !== 'function') return
-    if (!chats.some((c) => c.id === openChatId)) return
-    setActiveChatId(openChatId)
-    setMsgText('')
-    setChats((prev) => prev.map((c) => (c.id === openChatId ? { ...c, unread: 0 } : c)))
-    onOpenChatIdConsumed()
+    if (!openChatId || typeof onOpenChatIdConsumed !== 'function') {
+      pendingDeepLinkChatRef.current = { id: null, attempts: 0 }
+      return undefined
+    }
+
+    if (chats.some((c) => c.id === openChatId)) {
+      setActiveChatId(openChatId)
+      setMsgText('')
+      setChats((prev) => prev.map((c) => (c.id === openChatId ? { ...c, unread: 0 } : c)))
+      pendingDeepLinkChatRef.current = { id: null, attempts: 0 }
+      onOpenChatIdConsumed()
+      return undefined
+    }
+
+    if (pendingDeepLinkChatRef.current.id !== openChatId) {
+      pendingDeepLinkChatRef.current = { id: openChatId, attempts: 0 }
+      void loadLatestFromApi(false)
+    }
+
+    if (pendingDeepLinkChatRef.current.attempts >= 40) {
+      pendingDeepLinkChatRef.current = { id: null, attempts: 0 }
+      onOpenChatIdConsumed()
+      return undefined
+    }
+
+    const timer = window.setTimeout(() => {
+      pendingDeepLinkChatRef.current.attempts += 1
+      void loadLatestFromApi(false)
+    }, 120)
+
+    return () => window.clearTimeout(timer)
+    // loadLatestFromApi is intentionally stable for this effect's polling behavior.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openChatId, chats, onOpenChatIdConsumed])
 
   function showToast(title, text, color = C.accent) {

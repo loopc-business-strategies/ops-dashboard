@@ -8,6 +8,30 @@ const useAuthMock = vi.fn()
 const usePermissionsMock = vi.fn()
 const useLanguageMock = vi.fn()
 
+const notifSocket = { onNotification: null }
+
+vi.mock('../utils/realtimeSocket', () => ({
+  startUserNotifications: (opts) => {
+    notifSocket.onNotification = opts.onNotification
+    return () => {
+      notifSocket.onNotification = null
+    }
+  },
+  startProjectsSse: () => () => {},
+}))
+
+vi.mock('../context/LiveMetalRatesContext', () => ({
+  LiveMetalRatesProvider: ({ children }) => <>{children}</>,
+}))
+
+vi.mock('../components/TopbarMetalTickers', () => ({
+  default: () => null,
+}))
+
+vi.mock('../components/AIAgentWidget', () => ({
+  default: () => null,
+}))
+
 vi.mock('../context/AuthContext', () => ({
   useAuth: () => useAuthMock(),
 }))
@@ -62,7 +86,9 @@ vi.mock('../components/tabs/ProcurementPlusTab', () => ({
   default: () => <div>procurement-plus-tab</div>,
 }))
 vi.mock('../components/tabs/ERPTab', () => ({
-  default: ({ focusTab }) => <div>{`erp-tab-focus:${focusTab}`}</div>,
+  default: ({ focusTab, jumpToTransactionId }) => (
+    <div>{`erp-tab-focus:${focusTab}`}{jumpToTransactionId ? `|jump:${jumpToTransactionId}` : ''}</div>
+  ),
 }))
 
 function renderDashboard() {
@@ -76,8 +102,9 @@ function renderDashboard() {
 describe('Dashboard navigation behavior', () => {
   beforeEach(() => {
     useAuthMock.mockReturnValue({
-      user: { name: 'Nan', role: 'super_admin', company: 'mg' },
+      user: { name: 'Nan', role: 'super_admin', company: 'mg', _id: '507f1f77bcf86cd799439011' },
       company: 'mg',
+      token: 'test-token',
       logout: vi.fn(),
     })
 
@@ -129,5 +156,47 @@ describe('Dashboard navigation behavior', () => {
     fireEvent.click(ledgerButton)
 
     expect(await screen.findByText('erp-tab-focus:ledger')).toBeTruthy()
+  })
+
+  it('bell lists chat notification and opens Chat tab when row is clicked', async () => {
+    renderDashboard()
+    await screen.findByText('overview-tab')
+
+    const senderId = '507f1f77bcf86cd799439012'
+    notifSocket.onNotification?.({
+      type: 'chat_message',
+      data: {
+        channelType: 'dm',
+        senderId,
+        senderName: 'Alex',
+        message: 'Hello there',
+      },
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Notifications' }))
+    expect(await screen.findByText('Message from Alex')).toBeTruthy()
+
+    fireEvent.click(screen.getByText('Hello there'))
+    expect(await screen.findByText('chat-tab')).toBeTruthy()
+  })
+
+  it('bell transaction mention opens ERP transactions with jump id', async () => {
+    renderDashboard()
+    await screen.findByText('overview-tab')
+
+    const txId = '507f1f77bcf86cd799439099'
+    notifSocket.onNotification?.({
+      type: 'transaction_chat_mention',
+      data: {
+        transactionId: txId,
+        message: '@you fix this',
+        senderName: 'Alex',
+      },
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Notifications' }))
+    fireEvent.click(screen.getByText('Transaction chat mention'))
+
+    expect(await screen.findByText(`erp-tab-focus:transactions|jump:${txId}`)).toBeTruthy()
   })
 })

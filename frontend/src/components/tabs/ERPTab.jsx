@@ -146,7 +146,7 @@ function resolveCurrencyRowByCode(currencies, rawCode, baseCurrencyCode = 'USD')
   return pool.slice().sort((a, b) => Number(b?.exchangeRate || 0) - Number(a?.exchangeRate || 0))[0]
 }
 
-function ERPTab({ focusTab, onNavigateMain }) {
+function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpToTransactionConsumed }) {
   const { user, token } = useAuth()
   const inventoryTenantKey = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)?.key || ''
   const { t } = useLanguage()
@@ -4421,6 +4421,23 @@ function ERPTab({ focusTab, onNavigateMain }) {
     }
     showNotification('✅ Jumped to linked transaction')
   }
+
+  useEffect(() => {
+    if (!jumpToTransactionId || typeof onJumpToTransactionConsumed !== 'function') return undefined
+    let cancelled = false
+    ;(async () => {
+      try {
+        await handleJumpToTransaction(jumpToTransactionId)
+      } finally {
+        if (!cancelled) onJumpToTransactionConsumed()
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // handleJumpToTransaction is stable enough for this one-shot deep link; omit to avoid re-running on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpToTransactionId, onJumpToTransactionConsumed])
   if (!canAccessERP) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: C.t2 }}>

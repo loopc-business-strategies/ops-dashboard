@@ -38,6 +38,16 @@ npx expo prebuild --platform ios
 
 Then commit the resulting `ios/` folder. CI and teammates on Mac can keep `ios/` in sync the same way after dependency or config changes.
 
+If you use a **local** `mobile/android` checkout and native config or dependencies change after `git pull`, refresh from `mobile/` when needed:
+
+```bash
+cd mobile
+npm install
+npx expo prebuild --clean --platform android
+```
+
+Then open the project in Android Studio or run `npx expo run:android`. Omit `--clean` for a lighter sync if you intentionally keep local Gradle tweaks (not recommended long-term).
+
 ### Optional: Sentry
 
 Set `EXPO_PUBLIC_SENTRY_DSN` in EAS environment variables (and optionally `EXPO_PUBLIC_SENTRY_ENVIRONMENT`, `EXPO_PUBLIC_SENTRY_RELEASE`, `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`). Init runs from `src/lib/sentryInit.ts` when the app loads. See repo `docs/OBSERVABILITY-SENTRY.md`. Native changes may require a new EAS build after upgrading `@sentry/react-native`.

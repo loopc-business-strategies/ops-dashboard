@@ -1,8 +1,21 @@
 import { execSync } from 'node:child_process'
 import { mkdirSync, readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 import { createLogger, defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const requireFromFrontend = createRequire(path.join(__dirname, 'package.json'))
+
+/** Absolute package root so Vite always resolves Sentry from this app’s node_modules (avoids flaky resolution on Windows / OneDrive). */
+let sentryReactRoot
+try {
+  sentryReactRoot = path.dirname(requireFromFrontend.resolve('@sentry/react/package.json'))
+} catch {
+  sentryReactRoot = null
+}
 
 const localTestTempDir = fileURLToPath(new URL('./node_modules/.cache/tmp', import.meta.url))
 if (process.env.VITEST || process.env.npm_lifecycle_event === 'test') {
@@ -48,6 +61,18 @@ export default defineConfig({
   customLogger: viteLogger,
   define: {
     __APP_BUILD_META__: JSON.stringify(appBuildMeta),
+  },
+  resolve: {
+    ...(sentryReactRoot
+      ? {
+          alias: {
+            '@sentry/react': sentryReactRoot,
+          },
+        }
+      : {}),
+  },
+  optimizeDeps: {
+    include: ['@sentry/react'],
   },
   test: {
     environment: 'jsdom',
