@@ -48,7 +48,8 @@ const createMessageSchema = Joi.object({
   room: Joi.string().allow('').max(120).optional(),
   text: Joi.string().trim().max(4000).allow('').optional(),
   department: Joi.string().allow('').max(80).optional(),
-  groupId: Joi.string().hex().length(24).optional(),
+  // Multipart FormData often sends "" for absent fields — empty must not fail hex().
+  groupId: Joi.alternatives().try(Joi.string().hex().length(24), Joi.string().allow('')).optional(),
   recipientIds: jsonOrArrayOf(Joi.string().hex().length(24)),
   recipientNames: jsonOrArrayOf(Joi.string().trim().max(120)),
   mentionedUserIds: jsonOrArrayOf(Joi.string().hex().length(24)),

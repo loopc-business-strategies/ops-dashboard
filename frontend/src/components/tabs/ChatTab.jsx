@@ -269,7 +269,23 @@ function FileCard({ file, isMe }) {
   }
   const cf = cfgs[file.ext?.toLowerCase()] || { icon:'📎', bg:'rgba(148,163,184,0.18)', color:'#94a3b8' }
   const openFile = () => {
-    if (file.url) window.open(file.url, '_blank', 'noopener,noreferrer')
+    if (!file.url) return
+    void (async () => {
+      try {
+        const res = await fetch(file.url, { credentials: 'include' })
+        if (!res.ok) throw new Error(String(res.status))
+        const blob = await res.blob()
+        const objectUrl = URL.createObjectURL(blob)
+        const child = window.open(objectUrl, '_blank', 'noopener,noreferrer')
+        if (!child) {
+          URL.revokeObjectURL(objectUrl)
+          throw new Error('popup blocked')
+        }
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120000)
+      } catch {
+        window.open(file.url, '_blank', 'noopener,noreferrer')
+      }
+    })()
   }
   const showImageThumb = Boolean(file.previewUrl && previewSrc && !previewFailed)
   return (
@@ -380,6 +396,10 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
   }, [focusComposerNonce])
 
   const myAuthId = String(user?._id || user?.id || 'me')
+  const myAuthIdRef = useRef(myAuthId)
+  useEffect(() => {
+    myAuthIdRef.current = myAuthId
+  }, [myAuthId])
 
   const myId = USE_SEED_DATA
     ? (() => {
@@ -635,8 +655,13 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
 
       if (showIncomingToast && hasNew) {
         const m = messages[messages.length - 1]
-        const sender = displayUser(m.senderId || senderToSeedId(m.senderName))
-        showToast(`New message from ${sender?.name || 'Team'}`, m.text || 'New message', sender?.color || C.accent)
+        const senderKey = String(m.senderId != null ? m.senderId : '').trim()
+        const fromSelf = senderKey && senderKey === String(myAuthIdRef.current || '').trim()
+        // Others get the bell notification; avoid duplicating an in-tab toast for your own send.
+        if (!fromSelf) {
+          const sender = displayUser(m.senderId || senderToSeedId(m.senderName))
+          showToast(`New message from ${sender?.name || 'Team'}`, m.text || 'New message', sender?.color || C.accent)
+        }
       }
     } catch {
       // Keep local fallback if API is unavailable.
