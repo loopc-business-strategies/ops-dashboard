@@ -1103,7 +1103,7 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
   const transactionPageCount = Math.max(1, Math.ceil(Number(transactionMeta.total || 0) / Number(transactionMeta.limit || 25)))
   const isTransactionEditMode = Boolean(editingTransactionId)
   const allVisibleTransactionsSelected = Boolean(transactions.length) && transactions.every((tx) => selectedTransactionIds.includes(tx._id))
- = detailsPanel.floating || detailsPanel.pinned
+  const detailsPanelIsFloating = detailsPanel.floating || detailsPanel.pinned
   const getCurrentDetailsPanelGeometry = () => {
     const rect = detailsPanelRef.current?.getBoundingClientRect()
     if (!rect) {
