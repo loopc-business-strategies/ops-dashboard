@@ -225,6 +225,37 @@ const IconLock     = () => <svg width="12" height="12" fill="none" stroke="curre
 // FILE CARD
 // ─────────────────────────────────────────────────────────
 function FileCard({ file, isMe }) {
+  const [previewSrc, setPreviewSrc] = useState(null)
+  const [previewFailed, setPreviewFailed] = useState(false)
+
+  useEffect(() => {
+    if (!file.previewUrl) {
+      setPreviewSrc(null)
+      setPreviewFailed(false)
+      return undefined
+    }
+    let cancelled = false
+    let objectUrl = null
+    setPreviewFailed(false)
+    setPreviewSrc(null)
+    ;(async () => {
+      try {
+        const res = await fetch(file.previewUrl, { credentials: 'include' })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const blob = await res.blob()
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(blob)
+        setPreviewSrc(objectUrl)
+      } catch {
+        if (!cancelled) setPreviewFailed(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [file.previewUrl])
+
   const cfgs = {
     pdf:  { icon:'📄', bg:'rgba(239,68,68,0.18)',   color:'#ef4444' },
     docx: { icon:'📝', bg:'rgba(96,165,250,0.18)',  color:'#60a5fa' },
@@ -240,6 +271,7 @@ function FileCard({ file, isMe }) {
   const openFile = () => {
     if (file.url) window.open(file.url, '_blank', 'noopener,noreferrer')
   }
+  const showImageThumb = Boolean(file.previewUrl && previewSrc && !previewFailed)
   return (
     <div
       role="button"
@@ -248,8 +280,8 @@ function FileCard({ file, isMe }) {
       onKeyDown={(e) => { if (e.key === 'Enter') openFile() }}
       style={{ display:'flex', alignItems:'center', gap:10, marginTop:6, background:'#f0f2f5', border:`1px solid ${C.border}`, borderRadius:10, padding:'10px 12px', cursor: file.url ? 'pointer' : 'default' }}
     >
-      {file.previewUrl ? (
-        <img src={file.previewUrl} alt={file.name} style={{ width:72, height:72, borderRadius:8, objectFit:'cover', flexShrink:0 }} />
+      {showImageThumb ? (
+        <img src={previewSrc} alt={file.name} style={{ width:72, height:72, borderRadius:8, objectFit:'cover', flexShrink:0 }} />
       ) : (
         <div style={{ width:36, height:36, borderRadius:8, background:cf.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{cf.icon}</div>
       )}
@@ -304,6 +336,10 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
 
   const [chats,         setChats]         = useState(INITIAL_CHATS)
   const [activeChatId,  setActiveChatId]  = useState(null)
+  const chatsRef = useRef(chats)
+  useEffect(() => {
+    chatsRef.current = chats
+  }, [chats])
   const [search,        setSearch]        = useState('')
   const [msgText,       setMsgText]       = useState('')
   const [showGroupModal,setShowGroupModal]= useState(false)
@@ -684,25 +720,47 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
   async function sendMessage(chatId) {
     const text = msgText.trim()
     if (!text || !chatId) return
-    const newMsg = { id:`m${Date.now()}`, from:myId, text, time:new Date().toISOString(), file:null }
+    const newMsg = { id:`m${Date.now()}`, from:myId, text, time:new Date().toISOString(), file:null, pending: true }
     setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages:[...c.messages, newMsg] } : c))
     setMsgText('')
-    const currentChat = chats.find(c => c.id === chatId)
+    const currentChat = chatsRef.current.find(c => c.id === chatId)
+    if (!currentChat) {
+      setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, messages: c.messages.filter((m) => m.id !== newMsg.id) } : c)))
+      setMsgText(text)
+      showToast('Send failed', 'Conversation is still loading. Please try again.', '#DC2626')
+      return
+    }
     const payload = messagePayloadForChat(currentChat, text)
     try {
       const saved = await messagesAPI.createMessage(token, payload)
       if (saved?.message?._id) {
         setChats(prev => prev.map(c => c.id === chatId ? {
           ...c,
-          messages: c.messages.map(m => m.id === newMsg.id ? { ...m, id: String(saved.message._id), time: saved.message.createdAt || m.time } : m),
+          messages: c.messages.map(m => m.id === newMsg.id ? {
+            ...m,
+            id: String(saved.message._id),
+            time: saved.message.createdAt || m.time,
+            pending: false,
+          } : m),
         } : c))
+      } else {
+        setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, messages: c.messages.filter((m) => m.id !== newMsg.id) } : c)))
+        setMsgText(text)
+        const why = typeof saved?.message === 'string'
+          ? saved.message
+          : (typeof saved?.message === 'object' && saved?.message && !saved.message._id
+            ? (saved.message.message || 'Server did not confirm the message.')
+            : 'Unexpected response from server.')
+        showToast('Send failed', why, '#DC2626')
       }
       if (payload.mentionedUserIds?.length) {
         showToast('Mention sent', `Delivered to ${payload.mentionedUserIds.length} mentioned user${payload.mentionedUserIds.length === 1 ? '' : 's'}.`)
       }
-    } catch {
+    } catch (err) {
+      const serverMsg = err?.response?.data?.message || err?.message || 'Message could not be delivered. Please try again.'
       setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: c.messages.filter(m => m.id !== newMsg.id) } : c))
-      showToast('Send failed', 'Message could not be delivered. Please try again.', '#DC2626')
+      setMsgText(text)
+      showToast('Send failed', serverMsg, '#DC2626')
     }
     if (!USE_SEED_DATA) return
     const chat = chats.find(c => c.id === chatId)
@@ -736,15 +794,21 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
     if (!file || !activeChatId) return
 
     const caption = msgText.trim()
-    const currentChat = chats.find((c) => c.id === activeChatId)
+    const currentChat = chatsRef.current.find((c) => c.id === activeChatId)
     const optimisticId = `m${Date.now()}`
     const optimisticFile = {
       name: file.name,
       size: formatAttachmentSize(file.size),
       ext: file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() : 'file',
     }
-    const newMsg = { id: optimisticId, from: myId, text: caption, time: new Date().toISOString(), file: optimisticFile }
+    const newMsg = { id: optimisticId, from: myId, text: caption, time: new Date().toISOString(), file: optimisticFile, pending: true }
     setChats((prev) => prev.map((c) => (c.id === activeChatId ? { ...c, messages: [...c.messages, newMsg] } : c)))
+
+    if (!currentChat) {
+      setChats((prev) => prev.map((c) => (c.id === activeChatId ? { ...c, messages: c.messages.filter((m) => m.id !== optimisticId) } : c)))
+      showToast('Upload failed', 'Conversation is still loading. Please try again.', '#DC2626')
+      return
+    }
 
     const formData = new FormData()
     formData.append('file', file)
@@ -765,18 +829,25 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
           ...c,
           messages: c.messages.map((m) => (
             m.id === optimisticId
-              ? { ...m, id: String(saved.message._id), time: saved.message.createdAt || m.time, file: attachment }
+              ? { ...m, id: String(saved.message._id), time: saved.message.createdAt || m.time, file: attachment, pending: false }
               : m
           )),
         } : c)))
+        setMsgText('')
+        showToast('📎 File sent', file.name)
+      } else {
+        setChats((prev) => prev.map((c) => (
+          c.id === activeChatId ? { ...c, messages: c.messages.filter((m) => m.id !== optimisticId) } : c
+        )))
+        const why = saved?.message || 'Unexpected response from server.'
+        showToast('Upload failed', typeof why === 'string' ? why : 'Attachment could not be sent.', '#DC2626')
       }
-      setMsgText('')
-      showToast('📎 File sent', file.name)
-    } catch {
+    } catch (err) {
+      const serverMsg = err?.response?.data?.message || err?.message || 'Attachment could not be sent.'
       setChats((prev) => prev.map((c) => (
         c.id === activeChatId ? { ...c, messages: c.messages.filter((m) => m.id !== optimisticId) } : c
       )))
-      showToast('Upload failed', 'Attachment could not be sent.', '#DC2626')
+      showToast('Upload failed', serverMsg, '#DC2626')
     }
   }
 
@@ -1108,7 +1179,7 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
                         {msg.file && <FileCard file={msg.file} isMe={isMe} />}
                         <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:4, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
                           <span style={{ fontSize:10, color: isMe ? 'rgba(255,255,255,0.55)' : '#334155' }}>{msgTime(msg.time)}</span>
-                          {isMe && <span style={{ fontSize:12, color:'#60a5fa' }}>✓✓</span>}
+                          {isMe && !msg.pending && <span style={{ fontSize:12, color:'#60a5fa' }}>✓✓</span>}
                         </div>
                       </div>
                     </div>
