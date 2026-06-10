@@ -48,6 +48,7 @@ function getOpsTabs(t) {
     { id:'security',  label:`🔒 ${t('security')}` },
     { id:'vendors',   label:`📄 ${t('contracts')}` },
     { id:'inventory', label:`📦 ${t('inventory')}` },
+    { id:'legal-docs', label:`📑 ${t('opsLegalDocuments')}` },
     { id:'map',       label:`🗺️ ${t('liveMap')}` },
     { id:'analytics', label:`📈 ${t('analytics')}` },
     { id:'projects',     label:`📋 ${t('opsProjectsNav')}` },
@@ -592,8 +593,17 @@ function LegalDocumentsCard({ canEdit, showToast }) {
   )
 }
 
+// ─── TAB: Legal Documents ───────────────────────────────────────────────────────
+function TabLegalDocuments({ canEdit, showToast }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <LegalDocumentsCard canEdit={canEdit} showToast={showToast} />
+    </div>
+  )
+}
+
 // ─── TAB: KPI Overview ──────────────────────────────────────────────────────────
-function TabKPI({ suppliers, gold, routes, incidents, vendors, inventory, canEdit, isAdmin, isHead, isMgmt, showToast }) {
+function TabKPI({ suppliers, gold, routes, incidents, vendors, inventory, canEdit, isAdmin, isHead, isMgmt }) {
   if (!isAdmin && !isHead && !isMgmt) return <Restrict text="KPI overview is not available to this role. Contact your Operations manager." />
   const done    = suppliers.filter(s => s.st === 'Completed').length
   const active  = routes.filter(r => r.st === 'Active').length
@@ -677,8 +687,6 @@ function TabKPI({ suppliers, gold, routes, incidents, vendors, inventory, canEdi
           })}
         </Card>
       </div>
-
-      <LegalDocumentsCard canEdit={canEdit} showToast={showToast} />
     </div>
   )
 }
@@ -3073,6 +3081,7 @@ export default function OperationsTab() {
       {activeTab === 'security'  && <TabSecurity   {...shared} onOpenIncident={() => setModal({ type:'incident-add', data:null })} />}
       {activeTab === 'vendors'   && <TabVendors    {...shared} onOpenAdd={() => setModal({ type:'vendor-add', data:null })} />}
       {activeTab === 'inventory' && <TabInventory  {...shared} onDeleteInventory={deleteInventoryItem} />}
+      {activeTab === 'legal-docs' && <TabLegalDocuments {...shared} />}
       {activeTab === 'map'       && <TabMap        {...shared} />}
       {activeTab === 'analytics' && <TabAnalytics  {...shared} />}
       {activeTab === 'projects'     && (
