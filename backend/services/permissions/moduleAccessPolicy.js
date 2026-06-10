@@ -219,6 +219,31 @@ function canUploadProcDocs(user) {
   return isSuperAdmin(user) || isDeptHead(user, 'operations') || isFinanceRole(user)
 }
 
+function legacyCanViewOperationsModule(user) {
+  if (!user) return false
+  if (isSuperAdmin(user) || isManagement(user)) return true
+  if (user.role === 'department_head' || user.role === 'department_user') {
+    return userDept(user) === 'operations'
+  }
+  return false
+}
+
+function canViewOperationsModule(user) {
+  return resolveModuleAccess(user, 'operations', legacyCanViewOperationsModule)
+}
+
+function legacyCanWriteOperationsLegalDocuments(user) {
+  if (!user) return false
+  if (isSuperAdmin(user)) return true
+  if (isDepartmentHead(user) && userDept(user) === 'operations') return true
+  return false
+}
+
+/** Upload/delete Operations legal documents (super_admin or operations department_head). */
+function canWriteOperationsLegalDocuments(user) {
+  return resolveModuleWrite(user, 'operations', legacyCanWriteOperationsLegalDocuments)
+}
+
 // ─── Attendance ───────────────────────────────────────────────────────────────
 
 function isHrHead(user) {
@@ -413,6 +438,8 @@ module.exports = {
   canManageProduction,
   canManageLegacyErpFinance,
   canUploadProcDocs,
+  canViewOperationsModule,
+  canWriteOperationsLegalDocuments,
   isHrHead,
   canManageAttendance,
   canReviewLeave,

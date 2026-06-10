@@ -1,7 +1,7 @@
 // FILE: src/components/tabs/OperationsTab.jsx
 // Operations & Logistics — 11 sub-tabs, role-based access, full feature set
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import { useAuth } from '../../context/AuthContext'
@@ -9,6 +9,12 @@ import erpAPI from '../../api/erp'
 import projectsAPI from '../../api/projects'
 import authAPI from '../../api/auth'
 import hrAPI from '../../api/hr'
+import {
+  listOperationsLegalDocuments,
+  uploadOperationsLegalDocument,
+  deleteOperationsLegalDocument,
+  operationsLegalDocumentDownloadUrl,
+} from '../../api/operationsLegalDocuments'
 import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 import AccountCombobox from '../AccountCombobox'
 
@@ -299,8 +305,295 @@ function Toast({ t }) {
   )
 }
 
+const LEGAL_DOC_ACCEPT = [
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.txt',
+  '.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.tif', '.tiff', '.zip',
+].join(',')
+
+function formatLegalDocSize(bytes) {
+  const size = Number(bytes || 0)
+  if (!size) return '0 B'
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function legalDocPreviewKind(mime) {
+  const m = String(mime || '').toLowerCase()
+  if (m === 'application/pdf') return 'iframe'
+  if (m.startsWith('image/')) return 'img'
+  if (m === 'text/plain' || m === 'text/csv') return 'text'
+  return 'none'
+}
+
+function LegalDocumentsCard({ canEdit, showToast }) {
+  const showToastRef = useRef(showToast)
+  showToastRef.current = showToast
+
+  const [documents, setDocuments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [preview, setPreview] = useState(null)
+
+  const loadDocuments = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await listOperationsLegalDocuments()
+      setDocuments(Array.isArray(data.documents) ? data.documents : [])
+    } catch {
+      setDocuments([])
+      showToastRef.current('Legal documents', 'Could not load document list.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadDocuments() }, [loadDocuments])
+
+  const closePreview = useCallback(() => {
+    if (preview?.objectUrl) {
+      try { URL.revokeObjectURL(preview.objectUrl) } catch { /* ignore */ }
+    }
+    setPreview(null)
+  }, [preview])
+
+  const openPreview = useCallback(async (doc) => {
+    const kind = legalDocPreviewKind(doc.mimeType)
+    if (kind === 'none') {
+      setPreview({
+        objectUrl: null,
+        name: doc.originalName,
+        kind: 'office',
+        docId: doc._id,
+      })
+      return
+    }
+    const url = operationsLegalDocumentDownloadUrl(doc._id, { preview: true })
+    try {
+      const res = await fetch(url, { credentials: 'include' })
+      if (!res.ok) {
+        showToastRef.current('Preview', res.status === 403 ? 'Access denied.' : 'Could not load file.')
+        return
+      }
+      const blob = await res.blob()
+      if (kind === 'text') {
+        const text = await blob.text()
+        setPreview({ objectUrl: null, name: doc.originalName, kind: 'text', text })
+        return
+      }
+      const objectUrl = URL.createObjectURL(blob)
+      if (kind === 'iframe' || kind === 'img') {
+        setPreview({ objectUrl, name: doc.originalName, kind })
+      } else {
+        URL.revokeObjectURL(objectUrl)
+        setPreview({
+          objectUrl: null,
+          name: doc.originalName,
+          kind: 'office',
+          docId: doc._id,
+        })
+      }
+    } catch {
+      showToastRef.current('Preview', 'Could not load file.')
+    }
+  }, [])
+
+  const downloadToDisk = useCallback(async (doc) => {
+    const url = operationsLegalDocumentDownloadUrl(doc._id, { download: true })
+    try {
+      const res = await fetch(url, { credentials: 'include' })
+      if (!res.ok) {
+        showToastRef.current('Download', 'Could not download file.')
+        return
+      }
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = doc.originalName || 'document'
+      a.rel = 'noreferrer'
+      a.click()
+      URL.revokeObjectURL(objectUrl)
+    } catch {
+      showToastRef.current('Download', 'Could not download file.')
+    }
+  }, [])
+
+  const onPickFile = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setUploading(true)
+    try {
+      const data = await uploadOperationsLegalDocument(file)
+      if (data.success && data.document) {
+        setDocuments((prev) => [data.document, ...prev])
+        showToastRef.current('Uploaded', file.name)
+      } else {
+        showToastRef.current('Upload failed', data.message || 'Unknown error')
+      }
+    } catch (err) {
+      showToastRef.current('Upload failed', err.response?.data?.message || err.message || 'Unknown error')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const onDelete = async (doc) => {
+    if (!window.confirm(`Delete “${doc.originalName}”?`)) return
+    try {
+      await deleteOperationsLegalDocument(doc._id)
+      setDocuments((prev) => prev.filter((d) => d._id !== doc._id))
+      showToastRef.current('Deleted', doc.originalName)
+    } catch {
+      showToastRef.current('Delete failed', 'Could not remove document.')
+    }
+  }
+
+  return (
+    <>
+      <Card>
+        <CardTitle
+          right={canEdit ? (
+            <label style={{ cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.6 : 1 }}>
+              <span style={{ ...B.sec, ...B.sm }}>＋ Add document</span>
+              <input
+                type="file"
+                accept={LEGAL_DOC_ACCEPT}
+                disabled={uploading}
+                onChange={onPickFile}
+                style={{ display: 'none' }}
+              />
+            </label>
+          ) : null}
+        >
+          Legal Documents
+        </CardTitle>
+        {loading && (
+          <div style={{ fontSize: 12, color: C.t3, padding: '8px 0' }}>Loading…</div>
+        )}
+        {!loading && documents.length === 0 && (
+          <div style={{ fontSize: 12, color: C.t3, padding: '12px 0', borderTop: `1px dashed ${C.border}` }}>
+            No documents yet.{canEdit ? ' Use Add document to upload PDF, Word, images, or other supported files.' : ''}
+          </div>
+        )}
+        {!loading && documents.length > 0 && (
+          <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 4 }}>
+            {documents.map((doc, idx) => (
+              <div
+                key={doc._id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                  padding: '10px 0',
+                  borderBottom: idx < documents.length - 1 ? `1px solid ${C.border}` : 'none',
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ minWidth: 0, flex: '1 1 160px' }}>
+                  <div style={{ fontWeight: 700, color: C.t1, wordBreak: 'break-word' }}>{doc.originalName}</div>
+                  <div style={{ color: C.t3, marginTop: 4, fontSize: 11 }}>
+                    {formatLegalDocSize(doc.size)}
+                    {' · '}
+                    {doc.uploadedByName || '—'}
+                    {doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleString()}` : ''}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={() => openPreview(doc)}
+                    style={{ ...B.ghost, ...B.sm }}
+                  >
+                    Preview
+                  </button>
+                  {canEdit && (
+                    <button type="button" onClick={() => onDelete(doc)} style={{ ...B.warn, ...B.sm }}>
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {preview && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,.65)',
+            zIndex: 1001,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            backdropFilter: 'blur(6px)',
+          }}
+          onClick={(ev) => { if (ev.target === ev.currentTarget) closePreview() }}
+          role="presentation"
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 12,
+              border: `1px solid ${C.border2}`,
+              maxWidth: 'min(920px, 96vw)',
+              maxHeight: '90vh',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+          >
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: C.gbar }} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ fontWeight: 800, color: C.t1, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>{preview.name}</div>
+              <button type="button" onClick={closePreview} style={{ background: 'none', border: 'none', color: C.t3, fontSize: 18, cursor: 'pointer', flexShrink: 0 }}>✕</button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', minHeight: 200 }}>
+              {preview.kind === 'iframe' && preview.objectUrl && (
+                <iframe title={preview.name} src={preview.objectUrl} style={{ width: '100%', height: 'min(72vh, 640px)', border: 'none' }} />
+              )}
+              {preview.kind === 'img' && preview.objectUrl && (
+                <div style={{ padding: 12, textAlign: 'center' }}>
+                  <img src={preview.objectUrl} alt={preview.name} style={{ maxWidth: '100%', height: 'auto' }} />
+                </div>
+              )}
+              {preview.kind === 'text' && (
+                <pre style={{ margin: 0, padding: 14, fontSize: 12, color: C.t2, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'ui-monospace, monospace' }}>{preview.text}</pre>
+              )}
+              {preview.kind === 'office' && (
+                <div style={{ padding: 24, fontSize: 13, color: C.t2, lineHeight: 1.5 }}>
+                  <p style={{ margin: '0 0 12px' }}>In-browser preview is not available for this file type. Download to open it on your device.</p>
+                  <button
+                    type="button"
+                    style={B.pri}
+                    onClick={async () => {
+                      await downloadToDisk({ _id: preview.docId, originalName: preview.name })
+                      closePreview()
+                    }}
+                  >
+                    Download
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 // ─── TAB: KPI Overview ──────────────────────────────────────────────────────────
-function TabKPI({ suppliers, gold, routes, incidents, vendors, inventory, canEdit, isAdmin, isHead, isMgmt }) {
+function TabKPI({ suppliers, gold, routes, incidents, vendors, inventory, canEdit, isAdmin, isHead, isMgmt, showToast }) {
   if (!isAdmin && !isHead && !isMgmt) return <Restrict text="KPI overview is not available to this role. Contact your Operations manager." />
   const done    = suppliers.filter(s => s.st === 'Completed').length
   const active  = routes.filter(r => r.st === 'Active').length
@@ -384,6 +677,8 @@ function TabKPI({ suppliers, gold, routes, incidents, vendors, inventory, canEdi
           })}
         </Card>
       </div>
+
+      <LegalDocumentsCard canEdit={canEdit} showToast={showToast} />
     </div>
   )
 }
