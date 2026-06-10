@@ -17,7 +17,18 @@ import { deriveErpAccessPolicy, canCreateTransactionFor } from './erp/accessPoli
 
 const VOUCHER_TAB_TYPES = ['payment', 'receipt', 'purchase', 'sale', 'metal_receipt', 'metal_payment']
 
-export default function VoucherTab({ token, user, accounts = [], customers: propCustomers = [], vendors: propVendors = [], currencies = [], reportBranding = null }) {
+export default function VoucherTab({
+  token,
+  user,
+  accounts = [],
+  customers: propCustomers = [],
+  vendors: propVendors = [],
+  currencies = [],
+  reportBranding = null,
+  pendingOpenTransactionId = null,
+  pendingOpenTransactionType = null,
+  onPendingOpenTransactionConsumed = null,
+}) {
   const showAccountDetailsTab = false
   const { t } = useLanguage()
   const erpAccess = deriveErpAccessPolicy(user || {})
@@ -181,6 +192,7 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
   const [modalDrag, setModalDrag] = useState(null)
   const dragMetaRef = useRef({ moved: false })
   const lastViewedIdRef = useRef(null)  // tracks the voucher open before New was clicked
+  const openVoucherRef = useRef(null)
   const initialFormSnapshotRef = useRef('')
 
   // ─── header form ────────────────────────────────────────────────────────────
@@ -1178,6 +1190,62 @@ export default function VoucherTab({ token, user, accounts = [], customers: prop
     setMode('view')
     initialFormSnapshotRef.current = buildFormSnapshot(nextHeader, nextLineItems, nextPartyId)
   }
+  openVoucherRef.current = openVoucher
+
+  useEffect(() => {
+    if (!pendingOpenTransactionId || !pendingOpenTransactionType || typeof onPendingOpenTransactionConsumed !== 'function') {
+      return undefined
+    }
+    if (!canView || !token) {
+      onPendingOpenTransactionConsumed()
+      return undefined
+    }
+    const tnorm = String(pendingOpenTransactionType || '').toLowerCase()
+    if (!tnorm || !enabledVoucherTypes.includes(tnorm)) {
+      setError('This voucher type is not available for your tenant or role.')
+      onPendingOpenTransactionConsumed()
+      return undefined
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await axios.get(`${BASE}/transactions`, {
+          ...cfg(),
+          params: { type: tnorm, limit: 200 },
+        })
+        const txs = sortVouchersByDocNo(
+          (res.data.transactions || []).filter((row) => row.voucherMeta && row.voucherMeta.vocNo),
+          tnorm,
+        )
+        if (cancelled) return
+        setVoucherType(tnorm)
+        setVouchers(txs)
+        const v = txs.find((row) => String(row._id) === String(pendingOpenTransactionId))
+        if (v) {
+          openVoucherRef.current?.(v)
+        } else {
+          setError('That voucher was not found in the list. Try opening Vouchers and refreshing.')
+        }
+      } catch (e) {
+        if (!cancelled) setError(e.response?.data?.message || 'Failed to open voucher from notification')
+      } finally {
+        if (!cancelled) onPendingOpenTransactionConsumed()
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // openVoucher is kept on a ref so this effect only runs when the pending deep-link props change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    pendingOpenTransactionId,
+    pendingOpenTransactionType,
+    onPendingOpenTransactionConsumed,
+    canView,
+    token,
+    enabledVoucherTypes,
+    sortVouchersByDocNo,
+  ])
 
   const handleWorkflowAction = async (action) => {
     if (!editingId) return

@@ -2,12 +2,12 @@
  * Single-account ledger balance helpers (outstanding + aging buckets).
  * Keeps aggregation logic out of `erp-accountingContext` wiring.
  *
- * @param {{ Ledger: import('mongoose').Model }} deps
- * @returns {{ getOutstandingForAccount: (accountId: unknown, session?: import('mongoose').ClientSession | null) => Promise<number>, getAgingForAccount: (accountId: unknown, asOfDate?: Date) => Promise<object> }}
+ * @param {{ Ledger: import('mongoose').Model, ChartOfAccount?: import('mongoose').Model }} deps
+ * @returns {{ getOutstandingForAccount: (accountId: unknown, session?: import('mongoose').ClientSession | null) => Promise<number>, getAgingForAccount: (accountId: unknown, asOfDate?: Date) => Promise<object>, getEnquiryNetBalanceForAccount?: (accountId: unknown, session?: import('mongoose').ClientSession | null) => Promise<number> }}
  */
 const { withSession } = require('../../utils/mongoTransaction')
 
-function createLedgerBalanceService({ Ledger }) {
+function createLedgerBalanceService({ Ledger, ChartOfAccount = null }) {
   const getOutstandingForAccount = async (accountId, session = null) => {
     if (!accountId) return 0
 
@@ -107,7 +107,18 @@ function createLedgerBalanceService({ Ledger }) {
     return buckets
   }
 
-  return { getOutstandingForAccount, getAgingForAccount }
+  /** Net balance as used by Account Summary: openingBalance + signed ledger movement (base). */
+  const getEnquiryNetBalanceForAccount = async (accountId, session = null) => {
+    if (!accountId || !ChartOfAccount) return getOutstandingForAccount(accountId, session)
+    const acc = await withSession(ChartOfAccount.findById(accountId).select('openingBalance').lean(), session)
+    const opening = Number(acc?.openingBalance || 0)
+    const ledgerNet = Number(await getOutstandingForAccount(accountId, session) || 0)
+    return opening + ledgerNet
+  }
+
+  return ChartOfAccount
+    ? { getOutstandingForAccount, getAgingForAccount, getEnquiryNetBalanceForAccount }
+    : { getOutstandingForAccount, getAgingForAccount }
 }
 
 module.exports = { createLedgerBalanceService }

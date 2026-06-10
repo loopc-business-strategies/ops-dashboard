@@ -53,6 +53,8 @@ function buildCopy(type, data = {}) {
       return { title: 'Voucher returned', body: 'A voucher was returned for revision.'.slice(0, MAX_BODY) }
     case 'transaction_rejected':
       return { title: 'Voucher rejected', body: 'A voucher was rejected.'.slice(0, MAX_BODY) }
+    case 'account_balance_sign_changed':
+      return { title: 'Account crossed zero', body: 'An account balance changed from negative to positive or vice versa.'.slice(0, MAX_BODY) }
     default:
       return { title: 'MG Ops', body: String(type || 'Notification').slice(0, MAX_BODY) }
   }

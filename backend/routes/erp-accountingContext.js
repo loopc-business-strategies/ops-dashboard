@@ -212,6 +212,7 @@ const voucherVatService = createVoucherVatService({
 const {
   resolveVoucherVatAmount,
   resolveVoucherNetLineAmount,
+  resolveVatPostingAccounts,
   applyVoucherVatImpact,
 } = voucherVatService
 
@@ -316,7 +317,10 @@ const {
   createLedgerFromTransaction,
 } = transactionAccountResolutionService
 
-const { getOutstandingForAccount, getAgingForAccount } = createLedgerBalanceService({ Ledger })
+const { getOutstandingForAccount, getAgingForAccount, getEnquiryNetBalanceForAccount } = createLedgerBalanceService({
+  Ledger,
+  ChartOfAccount,
+})
 
 const vendorComplianceService = createVendorComplianceService({
   Transaction,
@@ -352,14 +356,16 @@ transactionPostingService = createTransactionPostingService({
   validateFxReferenceRateRequirement,
   Customer,
   getOutstandingForAccount,
+  getEnquiryNetBalanceForAccount,
   prepareVoucherInventoryImpact,
   resolveTransactionAccounts,
   ensurePaymentAdvanceConfirmed,
   Ledger,
+  ChartOfAccount,
   createLedgerFromTransaction,
   applyVoucherVatImpact,
   applyVoucherInventoryImpact,
-  resolveTransferPostingAmount,
+  resolveVatPostingAccounts,
   isMetalTransferType,
   appendTransactionComment,
   appendTransactionAudit,

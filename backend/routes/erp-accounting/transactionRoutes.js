@@ -694,6 +694,29 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
           type: result.transaction.type,
         })
       }
+      const posterId = String(req.user?._id || '')
+      const flips = Array.isArray(result.accountSignFlips) ? result.accountSignFlips : []
+      if (posterId && flips.length && typeof realtimeServer.sendUserNotification === 'function') {
+        for (const flip of flips) {
+          const code = String(flip.accountCode || '').trim()
+          if (!code) continue
+          const name = String(flip.accountName || '').trim()
+          const before = Number(flip.beforeBalance || 0)
+          const after = Number(flip.afterBalance || 0)
+          const msg = name
+            ? `Account ${code} (${name}) crossed zero (was ${before.toFixed(2)}, now ${after.toFixed(2)}).`
+            : `Account ${code} crossed zero (was ${before.toFixed(2)}, now ${after.toFixed(2)}).`
+          realtimeServer.sendUserNotification(posterId, 'account_balance_sign_changed', {
+            accountId: String(flip.accountId || ''),
+            accountCode: code,
+            accountName: name,
+            beforeBalance: before,
+            afterBalance: after,
+            transactionId: String(result.transaction._id),
+            message: msg,
+          }, resolveRequestTenantKey(req))
+        }
+      }
     })
     res.json({ success: true, transaction: populated, ledgerEntry: result.ledgerEntry })
   } catch (e) {

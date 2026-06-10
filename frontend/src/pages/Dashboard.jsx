@@ -104,6 +104,13 @@ function mapRealtimeNotificationPayload(payload) {
   if (type === 'transaction_rejected') {
     return { title: 'Voucher rejected', msg: msg || 'Your voucher was rejected.', dotColor: 'bg-red-400' }
   }
+  if (type === 'account_balance_sign_changed') {
+    return {
+      title: 'Account balance crossed zero',
+      msg: msg || 'An account summary balance moved from negative to positive or vice versa.',
+      dotColor: 'bg-violet-400',
+    }
+  }
   return {
     title: 'New notification',
     msg: msg || type || 'Notification received',
@@ -111,13 +118,44 @@ function mapRealtimeNotificationPayload(payload) {
   }
 }
 
-/** ERP Transactions deep-link from `transaction_chat_mention` socket payload. */
-function resolveErpTransactionIdFromSocketPayload(payload) {
+/** ERP deep-link fields from Socket.IO `/notifications` payload (see backend `sendUserNotification`). */
+function resolveRealtimeBellErpFields(payload) {
   const type = String(payload?.type || '')
   const data = payload?.data || {}
-  if (type !== 'transaction_chat_mention') return null
   const txId = String(data.transactionId || '').trim()
-  return /^[a-f\d]{24}$/i.test(txId) ? txId : null
+  const validTx = /^[a-f\d]{24}$/i.test(txId) ? txId : null
+  const accountCode = String(data.accountCode || '').trim()
+
+  if (type === 'transaction_chat_mention' && validTx) {
+    return {
+      erpTransactionId: validTx,
+      erpJumpSubTab: 'transactions',
+      erpTransactionType: String(data.type || '').toLowerCase() || null,
+      erpEnquiryAccountCode: null,
+    }
+  }
+  if (['transaction_approved', 'transaction_returned', 'transaction_rejected'].includes(type) && validTx) {
+    return {
+      erpTransactionId: validTx,
+      erpJumpSubTab: 'vouchers',
+      erpTransactionType: String(data.type || '').toLowerCase() || null,
+      erpEnquiryAccountCode: null,
+    }
+  }
+  if (type === 'account_balance_sign_changed' && accountCode) {
+    return {
+      erpTransactionId: null,
+      erpJumpSubTab: 'enquiry',
+      erpTransactionType: null,
+      erpEnquiryAccountCode: accountCode,
+    }
+  }
+  return {
+    erpTransactionId: null,
+    erpJumpSubTab: null,
+    erpTransactionType: null,
+    erpEnquiryAccountCode: null,
+  }
 }
 
 // ── Sidebar nav item ────────────────────────────
@@ -235,6 +273,10 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps =
           onNavigateMain={setActiveTab}
           jumpToTransactionId={erpTabProps.jumpToTransactionId}
           onJumpToTransactionConsumed={erpTabProps.onJumpToTransactionConsumed}
+          jumpToVoucher={erpTabProps.jumpToVoucher}
+          onJumpToVoucherConsumed={erpTabProps.onJumpToVoucherConsumed}
+          jumpToEnquiryAccountCode={erpTabProps.jumpToEnquiryAccountCode}
+          onJumpToEnquiryConsumed={erpTabProps.onJumpToEnquiryConsumed}
         />
       )
 
@@ -284,6 +326,9 @@ function Dashboard() {
   /** Bumped when opening Chat from the bell so the message composer receives focus. */
   const [chatComposerFocusNonce, setChatComposerFocusNonce] = useState(0)
   const [pendingErpJumpTransactionId, setPendingErpJumpTransactionId] = useState(null)
+  /** `{ id, type }` — opens ERP Vouchers on that transaction (from approve/return/reject notifications). */
+  const [pendingErpVoucherJump, setPendingErpVoucherJump] = useState(null)
+  const [pendingErpEnquiryAccountCode, setPendingErpEnquiryAccountCode] = useState(null)
   const langMenuRef = useRef(null)
   const notifMenuRef = useRef(null)
   const accountMenuRef = useRef(null)
@@ -304,6 +349,8 @@ function Dashboard() {
   const notifUnreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications])
   const consumeOpenChatId = useCallback(() => setPendingChatOpenId(null), [])
   const consumeErpJumpTransaction = useCallback(() => setPendingErpJumpTransactionId(null), [])
+  const consumeErpVoucherJump = useCallback(() => setPendingErpVoucherJump(null), [])
+  const consumeErpEnquiryJump = useCallback(() => setPendingErpEnquiryAccountCode(null), [])
   const chatTabRealtimeProps = useMemo(
     () => ({
       openChatId: pendingChatOpenId,
@@ -316,8 +363,19 @@ function Dashboard() {
     () => ({
       jumpToTransactionId: pendingErpJumpTransactionId,
       onJumpToTransactionConsumed: consumeErpJumpTransaction,
+      jumpToVoucher: pendingErpVoucherJump,
+      onJumpToVoucherConsumed: consumeErpVoucherJump,
+      jumpToEnquiryAccountCode: pendingErpEnquiryAccountCode,
+      onJumpToEnquiryConsumed: consumeErpEnquiryJump,
     }),
-    [pendingErpJumpTransactionId, consumeErpJumpTransaction],
+    [
+      pendingErpJumpTransactionId,
+      consumeErpJumpTransaction,
+      pendingErpVoucherJump,
+      consumeErpVoucherJump,
+      pendingErpEnquiryAccountCode,
+      consumeErpEnquiryJump,
+    ],
   )
 
   useEffect(() => {
@@ -455,7 +513,7 @@ function Dashboard() {
       onNotification: (payload) => {
         const { title, msg, dotColor } = mapRealtimeNotificationPayload(payload)
         const chatTargetId = resolveChatTargetIdFromSocketPayload(payload)
-        const erpTransactionId = resolveErpTransactionIdFromSocketPayload(payload)
+        const erp = resolveRealtimeBellErpFields(payload)
         setNotifications((prev) => [
           {
             id: `rt-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -465,7 +523,10 @@ function Dashboard() {
             read: false,
             dotColor,
             chatTargetId,
-            erpTransactionId,
+            erpTransactionId: erp.erpTransactionId,
+            erpJumpSubTab: erp.erpJumpSubTab,
+            erpTransactionType: erp.erpTransactionType,
+            erpEnquiryAccountCode: erp.erpEnquiryAccountCode,
           },
           ...prev,
         ])
@@ -488,6 +549,9 @@ function Dashboard() {
             dotColor: 'bg-amber-400',
             chatTargetId: null,
             erpTransactionId: null,
+            erpJumpSubTab: null,
+            erpTransactionType: null,
+            erpEnquiryAccountCode: null,
           },
           ...prev,
         ])
@@ -549,12 +613,33 @@ function Dashboard() {
       setChatComposerFocusNonce((v) => v + 1)
       return
     }
+    if (n?.erpEnquiryAccountCode) {
+      setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)))
+      setNotifOpen(false)
+      setActiveTab('erp')
+      setErpSubTab('enquiry')
+      setPendingErpJumpTransactionId(null)
+      setPendingErpVoucherJump(null)
+      setPendingErpEnquiryAccountCode(n.erpEnquiryAccountCode)
+      return
+    }
     if (n?.erpTransactionId) {
       setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)))
       setNotifOpen(false)
       setActiveTab('erp')
-      setErpSubTab('transactions')
-      setPendingErpJumpTransactionId(n.erpTransactionId)
+      const sub = n.erpJumpSubTab === 'vouchers' ? 'vouchers' : 'transactions'
+      setErpSubTab(sub)
+      setPendingErpEnquiryAccountCode(null)
+      if (sub === 'vouchers') {
+        setPendingErpJumpTransactionId(null)
+        setPendingErpVoucherJump({
+          id: n.erpTransactionId,
+          type: n.erpTransactionType || 'payment',
+        })
+      } else {
+        setPendingErpVoucherJump(null)
+        setPendingErpJumpTransactionId(n.erpTransactionId)
+      }
     }
   }, [])
 
@@ -846,7 +931,7 @@ function Dashboard() {
                         No notifications yet.
                       </div>
                     ) : notifications.map((n) => {
-                      const actionable = Boolean(n.chatTargetId || n.erpTransactionId)
+                      const actionable = Boolean(n.chatTargetId || n.erpTransactionId || n.erpEnquiryAccountCode)
                       return (
                       <div
                         key={n.id}

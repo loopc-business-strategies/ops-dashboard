@@ -119,7 +119,16 @@ import { ERP_TAB_COLORS as C, TRANSACTION_STATUS_STYLES, formatDateInputLocal, E
 import { exchangeRateFromUnitsPerBase, resolveCurrencyRowByCode } from './erp/erpCurrencyRowHelpers'
 import StatementExportOptionsModal from './erp/StatementExportOptionsModal'
 
-function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpToTransactionConsumed }) {
+function ERPTab({
+  focusTab,
+  onNavigateMain,
+  jumpToTransactionId = null,
+  onJumpToTransactionConsumed,
+  jumpToVoucher = null,
+  onJumpToVoucherConsumed,
+  jumpToEnquiryAccountCode = null,
+  onJumpToEnquiryConsumed,
+}) {
   const { user, token } = useAuth()
   const inventoryTenantKey = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)?.key || ''
   const { t } = useLanguage()
@@ -4376,6 +4385,26 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
     // handleJumpToTransaction is stable enough for this one-shot deep link; omit to avoid re-running on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpToTransactionId, onJumpToTransactionConsumed])
+  useEffect(() => {
+    if (!jumpToEnquiryAccountCode || typeof onJumpToEnquiryConsumed !== 'function') return undefined
+    let cancelled = false
+    ;(async () => {
+      try {
+        const code = String(jumpToEnquiryAccountCode || '').trim()
+        if (!code) return
+        setActiveTab('enquiry')
+        await fetchAccountEnquiryByCode(code, { openModal: true })
+      } finally {
+        if (!cancelled) onJumpToEnquiryConsumed()
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // One-shot deep link from notifications; fetchAccountEnquiryByCode is intentionally omitted from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpToEnquiryAccountCode, onJumpToEnquiryConsumed])
+
   if (!canAccessERP) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: C.t2 }}>
@@ -7240,6 +7269,9 @@ function ERPTab({ focusTab, onNavigateMain, jumpToTransactionId = null, onJumpTo
             vendors={vendors}
             currencies={currencies}
             reportBranding={branding}
+            pendingOpenTransactionId={jumpToVoucher?.id || null}
+            pendingOpenTransactionType={jumpToVoucher?.type || null}
+            onPendingOpenTransactionConsumed={onJumpToVoucherConsumed}
           />
         </Suspense>
       </ERPVouchersTabContainer>
