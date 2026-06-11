@@ -387,6 +387,7 @@ function LegalDocxPreviewBody({ arrayBuffer, showToast }) {
 function LegalDocumentsCard({ canEdit, showToast }) {
   const showToastRef = useRef(showToast)
   showToastRef.current = showToast
+  const selectAllCheckboxRef = useRef(null)
 
   /** 'all' | 'unfiled' | folder Mongo id */
   const [folderScope, setFolderScope] = useState('all')
@@ -399,6 +400,32 @@ function LegalDocumentsCard({ canEdit, showToast }) {
   const [newFolderOpen, setNewFolderOpen] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [creatingFolder, setCreatingFolder] = useState(false)
+  /** Normalized document _id strings for bulk select / share / download */
+  const [selectedLegalDocIds, setSelectedLegalDocIds] = useState([])
+
+  const visibleDocIds = useMemo(
+    () => documents.map((d) => normalizeLegalDocumentId(d._id)).filter(Boolean),
+    [documents],
+  )
+  const selectedInViewCount = useMemo(
+    () => visibleDocIds.filter((id) => selectedLegalDocIds.includes(id)).length,
+    [visibleDocIds, selectedLegalDocIds],
+  )
+  const allVisibleSelected = visibleDocIds.length > 0 && selectedInViewCount === visibleDocIds.length
+
+  useEffect(() => {
+    const el = selectAllCheckboxRef.current
+    if (el) el.indeterminate = selectedInViewCount > 0 && !allVisibleSelected
+  }, [selectedInViewCount, allVisibleSelected])
+
+  useEffect(() => {
+    setSelectedLegalDocIds([])
+  }, [folderScope])
+
+  useEffect(() => {
+    const valid = new Set(visibleDocIds)
+    setSelectedLegalDocIds((prev) => prev.filter((id) => valid.has(id)))
+  }, [visibleDocIds])
 
   const loadFolders = useCallback(async () => {
     setFoldersLoading(true)
@@ -516,6 +543,71 @@ function LegalDocumentsCard({ canEdit, showToast }) {
     }
   }, [])
 
+  const getSelectedLegalDocs = useCallback(() => {
+    const want = new Set(selectedLegalDocIds)
+    return documents.filter((d) => want.has(normalizeLegalDocumentId(d._id)))
+  }, [documents, selectedLegalDocIds])
+
+  const shareSelectedLegalDocs = useCallback(async () => {
+    const rows = getSelectedLegalDocs()
+    if (!rows.length) {
+      showToastRef.current('Share', 'Select one or more documents.')
+      return
+    }
+    const names = rows.map((r) => r.originalName || 'document').join('\n')
+    try {
+      const files = []
+      for (const doc of rows) {
+        const id = normalizeLegalDocumentId(doc._id)
+        const blob = await fetchOperationsLegalDocumentBlob(id, { download: true })
+        const name = doc.originalName || 'document'
+        const type = doc.mimeType || blob.type || 'application/octet-stream'
+        files.push(new File([blob], name, { type }))
+      }
+      const sharePayload = {
+        title: 'Operations — Legal documents',
+        text: `${files.length} file(s) from Legal Documents`,
+        files,
+      }
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        if (typeof navigator.canShare === 'function' && navigator.canShare({ files })) {
+          await navigator.share(sharePayload)
+        } else {
+          await navigator.share({
+            title: sharePayload.title,
+            text: `${sharePayload.text}\n\n${names}`,
+          })
+        }
+        return
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(names)
+        showToastRef.current(
+          'Share',
+          'This browser does not support sending files from the page. File names were copied — use Download selected to save copies, or paste the list into email or chat.',
+        )
+        return
+      }
+      showToastRef.current('Share', 'Sharing is not supported here. Use Download selected.')
+    } catch (e) {
+      if (e?.name === 'AbortError') return
+      showToastRef.current('Share failed', e?.message || 'Could not share.')
+    }
+  }, [getSelectedLegalDocs])
+
+  const downloadSelectedLegalDocs = useCallback(async () => {
+    const rows = getSelectedLegalDocs()
+    if (!rows.length) {
+      showToastRef.current('Download', 'Select one or more documents.')
+      return
+    }
+    for (let i = 0; i < rows.length; i++) {
+      await downloadToDisk(rows[i])
+      if (i < rows.length - 1) await new Promise((r) => setTimeout(r, 280))
+    }
+    showToastRef.current('Download', `${rows.length} download(s) started.`)
+  }, [getSelectedLegalDocs, downloadToDisk])
+
   const uploadTargetFolderId = folderScope !== 'all' && folderScope !== 'unfiled' ? folderScope : null
 
   const onPickFile = async (e) => {
@@ -560,6 +652,7 @@ function LegalDocumentsCard({ canEdit, showToast }) {
       if (preview && normalizeLegalDocumentId(preview.docId) === docId) {
         closePreview()
       }
+      setSelectedLegalDocIds((prev) => prev.filter((id) => id !== docId))
       setDocuments((prev) => prev.filter((d) => normalizeLegalDocumentId(d._id) !== docId))
       showToastRef.current('Deleted', doc.originalName)
     } catch (err) {
@@ -740,58 +833,147 @@ function LegalDocumentsCard({ canEdit, showToast }) {
         )}
         {!loading && documents.length > 0 && (
           <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 4 }}>
-            {documents.map((doc, idx) => (
-              <div
-                key={doc._id}
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 0',
+                borderBottom: `1px solid ${C.border}`,
+                fontSize: 12,
+              }}
+            >
+              <label
                 style={{
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 10,
-                  flexWrap: 'wrap',
-                  padding: '10px 0',
-                  borderBottom: idx < documents.length - 1 ? `1px solid ${C.border}` : 'none',
-                  fontSize: 12,
+                  gap: 6,
+                  cursor: documents.length ? 'pointer' : 'default',
+                  color: C.t2,
+                  fontWeight: 700,
                 }}
               >
-                <div style={{ minWidth: 0, flex: '1 1 160px' }}>
-                  <div style={{ fontWeight: 700, color: C.t1, wordBreak: 'break-word' }}>{doc.originalName}</div>
-                  <div style={{ color: C.t3, marginTop: 4, fontSize: 11 }}>
-                    {formatLegalDocSize(doc.size)}
-                    {' · '}
-                    {formatLegalDocUploader(doc.uploadedByName)}
-                    {doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleString()}` : ''}
-                    {doc.folderId && folderScope === 'all' && (
-                      <span>
+                <input
+                  ref={selectAllCheckboxRef}
+                  type="checkbox"
+                  disabled={!documents.length}
+                  checked={allVisibleSelected}
+                  onChange={(e) => {
+                    if (e.target.checked) setSelectedLegalDocIds([...visibleDocIds])
+                    else setSelectedLegalDocIds([])
+                  }}
+                  aria-label="Select all documents in this list"
+                />
+                Select all
+              </label>
+              <span style={{ color: C.t3 }}>
+                {selectedLegalDocIds.length}
+                {' '}
+                selected
+              </span>
+              <button
+                type="button"
+                disabled={!selectedLegalDocIds.length}
+                onClick={() => { void shareSelectedLegalDocs() }}
+                style={{ ...B.sec, ...B.sm }}
+              >
+                Share
+              </button>
+              <button
+                type="button"
+                disabled={!selectedLegalDocIds.length}
+                onClick={() => { void downloadSelectedLegalDocs() }}
+                style={{ ...B.ghost, ...B.sm }}
+              >
+                Download selected
+              </button>
+              {selectedLegalDocIds.length > 0 && (
+                <button type="button" onClick={() => setSelectedLegalDocIds([])} style={{ ...B.ghost, ...B.sm }}>
+                  Clear selection
+                </button>
+              )}
+            </div>
+            {documents.map((doc, idx) => {
+              const rowId = normalizeLegalDocumentId(doc._id)
+              const rowChecked = rowId ? selectedLegalDocIds.includes(rowId) : false
+              return (
+                <div
+                  key={doc._id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    flexWrap: 'wrap',
+                    padding: '10px 0',
+                    borderBottom: idx < documents.length - 1 ? `1px solid ${C.border}` : 'none',
+                    fontSize: 12,
+                  }}
+                >
+                  <label
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'flex-start',
+                      gap: 8,
+                      cursor: rowId ? 'pointer' : 'default',
+                      minWidth: 0,
+                      flex: '1 1 160px',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={!rowId}
+                      checked={rowChecked}
+                      onChange={() => {
+                        if (!rowId) return
+                        setSelectedLegalDocIds((prev) => (
+                          prev.includes(rowId) ? prev.filter((x) => x !== rowId) : [...prev, rowId]
+                        ))
+                      }}
+                      style={{ marginTop: 3, flexShrink: 0 }}
+                      aria-label={`Select ${doc.originalName || 'document'}`}
+                    />
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ fontWeight: 700, color: C.t1, wordBreak: 'break-word' }}>{doc.originalName}</span>
+                      <div style={{ color: C.t3, marginTop: 4, fontSize: 11 }}>
+                        {formatLegalDocSize(doc.size)}
                         {' · '}
-                        Folder: {folders.find((x) => String(x._id) === String(doc.folderId))?.name || '—'}
-                      </span>
+                        {formatLegalDocUploader(doc.uploadedByName)}
+                        {doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleString()}` : ''}
+                        {doc.folderId && folderScope === 'all' && (
+                          <span>
+                            {' · '}
+                            Folder: {folders.find((x) => String(x._id) === String(doc.folderId))?.name || '—'}
+                          </span>
+                        )}
+                      </div>
+                    </span>
+                  </label>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignSelf: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => openPreview(doc)}
+                      style={{ ...B.ghost, ...B.sm }}
+                    >
+                      View
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadToDisk(doc)}
+                      style={{ ...B.ghost, ...B.sm }}
+                    >
+                      Download
+                    </button>
+                    {canEdit && (
+                      <button type="button" onClick={() => onDelete(doc)} style={{ ...B.warn, ...B.sm }}>
+                        Delete
+                      </button>
                     )}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    onClick={() => openPreview(doc)}
-                    style={{ ...B.ghost, ...B.sm }}
-                  >
-                    View
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => downloadToDisk(doc)}
-                    style={{ ...B.ghost, ...B.sm }}
-                  >
-                    Download
-                  </button>
-                  {canEdit && (
-                    <button type="button" onClick={() => onDelete(doc)} style={{ ...B.warn, ...B.sm }}>
-                      Delete
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </Card>
