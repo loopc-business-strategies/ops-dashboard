@@ -1,6 +1,6 @@
 // FILE: src/api/operationsLegalDocuments.js
 // HTTP: /api/operations/legal-documents — tenant-scoped Operations legal files.
-import axios, { apiUrl } from './client'
+import axios from './client'
 
 const BASE = '/api/operations/legal-documents'
 
@@ -41,11 +41,23 @@ export async function deleteOperationsLegalDocument(id) {
   return (await axios.delete(`${BASE}/${encodeURIComponent(id)}`)).data
 }
 
-/** Authenticated download URL (use with fetch(..., { credentials: 'include' })). */
-export function operationsLegalDocumentDownloadUrl(id, { preview, download } = {}) {
-  const qs = new URLSearchParams()
-  if (preview) qs.set('preview', '1')
-  if (download) qs.set('download', '1')
-  const q = qs.toString()
-  return apiUrl(`${BASE}/${encodeURIComponent(id)}/download${q ? `?${q}` : ''}`)
+/**
+ * Download file bytes with the same auth + tenant headers as other API calls (fetch() skips axios defaults).
+ * @param {string} id Document _id
+ * @param {{ preview?: boolean, download?: boolean }} [opts]
+ * @returns {Promise<Blob>}
+ */
+export async function fetchOperationsLegalDocumentBlob(id, { preview, download } = {}) {
+  const raw = String(id || '').trim()
+  if (!/^[a-f\d]{24}$/i.test(raw)) {
+    throw new Error('Invalid document id')
+  }
+  const params = {}
+  if (preview) params.preview = '1'
+  if (download) params.download = '1'
+  const { data } = await axios.get(`${BASE}/${encodeURIComponent(raw)}/download`, {
+    params,
+    responseType: 'blob',
+  })
+  return data
 }

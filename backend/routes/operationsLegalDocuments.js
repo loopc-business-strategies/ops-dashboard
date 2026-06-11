@@ -44,13 +44,21 @@ const createFolderBodySchema = Joi.object({
 
 const router = express.Router()
 
+function normalizeUploaderName(value) {
+  if (value == null) return ''
+  const s = String(value).trim()
+  if (!s || s === 'NaN' || s === 'undefined' || s === 'null') return ''
+  return s
+}
+
 function mapDocumentRow(row) {
+  const name = normalizeUploaderName(row.uploadedByName)
   return {
     _id: row._id,
     originalName: row.originalName,
     mimeType: row.mimeType,
     size: row.size,
-    uploadedByName: row.uploadedByName,
+    uploadedByName: name || 'Unknown',
     uploadedAt: row.createdAt,
     folderId: row.folderId ? String(row.folderId) : null,
   }
@@ -94,7 +102,7 @@ router.post(
       const doc = await OperationsLegalFolder.create({
         name: req.body.name,
         createdById: req.user._id,
-        createdByName: req.user.name,
+        createdByName: normalizeUploaderName(req.user?.name) || 'Unknown',
       })
       res.status(201).json({ success: true, folder: mapFolderRow(doc.toObject()) })
     } catch (e) {
@@ -194,13 +202,14 @@ router.post(
       }
 
       const storedFileName = path.basename(req.file.path)
+      const uploader = normalizeUploaderName(req.user?.name)
       const doc = await OperationsLegalDocument.create({
         originalName: req.file.originalname || 'document',
         storedFileName,
         mimeType: req.file.mimetype,
         size: req.file.size,
         uploadedById: req.user._id,
-        uploadedByName: req.user.name,
+        uploadedByName: uploader || 'Unknown',
         folderId,
       })
       res.status(201).json({

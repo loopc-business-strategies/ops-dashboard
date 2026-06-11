@@ -16,7 +16,7 @@ import {
   deleteOperationsLegalFolder,
   uploadOperationsLegalDocument,
   deleteOperationsLegalDocument,
-  operationsLegalDocumentDownloadUrl,
+  fetchOperationsLegalDocumentBlob,
 } from '../../api/operationsLegalDocuments'
 import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 import AccountCombobox from '../AccountCombobox'
@@ -322,6 +322,14 @@ function formatLegalDocSize(bytes) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
 }
 
+/** Avoid showing JavaScript NaN / empty garbage for uploader name. */
+function formatLegalDocUploader(name) {
+  if (name == null || name === '') return '—'
+  const s = String(name).trim()
+  if (!s || s === 'NaN' || s === 'undefined' || s === 'null') return '—'
+  return s
+}
+
 function legalDocPreviewKind(mime) {
   const m = String(mime || '').toLowerCase()
   if (m === 'application/pdf') return 'iframe'
@@ -385,24 +393,19 @@ function LegalDocumentsCard({ canEdit, showToast }) {
   }, [preview])
 
   const openPreview = useCallback(async (doc) => {
+    const id = String(doc?._id || '').trim()
     const kind = legalDocPreviewKind(doc.mimeType)
     if (kind === 'none') {
       setPreview({
         objectUrl: null,
         name: doc.originalName,
         kind: 'office',
-        docId: doc._id,
+        docId: id,
       })
       return
     }
-    const url = operationsLegalDocumentDownloadUrl(doc._id, { preview: true })
     try {
-      const res = await fetch(url, { credentials: 'include' })
-      if (!res.ok) {
-        showToastRef.current('Preview', res.status === 403 ? 'Access denied.' : 'Could not load file.')
-        return
-      }
-      const blob = await res.blob()
+      const blob = await fetchOperationsLegalDocumentBlob(id, { preview: true })
       if (kind === 'text') {
         const text = await blob.text()
         setPreview({ objectUrl: null, name: doc.originalName, kind: 'text', text })
@@ -417,7 +420,7 @@ function LegalDocumentsCard({ canEdit, showToast }) {
           objectUrl: null,
           name: doc.originalName,
           kind: 'office',
-          docId: doc._id,
+          docId: id,
         })
       }
     } catch {
@@ -426,18 +429,18 @@ function LegalDocumentsCard({ canEdit, showToast }) {
   }, [])
 
   const downloadToDisk = useCallback(async (doc) => {
-    const url = operationsLegalDocumentDownloadUrl(doc._id, { download: true })
+    const id = String(doc?._id || doc?.docId || '').trim()
+    const filename = doc?.originalName || doc?.name || 'document'
+    if (!/^[a-f\d]{24}$/i.test(id)) {
+      showToastRef.current('Download', 'Invalid document.')
+      return
+    }
     try {
-      const res = await fetch(url, { credentials: 'include' })
-      if (!res.ok) {
-        showToastRef.current('Download', 'Could not download file.')
-        return
-      }
-      const blob = await res.blob()
+      const blob = await fetchOperationsLegalDocumentBlob(id, { download: true })
       const objectUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = objectUrl
-      a.download = doc.originalName || 'document'
+      a.download = filename
       a.rel = 'noreferrer'
       a.click()
       URL.revokeObjectURL(objectUrl)
@@ -662,7 +665,7 @@ function LegalDocumentsCard({ canEdit, showToast }) {
                   <div style={{ color: C.t3, marginTop: 4, fontSize: 11 }}>
                     {formatLegalDocSize(doc.size)}
                     {' · '}
-                    {doc.uploadedByName || '—'}
+                    {formatLegalDocUploader(doc.uploadedByName)}
                     {doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleString()}` : ''}
                     {doc.folderId && folderScope === 'all' && (
                       <span>
