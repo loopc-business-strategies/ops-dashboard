@@ -46,3 +46,5 @@ loopc.cookies
 # Local HTML exports / scratch dashboards (prefer not to commit)
 ops_dashboard.html
 ops_dashboard.local.html
+
+.vercel
