@@ -11,6 +11,9 @@ import authAPI from '../../api/auth'
 import hrAPI from '../../api/hr'
 import {
   listOperationsLegalDocuments,
+  listOperationsLegalFolders,
+  createOperationsLegalFolder,
+  deleteOperationsLegalFolder,
   uploadOperationsLegalDocument,
   deleteOperationsLegalDocument,
   operationsLegalDocumentDownloadUrl,
@@ -331,15 +334,37 @@ function LegalDocumentsCard({ canEdit, showToast }) {
   const showToastRef = useRef(showToast)
   showToastRef.current = showToast
 
+  /** 'all' | 'unfiled' | folder Mongo id */
+  const [folderScope, setFolderScope] = useState('all')
+  const [folders, setFolders] = useState([])
+  const [foldersLoading, setFoldersLoading] = useState(false)
   const [documents, setDocuments] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState(null)
+  const [newFolderOpen, setNewFolderOpen] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [creatingFolder, setCreatingFolder] = useState(false)
+
+  const loadFolders = useCallback(async () => {
+    setFoldersLoading(true)
+    try {
+      const data = await listOperationsLegalFolders()
+      setFolders(Array.isArray(data.folders) ? data.folders : [])
+    } catch {
+      setFolders([])
+    } finally {
+      setFoldersLoading(false)
+    }
+  }, [])
 
   const loadDocuments = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await listOperationsLegalDocuments()
+      const opts = {}
+      if (folderScope === 'unfiled') opts.folderId = 'unfiled'
+      else if (folderScope !== 'all') opts.folderId = folderScope
+      const data = await listOperationsLegalDocuments(opts)
       setDocuments(Array.isArray(data.documents) ? data.documents : [])
     } catch {
       setDocuments([])
@@ -347,8 +372,9 @@ function LegalDocumentsCard({ canEdit, showToast }) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [folderScope])
 
+  useEffect(() => { loadFolders() }, [loadFolders])
   useEffect(() => { loadDocuments() }, [loadDocuments])
 
   const closePreview = useCallback(() => {
@@ -420,15 +446,22 @@ function LegalDocumentsCard({ canEdit, showToast }) {
     }
   }, [])
 
+  const uploadTargetFolderId = folderScope !== 'all' && folderScope !== 'unfiled' ? folderScope : null
+
   const onPickFile = async (e) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
     setUploading(true)
     try {
-      const data = await uploadOperationsLegalDocument(file)
+      const data = await uploadOperationsLegalDocument(file, { folderId: uploadTargetFolderId })
       if (data.success && data.document) {
-        setDocuments((prev) => [data.document, ...prev])
+        const d = data.document
+        const inView = folderScope === 'all'
+          || (folderScope === 'unfiled' && !d.folderId)
+          || (String(folderScope) === String(d.folderId))
+        if (inView) setDocuments((prev) => [d, ...prev])
+        else await loadDocuments()
         showToastRef.current('Uploaded', file.name)
       } else {
         showToastRef.current('Upload failed', data.message || 'Unknown error')
@@ -451,6 +484,47 @@ function LegalDocumentsCard({ canEdit, showToast }) {
     }
   }
 
+  const onCreateFolder = async () => {
+    const name = newFolderName.trim()
+    if (!name) return
+    setCreatingFolder(true)
+    try {
+      const data = await createOperationsLegalFolder(name)
+      if (data.success && data.folder) {
+        await loadFolders()
+        setFolderScope(String(data.folder._id))
+        setNewFolderOpen(false)
+        setNewFolderName('')
+        showToastRef.current('Folder created', name)
+      } else {
+        showToastRef.current('Folder', data.message || 'Could not create folder.')
+      }
+    } catch (err) {
+      showToastRef.current('Folder', err.response?.data?.message || err.message || 'Could not create folder.')
+    } finally {
+      setCreatingFolder(false)
+    }
+  }
+
+  const onDeleteFolder = async (folder) => {
+    if (!window.confirm(`Delete folder “${folder.name}”? (Must be empty.)`)) return
+    try {
+      await deleteOperationsLegalFolder(folder._id)
+      await loadFolders()
+      if (String(folderScope) === String(folder._id)) setFolderScope('all')
+      showToastRef.current('Folder deleted', folder.name)
+    } catch (err) {
+      showToastRef.current('Folder', err.response?.data?.message || 'Could not delete folder.')
+    }
+  }
+
+  const chip = (active) => ({
+    ...(active ? B.pri : B.ghost),
+    ...B.sm,
+    borderRadius: 999,
+    whiteSpace: 'nowrap',
+  })
+
   return (
     <>
       <Card>
@@ -470,12 +544,101 @@ function LegalDocumentsCard({ canEdit, showToast }) {
         >
           Legal Documents
         </CardTitle>
+        {canEdit && (
+          <div style={{ fontSize: 11, color: C.t3, marginTop: 4, lineHeight: 1.4 }}>
+            Select a folder below, then use <strong>Add document</strong> to save the file into that folder.
+            Choose <strong>All</strong> or <strong>Unfiled</strong> to upload without a folder.
+          </div>
+        )}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 8,
+            alignItems: 'center',
+            padding: '12px 0',
+            borderBottom: `1px solid ${C.border}`,
+            marginTop: 8,
+          }}
+        >
+          <span style={{ fontSize: 11, color: C.t3, fontWeight: 700 }}>Folders</span>
+          <button type="button" onClick={() => setFolderScope('all')} style={chip(folderScope === 'all')}>
+            All
+          </button>
+          <button type="button" onClick={() => setFolderScope('unfiled')} style={chip(folderScope === 'unfiled')}>
+            Unfiled
+          </button>
+          {foldersLoading && <span style={{ fontSize: 11, color: C.t3 }}>…</span>}
+          {!foldersLoading && folders.map((f) => (
+            <span key={f._id} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+              <button
+                type="button"
+                onClick={() => setFolderScope(String(f._id))}
+                style={chip(String(folderScope) === String(f._id))}
+              >
+                {f.name}
+              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  aria-label={`Delete folder ${f.name}`}
+                  onClick={() => onDeleteFolder(f)}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: C.t3,
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    lineHeight: 1,
+                    padding: '0 4px',
+                  }}
+                >
+                  ×
+                </button>
+              )}
+            </span>
+          ))}
+          {canEdit && !newFolderOpen && (
+            <button type="button" onClick={() => { setNewFolderOpen(true); setNewFolderName('') }} style={{ ...B.ghost, ...B.sm, borderRadius: 999 }}>
+              ＋ New folder
+            </button>
+          )}
+          {canEdit && newFolderOpen && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <input
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="Folder name"
+                disabled={creatingFolder}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 8,
+                  border: `1px solid ${C.border}`,
+                  fontSize: 12,
+                  minWidth: 140,
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') onCreateFolder() }}
+              />
+              <button type="button" disabled={creatingFolder} onClick={onCreateFolder} style={{ ...B.pri, ...B.sm }}>
+                {creatingFolder ? '…' : 'Create'}
+              </button>
+              <button
+                type="button"
+                disabled={creatingFolder}
+                onClick={() => { setNewFolderOpen(false); setNewFolderName('') }}
+                style={{ ...B.ghost, ...B.sm }}
+              >
+                Cancel
+              </button>
+            </span>
+          )}
+        </div>
         {loading && (
           <div style={{ fontSize: 12, color: C.t3, padding: '8px 0' }}>Loading…</div>
         )}
         {!loading && documents.length === 0 && (
           <div style={{ fontSize: 12, color: C.t3, padding: '12px 0', borderTop: `1px dashed ${C.border}` }}>
-            No documents yet.{canEdit ? ' Use Add document to upload PDF, Word, images, or other supported files.' : ''}
+            No documents in this view.{canEdit ? ' Use Add document to upload PDF, Word, images, or other supported files.' : ''}
           </div>
         )}
         {!loading && documents.length > 0 && (
@@ -501,6 +664,12 @@ function LegalDocumentsCard({ canEdit, showToast }) {
                     {' · '}
                     {doc.uploadedByName || '—'}
                     {doc.uploadedAt ? ` · ${new Date(doc.uploadedAt).toLocaleString()}` : ''}
+                    {doc.folderId && folderScope === 'all' && (
+                      <span>
+                        {' · '}
+                        Folder: {folders.find((x) => String(x._id) === String(doc.folderId))?.name || '—'}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
@@ -509,7 +678,14 @@ function LegalDocumentsCard({ canEdit, showToast }) {
                     onClick={() => openPreview(doc)}
                     style={{ ...B.ghost, ...B.sm }}
                   >
-                    Preview
+                    View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadToDisk(doc)}
+                    style={{ ...B.ghost, ...B.sm }}
+                  >
+                    Download
                   </button>
                   {canEdit && (
                     <button type="button" onClick={() => onDelete(doc)} style={{ ...B.warn, ...B.sm }}>

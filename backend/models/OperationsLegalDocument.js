@@ -9,6 +9,8 @@ const OperationsLegalDocumentSchema = new mongoose.Schema(
     size: { type: Number, required: true, min: 0 },
     uploadedById: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     uploadedByName: { type: String, trim: true, maxlength: 200 },
+    /** Optional folder (OperationsLegalFolder); null/undefined = unfiled / root. */
+    folderId: { type: mongoose.Schema.Types.ObjectId, ref: 'OperationsLegalFolder', default: null },
     isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true },
