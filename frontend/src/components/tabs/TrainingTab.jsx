@@ -1,7 +1,7 @@
 // FILE: src/components/tabs/TrainingTab.jsx
 // Training & Development — 11 sub-tabs, role-based access, full feature set
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
@@ -347,7 +347,7 @@ function TabKPI({ batches, certs, sessions }) {
 }
 
 // ─── TAB: Calendar ──────────────────────────────────────────────────────────────
-function TabCalendar({ sessions, setSessions, canEdit, isTrainee, showToast, onShowSession, setModal, deleteSession }) {
+function TabCalendar({ sessions, setSessions: _setSessions, canEdit, isTrainee, showToast, onShowSession, setModal, deleteSession }) {
   const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
   const myBatch = 'Batch A'
 
@@ -421,7 +421,7 @@ function TabCalendar({ sessions, setSessions, canEdit, isTrainee, showToast, onS
 }
 
 // ─── TAB: Batches ───────────────────────────────────────────────────────────────
-function TabBatches({ batches, setBatches, canEdit, isTrainee, showToast, setModal, deleteBatch }) {
+function TabBatches({ batches, setBatches: _setBatches, canEdit, isTrainee, showToast, setModal, deleteBatch }) {
   const showData = isTrainee ? batches.filter(b => b.name.includes('Batch A')) : batches
 
   return (
@@ -545,7 +545,7 @@ function TabAttendance({ attendance, trainees, canEdit, isTrainee, showToast, on
 }
 
 // ─── TAB: Resources ─────────────────────────────────────────────────────────────
-function TabResources({ resources, setResources, canEdit, isTrainee, showToast, setModal, deleteResource }) {
+function TabResources({ resources, setResources: _setResources, canEdit, isTrainee, showToast, setModal, deleteResource }) {
   const showData = isTrainee ? resources.filter(r => r.prog === 'Gold Safety Essentials') : resources
 
   return (
@@ -598,7 +598,7 @@ function TabResources({ resources, setResources, canEdit, isTrainee, showToast, 
 }
 
 // ─── TAB: Assessments ───────────────────────────────────────────────────────────
-function TabAssessments({ assessments, setAssessments, canEdit, isTrainee, showToast, onOpenAdd, onShowProfile, setModal, deleteAssessment }) {
+function TabAssessments({ assessments, setAssessments: _setAssessments, canEdit, isTrainee, showToast, onOpenAdd, onShowProfile, setModal, deleteAssessment }) {
   const myData = isTrainee ? assessments.filter(a => a.trainee === 'Ahmad Yusuf') : assessments
   const pass = assessments.filter(a => a.pass).length
   const passRate = pct(pass, assessments.length)
@@ -657,7 +657,7 @@ function TabAssessments({ assessments, setAssessments, canEdit, isTrainee, showT
 }
 
 // ─── TAB: Certifications ────────────────────────────────────────────────────────
-function TabCerts({ certs, setCerts, canEdit, canApprove, isTrainee, showToast, onShowProfile, setModal, deleteCert, approveCert }) {
+function TabCerts({ certs, setCerts: _setCerts, canEdit, canApprove, isTrainee, showToast, onShowProfile, setModal, deleteCert, approveCert }) {
   const myData = isTrainee ? certs.filter(c => c.trainee === 'Ahmad Yusuf') : certs
 
   return (
@@ -709,7 +709,7 @@ function TabCerts({ certs, setCerts, canEdit, canApprove, isTrainee, showToast, 
 }
 
 // ─── TAB: Feedback ──────────────────────────────────────────────────────────────
-function TabFeedback({ feedback, setFeedback, canEdit, isTrainee, isTrainer, showToast, onOpenFeedback }) {
+function TabFeedback({ feedback, setFeedback: _setFeedback, canEdit: _canEdit, isTrainee, isTrainer, showToast: _showToast, onOpenFeedback }) {
   if (isTrainee) {
     return (
       <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
@@ -779,7 +779,7 @@ function TabFeedback({ feedback, setFeedback, canEdit, isTrainee, isTrainer, sho
 }
 
 // ─── TAB: Analytics ─────────────────────────────────────────────────────────────
-function TabAnalytics({ batches, canEdit, isAdmin, isHead, isMgmt }) {
+function TabAnalytics({ batches, canEdit: _canEdit, isAdmin, isHead, isMgmt }) {
   if (!isAdmin && !isHead && !isMgmt) return <Restrict text="Analytics & Reports are restricted to leadership roles." />
 
   const enroll = [{m:'Nov',v:3},{m:'Dec',v:5},{m:'Jan',v:8},{m:'Feb',v:6},{m:'Mar',v:12},{m:'Apr',v:7}]
@@ -852,7 +852,7 @@ function TabAnalytics({ batches, canEdit, isAdmin, isHead, isMgmt }) {
 }
 
 // ─── TAB: Trainees ──────────────────────────────────────────────────────────────
-function TabTrainees({ trainees, setTrainees, canEdit, isTrainee, showToast, onShowProfile, setModal, deleteTrainee }) {
+function TabTrainees({ trainees, setTrainees: _setTrainees, canEdit, isTrainee, showToast, onShowProfile, setModal, deleteTrainee }) {
   const showData = isTrainee ? trainees.filter(t => t.name === 'Ahmad Yusuf') : trainees
 
   return (
@@ -905,7 +905,7 @@ function TabTrainees({ trainees, setTrainees, canEdit, isTrainee, showToast, onS
 }
 
 // ─── TAB: Skill Gap ─────────────────────────────────────────────────────────────
-function TabSkillGap({ canEdit, isAdmin, isHead, isUser, showToast }) {
+function TabSkillGap({ canEdit: _canEdit, isAdmin, isHead, isUser, showToast }) {
   if (!isAdmin && !isHead && !isUser) return <Restrict text="Skill Gap Analysis is restricted to authorized training roles." />
 
   return (
@@ -1322,6 +1322,16 @@ export default function TrainingTab() {
   const [profName,  setProfName]  = useState(null)
   const [notifOpen, setNotifOpen] = useState(false)
   const [toast,     setToast]     = useState(null)
+  const toastTimerRef = useRef(null)
+  const showToast = useCallback((title, msg) => {
+    setToast({ title, msg })
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null)
+      toastTimerRef.current = null
+    }, 3000)
+  }, [])
+
   useEffect(() => {
     if (!token) return
     let cancelled = false
@@ -1347,15 +1357,9 @@ export default function TrainingTab() {
       if (tr.length)  setTrainees(norm(tr))
     }).catch(() => { showToast('Error', 'Failed to load training data. Showing available records.') })
     return () => { cancelled = true }
-  }, [token])
+  }, [token, showToast])
 
   function closeModal() { setModal({ type:null, data:null }) }
-
-  function showToast(title, msg) {
-    setToast({ title, msg })
-    clearTimeout(showToast._t)
-    showToast._t = setTimeout(() => setToast(null), 3000)
-  }
 
   function saveSession(f) {
     const payload = {

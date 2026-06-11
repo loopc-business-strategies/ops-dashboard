@@ -61,6 +61,9 @@ jobs:
       - name: ESLint (ERP shell + vouchers, zero warnings)
         run: npm run lint:eslint:erp-shell-tabs
 
+      - name: ESLint (full frontend/src, zero warnings)
+        run: npm run lint:eslint:repo
+
   backend-fast-tests:
     name: Backend Fast Tests
     runs-on: ubuntu-latest

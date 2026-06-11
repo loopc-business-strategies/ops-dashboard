@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { getTenantBranding } from '../../config/tenantBranding'
@@ -16,14 +16,12 @@ import {
   INVENTORY_STOCK_CODE_SETTINGS_STORAGE_KEY,
   ACCOUNT_TYPE_ORDER,
   ERP_DASH_ALL_WIDGETS,
-  ERP_DASH_DEFAULT,
-  sanitizeDashWidgets,
-  sanitizeDashWidgetsPreserveOrder,
 } from './erpTabConstants'
 import { formatTransactionAuditEntry, formatTransactionCommentKind, getTransactionBulkSelectionLabel } from './transactionWorkflow'
 import ChartOfAccountsTree from './ChartOfAccountsTree'
 import DirectDealsTab from './DirectDealsTab'
 import { useERPTabStateAdapter } from './erp/useERPTabStateAdapter'
+import { useErpDashWidgets } from './erp/useErpDashWidgets'
 import { deriveErpAccessPolicy, getAvailableTransactionTypes } from './erp/accessPolicy'
 import {
   ERPAccountsTabContainer,
@@ -142,16 +140,8 @@ function ERPTab({
   }, [activeTab, focusTab, user, setActiveTab])
   const canViewCurrentErpSubTab = canViewErpSubTab(user, activeTab)
   const dashStorageKey = `erp_dash_${user?.name || 'default'}`
-  const [dashWidgets, setDashWidgets] = useState(() => [...ERP_DASH_DEFAULT])
-  useLayoutEffect(() => {
-    try {
-      const raw = localStorage.getItem(dashStorageKey)
-      setDashWidgets(sanitizeDashWidgets(raw ? JSON.parse(raw) : ERP_DASH_DEFAULT))
-    } catch {
-      setDashWidgets([...ERP_DASH_DEFAULT])
-    }
-  }, [dashStorageKey])
   const [dashEditMode, setDashEditMode] = useState(false)
+  const { dashWidgets, setDashWidgets } = useErpDashWidgets({ dashStorageKey, dashEditMode })
   const [dashHoveredWid, setDashHoveredWid] = useState(null)
   const [dashWidgetCols, setDashWidgetCols] = useState({})
   const [dashCustomizeOpen, setDashCustomizeOpen] = useState(false)
@@ -165,12 +155,6 @@ function ERPTab({
   const [dashDateTo] = useState(() => formatDateInputLocal(new Date()))
   const [dashAutoRefresh] = useState(false)
   const [dashChatMessages, setDashChatMessages] = useState([])
-  useEffect(() => {
-    try {
-      const payload = dashEditMode ? sanitizeDashWidgetsPreserveOrder(dashWidgets) : sanitizeDashWidgets(dashWidgets)
-      localStorage.setItem(dashStorageKey, JSON.stringify(payload))
-    } catch { void 0 }
-  }, [dashWidgets, dashStorageKey, dashEditMode])
   const [accounts, setAccounts] = useState([])
   const [summaryAccounts, setSummaryAccounts] = useState([])
   const [customers, setCustomers] = useState([])
