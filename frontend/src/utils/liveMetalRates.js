@@ -225,7 +225,7 @@ export function formatLiveMetalSourceLabel(source = '') {
   return 'live'
 }
 
-export function metalStatusSubline(snapshot, price, error, metalKey = 'gold') {
+export function metalStatusSubline(snapshot, price, error, _metalKey = 'gold') {
   const errorLabel = metalErrorLabel(error)
   if (errorLabel) return errorLabel
 

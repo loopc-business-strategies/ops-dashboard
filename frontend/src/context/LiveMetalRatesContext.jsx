@@ -102,7 +102,6 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
       if (saved?.success && saved.rates) {
         const sg = Number(saved.rates.goldPrice) || 0
         const ss = Number(saved.rates.silverPrice) || 0
-        const sp = Number(saved.rates.platinumPrice) || 0
         if (sg > 0 && ss > 0) {
           applyRates(saved.rates)
           if (!live?.live) {

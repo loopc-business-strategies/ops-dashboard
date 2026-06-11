@@ -3,7 +3,7 @@
 //   The HR section of the dashboard.
 //   Sub-tabs: Employee List, Labour Law, Current Updates, Admin
 
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import hrAPI from '../../api/hr'
 import { useLanguage } from '../../context/LanguageContext'
@@ -297,7 +297,7 @@ function EmployeeList({ token }) {
   const [showForm,  setShowForm]  = useState(false)
   const [error,     setError]     = useState('')
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
@@ -308,9 +308,9 @@ function EmployeeList({ token }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [token])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load])
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Delete ${name}?`)) return

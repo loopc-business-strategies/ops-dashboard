@@ -1,13 +1,12 @@
 // FILE: src/components/tabs/FinanceTab.jsx
 // Finance & Accounts — 11 sub-tabs, 8 finance roles, full role-based access
 
-import { useState, useMemo, useEffect, useRef, Fragment } from 'react'
+import { useState, useMemo, useEffect, Fragment } from 'react'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import financeAPI from '../../api/finance'
 import erpAccountingAPI from '../../api/erp-accounting'
-import AccountCombobox from '../AccountCombobox'
 import { Modal } from '../ui-components'
 import { ErpSubTabButton, ModulePageHeading, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
@@ -502,7 +501,7 @@ function NotificationsPanel({ open, onClose, notifications, onAck, onDismiss, on
 // ═══════════════════════════════════════════════════════════════
 
 // ─── KPI Overview ────────────────────────────────────────────
-function KPIOverview({ finRole, can, canEdit, invoices, openModal, onToast }) {
+function KPIOverview({ finRole, can, canEdit, invoices: _invoices, openModal, onToast }) {
   if (can('vendor')) return <Restricted msg="Financial KPIs are not available to vendors. Please contact your account manager." />
 
   const isHR    = finRole === 'hr_mgr'
@@ -585,7 +584,7 @@ function KPIOverview({ finRole, can, canEdit, invoices, openModal, onToast }) {
 }
 
 // ─── Revenue Tracking ─────────────────────────────────────────
-function RevenueTracking({ finRole, can, canEdit, onToast }) {
+function RevenueTracking({ finRole, can, canEdit: _canEdit, onToast }) {
   if (can('vendor','hr_mgr','dept_head')) return <Restricted msg="Revenue tracking is restricted. Contact Finance department for enquiries." />
   const salesOnly = finRole === 'sales_head'
 
@@ -719,7 +718,7 @@ function ExpenseManagement({ finRole, can, canEdit, expenses, setExpenses, addAu
 }
 
 // ─── Invoice Management ───────────────────────────────────────
-function InvoiceManagement({ finRole, can, canEdit, invoices, setInvoices, addAudit, onToast, openModal, financeApi }) {
+function InvoiceManagement({ finRole, can, canEdit: _canEdit, invoices, setInvoices, addAudit, onToast, openModal, financeApi }) {
   const myOnly    = finRole === 'vendor'
   const salesOnly = finRole === 'sales_head'
   const data = myOnly ? invoices.filter(i=>i.client.includes('KazTrans')) : salesOnly ? invoices.filter(i=>i.type==='Sales') : invoices
@@ -797,14 +796,14 @@ function InvoiceManagement({ finRole, can, canEdit, invoices, setInvoices, addAu
 
 // ─── Budget Planning ──────────────────────────────────────────
 function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, setBudgets, financeApi }) {
+  const [budgetModal, setBudgetModal] = useState(false)
+  const [editId, setEditId] = useState('')
+  const [bf, setBf] = useState({ dept:'', annual:'', spent:'' })
   if (can('vendor','sales_head','hr_mgr')) return <Restricted msg="Budget planning is not available for your role." />
   const deptOnly = finRole === 'dept_head'
   const data     = deptOnly ? budgets.filter(b=>b.dept==='Operations & Logistics') : budgets
   const totalB   = budgets.reduce((a,b)=>a+b.annual,0)
   const totalS   = budgets.reduce((a,b)=>a+b.spent,0)
-  const [budgetModal, setBudgetModal] = useState(false)
-  const [editId, setEditId] = useState('')
-  const [bf, setBf] = useState({ dept:'', annual:'', spent:'' })
 
   function openBudgetEditor(row) {
     if (row) {
@@ -857,7 +856,7 @@ function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, se
         <StatCard label="Remaining"           value={fmt(totalB-totalS)} color={C.green} sub="259 days remaining FY" />
       </div>
       <DataTable title="Department Budget Table" headers={['Department','Annual Budget','Spent','Remaining','% Used','Status',...(canEdit()?['Actions']:[])]}>
-        {data.map((b,i) => {
+        {data.map((b) => {
           const p = pct(b.spent,b.annual)
           const rowBg = b.status==='Over Budget' ? 'rgba(255,71,87,.05)' : b.status==='Warning' ? 'rgba(255,214,0,.04)' : 'rgba(0,200,150,.04)'
           return (
@@ -903,19 +902,9 @@ function BudgetPlanning({ finRole, can, canEdit, onToast, openModal, budgets, se
 }
 
 // ─── Payroll Management ───────────────────────────────────────
-function PayrollManagement({ finRole, can, canEdit, payroll, setPayroll, addAudit, onToast, openModal, financeApi }) {
+function PayrollManagement({ finRole, can, canEdit: _canEdit, payroll, setPayroll: _setPayroll, addAudit: _addAudit, onToast, openModal, financeApi: _financeApi }) {
   if (can('vendor','sales_head','dept_head')) return <Restricted msg="Payroll management is restricted to Finance and HR departments." />
   const hrOnly = finRole === 'hr_mgr'
-
-  function runPayroll() {
-    setPayroll(p => p.map(e => ({...e, status:'Processed'})))
-    payroll.filter(e => e.status !== 'Processed').forEach(e => {
-      const rid = e.id || e._id?.toString()
-      if (rid) financeApi.payroll.update(rid, { status:'Processed' }).catch(() => { onToast('Error', 'Save failed. Please refresh.') })
-    })
-    addAudit({ action:'Payroll Run', user:'You', urole:'Finance Manager', amount:'$284,600', dt:'Now', ip:'192.168.1.x', before:'Pending', after:'Processed' })
-    onToast('Payroll Processed','April 2026 payroll of $284,600 processed for 47 employees.')
-  }
 
   return (
     <div className="space-y-4">
@@ -966,7 +955,7 @@ function PayrollManagement({ finRole, can, canEdit, payroll, setPayroll, addAudi
 }
 
 // ─── AR & AP ──────────────────────────────────────────────────
-function ARAndAP({ finRole, can, canEdit, onToast, receivables, setReceivables, payables, setPayables }) {
+function ARAndAP({ finRole, can, canEdit, onToast, receivables, setReceivables: _setReceivables, payables, setPayables }) {
   if (can('vendor','hr_mgr')) return <Restricted msg="Accounts Receivable & Payable is restricted." />
   const payOnly = finRole === 'dept_head'
   const recOnly = finRole === 'sales_head'
@@ -1082,12 +1071,11 @@ function GoldTracker({ finRole, can, canEdit, onToast }) {
 }
 
 // ─── Tax & Compliance ─────────────────────────────────────────
-function TaxCompliance({ finRole, can, canEdit, onToast, taxes, setTaxes, financeApi }) {
-  if (can('vendor','hr_mgr','dept_head','sales_head')) return <Restricted msg="Tax & Compliance Financials are restricted to Finance Manager, Super Admin and Auditor." />
-
+function TaxCompliance({ finRole: _finRole, can, canEdit, onToast, taxes, setTaxes, financeApi }) {
   const [taxModal, setTaxModal] = useState(false)
   const [editId, setEditId] = useState('')
   const [tf, setTf] = useState({ type:'', period:'', amount:'', due:'', filed:'—', status:'Pending' })
+  if (can('vendor','hr_mgr','dept_head','sales_head')) return <Restricted msg="Tax & Compliance Financials are restricted to Finance Manager, Super Admin and Auditor." />
 
   function openTaxForm(row) {
     if (row) {
@@ -1262,11 +1250,14 @@ function ReportsAnalytics({ finRole, can, canEdit, onToast }) {
 }
 
 // ─── General Ledger Management ────────────────────────────────
-function GeneralLedger({ finRole, can, canEdit, onToast, token }) {
-  if (can('vendor','hr_mgr','dept_head','sales_head')) return <Restricted msg="General Ledger is restricted to Finance Manager, Super Admin and Auditor." />
-  
+function GeneralLedger({ finRole: _finRole, can, canEdit, onToast, token }) {
   const [ledgerEntries, setLedgerEntries] = useState([])
   const [loading, setLoading] = useState(false)
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [editModal, setEditModal] = useState(false)
+  const [editEntry, setEditEntry] = useState(null)
+  const [formData, setFormData] = useState({ date:'', debitAccount:'', creditAccount:'', amount:'', description:'' })
 
   useEffect(() => {
     if (!token) return
@@ -1287,17 +1278,14 @@ function GeneralLedger({ finRole, can, canEdit, onToast, token }) {
       })
       .catch(() => { onToast('Error', 'Failed to load ledger entries. Please retry.') })
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload ledger when auth token changes only; onToast is not stable from parent
   }, [token])
-  
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(10)
+
+  if (can('vendor','hr_mgr','dept_head','sales_head')) return <Restricted msg="General Ledger is restricted to Finance Manager, Super Admin and Auditor." />
+
   const pageSize = limit
   const totalPages = Math.ceil(ledgerEntries.length / pageSize)
   const paginatedEntries = ledgerEntries.slice((page - 1) * pageSize, page * pageSize)
-  
-  const [editModal, setEditModal] = useState(false)
-  const [editEntry, setEditEntry] = useState(null)
-  const [formData, setFormData] = useState({ date:'', debitAccount:'', creditAccount:'', amount:'', description:'' })
 
   function openEditForm(entry) {
     setEditEntry(entry)
@@ -1424,7 +1412,7 @@ function GeneralLedger({ finRole, can, canEdit, onToast, token }) {
 }
 
 // ─── Audit Trail ──────────────────────────────────────────────
-function AuditTrail({ finRole, can, auditLog }) {
+function AuditTrail({ finRole: _finRole, can, auditLog }) {
   if (!can('superadmin','auditor')) return <Restricted msg="Audit Trail is restricted to Super Admin and Auditor roles only." />
 
   return (
@@ -1637,7 +1625,7 @@ export default function FinanceTab() {
       <PayrollModal
         open={modal==='payroll'}
         onClose={() => setModal(null)}
-        onRun={async (auth, bank) => {
+        onRun={async (auth, _bank) => {
           const previousPayroll = payroll
           const toProcess = payroll.filter(e => e.status !== 'Processed')
           setPayroll(p => p.map(e => ({ ...e, status:'Processed' })))

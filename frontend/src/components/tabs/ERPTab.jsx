@@ -1,5 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import AccountCombobox from '../AccountCombobox'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { getTenantBranding } from '../../config/tenantBranding'
@@ -16,7 +15,6 @@ import {
   ENQUIRY_STATEMENT_AUDIT_TOGGLE_STORAGE_KEY,
   INVENTORY_STOCK_CODE_SETTINGS_STORAGE_KEY,
   ACCOUNT_TYPE_ORDER,
-  METAL_UNIT_FACTORS,
   ERP_DASH_ALL_WIDGETS,
   ERP_DASH_DEFAULT,
   sanitizeDashWidgets,
@@ -25,7 +23,6 @@ import {
 import { formatTransactionAuditEntry, formatTransactionCommentKind, getTransactionBulkSelectionLabel } from './transactionWorkflow'
 import ChartOfAccountsTree from './ChartOfAccountsTree'
 import DirectDealsTab from './DirectDealsTab'
-import { MiniBarChart } from './erp/ERPTabCharts'
 import { useERPTabStateAdapter } from './erp/useERPTabStateAdapter'
 import { deriveErpAccessPolicy, getAvailableTransactionTypes } from './erp/accessPolicy'
 import {
@@ -119,6 +116,8 @@ import { ERP_TAB_COLORS as C, TRANSACTION_STATUS_STYLES, formatDateInputLocal, E
 import { exchangeRateFromUnitsPerBase, resolveCurrencyRowByCode } from './erp/erpCurrencyRowHelpers'
 import StatementExportOptionsModal from './erp/StatementExportOptionsModal'
 
+const JV_MODAL_DEFAULT_SIZE = Object.freeze({ width: 980, height: 640 })
+
 function ERPTab({
   focusTab,
   onNavigateMain,
@@ -160,11 +159,11 @@ function ERPTab({
   const dashDragSrc = useRef(null)
   const activeTabRef = useRef(activeTab)
   // Dashboard date-range filter
-  const [dashDateFrom, setDashDateFrom] = useState(() => {
+  const [dashDateFrom] = useState(() => {
     const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
   })
-  const [dashDateTo, setDashDateTo] = useState(() => formatDateInputLocal(new Date()))
-  const [dashAutoRefresh, setDashAutoRefresh] = useState(false)
+  const [dashDateTo] = useState(() => formatDateInputLocal(new Date()))
+  const [dashAutoRefresh] = useState(false)
   const [dashChatMessages, setDashChatMessages] = useState([])
   useEffect(() => {
     try {
@@ -217,25 +216,6 @@ function ERPTab({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [exportOptionsOpen, setExportOptionsOpen] = useState(false)
-  const [form, setForm] = useState({})
-  const [ledgerForm, setLedgerForm] = useState({
-    date: new Date().toISOString().slice(0, 10),
-    mappingId: '',
-    debitAccountId: '',
-    debitAccountInput: '',
-    creditAccountId: '',
-    creditAccountInput: '',
-    debitAmount: '',
-    creditAmount: '',
-    description: '',
-    referenceType: 'journal',
-    currency: 'USD',
-    txRefNo: '',
-    chequeNo: '',
-    bankRemarks: '',
-    paymentType: 'bank',
-    bankAttachment: null,
-  })
   // ─── Multi-line Journal Voucher state ─────────────────────────────────────
   const buildJvDocNo = (mode = 'journal') => buildNextJvDocNo(ledger, mode)
   const createJvHeader = (currencyCode = 'USD', mode = 'journal') => createNextJvHeader(ledger, currencyCode, mode)
@@ -269,10 +249,8 @@ function ERPTab({
     currency: 'USD',
     notes: '',
   })
-  const [showForm, setShowForm] = useState(false)
   const [showCustomerForm, setShowCustomerForm] = useState(false)
   const [showLedgerForm, setShowLedgerForm] = useState(false)
-  const JV_MODAL_DEFAULT_SIZE = { width: 980, height: 640 }
   const [jvModalOffset, setJvModalOffset] = useState({ x: 0, y: 0 })
   const [jvModalDrag, setJvModalDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
   const [jvModalSize, setJvModalSize] = useState(JV_MODAL_DEFAULT_SIZE)
@@ -305,9 +283,7 @@ function ERPTab({
   const [showStatementAuditIds, setShowStatementAuditIds] = useState(false)
   const [statementAuditPreferenceReady, setStatementAuditPreferenceReady] = useState(false)
   const [metalRates, setMetalRates] = useState({ goldPrice: 285, silverPrice: 3.5, priceCurrency: 'USD', updatedAt: null })
-  const [metalRateForm, setMetalRateForm] = useState({ goldPrice: '285', silverPrice: '3.5', priceCurrency: 'USD' })
   const [enquiryHistory, setEnquiryHistory] = useState([])
-  const [metalUnit, setMetalUnit] = useState('gram')
   const [showEnquiryModal, setShowEnquiryModal] = useState(false)
   const [showEnquiryLookupMenu, setShowEnquiryLookupMenu] = useState(false)
   const [enquiryModalOffset, setEnquiryModalOffset] = useState({ x: 0, y: 0 })
@@ -320,9 +296,6 @@ function ERPTab({
     width: 500,
     height: 520,
   })
-  const [detailsPanelDrag, setDetailsPanelDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
-  const [detailsPanelResize, setDetailsPanelResize] = useState({ active: false, pointerX: 0, pointerY: 0, startW: 500, startH: 520 })
-  const detailsPanelRef = useRef(null)
   const statementAuditPreferenceKey = `${ENQUIRY_STATEMENT_AUDIT_TOGGLE_STORAGE_KEY}:${String(user?._id || user?.email || 'anonymous')}`
   const [excessCurrency, setExcessCurrency] = useState('')
   const [transactions, setTransactions] = useState([])
@@ -442,12 +415,12 @@ function ERPTab({
   // Role-based permissions
   const {
     isSuperAdmin,
-    isDepartmentHead,
-    isManagementRole,
+    isDepartmentHead: _isDepartmentHead,
+    isManagementRole: _isManagementRole,
     isFinance,
-    isSalesRole,
-    isOperationsRole,
-    isHRRole,
+    isSalesRole: _isSalesRole,
+    isOperationsRole: _isOperationsRole,
+    isHRRole: _isHRRole,
     canViewAccounts,
     canManageAccounts,
     canViewMappings,
@@ -455,22 +428,22 @@ function ERPTab({
     canViewCustomers,
     canManageCustomers,
     canViewBalanceEnquiry,
-    canUpdateMetalRates,
+    canUpdateMetalRates: _canUpdateMetalRates,
     canExportAccountSummary,
     canAccessTransactions,
     canAccessReports,
     canAccessVendors,
     canManageVendors,
-    canUpdateVendorOperational,
+    canUpdateVendorOperational: _canUpdateVendorOperational,
     canAccessInventory,
     canAccessVouchers,
     canAccessDirectDeals,
     canAccessErpSettings,
     canAccessCurrencies,
     canAccessFixingRegister,
-    canCreateTransaction,
+    canCreateTransaction: _canCreateTransaction,
     canManageDirectDeals,
-    canManageTransactionWorkflow,
+    canManageTransactionWorkflow: _canManageTransactionWorkflow,
     canCloseLedgerPeriod,
     canAccessERP,
   } = deriveErpAccessPolicy(user)
@@ -483,12 +456,6 @@ function ERPTab({
     const synced = liveRatesToMetalRatesState(liveMetalSnapshot)
     if (!synced) return
     setMetalRates(synced)
-    setMetalRateForm((prev) => ({
-      ...prev,
-      goldPrice: String(synced.goldPrice),
-      silverPrice: String(synced.silverPrice),
-      priceCurrency: synced.priceCurrency || prev.priceCurrency || 'USD',
-    }))
   }, [liveMetalSnapshot])
   const selectedUsdConversionCurrency = resolveCurrencyRowByCode(currencies, usdConversion.targetCode, erpBaseCurrencyCode)
   const selectedUsdConversionRate = Number(selectedUsdConversionCurrency?.exchangeRate || 0)
@@ -510,7 +477,11 @@ function ERPTab({
   const inventoryMappingProducts = inventoryProducts.filter((item) => String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
   const inventoryCatalogProducts = inventoryProducts.filter((item) => String(item?.category || '').includes('recordType=product'))
   const legacyInventoryProducts = inventoryProducts.filter((item) => !String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
-  const inventoryReportProducts = [...inventoryCatalogProducts, ...legacyInventoryProducts]
+  const inventoryReportProducts = useMemo(() => {
+    const catalog = inventoryProducts.filter((item) => String(item?.category || '').includes('recordType=product'))
+    const legacy = inventoryProducts.filter((item) => !String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
+    return [...catalog, ...legacy]
+  }, [inventoryProducts])
   const inventoryReportRows = useMemo(() => inventoryReportProducts.map((item) => {
     const categoryMeta = decodeInventoryCategoryMeta(item.category)
     const productMeta = decodeInventoryCategoryPairs(item.category)
@@ -699,7 +670,6 @@ function ERPTab({
   const rawUnfixedMetalDedupeKeys = new Set()
   const rawUnfixedStatementMetalHint = rawStatementEntries.reduce((acc, entry) => {
     if (resolveFixStatus(entry) !== 'unfixed') return acc
-    const st = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
     if (!isMetalStatementEntry(entry)) return acc
     const w = Number(entry.metalSignedWeight || 0)
     if (!Number.isFinite(w) || w === 0) return acc
@@ -728,7 +698,6 @@ function ERPTab({
   const statementSelectedMetalCode = statementFilters.metalCommodity
     ? resolveMetalCodeFromStockName(statementFilters.metalCommodity)
     : defaultStatementMetalCode
-  const statementSelectedMetalLabel = statementFilters.metalCommodity || (statementSelectedMetalCode === 'XAG' ? 'Silver' : statementSelectedMetalCode === 'OTHER' ? 'Other' : 'Gold')
   const statementDisplayCurrency = normalizeStatementCurrencyCode(
     statementFilters.showAmountIn
     || accountEnquiryData?.balances?.rateCurrency
@@ -906,7 +875,6 @@ function ERPTab({
   }
   const deriveStatementUnfixedMetalBalances = (entries) => entries.reduce((acc, entry) => {
     if (resolveFixStatus(entry) !== 'unfixed') return acc
-    const st = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
     if (!isMetalStatementEntry(entry)) return acc
     const w = Number(entry.metalSignedWeight || 0)
     if (!Number.isFinite(w) || w === 0) return acc
@@ -1056,9 +1024,6 @@ function ERPTab({
   const modalNetEquityDisplay = modalDisplayMetrics.netEquity
   const modalExcessDisplay = modalDisplayMetrics.excess
   const modalMarginPctDisplay = modalDisplayMetrics.marginPercent
-  const modalFundsRows = [
-    { currency: baseCurrencyCode, limits: 0, value: modalTotalFundsDisplay },
-  ]
   const metalFixingEntries = filteredStatementEntries
     .map((entry) => {
       const dealSide = resolveDealSide(entry)
@@ -1112,67 +1077,6 @@ function ERPTab({
   const transactionPageCount = Math.max(1, Math.ceil(Number(transactionMeta.total || 0) / Number(transactionMeta.limit || 25)))
   const isTransactionEditMode = Boolean(editingTransactionId)
   const allVisibleTransactionsSelected = Boolean(transactions.length) && transactions.every((tx) => selectedTransactionIds.includes(tx._id))
-  const detailsPanelIsFloating = detailsPanel.floating || detailsPanel.pinned
-  const getCurrentDetailsPanelGeometry = () => {
-    const rect = detailsPanelRef.current?.getBoundingClientRect()
-    if (!rect) {
-      return {
-        x: detailsPanel.x,
-        y: detailsPanel.y,
-        width: detailsPanel.width,
-        height: detailsPanel.height,
-      }
-    }
-    return {
-      x: rect.left,
-      y: rect.top,
-      width: rect.width,
-      height: rect.height,
-    }
-  }
-  const beginDetailsPanelDrag = (event) => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    const geometry = getCurrentDetailsPanelGeometry()
-    setDetailsPanel((prev) => ({
-      ...prev,
-      floating: true,
-      x: geometry.x,
-      y: geometry.y,
-      width: geometry.width,
-      height: geometry.height,
-    }))
-    setDetailsPanelDrag({
-      active: true,
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      startX: geometry.x,
-      startY: geometry.y,
-    })
-  }
-  const beginDetailsPanelResize = (event) => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    event.stopPropagation()
-    setDetailsPanelResize({
-      active: true,
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      startW: detailsPanel.width,
-      startH: detailsPanel.height,
-    })
-  }
-  const handleCloseDetailsPanel = () => {
-    setDetailsPanel((prev) => ({
-      ...prev,
-      pinned: false,
-      floating: false,
-      x: 120,
-      y: 150,
-      width: 500,
-      height: 520,
-    }))
-  }
   const enquiryBackdropColor = enquiryModalDrag.active ? 'rgba(15, 23, 42, 0.12)' : 'rgba(15, 23, 42, 0.45)'
   const beginEnquiryModalDrag = (event) => {
     if (event.button !== 0) return
@@ -1338,33 +1242,6 @@ function ERPTab({
       // ignore malformed local settings
     }
   }, [])
-  useEffect(() => {
-    if (!detailsPanelDrag.active && !detailsPanelResize.active) return undefined
-    const onMouseMove = (event) => {
-      if (detailsPanelDrag.active) {
-        setDetailsPanel((prev) => ({
-          ...prev,
-          x: detailsPanelDrag.startX + (event.clientX - detailsPanelDrag.pointerX),
-          y: detailsPanelDrag.startY + (event.clientY - detailsPanelDrag.pointerY),
-        }))
-      }
-      if (detailsPanelResize.active) {
-        const nextWidth = Math.max(380, detailsPanelResize.startW + (event.clientX - detailsPanelResize.pointerX))
-        const nextHeight = Math.max(360, detailsPanelResize.startH + (event.clientY - detailsPanelResize.pointerY))
-        setDetailsPanel((prev) => ({ ...prev, width: nextWidth, height: nextHeight }))
-      }
-    }
-    const onMouseUp = () => {
-      setDetailsPanelDrag((prev) => ({ ...prev, active: false }))
-      setDetailsPanelResize((prev) => ({ ...prev, active: false }))
-    }
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-    }
-  }, [detailsPanelDrag, detailsPanelResize])
   useEffect(() => {
     localStorage.setItem(ENQUIRY_DETAILS_PANEL_STORAGE_KEY, JSON.stringify(detailsPanel))
   }, [detailsPanel])
@@ -1568,7 +1445,6 @@ function ERPTab({
     return convertJvAmountBetweenCurrencies(amount, fromCurrency, toCurrency, currencies, baseCurrencyCode)
   }
   useEffect(() => {
-    setLedgerForm((prev) => (prev.currency === baseCurrencyCode ? prev : { ...prev, currency: baseCurrencyCode }))
     setJvHeader((prev) => {
       const nextCurrency = prev.currency || baseCurrencyCode
       return prev.currency === nextCurrency ? prev : { ...prev, currency: nextCurrency }
@@ -1672,21 +1548,6 @@ function ERPTab({
       setError('')
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load report branding')
-    }
-  }
-  const loadMetalRates = async () => {
-    try {
-      const data = await erpAccountingAPI.getMetalRates(token)
-      const rates = data.rates || { goldPrice: 285, silverPrice: 3.5, priceCurrency: 'USD', updatedAt: null }
-      setMetalRates(rates)
-      setMetalRateForm({
-        goldPrice: String(rates.goldPrice ?? 285),
-        silverPrice: String(rates.silverPrice ?? 3.5),
-        priceCurrency: rates.priceCurrency || 'USD',
-      })
-      setError('')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load metal rates')
     }
   }
   const loadAllVendors = async (baseFilters = {}) => {
@@ -1851,6 +1712,7 @@ function ERPTab({
       currency: selectedAccountCurrency,
       exchangeRate: Number.isFinite(nextRate) && nextRate > 0 ? String(nextRate) : prev.exchangeRate,
     }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- sync party account currency when party changes only (omit manual `currency` edits)
   }, [transactionForm.type, transactionForm.customerId, transactionForm.vendorId, customers, vendors, currencies])
   const loadVendors = async (filters = vendorFilters) => {
     if (!canLoadParties) return
@@ -1866,7 +1728,7 @@ function ERPTab({
     }
     setLoading(false)
   }
-  const loadVendorDetails = async (id) => {
+  const loadVendorDetails = useCallback(async (id) => {
     if (!id) {
       setSelectedVendorDetails(null)
       return
@@ -1879,7 +1741,7 @@ function ERPTab({
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load vendor details')
     }
-  }
+  }, [token])
   const loadVendorPaymentCalendar = async () => {
     try {
       const data = await erpAccountingAPI.getVendorPaymentCalendar(token, { horizonDays: 45 })
@@ -2430,7 +2292,7 @@ function ERPTab({
           title: payload.title || file.name || 'Vendor attachment',
         }, file)
       } else {
-        const { file, ...payload } = vendorDocumentForm
+        const { file: _omitFile, ...payload } = vendorDocumentForm
         await erpAccountingAPI.addVendorDocument(token, selectedVendorId, payload)
       }
       setVendorDocumentForm({ docType: 'contract', title: '', documentNo: '', fileUrl: '', file: null, issueDate: '', expiryDate: '', status: 'active', verified: false, notes: '' })
@@ -2577,6 +2439,7 @@ function ERPTab({
     const baseCode = buildAutoStockCode(inventoryMappingForm, inventoryStockCodeSettings)
     const nextCode = buildUniqueStockCode(baseCode, inventoryMappingProducts, editingProductId)
     setInventoryMappingForm((prev) => (prev.stockCode === nextCode ? prev : { ...prev, stockCode: nextCode }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to stock-driving fields, not whole form object
   }, [showInventoryMappingModal, inventoryMappingForm.mainStock, inventoryMappingForm.customMainStock, inventoryMappingForm.metalType, inventoryMappingProducts, editingProductId, inventoryStockCodeSettings, isSuperAdmin, inventoryStockCodeManualOverride])
   const buildInventoryPayloadFromForm = (form, includeOpeningQty = true) => {
     const mainStockValue = resolveMainStockValueFromForm(form)
@@ -2875,42 +2738,6 @@ function ERPTab({
     e.preventDefault()
     await fetchAccountEnquiryByCode(accountEnquiryCode, { openModal: true })
   }
-  const handleUpdateMetalRates = async (e) => {
-    e.preventDefault()
-    if (!canUpdateMetalRates) {
-      setError('You do not have permission to update rates')
-      return
-    }
-    const payload = {
-      goldPrice: Number(metalRateForm.goldPrice),
-      silverPrice: Number(metalRateForm.silverPrice),
-      priceCurrency: String(metalRateForm.priceCurrency || 'USD').toUpperCase(),
-    }
-    if (!payload.goldPrice || payload.goldPrice <= 0 || !payload.silverPrice || payload.silverPrice <= 0) {
-      setError('Gold and silver rates must be greater than zero')
-      return
-    }
-    try {
-      setSaving(true)
-      const data = await erpAccountingAPI.updateMetalRates(token, payload)
-      const rates = data.rates || payload
-      setMetalRates(rates)
-      setMetalRateForm({
-        goldPrice: String(rates.goldPrice),
-        silverPrice: String(rates.silverPrice),
-        priceCurrency: rates.priceCurrency,
-      })
-      setError('')
-      showNotification('✅ Gold/Silver rates updated')
-      if (accountEnquiryData?.account?.accountCode) {
-        patchAccountEnquiryMetalRates(rates)
-      }
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to update metal rates')
-    } finally {
-      setSaving(false)
-    }
-  }
   useEffect(() => {
     loadEnquiryHistory()
   }, [])
@@ -2958,7 +2785,7 @@ function ERPTab({
   useEffect(() => {
     if (activeTab !== 'vendors' || !selectedVendorId) return
     loadVendorDetails(selectedVendorId)
-  }, [activeTab, selectedVendorId])
+  }, [activeTab, selectedVendorId, loadVendorDetails])
   useEffect(() => {
     // Prevent stale error banners from one ERP section leaking into another.
     setError((prev) => (prev ? '' : prev))
@@ -3092,12 +2919,6 @@ function ERPTab({
         const rates = payload?.rates || payload?.data?.rates
         if (!rates) return
         setMetalRates(rates)
-        setMetalRateForm((prev) => ({
-          ...prev,
-          goldPrice: String(rates.goldPrice ?? prev.goldPrice),
-          silverPrice: String(rates.silverPrice ?? prev.silverPrice),
-          priceCurrency: rates.priceCurrency || prev.priceCurrency || 'USD',
-        }))
         if (activeTabRef.current === 'enquiry' && accountEnquiryDataRef.current?.account?.accountCode) {
           patchAccountEnquiryMetalRates(rates)
         }
@@ -3107,6 +2928,7 @@ function ERPTab({
       stopRealtime()
       stopMetalRatesRealtime()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- realtime handlers intentionally use refs + stable loaders
   }, [token, user?.tenant, user?.company, canAccessERP])
   // Load dashboard once per tab visit and when date range changes
   useEffect(() => {
@@ -3129,16 +2951,19 @@ function ERPTab({
     if (!vendors.length) loadVendors()
     if (!currencies.length) loadCurrencies()
     if (!accounts.length) loadAccounts()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- tab bootstrap: loaders intentionally omitted from deps
   }, [activeTab, token, customers.length, vendors.length, currencies.length, accounts.length])
   useEffect(() => {
     if (activeTab !== 'direct-deals' || !token) return
     if (!customers.length) loadCustomers({ limit: 200 })
     if (!currencies.length) loadCurrencies()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- tab bootstrap: loaders intentionally omitted from deps
   }, [activeTab, token, customers.length, currencies.length])
   useEffect(() => {
     if (activeTab !== 'fixing-register' || !token) return
     if (!customers.length) loadCustomers({ limit: 200 })
     if (!inventoryProducts.length) loadInventory()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- tab bootstrap: loaders intentionally omitted from deps
   }, [activeTab, token, customers.length, inventoryProducts.length])
   useEffect(() => {
     if (!fixingRegisterStockTypeOptions.length) return
@@ -3148,10 +2973,6 @@ function ERPTab({
       setFixingRegFilter((prev) => (prev.metalType === fallbackMetalType ? prev : { ...prev, metalType: fallbackMetalType }))
     }
   }, [fixingRegisterStockTypeOptions, fixingRegFilter.metalType])
-  const convertMetalBalanceByUnit = (valueInGram) => {
-    const factor = METAL_UNIT_FACTORS[metalUnit] || 1
-    return Number(valueInGram || 0) / factor
-  }
   const formatMoney = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
   const formatMoneyAbs = (value) => Math.abs(Number(value || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })
   const formatReportDirectionalBalance = (row, fallbackDirection = '') => (
@@ -3796,38 +3617,6 @@ function ERPTab({
     setSelectedBrandingKey(nextDraft.key)
     setBrandingForm(nextDraft)
   }
-  const buildEnquiryExportRows = () => {
-    if (!accountEnquiryData) return []
-    const now = new Date().toLocaleString()
-    return [
-      ['Generated At', now],
-      ['Account Code', accountEnquiryData.account.accountCode || ''],
-      ['Account Name', accountEnquiryData.account.accountName || ''],
-      ['Account Type', accountEnquiryData.account.accountType || ''],
-      ['Account Currency', accountEnquiryData.account.currency || ''],
-      ['Debit Total', Number(accountEnquiryData.balances.debitTotal || 0).toFixed(2)],
-      ['Credit Total', Number(accountEnquiryData.balances.creditTotal || 0).toFixed(2)],
-      ['Net Direction', accountEnquiryData.balances.netDirection || ''],
-      ['Net Balance', Number(accountEnquiryData.balances.absoluteNetBalance || 0).toFixed(2)],
-      ['Rate Currency', accountEnquiryData.balances.rateCurrency || ''],
-      ['Rate Currency Balance', Number(accountEnquiryData.balances.rateCurrencyBalance || 0).toFixed(2)],
-      ['Gold Price', Number(accountEnquiryData.metals.goldPrice || 0).toFixed(4)],
-      ['Silver Price', Number(accountEnquiryData.metals.silverPrice || 0).toFixed(4)],
-      ['Selected Metal Unit', metalUnit],
-      ['Gold Balance', Number(convertMetalBalanceByUnit(accountEnquiryData.metals.goldBalance || 0)).toFixed(6)],
-      ['Silver Balance', Number(convertMetalBalanceByUnit(accountEnquiryData.metals.silverBalance || 0)).toFixed(6)],
-    ]
-  }
-  const handleExportEnquiryExcel = () => {
-    if (!accountEnquiryData) {
-      setError('Load an account summary first to export')
-      return
-    }
-    const rows = buildEnquiryExportRows()
-    const stamp = new Date().toISOString().slice(0, 10)
-    downloadCsv(rows, `account-summary-${accountEnquiryData.account.accountCode}-${stamp}.csv`)
-    showNotification('✅ Excel file exported')
-  }
   const generateStatementHtml = () => buildStatementHtml({
     accountEnquiryData,
     filteredStatementEntries,
@@ -4418,91 +4207,6 @@ function ERPTab({
         <p>⛔ This ERP page is not enabled in your permissions.</p>
       </div>
     )
-  }
-  const handleCreateAccount = async (e) => {
-    e.preventDefault()
-    if (!form.accountName || !form.accountCode || !form.accountType) {
-      setError('All fields required')
-      return
-    }
-    try {
-      await erpAccountingAPI.createAccount(token, form)
-      setForm({})
-      setShowForm(false)
-      await loadAccounts()
-      showNotification('✅ Account created successfully')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to create account')
-    }
-  }
-  const handleCreateLedgerEntry = async (e) => {
-    e.preventDefault()
-    const resolvedDebitAccountId = resolveAccountIdFromInput(ledgerForm.debitAccountInput, entryAccountOptions) || ledgerForm.debitAccountId
-    const resolvedCreditAccountId = resolveAccountIdFromInput(ledgerForm.creditAccountInput, entryAccountOptions) || ledgerForm.creditAccountId
-    const debitAmount = Number(ledgerForm.debitAmount || 0)
-    const creditAmount = Number(ledgerForm.creditAmount || 0)
-    if (!resolvedDebitAccountId || !resolvedCreditAccountId || !debitAmount || !creditAmount) {
-      setError('Debit account, credit account, debit amount, and credit amount are required')
-      return
-    }
-    if (debitAmount !== creditAmount) {
-      setError('Debit and credit amounts must be equal for a journal entry')
-      return
-    }
-    const isBankJV = ledgerForm.referenceType === 'bank_jv'
-    setSaving(true)
-    try {
-      if (isBankJV) {
-        const formData = new FormData()
-        formData.append('date', ledgerForm.date)
-        formData.append('debitAccountId', resolvedDebitAccountId)
-        formData.append('creditAccountId', resolvedCreditAccountId)
-        formData.append('amount', String(debitAmount))
-        formData.append('description', ledgerForm.description || '')
-        formData.append('referenceType', 'bank_jv')
-        formData.append('currency', baseCurrencyCode)
-        formData.append('txRefNo', ledgerForm.txRefNo || '')
-        formData.append('chequeNo', ledgerForm.chequeNo || '')
-        formData.append('bankRemarks', ledgerForm.bankRemarks || '')
-        formData.append('paymentType', ledgerForm.paymentType || 'bank')
-        if (ledgerForm.bankAttachment) formData.append('attachment', ledgerForm.bankAttachment)
-        await erpAccountingAPI.createBankJvEntry(token, formData)
-      } else {
-        await erpAccountingAPI.createLedgerEntry(token, {
-          ...ledgerForm,
-          debitAccountId: resolvedDebitAccountId,
-          creditAccountId: resolvedCreditAccountId,
-          currency: baseCurrencyCode,
-          amount: debitAmount,
-        })
-      }
-      const emptyForm = {
-        date: new Date().toISOString().slice(0, 10),
-        mappingId: '',
-        debitAccountId: '',
-        debitAccountInput: '',
-        creditAccountId: '',
-        creditAccountInput: '',
-        debitAmount: '',
-        creditAmount: '',
-        description: '',
-        referenceType: 'journal',
-        currency: baseCurrencyCode,
-        txRefNo: '',
-        chequeNo: '',
-        bankRemarks: '',
-        paymentType: 'bank',
-        bankAttachment: null,
-      }
-      setLedgerForm(emptyForm)
-      setShowLedgerForm(false)
-      await Promise.all([loadLedger(), loadDashboard()])
-      showNotification('✅ Ledger entry created')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to create ledger entry')
-    } finally {
-      setSaving(false)
-    }
   }
   // ─── Multi-line Journal Voucher helpers ──────────────────────────────────────
   const getJvAccountById = (accountId) => entryAccountOptions.find((item) => String(item?._id) === String(accountId || '')) || null
@@ -5297,16 +5001,6 @@ function ERPTab({
       setSaving(false)
     }
   }
-  const handleEditAccount = (account) => openEditModal('account', account)
-  const handleDeleteAccount = async (account) => {
-    if (!window.confirm(`Deactivate account ${account.accountCode} - ${account.accountName}?`)) return
-    try {
-      await erpAccountingAPI.deleteAccount(token, account._id)
-      await loadAccounts()
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to delete account')
-    }
-  }
   const handleEditMapping = (mapping) => openEditModal('mapping', mapping)
   const handleDeleteMapping = async (mapping) => {
     if (!window.confirm(`Deactivate mapping ${mapping.mappingType}?`)) return
@@ -5318,36 +5012,6 @@ function ERPTab({
     }
   }
   const handleEditCurrency = (currency) => openEditModal('currency', currency)
-  const handleLedgerMappingChange = (mappingId) => {
-    const selectedMapping = mappings.find((mapping) => mapping._id === mappingId)
-    if (!mappingId || !selectedMapping) {
-      setLedgerForm((prev) => ({
-        ...prev,
-        mappingId: '',
-        debitAccountId: '',
-        debitAccountInput: '',
-        creditAccountId: '',
-        creditAccountInput: '',
-      }))
-      return
-    }
-    const mappedDebit = entryAccountOptions.find((account) => String(account._id) === String(selectedMapping?.debitAccountId?._id || ''))
-    const mappedCredit = entryAccountOptions.find((account) => String(account._id) === String(selectedMapping?.creditAccountId?._id || ''))
-    // Check if either account is a bank account for auto-detection
-    const debitIsBank = /bank/i.test(mappedDebit?.accountName || '')
-    const creditIsBank = /bank/i.test(mappedCredit?.accountName || '')
-    const shouldAutoDetectBank = debitIsBank || creditIsBank
-    setLedgerForm((prev) => ({
-      ...prev,
-      mappingId,
-      debitAccountId: selectedMapping?.debitAccountId?._id || prev.debitAccountId,
-      debitAccountInput: mappedDebit ? accountLookupText(mappedDebit) : prev.debitAccountInput,
-      creditAccountId: selectedMapping?.creditAccountId?._id || prev.creditAccountId,
-      creditAccountInput: mappedCredit ? accountLookupText(mappedCredit) : prev.creditAccountInput,
-      description: selectedMapping && !prev.description ? selectedMapping.description || prev.description : prev.description,
-      ...(shouldAutoDetectBank && prev.referenceType !== 'bank_jv' ? { referenceType: 'bank_jv' } : {}),
-    }))
-  }
   const handleDeleteCurrency = async (currency) => {
     if (!window.confirm(`Delete currency ${currency.code}?`)) return
     try {

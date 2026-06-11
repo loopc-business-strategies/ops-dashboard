@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
@@ -393,7 +393,7 @@ function OverviewTab({ onNavigate }) {
     }
   }
 
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
     setLoadingTasks(true)
     try {
       const data = await projectsAPI.getProjects(token)
@@ -403,7 +403,7 @@ function OverviewTab({ onNavigate }) {
     } finally {
       setLoadingTasks(false)
     }
-  }
+  }, [token])
 
   const loadAssigneesAndEmployees = async () => {
     setLoadingEmployees(true)
@@ -441,7 +441,7 @@ function OverviewTab({ onNavigate }) {
 
   useEffect(() => {
     loadTasks()
-  }, [token])
+  }, [loadTasks])
 
   useEffect(() => {
     if (!token) return
@@ -449,8 +449,7 @@ function OverviewTab({ onNavigate }) {
       loadTasks()
     }, 120000)
     return () => window.clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token])
+  }, [token, loadTasks])
 
   useEffect(() => {
     loadAssigneesAndEmployees()
@@ -650,21 +649,6 @@ function OverviewTab({ onNavigate }) {
     const percent = Math.round((present / total) * 100)
     return { total, present, absent, onLeave, late, percent }
   }, [attendanceScopedRows, attendanceSummaryApi])
-
-  const deptAttendanceBars = useMemo(() => {
-    const group = {}
-    attendanceScopedRows.forEach((r) => {
-      const key = (r.department || 'unknown').toLowerCase()
-      if (!group[key]) group[key] = { present: 0, total: 0 }
-      group[key].total += 1
-      if (r.status === 'present' || r.status === 'late' || r.status === 'wfh') group[key].present += 1
-    })
-
-    return Object.entries(group).map(([dept, v]) => {
-      const pct = v.total ? Math.round((v.present / v.total) * 100) : 0
-      return { dept, ...v, pct }
-    }).sort((a, b) => b.pct - a.pct)
-  }, [attendanceScopedRows])
 
   const roleCreateOptions = roleQuickCreates(role)
 

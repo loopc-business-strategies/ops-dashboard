@@ -49,6 +49,18 @@ jobs:
       - name: ESLint (ERP tab production JS, zero warnings)
         run: npm run lint:eslint:ci
 
+      - name: ESLint (React hooks call order under frontend/src)
+        run: npm run lint:eslint:hooks-order
+
+      - name: ESLint (Finance + Operations tabs, zero warnings)
+        run: npm run lint:eslint:finance-ops
+
+      - name: ESLint (extended dashboard slice, zero warnings)
+        run: npm run lint:eslint:extended-tabs
+
+      - name: ESLint (ERP shell + vouchers, zero warnings)
+        run: npm run lint:eslint:erp-shell-tabs
+
   backend-fast-tests:
     name: Backend Fast Tests
     runs-on: ubuntu-latest

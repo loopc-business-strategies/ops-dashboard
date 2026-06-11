@@ -228,13 +228,6 @@ function ComplianceTab() {
     return `${prefix}-${1000 + rows.length + 1}`
   }
 
-  function removeRow(setter, rows, id, label) {
-    if (!window.confirm(`Delete ${label}?`)) return
-    setter(rows.filter(r => r.id !== id))
-    // delete from API using id (= _id.toString())
-    pushToast(`${label} deleted`)
-  }
-
   function removeRowApi(setter, rows, id, label, apiResource) {
     if (!window.confirm(`Delete ${label}?`)) return
     setter(rows.filter(r => r.id !== id))

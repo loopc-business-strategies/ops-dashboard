@@ -18,7 +18,7 @@ const reactRules = {
   'react-hooks/exhaustive-deps': 'warn',
   'react/react-in-jsx-scope': 'off',
   'react/prop-types': 'off',
-  'no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
+  'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
 }
 
 /** ESLint flat config: JS/React (separate from npm run lint guardrails). */

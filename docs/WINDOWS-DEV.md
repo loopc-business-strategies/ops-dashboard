@@ -59,3 +59,10 @@ GitHub Actions uses **Node 24**. The repo root **`.nvmrc`** file pins **24** for
 
 - Prefer **`;`** between commands in PowerShell, not `&&` (older Windows PowerShell).
 - Repository scripts assume **UTF-8**; avoid mixing encodings when editing generated JSON (e.g. ERP access matrix).
+
+## Local gate parity with GitHub Actions
+
+- **Node:** CI uses **Node 24** (`.github/workflows/ci.yml`). Match it locally via **`.nvmrc`**, **nvm-windows**, **fnm**, or **Volta** so ESLint and tests resolve the same as on `ubuntu-latest`.
+- **Root `npm run lint`:** Covers workspace guardrails, strict ERP/API ESLint, repo-wide React hook order, **FinanceTab** / **OperationsTab**, and the **extended-tabs** slice (`package.json` → `lint:eslint:extended-tabs`). It does **not** substitute backend Jest, frontend Vitest, or mobile typecheck.
+- **One-shot local check:** From the repo root, after `npm ci` in root, `backend/`, and `mobile/`, run **`npm run check:ci-parity`** (see **`docs/TESTING.md`**) for lint + `sync:erp-access` + mobile typecheck + backend **`test:fast`**.
+- **Mongo / Jest:** If **`mongodb-memory-server`** fails on Windows, install the **VC++ x64 redist** or set **`MONGO_TEST_URI`** to a real MongoDB (see sections above).

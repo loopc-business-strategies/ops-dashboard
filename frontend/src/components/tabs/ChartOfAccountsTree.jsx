@@ -417,7 +417,7 @@ export default function ChartOfAccountsTree({ canManageAccounts, onOpenSummary }
           return
         }
 
-        const created = await erpAccountingAPI.createAccount(token, {
+        await erpAccountingAPI.createAccount(token, {
           accountName:     form.accountName.trim(),
           accountCode:     form.accountCode.trim(),
           accountType:     form.accountType,

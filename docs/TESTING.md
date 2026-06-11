@@ -8,13 +8,23 @@ Use **Node 24** locally when mirroring CI (see **`.nvmrc`** at the repo root and
 npm run lint
 ```
 
-Runs workspace guardrails plus **strict ESLint** on production `frontend/src/components/tabs/erp/**/*.{js,jsx}` and `frontend/src/api/**/*.js` (`--max-warnings=0`).
+Runs workspace guardrails plus **strict ESLint** on production `frontend/src/components/tabs/erp/**/*.{js,jsx}` and `frontend/src/api/**/*.js` (`--max-warnings=0`), **`npm run lint:eslint:hooks-order`**, **`npm run lint:eslint:finance-ops`** (Finance + Operations tabs), **`npm run lint:eslint:extended-tabs`** (additional dashboard files listed in `package.json`; zero warnings), and **`npm run lint:eslint:erp-shell-tabs`** (**`ERPTab.jsx`** + **`VoucherTab.jsx`**; zero warnings).
 
-To lint the **entire** `frontend/src` tree (same flat config; may report many warnings outside the ERP tab):
+To lint the **entire** `frontend/src` tree (same flat config; may report many warnings outside the slices above):
 
 ```powershell
 npm run lint:eslint:repo
 ```
+
+## CI parity shortcut (root)
+
+**`npm run lint`** does **not** run backend Jest, frontend Vitest, or mobile typecheck—those are separate GitHub Actions jobs. For a single local command that runs the root lint pipeline plus **mobile typecheck** and **backend fast Jest** (after `npm run sync:erp-access`):
+
+```powershell
+npm run check:ci-parity
+```
+
+Requires **`npm ci`** at the repo root, in **`backend/`**, and in **`mobile/`** first (see individual package READMEs). On **Windows**, use **Node 24** and see **`docs/WINDOWS-DEV.md`** for MongoDB Memory Server / **`MONGO_TEST_URI`** when backend tests fail.
 
 ## Full pre-release (matches `deploy:railway` spirit)
 

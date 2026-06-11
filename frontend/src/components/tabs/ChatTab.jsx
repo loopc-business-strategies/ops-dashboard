@@ -380,6 +380,7 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
   useEffect(() => {
     const n = chats.reduce((s,c) => s + (c.muted ? 0 : c.unread), 0)
     onUnreadChange?.(n)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- parent onUnreadChange is often an inline; badge only tracks chats
   }, [chats])
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior:'smooth' }) }, [activeChatId, chats])
@@ -689,7 +690,6 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
 
   const canCreateGroup = perms.isSuperAdmin || perms.isDepartmentHead
   const activeChat     = chats.find(c => c.id === activeChatId)
-  const totalUnread    = chats.reduce((s,c) => s + (c.muted ? 0 : c.unread), 0)
 
   function openChat(id) {
     setActiveChatId(id)
@@ -926,7 +926,6 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
     || String(person.dept || '').toLowerCase().includes(memberQuery)
     || String(person.title || '').toLowerCase().includes(memberQuery)
   ))
-  const selectedMembers = groupPeople.filter((person) => groupForm.members.includes(person.id))
   const enabledPermissionCount = GROUP_MODULES.filter((item) => groupForm.permissions?.[item.key]).length
   const groupModalInputStyle = {
     width:'100%',

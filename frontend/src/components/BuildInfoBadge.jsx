@@ -10,9 +10,12 @@ function formatBuildStamp(meta, fallbackVersion = '0.0.0') {
 }
 
 function BuildInfoBadge({ tone = 'dark', className = '' }) {
-  const frontendMeta = typeof __APP_BUILD_META__ === 'object' && __APP_BUILD_META__
-    ? __APP_BUILD_META__
-    : { version: '0.0.0', sha: 'unknown', builtAt: '' }
+  const frontendMeta = useMemo(
+    () => (typeof __APP_BUILD_META__ === 'object' && __APP_BUILD_META__
+      ? __APP_BUILD_META__
+      : { version: '0.0.0', sha: 'unknown', builtAt: '' }),
+    [],
+  )
 
   const [backendMeta, setBackendMeta] = useState({ version: '0.0.0', sha: 'unknown', builtAt: '' })
 

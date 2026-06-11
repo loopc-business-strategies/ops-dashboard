@@ -603,7 +603,7 @@ function TabLegalDocuments({ canEdit, showToast }) {
 }
 
 // ─── TAB: KPI Overview ──────────────────────────────────────────────────────────
-function TabKPI({ suppliers, gold, routes, incidents, vendors, inventory, canEdit, isAdmin, isHead, isMgmt }) {
+function TabKPI({ suppliers, gold: _gold, routes, incidents, vendors, inventory, canEdit: _canEdit, isAdmin, isHead, isMgmt }) {
   if (!isAdmin && !isHead && !isMgmt) return <Restrict text="KPI overview is not available to this role. Contact your Operations manager." />
   const done    = suppliers.filter(s => s.st === 'Completed').length
   const active  = routes.filter(r => r.st === 'Active').length
@@ -816,7 +816,7 @@ function TabSupply({ suppliers, setSuppliers, canEdit, isExternal, isMgmt, showT
 }
 
 // ─── TAB: Gold Sourcing ─────────────────────────────────────────────────────────
-function TabGold({ gold, setGold, canEdit, isAdmin, isHead, isMgmt, isExternal, showToast, setModal }) {
+function TabGold({ gold, setGold: _setGold, canEdit: _canEdit, isAdmin, isHead, isMgmt, isExternal, showToast, setModal }) {
   if (isExternal) return <Restrict amber text="Gold Sourcing data is confidential. Contact Operations Head for access." />
   if (!isAdmin && !isHead && !isMgmt) return <Restrict amber text="Gold Sourcing data is confidential. Contact Operations Head for access." />
   const limitedView = isMgmt && !isAdmin && !isHead
@@ -1043,7 +1043,7 @@ function TabSecurity({ secVendors, setSecVendors, incidents, setIncidents, canEd
 }
 
 // ─── TAB: Vendor Contracts ──────────────────────────────────────────────────────
-function TabVendors({ vendors, setVendors, canEdit, isAdmin, isHead, isMgmt, isUser, isExternal, showToast, onOpenAdd, setModal }) {
+function TabVendors({ vendors, setVendors, canEdit, isAdmin, isHead, isMgmt: _isMgmt, isUser, isExternal, showToast, onOpenAdd: _onOpenAdd, setModal }) {
   const myOnly = isExternal
   const showVal = !isUser && !isExternal
 
@@ -1124,7 +1124,7 @@ function TabVendors({ vendors, setVendors, canEdit, isAdmin, isHead, isMgmt, isU
 }
 
 // ─── TAB: Inventory ─────────────────────────────────────────────────────────────
-function TabInventory({ inventory, setInventory, suppliers, setSuppliers, canEdit, isExternal, isMgmt, showToast, setModal, onDeleteInventory }) {
+function TabInventory({ inventory, setInventory: _setInventory, suppliers: _suppliers, setSuppliers, canEdit, isExternal, isMgmt, showToast, setModal, onDeleteInventory }) {
   if (isExternal || isMgmt) return <Restrict text="Inventory tracking is restricted to Operations team." />
 
   return (
@@ -1179,7 +1179,7 @@ function TabInventory({ inventory, setInventory, suppliers, setSuppliers, canEdi
 }
 
 // ─── TAB: Live Map ──────────────────────────────────────────────────────────────
-function TabMap({ canEdit, isAdmin, isHead, isExternal, showToast }) {
+function TabMap({ canEdit: _canEdit, isAdmin, isHead, isExternal, showToast }) {
   if (isExternal) return <Restrict text="Live Operations Map is restricted." />
   const showGold = isAdmin || isHead
 
@@ -1263,7 +1263,7 @@ function PingDot({ color }) {
 }
 
 // ─── TAB: Analytics ─────────────────────────────────────────────────────────────
-function TabAnalytics({ canEdit, isAdmin, isHead, isMgmt, isExternal }) {
+function TabAnalytics({ canEdit: _canEdit, isAdmin, isHead, isMgmt, isExternal: _isExternal }) {
   if (!isAdmin && !isHead && !isMgmt) return <Restrict text="Operations Analytics is restricted to Super Admin, Operations Head and Management." />
 
   const barData = [
@@ -1711,10 +1711,10 @@ function TabProjects({
   onUnarchiveProject,
 }) {
   const { t: tr } = useLanguage()
-  if (isExternal) return <Restrict text={tr('opsProjectsRestrictExternal')} />
   const visible = useMemo(() => tasks.filter((t) => showArchived || !t.archivedAt), [tasks, showArchived])
   const openCount = useMemo(() => visible.filter((t) => t.st !== 'Done').length, [visible])
   const doneCount = useMemo(() => visible.filter((t) => t.st === 'Done').length, [visible])
+  if (isExternal) return <Restrict text={tr('opsProjectsRestrictExternal')} />
 
   const cols = [
     { key: 'To Do', labelKey: 'opsColTodo', color: C.t3 },
@@ -3031,7 +3031,7 @@ export default function OperationsTab() {
     const stock = Number(f.stock)||0, min = Number(f.min)||0
     const payload = { name: f.item, quantity: stock, minThreshold: min, supplierName: f.sup || '' }
     erpAPI.updateInventoryItem(token, f.id, payload)
-      .then(res => { setInventory(p => p.map(x => x.id===f.id ? invToRow({ ...x, ...payload, _id: f.id, updatedAt: new Date().toISOString() }) : x)); closeModal(); showToast('Item Updated', f.item + ' updated') })
+      .then(() => { setInventory(p => p.map(x => x.id===f.id ? invToRow({ ...x, ...payload, _id: f.id, updatedAt: new Date().toISOString() }) : x)); closeModal(); showToast('Item Updated', f.item + ' updated') })
       .catch(() => showToast('Error', 'Failed to update inventory item'))
   }
   async function deleteInventoryItem(row) {

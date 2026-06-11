@@ -445,7 +445,7 @@ function KPIOverview() {
 }
 
 // ── Live Monitor ──────────────────────────────────
-function LiveMonitor({ canEdit, showToast }) {
+function LiveMonitor({ canEdit: _canEdit, showToast: _showToast }) {
   const [selected, setSelected] = useState(null)
 
   return (
@@ -836,7 +836,7 @@ function Maintenance({ canEdit, showToast }) {
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
         <h4 className="text-sm font-semibold text-white mb-4">Upcoming Maintenance — April 2026</h4>
         <div className="grid grid-cols-7 gap-2 text-center">
-          {['14', '15', '16', '17', '18', '19', '20'].map((d, i) => {
+          {['14', '15', '16', '17', '18', '19', '20'].map((d) => {
             const events = MAINT_CAL.filter(e => e.date.endsWith(`-${d}`))
             return (
               <div key={d} className="bg-gray-800/50 rounded-lg p-2 min-h-[72px]">

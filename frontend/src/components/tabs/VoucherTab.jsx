@@ -11,7 +11,7 @@ import VoucherAttachmentsPanel from './erp/VoucherAttachmentsPanel'
 import { resolveDocumentBranding } from './erp/documentBranding'
 import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
 import { buildMetalRatesFromApiPayload, marketPricesToRates, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
-import { BASE, cfg, fmt, today, S, fieldRow, fieldGroup, labelStyle, inputStyle, readInput, sectionBox, sectionHeader, sectionBody, btn, tabBtn, classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid, classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap, classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName, classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue, classicRightGrid, classicLabel, classicInput, classicReadInput, classicTextAreaRow, metalWin, metalTopInlineRow, metalTopField, emptyLine, normalizeMongoIdField, emptyHeader, DOC_PREFIX_BY_TYPE, getDocYear, parseAnyVoucherDocMeta, parseVoucherDocMeta, buildVoucherDocNo, coerceVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, toFinitePositive, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, getAccountNameValue, isBankLikeAccount, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalStockInVoucherType, isMetalStockOutVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity } from './voucher/voucherTabShared'
+import { BASE, cfg, fmt, today, S, labelStyle, inputStyle, sectionBox, sectionHeader, sectionBody, btn, tabBtn, classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid, classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap, classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName, classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue, classicRightGrid, classicLabel, classicInput, classicReadInput, metalWin, metalTopInlineRow, metalTopField, emptyLine, normalizeMongoIdField, emptyHeader, getDocYear, parseAnyVoucherDocMeta, parseVoucherDocMeta, buildVoucherDocNo, coerceVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity } from './voucher/voucherTabShared'
 import { buildVoucherTypeConfigs } from './voucher/voucherTypeConfigs'
 import { deriveErpAccessPolicy, canCreateTransactionFor } from './erp/accessPolicy'
 
@@ -32,13 +32,8 @@ export default function VoucherTab({
   const showAccountDetailsTab = false
   const { t } = useLanguage()
   const erpAccess = deriveErpAccessPolicy(user || {})
-  const role = user?.role || ''
-  const dept = (user?.department || '').toLowerCase()
   const isSuperAdmin = erpAccess.isSuperAdmin
   const isFinance = erpAccess.isFinance
-  const isSales = erpAccess.isSalesRole
-  const isOperations = erpAccess.isOperationsRole
-  const isProduction = role === 'department_head' && dept === 'production'
   const isManagementOnly = erpAccess.isManagementRole
   const canManageWorkflow = erpAccess.canManageTransactionWorkflow
 
@@ -201,10 +196,6 @@ export default function VoucherTab({
 
   const voucherConfigs = buildVoucherTypeConfigs(t)
 
-  const voucherPartyMode = (voucherType === 'receipt' || voucherType === 'sale' || voucherType === 'metal_payment')
-    ? 'customer'
-    : 'vendor'
-
   const resolveVoucherParty = useCallback((partyCode) => {
     const lookupValue = normalizeLookupValue(partyCode)
     if (!lookupValue) return null
@@ -334,12 +325,6 @@ export default function VoucherTab({
     )) || null
   }, [partyOptions])
 
-  const voucherLineAccountOptions = (Array.isArray(accounts) ? accounts : [])
-    .map((a) => ({ id: a?._id, code: getAccountCodeValue(a), name: a?.accountName || a?.name || '', raw: a }))
-    .filter((a) => a.code)
-    .filter((a) => isBankLikeAccount(a.raw))
-    .sort((a, b) => a.code.localeCompare(b.code))
-
   const LINE_ACCOUNT_TYPE_ORDER = ACCOUNT_TYPES
   const lineAccountComboGroups = (() => {
     const accountList = (Array.isArray(accounts) ? accounts : [])
@@ -406,9 +391,6 @@ export default function VoucherTab({
       setLoadingRecentPartyVouchers(false)
     }
   }, [voucherType])
-
-  // ─── help panel ─────────────────────────────────────────────────────────────
-  const [showHelp, setShowHelp] = useState(false)
 
   // ─── line items ─────────────────────────────────────────────────────────────
   const [lineItems, setLineItems] = useState([])
@@ -658,7 +640,7 @@ export default function VoucherTab({
 
   // ─── helpers ─────────────────────────────────────────────────────────────────
   const showMsg = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 4000) }
-  const clearError = () => setError('')
+  const clearError = useCallback(() => setError(''), [])
   const runToolbarAction = useCallback((label, action) => {
     clearError()
     try {
@@ -1235,8 +1217,6 @@ export default function VoucherTab({
     return () => {
       cancelled = true
     }
-    // openVoucher is kept on a ref so this effect only runs when the pending deep-link props change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     pendingOpenTransactionId,
     pendingOpenTransactionType,
@@ -1595,16 +1575,6 @@ export default function VoucherTab({
     }
   }
 
-  const getLineNetAmount = (line) => {
-    const withTax = parseFloat(line?.amountWithVAT)
-    if (Number.isFinite(withTax) && withTax > 0) return withTax
-    const lc = parseFloat(line?.amountLC)
-    if (Number.isFinite(lc) && lc > 0) return lc
-    const fc = parseFloat(line?.amountFC)
-    if (Number.isFinite(fc) && fc > 0) return fc
-    return 0
-  }
-
   const buildReceiptPaymentDefaultLine = (baseLine) => {
     const rate = parseFloat(header.currRate) || 1
     return {
@@ -1861,22 +1831,6 @@ export default function VoucherTab({
     setLineForm((prev) => recalcReceiptPaymentLine({ ...prev, currCode: normalized, currRate: resolved.rate.toFixed(6), currRateSource: resolved.source }, 'rate'))
   }
 
-  const handleVatPerChange = (val) => {
-    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, vatPer: val }, 'vatPer'))
-  }
-
-  const handleVatAmountFCChange = (val) => {
-    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, vatAmountFC: val }, 'vatAmountFC'))
-  }
-
-  const handleVatAmountLCChange = (val) => {
-    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, vatAmountLC: val }, 'vatAmountLC'))
-  }
-
-  const handleAmountWithVATChange = (val) => {
-    setLineForm(prev => recalcReceiptPaymentLine({ ...prev, amountWithVAT: val }, 'amountWithVAT'))
-  }
-
   const handleLineAmountEnter = (e) => {
     if (e.key !== 'Enter') return
     e.preventDefault()
@@ -2098,13 +2052,8 @@ export default function VoucherTab({
     partyName: header?.partyName || '',
     partyAccount: header?.partyCode || '',
   }
-  const companyName = documentBranding.companyName || branding?.displayName || tenant?.name || activeTenantBranding?.displayName || ''
-  const companyAddress = documentBranding.address || branding?.address || tenant?.address || activeTenantBranding?.address || ''
   const companyPhone = documentBranding.phone || branding?.phone || tenant?.phone || activeTenantBranding?.phone || ''
   const companyTrn = documentBranding.trn || branding?.trn || tenant?.trn || activeTenantBranding?.trn || ''
-  const companyLogoImage = documentBranding.logoUrl || ''
-  const companyLogoText = branding?.logoText || tenant?.logoText || activeTenantBranding?.logoText || ''
-  const companyPrimaryColor = documentBranding.primaryColor || branding?.colors?.brandPrimary || tenant?.colors?.brandPrimary || activeTenantBranding?.colors?.brandPrimary || '#374151'
   const currencyLabel = voucher?.currency || 'USD'
   const payNoValue = header?.vocNo || ''
   const payDateValue = header?.docDate || ''

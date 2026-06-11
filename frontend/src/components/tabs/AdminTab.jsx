@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import authAPI from '../../api/auth'
 import departmentStateAPI from '../../api/department-state'
@@ -691,7 +691,7 @@ function PermissionGroupCard({ title, desc, rows, checkedFor, onToggle, twoCol =
         <p style={{ margin: '0.1rem 0 0', fontSize: '0.68rem', color: ADMIN.inkSoft }}>{desc}</p>
       </div>
       <div style={{ display: twoCol ? 'grid' : 'block', gridTemplateColumns: twoCol ? '1fr 1fr' : undefined, flex: 1, minHeight: 0 }}>
-        {rows.map((row, idx) => (
+        {rows.map((row) => (
           <PermissionRow
             key={row.id}
             label={row.label}
@@ -1054,7 +1054,7 @@ function AdminTab() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       setLoading(true)
       const data = await authAPI.getUsers(token)
@@ -1064,9 +1064,9 @@ function AdminTab() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [token])
 
-  useEffect(() => { loadUsers() }, [])
+  useEffect(() => { loadUsers() }, [loadUsers])
 
   const tabs = [
     { id: 'users', label: 'Users', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> },

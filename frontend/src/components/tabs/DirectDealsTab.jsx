@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import erpAccountingAPI from '../../api/erp-accounting'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -202,7 +202,7 @@ const worksheetToRows = (worksheet) => {
   return rows
 }
 
-export default function DirectDealsTab({ token, customers = [], currencies = [], canManage = false, isSuperAdmin = false }) {
+export default function DirectDealsTab({ token, customers = [], currencies: _currencies = [], canManage = false, isSuperAdmin = false }) {
   const { t } = useLanguage()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -244,7 +244,7 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
   const currentEditingDeal = editingId ? deals.find((d) => d._id === editingId) : null
   const isEditingLocked = Boolean(currentEditingDeal && currentEditingDeal.status === 'confirmed' && !isSuperAdmin)
 
-  const loadDeals = async () => {
+  const loadDeals = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
@@ -266,9 +266,9 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     } finally {
       setLoading(false)
     }
-  }
+  }, [token, filters, t])
 
-  useEffect(() => { loadDeals() }, [])
+  useEffect(() => { loadDeals() }, [loadDeals])
 
   const showSuccess = (msg) => {
     setSuccess(msg)
@@ -384,23 +384,6 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
           updated.amount = amount ? amount.toFixed(2) : ''
         }
         return updated
-      })
-      return { ...prev, lineItems: next }
-    })
-  }
-
-  const updateLineCustomerCode = (idx, value) => {
-    setForm((prev) => {
-      const code = String(value || '').trim()
-      const matched = customers.find((c) => customerAccountCode(c).toLowerCase() === code.toLowerCase())
-      const next = prev.lineItems.map((line, i) => {
-        if (i !== idx) return line
-        return {
-          ...line,
-          customerCode: code,
-          customerId: matched?._id || '',
-          customerName: matched?.name || '',
-        }
       })
       return { ...prev, lineItems: next }
     })
@@ -842,11 +825,6 @@ export default function DirectDealsTab({ token, customers = [], currencies = [],
     } finally {
       setSaving(false)
     }
-  }
-
-  const submitForm = (e) => {
-    e.preventDefault()
-    saveFormData()
   }
 
   const removeDeal = async (id) => {
