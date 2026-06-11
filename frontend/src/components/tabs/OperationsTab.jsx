@@ -331,12 +331,57 @@ function formatLegalDocUploader(name) {
   return s
 }
 
-function legalDocPreviewKind(mime) {
+/** Returns preview UI kind. `.docx` uses client-side render (docx-preview); legacy `.doc` stays download-only. */
+function legalDocPreviewKind(mime, fileName = '') {
   const m = String(mime || '').toLowerCase()
+  const base = String(fileName || '').trim().toLowerCase()
+  const ext = base.includes('.') ? base.slice(base.lastIndexOf('.') + 1) : ''
   if (m === 'application/pdf') return 'iframe'
   if (m.startsWith('image/')) return 'img'
   if (m === 'text/plain' || m === 'text/csv') return 'text'
+  const docxMime = m === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  const looksDocx = ext === 'docx' || docxMime || (m === 'application/octet-stream' && ext === 'docx')
+  if (looksDocx) return 'docx'
   return 'none'
+}
+
+function LegalDocxPreviewBody({ arrayBuffer, showToast }) {
+  const hostRef = useRef(null)
+  const toastRef = useRef(showToast)
+  toastRef.current = showToast
+  useEffect(() => {
+    const el = hostRef.current
+    if (!el || !arrayBuffer) return undefined
+    let cancelled = false
+    el.innerHTML = ''
+    ;(async () => {
+      try {
+        const { renderAsync } = await import('docx-preview')
+        if (cancelled) return
+        await renderAsync(arrayBuffer, el, undefined, { inWrapper: true })
+      } catch (e) {
+        if (!cancelled) {
+          el.innerHTML = ''
+          const p = document.createElement('p')
+          p.style.cssText = 'padding:16px;color:#b91c1c;font-size:13px;line-height:1.5'
+          p.textContent = e?.message || 'Could not render Word preview.'
+          el.appendChild(p)
+          toastRef.current?.('Preview', e?.message || 'Word preview failed.')
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+      if (el) el.innerHTML = ''
+    }
+  }, [arrayBuffer])
+  return (
+    <div
+      ref={hostRef}
+      className="legal-docx-preview-host"
+      style={{ padding: '12px 16px', minHeight: 280, fontSize: 12, color: C.t2 }}
+    />
+  )
 }
 
 function LegalDocumentsCard({ canEdit, showToast }) {
@@ -401,7 +446,7 @@ function LegalDocumentsCard({ canEdit, showToast }) {
 
   const openPreview = useCallback(async (doc) => {
     const id = normalizeLegalDocumentId(doc?._id)
-    const kind = legalDocPreviewKind(doc.mimeType)
+    const kind = legalDocPreviewKind(doc.mimeType, doc.originalName)
     if (!id) {
       showToastRef.current('Preview', 'Missing document id.')
       return
@@ -422,9 +467,20 @@ function LegalDocumentsCard({ canEdit, showToast }) {
         setPreview({ objectUrl: null, name: doc.originalName, kind: 'text', text })
         return
       }
+      if (kind === 'docx') {
+        const docxArrayBuffer = await blob.arrayBuffer()
+        setPreview({
+          objectUrl: null,
+          name: doc.originalName,
+          kind: 'docx',
+          docxArrayBuffer,
+          docId: id,
+        })
+        return
+      }
       const objectUrl = URL.createObjectURL(blob)
       if (kind === 'iframe' || kind === 'img') {
-        setPreview({ objectUrl, name: doc.originalName, kind })
+        setPreview({ objectUrl, name: doc.originalName, kind, docId: id })
       } else {
         URL.revokeObjectURL(objectUrl)
         setPreview({
@@ -786,6 +842,9 @@ function LegalDocumentsCard({ canEdit, showToast }) {
               )}
               {preview.kind === 'text' && (
                 <pre style={{ margin: 0, padding: 14, fontSize: 12, color: C.t2, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'ui-monospace, monospace' }}>{preview.text}</pre>
+              )}
+              {preview.kind === 'docx' && preview.docxArrayBuffer && (
+                <LegalDocxPreviewBody arrayBuffer={preview.docxArrayBuffer} showToast={showToast} />
               )}
               {preview.kind === 'office' && (
                 <div style={{ padding: 24, fontSize: 13, color: C.t2, lineHeight: 1.5 }}>
