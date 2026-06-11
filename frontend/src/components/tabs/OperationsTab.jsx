@@ -17,6 +17,7 @@ import {
   uploadOperationsLegalDocument,
   deleteOperationsLegalDocument,
   fetchOperationsLegalDocumentBlob,
+  normalizeLegalDocumentId,
 } from '../../api/operationsLegalDocuments'
 import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 import AccountCombobox from '../AccountCombobox'
@@ -373,7 +374,13 @@ function LegalDocumentsCard({ canEdit, showToast }) {
       if (folderScope === 'unfiled') opts.folderId = 'unfiled'
       else if (folderScope !== 'all') opts.folderId = folderScope
       const data = await listOperationsLegalDocuments(opts)
-      setDocuments(Array.isArray(data.documents) ? data.documents : [])
+      const rows = Array.isArray(data.documents) ? data.documents : []
+      setDocuments(
+        rows.map((row) => {
+          const nid = normalizeLegalDocumentId(row._id)
+          return nid ? { ...row, _id: nid } : row
+        }),
+      )
     } catch {
       setDocuments([])
       showToastRef.current('Legal documents', 'Could not load document list.')
@@ -393,8 +400,12 @@ function LegalDocumentsCard({ canEdit, showToast }) {
   }, [preview])
 
   const openPreview = useCallback(async (doc) => {
-    const id = String(doc?._id || '').trim()
+    const id = normalizeLegalDocumentId(doc?._id)
     const kind = legalDocPreviewKind(doc.mimeType)
+    if (!id) {
+      showToastRef.current('Preview', 'Missing document id.')
+      return
+    }
     if (kind === 'none') {
       setPreview({
         objectUrl: null,
@@ -423,15 +434,15 @@ function LegalDocumentsCard({ canEdit, showToast }) {
           docId: id,
         })
       }
-    } catch {
-      showToastRef.current('Preview', 'Could not load file.')
+    } catch (err) {
+      showToastRef.current('Preview', err?.message || 'Could not load file.')
     }
   }, [])
 
   const downloadToDisk = useCallback(async (doc) => {
-    const id = String(doc?._id || doc?.docId || '').trim()
+    const id = normalizeLegalDocumentId(doc?._id || doc?.docId)
     const filename = doc?.originalName || doc?.name || 'document'
-    if (!/^[a-f\d]{24}$/i.test(id)) {
+    if (!id) {
       showToastRef.current('Download', 'Invalid document.')
       return
     }
@@ -444,8 +455,8 @@ function LegalDocumentsCard({ canEdit, showToast }) {
       a.rel = 'noreferrer'
       a.click()
       URL.revokeObjectURL(objectUrl)
-    } catch {
-      showToastRef.current('Download', 'Could not download file.')
+    } catch (err) {
+      showToastRef.current('Download', err?.message || 'Could not download file.')
     }
   }, [])
 
@@ -459,12 +470,17 @@ function LegalDocumentsCard({ canEdit, showToast }) {
     try {
       const data = await uploadOperationsLegalDocument(file, { folderId: uploadTargetFolderId })
       if (data.success && data.document) {
-        const d = data.document
-        const inView = folderScope === 'all'
-          || (folderScope === 'unfiled' && !d.folderId)
-          || (String(folderScope) === String(d.folderId))
-        if (inView) setDocuments((prev) => [d, ...prev])
-        else await loadDocuments()
+        const nid = normalizeLegalDocumentId(data.document._id)
+        const d = nid ? { ...data.document, _id: nid } : data.document
+        if (!nid) {
+          await loadDocuments()
+        } else {
+          const inView = folderScope === 'all'
+            || (folderScope === 'unfiled' && !d.folderId)
+            || (String(folderScope) === String(d.folderId))
+          if (inView) setDocuments((prev) => [d, ...prev])
+          else await loadDocuments()
+        }
         showToastRef.current('Uploaded', file.name)
       } else {
         showToastRef.current('Upload failed', data.message || 'Unknown error')
@@ -477,13 +493,26 @@ function LegalDocumentsCard({ canEdit, showToast }) {
   }
 
   const onDelete = async (doc) => {
+    const docId = normalizeLegalDocumentId(doc._id)
+    if (!docId) {
+      showToastRef.current('Delete', 'This document has no valid id. Try refreshing the list.')
+      return
+    }
     if (!window.confirm(`Delete “${doc.originalName}”?`)) return
     try {
-      await deleteOperationsLegalDocument(doc._id)
-      setDocuments((prev) => prev.filter((d) => d._id !== doc._id))
+      await deleteOperationsLegalDocument(docId)
+      if (preview && normalizeLegalDocumentId(preview.docId) === docId) {
+        closePreview()
+      }
+      setDocuments((prev) => prev.filter((d) => normalizeLegalDocumentId(d._id) !== docId))
       showToastRef.current('Deleted', doc.originalName)
-    } catch {
-      showToastRef.current('Delete failed', 'Could not remove document.')
+    } catch (err) {
+      const body = err.response?.data
+      const msg = (typeof body?.message === 'string' && body.message.trim())
+        || (typeof body === 'string' && body.trim())
+        || err.message
+        || 'Could not remove document.'
+      showToastRef.current('Delete failed', msg)
     }
   }
 
@@ -510,14 +539,23 @@ function LegalDocumentsCard({ canEdit, showToast }) {
   }
 
   const onDeleteFolder = async (folder) => {
+    const fid = normalizeLegalDocumentId(folder._id)
+    if (!fid) {
+      showToastRef.current('Folder', 'Invalid folder id. Try refreshing.')
+      return
+    }
     if (!window.confirm(`Delete folder “${folder.name}”? (Must be empty.)`)) return
     try {
-      await deleteOperationsLegalFolder(folder._id)
+      await deleteOperationsLegalFolder(fid)
       await loadFolders()
-      if (String(folderScope) === String(folder._id)) setFolderScope('all')
+      if (String(folderScope) === fid) setFolderScope('all')
       showToastRef.current('Folder deleted', folder.name)
     } catch (err) {
-      showToastRef.current('Folder', err.response?.data?.message || 'Could not delete folder.')
+      const body = err.response?.data
+      const msg = (typeof body?.message === 'string' && body.message.trim())
+        || err.message
+        || 'Could not delete folder.'
+      showToastRef.current('Folder', msg)
     }
   }
 

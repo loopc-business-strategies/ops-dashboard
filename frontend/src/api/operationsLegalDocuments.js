@@ -4,6 +4,21 @@ import axios from './client'
 
 const BASE = '/api/operations/legal-documents'
 
+/** Normalize Mongo id from API (string, $oid wrapper, etc.) for URLs and keys. */
+export function normalizeLegalDocumentId(id) {
+  if (id == null) return ''
+  if (typeof id === 'string') {
+    const s = id.trim()
+    return /^[a-f\d]{24}$/i.test(s) ? s : ''
+  }
+  if (typeof id === 'object') {
+    const oid = id.$oid ?? id.id
+    if (oid != null) return normalizeLegalDocumentId(String(oid))
+    if (id._id != null) return normalizeLegalDocumentId(id._id)
+  }
+  return ''
+}
+
 /** @param {{ folderId?: 'unfiled'|string }} [opts] — omit or all: list every document; unfiled: no folder; else folder _id */
 export async function listOperationsLegalDocuments(opts = {}) {
   const params = {}
@@ -21,7 +36,11 @@ export async function createOperationsLegalFolder(name) {
 }
 
 export async function deleteOperationsLegalFolder(id) {
-  return (await axios.delete(`${BASE}/folders/${encodeURIComponent(id)}`)).data
+  const raw = normalizeLegalDocumentId(id)
+  if (!raw) {
+    throw new Error('Invalid folder id')
+  }
+  return (await axios.delete(`${BASE}/folders/${encodeURIComponent(raw)}`)).data
 }
 
 /** @param {File} file @param {{ folderId?: string|null }} [opts] — pass folder Mongo id to file under that folder */
@@ -32,13 +51,16 @@ export async function uploadOperationsLegalDocument(file, opts = {}) {
   if (fid && fid !== 'all' && fid !== 'unfiled') {
     fd.append('folderId', String(fid))
   }
-  return (await axios.post(BASE, fd, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })).data
+  // Let axios set multipart boundary; a bare "multipart/form-data" header breaks multer/body parsing.
+  return (await axios.post(BASE, fd)).data
 }
 
 export async function deleteOperationsLegalDocument(id) {
-  return (await axios.delete(`${BASE}/${encodeURIComponent(id)}`)).data
+  const raw = normalizeLegalDocumentId(id)
+  if (!raw) {
+    throw new Error('Invalid document id')
+  }
+  return (await axios.delete(`${BASE}/${encodeURIComponent(raw)}`)).data
 }
 
 /**
@@ -48,16 +70,44 @@ export async function deleteOperationsLegalDocument(id) {
  * @returns {Promise<Blob>}
  */
 export async function fetchOperationsLegalDocumentBlob(id, { preview, download } = {}) {
-  const raw = String(id || '').trim()
-  if (!/^[a-f\d]{24}$/i.test(raw)) {
+  const raw = normalizeLegalDocumentId(id)
+  if (!raw) {
     throw new Error('Invalid document id')
   }
   const params = {}
   if (preview) params.preview = '1'
   if (download) params.download = '1'
-  const { data } = await axios.get(`${BASE}/${encodeURIComponent(raw)}/download`, {
+  const res = await axios.get(`${BASE}/${encodeURIComponent(raw)}/download`, {
     params,
     responseType: 'blob',
+    validateStatus: () => true,
   })
-  return data
+
+  if (res.status < 200 || res.status >= 300) {
+    let msg = `Request failed (${res.status})`
+    try {
+      const t = await res.data.text()
+      const j = JSON.parse(t)
+      if (j && typeof j.message === 'string' && j.message.trim()) msg = j.message.trim()
+    } catch {
+      /* ignore */
+    }
+    const err = new Error(msg)
+    err.response = res
+    throw err
+  }
+
+  const ct = String(res.headers['content-type'] || '').toLowerCase()
+  if (ct.includes('application/json')) {
+    try {
+      const t = await res.data.text()
+      const j = JSON.parse(t)
+      throw new Error((j && j.message) || 'Server returned JSON instead of a file')
+    } catch (e) {
+      if (e instanceof Error && e.message) throw e
+      throw new Error('Server returned JSON instead of a file')
+    }
+  }
+
+  return res.data
 }
