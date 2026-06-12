@@ -42,6 +42,10 @@ const createFolderBodySchema = Joi.object({
   name: Joi.string().trim().min(1).max(200).required(),
 })
 
+const renameFolderBodySchema = Joi.object({
+  name: Joi.string().trim().min(1).max(200).required(),
+})
+
 const router = express.Router()
 
 function normalizeUploaderName(value) {
@@ -110,6 +114,35 @@ router.post(
         return res.status(409).json({ success: false, message: 'A folder with that name already exists' })
       }
       res.status(500).json({ success: false, message: e.message || 'Failed to create folder' })
+    }
+  },
+)
+
+router.patch(
+  '/folders/:id',
+  protect,
+  (req, res, next) => {
+    if (!canWriteOperationsLegalDocuments(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+    next()
+  },
+  validateParams(idParamSchema),
+  validateBody(renameFolderBodySchema),
+  async (req, res) => {
+    try {
+      const folder = await OperationsLegalFolder.findById(req.params.id)
+      if (!folder || folder.isDeleted) {
+        return res.status(404).json({ success: false, message: 'Folder not found' })
+      }
+      folder.name = String(req.body.name).trim()
+      await folder.save()
+      res.json({ success: true, folder: mapFolderRow(folder.toObject()) })
+    } catch (e) {
+      if (e && e.code === 11000) {
+        return res.status(409).json({ success: false, message: 'A folder with that name already exists' })
+      }
+      res.status(500).json({ success: false, message: e.message || 'Failed to rename folder' })
     }
   },
 )

@@ -14,6 +14,7 @@ import {
   listOperationsLegalFolders,
   createOperationsLegalFolder,
   deleteOperationsLegalFolder,
+  renameOperationsLegalFolder,
   uploadOperationsLegalDocument,
   deleteOperationsLegalDocument,
   fetchOperationsLegalDocumentBlob,
@@ -773,6 +774,36 @@ function LegalDocumentsCard({ canEdit, showToast }) {
     }
   }
 
+  const onRenameLegalFolder = async (folder) => {
+    const fid = normalizeLegalDocumentId(folder._id)
+    if (!fid) {
+      showToastRef.current('Folder', 'Invalid folder id. Try refreshing.')
+      setFolderContextMenu(null)
+      return
+    }
+    const current = String(folder.name || '').trim()
+    setFolderContextMenu(null)
+    const nextRaw = window.prompt('Rename folder', current)
+    if (nextRaw == null) return
+    const name = String(nextRaw).trim()
+    if (!name || name === current) return
+    try {
+      const data = await renameOperationsLegalFolder(fid, name)
+      if (data.success && data.folder) {
+        await loadFolders()
+        showToastRef.current('Folder renamed', name)
+      } else {
+        showToastRef.current('Folder', data.message || 'Could not rename folder.')
+      }
+    } catch (err) {
+      const body = err.response?.data
+      const msg = (typeof body?.message === 'string' && body.message.trim())
+        || err.message
+        || 'Could not rename folder.'
+      showToastRef.current('Rename failed', msg)
+    }
+  }
+
   const chip = (active) => ({
     ...(active ? B.pri : B.ghost),
     ...B.sm,
@@ -804,7 +835,7 @@ function LegalDocumentsCard({ canEdit, showToast }) {
             Select a folder below, then use <strong>Add document</strong> to save the file into that folder.
             Choose <strong>All</strong> or <strong>Unfiled</strong> to upload without a folder.
             {' '}
-            <strong>Right-click</strong> a folder name for <strong>New file</strong>, <strong>Share</strong>, or <strong>Delete</strong>.
+            <strong>Right-click</strong> a folder name for <strong>New file</strong>, <strong>Rename</strong>, <strong>Share</strong>, or <strong>Delete</strong>.
           </div>
         )}
         {!canEdit && (
@@ -1048,7 +1079,7 @@ function LegalDocumentsCard({ canEdit, showToast }) {
         const vw = typeof window !== 'undefined' ? window.innerWidth : 800
         const vh = typeof window !== 'undefined' ? window.innerHeight : 600
         const left = Math.min(Math.max(8, folderContextMenu.x), vw - 176)
-        const top = Math.min(Math.max(8, folderContextMenu.y), vh - 140)
+        const top = Math.min(Math.max(8, folderContextMenu.y), vh - (canEdit ? 200 : 100))
         const m = folderContextMenu.folder
         const itemStyle = {
           display: 'block',
@@ -1097,6 +1128,16 @@ function LegalDocumentsCard({ canEdit, showToast }) {
                 }}
               >
                 New file…
+              </button>
+            )}
+            {canEdit && (
+              <button
+                type="button"
+                role="menuitem"
+                style={itemStyle}
+                onClick={() => { void onRenameLegalFolder(m) }}
+              >
+                Rename folder…
               </button>
             )}
             <button

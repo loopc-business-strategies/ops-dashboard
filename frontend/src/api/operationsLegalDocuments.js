@@ -43,6 +43,15 @@ export async function deleteOperationsLegalFolder(id) {
   return (await axios.delete(`${BASE}/folders/${encodeURIComponent(raw)}`)).data
 }
 
+/** @param {string} id Folder _id @param {string} name New display name */
+export async function renameOperationsLegalFolder(id, name) {
+  const raw = normalizeLegalDocumentId(id)
+  if (!raw) {
+    throw new Error('Invalid folder id')
+  }
+  return (await axios.patch(`${BASE}/folders/${encodeURIComponent(raw)}`, { name })).data
+}
+
 /** @param {File} file @param {{ folderId?: string|null }} [opts] — pass folder Mongo id to file under that folder */
 export async function uploadOperationsLegalDocument(file, opts = {}) {
   const fd = new FormData()
