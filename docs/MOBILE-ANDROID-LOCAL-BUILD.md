@@ -65,13 +65,16 @@ Skip `keystore.properties` and use the release-signed-with-debug artifact for si
 
 Release builds compile native codegen under `android/app/.cxx/...` with paths that can exceed the **classic Windows MAX_PATH** limit when the repo lives under a long directory (for example `C:\\Users\\...\\Desktop\\...`).
 
+**Why not `CMAKE_OBJECT_PATH_MAX` in `app/build.gradle`?** React Native’s **autolinked Fabric codegen** runs separate CMake/Ninja graphs for libraries like `react-native-safe-area-context` and `react-native-gesture-handler`. Those graphs do **not** reliably inherit `defaultConfig.externalNativeBuild.cmake.arguments` from the app module, so Windows can still hit MAX_PATH until long paths are enabled or you build on Linux CI.
+
 **Fix one of:**
 
 1. **Enable long paths in Windows** (recommended): run **PowerShell as Administrator** from the repo:
    `mobile/scripts/Enable-WindowsLongPaths.ps1`  
    Then **reboot**. Or apply the policy manually: [Maximum Path Length Limitation](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation).
 2. **Clone the repo to a short path**, for example `C:\\src\\ops-dashboard`, then run the same Gradle commands from `mobile/`.
-3. **Build on Linux CI:** run workflow **[Mobile Android bundle (local Gradle)](../../.github/workflows/mobile-android-bundle.yml)** in GitHub (**Actions** tab, **Run workflow**). When it finishes, download the **mg-ops-android-release-aab** artifact (debug-signed release keystore unless you add CI secrets for `keystore.properties` later).
+3. **`SUBST` a drive letter** (often works without admin or reboot): `subst Q: C:\\full\\path\\to\\ops-dashboard`, open a new shell, `cd Q:\\`, then run `npm run mobile:build:android:local:bundle` from the repo root so native build paths stay under `Q:\\...`. Remove the mapping with `subst Q: /d` when finished.
+4. **Build on Linux CI:** run workflow **[Mobile Android bundle (local Gradle)](../../.github/workflows/mobile-android-bundle.yml)** in GitHub (**Actions** tab, **Run workflow**). When it finishes, download the **mg-ops-android-release-aab** artifact (debug-signed release keystore unless you add CI secrets for `keystore.properties` later).
 
 ## Sentry / Gradle
 
