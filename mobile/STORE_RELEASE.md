@@ -1,6 +1,21 @@
-# MG Ops Mobile — App Store & Play Store (EAS)
+# MG Ops Mobile — App Store & Play Store
 
-Recommended path using [Expo Application Services (EAS)](https://expo.dev/eas).
+## Android without EAS (recommended first)
+
+For **local Gradle AAB/APK** (no Expo cloud build billing), use **[../docs/MOBILE-ANDROID-LOCAL-BUILD.md](../docs/MOBILE-ANDROID-LOCAL-BUILD.md)** and from repo root:
+
+```bash
+npm run mobile:build:android:local:bundle
+npm run mobile:build:android:local:apk
+```
+
+Configure **release signing** in `mobile/android/app/build.gradle` before uploading to Play (see that doc).
+
+---
+
+## Optional — EAS cloud path
+
+The sections below describe [Expo Application Services (EAS)](https://expo.dev/eas) if you prefer cloud builds or `eas submit` / `eas update`.
 
 ## Prerequisites
 

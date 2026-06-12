@@ -83,11 +83,14 @@ Scan the QR code with Expo Go, or press `a` for Android emulator.
 
 | Workflow | When to use |
 |----------|-------------|
-| `npm run dev:mobile` | Daily development on phone via Expo Go |
-| `npm run mobile:build:android:preview` | New APK when native deps change or first install |
-| `npm run mobile:update:preview` | Push JS/UI changes to an already-installed preview APK (no rebuild) |
+| `npm run dev:mobile` | Daily development: Metro + Expo Go or emulator (`a` / `i` in terminal) |
+| **`npm run mobile:build:android:local:bundle`** | **Play Store AAB** from local Gradle (no EAS). See **[../docs/MOBILE-ANDROID-LOCAL-BUILD.md](../docs/MOBILE-ANDROID-LOCAL-BUILD.md)**. |
+| **`npm run mobile:build:android:local:apk`** | **Release APK** for sideload / internal testing (no EAS). |
+| `npx expo run:android` (from `mobile/`) | Install a **development** binary on device/emulator (not Expo Go); uses bundled native project. |
+| `npm run mobile:build:android:preview` | Optional: EAS cloud preview APK (needs `eas login` / CI token). |
+| `npm run mobile:update:preview` | OTA JS update to installs that use EAS Update **preview** channel (requires EAS-configured client). |
 
-After the first preview build with `expo-updates`, run `npm run mobile:update:preview` to ship Home/dashboard changes without rebuilding the APK.
+After an **EAS** preview build with `expo-updates`, `npm run mobile:update:preview` can ship JS-only changes without rebuilding the APK. **Local AAB/APK** builds do not use EAS unless you also configure OTA separately.
 
 ## iOS: device vs Simulator (EAS)
 
@@ -109,17 +112,28 @@ Deploy the backend auth update before testing against production.
 - The tab bar header refreshes every **15 seconds** while the app is foregrounded; **pull to refresh** on Home also updates spot prices.
 - **Manual QA:** Log in as MG, open the web dashboard in parallel, and confirm the three headline numbers match (allow a few seconds for poll timing).
 
-## Build (EAS — App Store / Play Store)
+## Build — Android without EAS (recommended default)
 
-See **[STORE_RELEASE.md](./STORE_RELEASE.md)** for full steps.
+See **[../docs/MOBILE-ANDROID-LOCAL-BUILD.md](../docs/MOBILE-ANDROID-LOCAL-BUILD.md)** for JDK/SDK setup, `prebuild`, and signing notes.
+
+From repo root:
+
+```bash
+npm run mobile:build:android:local:bundle   # AAB for Play Store
+npm run mobile:build:android:local:apk      # APK for sideload
+```
+
+## Build (optional — EAS cloud)
+
+See **[STORE_RELEASE.md](./STORE_RELEASE.md)** for Expo-hosted builds and submit.
 
 Quick start after `npx eas login` and `npx eas init`:
 
 ```bash
-# Internal test APK (Android)
+# Internal test APK (Android, cloud)
 npm run mobile:build:android:preview
 
-# Production store builds
+# Production store builds (cloud)
 npm run mobile:build:android
 npm run mobile:build:ios
 ```

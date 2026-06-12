@@ -24,7 +24,7 @@ npm run lint:eslint:repo
 npm run check:ci-parity
 ```
 
-Requires **`npm ci`** at the repo root, in **`backend/`**, and in **`mobile/`** first (see individual package READMEs). On **Windows**, use **Node 24** and see **`docs/WINDOWS-DEV.md`** for MongoDB Memory Server / **`MONGO_TEST_URI`** when backend tests fail.
+Requires **`npm ci`** at the repo root, in **`backend/`**, and in **`mobile/`** first (see individual package READMEs). On **Windows**, use **Node 24** and see **`docs/WINDOWS-DEV.md`** for MongoDB Memory Server / **`MONGO_TEST_URI`** when backend tests fail. For **local Android release builds** without EAS, see **`docs/MOBILE-ANDROID-LOCAL-BUILD.md`**.
 
 ## Full pre-release (matches `deploy:railway` spirit)
 
