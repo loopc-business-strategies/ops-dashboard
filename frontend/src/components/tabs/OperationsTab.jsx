@@ -400,6 +400,10 @@ function LegalDocumentsCard({ canEdit, showToast }) {
   const [newFolderOpen, setNewFolderOpen] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [creatingFolder, setCreatingFolder] = useState(false)
+  /** Right-click menu on a folder chip: `{ folder, x, y }` */
+  const [folderContextMenu, setFolderContextMenu] = useState(null)
+  const legalFolderContextFileRef = useRef(null)
+  const legalFolderContextTargetRef = useRef(null)
   /** Normalized document _id strings for bulk select / share / download */
   const [selectedLegalDocIds, setSelectedLegalDocIds] = useState([])
 
@@ -426,6 +430,22 @@ function LegalDocumentsCard({ canEdit, showToast }) {
     const valid = new Set(visibleDocIds)
     setSelectedLegalDocIds((prev) => prev.filter((id) => valid.has(id)))
   }, [visibleDocIds])
+
+  useEffect(() => {
+    if (!folderContextMenu) return undefined
+    const onKey = (e) => { if (e.key === 'Escape') setFolderContextMenu(null) }
+    const onDown = (e) => {
+      const t = e.target
+      if (t && typeof t.closest === 'function' && t.closest('[data-legal-folder-context-menu]')) return
+      setFolderContextMenu(null)
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('mousedown', onDown, true)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('mousedown', onDown, true)
+    }
+  }, [folderContextMenu])
 
   const loadFolders = useCallback(async () => {
     setFoldersLoading(true)
@@ -548,10 +568,12 @@ function LegalDocumentsCard({ canEdit, showToast }) {
     return documents.filter((d) => want.has(normalizeLegalDocumentId(d._id)))
   }, [documents, selectedLegalDocIds])
 
-  const shareSelectedLegalDocs = useCallback(async () => {
-    const rows = getSelectedLegalDocs()
+  const shareLegalDocRows = useCallback(async (rows, contextSuffix) => {
     if (!rows.length) {
-      showToastRef.current('Share', 'Select one or more documents.')
+      showToastRef.current(
+        'Share',
+        contextSuffix ? `No documents ${contextSuffix}.` : 'Select one or more documents.',
+      )
       return
     }
     const names = rows.map((r) => r.originalName || 'document').join('\n')
@@ -564,9 +586,12 @@ function LegalDocumentsCard({ canEdit, showToast }) {
         const type = doc.mimeType || blob.type || 'application/octet-stream'
         files.push(new File([blob], name, { type }))
       }
+      const textIntro = contextSuffix
+        ? `${files.length} file(s) ${contextSuffix}`
+        : `${files.length} file(s) from Legal Documents`
       const sharePayload = {
         title: 'Operations — Legal documents',
-        text: `${files.length} file(s) from Legal Documents`,
+        text: textIntro,
         files,
       }
       if (typeof navigator !== 'undefined' && navigator.share) {
@@ -593,7 +618,30 @@ function LegalDocumentsCard({ canEdit, showToast }) {
       if (e?.name === 'AbortError') return
       showToastRef.current('Share failed', e?.message || 'Could not share.')
     }
-  }, [getSelectedLegalDocs])
+  }, [])
+
+  const shareSelectedLegalDocs = useCallback(async () => {
+    await shareLegalDocRows(getSelectedLegalDocs(), '')
+  }, [getSelectedLegalDocs, shareLegalDocRows])
+
+  const shareFolderDocuments = useCallback(async (folder) => {
+    const fid = normalizeLegalDocumentId(folder._id)
+    if (!fid) {
+      showToastRef.current('Share', 'Invalid folder.')
+      return
+    }
+    setFolderContextMenu(null)
+    try {
+      const data = await listOperationsLegalDocuments({ folderId: fid })
+      const rows = (Array.isArray(data.documents) ? data.documents : []).map((row) => {
+        const nid = normalizeLegalDocumentId(row._id)
+        return nid ? { ...row, _id: nid } : row
+      }).filter((row) => normalizeLegalDocumentId(row._id))
+      await shareLegalDocRows(rows, `from folder "${folder.name}"`)
+    } catch (e) {
+      showToastRef.current('Share', e?.message || 'Could not load folder documents.')
+    }
+  }, [shareLegalDocRows])
 
   const downloadSelectedLegalDocs = useCallback(async () => {
     const rows = getSelectedLegalDocs()
@@ -610,13 +658,15 @@ function LegalDocumentsCard({ canEdit, showToast }) {
 
   const uploadTargetFolderId = folderScope !== 'all' && folderScope !== 'unfiled' ? folderScope : null
 
-  const onPickFile = async (e) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
+  const uploadLegalDocumentFile = useCallback(async (file, overrideFolderId) => {
     if (!file) return
+    const effectiveFolderId = overrideFolderId !== undefined ? overrideFolderId : uploadTargetFolderId
+    const folderParam = effectiveFolderId && /^[a-f\d]{24}$/i.test(String(effectiveFolderId))
+      ? String(effectiveFolderId)
+      : undefined
     setUploading(true)
     try {
-      const data = await uploadOperationsLegalDocument(file, { folderId: uploadTargetFolderId })
+      const data = await uploadOperationsLegalDocument(file, { folderId: folderParam })
       if (data.success && data.document) {
         const nid = normalizeLegalDocumentId(data.document._id)
         const d = nid ? { ...data.document, _id: nid } : data.document
@@ -638,6 +688,21 @@ function LegalDocumentsCard({ canEdit, showToast }) {
     } finally {
       setUploading(false)
     }
+  }, [folderScope, loadDocuments, uploadTargetFolderId])
+
+  const onPickFile = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    await uploadLegalDocumentFile(file)
+  }
+
+  const onLegalFolderContextFilePick = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    const fid = legalFolderContextTargetRef.current
+    legalFolderContextTargetRef.current = null
+    if (!file || !fid) return
+    await uploadLegalDocumentFile(file, fid)
   }
 
   const onDelete = async (doc) => {
@@ -738,6 +803,13 @@ function LegalDocumentsCard({ canEdit, showToast }) {
           <div style={{ fontSize: 11, color: C.t3, marginTop: 4, lineHeight: 1.4 }}>
             Select a folder below, then use <strong>Add document</strong> to save the file into that folder.
             Choose <strong>All</strong> or <strong>Unfiled</strong> to upload without a folder.
+            {' '}
+            <strong>Right-click</strong> a folder name for <strong>New file</strong>, <strong>Share</strong>, or <strong>Delete</strong>.
+          </div>
+        )}
+        {!canEdit && (
+          <div style={{ fontSize: 11, color: C.t3, marginTop: 4, lineHeight: 1.4 }}>
+            <strong>Right-click</strong> a folder name to <strong>Share</strong> all documents in that folder.
           </div>
         )}
         <div
@@ -764,6 +836,11 @@ function LegalDocumentsCard({ canEdit, showToast }) {
               <button
                 type="button"
                 onClick={() => setFolderScope(String(f._id))}
+                onContextMenu={(ev) => {
+                  ev.preventDefault()
+                  ev.stopPropagation()
+                  setFolderContextMenu({ folder: f, x: ev.clientX, y: ev.clientY })
+                }}
                 style={chip(String(folderScope) === String(f._id))}
               >
                 {f.name}
@@ -977,6 +1054,94 @@ function LegalDocumentsCard({ canEdit, showToast }) {
           </div>
         )}
       </Card>
+
+      <input
+        ref={legalFolderContextFileRef}
+        type="file"
+        accept={LEGAL_DOC_ACCEPT}
+        style={{ display: 'none' }}
+        disabled={uploading}
+        onChange={(e) => { void onLegalFolderContextFilePick(e) }}
+      />
+      {folderContextMenu && (() => {
+        const vw = typeof window !== 'undefined' ? window.innerWidth : 800
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 600
+        const left = Math.min(Math.max(8, folderContextMenu.x), vw - 176)
+        const top = Math.min(Math.max(8, folderContextMenu.y), vh - 140)
+        const m = folderContextMenu.folder
+        const itemStyle = {
+          display: 'block',
+          width: '100%',
+          textAlign: 'left',
+          padding: '8px 12px',
+          border: 'none',
+          background: 'transparent',
+          cursor: 'pointer',
+          fontSize: 13,
+          color: C.t1,
+          borderRadius: 6,
+          fontFamily: 'inherit',
+          fontWeight: 600,
+        }
+        return (
+          <div
+            data-legal-folder-context-menu
+            role="menu"
+            aria-label={`Folder actions: ${m.name}`}
+            style={{
+              position: 'fixed',
+              left,
+              top,
+              zIndex: 10050,
+              minWidth: 168,
+              background: '#fff',
+              border: `1px solid ${C.border2}`,
+              borderRadius: 10,
+              boxShadow: '0 12px 40px rgba(0,0,0,.15)',
+              padding: 4,
+            }}
+          >
+            {canEdit && (
+              <button
+                type="button"
+                role="menuitem"
+                style={itemStyle}
+                onClick={() => {
+                  const fid = normalizeLegalDocumentId(m._id)
+                  if (!fid) return
+                  setFolderScope(fid)
+                  legalFolderContextTargetRef.current = fid
+                  setFolderContextMenu(null)
+                  legalFolderContextFileRef.current?.click()
+                }}
+              >
+                New file…
+              </button>
+            )}
+            <button
+              type="button"
+              role="menuitem"
+              style={itemStyle}
+              onClick={() => { void shareFolderDocuments(m) }}
+            >
+              Share folder
+            </button>
+            {canEdit && (
+              <button
+                type="button"
+                role="menuitem"
+                style={{ ...itemStyle, color: C.red, fontWeight: 700 }}
+                onClick={() => {
+                  setFolderContextMenu(null)
+                  void onDeleteFolder(m)
+                }}
+              >
+                Delete folder
+              </button>
+            )}
+          </div>
+        )
+      })()}
 
       {preview && (
         <div
