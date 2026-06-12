@@ -123,6 +123,8 @@ npm run mobile:build:android:local:bundle   # AAB for Play Store
 npm run mobile:build:android:local:apk      # APK for sideload
 ```
 
+If **Windows** fails with **path longer than 260 characters**, use `mobile/scripts/Enable-WindowsLongPaths.ps1` (Admin) and reboot, or build the AAB in GitHub Actions: workflow **Mobile Android bundle (local Gradle)** (`.github/workflows/mobile-android-bundle.yml`, **Run workflow**).
+
 ## Build (optional — EAS cloud)
 
 See **[STORE_RELEASE.md](./STORE_RELEASE.md)** for Expo-hosted builds and submit.

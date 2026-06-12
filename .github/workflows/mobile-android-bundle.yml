@@ -1,0 +1,62 @@
+# Build MG Ops Android release AAB with local Gradle (no EAS). Linux paths avoid Windows 260-char Ninja limits.
+name: Mobile Android bundle (local Gradle)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-android-bundle-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-36
+            build-tools;36.0.0
+            ndk;27.1.12297006
+            cmake;3.22.1
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Make Gradle wrapper executable
+        working-directory: mobile/android
+        run: chmod +x gradlew
+
+      - name: Build release AAB
+        working-directory: mobile
+        run: npm run build:local:android:bundle
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mg-ops-android-release-aab
+          path: mobile/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error

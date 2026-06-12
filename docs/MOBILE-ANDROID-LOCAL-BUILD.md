@@ -67,8 +67,11 @@ Release builds compile native codegen under `android/app/.cxx/...` with paths th
 
 **Fix one of:**
 
-1. **Enable long paths in Windows** (recommended): Settings or Group Policy **“Enable Win32 long paths”**, or registry `HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem` → `LongPathsEnabled` = `1` (then reboot). See [Microsoft: Maximum Path Length Limitation](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation).
+1. **Enable long paths in Windows** (recommended): run **PowerShell as Administrator** from the repo:
+   `mobile/scripts/Enable-WindowsLongPaths.ps1`  
+   Then **reboot**. Or apply the policy manually: [Maximum Path Length Limitation](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation).
 2. **Clone the repo to a short path**, for example `C:\\src\\ops-dashboard`, then run the same Gradle commands from `mobile/`.
+3. **Build on Linux CI:** run workflow **[Mobile Android bundle (local Gradle)](../../.github/workflows/mobile-android-bundle.yml)** in GitHub (**Actions** tab, **Run workflow**). When it finishes, download the **mg-ops-android-release-aab** artifact (debug-signed release keystore unless you add CI secrets for `keystore.properties` later).
 
 ## Sentry / Gradle
 
