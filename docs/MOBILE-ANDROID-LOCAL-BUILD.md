@@ -37,7 +37,7 @@ npm run build:local:android:bundle
 npm run build:local:android:apk
 ```
 
-These run Gradle **`bundleRelease`** / **`assembleRelease`** via `mobile/scripts/gradle-android.mjs` (works on Windows and Unix).
+These run Gradle **`bundleRelease`** / **`assembleRelease`** via `mobile/scripts/gradle-android.mjs` (works on Windows and Unix). By default the script sets **`SENTRY_DISABLE_AUTO_UPLOAD=true`** and **`SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD=true`** when those variables are unset, so local release builds do not require Sentry org credentials (same idea as `eas.json` env). To upload source maps from a local build, set those to `false` and provide `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` (see `mobile/README.md`).
 
 ### Output locations
 
@@ -46,15 +46,29 @@ These run Gradle **`bundleRelease`** / **`assembleRelease`** via `mobile/scripts
 
 ## Signing (Play Store vs internal)
 
-The template **`mobile/android/app/build.gradle`** currently wires **release** to the **debug** keystore for convenience. That is **not** acceptable for production Play uploads.
+### Option A — Play upload keystore (production)
 
-Before store release:
+1. Create an upload keystore (see [Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756)).
+2. Copy [`mobile/android/keystore.properties.example`](../mobile/android/keystore.properties.example) to **`mobile/android/keystore.properties`** (this path is **gitignored**).
+3. Set `storeFile` relative to the **`mobile/android/`** directory (e.g. `app/my-upload-key.jks` if you place the `.jks` under `android/app/`).
+4. Run `bundleRelease` / `assembleRelease` again.
 
-1. Create an **upload keystore** (Google Play App Signing can hold the app signing key).
-2. Add a **release** `signingConfigs` entry (do not commit secrets; use env vars or a local `keystore.properties` that is gitignored).
-3. Set `buildTypes.release.signingConfig` to that release config.
+If **`keystore.properties` is missing**, release builds still succeed: `release` signing **inherits the debug keystore** (`initWith signingConfigs.debug`). That is fine for **internal QA** only; **do not** upload those AABs to Play production.
 
-See [React Native signed APK](https://reactnative.dev/docs/signed-apk-android) and Play Console documentation.
+### Option B — Internal only
+
+Skip `keystore.properties` and use the release-signed-with-debug artifact for sideload / device testing.
+
+## Troubleshooting
+
+### Windows: `Filename longer than 260 characters` (Ninja / CMake)
+
+Release builds compile native codegen under `android/app/.cxx/...` with paths that can exceed the **classic Windows MAX_PATH** limit when the repo lives under a long directory (for example `C:\\Users\\...\\Desktop\\...`).
+
+**Fix one of:**
+
+1. **Enable long paths in Windows** (recommended): Settings or Group Policy **“Enable Win32 long paths”**, or registry `HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem` → `LongPathsEnabled` = `1` (then reboot). See [Microsoft: Maximum Path Length Limitation](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation).
+2. **Clone the repo to a short path**, for example `C:\\src\\ops-dashboard`, then run the same Gradle commands from `mobile/`.
 
 ## Sentry / Gradle
 

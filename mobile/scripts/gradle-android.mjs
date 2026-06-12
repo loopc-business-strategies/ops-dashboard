@@ -14,11 +14,19 @@ const task = process.argv[2] || 'bundleRelease'
 
 const isWin = process.platform === 'win32'
 const cmd = isWin ? 'gradlew.bat' : './gradlew'
+// Match eas.json: release builds succeed without Sentry org/token unless caller opts in.
+const env = { ...process.env }
+if (env.SENTRY_DISABLE_AUTO_UPLOAD === undefined) {
+  env.SENTRY_DISABLE_AUTO_UPLOAD = 'true'
+}
+if (env.SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD === undefined) {
+  env.SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD = 'true'
+}
 const result = spawnSync(cmd, [task], {
   cwd: androidDir,
   stdio: 'inherit',
   shell: isWin,
-  env: process.env,
+  env,
 })
 
 const code = result.status === null ? 1 : result.status
