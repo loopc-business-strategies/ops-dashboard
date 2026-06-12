@@ -832,38 +832,19 @@ function LegalDocumentsCard({ canEdit, showToast }) {
           </button>
           {foldersLoading && <span style={{ fontSize: 11, color: C.t3 }}>…</span>}
           {!foldersLoading && folders.map((f) => (
-            <span key={f._id} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-              <button
-                type="button"
-                onClick={() => setFolderScope(String(f._id))}
-                onContextMenu={(ev) => {
-                  ev.preventDefault()
-                  ev.stopPropagation()
-                  setFolderContextMenu({ folder: f, x: ev.clientX, y: ev.clientY })
-                }}
-                style={chip(String(folderScope) === String(f._id))}
-              >
-                {f.name}
-              </button>
-              {canEdit && (
-                <button
-                  type="button"
-                  aria-label={`Delete folder ${f.name}`}
-                  onClick={() => onDeleteFolder(f)}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    color: C.t3,
-                    cursor: 'pointer',
-                    fontSize: 14,
-                    lineHeight: 1,
-                    padding: '0 4px',
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </span>
+            <button
+              key={f._id}
+              type="button"
+              onClick={() => setFolderScope(String(f._id))}
+              onContextMenu={(ev) => {
+                ev.preventDefault()
+                ev.stopPropagation()
+                setFolderContextMenu({ folder: f, x: ev.clientX, y: ev.clientY })
+              }}
+              style={chip(String(folderScope) === String(f._id))}
+            >
+              {f.name}
+            </button>
           ))}
           {canEdit && !newFolderOpen && (
             <button type="button" onClick={() => { setNewFolderOpen(true); setNewFolderName('') }} style={{ ...B.ghost, ...B.sm, borderRadius: 999 }}>
