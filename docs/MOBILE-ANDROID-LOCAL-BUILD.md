@@ -106,7 +106,7 @@ Use the same **`SENTRY_*`** env vars as `mobile/package.json` `build:local:andro
 
 ### Windows: `The filename, directory name, or volume label syntax is incorrect`
 
-Usually a bad **`cmd /c`** command line (quoting or a path ending in `\` before `"`). **`gradle-android.mjs`** normalizes paths for **`cd /d`** and avoids **`cmd /s`** for this reason. Pull the latest **`mobile/scripts/gradle-android.mjs`**, or run **`gradlew.bat`** manually from **`mobile/android`** as in the errno 3 section above.
+Usually a bad **`cmd /c`** command line. **`gradle-android.mjs`** avoids a single **`/c "cd … && gradlew…"`** string (Node’s Windows quoting can break **`&&`** / nested quotes) and instead runs a **short-lived temp `.bat`** (`cd /d` then **`call gradlew.bat`**). Pull the latest **`mobile/scripts/gradle-android.mjs`**, or run **`gradlew.bat`** manually from **`mobile/android`** as in the errno 3 section above.
 
 ## Sentry / Gradle
 
