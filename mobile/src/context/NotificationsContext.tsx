@@ -34,7 +34,9 @@ function mapPayloadToItem(payload: NotificationPayload): AppNotificationItem {
     ? 'Transaction chat mention'
     : isChatMention
       ? 'Chat mention'
-      : type === 'transaction_approved'
+      : type === 'chat_message'
+        ? 'Team chat'
+        : type === 'transaction_approved'
         ? 'Voucher approved'
         : type === 'transaction_returned'
           ? 'Voucher returned'

@@ -1,3 +1,4 @@
+import { Platform } from 'react-native'
 import { io, type Socket } from 'socket.io-client'
 import { API_URL, TENANT } from '@/src/config/tenant'
 
@@ -19,8 +20,14 @@ export type NotificationSocket = Socket
  * Sends tenant headers when supported (native may ignore `extraHeaders` on some transports).
  */
 export function createNotificationsSocket(token: string): NotificationSocket {
+  // RN: prefer polling first — some Android networks/OEMs block or mishandle WSS before TLS is stable.
+  const transports =
+    Platform.OS === 'web' ? (['websocket', 'polling'] as const) : (['polling', 'websocket'] as const)
   return io(buildNotificationsSocketUrl(), {
-    transports: ['websocket', 'polling'],
+    transports: [...transports],
+    reconnection: true,
+    reconnectionAttempts: 20,
+    reconnectionDelay: 1500,
     withCredentials: false,
     extraHeaders: {
       'x-tenant': TENANT,

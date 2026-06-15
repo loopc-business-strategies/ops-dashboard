@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { ActivityIndicator, View } from 'react-native'
-import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { AuthProvider, useAuth } from '@/src/context/AuthContext'
 import { ChatProvider } from '@/src/context/ChatContext'
@@ -49,7 +49,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <AuthProvider>
         <AuthGate>
           <ChatProvider>
