@@ -2,6 +2,17 @@
 
 This doc is the **recommended default workflow** for the MG Ops mobile app when you want **no Expo Application Services (EAS) build queue**, **no EAS Update (OTA) usage**, and **no dependency on Expo cloud** for day-to-day work.
 
+## Which path should I use?
+
+| Situation | Recommended |
+|-----------|---------------|
+| You are coding and want fast reload | **`npm run dev:mobile`** + **Expo Go** (or press `a` / `i` in the Expo terminal). If the QR fails: same Wi‑Fi, Windows firewall **TCP 8081**, try **`npx expo start --tunnel`** from `mobile/`, update **Expo Go** for SDK 56, or **`adb reverse tcp:8081 tcp:8081`**. |
+| QA or a device without your Metro server | **Local release APK:** [`scripts/build-mobile-apk-subst-q.cmd`](../scripts/build-mobile-apk-subst-q.cmd) on long Windows paths, or `npm run mobile:build:android:local:apk` from a short path (see [MOBILE-ANDROID-LOCAL-BUILD.md](./MOBILE-ANDROID-LOCAL-BUILD.md)). |
+| Google Play upload | **Local AAB:** `npm run mobile:build:android:local:bundle`, or the **Mobile Android bundle** GitHub Actions workflow on Linux. |
+| Frequent JS-only updates without a new store binary | **EAS Update** (`npm run mobile:update:production` / preview after `eas login`) — **optional**; uses Expo cloud. Skip if you want zero EAS. |
+
+**Default for this repo:** dev + Expo Go for daily work; local APK/AAB when distributing; OTA only if you explicitly adopt EAS Update.
+
 ## What uses Expo cloud (queue / limits / possible billing)
 
 - **`eas build`** — cloud macOS/Linux builders; queue and plan limits on free tiers.

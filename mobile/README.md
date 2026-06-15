@@ -2,6 +2,8 @@
 
 Read-only MG companion app (iOS / Android) for the ops-dashboard platform.
 
+**Which path should I use?** Dev + **Expo Go** for everyday coding; **local APK/AAB** when someone needs an installable build; **EAS Update (OTA)** only if you intentionally use Expo cloud. See the decision table in **[../docs/MOBILE-NO-EAS.md](../docs/MOBILE-NO-EAS.md#which-path-should-i-use)**.
+
 ## Tabs
 
 - **Home** — ERP dashboard cards (margins, fixing, bank, cash flow, expenses, volume, AP/AR, chat preview, alerts). Live Gold / Silver / Platinum spot prices are shown in the **tab header** (same `/metal-rates/live` API as the web MG dashboard, MT4-backed when the bridge feed is fresh).
