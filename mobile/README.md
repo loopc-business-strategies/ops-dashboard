@@ -35,7 +35,7 @@ Production default: `https://api.loopcstrategies.com`
 **Local Metro** (`npm start` / `npm run dev:mobile`) and **Expo Go** do **not** use EAS Build or EAS Update — Metro runs on your PC. Expo cloud charges and queues apply to **`eas build`**, **`eas update`**, and **`eas submit`** only.
 
 - **Dev (no EAS):** `npm run dev:mobile` or `cd mobile && npm start`, then Expo Go or `a` / `i` in the terminal; or `npx expo run:android` for a local dev binary.
-- **Ship Android (no EAS):** `npm run mobile:build:android:local:bundle` / `local:apk` and upload to Play or sideload (see **[../docs/MOBILE-ANDROID-LOCAL-BUILD.md](../docs/MOBILE-ANDROID-LOCAL-BUILD.md)**).
+- **Ship Android (no EAS):** **`npm run mobile:build:android:local:bundle`** for Play AAB; for **sideload / internal APK**, pull **`main`**, run **`scripts\build-mobile-apk-subst-q.cmd`** (Windows long paths) **or** **`npm run mobile:build:android:local:apk`**, then install **`app-release.apk`** — see **[Sideload and internal APK](../docs/MOBILE-ANDROID-LOCAL-BUILD.md#sideload-and-internal-apk)** in **[../docs/MOBILE-ANDROID-LOCAL-BUILD.md](../docs/MOBILE-ANDROID-LOCAL-BUILD.md)**.
 - **Do not run** `eas build`, `eas update`, or `eas submit` unless you intentionally want Expo cloud.
 
 Full rationale and optional “strip OTA” refactor notes: **[../docs/MOBILE-NO-EAS.md](../docs/MOBILE-NO-EAS.md)**.
@@ -109,7 +109,7 @@ Scan the QR code with Expo Go, or press `a` for Android emulator.
 |----------|-------------|
 | `npm run dev:mobile` | **Recommended daily dev (no EAS):** Metro on your machine + Expo Go or emulator (`a` / `i`). |
 | **`npm run mobile:build:android:local:bundle`** | **Recommended Play AAB (no EAS):** local Gradle. See **[../docs/MOBILE-ANDROID-LOCAL-BUILD.md](../docs/MOBILE-ANDROID-LOCAL-BUILD.md)**. |
-| **`npm run mobile:build:android:local:apk`** | **Recommended release APK (no EAS):** sideload / internal testing. |
+| **`npm run mobile:build:android:local:apk`** (or **`scripts\build-mobile-apk-subst-q.cmd`** on long Windows paths) | **Sideload / internal APK (no EAS):** pull **`main`**, build, install **`app-release.apk`** — [steps](../docs/MOBILE-ANDROID-LOCAL-BUILD.md#sideload-and-internal-apk). |
 | `npx expo run:android` (from `mobile/`) | **No EAS:** local dev binary + Metro; use when Expo Go is not enough. |
 | `npm run mobile:build:android:preview` | **Expo cloud:** preview APK — queue/billing per your Expo plan; needs `eas login`. |
 | `npm run mobile:update:preview` | **Expo cloud:** EAS Update OTA to preview channel — uses EAS Update, not local dev. |
@@ -146,6 +146,8 @@ From repo root:
 npm run mobile:build:android:local:bundle   # AAB for Play Store
 npm run mobile:build:android:local:apk      # APK for sideload
 ```
+
+**Sideload / internal APK:** pull **`main`**, then either run **`scripts\build-mobile-apk-subst-q.cmd`** (recommended on long Windows paths) **or** the **`npm run …:apk`** command above, then install **`mobile/android/app/build/outputs/apk/release/app-release.apk`**. Full checklist: **[Sideload and internal APK](../docs/MOBILE-ANDROID-LOCAL-BUILD.md#sideload-and-internal-apk)**.
 
 If **Windows** fails with **path longer than 260 characters**, use `mobile/scripts/Enable-WindowsLongPaths.ps1` (Admin) and reboot, run **[`scripts/build-mobile-apk-subst-q.cmd`](../scripts/build-mobile-apk-subst-q.cmd)** (maps `Q:` and builds APK), or build the AAB in GitHub Actions: workflow **Mobile Android bundle (local Gradle)** (`.github/workflows/mobile-android-bundle.yml`, **Run workflow**).
 

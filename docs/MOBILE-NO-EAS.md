@@ -7,7 +7,7 @@ This doc is the **recommended default workflow** for the MG Ops mobile app when 
 | Situation | Recommended |
 |-----------|---------------|
 | You are coding and want fast reload | **`npm run dev:mobile`** + **Expo Go** (or press `a` / `i` in the Expo terminal). If the QR fails: same Wi‑Fi, Windows firewall **TCP 8081**, try **`npx expo start --tunnel`** from `mobile/`, update **Expo Go** for SDK 56, or **`adb reverse tcp:8081 tcp:8081`**. |
-| QA or a device without your Metro server | **Local release APK:** [`scripts/build-mobile-apk-subst-q.cmd`](../scripts/build-mobile-apk-subst-q.cmd) on long Windows paths, or `npm run mobile:build:android:local:apk` from a short path (see [MOBILE-ANDROID-LOCAL-BUILD.md](./MOBILE-ANDROID-LOCAL-BUILD.md)). |
+| QA or a device without your Metro server | **Sideload / internal APK:** pull **`main`**, then from repo root run [`scripts/build-mobile-apk-subst-q.cmd`](../scripts/build-mobile-apk-subst-q.cmd) (Windows long paths) **or** `npm run mobile:build:android:local:apk`, then install **`app-release.apk`** (see [Sideload and internal APK](./MOBILE-ANDROID-LOCAL-BUILD.md#sideload-and-internal-apk) in [MOBILE-ANDROID-LOCAL-BUILD.md](./MOBILE-ANDROID-LOCAL-BUILD.md)). |
 | Google Play upload | **Local AAB:** `npm run mobile:build:android:local:bundle`, or the **Mobile Android bundle** GitHub Actions workflow on Linux. |
 | Frequent JS-only updates without a new store binary | **EAS Update** (`npm run mobile:update:production` / preview after `eas login`) — **optional**; uses Expo cloud. Skip if you want zero EAS. |
 
@@ -41,8 +41,7 @@ If you outgrow Expo Go, use **`npx expo run:android`** after `mobile/android/` i
 
 1. Build on your machine (or CI without EAS):  
    - **AAB (Play):** `npm run mobile:build:android:local:bundle` from repo root  
-   - **APK (sideload / internal):** `npm run mobile:build:android:local:apk`  
-   Details: [`docs/MOBILE-ANDROID-LOCAL-BUILD.md`](./MOBILE-ANDROID-LOCAL-BUILD.md) (signing, Windows long paths, GitHub Actions alternative).
+   - **APK (sideload / internal):** pull **`main`**, then **`scripts\build-mobile-apk-subst-q.cmd`** (Windows long paths) **or** **`npm run mobile:build:android:local:apk`**, then install **`mobile/android/app/build/outputs/apk/release/app-release.apk`** — step-by-step: [Sideload and internal APK](./MOBILE-ANDROID-LOCAL-BUILD.md#sideload-and-internal-apk) in [`docs/MOBILE-ANDROID-LOCAL-BUILD.md`](./MOBILE-ANDROID-LOCAL-BUILD.md) (also covers signing, Windows long paths, GitHub Actions).
 2. Upload the **AAB** in **Google Play Console** yourself (or distribute the **APK** directly). **Do not use** `eas submit` if you want to stay off EAS.
 
 **Updates without EAS Update:** ship a **new APK/AAB** (or a new Play release). Do not run `npm run mobile:update:preview` / `mobile:update:production` unless you intentionally use OTA.

@@ -46,6 +46,21 @@ These run Gradle **`bundleRelease`** / **`assembleRelease`** via `mobile/scripts
 - **AAB:** `mobile/android/app/build/outputs/bundle/release/app-release.aab`
 - **APK:** `mobile/android/app/build/outputs/apk/release/app-release.apk`
 
+## Sideload and internal APK
+
+1. **Update sources:** on **`main`**, run `git pull` (or clone/checkout **`main`** so you match what you intend to ship).
+2. **Build** from **repository root** (after `cd mobile && npm install` if deps changed):
+   - **Windows (long path / `Desktop\...`):** run **`scripts\build-mobile-apk-subst-q.cmd`** — maps `Q:`, runs **`npm run mobile:build:android:local:apk`**, removes `Q:`.
+   - **Any machine / short path:** run **`npm run mobile:build:android:local:apk`** (same Gradle task as the script).
+3. **Install** the new artifact: **`mobile/android/app/build/outputs/apk/release/app-release.apk`**
+   - **USB + ADB (fastest for dev):** install [Android Platform Tools](https://developer.android.com/tools/releases/platform-tools), enable **Developer options** → **USB debugging** on the phone, connect USB, then from repo root:  
+     `adb install -r mobile\android\app\build\outputs\apk\release\app-release.apk`  
+     (`-r` keeps data when upgrading the same app id.)
+   - **No cable:** email/Drive/USB stick the APK to the phone, open the file, tap **Install**. You must allow installs from that source (e.g. **Chrome** / **Files** / **My Files** → **Install unknown apps** on Android 8+; wording varies by OEM).
+   - If Android blocks the install, open **Settings → Security** (or **Apps → Special access**) and allow **Install unknown apps** for the app you used to open the APK.
+
+Pushing to Git **does not** update an already-installed APK; you need a **new build** and install step for each release you sideload.
+
 ## Signing (Play Store vs internal)
 
 ### Option A — Play upload keystore (production)
@@ -88,6 +103,10 @@ gradlew.bat assembleRelease
 ```
 
 Use the same **`SENTRY_*`** env vars as `mobile/package.json` `build:local:android:*` scripts if Sentry blocks the build.
+
+### Windows: `The filename, directory name, or volume label syntax is incorrect`
+
+Usually a bad **`cmd /c`** command line (quoting or a path ending in `\` before `"`). **`gradle-android.mjs`** normalizes paths for **`cd /d`** and avoids **`cmd /s`** for this reason. Pull the latest **`mobile/scripts/gradle-android.mjs`**, or run **`gradlew.bat`** manually from **`mobile/android`** as in the errno 3 section above.
 
 ## Sentry / Gradle
 
