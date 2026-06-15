@@ -5,7 +5,7 @@ Read-only MG companion app (iOS / Android) for the ops-dashboard platform.
 ## Tabs
 
 - **Home** — ERP dashboard cards (margins, fixing, bank, cash flow, expenses, volume, AP/AR, chat preview, alerts). Live Gold / Silver / Platinum spot prices are shown in the **tab header** (same `/metal-rates/live` API as the web MG dashboard, MT4-backed when the bridge feed is fresh).
-- **ERP** — module hub (expand in future updates)
+- **ERP** — **ERP Reports** (trial balance, P&L, balance sheet, day book, outstanding, forex, ledger drilldown); same `/api/erp-accounting/reports/*` APIs as web. Automated checks: `npm test` in `mobile/` (permissions + path regression tests). Backend smoke: `node backend/scripts/smoke-erp-api.js` with `SMOKE_LOGIN_COMPANY=mg` (or your tenant) exercises the same report GETs after login.
 - **+** — quick actions placeholder (coming soon modal)
 - **Chat** — team chat (DMs, groups, send messages, @mentions, create group)
 - **Settings** — profile & sign out
@@ -27,6 +27,16 @@ EXPO_PUBLIC_API_URL=http://10.0.2.2:5000
 For Android emulator, `10.0.2.2` maps to host `localhost:5000`. For physical device, use your PC LAN IP.
 
 Production default: `https://api.loopcstrategies.com`
+
+### Avoiding EAS billing and queues (recommended)
+
+**Local Metro** (`npm start` / `npm run dev:mobile`) and **Expo Go** do **not** use EAS Build or EAS Update — Metro runs on your PC. Expo cloud charges and queues apply to **`eas build`**, **`eas update`**, and **`eas submit`** only.
+
+- **Dev (no EAS):** `npm run dev:mobile` or `cd mobile && npm start`, then Expo Go or `a` / `i` in the terminal; or `npx expo run:android` for a local dev binary.
+- **Ship Android (no EAS):** `npm run mobile:build:android:local:bundle` / `local:apk` and upload to Play or sideload (see **[../docs/MOBILE-ANDROID-LOCAL-BUILD.md](../docs/MOBILE-ANDROID-LOCAL-BUILD.md)**).
+- **Do not run** `eas build`, `eas update`, or `eas submit` unless you intentionally want Expo cloud.
+
+Full rationale and optional “strip OTA” refactor notes: **[../docs/MOBILE-NO-EAS.md](../docs/MOBILE-NO-EAS.md)**.
 
 ### Native `android/` and `ios/` in Git
 
@@ -56,6 +66,18 @@ Set `EXPO_PUBLIC_SENTRY_DSN` in EAS environment variables (and optionally `EXPO_
 
 ## Checks
 
+**Recommended (one command — pass = exit code 0, fail = non‑zero):**
+
+```bash
+npm run check
+```
+
+Same as `npm run typecheck` then `npm run test` in sequence.
+
+From repo root: `npm run check:mobile`
+
+Or run separately:
+
 ```bash
 npm run typecheck
 npm test
@@ -83,14 +105,14 @@ Scan the QR code with Expo Go, or press `a` for Android emulator.
 
 | Workflow | When to use |
 |----------|-------------|
-| `npm run dev:mobile` | Daily development: Metro + Expo Go or emulator (`a` / `i` in terminal) |
-| **`npm run mobile:build:android:local:bundle`** | **Play Store AAB** from local Gradle (no EAS). See **[../docs/MOBILE-ANDROID-LOCAL-BUILD.md](../docs/MOBILE-ANDROID-LOCAL-BUILD.md)**. |
-| **`npm run mobile:build:android:local:apk`** | **Release APK** for sideload / internal testing (no EAS). |
-| `npx expo run:android` (from `mobile/`) | Install a **development** binary on device/emulator (not Expo Go); uses bundled native project. |
-| `npm run mobile:build:android:preview` | Optional: EAS cloud preview APK (needs `eas login` / CI token). |
-| `npm run mobile:update:preview` | OTA JS update to installs that use EAS Update **preview** channel (requires EAS-configured client). |
+| `npm run dev:mobile` | **Recommended daily dev (no EAS):** Metro on your machine + Expo Go or emulator (`a` / `i`). |
+| **`npm run mobile:build:android:local:bundle`** | **Recommended Play AAB (no EAS):** local Gradle. See **[../docs/MOBILE-ANDROID-LOCAL-BUILD.md](../docs/MOBILE-ANDROID-LOCAL-BUILD.md)**. |
+| **`npm run mobile:build:android:local:apk`** | **Recommended release APK (no EAS):** sideload / internal testing. |
+| `npx expo run:android` (from `mobile/`) | **No EAS:** local dev binary + Metro; use when Expo Go is not enough. |
+| `npm run mobile:build:android:preview` | **Expo cloud:** preview APK — queue/billing per your Expo plan; needs `eas login`. |
+| `npm run mobile:update:preview` | **Expo cloud:** EAS Update OTA to preview channel — uses EAS Update, not local dev. |
 
-After an **EAS** preview build with `expo-updates`, `npm run mobile:update:preview` can ship JS-only changes without rebuilding the APK. **Local AAB/APK** builds do not use EAS unless you also configure OTA separately.
+After an **EAS** preview build with `expo-updates`, `npm run mobile:update:preview` can ship JS-only changes without rebuilding the APK. For a **no-EAS** workflow, ship a **new local APK/AAB** instead; see **[../docs/MOBILE-NO-EAS.md](../docs/MOBILE-NO-EAS.md)**.
 
 ## iOS: device vs Simulator (EAS)
 
@@ -123,7 +145,7 @@ npm run mobile:build:android:local:bundle   # AAB for Play Store
 npm run mobile:build:android:local:apk      # APK for sideload
 ```
 
-If **Windows** fails with **path longer than 260 characters**, use `mobile/scripts/Enable-WindowsLongPaths.ps1` (Admin) and reboot, or build the AAB in GitHub Actions: workflow **Mobile Android bundle (local Gradle)** (`.github/workflows/mobile-android-bundle.yml`, **Run workflow**).
+If **Windows** fails with **path longer than 260 characters**, use `mobile/scripts/Enable-WindowsLongPaths.ps1` (Admin) and reboot, run **[`scripts/build-mobile-apk-subst-q.cmd`](../scripts/build-mobile-apk-subst-q.cmd)** (maps `Q:` and builds APK), or build the AAB in GitHub Actions: workflow **Mobile Android bundle (local Gradle)** (`.github/workflows/mobile-android-bundle.yml`, **Run workflow**).
 
 ## Build (optional — EAS cloud)
 

@@ -60,6 +60,89 @@ async function expectOkJson(url, sessionCookie, label) {
   return data
 }
 
+/** Same GETs the MG mobile ERP Reports tab uses (see mobile/src/api/erpReports.ts). */
+async function smokeMobileErpReportEndpoints(sessionCookie) {
+  const end = new Date()
+  const start = new Date()
+  start.setMonth(start.getMonth() - 3)
+  const startDate = start.toISOString().slice(0, 10)
+  const endDate = end.toISOString().slice(0, 10)
+
+  const trialQs = new URLSearchParams({
+    startDate,
+    endDate,
+    includeZero: 'false',
+    sortBy: 'accountCode',
+    sortDir: 'asc',
+  })
+  await expectOkJson(
+    `${BASE_URL}/api/erp-accounting/reports/trial-balance?${trialQs.toString()}`,
+    sessionCookie,
+    'Report trial-balance',
+  )
+
+  const plQs = new URLSearchParams({
+    startDate,
+    endDate,
+    includeZero: 'false',
+    comparePrevious: 'true',
+  })
+  await expectOkJson(
+    `${BASE_URL}/api/erp-accounting/reports/profit-loss?${plQs.toString()}`,
+    sessionCookie,
+    'Report profit-loss',
+  )
+
+  const bsQs = new URLSearchParams({ endDate })
+  await expectOkJson(
+    `${BASE_URL}/api/erp-accounting/reports/balance-sheet?${bsQs.toString()}`,
+    sessionCookie,
+    'Report balance-sheet',
+  )
+
+  const dayQs = new URLSearchParams({ startDate, endDate })
+  await expectOkJson(
+    `${BASE_URL}/api/erp-accounting/reports/day-book?${dayQs.toString()}`,
+    sessionCookie,
+    'Report day-book',
+  )
+
+  await expectOkJson(
+    `${BASE_URL}/api/erp-accounting/reports/customer-outstanding`,
+    sessionCookie,
+    'Report customer-outstanding',
+  )
+  await expectOkJson(
+    `${BASE_URL}/api/erp-accounting/reports/vendor-outstanding`,
+    sessionCookie,
+    'Report vendor-outstanding',
+  )
+
+  const forexQs = new URLSearchParams({ startDate, endDate })
+  await expectOkJson(
+    `${BASE_URL}/api/erp-accounting/reports/forex-gain-loss?${forexQs.toString()}`,
+    sessionCookie,
+    'Report forex-gain-loss',
+  )
+
+  const accountsData = await expectOkJson(
+    `${BASE_URL}/api/erp-accounting/accounts?page=1&limit=5`,
+    sessionCookie,
+    'Accounts list (ledger picker)',
+  )
+  const firstId = accountsData?.accounts?.[0]?._id
+  if (!firstId) {
+    console.warn('Step: report ledger — SKIP (no accounts in tenant)')
+    return
+  }
+  const ledgerQs = new URLSearchParams({ accountId: String(firstId), startDate, endDate })
+  await expectOkJson(
+    `${BASE_URL}/api/erp-accounting/reports/ledger?${ledgerQs.toString()}`,
+    sessionCookie,
+    'Report ledger',
+  )
+}
+
 async function fetchLedger(sessionCookie) {
   const params = new URLSearchParams({
     department: FILTER_DEPARTMENT,
@@ -78,7 +161,9 @@ async function run() {
   console.log(`ERP smoke test -> ${BASE_URL}`)
   console.log(`Login tenant/user: ${LOGIN_COMPANY}/${LOGIN_NAME}`)
   console.log(`Ledger filter: department=${FILTER_DEPARTMENT}, referenceType=${FILTER_REFERENCE_TYPE}, limit=${FILTER_LIMIT}`)
-  console.log('Optional env overrides: SMOKE_API_BASE_URL, SMOKE_LOGIN_COMPANY, SMOKE_LOGIN_NAME, SMOKE_LOGIN_PASSWORD, SMOKE_DEFAULT_NAME, SMOKE_DEFAULT_PASSWORD, SMOKE_LEDGER_DEPARTMENT, SMOKE_LEDGER_REFERENCE_TYPE, SMOKE_LEDGER_LIMIT')
+  console.log(
+    'Optional env overrides: SMOKE_API_BASE_URL, SMOKE_LOGIN_COMPANY (use mg for MG tenant), SMOKE_LOGIN_NAME, SMOKE_LOGIN_PASSWORD, SMOKE_DEFAULT_NAME, SMOKE_DEFAULT_PASSWORD, SMOKE_LEDGER_DEPARTMENT, SMOKE_LEDGER_REFERENCE_TYPE, SMOKE_LEDGER_LIMIT',
+  )
 
   const sessionCookie = await login()
   console.log('Step: session / login — OK')
@@ -95,6 +180,9 @@ async function run() {
 
   await expectOkJson(`${BASE_URL}/api/erp-accounting/reports/dashboard`, sessionCookie, 'Dashboard report')
   console.log('Step: dashboard report — OK')
+
+  await smokeMobileErpReportEndpoints(sessionCookie)
+  console.log('Step: mobile ERP Reports tab API surface — OK')
 
   await expectOkJson(`${BASE_URL}/api/erp-accounting/currencies/metal-rates`, sessionCookie, 'Metal rates')
   console.log('Step: metal rates — OK')

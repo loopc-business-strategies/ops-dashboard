@@ -2,6 +2,8 @@
 
 Use this path when you want **Play-ready AAB** or **sideload APK** from your own machine or CI **without Expo Application Services (EAS)**. The app stays an **Expo SDK** project; only the **cloud build / submit** step is skipped.
 
+For **local Metro / Expo Go** (also no EAS) vs **EAS Build / Update** billing, see **[MOBILE-NO-EAS.md](./MOBILE-NO-EAS.md)**.
+
 ## Prerequisites
 
 - **Node** (match repo; see root `.nvmrc` and `docs/WINDOWS-DEV.md`).
@@ -73,7 +75,7 @@ Release builds compile native codegen under `android/app/.cxx/...` with paths th
    `mobile/scripts/Enable-WindowsLongPaths.ps1`  
    Then **reboot**. Or apply the policy manually: [Maximum Path Length Limitation](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation).
 2. **Clone the repo to a short path**, for example `C:\\src\\ops-dashboard`, then run the same Gradle commands from `mobile/`.
-3. **`SUBST` a drive letter** (often works without admin or reboot): `subst Q: C:\\full\\path\\to\\ops-dashboard`, open a new shell, `cd Q:\\`, then run `npm run mobile:build:android:local:bundle` from the repo root so native build paths stay under `Q:\\...`. Remove the mapping with `subst Q: /d` when finished.
+3. **`SUBST` a drive letter** (often works without admin or reboot): `subst Q: C:\\full\\path\\to\\ops-dashboard`, open a new shell, `cd Q:\\`, then run `npm run mobile:build:android:local:bundle` from the repo root so native build paths stay under `Q:\\...`. Remove the mapping with `subst Q: /d` when finished. **One-shot helper (Windows):** run **[`scripts/build-mobile-apk-subst-q.cmd`](../scripts/build-mobile-apk-subst-q.cmd)** from Explorer or `cmd` (maps `Q:`, runs `npm run mobile:build:android:local:apk`, removes `Q:`).
 4. **Build on Linux CI:** run workflow **[Mobile Android bundle (local Gradle)](../../.github/workflows/mobile-android-bundle.yml)** in GitHub (**Actions** tab, **Run workflow**). When it finishes, download the **mg-ops-android-release-aab** artifact (debug-signed release keystore unless you add CI secrets for `keystore.properties` later).
 
 ## Sentry / Gradle

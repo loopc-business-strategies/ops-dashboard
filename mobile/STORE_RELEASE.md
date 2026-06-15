@@ -1,5 +1,7 @@
 # MG Ops Mobile — App Store & Play Store
 
+Default **no-EAS** workflow (local Metro, local Gradle, no `eas update` billing): **[../docs/MOBILE-NO-EAS.md](../docs/MOBILE-NO-EAS.md)**.
+
 ## Android without EAS (recommended first)
 
 For **local Gradle AAB/APK** (no Expo cloud build billing), use **[../docs/MOBILE-ANDROID-LOCAL-BUILD.md](../docs/MOBILE-ANDROID-LOCAL-BUILD.md)** and from repo root:

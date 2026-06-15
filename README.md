@@ -6,6 +6,7 @@ Multi-tenant operations and ERP platform for mg, cg, and loopc companies.
 - Main deployment checklist: `DEPLOYMENT-CHECKLIST.md`
 - **Incident runbook (one page):** `docs/INCIDENT-RUNBOOK.md`
 - **Staging (Railway + Vercel + EAS parity):** `docs/STAGING-ENVIRONMENT.md`
+- **MG mobile without EAS (local dev + local Android builds):** `docs/MOBILE-NO-EAS.md`
 - **Optional Sentry:** `docs/OBSERVABILITY-SENTRY.md`
 - ERP API guide (accounting vs operations): `docs/ERP-API-GUIDE.md`
 - Release/version policy: `RELEASE-VERSIONING-POLICY.md`

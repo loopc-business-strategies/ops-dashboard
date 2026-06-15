@@ -36,6 +36,7 @@
     "vitest": "^4.1.6"
   },
   "scripts": {
+    "check": "npm run typecheck && npm run test",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "start": "expo start",

@@ -20,6 +20,7 @@
     "mobile:build:ios": "npm --prefix mobile run build:production:ios",
     "typecheck:mobile": "npm --prefix mobile run typecheck",
     "test:mobile": "npm --prefix mobile run test",
+    "check:mobile": "npm --prefix mobile run check",
     "mobile:update:preview": "npm --prefix mobile run update:preview",
     "mobile:update:production": "npm --prefix mobile run update:production",
     "lint": "npm run check:tracked-paths && npm run check:destructive-guards && npm run check:risk-guardrails && npm run check:vercel-rewrites && npm run lint:eslint:ci && npm run lint:eslint:hooks-order && npm run lint:eslint:finance-ops && npm run lint:eslint:extended-tabs && npm run lint:eslint:erp-shell-tabs && npm run lint:eslint:repo",
