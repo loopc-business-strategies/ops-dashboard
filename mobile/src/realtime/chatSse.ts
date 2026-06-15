@@ -1,3 +1,4 @@
+import { Platform } from 'react-native'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 import { API_URL, TENANT } from '@/src/config/tenant'
 
@@ -9,11 +10,19 @@ const trimApiBase = (value: string) =>
 /**
  * Subscribe to tenant-scoped SSE from GET /api/realtime/events (same bus as web ChatTab).
  * Uses Bearer auth — required for mobile (no session cookies).
+ *
+ * **React Native / Expo Go:** `@microsoft/fetch-event-source` registers `document` visibility
+ * listeners and touches `window` in ways that **throw** when `document` is undefined. On iOS
+ * and Android we skip SSE here; `ChatContext` still polls on an interval. Web keeps live SSE.
  */
 export function startChatMessageEvents(
   token: string,
   onMessageCreated: () => void,
 ): () => void {
+  if (Platform.OS !== 'web') {
+    return () => {}
+  }
+
   const base = trimApiBase(API_URL)
   const url = `${base}/api/realtime/events`
   const ac = new AbortController()

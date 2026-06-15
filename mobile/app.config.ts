@@ -1,9 +1,12 @@
 import type { ExpoConfig } from 'expo/config'
 
+/** Keep in sync with `version`. Bare workflow requires a string `runtimeVersion`, not `{ policy: ... }`. */
+const APP_VERSION = '1.0.0'
+
 const config: ExpoConfig = {
   name: 'MG Ops',
   slug: 'mg-ops-mobile',
-  version: '1.0.0',
+  version: APP_VERSION,
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   scheme: 'mgops',
@@ -45,9 +48,8 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
   },
-  runtimeVersion: {
-    policy: 'appVersion',
-  },
+  /** Required for bare / prebuild (`android/` in repo). Bump when shipping incompatible native or OTA changes. */
+  runtimeVersion: APP_VERSION,
   updates: {
     url: 'https://u.expo.dev/3fe355ea-49d0-480f-a0c1-33432daa0e63',
   },
