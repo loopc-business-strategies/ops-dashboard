@@ -7,7 +7,7 @@ Read-only MG companion app (iOS / Android) for the ops-dashboard platform.
 ## Tabs
 
 - **Home** — ERP dashboard cards (margins, fixing, bank, cash flow, expenses, volume, AP/AR, chat preview, alerts). Live Gold / Silver / Platinum spot prices are shown in the **tab header** (same `/metal-rates/live` API as the web MG dashboard, MT4-backed when the bridge feed is fresh).
-- **ERP** — **ERP Reports** (trial balance, P&L, balance sheet, day book, outstanding, forex, ledger drilldown); same `/api/erp-accounting/reports/*` APIs as web. Automated checks: `npm test` in `mobile/` (permissions + path regression tests). Backend smoke: `node backend/scripts/smoke-erp-api.js` with `SMOKE_LOGIN_COMPANY=mg` (or your tenant) exercises the same report GETs after login.
+- **ERP** — **ERP Reports** (trial balance, P&L, balance sheet, day book, outstanding, forex, ledger drilldown); same `/api/erp-accounting/reports/*` APIs as web. Automated checks: `npm test` in `mobile/` (permissions + path regression tests). Backend smoke: `node backend/scripts/smoke-erp-api.js` with `SMOKE_LOGIN_COMPANY=mg` (cookie session). **Mobile JWT smoke:** `npm run smoke:mobile:api` with env credentials (Bearer + `X-Client: mobile`; includes ERP GETs + chat reads + socket + push-token API).
 - **+** — quick actions placeholder (coming soon modal)
 - **Chat** — team chat (DMs, groups, send messages, @mentions, create group)
 - **Settings** — profile & sign out
@@ -78,9 +78,11 @@ Same as `npm run typecheck` then `npm run test` in sequence.
 
 From repo root: `npm run check:mobile`
 
-### Live API smoke (auth + chat read — optional)
+### Live API smoke (auth + chat + ERP + socket + push-token API — optional)
 
-Hits the same **Bearer + `X-Client: mobile`** routes the app uses. **Do not put passwords in the repo**; set env vars in your shell (or a local-only `.env` that is gitignored).
+Hits the same **Bearer + `X-Client: mobile`** routes the app uses, plus **ERP report GETs** (same surface as `backend/scripts/smoke-erp-api.js` “mobile ERP” steps, but with **JWT** instead of cookie session), a **Socket.IO** connect to **`/notifications`** (in-app feed transport), and **POST/DELETE `/api/auth/me/push-token`** with a fake Expo-shaped token (validates the API — it does **not** prove FCM/OS notifications on a device).
+
+**Still not covered:** delivery of an **OS push** to hardware (Expo + Google + user permission).
 
 **Windows PowerShell example** (replace values; never commit them):
 
@@ -92,7 +94,11 @@ $env:MOBILE_SMOKE_LOGIN_PASSWORD = "YourPassword"
 npm run smoke:mobile:api
 ```
 
+Optional: set **`SMOKE_MOBILE_SKIP_ERP=1`**, **`SMOKE_MOBILE_SKIP_SOCKET=1`**, or **`SMOKE_MOBILE_SKIP_PUSH=1`** to skip blocks (e.g. firewall blocks WebSocket).
+
 Aliases: `SMOKE_LOGIN_NAME` / `SMOKE_LOGIN_PASSWORD` / `SMOKE_DEFAULT_PASSWORD` are accepted if `MOBILE_SMOKE_*` is unset.
+
+Cookie-based ERP smoke (web session): `node backend/scripts/smoke-erp-api.js` (see `backend/scripts/SMOKE-ERP.md`).
 
 From `mobile/`: `npm run smoke:api`
 
