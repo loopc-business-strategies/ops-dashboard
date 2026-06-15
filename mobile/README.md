@@ -78,6 +78,24 @@ Same as `npm run typecheck` then `npm run test` in sequence.
 
 From repo root: `npm run check:mobile`
 
+### Live API smoke (auth + chat read — optional)
+
+Hits the same **Bearer + `X-Client: mobile`** routes the app uses. **Do not put passwords in the repo**; set env vars in your shell (or a local-only `.env` that is gitignored).
+
+**Windows PowerShell example** (replace values; never commit them):
+
+```powershell
+$env:MOBILE_SMOKE_API_URL = "https://api.loopcstrategies.com"
+$env:MOBILE_SMOKE_COMPANY = "mg"
+$env:MOBILE_SMOKE_LOGIN_NAME = "YourUser"
+$env:MOBILE_SMOKE_LOGIN_PASSWORD = "YourPassword"
+npm run smoke:mobile:api
+```
+
+Aliases: `SMOKE_LOGIN_NAME` / `SMOKE_LOGIN_PASSWORD` / `SMOKE_DEFAULT_PASSWORD` are accepted if `MOBILE_SMOKE_*` is unset.
+
+From `mobile/`: `npm run smoke:api`
+
 Or run separately:
 
 ```bash

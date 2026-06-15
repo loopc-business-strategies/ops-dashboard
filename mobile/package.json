@@ -37,6 +37,7 @@
   },
   "scripts": {
     "check": "npm run typecheck && npm run test",
+    "smoke:api": "node ./scripts/smoke-mobile-api.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "start": "expo start",
