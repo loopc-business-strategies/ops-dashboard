@@ -1,12 +1,32 @@
+import { useMemo } from 'react'
 import { SymbolView } from 'expo-symbols'
 import { Tabs, useRouter } from 'expo-router'
-import { Platform, StyleSheet } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PlusTabButton } from '@/src/components/PlusTabButton'
 import { MgTabsHeader } from '@/src/components/MgTabsHeader'
 import { mgBranding } from '@/src/config/branding'
 
+const TAB_PADDING_TOP = 8
+/** Minimum row for icons + labels (avoids clipping). */
+const TAB_INNER_HEIGHT = 48
+/** Padding above OS home indicator / Android nav bar. */
+const TAB_PADDING_ABOVE_INSET = 8
+
 export default function TabLayout() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
+
+  const tabBarStyle = useMemo(() => {
+    const paddingBottom = TAB_PADDING_ABOVE_INSET + insets.bottom
+    const height = TAB_PADDING_TOP + TAB_INNER_HEIGHT + paddingBottom
+    return {
+      backgroundColor: mgBranding.colors.tabBar,
+      borderTopColor: '#E5E7EB',
+      height,
+      paddingTop: TAB_PADDING_TOP,
+      paddingBottom,
+    }
+  }, [insets.bottom])
 
   return (
     <Tabs
@@ -21,7 +41,7 @@ export default function TabLayout() {
         headerTitleStyle: { fontWeight: '700' },
         tabBarActiveTintColor: mgBranding.colors.primary,
         tabBarInactiveTintColor: mgBranding.colors.tabInactive,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle,
       }}
     >
       <Tabs.Screen
@@ -81,13 +101,3 @@ export default function TabLayout() {
     </Tabs>
   )
 }
-
-const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: mgBranding.colors.tabBar,
-    borderTopColor: '#E5E7EB',
-    height: Platform.OS === 'ios' ? 88 : 64,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-    paddingTop: 8,
-  },
-})

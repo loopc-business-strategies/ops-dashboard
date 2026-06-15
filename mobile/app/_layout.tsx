@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { ActivityIndicator, View } from 'react-native'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { AuthProvider, useAuth } from '@/src/context/AuthContext'
 import { ChatProvider } from '@/src/context/ChatContext'
@@ -48,28 +49,30 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <AuthGate>
-        <ChatProvider>
-          <NotificationsProvider>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="login" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="chat" options={{ headerShown: false }} />
-              <Stack.Screen name="admin-settings" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="plus-modal"
-                options={{
-                  presentation: 'modal',
-                  headerShown: true,
-                  title: 'Quick actions',
-                }}
-              />
-            </Stack>
-          </NotificationsProvider>
-        </ChatProvider>
-      </AuthGate>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <AuthGate>
+          <ChatProvider>
+            <NotificationsProvider>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="login" />
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="chat" options={{ headerShown: false }} />
+                <Stack.Screen name="admin-settings" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="plus-modal"
+                  options={{
+                    presentation: 'modal',
+                    headerShown: true,
+                    title: 'Quick actions',
+                  }}
+                />
+              </Stack>
+            </NotificationsProvider>
+          </ChatProvider>
+        </AuthGate>
+      </AuthProvider>
+    </SafeAreaProvider>
   )
 }

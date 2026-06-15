@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native'
 import { Stack, useLocalSearchParams } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as DocumentPicker from 'expo-document-picker'
 import * as ImagePicker from 'expo-image-picker'
 import { attachmentRequestUrl, getAuthToken } from '@/src/api/client'
@@ -58,6 +59,7 @@ function AttachmentBubble({ attachment, mine }: { attachment: ChatAttachment; mi
 }
 
 export default function ConversationScreen() {
+  const insets = useSafeAreaInsets()
   const { chatId: rawChatId } = useLocalSearchParams<{ chatId: string }>()
   const chatId = decodeURIComponent(String(rawChatId || ''))
   const { user } = useAuth()
@@ -184,7 +186,7 @@ export default function ConversationScreen() {
 
         {sendError ? <Text style={styles.error}>{sendError}</Text> : null}
 
-        <View style={styles.compose}>
+        <View style={[styles.compose, { paddingBottom: 12 + insets.bottom }]}>
           <Pressable style={styles.attachBtn} onPress={pickImage} disabled={sending}>
             <Text style={styles.attachBtnText}>📷</Text>
           </Pressable>
@@ -245,7 +247,9 @@ const styles = StyleSheet.create({
   compose: {
     flexDirection: 'row',
     gap: 8,
-    padding: 12,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
     backgroundColor: '#fff',
