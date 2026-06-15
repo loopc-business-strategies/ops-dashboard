@@ -11,7 +11,13 @@ import path from 'node:path'
 import process from 'node:process'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const androidDir = path.resolve(__dirname, '..', 'android')
+// SUBST (e.g. Q:\) shortens native compile paths, but Gradle's JVM often cannot use a SUBST
+// path as cwd (errno 3). build-mobile-apk-subst-q.cmd sets OPS_DASHBOARD_REPO_ROOT to the
+// real disk path so we cd to C:\...\mobile\android for gradlew while npm still runs from Q:\.
+const repoRoot = process.env.OPS_DASHBOARD_REPO_ROOT
+const androidDir = repoRoot
+  ? path.resolve(repoRoot, 'mobile', 'android')
+  : path.resolve(__dirname, '..', 'android')
 const task = process.argv[2] || 'bundleRelease'
 
 const isWin = process.platform === 'win32'

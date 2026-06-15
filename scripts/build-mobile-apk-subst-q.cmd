@@ -37,6 +37,10 @@ if not exist "mobile\android\gradlew.bat" (
 echo OK: Q:\mobile\android exists
 dir "mobile\android\gradlew.bat"
 
+REM Gradle's JVM often cannot chdir to a SUBST drive (errno 3) even when cmd can.
+REM Pass the real repo path so mobile/scripts/gradle-android.mjs cds to C:\...\mobile\android.
+set "OPS_DASHBOARD_REPO_ROOT=%REPO%"
+
 echo.
 echo Running: npm run mobile:build:android:local:apk
 echo.
