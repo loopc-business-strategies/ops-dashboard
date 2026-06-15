@@ -60,6 +60,29 @@ npx expo prebuild --clean --platform android
 
 Then open the project in Android Studio or run `npx expo run:android`. Omit `--clean` for a lighter sync if you intentionally keep local Gradle tweaks (not recommended long-term).
 
+### Git: what is tracked under `mobile/`
+
+**All source and config that should be in the repo** is already tracked when you `git add mobile/` from the repo root — Git only skips paths listed in **[`.gitignore`](.gitignore)** (root), **[`mobile/.gitignore`](.gitignore)** and **[`mobile/android/.gitignore`](android/.gitignore)**.
+
+**Intentionally not in Git** (do not remove these ignores — they keep the repo small and safe):
+
+| Path / pattern | Why |
+|----------------|-----|
+| **`mobile/node_modules/`** | Reinstall with `npm install`; huge and machine-specific |
+| **`mobile/.expo/`**, **`dist/`**, **`web-build/`** | Local / web build cache |
+| **`mobile/android/app/build/`**, **`mobile/android/.gradle/`**, **`mobile/android/app/.cxx/`** | Gradle / CMake outputs; regenerated every build |
+| **`mobile/android/local.properties`**, **`keystore.properties`** | SDK path on your PC; signing secrets |
+| **`.env*.local`** | Secrets |
+
+To stage **every trackable file** under mobile (after you add new source):
+
+```bash
+git add mobile/
+git status mobile
+```
+
+To see why a path is ignored: `git check-ignore -v mobile/<path>`.
+
 ### Optional: Sentry
 
 Set `EXPO_PUBLIC_SENTRY_DSN` in EAS environment variables (and optionally `EXPO_PUBLIC_SENTRY_ENVIRONMENT`, `EXPO_PUBLIC_SENTRY_RELEASE`, `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`). Init runs from `src/lib/sentryInit.ts` when the app loads. See repo `docs/OBSERVABILITY-SENTRY.md`. Native changes may require a new EAS build after upgrading `@sentry/react-native`.
