@@ -1,8 +1,10 @@
 @echo off
 setlocal EnableExtensions
-REM Builds MG Ops Android release APK from a short SUBST path (avoids Windows MAX_PATH in native codegen).
+REM Builds MG Ops Android release APK: SUBST Q: for short npm cwd + junction C:\mgops-m -> repo\mobile
+REM so Gradle/Ninja use C:\mgops-m\android (short path on real C:, avoids errno 3 on Q: and MAX_PATH on Desktop).
 REM Run from Explorer double-click, or:  scripts\build-mobile-apk-subst-q.cmd
-REM Requires: same Admin vs non-Admin session for subst; Node/npm on PATH.
+REM Requires: same Admin vs non-Admin session for subst; mklink /J usually needs Administrator once.
+REM Do not use C:\mgops-m for anything else while this script runs (it is removed at the end).
 
 pushd "%~dp0.." || exit /b 1
 set "REPO=%CD%"
@@ -37,9 +39,24 @@ if not exist "mobile\android\gradlew.bat" (
 echo OK: Q:\mobile\android exists
 dir "mobile\android\gradlew.bat"
 
-REM Gradle's JVM often cannot chdir to a SUBST drive (errno 3) even when cmd can.
-REM Pass the real repo path so mobile/scripts/gradle-android.mjs cds to C:\...\mobile\android.
-set "OPS_DASHBOARD_REPO_ROOT=%REPO%"
+set "MOBILE_JUNC=C:\mgops-m"
+set "MOBILE_JUNC_CREATED="
+if exist "%MOBILE_JUNC%" (
+  echo Removing stale junction %MOBILE_JUNC% ...
+  rmdir "%MOBILE_JUNC%" 2>nul
+)
+echo Creating junction %MOBILE_JUNC% -^> "%REPO%\mobile"
+mklink /J "%MOBILE_JUNC%" "%REPO%\mobile"
+if errorlevel 1 (
+  echo WARNING: mklink /J failed. Gradle will use full repo path — enable Windows long paths if Ninja reports MAX_PATH.
+  set "OPS_MOBILE_JUNCTION_ROOT="
+  set "OPS_DASHBOARD_REPO_ROOT=%REPO%"
+) else (
+  set "MOBILE_JUNC_CREATED=1"
+  set "OPS_MOBILE_JUNCTION_ROOT=%MOBILE_JUNC%"
+  set "OPS_DASHBOARD_REPO_ROOT="
+  echo OK: Gradle will run from %MOBILE_JUNC%\android ^(short path^).
+)
 
 echo.
 echo Running: npm run mobile:build:android:local:apk
@@ -48,6 +65,12 @@ call npm run mobile:build:android:local:apk
 set "ERR=%ERRORLEVEL%"
 
 cd /d "%REPO%"
+if "%MOBILE_JUNC_CREATED%"=="1" (
+  if exist "%MOBILE_JUNC%" (
+    echo Removing junction %MOBILE_JUNC% ...
+    rmdir "%MOBILE_JUNC%"
+  )
+)
 echo Removing Q: mapping...
 subst Q: /d >nul 2>&1
 

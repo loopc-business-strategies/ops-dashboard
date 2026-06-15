@@ -11,13 +11,17 @@ import path from 'node:path'
 import process from 'node:process'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-// SUBST (e.g. Q:\) shortens native compile paths, but Gradle's JVM often cannot use a SUBST
-// path as cwd (errno 3). build-mobile-apk-subst-q.cmd sets OPS_DASHBOARD_REPO_ROOT to the
-// real disk path so we cd to C:\...\mobile\android for gradlew while npm still runs from Q:\.
+// Windows SUBST (Q:\) is great for npm cwd but Gradle's JVM often errno 3 on Q:\ paths.
+// Using the real Desktop path fixes errno 3 but Ninja hits MAX_PATH. build-mobile-apk-subst-q.cmd
+// creates a short junction (e.g. C:\mgops-m -> ...\mobile) and sets OPS_MOBILE_JUNCTION_ROOT
+// so Gradle + native codegen see short paths on a normal drive letter.
+const mobileJunction = process.env.OPS_MOBILE_JUNCTION_ROOT
 const repoRoot = process.env.OPS_DASHBOARD_REPO_ROOT
-const androidDir = repoRoot
-  ? path.resolve(repoRoot, 'mobile', 'android')
-  : path.resolve(__dirname, '..', 'android')
+const androidDir = mobileJunction
+  ? path.resolve(mobileJunction, 'android')
+  : repoRoot
+    ? path.resolve(repoRoot, 'mobile', 'android')
+    : path.resolve(__dirname, '..', 'android')
 const task = process.argv[2] || 'bundleRelease'
 
 const isWin = process.platform === 'win32'
