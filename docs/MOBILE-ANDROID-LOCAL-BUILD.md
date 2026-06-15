@@ -75,8 +75,19 @@ Release builds compile native codegen under `android/app/.cxx/...` with paths th
    `mobile/scripts/Enable-WindowsLongPaths.ps1`  
    Then **reboot**. Or apply the policy manually: [Maximum Path Length Limitation](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation).
 2. **Clone the repo to a short path**, for example `C:\\src\\ops-dashboard`, then run the same Gradle commands from `mobile/`.
-3. **`SUBST` a drive letter** (often works without admin or reboot): `subst Q: C:\\full\\path\\to\\ops-dashboard`, open a new shell, `cd Q:\\`, then run `npm run mobile:build:android:local:bundle` from the repo root so native build paths stay under `Q:\\...`. Remove the mapping with `subst Q: /d` when finished. **One-shot helper (Windows):** run **[`scripts/build-mobile-apk-subst-q.cmd`](../scripts/build-mobile-apk-subst-q.cmd)** from Explorer or `cmd` (maps `Q:`, runs `npm run mobile:build:android:local:apk`, removes `Q:`).
+3. **`SUBST` a drive letter** (often works without admin or reboot): `subst Q: C:\\full\\path\\to\\ops-dashboard`, open a new shell, `cd Q:\\`, then run `npm run mobile:build:android:local:bundle` from the repo root so native build paths stay under `Q:\\...`. Remove the mapping with `subst Q: /d` when finished. **One-shot helper (Windows):** run **[`scripts/build-mobile-apk-subst-q.cmd`](../scripts/build-mobile-apk-subst-q.cmd)** from Explorer or `cmd` (maps `Q:`, runs `npm run mobile:build:android:local:apk`, removes `Q:`). The Gradle helper **[`mobile/scripts/gradle-android.mjs`](../mobile/scripts/gradle-android.mjs)** runs **`cmd /c "cd /d … && gradlew.bat …"`** so Node never sets **`spawn` `cwd`** to a `SUBST` path (Windows **CreateProcess** can return **errno 3** for that even when **`dir`** / **`cd`** in cmd succeed).
 4. **Build on Linux CI:** run workflow **[Mobile Android bundle (local Gradle)](../../.github/workflows/mobile-android-bundle.yml)** in GitHub (**Actions** tab, **Run workflow**). When it finishes, download the **mg-ops-android-release-aab** artifact (debug-signed release keystore unless you add CI secrets for `keystore.properties` later).
+
+### Windows: `Could not set process working directory to 'Q:\\mobile\\android'` (errno 3)
+
+That message comes from **Node** (or another launcher) failing to apply **`cwd`** on a `SUBST` drive. **`gradle-android.mjs`** avoids **`cwd`** on Windows and uses **`cd /d`** inside **`cmd.exe`** instead. If you still see it, update this repo and retry, or from **`cmd`** run manually:
+
+```bat
+cd /d Q:\mobile\android
+gradlew.bat assembleRelease
+```
+
+Use the same **`SENTRY_*`** env vars as `mobile/package.json` `build:local:android:*` scripts if Sentry blocks the build.
 
 ## Sentry / Gradle
 

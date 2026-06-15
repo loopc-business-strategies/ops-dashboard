@@ -13,7 +13,6 @@ const androidDir = path.resolve(__dirname, '..', 'android')
 const task = process.argv[2] || 'bundleRelease'
 
 const isWin = process.platform === 'win32'
-const cmd = isWin ? 'gradlew.bat' : './gradlew'
 // Match eas.json: release builds succeed without Sentry org/token unless caller opts in.
 const env = { ...process.env }
 if (env.SENTRY_DISABLE_AUTO_UPLOAD === undefined) {
@@ -22,12 +21,27 @@ if (env.SENTRY_DISABLE_AUTO_UPLOAD === undefined) {
 if (env.SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD === undefined) {
   env.SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD = 'true'
 }
-const result = spawnSync(cmd, [task], {
-  cwd: androidDir,
-  stdio: 'inherit',
-  shell: isWin,
-  env,
-})
+
+// Windows: do not pass `cwd: androidDir` to spawnSync. CreateProcess can fail with errno 3
+// for SUBST/virtual drive paths (e.g. Q:\...) even when `dir` and `cd` in cmd work fine.
+// Let cmd.exe change directory inside the /c string instead.
+const winQuoteCmdPath = (p) => p.replace(/"/g, '""')
+const result = isWin
+  ? spawnSync(
+      'cmd.exe',
+      [
+        '/d',
+        '/s',
+        '/c',
+        `cd /d "${winQuoteCmdPath(androidDir)}" && call gradlew.bat ${task}`,
+      ],
+      { stdio: 'inherit', env },
+    )
+  : spawnSync('./gradlew', [task], {
+      cwd: androidDir,
+      stdio: 'inherit',
+      env,
+    })
 
 const code = result.status === null ? 1 : result.status
 if (code !== 0) {

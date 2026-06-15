@@ -15,7 +15,7 @@ if not exist "%REPO%\mobile\android\gradlew.bat" (
 
 echo Repo: %REPO%
 echo Removing old Q: mapping if present...
-subst Q: /d 2>nul
+subst Q: /d >nul 2>&1
 echo Mapping Q: -^> %REPO%
 subst Q: "%REPO%"
 if errorlevel 1 (
@@ -29,7 +29,7 @@ cd /d Q:\
 if not exist "mobile\android\gradlew.bat" (
   echo ERROR: Q:\mobile\android not visible. Check subst output above.
   cd /d "%REPO%"
-  subst Q: /d 2>nul
+  subst Q: /d >nul 2>&1
   popd
   exit /b 1
 )
@@ -45,7 +45,7 @@ set "ERR=%ERRORLEVEL%"
 
 cd /d "%REPO%"
 echo Removing Q: mapping...
-subst Q: /d 2>nul
+subst Q: /d >nul 2>&1
 
 echo.
 echo APK ^(if build succeeded^):
