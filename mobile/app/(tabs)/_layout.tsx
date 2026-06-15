@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+﻿import { useMemo } from 'react'
 import { SymbolView } from 'expo-symbols'
 import { Tabs, useRouter } from 'expo-router'
+import { Platform } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PlusTabButton } from '@/src/components/PlusTabButton'
 import { MgTabsHeader } from '@/src/components/MgTabsHeader'
@@ -8,16 +9,18 @@ import { mgBranding } from '@/src/config/branding'
 
 const TAB_PADDING_TOP = 8
 /** Minimum row for icons + labels (avoids clipping). */
-const TAB_INNER_HEIGHT = 48
-/** Padding above OS home indicator / Android nav bar. */
-const TAB_PADDING_ABOVE_INSET = 8
+const TAB_INNER_HEIGHT = Platform.OS === 'ios' ? 56 : 48
 
 export default function TabLayout() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
 
+  /** Edge-to-edge Android draws behind the 3-button nav bar; static paddingBottom: 8 was too small (Redmi). */
   const tabBarStyle = useMemo(() => {
-    const paddingBottom = TAB_PADDING_ABOVE_INSET + insets.bottom
+    const paddingBottom =
+      Platform.OS === 'ios'
+        ? Math.max(insets.bottom, 24)
+        : Math.max(insets.bottom, 8)
     const height = TAB_PADDING_TOP + TAB_INNER_HEIGHT + paddingBottom
     return {
       backgroundColor: mgBranding.colors.tabBar,
