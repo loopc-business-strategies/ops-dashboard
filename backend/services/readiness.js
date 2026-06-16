@@ -43,6 +43,12 @@ async function getReadinessStatus() {
     && configuredTenants.every((entry) => entry.ready === true)
   const ready = jwtSecret && mongoConnected && allTenantsReady
 
+  const expoPushAccessTokenSet = Boolean(String(process.env.EXPO_ACCESS_TOKEN || '').trim())
+  const webPushVapidKeysSet = Boolean(
+    String(process.env.WEB_PUSH_PUBLIC_KEY || '').trim()
+      && String(process.env.WEB_PUSH_PRIVATE_KEY || '').trim(),
+  )
+
   return {
     success: ready,
     ready,
@@ -50,6 +56,12 @@ async function getReadinessStatus() {
       jwtSecret,
       mongoConnected,
       tenants,
+      integrations: {
+        /** Expo server push: `expo-server-sdk` uses `EXPO_ACCESS_TOKEN` (never the secret value here). */
+        expoPushAccessTokenSet,
+        /** Browser Web Push: both VAPID env vars set on the API. */
+        webPushVapidKeysSet,
+      },
     },
     time: new Date(),
   }

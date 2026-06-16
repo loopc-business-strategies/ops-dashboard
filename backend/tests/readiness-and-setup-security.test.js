@@ -65,6 +65,8 @@ describe('readiness and setup security', () => {
     expect(res.body.checks.jwtSecret).toBe(true)
     expect(res.body.checks.mongoConnected).toBe(true)
     expect(res.body.checks.tenants.loopc.ready).toBe(true)
+    expect(res.body.checks.integrations.expoPushAccessTokenSet).toBe(false)
+    expect(res.body.checks.integrations.webPushVapidKeysSet).toBe(false)
   })
 
   test('/api/ready returns 503 when JWT secret is missing', async () => {
