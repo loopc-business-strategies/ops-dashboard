@@ -41,6 +41,8 @@ npm run build:local:android:apk
 
 These run Gradle **`bundleRelease`** / **`assembleRelease`** via `mobile/scripts/gradle-android.mjs` (works on Windows and Unix). By default the script sets **`SENTRY_DISABLE_AUTO_UPLOAD=true`** and **`SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD=true`** when those variables are unset, so local release builds do not require Sentry org credentials (same idea as `eas.json` env). To upload source maps from a local build, set those to `false` and provide `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` (see `mobile/README.md`).
 
+**Optional — fewer native ABIs (faster sideload, fewer CMake targets):** set environment variable **`OPS_REACT_NATIVE_ARCHS`** to a comma-separated list (letters, digits, commas, `_`, `-` only), for example **`arm64-v8a`** for typical physical phones. This is passed to Gradle as **`-PreactNativeArchitectures=…`**. **`scripts/build-mobile-apk-subst-q.cmd`** sets **`arm64-v8a`** automatically before **`npm run mobile:build:android:local:apk`**.
+
 ### Output locations
 
 - **AAB:** `mobile/android/app/build/outputs/bundle/release/app-release.aab`
@@ -81,6 +83,8 @@ Skip `keystore.properties` and use the release-signed-with-debug artifact for si
 ### Windows: `Filename longer than 260 characters` (Ninja / CMake)
 
 Release builds compile native codegen under `android/app/.cxx/...` with paths that can exceed the **classic Windows MAX_PATH** limit when the repo lives under a long directory (for example `C:\\Users\\...\\Desktop\\...`).
+
+**Note:** `scripts/build-mobile-apk-subst-q.cmd` uses a junction so Gradle runs from `C:\\mgops-m\\android`, but **CMake/Ninja may still resolve** headers and objects under the **real** path (`…\\OneDrive\\…\\node_modules\\…`). If you still hit MAX_PATH with that script, use **long paths** (fix 1 below) or a **short clone outside OneDrive** (fix 2).
 
 **Why not `CMAKE_OBJECT_PATH_MAX` in `app/build.gradle`?** React Native’s **autolinked Fabric codegen** runs separate CMake/Ninja graphs for libraries like `react-native-safe-area-context` and `react-native-gesture-handler`. Those graphs do **not** reliably inherit `defaultConfig.externalNativeBuild.cmake.arguments` from the app module, so Windows can still hit MAX_PATH until long paths are enabled or you build on Linux CI.
 

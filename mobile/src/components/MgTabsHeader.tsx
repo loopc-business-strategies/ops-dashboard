@@ -73,7 +73,9 @@ export function MgTabsHeader({ options, route }: TabHeaderProps) {
         </View>
         <View style={styles.sideSlot}>
           <Pressable
-            accessibilityLabel="Notifications"
+            accessibilityLabel={
+              unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications, no unread'
+            }
             onPress={() => setModalOpen(true)}
             style={({ pressed }) => [styles.bellWrap, pressed && styles.bellPressed]}
           >

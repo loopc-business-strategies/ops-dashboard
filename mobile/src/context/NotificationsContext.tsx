@@ -4,57 +4,39 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
+import { Platform } from 'react-native'
+import * as Notifications from 'expo-notifications'
 import { useAuth } from '@/src/context/AuthContext'
 import {
   startUserNotificationsSocket,
   type NotificationPayload,
 } from '@/src/realtime/notificationsSocket'
+import { mapPayloadToItem, type AppNotificationItem } from '@/src/notifications/notificationMap'
+
+export type { AppNotificationItem }
 
 const MAX_ITEMS = 50
 
-export type AppNotificationItem = {
-  id: string
-  title: string
-  message: string
-  createdAt: Date
-  read: boolean
+function normalizePushData(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  return raw as Record<string, unknown>
 }
 
-function mapPayloadToItem(payload: NotificationPayload): AppNotificationItem {
-  const data = (payload?.data || {}) as Record<string, unknown>
-  const type = String(payload?.type || '')
-  const isTxnMention = type === 'transaction_chat_mention'
-  const isChatMention = type === 'chat_mention'
-  const senderName = typeof data.senderName === 'string' ? data.senderName : ''
-  const messageText = typeof data.message === 'string' ? data.message : ''
-  const room = typeof data.room === 'string' ? data.room : ''
-  const title = isTxnMention
-    ? 'Transaction chat mention'
-    : isChatMention
-      ? 'Chat mention'
-      : type === 'chat_message'
-        ? 'Team chat'
-        : type === 'transaction_approved'
-        ? 'Voucher approved'
-        : type === 'transaction_returned'
-          ? 'Voucher returned'
-          : type === 'transaction_rejected'
-            ? 'Voucher rejected'
-            : 'New notification'
-  const message = isTxnMention || isChatMention
-    ? `${senderName || 'Someone'} mentioned you${room ? ` in ${room}` : ''}: ${messageText || ''}`
-    : messageText || type || 'Notification received'
+/** Map Expo push / response payload to the same shape as Socket.IO `notification` events. */
+function expoNotificationToPayload(n: Notifications.Notification): NotificationPayload {
+  const content = n.request?.content
+  const data = normalizePushData(content?.data)
+  const topType = String(data.type || '').trim()
+  const body = String(content?.body || '').trim()
+  const merged: Record<string, unknown> = { ...data }
+  if (body && typeof merged.message !== 'string') merged.message = body
   return {
-    id: `rt-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    title,
-    message,
-    createdAt:
-      payload?.timestamp instanceof Date
-        ? payload.timestamp
-        : new Date(payload?.timestamp ? String(payload.timestamp) : Date.now()),
-    read: false,
+    type: topType,
+    timestamp: new Date(n.date),
+    data: merged,
   }
 }
 
@@ -70,6 +52,15 @@ const NotificationsContext = createContext<NotificationsContextValue | null>(nul
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
   const { token, user } = useAuth()
   const [items, setItems] = useState<AppNotificationItem[]>([])
+  const seenPushIdsRef = useRef<Set<string>>(new Set())
+  const pushBootstrapRef = useRef(false)
+
+  const appendPayload = useCallback((payload: NotificationPayload) => {
+    setItems((prev) => {
+      const next = [mapPayloadToItem(payload), ...prev]
+      return next.slice(0, MAX_ITEMS)
+    })
+  }, [])
 
   useEffect(() => {
     if (!token || !user) {
@@ -78,14 +69,45 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     }
 
     const stop = startUserNotificationsSocket(token, (payload: NotificationPayload) => {
-      setItems((prev) => {
-        const next = [mapPayloadToItem(payload), ...prev]
-        return next.slice(0, MAX_ITEMS)
-      })
+      appendPayload(payload)
     })
 
     return stop
-  }, [token, user])
+  }, [token, user, appendPayload])
+
+  /** OS push (e.g. voucher approved) also appears in the header bell — same as web bell + badge. */
+  useEffect(() => {
+    if (!token || !user) return undefined
+
+    const ingestExpo = (n: Notifications.Notification, dedupePrefix: string) => {
+      const id = `${dedupePrefix}:${n.request.identifier}`
+      if (seenPushIdsRef.current.has(id)) return
+      seenPushIdsRef.current.add(id)
+      if (seenPushIdsRef.current.size > 120) seenPushIdsRef.current.clear()
+      appendPayload(expoNotificationToPayload(n))
+    }
+
+    const subReceived = Notifications.addNotificationReceivedListener((notification) => {
+      ingestExpo(notification, 'recv')
+    })
+
+    const subResponse = Notifications.addNotificationResponseReceivedListener((response) => {
+      ingestExpo(response.notification, 'resp')
+    })
+
+    if (Platform.OS !== 'web' && !pushBootstrapRef.current) {
+      pushBootstrapRef.current = true
+      void Notifications.getLastNotificationResponseAsync().then((response) => {
+        if (!response?.notification) return
+        ingestExpo(response.notification, 'cold')
+      })
+    }
+
+    return () => {
+      subReceived.remove()
+      subResponse.remove()
+    }
+  }, [token, user, appendPayload])
 
   const markRead = useCallback((id: string) => {
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))

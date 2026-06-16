@@ -59,6 +59,8 @@ if errorlevel 1 (
 )
 
 echo.
+REM Typical physical phones are arm64; fewer ABIs = faster build and fewer Windows/Ninja issues.
+set OPS_REACT_NATIVE_ARCHS=arm64-v8a
 echo Running: npm run mobile:build:android:local:apk
 echo.
 call npm run mobile:build:android:local:apk

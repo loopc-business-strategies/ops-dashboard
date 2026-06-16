@@ -27,12 +27,27 @@ const task = process.argv[2] || 'bundleRelease'
 const isWin = process.platform === 'win32'
 // Match eas.json: release builds succeed without Sentry org/token unless caller opts in.
 const env = { ...process.env }
+// Some tooling sets GRADLE_USER_HOME under a very long Temp path; Ninja then fails with
+// "Filename longer than 260 characters" on prefab/transform paths. Prefer ~/.gradle on Windows.
+if (
+  isWin &&
+  env.GRADLE_USER_HOME &&
+  /sandbox-cache|cursor-sandbox/i.test(env.GRADLE_USER_HOME)
+) {
+  env.GRADLE_USER_HOME = path.join(os.homedir(), '.gradle')
+}
 if (env.SENTRY_DISABLE_AUTO_UPLOAD === undefined) {
   env.SENTRY_DISABLE_AUTO_UPLOAD = 'true'
 }
 if (env.SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD === undefined) {
   env.SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD = 'true'
 }
+
+const archList = env.OPS_REACT_NATIVE_ARCHS
+const archGradleArg =
+  archList && /^[a-zA-Z0-9_,-]+$/.test(archList)
+    ? ` -PreactNativeArchitectures=${archList}`
+    : ''
 
 // Windows: (1) Do not pass `cwd: androidDir` — CreateProcess can errno 3 on SUBST drives.
 // (2) Do not pass one `cmd /c "cd ... && gradlew..."` string — Node/libuv quoting on Windows
@@ -55,7 +70,7 @@ if (isWin) {
     '@echo off',
     `cd /d "${winQuoteBat(dirNorm)}"`,
     'if errorlevel 1 exit /b 1',
-    `call gradlew.bat ${task}`,
+    `call gradlew.bat ${task}${archGradleArg}`,
     'exit /b %ERRORLEVEL%',
   ].join('\r\n')
   fs.writeFileSync(batPath, batBody, 'utf8')
@@ -69,7 +84,11 @@ if (isWin) {
     /* ignore */
   }
 } else {
-  result = spawnSync('./gradlew', [task], {
+  const args = [task]
+  if (archGradleArg) {
+    args.push(archGradleArg.trim())
+  }
+  result = spawnSync('./gradlew', args, {
     cwd: androidDir,
     stdio: 'inherit',
     env,

@@ -34,6 +34,17 @@ export async function registerExpoPushAndPost(sessionToken: string): Promise<voi
   }
   if (final !== 'granted') return
 
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'General',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#005B96',
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      sound: 'default',
+    })
+  }
+
   const projectId =
     (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId
   const tokenResponse = await Notifications.getExpoPushTokenAsync(
