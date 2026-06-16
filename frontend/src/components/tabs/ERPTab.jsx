@@ -131,7 +131,7 @@ function ERPTab({
   const { t } = useLanguage()
   const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
   const TRANSACTION_ACTION_LABELS = getTransactionActionLabels(t)
-  const { activeTab, setActiveTab } = useERPTabStateAdapter(focusTab)
+  const { activeTab, setActiveTab } = useERPTabStateAdapter(focusTab, user)
   useEffect(() => {
     const allowedTab = resolveAllowedErpSubTab(user, activeTab, focusTab || 'dashboard')
     if (allowedTab !== activeTab) {
@@ -1292,7 +1292,7 @@ function ERPTab({
     const tenantKey = user?.tenant || user?.company || 'default'
     if (isSummaryScope) {
       const cached = readSummaryAccountsCache(tenantKey)
-      if (cached?.length) {
+      if (Array.isArray(cached) && cached.length) {
         setSummaryAccounts(cached)
         setSummaryAccountsLoading(false)
       } else {
@@ -1340,7 +1340,7 @@ function ERPTab({
     const candidateCode = String(labelPrefixMatch?.[1] || cleanInput).trim()
     return candidateCode
   }
-  const groupedSummaryAccounts = useMemo(() => summaryAccounts
+  const groupedSummaryAccounts = useMemo(() => (Array.isArray(summaryAccounts) ? summaryAccounts : [])
     .slice()
     .sort((a, b) => {
       const aType = String(a.accountType || '').trim()
