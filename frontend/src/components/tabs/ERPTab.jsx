@@ -132,11 +132,14 @@ function ERPTab({
   const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
   const TRANSACTION_ACTION_LABELS = getTransactionActionLabels(t)
   const { activeTab, setActiveTab } = useERPTabStateAdapter(focusTab, user)
+  // Do not resolve (user, activeTab, focusTab): when both activeTab and focusTab are allowed,
+  // that call keeps the *old* inner tab (e.g. ledger) after the shell switches to Account Summary
+  // (enquiry), and it can fight useERPTabStateAdapter when `user` is a new object each render →
+  // max update depth / "module failed to load". Only clamp when the current inner tab is illegal.
   useEffect(() => {
-    const allowedTab = resolveAllowedErpSubTab(user, activeTab, focusTab || 'dashboard')
-    if (allowedTab !== activeTab) {
-      setActiveTab(allowedTab)
-    }
+    if (canViewErpSubTab(user, activeTab)) return
+    const fallback = resolveAllowedErpSubTab(user, focusTab || 'dashboard', 'dashboard')
+    if (fallback !== activeTab) setActiveTab(fallback)
   }, [activeTab, focusTab, user, setActiveTab])
   const canViewCurrentErpSubTab = canViewErpSubTab(user, activeTab)
   const dashStorageKey = `erp_dash_${user?.name || 'default'}`
