@@ -9,6 +9,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 import axios from '../api/client'
 import authAPI from '../api/auth'
 import { resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
+import { ensureWebPushSubscription, teardownWebPush } from '../utils/webPushRegister'
 
 const AuthContext = createContext(null)
 
@@ -105,6 +106,12 @@ export function AuthProvider({ children }) {
     }
   }, [resolvedTenant])
 
+  useEffect(() => {
+    if (!user?.id) return undefined
+    void ensureWebPushSubscription()
+    return undefined
+  }, [user?.id])
+
   const login = async (name, password, selectedCompany) => {
     const tenant = resolveTenantFromSearch(
       window.location.search,
@@ -129,6 +136,7 @@ export function AuthProvider({ children }) {
   }
 
   const logout = async () => {
+    await teardownWebPush()
     try {
       await authAPI.logout()
     } catch {

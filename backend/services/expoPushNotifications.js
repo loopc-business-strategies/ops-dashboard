@@ -104,4 +104,4 @@ async function sendExpoPushToUser(tenantKey, userId, type, data = {}) {
   }
 }
 
-module.exports = { sendExpoPushToUser, isLikelyExpoPushToken }
+module.exports = { sendExpoPushToUser, isLikelyExpoPushToken, buildCopy }

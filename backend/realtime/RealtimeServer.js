@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken')
 const User = require('../models/User')
 const { normalizeTenant, resolveTenantFromHost } = require('../config/tenants')
 const { sendExpoPushToUser } = require('../services/expoPushNotifications')
+const { sendWebPushToUser } = require('../services/webPushNotifications')
 
 function resolveSocketTenantSubscription(socket, requestedTenant) {
   const authenticatedTenant = normalizeTenant(socket?.tenant)
@@ -344,6 +345,9 @@ class RealtimeServer {
     if (tenantKey) {
       sendExpoPushToUser(tenantKey, userId, type, data).catch((err) => {
         console.warn('[expo-push] async error:', err?.message || err)
+      })
+      sendWebPushToUser(tenantKey, userId, type, data).catch((err) => {
+        console.warn('[web-push] async error:', err?.message || err)
       })
     }
   }

@@ -30,6 +30,8 @@ For Android emulator, `10.0.2.2` maps to host `localhost:5000`. For physical dev
 
 Production default: `https://api.loopcstrategies.com`
 
+**OS push (lock screen / background):** Backend must have **`EXPO_ACCESS_TOKEN`** (Expo); see **[../docs/PUSH-NOTIFICATIONS.md](../docs/PUSH-NOTIFICATIONS.md)**. Android 13+ uses the **`POST_NOTIFICATIONS`** permission in the tracked `android/` app manifest.
+
 ### Avoiding EAS billing and queues (recommended)
 
 **Local Metro** (`npm start` / `npm run dev:mobile`) and **Expo Go** do **not** use EAS Build or EAS Update — Metro runs on your PC. Expo cloud charges and queues apply to **`eas build`**, **`eas update`**, and **`eas submit`** only.

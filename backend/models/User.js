@@ -174,6 +174,21 @@ const userSchema = new mongoose.Schema(
       ],
       default: [],
     },
+
+    /** Web Push subscriptions (browser). Capped in auth routes. */
+    webPushSubscriptions: {
+      type: [
+        {
+          endpoint: { type: String, trim: true, maxlength: 2048 },
+          keys: {
+            p256dh: { type: String, trim: true, maxlength: 200 },
+            auth: { type: String, trim: true, maxlength: 200 },
+          },
+          updatedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
   },
   {
     timestamps: true, // auto-adds createdAt and updatedAt

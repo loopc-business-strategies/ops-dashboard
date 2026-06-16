@@ -10,6 +10,8 @@
 //   GET  /api/auth/me               ← get my own profile
 //   POST /api/auth/me/push-token    ← register Expo push token (mobile)
 //   DELETE /api/auth/me/push-token  ← remove Expo push token
+//   POST /api/auth/me/web-push-subscription   ← register Web Push (browser)
+//   DELETE /api/auth/me/web-push-subscription ← remove Web Push subscription
 //   GET  /api/auth/users            ← list all users (super_admin only)
 //   POST /api/auth/users            ← create new user (super_admin only)
 //   PUT  /api/auth/users/:id/role   ← change role (super_admin only)
@@ -130,6 +132,18 @@ const loginSchema = Joi.object({
 
 const expoPushTokenSchema = Joi.object({
   token: Joi.string().trim().min(24).max(512).required(),
+})
+
+const webPushSubscriptionSchema = Joi.object({
+  endpoint: Joi.string().trim().min(8).max(2048).required(),
+  keys: Joi.object({
+    p256dh: Joi.string().trim().min(16).max(200).required(),
+    auth: Joi.string().trim().min(8).max(200).required(),
+  }).required(),
+})
+
+const webPushDeleteSchema = Joi.object({
+  endpoint: Joi.string().trim().min(8).max(2048).required(),
 })
 
 const userIdParamSchema = Joi.object({
@@ -355,6 +369,52 @@ router.delete('/me/push-token', protect, validateBody(expoPushTokenSchema), asyn
     res.json({ success: true })
   } catch (err) {
     console.error('Push token delete error:', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+// ==========================================
+// POST /api/auth/me/web-push-subscription — register Web Push (browser)
+// ==========================================
+router.post('/me/web-push-subscription', protect, validateBody(webPushSubscriptionSchema), async (req, res) => {
+  try {
+    const { endpoint, keys } = req.body
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const user = await TenantUser.findById(req.user._id)
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
+
+    const ep = String(endpoint).trim()
+    const row = {
+      endpoint: ep,
+      keys: { p256dh: String(keys.p256dh).trim(), auth: String(keys.auth).trim() },
+      updatedAt: new Date(),
+    }
+    const existing = Array.isArray(user.webPushSubscriptions) ? [...user.webPushSubscriptions] : []
+    const deduped = existing.filter((e) => String(e?.endpoint || '') !== ep)
+    deduped.unshift(row)
+    user.webPushSubscriptions = deduped.slice(0, 5)
+    await user.save({ validateBeforeSave: false })
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Web push subscription error:', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+// ==========================================
+// DELETE /api/auth/me/web-push-subscription — remove one browser subscription
+// ==========================================
+router.delete('/me/web-push-subscription', protect, validateBody(webPushDeleteSchema), async (req, res) => {
+  try {
+    const ep = String(req.body.endpoint).trim()
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const user = await TenantUser.findById(req.user._id)
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
+    user.webPushSubscriptions = (user.webPushSubscriptions || []).filter((e) => String(e?.endpoint || '') !== ep)
+    await user.save({ validateBeforeSave: false })
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Web push delete error:', err)
     res.status(500).json({ success: false, message: 'Server error.' })
   }
 })
