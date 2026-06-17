@@ -9,6 +9,7 @@ frontend/dist/
 .env.*.local
 backend/.env
 .env*.local
+.web-push-vapid.json
 
 # Deployment tool state
 .vercel/
