@@ -48,7 +48,6 @@ import {
 import ERPDashboardTab from './erp/tabs/ERPDashboardTab'
 import { trialBalanceRowsForView } from './erp/trialBalanceReportRows'
 import { startERPRealtimeFeeds, startMetalRatesRealtime } from '../../utils/realtimeSocket'
-import useLiveMetalRates from '../../hooks/useLiveMetalRates'
 import {
   liveRatesToMetalRatesState,
   resolveEffectiveSpotPrices,
@@ -460,12 +459,38 @@ function ERPTab({
   const canLoadParties = canViewCustomers || canAccessVendors || canAccessTransactions || canAccessVouchers || canAccessFixingRegister || canAccessDirectDeals
   const canLoadInventoryData = canAccessInventory || canAccessFixingRegister
   const canLoadDashboard = canViewAccounts || canAccessReports
-  const { snapshot: liveMetalSnapshot, error: liveMetalError } = useLiveMetalRates()
+  const [liveMetalFetchError, setLiveMetalFetchError] = useState(null)
+  const erpLiveMetalSnapshot = useMemo(() => ({
+    gold: Number(metalRates.goldPrice || 0),
+    silver: Number(metalRates.silverPrice || 0),
+    unit: 'G',
+    updatedAt: metalRates.updatedAt,
+  }), [metalRates.goldPrice, metalRates.silverPrice, metalRates.updatedAt])
   useEffect(() => {
-    const synced = liveRatesToMetalRatesState(liveMetalSnapshot)
-    if (!synced) return
-    setMetalRates(synced)
-  }, [liveMetalSnapshot])
+    if (!token || !canAccessERP) return undefined
+    let cancelled = false
+    erpAccountingAPI.getLiveMetalRates(token)
+      .then((data) => {
+        if (cancelled) return
+        const rates = data?.rates || data?.data?.rates || data
+        const synced = liveRatesToMetalRatesState({
+          gold: Number(rates?.sourceGoldPrice || rates?.goldPrice || 0),
+          silver: Number(rates?.sourceSilverPrice || rates?.silverPrice || 0),
+          unit: rates?.sourceUnit || rates?.priceUnit || 'TOZ',
+          updatedAt: rates?.updatedAt || null,
+        })
+        if (synced) setMetalRates(synced)
+        setLiveMetalFetchError(null)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setLiveMetalFetchError(err?.response?.data?.message || 'Live metal rates unavailable')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [token, canAccessERP])
   const selectedUsdConversionCurrency = resolveCurrencyRowByCode(currencies, usdConversion.targetCode, erpBaseCurrencyCode)
   const selectedUsdConversionRate = Number(selectedUsdConversionCurrency?.exchangeRate || 0)
   const usdAmountValue = Number(usdConversion.usdAmount || 0)
@@ -491,14 +516,16 @@ function ERPTab({
     const legacy = inventoryProducts.filter((item) => !String(item?.category || '').includes('mainStock=') && !String(item?.category || '').includes('recordType=product'))
     return [...catalog, ...legacy]
   }, [inventoryProducts])
-  const inventoryReportRows = useMemo(() => inventoryReportProducts.map((item) => {
+  const inventoryReportRows = useMemo(() => {
+    if (activeTab !== 'inventory') return []
+    return inventoryReportProducts.map((item) => {
     const categoryMeta = decodeInventoryCategoryMeta(item.category)
     const productMeta = decodeInventoryCategoryPairs(item.category)
     const quantity = Math.max(0, Number(item.quantity || 0))
     const metalName = productMeta.mainStock || productMeta.metalType || categoryMeta.mainStock || categoryMeta.metalType || ''
     const priceUnit = categoryMeta.priceUnit || productMeta.priceUnit || 'OZ'
     const storedUnitCost = Number(item.unitCost || 0)
-    const unitCost = resolveInventoryValuationUnitCost(storedUnitCost, metalName, liveMetalSnapshot, priceUnit)
+    const unitCost = resolveInventoryValuationUnitCost(storedUnitCost, metalName, erpLiveMetalSnapshot, priceUnit)
     const usesLivePrice = unitCost !== storedUnitCost && unitCost > 0
     const stockValue = quantity * unitCost
     const minThreshold = Number(item.minThreshold || 0)
@@ -534,7 +561,8 @@ function ERPTab({
       isZeroStock,
       isLowStock: isZeroStock || isBelowMinStock,
     }
-  }), [inventoryReportProducts, liveMetalSnapshot])
+    })
+  }, [activeTab, inventoryReportProducts, erpLiveMetalSnapshot])
   const inventoryTotalQuantity = inventoryReportRows.reduce((sum, row) => sum + row.quantity, 0)
   const inventoryTotalValue = inventoryReportRows.reduce((sum, row) => sum + row.stockValue, 0)
   const inventoryLowStockCount = inventoryReportRows.filter((row) => row.isLowStock).length
@@ -667,7 +695,7 @@ function ERPTab({
     return 'unknown'
   }
   const effectiveSpotPrices = resolveEffectiveSpotPrices({
-    liveSnapshot: liveMetalSnapshot,
+    liveSnapshot: erpLiveMetalSnapshot,
     enquiryGold: accountEnquiryData?.metals?.goldPrice,
     enquirySilver: accountEnquiryData?.metals?.silverPrice,
     fallbackGold: metalRates.goldPrice,
@@ -6088,8 +6116,8 @@ function ERPTab({
         saving={saving}
         token={token}
         tenantKey={inventoryTenantKey}
-        liveMetalSnapshot={liveMetalSnapshot}
-        liveMetalError={liveMetalError}
+        liveMetalSnapshot={erpLiveMetalSnapshot}
+        liveMetalError={liveMetalFetchError}
         loadInventory={loadInventory}
         inventoryMappingProducts={inventoryMappingProducts}
         inventoryCatalogProducts={inventoryCatalogProducts}
