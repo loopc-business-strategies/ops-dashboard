@@ -43,6 +43,7 @@
     "sync:erp-access": "node scripts/sync-erp-access-policy.js",
     "smoke:tenants": "node scripts/smoke-tenants.js",
     "smoke:prod": "node scripts/production-smoke.js",
+    "smoke:erp-fix:prod": "node scripts/verify-erp-fix-production.mjs",
     "smoke:setup-secrets": "node scripts/setup-smoke-github-secrets.js",
     "load:smoke": "node scripts/http-load-smoke.mjs",
     "test:e2e": "npm --prefix frontend run test:e2e",
