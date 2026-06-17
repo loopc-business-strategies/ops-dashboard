@@ -7,6 +7,7 @@ const {
   getBridgeTokenFromRequest,
 } = require('../../services/erpAccounting/metalRateBridgeService')
 const { createMetalPricingHelpers } = require('./reportRoutesMetalPricing')
+const { notifyErpUsers } = require('../../services/notificationDispatch')
 const { computeMarginMetricsRaw } = require('../../services/erpAccounting/metalMarginPolicy')
 const {
   fetchFredPreciousMetalSpotBundle,
@@ -474,6 +475,7 @@ function registerCurrencyRoutes(deps) {
 
       const TenantMetalRate = await MetalRate.getTenantModel(tenant)
       const latest = await TenantMetalRate.findOne({}).sort({ updatedAt: -1 })
+      const oldGold = Number(latest?.goldPrice || 0)
       const normalized = normalizeBridgeMetalRates(req.body, latest || DEFAULT_METAL_RATES)
       const rate = await TenantMetalRate.findOneAndUpdate(
         { source: normalized.source },
@@ -505,6 +507,19 @@ function registerCurrencyRoutes(deps) {
         symbols: req.body.symbols || {},
         updatedAt: rate.updatedAt,
       })
+
+      const newGold = Number(rate.goldPrice || 0)
+      if (oldGold > 0 && newGold > 0) {
+        const changePct = ((newGold - oldGold) / oldGold) * 100
+        const threshold = Number(process.env.GOLD_ALERT_PCT || 0.5)
+        if (Math.abs(changePct) >= threshold) {
+          void notifyErpUsers(tenant, 'gold_price_alert', {
+            price: newGold,
+            changePct,
+            message: `Gold moved ${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}% to ${newGold.toFixed(2)}`,
+          }).catch((err) => console.warn('[notify] gold_price_alert', err?.message || err))
+        }
+      }
 
       res.json({ success: true, tenant, rates })
     } catch (err) {

@@ -8,6 +8,7 @@ const User = require('../models/User')
 const { Joi, validateBody, validateQuery } = require('../middleware/validate')
 const { publishRealtimeEvent } = require('../utils/realtimeBus')
 const { resolveRequestTenantKey } = require('../config/tenants')
+const { notifyUsers } = require('../services/notificationDispatch')
 const {
   normalize,
   buildMessageScopeForUser,
@@ -126,13 +127,13 @@ async function resolveUsers({ ids = [], names = [] }) {
 }
 
 function emitUserNotifications(req, users, type, data) {
-  const realtimeServer = req.app.get('realtimeServer')
-  if (!realtimeServer || typeof realtimeServer.sendUserNotification !== 'function') return
   const tenantKey = resolveRequestTenantKey(req)
-  users.forEach((target) => {
-    const targetId = String(target?._id || '')
-    if (!targetId || targetId === String(req.user._id)) return
-    realtimeServer.sendUserNotification(targetId, type, data, tenantKey)
+  const ids = (users || [])
+    .map((target) => String(target?._id || ''))
+    .filter((targetId) => targetId && targetId !== String(req.user._id))
+  if (!ids.length) return
+  void notifyUsers(tenantKey, ids, type, data).catch((err) => {
+    console.warn('[notify] chat', type, err?.message || err)
   })
 }
 

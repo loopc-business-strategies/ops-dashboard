@@ -34,6 +34,13 @@ function buildCopy(type, data = {}) {
     return { title, body }
   }
 
+  if (type === 'report_digest') {
+    return {
+      title: String(data.title || 'MG Ops report').slice(0, MAX_TITLE),
+      body: (msg || 'Daily report').slice(0, MAX_BODY),
+    }
+  }
+
   if (msg) {
     return { title: 'MG Ops', body: msg.slice(0, MAX_BODY) }
   }
@@ -49,11 +56,34 @@ function buildCopy(type, data = {}) {
         body: `${sender} mentioned you`.slice(0, MAX_BODY),
       }
     case 'transaction_approved':
-      return { title: 'Voucher approved', body: 'Your voucher was approved.'.slice(0, MAX_BODY) }
+    case 'voucher_approved':
+      return { title: 'Voucher approved', body: (msg || 'A voucher was approved.').slice(0, MAX_BODY) }
     case 'transaction_returned':
-      return { title: 'Voucher returned', body: 'A voucher was returned for revision.'.slice(0, MAX_BODY) }
+    case 'voucher_returned':
+      return { title: 'Voucher returned', body: (msg || 'A voucher was returned for revision.').slice(0, MAX_BODY) }
     case 'transaction_rejected':
-      return { title: 'Voucher rejected', body: 'A voucher was rejected.'.slice(0, MAX_BODY) }
+    case 'voucher_rejected':
+      return { title: 'Voucher rejected', body: (msg || 'A voucher was rejected.').slice(0, MAX_BODY) }
+    case 'transaction_submitted':
+    case 'voucher_submitted':
+      return { title: 'Voucher submitted', body: (msg || 'A voucher was submitted for approval.').slice(0, MAX_BODY) }
+    case 'transaction_posted':
+    case 'voucher_posted':
+      return { title: 'Voucher posted', body: (msg || 'A voucher was posted to the ledger.').slice(0, MAX_BODY) }
+    case 'jv_posted':
+      return { title: 'Journal posted', body: (msg || 'A journal voucher was posted.').slice(0, MAX_BODY) }
+    case 'task_due':
+      return { title: 'Task due today', body: (msg || String(data.title || 'Task due today')).slice(0, MAX_BODY) }
+    case 'task_overdue':
+      return { title: 'Task overdue', body: (msg || String(data.title || 'Task overdue')).slice(0, MAX_BODY) }
+    case 'vendor_due':
+      return { title: 'Vendor payment due', body: (msg || String(data.vendorName || 'Vendor payment due soon')).slice(0, MAX_BODY) }
+    case 'vendor_overdue':
+      return { title: 'Vendor overdue', body: (msg || String(data.vendorName || 'Vendor payment overdue')).slice(0, MAX_BODY) }
+    case 'report_digest':
+      return { title: String(data.title || 'MG Ops report').slice(0, MAX_TITLE), body: (msg || 'Daily report').slice(0, MAX_BODY) }
+    case 'gold_price_alert':
+      return { title: 'Gold price alert', body: (msg || 'Gold price moved significantly.').slice(0, MAX_BODY) }
     case 'account_balance_sign_changed':
       return { title: 'Account crossed zero', body: 'An account balance changed from negative to positive or vice versa.'.slice(0, MAX_BODY) }
     default:

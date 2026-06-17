@@ -42,7 +42,7 @@ const tenantBranding = {
       brandSecondary: '#00A6FB',
       gradBar: 'linear-gradient(90deg, #005B96, #00A6FB)',
     },
-    enabledTabs: ['overview', 'chat', 'admin', 'hr', 'compliance', 'production', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
+    enabledTabs: ['overview', 'chat', 'master-settings', 'admin', 'hr', 'compliance', 'production', 'finance', 'sales', 'operations', 'training', 'erp', 'procurement-plus'],
     enabledErpSubTabs: ['dashboard', 'accounts', 'mappings', 'settings', 'currencies', 'enquiry', 'customers', 'customer-margin', 'supplier-margin', 'ledger', 'transactions', 'reports', 'vendors', 'inventory', 'vouchers', 'direct-deals', 'fixing-register'],
     featureFlags: {
       procurementPlus: true,

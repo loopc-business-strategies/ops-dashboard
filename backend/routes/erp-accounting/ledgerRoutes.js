@@ -1,6 +1,7 @@
 const { resolveRequestTenantKey } = require('../../config/tenants')
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
 const { runJvLedgerFxBackfillOnNativeDb } = require('../../services/jvLedgerFxBackfill')
+const { notifyErpUsers } = require('../../services/notificationDispatch')
 const { Joi, validateBodyStrict, validateParams } = require('../../middleware/validate')
 
 const objectId = Joi.string().hex().length(24)
@@ -372,6 +373,19 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
         })
       }
     })
+
+    const refType = String(referenceType || 'journal').toLowerCase()
+    if (refType === 'journal' || refType === 'bank_jv') {
+      const vocNo = jvDescriptionHead(description)
+      const label = refType === 'bank_jv' ? 'Bank JV' : 'JV'
+      void notifyErpUsers(tenantKey, 'jv_posted', {
+        vocNo,
+        amount: Number(entry.amount || 0),
+        description: String(description || ''),
+        accountCodes: [String(debitAccountId), String(creditAccountId)],
+        message: `${label} ${vocNo || 'posted'}: ${Number(entry.amount || 0)}`,
+      }).catch((err) => console.warn('[notify] jv_posted', err?.message || err))
+    }
 
     res.status(201).json({ success: true, entry })
   } catch (err) {

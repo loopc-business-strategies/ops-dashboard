@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -68,7 +69,25 @@ export default function ConversationScreen() {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
   const listRef = useRef<FlatList>(null)
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
+    const onShow = (e: { endCoordinates?: { height?: number } }) => {
+      const h = Number(e?.endCoordinates?.height || 0)
+      setKeyboardHeight(h)
+      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }))
+    }
+    const onHide = () => setKeyboardHeight(0)
+    const subShow = Keyboard.addListener(showEvent, onShow)
+    const subHide = Keyboard.addListener(hideEvent, onHide)
+    return () => {
+      subShow.remove()
+      subHide.remove()
+    }
+  }, [])
 
   const title = chat?.name || 'Chat'
 
@@ -151,13 +170,15 @@ export default function ConversationScreen() {
       <KeyboardAvoidingView
         style={styles.root}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 44 : 0}
       >
         <FlatList
           ref={listRef}
           data={chat.messages}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, keyboardHeight > 0 ? { paddingBottom: 8 } : null]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
           renderItem={({ item }) => {
             const mine = item.isMine || item.from === String(user?.id || '')
@@ -186,7 +207,7 @@ export default function ConversationScreen() {
 
         {sendError ? <Text style={styles.error}>{sendError}</Text> : null}
 
-        <View style={[styles.compose, { paddingBottom: 12 + insets.bottom }]}>
+        <View style={[styles.compose, { paddingBottom: Math.max(insets.bottom, 12) + (Platform.OS === 'android' ? keyboardHeight : 0) }]}>
           <Pressable style={styles.attachBtn} onPress={pickImage} disabled={sending}>
             <Text style={styles.attachBtnText}>📷</Text>
           </Pressable>
@@ -199,8 +220,10 @@ export default function ConversationScreen() {
             placeholderTextColor={mgBranding.colors.muted}
             value={text}
             onChangeText={setText}
+            onFocus={() => requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }))}
             multiline
             maxLength={4000}
+            textAlignVertical="top"
           />
           <Pressable
             style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}

@@ -22,6 +22,7 @@ const HRTab = lazy(() => import('../components/tabs/HRTab'))
 const FinanceTab = lazy(() => import('../components/tabs/FinanceTab'))
 const ProductionTab = lazy(() => import('../components/tabs/ProductionTab'))
 const ChatTab = lazy(() => import('../components/tabs/ChatTab'))
+const MasterSettingsTab = lazy(() => import('../components/tabs/MasterSettingsTab'))
 const TrainingTab = lazy(() => import('../components/tabs/TrainingTab'))
 const OperationsTab = lazy(() => import('../components/tabs/OperationsTab'))
 const SalesTab = lazy(() => import('../components/tabs/SalesTab'))
@@ -105,14 +106,35 @@ function mapRealtimeNotificationPayload(payload) {
       dotColor: 'bg-sky-400',
     }
   }
-  if (type === 'transaction_approved') {
+  if (type === 'transaction_approved' || type === 'voucher_approved') {
     return { title: 'Voucher approved', msg: msg || 'Your voucher was approved.', dotColor: 'bg-emerald-400' }
   }
-  if (type === 'transaction_returned') {
+  if (type === 'transaction_returned' || type === 'voucher_returned') {
     return { title: 'Voucher returned', msg: msg || 'Your voucher was returned for revision.', dotColor: 'bg-amber-400' }
   }
-  if (type === 'transaction_rejected') {
+  if (type === 'transaction_rejected' || type === 'voucher_rejected') {
     return { title: 'Voucher rejected', msg: msg || 'Your voucher was rejected.', dotColor: 'bg-red-400' }
+  }
+  if (type === 'transaction_submitted' || type === 'voucher_submitted') {
+    return { title: 'Voucher submitted', msg: msg || 'A voucher was submitted.', dotColor: 'bg-blue-400' }
+  }
+  if (type === 'transaction_posted' || type === 'voucher_posted') {
+    return { title: 'Voucher posted', msg: msg || 'A voucher was posted.', dotColor: 'bg-emerald-500' }
+  }
+  if (type === 'jv_posted') {
+    return { title: 'Journal posted', msg: msg || 'A journal voucher was posted.', dotColor: 'bg-indigo-400' }
+  }
+  if (type === 'task_due' || type === 'task_overdue') {
+    return { title: type === 'task_due' ? 'Task due today' : 'Task overdue', msg: msg || data.title || 'Task reminder', dotColor: 'bg-orange-400' }
+  }
+  if (type === 'vendor_due' || type === 'vendor_overdue') {
+    return { title: type === 'vendor_due' ? 'Vendor due' : 'Vendor overdue', msg: msg || data.vendorName || 'Vendor payment alert', dotColor: 'bg-amber-500' }
+  }
+  if (type === 'report_digest') {
+    return { title: 'Daily report', msg: msg || 'Report digest', dotColor: 'bg-cyan-400' }
+  }
+  if (type === 'gold_price_alert') {
+    return { title: 'Gold price alert', msg: msg || 'Gold price moved.', dotColor: 'bg-yellow-400' }
   }
   if (type === 'account_balance_sign_changed') {
     return {
@@ -144,7 +166,7 @@ function resolveRealtimeBellErpFields(payload) {
       erpEnquiryAccountCode: null,
     }
   }
-  if (['transaction_approved', 'transaction_returned', 'transaction_rejected'].includes(type) && validTx) {
+  if (['transaction_approved', 'transaction_returned', 'transaction_rejected', 'voucher_approved', 'voucher_returned', 'voucher_rejected', 'voucher_submitted', 'voucher_posted', 'transaction_submitted', 'transaction_posted'].includes(type) && validTx) {
     return {
       erpTransactionId: validTx,
       erpJumpSubTab: 'vouchers',
@@ -192,6 +214,7 @@ function getNavItems(perms, t, chatUnread = 0, branding) {
     // ── Main ──
     { id: 'overview',    label: t('overview'),    group: 'main',       show: perms.canViewModule('overview') },
     { id: 'chat',        label: t('chat'),        group: 'main',       show: perms.canViewModule('chat'), badge: chatUnread || null },
+    { id: 'master-settings', label: 'Master Settings', group: 'main', show: true },
 
     // ── Admin (super_admin only) ──
     { id: 'admin',       label: t('admin'),       group: 'admin',      show: perms.canViewAdmin },
@@ -251,6 +274,9 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps =
           focusComposerNonce={chatTabProps.focusComposerNonce || 0}
         />
       )
+
+    case 'master-settings':
+      return <MasterSettingsTab />
 
     case 'admin':
       return <AdminTab />

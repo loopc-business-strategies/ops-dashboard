@@ -93,6 +93,33 @@ const emitRealtime = (req, cb) => {
   try { cb(realtimeServer) } catch { void 0 }
 }
 
+const { notifyErpUsers, notifyUsers, buildVoucherNotificationData } = require('../../services/notificationDispatch')
+
+function voucherRef(tx) {
+  return String(tx?.voucherMeta?.vocNo || tx?.voucherMeta?.refNo || '').trim() || String(tx?._id || '')
+}
+
+function queueErpVoucherNotify(req, tx, type, message) {
+  const tenant = String(resolveRequestTenantKey(req) || 'default')
+  void notifyErpUsers(tenant, type, buildVoucherNotificationData(tx, {
+    message,
+    actorName: String(req.user?.name || ''),
+  })).catch((err) => {
+    console.warn('[notify] ERP voucher', type, err?.message || err)
+  })
+}
+
+function queueOwnerVoucherNotify(req, ownerId, type, tx, message) {
+  if (!ownerId) return
+  const tenant = String(resolveRequestTenantKey(req) || 'default')
+  void notifyUsers(tenant, [ownerId], type, buildVoucherNotificationData(tx, {
+    message,
+    actorName: String(req.user?.name || ''),
+  })).catch((err) => {
+    console.warn('[notify] owner voucher', type, err?.message || err)
+  })
+}
+
 const reversePostedTransactionEffects = async ({ tx, user, session, deleteReason }) => {
   const now = new Date()
 
@@ -606,6 +633,14 @@ router.post('/transactions/:id/submit', protect, async (req, res) => {
         })
       }
     })
+    const ref = voucherRef(result.transaction)
+    const by = String(req.user?.name || '')
+    queueErpVoucherNotify(
+      req,
+      result.transaction,
+      'voucher_submitted',
+      `${result.transaction.type} voucher${ref ? ` (${ref})` : ''} submitted by ${by}.`,
+    )
     res.json({ success: true, transaction: populated })
   } catch (e) {
     respondWorkflowError(res, e)
@@ -632,20 +667,12 @@ router.post('/transactions/:id/approve', protect, async (req, res) => {
           type: result.transaction.type,
         })
       }
-      // Notify the transaction owner that their submission was approved
       const ownerId = String(result.transaction.createdBy || '')
-      if (ownerId && typeof realtimeServer.sendUserNotification === 'function') {
-        const ref =
-          String(result.transaction?.voucherMeta?.vocNo || result.transaction?.voucherMeta?.refNo || '').trim()
-            || String(result.transaction._id)
-        const by = String(req.user?.name || req.user?._id || '')
-        realtimeServer.sendUserNotification(ownerId, 'transaction_approved', {
-          transactionId: String(result.transaction._id),
-          type: result.transaction.type,
-          approvedBy: by,
-          message: `Your ${result.transaction.type} voucher${ref ? ` (${ref})` : ''} was approved by ${by}.`,
-        }, resolveRequestTenantKey(req))
-      }
+      const ref = voucherRef(result.transaction)
+      const by = String(req.user?.name || req.user?._id || '')
+      const msg = `Your ${result.transaction.type} voucher${ref ? ` (${ref})` : ''} was approved by ${by}.`
+      queueOwnerVoucherNotify(req, ownerId, 'voucher_approved', result.transaction, msg)
+      queueErpVoucherNotify(req, result.transaction, 'voucher_approved', msg)
     })
     res.json({ success: true, transaction: populated })
   } catch (e) {
@@ -696,7 +723,8 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
       }
       const posterId = String(req.user?._id || '')
       const flips = Array.isArray(result.accountSignFlips) ? result.accountSignFlips : []
-      if (posterId && flips.length && typeof realtimeServer.sendUserNotification === 'function') {
+      if (posterId && flips.length) {
+        const tenant = String(resolveRequestTenantKey(req) || 'default')
         for (const flip of flips) {
           const code = String(flip.accountCode || '').trim()
           if (!code) continue
@@ -706,7 +734,7 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
           const msg = name
             ? `Account ${code} (${name}) crossed zero (was ${before.toFixed(2)}, now ${after.toFixed(2)}).`
             : `Account ${code} crossed zero (was ${before.toFixed(2)}, now ${after.toFixed(2)}).`
-          realtimeServer.sendUserNotification(posterId, 'account_balance_sign_changed', {
+          void notifyUsers(tenant, [posterId], 'account_balance_sign_changed', {
             accountId: String(flip.accountId || ''),
             accountCode: code,
             accountName: name,
@@ -714,10 +742,18 @@ router.post('/transactions/:id/post', protect, async (req, res) => {
             afterBalance: after,
             transactionId: String(result.transaction._id),
             message: msg,
-          }, resolveRequestTenantKey(req))
+          }).catch((err) => console.warn('[notify] account flip', err?.message || err))
         }
       }
     })
+    const ref = voucherRef(result.transaction)
+    const by = String(req.user?.name || '')
+    queueErpVoucherNotify(
+      req,
+      result.transaction,
+      'voucher_posted',
+      `${result.transaction.type} voucher${ref ? ` (${ref})` : ''} posted by ${by}.`,
+    )
     res.json({ success: true, transaction: populated, ledgerEntry: result.ledgerEntry })
   } catch (e) {
     respondWorkflowError(res, e)
@@ -926,22 +962,13 @@ router.post('/transactions/:id/return', protect, async (req, res) => {
           type: result.transaction.type,
         })
       }
-      // Notify the transaction owner their submission was returned for revision
       const ownerId = String(result.transaction.createdBy || '')
-      if (ownerId && typeof realtimeServer.sendUserNotification === 'function') {
-        const ref =
-          String(result.transaction?.voucherMeta?.vocNo || result.transaction?.voucherMeta?.refNo || '').trim()
-            || String(result.transaction._id)
-        const by = String(req.user?.name || req.user?._id || '')
-        const comment = String(req.body?.comment || '')
-        realtimeServer.sendUserNotification(ownerId, 'transaction_returned', {
-          transactionId: String(result.transaction._id),
-          type: result.transaction.type,
-          returnedBy: by,
-          comment,
-          message: `Your ${result.transaction.type} voucher${ref ? ` (${ref})` : ''} was returned by ${by}.${comment ? ` Note: ${comment}` : ''}`,
-        }, resolveRequestTenantKey(req))
-      }
+      const ref = voucherRef(result.transaction)
+      const by = String(req.user?.name || req.user?._id || '')
+      const comment = String(req.body?.comment || '')
+      const msg = `Your ${result.transaction.type} voucher${ref ? ` (${ref})` : ''} was returned by ${by}.${comment ? ` Note: ${comment}` : ''}`
+      queueOwnerVoucherNotify(req, ownerId, 'voucher_returned', result.transaction, msg)
+      queueErpVoucherNotify(req, result.transaction, 'voucher_returned', msg)
     })
     res.json({ success: true, transaction: populated })
   } catch (e) {
@@ -965,22 +992,13 @@ router.post('/transactions/:id/reject', protect, async (req, res) => {
           type: result.transaction.type,
         })
       }
-      // Notify the transaction owner their submission was rejected
       const ownerId = String(result.transaction.createdBy || '')
-      if (ownerId && typeof realtimeServer.sendUserNotification === 'function') {
-        const ref =
-          String(result.transaction?.voucherMeta?.vocNo || result.transaction?.voucherMeta?.refNo || '').trim()
-            || String(result.transaction._id)
-        const by = String(req.user?.name || req.user?._id || '')
-        const comment = String(req.body?.comment || '')
-        realtimeServer.sendUserNotification(ownerId, 'transaction_rejected', {
-          transactionId: String(result.transaction._id),
-          type: result.transaction.type,
-          rejectedBy: by,
-          comment,
-          message: `Your ${result.transaction.type} voucher${ref ? ` (${ref})` : ''} was rejected by ${by}.${comment ? ` Reason: ${comment}` : ''}`,
-        }, resolveRequestTenantKey(req))
-      }
+      const ref = voucherRef(result.transaction)
+      const by = String(req.user?.name || req.user?._id || '')
+      const comment = String(req.body?.comment || '')
+      const msg = `Your ${result.transaction.type} voucher${ref ? ` (${ref})` : ''} was rejected by ${by}.${comment ? ` Reason: ${comment}` : ''}`
+      queueOwnerVoucherNotify(req, ownerId, 'voucher_rejected', result.transaction, msg)
+      queueErpVoucherNotify(req, result.transaction, 'voucher_rejected', msg)
     })
     res.json({ success: true, transaction: populated })
   } catch (e) {

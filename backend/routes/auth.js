@@ -32,6 +32,7 @@ const {
   resolveJwtExpiresIn,
 } = require('../services/adminSettings')
 const { isLikelyExpoPushToken } = require('../services/expoPushNotifications')
+const { mergeNotificationPreferences } = require('../services/notificationPreferences')
 
 const router = express.Router()
 
@@ -326,6 +327,33 @@ router.get('/me', protect, (req, res) => {
       createdAt:      req.user.createdAt,
     },
   })
+})
+
+// ==========================================
+// GET/PUT /api/auth/me/notification-preferences — per-user topic toggles
+// ==========================================
+router.get('/me/notification-preferences', protect, (req, res) => {
+  res.json({
+    success: true,
+    notificationPreferences: mergeNotificationPreferences(req.user.notificationPreferences),
+  })
+})
+
+router.put('/me/notification-preferences', protect, async (req, res) => {
+  try {
+    const merged = mergeNotificationPreferences(req.body?.notificationPreferences || req.body || {})
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const user = await TenantUser.findById(req.user._id)
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
+    user.notificationPreferences = merged
+    user.markModified('notificationPreferences')
+    await user.save({ validateBeforeSave: false })
+    req.user.notificationPreferences = merged
+    res.json({ success: true, notificationPreferences: merged })
+  } catch (err) {
+    console.error('PUT /me/notification-preferences error:', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
 })
 
 // ==========================================

@@ -189,6 +189,11 @@ const userSchema = new mongoose.Schema(
       ],
       default: [],
     },
+
+    notificationPreferences: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
   {
     timestamps: true, // auto-adds createdAt and updatedAt

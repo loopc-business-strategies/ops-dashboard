@@ -144,6 +144,12 @@ async function startServer() {
   const httpServer = http.createServer(app)
   const realtimeServer = new RealtimeServer(httpServer)
   app.set('realtimeServer', realtimeServer)
+  try {
+    const { setNotificationRealtimeServer } = require('./services/notificationDispatch')
+    setNotificationRealtimeServer(realtimeServer)
+  } catch (e) {
+    console.warn('[startup] notification dispatch not wired:', e.message)
+  }
 
   httpServer.listen(PORT, () => {
     console.log(`✅ Server running at http://localhost:${PORT}`)
@@ -176,6 +182,12 @@ async function startServer() {
       startTaskRulesJob()
     } catch (e) {
       console.warn('[startup] task rules job not started:', e.message)
+    }
+    try {
+      const { startNotificationDigestJob } = require('./jobs/notificationDigestJob')
+      startNotificationDigestJob()
+    } catch (e) {
+      console.warn('[startup] notification digest job not started:', e.message)
     }
   } catch (err) {
     setPrimaryMongoReady(false)

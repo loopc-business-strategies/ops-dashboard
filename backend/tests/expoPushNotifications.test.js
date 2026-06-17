@@ -29,4 +29,11 @@ describe('expoPushNotifications', () => {
     expect(message.priority).toBe('high')
     expect(message.data.type).toBe('transaction_approved')
   })
+
+  test('buildCopy handles voucher and report types', () => {
+    expect(buildCopy('voucher_posted', { message: 'Pay/2026/0001 posted' }).body).toContain('Pay/2026/0001')
+    expect(buildCopy('jv_posted', { message: '' }).title).toBe('Journal posted')
+    expect(buildCopy('report_digest', { title: 'MG Ops report', message: 'line1' }).title).toBe('MG Ops report')
+    expect(buildCopy('gold_price_alert', { message: '' }).title).toBe('Gold price alert')
+  })
 })
