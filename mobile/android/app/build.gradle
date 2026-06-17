@@ -197,3 +197,10 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+def googleServicesFile = file('google-services.json')
+if (googleServicesFile.exists()) {
+    apply plugin: 'com.google.gms.google-services'
+} else {
+    println('google-services.json not found — Android FCM push requires Firebase config. See docs/MOBILE-ANDROID-PUSH-FCM.md')
+}

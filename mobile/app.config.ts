@@ -33,7 +33,14 @@ const config: ExpoConfig = {
   },
   plugins: [
     'expo-router',
-    'expo-notifications',
+    [
+      'expo-notifications',
+      {
+        icon: './assets/images/icon.png',
+        color: '#005B96',
+        defaultChannel: 'default',
+      },
+    ],
     'expo-secure-store',
     '@sentry/react-native',
     [

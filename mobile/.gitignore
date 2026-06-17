@@ -37,3 +37,6 @@ yarn-error.*
 *.tsbuildinfo
 
 # android/ and ios/ are tracked in git (intentional bare-style native projects).
+
+# Firebase Android config (see docs/MOBILE-ANDROID-PUSH-FCM.md)
+android/app/google-services.json

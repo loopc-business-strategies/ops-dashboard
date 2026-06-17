@@ -63,6 +63,8 @@ These run Gradle **`bundleRelease`** / **`assembleRelease`** via `mobile/scripts
 
 Pushing to Git **does not** update an already-installed APK; you need a **new build** and install step for each release you sideload.
 
+**Android background push:** sideloaded APKs also need Firebase/FCM — see **[MOBILE-ANDROID-PUSH-FCM.md](./MOBILE-ANDROID-PUSH-FCM.md)**.
+
 ## Signing (Play Store vs internal)
 
 ### Option A — Play upload keystore (production)

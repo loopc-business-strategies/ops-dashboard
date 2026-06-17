@@ -16,6 +16,7 @@ try {
 
 const MAX_BODY = 220
 const MAX_TITLE = 80
+const ANDROID_CHANNEL_ID = 'default'
 
 function isLikelyExpoPushToken(token) {
   const s = String(token || '').trim()
@@ -60,6 +61,63 @@ function buildCopy(type, data = {}) {
   }
 }
 
+async function pruneInvalidExpoToken(tenant, userId, invalidToken) {
+  const token = String(invalidToken || '').trim()
+  if (!token || !tenant || !userId) return
+  const TenantUser = await User.getTenantModel(tenant)
+  await TenantUser.updateOne(
+    { _id: userId },
+    { $pull: { expoPushTokens: { token } } },
+  )
+}
+
+function buildExpoMessage(to, type, data, title, body) {
+  return {
+    to,
+    sound: 'default',
+    title: title.slice(0, MAX_TITLE),
+    body: body.slice(0, MAX_BODY),
+    priority: 'high',
+    channelId: ANDROID_CHANNEL_ID,
+    data: {
+      type: String(type || ''),
+      ...Object.fromEntries(
+        Object.entries(data).filter(([k]) => typeof k === 'string' && !k.startsWith('$')),
+      ),
+    },
+  }
+}
+
+async function handleExpoTickets(expo, tickets, chunk, tenant, userId) {
+  const invalidTokens = []
+  tickets.forEach((ticket, index) => {
+    if (ticket?.status !== 'error') return
+    const token = String(chunk[index]?.to || '').trim()
+    const detailError = ticket?.details?.error
+    console.warn('[expo-push] ticket error:', ticket?.message || 'unknown', detailError || '', token ? `token=${token.slice(0, 24)}…` : '')
+    if (detailError === 'DeviceNotRegistered' && token) invalidTokens.push(token)
+  })
+  await Promise.all(invalidTokens.map((token) => pruneInvalidExpoToken(tenant, userId, token).catch((err) => {
+    console.warn('[expo-push] prune token failed:', err?.message || err)
+  })))
+
+  const receiptIds = tickets
+    .map((ticket) => (ticket?.status === 'ok' ? ticket.id : null))
+    .filter(Boolean)
+  if (!receiptIds.length || typeof expo.getPushNotificationReceiptsAsync !== 'function') return
+
+  try {
+    const receipts = await expo.getPushNotificationReceiptsAsync(receiptIds)
+    await Promise.all(Object.entries(receipts || {}).map(async ([, receipt]) => {
+      if (receipt?.status !== 'error') return
+      const detailError = receipt?.details?.error
+      console.warn('[expo-push] receipt error:', receipt?.message || 'unknown', detailError || '')
+    }))
+  } catch (err) {
+    console.warn('[expo-push] receipt fetch failed:', err?.message || err)
+  }
+}
+
 /**
  * @param {string} tenantKey
  * @param {string} userId Mongo user id
@@ -81,27 +139,23 @@ async function sendExpoPushToUser(tenantKey, userId, type, data = {}) {
 
   const expo = new ExpoCtor({ accessToken })
   const { title, body } = buildCopy(type, data)
-  const messages = rawTokens.map((to) => ({
-    to,
-    sound: 'default',
-    title: title.slice(0, MAX_TITLE),
-    body: body.slice(0, MAX_BODY),
-    data: {
-      type: String(type || ''),
-      ...Object.fromEntries(
-        Object.entries(data).filter(([k]) => typeof k === 'string' && !k.startsWith('$')),
-      ),
-    },
-  }))
+  const messages = rawTokens.map((to) => buildExpoMessage(to, type, data, title, body))
 
   const chunks = expo.chunkPushNotifications(messages)
   for (const chunk of chunks) {
     try {
-      await expo.sendPushNotificationsAsync(chunk)
+      const tickets = await expo.sendPushNotificationsAsync(chunk)
+      await handleExpoTickets(expo, tickets, chunk, tenant, userId)
     } catch (err) {
       console.warn('[expo-push] send failed:', err?.message || err)
     }
   }
 }
 
-module.exports = { sendExpoPushToUser, isLikelyExpoPushToken, buildCopy }
+module.exports = {
+  sendExpoPushToUser,
+  isLikelyExpoPushToken,
+  buildCopy,
+  buildExpoMessage,
+  pruneInvalidExpoToken,
+}

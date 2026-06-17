@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store'
 import { setAuthToken } from '@/src/api/client'
 import * as authApi from '@/src/api/auth'
 import type { AuthUser } from '@/src/api/auth'
-import { registerExpoPushAndPost, unregisterExpoPushFromBackend } from '@/src/services/expoPushRegistration'
+import { registerExpoPushAndPost, unregisterExpoPushFromBackend, attachExpoPushReregistration } from '@/src/services/expoPushRegistration'
 
 const TOKEN_KEY = 'mg_ops_session_token'
 
@@ -58,14 +58,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void (async () => {
       try {
         await registerExpoPushAndPost(token)
-      } catch {
+      } catch (err) {
         if (!cancelled) {
-          // Permission denied or network — ignore
+          console.warn('[expo-push] register failed:', err instanceof Error ? err.message : err)
         }
       }
     })()
+    const stopReregistration = attachExpoPushReregistration(token)
     return () => {
       cancelled = true
+      stopReregistration()
     }
   }, [token, user?.id])
 
