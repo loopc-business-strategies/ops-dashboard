@@ -32,16 +32,21 @@ const ProcurementPlusTab = lazy(() => import('../components/tabs/ProcurementPlus
 class TabErrorBoundary extends Component {
   constructor(props) {
     super(props)
-    this.state = { hasError: false }
+    this.state = { hasError: false, errorMessage: '' }
   }
 
   static getDerivedStateFromError() {
     return { hasError: true }
   }
 
+  componentDidCatch(error, info) {
+    console.error('[TabErrorBoundary]', error, info?.componentStack)
+    this.setState({ errorMessage: error?.message || String(error) })
+  }
+
   componentDidUpdate(prevProps) {
     if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
-      this.setState({ hasError: false })
+      this.setState({ hasError: false, errorMessage: '' })
     }
   }
 
@@ -51,6 +56,11 @@ class TabErrorBoundary extends Component {
         <div className="p-6 rounded-xl border" style={{ background: '#FFFFFF', borderColor: '#E5E7EB', color: '#1C2A33' }}>
           <p style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>This module failed to load.</p>
           <p style={{ margin: '8px 0 0', color: '#6B7280', fontSize: 14 }}>The rest of the dashboard is still available. Switch tabs or reload the page.</p>
+          {this.state.errorMessage && (
+            <p style={{ margin: '12px 0 0', color: '#9CA3AF', fontSize: 12, fontFamily: 'ui-monospace, monospace', wordBreak: 'break-word' }}>
+              {this.state.errorMessage}
+            </p>
+          )}
         </div>
       )
     }

@@ -18,8 +18,6 @@ import {
   ERP_DASH_ALL_WIDGETS,
 } from './erpTabConstants'
 import { formatTransactionAuditEntry, formatTransactionCommentKind, getTransactionBulkSelectionLabel } from './transactionWorkflow'
-import ChartOfAccountsTree from './ChartOfAccountsTree'
-import DirectDealsTab from './DirectDealsTab'
 import { useERPTabStateAdapter } from './erp/useERPTabStateAdapter'
 import { useErpDashWidgets } from './erp/useErpDashWidgets'
 import { deriveErpAccessPolicy, getAvailableTransactionTypes } from './erp/accessPolicy'
@@ -47,14 +45,8 @@ import {
   resolveTransactionAttachmentUrl,
   titleCaseWords,
 } from './erp/erpTabUtils'
-import ERPInventoryTab from './erp/tabs/ERPInventoryTab'
-import ERPVendorsTab from './erp/tabs/ERPVendorsTab'
 import ERPDashboardTab from './erp/tabs/ERPDashboardTab'
-import ERPLedgerTab from './erp/tabs/ERPLedgerTab'
-import ERPTransactionsTab from './erp/tabs/ERPTransactionsTab'
-import ERPReportsTab from './erp/tabs/ERPReportsTab'
 import { trialBalanceRowsForView } from './erp/trialBalanceReportRows'
-import ERPFixingRegisterTab from './erp/tabs/ERPFixingRegisterTab'
 import { startERPRealtimeFeeds, startMetalRatesRealtime } from '../../utils/realtimeSocket'
 import useLiveMetalRates from '../../hooks/useLiveMetalRates'
 import {
@@ -81,7 +73,6 @@ import { generateStatementHtml as buildStatementHtml } from './erp/statementPrin
 import { shouldSuppressSpotMetalMtmForAccountEnquiry } from './erp/metalMarginPolicy'
 import {
   canViewErpSubTab,
-  resolveAllowedErpSubTab,
 } from '../../utils/erpSubTabPermissions'
 import {
   JV_MODE_META,
@@ -96,7 +87,6 @@ import {
   reconstructJvEditLines,
   resolveJvModeMeta,
 } from './erp/journalVoucherHelpers'
-const VoucherTab = lazy(() => import('./VoucherTab'))
 import {
   DEFAULT_BRANDING,
   DEFAULT_BRANDING_PROFILES,
@@ -115,6 +105,24 @@ import { exchangeRateFromUnitsPerBase, resolveCurrencyRowByCode } from './erp/er
 import StatementExportOptionsModal from './erp/StatementExportOptionsModal'
 
 const JV_MODAL_DEFAULT_SIZE = Object.freeze({ width: 980, height: 640 })
+
+const ChartOfAccountsTree = lazy(() => import('./ChartOfAccountsTree'))
+const DirectDealsTab = lazy(() => import('./DirectDealsTab'))
+const ERPInventoryTab = lazy(() => import('./erp/tabs/ERPInventoryTab'))
+const ERPVendorsTab = lazy(() => import('./erp/tabs/ERPVendorsTab'))
+const ERPLedgerTab = lazy(() => import('./erp/tabs/ERPLedgerTab'))
+const ERPTransactionsTab = lazy(() => import('./erp/tabs/ERPTransactionsTab'))
+const ERPReportsTab = lazy(() => import('./erp/tabs/ERPReportsTab'))
+const ERPFixingRegisterTab = lazy(() => import('./erp/tabs/ERPFixingRegisterTab'))
+const VoucherTab = lazy(() => import('./VoucherTab'))
+
+function ErpSubTabFallback() {
+  return (
+    <div style={{ padding: '1rem', color: '#6B7280', fontSize: '0.875rem' }}>
+      Loading…
+    </div>
+  )
+}
 
 function ERPTab({
   focusTab,
@@ -159,7 +167,9 @@ function ERPTab({
   const [accounts, setAccounts] = useState([])
   const [summaryAccounts, setSummaryAccounts] = useState([])
   const safeSummaryAccounts = useMemo(
-    () => (Array.isArray(summaryAccounts) ? summaryAccounts : []),
+    () => (Array.isArray(summaryAccounts) ? summaryAccounts : [])
+      .filter((item) => item?._id && String(item?.accountCode || '').trim())
+      .map((item) => ({ ...item, accountCode: String(item.accountCode).trim() })),
     [summaryAccounts],
   )
   const [customers, setCustomers] = useState([])
@@ -198,6 +208,16 @@ function ERPTab({
   const erpBaseCurrencyCode = useMemo(
     () => String(currencies.find((c) => c.baseCurrency)?.code || 'USD').trim().toUpperCase() || 'USD',
     [currencies],
+  )
+  const convertJvAmount = useCallback(
+    (amount, fromCurrency, toCurrency) => convertJvAmountBetweenCurrencies(
+      amount,
+      fromCurrency,
+      toCurrency,
+      currencies,
+      erpBaseCurrencyCode,
+    ),
+    [currencies, erpBaseCurrencyCode],
   )
   const [dashboard, setDashboard] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -636,7 +656,8 @@ function ERPTab({
   })
   const availableTransactionTypes = getAvailableTransactionTypes(user, user?.company || user?.tenant?.key || user?.tenant?.name)
   const selectedTransaction = transactions.find((tx) => tx._id === selectedTransactionId) || null
-  const rawStatementEntries = accountEnquiryData?.statement?.entries || []
+  const enquiryComputationEnabled = activeTab === 'enquiry' || showEnquiryModal || Boolean(accountEnquiryData)
+  const rawStatementEntries = enquiryComputationEnabled ? (accountEnquiryData?.statement?.entries || []) : []
   const resolveFixStatus = (entry) => {
     const explicit = String(entry?.metalFixStatus || '').trim().toLowerCase()
     if (explicit === 'fixed' || explicit === 'unfixed') return explicit
@@ -1426,16 +1447,13 @@ function ERPTab({
     .filter((g) => g.options.length > 0)
   const inferJvAccountCurrency = (accountId) => {
     const account = entryAccountOptions.find((item) => String(item?._id) === String(accountId || ''))
-    if (!account) return baseCurrencyCode
+    if (!account) return erpBaseCurrencyCode
     const explicitCurrency = normalizeJvCurrencyCode(account.currency || account.currencyCode || '')
     if (explicitCurrency) return explicitCurrency
     const hint = `${String(account.accountCode || '').toUpperCase()} ${String(account.accountName || '').toUpperCase()}`
     if (hint.includes('USD')) return 'USD'
     if (hint.includes('UZS') || hint.includes('SOMS') || hint.includes('SOM')) return 'UZS'
-    return baseCurrencyCode
-  }
-  const convertJvAmount = (amount, fromCurrency, toCurrency) => {
-    return convertJvAmountBetweenCurrencies(amount, fromCurrency, toCurrency, currencies, baseCurrencyCode)
+    return erpBaseCurrencyCode
   }
   useEffect(() => {
     setJvHeader((prev) => {
@@ -2890,34 +2908,42 @@ function ERPTab({
   }, [activeTab, token, mappingFilters.department])
   useEffect(() => {
     if (!token || !canAccessERP) return undefined
+
+    let stopRealtime = () => {}
+    let stopMetalRatesRealtime = () => {}
     const tenantKey = user?.tenant || user?.company
-    const stopRealtime = startERPRealtimeFeeds({
-      token,
-      tenant: tenantKey,
-      onLedgerUpdate: () => {
-        if (activeTabRef.current === 'ledger') {
-          loadLedger({ cursor: null, cursorHistory: [] })
-        }
-      },
-      onTransactionUpdate: () => {
-        if (activeTabRef.current === 'transactions') {
-          loadTransactions({ cursor: null, cursorHistory: [] })
-        }
-      },
-    })
-    const stopMetalRatesRealtime = startMetalRatesRealtime({
-      token,
-      tenant: tenantKey,
-      onRatesUpdate: (payload) => {
-        const rates = payload?.rates || payload?.data?.rates
-        if (!rates) return
-        setMetalRates(rates)
-        if (activeTabRef.current === 'enquiry' && accountEnquiryDataRef.current?.account?.accountCode) {
-          patchAccountEnquiryMetalRates(rates)
-        }
-      },
-    })
+
+    const timer = window.setTimeout(() => {
+      stopRealtime = startERPRealtimeFeeds({
+        token,
+        tenant: tenantKey,
+        onLedgerUpdate: () => {
+          if (activeTabRef.current === 'ledger') {
+            loadLedger({ cursor: null, cursorHistory: [] })
+          }
+        },
+        onTransactionUpdate: () => {
+          if (activeTabRef.current === 'transactions') {
+            loadTransactions({ cursor: null, cursorHistory: [] })
+          }
+        },
+      })
+      stopMetalRatesRealtime = startMetalRatesRealtime({
+        token,
+        tenant: tenantKey,
+        onRatesUpdate: (payload) => {
+          const rates = payload?.rates || payload?.data?.rates
+          if (!rates) return
+          setMetalRates(rates)
+          if (activeTabRef.current === 'enquiry' && accountEnquiryDataRef.current?.account?.accountCode) {
+            patchAccountEnquiryMetalRates(rates)
+          }
+        },
+      })
+    }, 300)
+
     return () => {
+      window.clearTimeout(timer)
       stopRealtime()
       stopMetalRatesRealtime()
     }
@@ -3068,7 +3094,7 @@ function ERPTab({
         return av - bv
       })
     } else if (customerMarginSort === 'name-asc') {
-      rows.sort((a, b) => a.customerName.localeCompare(b.customerName))
+      rows.sort((a, b) => String(a.customerName || '').localeCompare(String(b.customerName || '')))
     } else {
       rows.sort((a, b) => {
         const av = Number.isFinite(a.marginPercent) ? Number(a.marginPercent) : -1
@@ -3121,7 +3147,7 @@ function ERPTab({
         return av - bv
       })
     } else if (supplierMarginSort === 'name-asc') {
-      rows.sort((a, b) => a.supplierName.localeCompare(b.supplierName))
+      rows.sort((a, b) => String(a.supplierName || '').localeCompare(String(b.supplierName || '')))
     } else {
       rows.sort((a, b) => {
         const av = Number.isFinite(a.marginPercent) ? Number(a.marginPercent) : -1
@@ -5138,7 +5164,9 @@ function ERPTab({
               Hierarchical account tree — right-click any account for more options.
             </p>
           </div>
-          <ChartOfAccountsTree canManageAccounts={canManageAccounts} onOpenSummary={handleOpenAccountSummaryFromTree} />
+          <Suspense fallback={<ErpSubTabFallback />}>
+            <ChartOfAccountsTree canManageAccounts={canManageAccounts} onOpenSummary={handleOpenAccountSummaryFromTree} />
+          </Suspense>
         </div>
       </ERPAccountsTabContainer>
       {/* LEDGER TAB */}
@@ -5505,30 +5533,36 @@ function ERPTab({
           {supplierMarginRows.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No suppliers available for margin view.</p>}
         </div>
       )}
-      <ERPFixingRegisterTab
-        activeTab={activeTab}
-        C={C}
-        setActiveTab={setActiveTabGuarded}
-        fixingRegPanelOffset={fixingRegPanelOffset}
-        fixingRegPanelDrag={fixingRegPanelDrag}
-        beginFixingRegPanelDrag={beginFixingRegPanelDrag}
-        handleFixingRegProceed={handleFixingRegProceed}
-        fixingRegLoading={fixingRegLoading}
-        fixingRegFilter={fixingRegFilter}
-        setFixingRegFilter={setFixingRegFilter}
-        fixingRegisterStockTypeOptions={fixingRegisterStockTypeOptions}
-        setFixingRegShown={setFixingRegShown}
-        setFixingRegResults={setFixingRegResults}
-        setFixingRegError={setFixingRegError}
-        fixingRegError={fixingRegError}
-        fixingRegShown={fixingRegShown}
-        fixingRegOpening={fixingRegOpening}
-        fixingRegResults={fixingRegResults}
-        fixingRegFmtQty={fixingRegFmtQty}
-        fixingRegFmtRate={fixingRegFmtRate}
-        fixingRegFmtAmt={fixingRegFmtAmt}
-      />
-      <ERPLedgerTab
+      {activeTab === 'fixing-register' && (
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPFixingRegisterTab
+            activeTab={activeTab}
+            C={C}
+            setActiveTab={setActiveTabGuarded}
+            fixingRegPanelOffset={fixingRegPanelOffset}
+            fixingRegPanelDrag={fixingRegPanelDrag}
+            beginFixingRegPanelDrag={beginFixingRegPanelDrag}
+            handleFixingRegProceed={handleFixingRegProceed}
+            fixingRegLoading={fixingRegLoading}
+            fixingRegFilter={fixingRegFilter}
+            setFixingRegFilter={setFixingRegFilter}
+            fixingRegisterStockTypeOptions={fixingRegisterStockTypeOptions}
+            setFixingRegShown={setFixingRegShown}
+            setFixingRegResults={setFixingRegResults}
+            setFixingRegError={setFixingRegError}
+            fixingRegError={fixingRegError}
+            fixingRegShown={fixingRegShown}
+            fixingRegOpening={fixingRegOpening}
+            fixingRegResults={fixingRegResults}
+            fixingRegFmtQty={fixingRegFmtQty}
+            fixingRegFmtRate={fixingRegFmtRate}
+            fixingRegFmtAmt={fixingRegFmtAmt}
+          />
+        </Suspense>
+      )}
+      {(activeTab === 'ledger' || showLedgerForm) && (
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPLedgerTab
         activeTab={activeTab}
         C={C}
         canManageAccounts={canManageAccounts}
@@ -5586,7 +5620,9 @@ function ERPTab({
         isFinance={isFinance}
         handleRepairJvFxPreview={handleRepairJvFxPreview}
         handleRepairJvFxApply={handleRepairJvFxApply}
-      />
+          />
+        </Suspense>
+      )}
       {/* ACCOUNT MAPPINGS TAB */}
       {activeTab === 'mappings' && (
         <div>
@@ -5709,7 +5745,9 @@ function ERPTab({
                 {mappings
                   .sort((a, b) => {
                     if (sorting.mappings.by === 'type') {
-                      return sorting.mappings.asc ? a.mappingType.localeCompare(b.mappingType) : b.mappingType.localeCompare(a.mappingType)
+                      return sorting.mappings.asc
+                        ? String(a.mappingType || '').localeCompare(String(b.mappingType || ''))
+                        : String(b.mappingType || '').localeCompare(String(a.mappingType || ''))
                     }
                     return 0
                   })
@@ -5889,7 +5927,9 @@ function ERPTab({
           )}
         </div>
       </ERPEnquiryTabContainer>
-      <ERPTransactionsTab
+      {(activeTab === 'transactions' || jumpToTransactionId) && (
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPTransactionsTab
         activeTab={activeTab}
         C={C}
         emptyCardStyle={ERP_EMPTY_CARD_STYLE}
@@ -5948,8 +5988,12 @@ function ERPTab({
         transactionMeta={transactionMeta}
         transactionPageCount={transactionPageCount}
         loading={loading}
-      />
-      <ERPReportsTab
+          />
+        </Suspense>
+      )}
+      {activeTab === 'reports' && (
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPReportsTab
         activeTab={activeTab}
         C={C}
         modalInputStyle={ERP_MODAL_INPUT_STYLE}
@@ -5986,9 +6030,13 @@ function ERPTab({
         voucherSourceLoading={voucherSourceLoading}
         handleOpenVoucherSource={handleOpenVoucherSource}
         handleJumpToTransaction={handleJumpToTransaction}
-      />
+          />
+        </Suspense>
+      )}
       {/* VENDORS TAB */}
-      <ERPVendorsTab
+      {activeTab === 'vendors' && (
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPVendorsTab
         activeTab={activeTab}
         C={C}
         modalInputStyle={ERP_MODAL_INPUT_STYLE}
@@ -6025,9 +6073,13 @@ function ERPTab({
         handleVendorTableDocumentUpload={handleVendorTableDocumentUpload}
         setVendorDocumentForm={setVendorDocumentForm}
         handleDeleteVendorDocument={handleDeleteVendorDocument}
-      />
+          />
+        </Suspense>
+      )}
       {/* INVENTORY TAB */}
-      <ERPInventoryTab
+      {activeTab === 'inventory' && (
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPInventoryTab
         activeTab={activeTab}
         C={C}
         modalInputStyle={ERP_MODAL_INPUT_STYLE}
@@ -6097,7 +6149,9 @@ function ERPTab({
         resetInventoryMappingForm={resetInventoryMappingForm}
         handleCreateProduct={handleCreateProduct}
         handleInventoryModalDragStart={handleInventoryModalDragStart}
-      />
+          />
+        </Suspense>
+      )}
       {/* SETTINGS TAB */}
       {activeTab === 'settings' && (
         <div>
@@ -6934,13 +6988,15 @@ function ERPTab({
       </ERPVouchersTabContainer>
       {/* DIRECT DEALS TAB */}
       {activeTab === 'direct-deals' && (
-        <DirectDealsTab
-          token={token}
-          customers={customers}
-          currencies={currencies}
-          canManage={canManageDirectDeals}
-          isSuperAdmin={isSuperAdmin}
-        />
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <DirectDealsTab
+            token={token}
+            customers={customers}
+            currencies={currencies}
+            canManage={canManageDirectDeals}
+            isSuperAdmin={isSuperAdmin}
+          />
+        </Suspense>
       )}
       {/* TEST MAPPING MODAL */}
       {showMappingTest && testMapping && (
