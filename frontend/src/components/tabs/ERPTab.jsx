@@ -123,6 +123,14 @@ function ErpSubTabFallback() {
   )
 }
 
+function erpTabNeedsLiveMetalRates(tab) {
+  return tab === 'enquiry'
+    || tab === 'customer-margin'
+    || tab === 'supplier-margin'
+    || tab === 'inventory'
+    || tab === 'fixing-register'
+}
+
 function ERPTab({
   focusTab,
   onNavigateMain,
@@ -291,6 +299,8 @@ function ERPTab({
   const [showStatementAuditIds, setShowStatementAuditIds] = useState(false)
   const [statementAuditPreferenceReady, setStatementAuditPreferenceReady] = useState(false)
   const [metalRates, setMetalRates] = useState({ goldPrice: 285, silverPrice: 3.5, priceCurrency: 'USD', updatedAt: null })
+  const metalRatesRef = useRef(metalRates)
+  metalRatesRef.current = metalRates
   const [enquiryHistory, setEnquiryHistory] = useState([])
   const [showEnquiryModal, setShowEnquiryModal] = useState(false)
   const [showEnquiryLookupMenu, setShowEnquiryLookupMenu] = useState(false)
@@ -479,7 +489,12 @@ function ERPTab({
           unit: rates?.sourceUnit || rates?.priceUnit || 'TOZ',
           updatedAt: rates?.updatedAt || null,
         })
-        if (synced) setMetalRates(synced)
+        if (synced) {
+          metalRatesRef.current = synced
+          if (erpTabNeedsLiveMetalRates(activeTabRef.current)) {
+            setMetalRates(synced)
+          }
+        }
         setLiveMetalFetchError(null)
       })
       .catch((err) => {
@@ -684,8 +699,9 @@ function ERPTab({
   })
   const availableTransactionTypes = getAvailableTransactionTypes(user, user?.company || user?.tenant?.key || user?.tenant?.name)
   const selectedTransaction = transactions.find((tx) => tx._id === selectedTransactionId) || null
-  const enquiryComputationEnabled = activeTab === 'enquiry' || showEnquiryModal || Boolean(accountEnquiryData)
+  const enquiryComputationEnabled = activeTab === 'enquiry' || showEnquiryModal
   const rawStatementEntries = enquiryComputationEnabled ? (accountEnquiryData?.statement?.entries || []) : []
+  const needsLiveMetalForRender = enquiryComputationEnabled || erpTabNeedsLiveMetalRates(activeTab)
   const resolveFixStatus = (entry) => {
     const explicit = String(entry?.metalFixStatus || '').trim().toLowerCase()
     if (explicit === 'fixed' || explicit === 'unfixed') return explicit
@@ -694,13 +710,21 @@ function ERPTab({
     if (/fixing|fixed|price[\s-_]?fix/.test(text)) return 'fixed'
     return 'unknown'
   }
-  const effectiveSpotPrices = resolveEffectiveSpotPrices({
-    liveSnapshot: erpLiveMetalSnapshot,
-    enquiryGold: accountEnquiryData?.metals?.goldPrice,
-    enquirySilver: accountEnquiryData?.metals?.silverPrice,
+  const effectiveSpotPrices = useMemo(() => resolveEffectiveSpotPrices({
+    liveSnapshot: needsLiveMetalForRender ? erpLiveMetalSnapshot : null,
+    enquiryGold: enquiryComputationEnabled ? accountEnquiryData?.metals?.goldPrice : 0,
+    enquirySilver: enquiryComputationEnabled ? accountEnquiryData?.metals?.silverPrice : 0,
     fallbackGold: metalRates.goldPrice,
     fallbackSilver: metalRates.silverPrice,
-  })
+  }), [
+    needsLiveMetalForRender,
+    erpLiveMetalSnapshot,
+    enquiryComputationEnabled,
+    accountEnquiryData?.metals?.goldPrice,
+    accountEnquiryData?.metals?.silverPrice,
+    metalRates.goldPrice,
+    metalRates.silverPrice,
+  ])
   const goldPriceUSD = effectiveSpotPrices.goldPriceUSD
   const silverPriceUSD = effectiveSpotPrices.silverPriceUSD
   const totalFunds = accountEnquiryData ? Number(accountEnquiryData.balances?.netBalance || 0) : 0
@@ -977,7 +1001,7 @@ function ERPTab({
     }
     return convertStatementDisplayAmount(bookedValue)
   }
-  const modalPositionRows = accountEnquiryData ? [
+  const modalPositionRows = enquiryComputationEnabled && accountEnquiryData ? [
     {
       key: 'xau',
       type: 'XAU',
@@ -2853,6 +2877,11 @@ function ERPTab({
     activeTabRef.current = activeTab
   }, [activeTab])
   useEffect(() => {
+    if (erpTabNeedsLiveMetalRates(activeTab)) {
+      setMetalRates(metalRatesRef.current)
+    }
+  }, [activeTab])
+  useEffect(() => {
     accountEnquiryDataRef.current = accountEnquiryData
   }, [accountEnquiryData])
   useEffect(() => {
@@ -2962,8 +2991,12 @@ function ERPTab({
         onRatesUpdate: (payload) => {
           const rates = payload?.rates || payload?.data?.rates
           if (!rates) return
-          setMetalRates(rates)
-          if (activeTabRef.current === 'enquiry' && accountEnquiryDataRef.current?.account?.accountCode) {
+          metalRatesRef.current = rates
+          const tab = activeTabRef.current
+          if (erpTabNeedsLiveMetalRates(tab)) {
+            setMetalRates(rates)
+          }
+          if (tab === 'enquiry' && accountEnquiryDataRef.current?.account?.accountCode) {
             patchAccountEnquiryMetalRates(rates)
           }
         },
@@ -3072,6 +3105,7 @@ function ERPTab({
     return `${formatted} ${direction}`
   }
   const customerMarginRows = useMemo(() => {
+    if (activeTab !== 'customer-margin') return []
     const query = String(customerMarginSearch || '').trim().toLowerCase()
     const rows = (customers || [])
       .map((customer) => {
@@ -3131,8 +3165,9 @@ function ERPTab({
       })
     }
     return rows
-  }, [customers, customerMarginSearch, customerMarginSort, goldPriceUSD, silverPriceUSD])
+  }, [activeTab, customers, customerMarginSearch, customerMarginSort, goldPriceUSD, silverPriceUSD])
   const supplierMarginRows = useMemo(() => {
+    if (activeTab !== 'supplier-margin') return []
     const query = String(supplierMarginSearch || '').trim().toLowerCase()
     const rows = (vendors || [])
       .map((vendor) => {
@@ -3184,7 +3219,7 @@ function ERPTab({
       })
     }
     return rows
-  }, [vendors, supplierMarginSearch, supplierMarginSort])
+  }, [activeTab, vendors, supplierMarginSearch, supplierMarginSort])
   const formatCustomerMarginEquity = (row) => {
     const amount = Number(Math.abs(row?.equity || 0)).toLocaleString(undefined, {
       minimumFractionDigits: 2,
