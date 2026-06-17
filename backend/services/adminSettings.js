@@ -1,8 +1,12 @@
 const DepartmentState = require('../models/DepartmentState')
 
+const PERSISTENT_SESSION_MAX_AGE_MS = Number(
+  process.env.PERSISTENT_SESSION_MAX_AGE_MS || 10 * 365 * 24 * 60 * 60 * 1000,
+)
+
 const DEFAULT_ADMIN_SETTINGS = {
   passwordPolicy: 'strong',
-  sessionTimeoutMinutes: '30',
+  sessionTimeoutMinutes: '0',
 }
 
 async function loadAdminSettings(tenant) {
@@ -40,12 +44,24 @@ function validatePasswordPolicy(password, policy = DEFAULT_ADMIN_SETTINGS.passwo
   return null
 }
 
+function isPersistentSessionForced() {
+  return String(process.env.FORCE_PERSISTENT_SESSION || '').trim().toLowerCase() === 'true'
+}
+
 function resolveSessionMaxAgeMs(settings = DEFAULT_ADMIN_SETTINGS) {
+  if (isPersistentSessionForced()) {
+    return PERSISTENT_SESSION_MAX_AGE_MS
+  }
+
   const minutes = Number.parseInt(String(settings?.sessionTimeoutMinutes ?? ''), 10)
+  // 0 = stay signed in until logout (persistent session).
+  if (minutes === 0) {
+    return PERSISTENT_SESSION_MAX_AGE_MS
+  }
   if (Number.isFinite(minutes) && minutes >= 5 && minutes <= 1440) {
     return minutes * 60 * 1000
   }
-  return Number(process.env.COOKIE_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000)
+  return PERSISTENT_SESSION_MAX_AGE_MS
 }
 
 function resolveJwtExpiresIn(maxAgeMs) {
@@ -55,8 +71,10 @@ function resolveJwtExpiresIn(maxAgeMs) {
 
 module.exports = {
   DEFAULT_ADMIN_SETTINGS,
+  PERSISTENT_SESSION_MAX_AGE_MS,
   loadAdminSettings,
   validatePasswordPolicy,
+  isPersistentSessionForced,
   resolveSessionMaxAgeMs,
   resolveJwtExpiresIn,
 }

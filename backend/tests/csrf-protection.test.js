@@ -167,6 +167,34 @@ describe('CSRF protection for cookie-auth mutating routes', () => {
     expect(joined).not.toMatch(/sessionToken=/)
   })
 
+  test('mobile refresh returns bearer token without session cookie', async () => {
+    const user = await createTenantUser('loopc')
+    const login = await request(app)
+      .post('/api/auth/login')
+      .set('X-Client', 'mobile')
+      .set('x-tenant', 'loopc')
+      .send({ company: 'loopc', name: user.name, password: 'password123' })
+
+    expect(login.status).toBe(200)
+    const bearer = login.body.token
+    expect(bearer).toBeTruthy()
+
+    const refresh = await request(app)
+      .post('/api/auth/refresh')
+      .set('Authorization', `Bearer ${bearer}`)
+      .set('X-Client', 'mobile')
+      .set('x-tenant', 'loopc')
+      .send({})
+
+    expect(refresh.status).toBe(200)
+    expect(refresh.body.success).toBe(true)
+    expect(refresh.body.token).toBeTruthy()
+    expect(refresh.body.expiresIn).toBeTruthy()
+    const setCookie = refresh.headers['set-cookie'] || []
+    const joined = Array.isArray(setCookie) ? setCookie.join(';') : String(setCookie)
+    expect(joined).not.toMatch(/sessionToken=/)
+  })
+
   test('GET /api/auth/me reuses existing csrf cookie instead of rotating each request', async () => {
     const user = await createTenantUser('loopc')
     const agent = request.agent(app)

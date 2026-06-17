@@ -95,7 +95,7 @@ const DEFAULT_SETTINGS = {
   dateFormat: 'DD/MM/YYYY',
   timezone: '(UTC+05:30) Asia/Kolkata',
   passwordPolicy: 'strong',
-  sessionTimeoutMinutes: '30',
+  sessionTimeoutMinutes: '0',
   maxLoginAttempts: '5',
   twoFactorAuth: true,
   smtpHost: 'smtp.company.com',
@@ -1004,7 +1004,13 @@ function SettingsTab() {
         <SettingsSection title="SECURITY SETTINGS" accent="purple" icon="🔒">
           <div style={{ display: 'grid', gap: '0.75rem' }}>
             <div><FieldLabel>Password Policy</FieldLabel><AdminSelect value={settings.passwordPolicy} onChange={(e) => setSettings((s) => ({ ...s, passwordPolicy: e.target.value }))}><option value="strong">Strong (8+ characters, mix of letters, numbers & symbols)</option><option value="medium">Medium (8+ characters)</option><option value="basic">Basic (6+ characters)</option></AdminSelect></div>
-            <div><FieldLabel>Session Timeout (Minutes)</FieldLabel><AdminInput value={settings.sessionTimeoutMinutes} onChange={(e) => setSettings((s) => ({ ...s, sessionTimeoutMinutes: e.target.value }))} /></div>
+            <div>
+              <FieldLabel>Session Timeout (Minutes)</FieldLabel>
+              <AdminInput value={settings.sessionTimeoutMinutes} onChange={(e) => setSettings((s) => ({ ...s, sessionTimeoutMinutes: e.target.value }))} placeholder="0" />
+              <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.25rem' }}>
+                Use <strong>0</strong> to stay signed in until logout. Use 5–1440 for auto logout after N minutes.
+              </div>
+            </div>
             <div><FieldLabel>Max Login Attempts</FieldLabel><AdminInput value={settings.maxLoginAttempts} onChange={(e) => setSettings((s) => ({ ...s, maxLoginAttempts: e.target.value }))} /></div>
             <SwitchToggle checked={settings.twoFactorAuth} onChange={() => setToggle('twoFactorAuth')} label="Two-Factor Authentication" desc="Require 2FA for all users." color="purple" />
           </div>
