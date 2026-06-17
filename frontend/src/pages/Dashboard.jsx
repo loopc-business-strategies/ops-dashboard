@@ -293,8 +293,9 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps =
 }
 
 function renderTabContent(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps = {}, erpTabProps = {}) {
+  const resetKey = tabId === 'erp' ? `erp:${erpSubTab || 'dashboard'}` : tabId
   return (
-    <TabErrorBoundary resetKey={tabId}>
+    <TabErrorBoundary resetKey={resetKey}>
       <Suspense fallback={<TabLoadingFallback />}>
         {renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps, erpTabProps)}
       </Suspense>

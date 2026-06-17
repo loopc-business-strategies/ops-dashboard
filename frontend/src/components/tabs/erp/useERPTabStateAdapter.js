@@ -1,5 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { resolveAllowedErpSubTab } from '../../../utils/erpSubTabPermissions'
+
+function buildErpPermissionKey(user) {
+  try {
+    return JSON.stringify({
+      role: user?.role || '',
+      allowedModules: user?.allowedModules || [],
+      erp: user?.modulePermissions?.erp || null,
+    })
+  } catch {
+    return String(user?.role || '')
+  }
+}
 
 /**
  * Keeps ERP inner `activeTab` in sync with the shell `focusTab`, but only to tabs
@@ -8,15 +20,19 @@ import { resolveAllowedErpSubTab } from '../../../utils/erpSubTabPermissions'
  * "This module failed to load" on Account Summary / enquiry).
  */
 export function useERPTabStateAdapter(focusTab, user) {
+  const userRef = useRef(user)
+  userRef.current = user
+  const erpPermissionKey = useMemo(() => buildErpPermissionKey(user), [user])
+
   const [activeTab, setActiveTab] = useState(() =>
     resolveAllowedErpSubTab(user, focusTab || 'dashboard', 'dashboard'),
   )
 
   useEffect(() => {
     if (!focusTab) return
-    const allowed = resolveAllowedErpSubTab(user, focusTab, 'dashboard')
+    const allowed = resolveAllowedErpSubTab(userRef.current, focusTab, 'dashboard')
     setActiveTab((prev) => (allowed === prev ? prev : allowed))
-  }, [focusTab, user])
+  }, [focusTab, erpPermissionKey])
 
   return {
     activeTab,

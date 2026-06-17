@@ -132,15 +132,13 @@ function ERPTab({
   const TRANSACTION_TYPE_LABELS = getTransactionTypeLabels(t)
   const TRANSACTION_ACTION_LABELS = getTransactionActionLabels(t)
   const { activeTab, setActiveTab } = useERPTabStateAdapter(focusTab, user)
-  // Do not resolve (user, activeTab, focusTab): when both activeTab and focusTab are allowed,
-  // that call keeps the *old* inner tab (e.g. ledger) after the shell switches to Account Summary
-  // (enquiry), and it can fight useERPTabStateAdapter when `user` is a new object each render →
-  // max update depth / "module failed to load". Only clamp when the current inner tab is illegal.
-  useEffect(() => {
-    if (canViewErpSubTab(user, activeTab)) return
-    const fallback = resolveAllowedErpSubTab(user, focusTab || 'dashboard', 'dashboard')
-    if (fallback !== activeTab) setActiveTab(fallback)
-  }, [activeTab, focusTab, user, setActiveTab])
+  const setActiveTabGuarded = useCallback((next) => {
+    setActiveTab((prev) => {
+      const candidate = typeof next === 'function' ? next(prev) : next
+      if (!candidate || typeof candidate !== 'string') return prev
+      return canViewErpSubTab(user, candidate) ? candidate : prev
+    })
+  }, [setActiveTab, user])
   const canViewCurrentErpSubTab = canViewErpSubTab(user, activeTab)
   const dashStorageKey = `erp_dash_${user?.name || 'default'}`
   const [dashEditMode, setDashEditMode] = useState(false)
@@ -160,6 +158,10 @@ function ERPTab({
   const [dashChatMessages, setDashChatMessages] = useState([])
   const [accounts, setAccounts] = useState([])
   const [summaryAccounts, setSummaryAccounts] = useState([])
+  const safeSummaryAccounts = useMemo(
+    () => (Array.isArray(summaryAccounts) ? summaryAccounts : []),
+    [summaryAccounts],
+  )
   const [customers, setCustomers] = useState([])
   const [customerMarginSearch, setCustomerMarginSearch] = useState('')
   const [customerMarginCompactView, setCustomerMarginCompactView] = useState(true)
@@ -1296,7 +1298,10 @@ function ERPTab({
     if (isSummaryScope) {
       const cached = readSummaryAccountsCache(tenantKey)
       if (Array.isArray(cached) && cached.length) {
-        setSummaryAccounts(cached)
+        const normalized = cached
+          .filter((item) => item?._id && String(item?.accountCode || '').trim())
+          .map((item) => ({ ...item, accountCode: String(item.accountCode).trim() }))
+        setSummaryAccounts(normalized)
         setSummaryAccountsLoading(false)
       } else {
         setSummaryAccountsLoading(true)
@@ -1310,7 +1315,8 @@ function ERPTab({
         const rows = data.accounts || []
         const uniqueById = new Map()
         rows.forEach((item) => {
-          if (item?._id) uniqueById.set(item._id, item)
+          const code = String(item?.accountCode || '').trim()
+          if (item?._id && code) uniqueById.set(item._id, { ...item, accountCode: code })
         })
         const next = Array.from(uniqueById.values())
         setSummaryAccounts(next)
@@ -1335,15 +1341,15 @@ function ERPTab({
   const resolveAccountEnquiryCodeInput = (input) => {
     const cleanInput = String(input || '').trim()
     if (!cleanInput) return ''
-    const exactAccount = summaryAccounts.find((account) => String(account?.accountCode || '').trim().toLowerCase() === cleanInput.toLowerCase())
+    const exactAccount = safeSummaryAccounts.find((account) => String(account?.accountCode || '').trim().toLowerCase() === cleanInput.toLowerCase())
     if (exactAccount?.accountCode) return String(exactAccount.accountCode).trim()
-    const matchedLabel = summaryAccounts.find((account) => formatSummaryAccountLabel(account).toLowerCase() === cleanInput.toLowerCase())
+    const matchedLabel = safeSummaryAccounts.find((account) => formatSummaryAccountLabel(account).toLowerCase() === cleanInput.toLowerCase())
     if (matchedLabel?.accountCode) return String(matchedLabel.accountCode).trim()
     const labelPrefixMatch = cleanInput.match(/^([^\s-][^-]*?)(?:\s*-\s*.*)?$/)
     const candidateCode = String(labelPrefixMatch?.[1] || cleanInput).trim()
     return candidateCode
   }
-  const groupedSummaryAccounts = useMemo(() => (Array.isArray(summaryAccounts) ? summaryAccounts : [])
+  const groupedSummaryAccounts = useMemo(() => safeSummaryAccounts
     .slice()
     .sort((a, b) => {
       const aType = String(a.accountType || '').trim()
@@ -1362,9 +1368,9 @@ function ERPTab({
       if (existingGroup) existingGroup.accounts.push(account)
       else groups.push({ type, accounts: [account] })
       return groups
-    }, []), [summaryAccounts])
+    }, []), [safeSummaryAccounts])
   const entryAccountOptions = useMemo(() => {
-    const baseEntryAccountOptions = summaryAccounts.length ? summaryAccounts : accounts
+    const baseEntryAccountOptions = safeSummaryAccounts.length ? safeSummaryAccounts : accounts
     const customerVendorLedgerOptions = [...(Array.isArray(customers) ? customers : []), ...(Array.isArray(vendors) ? vendors : [])]
       .map((party) => party?.ledgerAccountId)
       .filter((ledger) => ledger && (ledger._id || ledger.accountCode))
@@ -1376,7 +1382,7 @@ function ERPTab({
       seenEntryAccountKeys.add(key)
       return true
     })
-  }, [summaryAccounts, accounts, customers, vendors])
+  }, [safeSummaryAccounts, accounts, customers, vendors])
   const jvComboGroups = useMemo(() => ACCOUNT_TYPE_ORDER
     .map((type) => ({
       label: type,
@@ -2717,7 +2723,7 @@ function ERPTab({
   }
   const handleOpenAccountSummaryFromTree = async (account) => {
     if (!account?.accountCode) return
-    setActiveTab('enquiry')
+    setActiveTabGuarded('enquiry')
     setAccountEnquiryCode(account.accountCode)
     await fetchAccountEnquiryByCode(account.accountCode)
   }
@@ -4136,7 +4142,7 @@ function ERPTab({
     if (!transactionId) return
     setSelectedTransactionId(transactionId)
     setVoucherSource(null)
-    setActiveTab('transactions')
+    setActiveTabGuarded('transactions')
     try {
       await loadTransactions()
     } catch {
@@ -4168,7 +4174,7 @@ function ERPTab({
       try {
         const code = String(jumpToEnquiryAccountCode || '').trim()
         if (!code) return
-        setActiveTab('enquiry')
+        setActiveTabGuarded('enquiry')
         await fetchAccountEnquiryByCode(code, { openModal: true })
       } finally {
         if (!cancelled) onJumpToEnquiryConsumed()
@@ -5120,7 +5126,7 @@ function ERPTab({
         ERP_DASH_ALL_WIDGETS={ERP_DASH_ALL_WIDGETS}
         dashboard={dashboard}
         dashChatMessages={dashChatMessages}
-        setActiveTab={setActiveTab}
+        setActiveTab={setActiveTabGuarded}
         onNavigateMain={onNavigateMain}
       />
       {/* CHART OF ACCOUNTS TAB */}
@@ -5229,7 +5235,7 @@ function ERPTab({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.9rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <button
-                onClick={() => setActiveTab('dashboard')}
+                onClick={() => setActiveTabGuarded('dashboard')}
                 title="Back to ERP Dashboard"
                 style={{ background: 'none', border: '1px solid #A7F3D0', borderRadius: '0.4rem', padding: '0.3rem 0.5rem', cursor: 'pointer', fontSize: '1rem', color: '#1a6647', display: 'flex', alignItems: 'center', lineHeight: 1, fontWeight: '700' }}
               >←</button>
@@ -5367,7 +5373,7 @@ function ERPTab({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.9rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <button
-                onClick={() => setActiveTab('dashboard')}
+                onClick={() => setActiveTabGuarded('dashboard')}
                 title="Back to ERP Dashboard"
                 style={{ background: 'none', border: '1px solid #A7F3D0', borderRadius: '0.4rem', padding: '0.3rem 0.5rem', cursor: 'pointer', fontSize: '1rem', color: '#1a6647', display: 'flex', alignItems: 'center', lineHeight: 1, fontWeight: '700' }}
               >â†</button>
@@ -5502,7 +5508,7 @@ function ERPTab({
       <ERPFixingRegisterTab
         activeTab={activeTab}
         C={C}
-        setActiveTab={setActiveTab}
+        setActiveTab={setActiveTabGuarded}
         fixingRegPanelOffset={fixingRegPanelOffset}
         fixingRegPanelDrag={fixingRegPanelDrag}
         beginFixingRegPanelDrag={beginFixingRegPanelDrag}
@@ -5831,7 +5837,7 @@ function ERPTab({
                       Loading account list…
                     </p>
                   )}
-                  {!summaryAccountsLoading && !summaryAccounts.length && (
+                  {!summaryAccountsLoading && !safeSummaryAccounts.length && (
                     <p style={{ margin: '0.7rem 0 0', color: '#92400E', fontSize: '0.82rem', fontWeight: '600' }}>
                       No accounts available for your role. Department heads only see mapped accounts in Account Summary.
                     </p>
@@ -5839,9 +5845,9 @@ function ERPTab({
                   <div style={{ marginTop: '0.9rem', paddingTop: '0.85rem', borderTop: '1px solid #E5E7EB' }}>
                     <p style={{ margin: '0 0 0.5rem', color: '#6B7280', fontWeight: '700', fontSize: '0.78rem' }}>Quick Accounts</p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
-                      {summaryAccounts
+                      {safeSummaryAccounts
                         .slice()
-                        .sort((a, b) => a.accountCode.localeCompare(b.accountCode))
+                        .sort((a, b) => String(a?.accountCode || '').localeCompare(String(b?.accountCode || '')))
                         .slice(0, 8)
                         .map((account) => (
                           <button
@@ -6448,7 +6454,7 @@ function ERPTab({
                 </button>
               )}
               <button
-                onClick={() => setActiveTab('settings')}
+                onClick={() => setActiveTabGuarded('settings')}
                 style={{ padding: '0.5rem 1rem', background: '#fff', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.375rem', cursor: 'pointer' }}
               >
                 Back to Settings
