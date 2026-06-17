@@ -16,6 +16,11 @@ const CHAT_ATTACHMENT_MIME_TYPES = [
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/plain',
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+  'video/3gpp',
+  'video/x-m4v',
 ]
 
 const chatUploadDir = resolveUploadDir('CHAT_UPLOAD_DIR', 'chat')

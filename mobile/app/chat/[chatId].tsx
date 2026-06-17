@@ -16,7 +16,7 @@ import {
 import { Stack, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as DocumentPicker from 'expo-document-picker'
-import * as ImagePicker from 'expo-image-picker'
+import { SymbolView } from 'expo-symbols'
 import { attachmentRequestUrl, getAuthToken } from '@/src/api/client'
 import { mgBranding } from '@/src/config/branding'
 import { useChat } from '@/src/context/ChatContext'
@@ -111,33 +111,13 @@ export default function ConversationScreen() {
     }
   }, [chatId, sendMessage, sending, text])
 
-  const pickImage = useCallback(async () => {
+  const pickAttachment = useCallback(async () => {
     if (sending) return
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.85,
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      type: '*/*',
     })
-    if (result.canceled || !result.assets?.[0]) return
-    const asset = result.assets[0]
-    setSending(true)
-    setSendError('')
-    try {
-      await sendAttachment(chatId, {
-        uri: asset.uri,
-        name: asset.fileName || `photo-${Date.now()}.jpg`,
-        mimeType: asset.mimeType || 'image/jpeg',
-      })
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100)
-    } catch (err) {
-      setSendError(err instanceof Error ? err.message : 'Upload failed')
-    } finally {
-      setSending(false)
-    }
-  }, [chatId, sendAttachment, sending])
-
-  const pickDocument = useCallback(async () => {
-    if (sending) return
-    const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true })
     if (result.canceled || !result.assets?.[0]) return
     const asset = result.assets[0]
     setSending(true)
@@ -208,11 +188,18 @@ export default function ConversationScreen() {
         {sendError ? <Text style={styles.error}>{sendError}</Text> : null}
 
         <View style={[styles.compose, { paddingBottom: Math.max(insets.bottom, 12) + (Platform.OS === 'android' ? keyboardHeight : 0) }]}>
-          <Pressable style={styles.attachBtn} onPress={pickImage} disabled={sending}>
-            <Text style={styles.attachBtnText}>📷</Text>
-          </Pressable>
-          <Pressable style={styles.attachBtn} onPress={pickDocument} disabled={sending}>
-            <Text style={styles.attachBtnText}>📎</Text>
+          <Pressable
+            style={styles.attachBtn}
+            onPress={pickAttachment}
+            disabled={sending}
+            accessibilityLabel="Attach file"
+            accessibilityRole="button"
+          >
+            <SymbolView
+              name={{ ios: 'paperclip', android: 'attach_file', web: 'attach_file' }}
+              tintColor={mgBranding.colors.primary}
+              size={22}
+            />
           </Pressable>
           <TextInput
             style={styles.input}
@@ -286,7 +273,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#F3F4F6',
   },
-  attachBtnText: { fontSize: 18 },
   input: {
     flex: 1,
     minHeight: 42,

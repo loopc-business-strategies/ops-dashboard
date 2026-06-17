@@ -657,6 +657,11 @@ function FixingPositionSummaryWidget({ dashboard, onNavigate }) {
 }
 
 
+const MarginsWidgetMemo = React.memo(MarginsWidget)
+const APARWidgetMemo = React.memo(APARWidget)
+const ExpensesWidgetMemo = React.memo(ExpensesWidget)
+const FixingPositionSummaryWidgetMemo = React.memo(FixingPositionSummaryWidget)
+
 function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = null, onNavigateMain = null, _options = {}) {
   const bdr = '1px solid #F0FDF4'
   const muted = '#6B7280'
@@ -687,7 +692,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
 
   switch (id) {
     case 'margins':
-      return <div style={widgetContainerStyle}><MarginsWidget dashboard={dashboard} onNavigate={onNavigate} /></div>
+      return <div style={widgetContainerStyle}><MarginsWidgetMemo dashboard={dashboard} onNavigate={onNavigate} /></div>
 
     case 'bank': {
       const bankRows = dashboard?.bankBalances || []
@@ -814,7 +819,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
     case 'expenses': {
       return (
         <div style={widgetContainerStyle}>
-          <ExpensesWidget dashboard={dashboard} />
+          <ExpensesWidgetMemo dashboard={dashboard} />
         </div>
       )
     }
@@ -859,12 +864,12 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
     }
 
     case 'apar':
-      return <div style={widgetContainerStyle}><APARWidget dashboard={dashboard} onNavigate={onNavigate} /></div>
+      return <div style={widgetContainerStyle}><APARWidgetMemo dashboard={dashboard} onNavigate={onNavigate} /></div>
 
     case 'fixing':
       return (
         <div style={widgetContainerStyle}>
-          <FixingPositionSummaryWidget dashboard={dashboard} onNavigate={onNavigate} />
+          <FixingPositionSummaryWidgetMemo dashboard={dashboard} onNavigate={onNavigate} />
         </div>
       )
 

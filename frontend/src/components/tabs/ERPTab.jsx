@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { getTenantBranding } from '../../config/tenantBranding'
@@ -37,6 +37,7 @@ import {
   decodeInventoryCategoryMeta,
   decodeInventoryCategoryPairs,
   encodeInventoryCategoryMeta,
+  erpTabNeedsLiveMetalRates,
   formatVatPercent,
   getTransactionActionLabels,
   getTransactionTypeLabels,
@@ -46,8 +47,14 @@ import {
   titleCaseWords,
 } from './erp/erpTabUtils'
 import ERPDashboardTab from './erp/tabs/ERPDashboardTab'
+import { useErpMetalRatesRealtime } from './erp/useErpMetalRatesRealtime'
+import { useErpCustomers } from './erp/useErpCustomers'
+import { useErpMappings } from './erp/useErpMappings'
+import { useErpCurrencies } from './erp/useErpCurrencies'
+import { useErpCustomerMargin, useErpSupplierMargin, useErpMarginContextMenuDismissal } from './erp/useErpMarginTabs'
+
 import { trialBalanceRowsForView } from './erp/trialBalanceReportRows'
-import { startERPRealtimeFeeds, startMetalRatesRealtime } from '../../utils/realtimeSocket'
+import { startERPRealtimeFeeds } from '../../utils/realtimeSocket'
 import {
   liveRatesToMetalRatesState,
   resolveEffectiveSpotPrices,
@@ -113,6 +120,14 @@ const ERPLedgerTab = lazy(() => import('./erp/tabs/ERPLedgerTab'))
 const ERPTransactionsTab = lazy(() => import('./erp/tabs/ERPTransactionsTab'))
 const ERPReportsTab = lazy(() => import('./erp/tabs/ERPReportsTab'))
 const ERPFixingRegisterTab = lazy(() => import('./erp/tabs/ERPFixingRegisterTab'))
+const ERPCustomersTab = lazy(() => import('./erp/tabs/ERPCustomersTab'))
+const ERPCustomerMarginTab = lazy(() => import('./erp/tabs/ERPCustomerMarginTab'))
+const ERPSupplierMarginTab = lazy(() => import('./erp/tabs/ERPSupplierMarginTab'))
+const ERPMappingsTab = lazy(() => import('./erp/tabs/ERPMappingsTab'))
+const ERPEnquiryTab = lazy(() => import('./erp/tabs/ERPEnquiryTab'))
+const ERPSettingsTab = lazy(() => import('./erp/tabs/ERPSettingsTab'))
+const ERPCurrenciesTab = lazy(() => import('./erp/tabs/ERPCurrenciesTab'))
+
 const VoucherTab = lazy(() => import('./VoucherTab'))
 
 function ErpSubTabFallback() {
@@ -121,14 +136,6 @@ function ErpSubTabFallback() {
       Loading…
     </div>
   )
-}
-
-function erpTabNeedsLiveMetalRates(tab) {
-  return tab === 'enquiry'
-    || tab === 'customer-margin'
-    || tab === 'supplier-margin'
-    || tab === 'inventory'
-    || tab === 'fixing-register'
 }
 
 function ERPTab({
@@ -180,14 +187,6 @@ function ERPTab({
     [summaryAccounts],
   )
   const [customers, setCustomers] = useState([])
-  const [customerMarginSearch, setCustomerMarginSearch] = useState('')
-  const [customerMarginCompactView, setCustomerMarginCompactView] = useState(true)
-  const [customerMarginSort, setCustomerMarginSort] = useState('margin-desc')
-  const [customerMarginContextMenu, setCustomerMarginContextMenu] = useState({ open: false, x: 0, y: 0, row: null })
-  const [supplierMarginSearch, setSupplierMarginSearch] = useState('')
-  const [supplierMarginCompactView, setSupplierMarginCompactView] = useState(true)
-  const [supplierMarginSort, setSupplierMarginSort] = useState('margin-desc')
-  const [supplierMarginContextMenu, setSupplierMarginContextMenu] = useState({ open: false, x: 0, y: 0, row: null })
   const [fixingRegFilter, setFixingRegFilter] = useState({
     metalType: '',
     quantityUnit: 'GOZ',
@@ -227,7 +226,16 @@ function ERPTab({
     [currencies, erpBaseCurrencyCode],
   )
   const [dashboard, setDashboard] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [dashboardLoading, setDashboardLoading] = useState(false)
+  const [transactionsLoading, setTransactionsLoading] = useState(false)
+  const [ledgerLoading, setLedgerLoading] = useState(false)
+  const [reportsLoading, setReportsLoading] = useState(false)
+  const [accountsLoading, setAccountsLoading] = useState(false)
+  const [customersLoading, setCustomersLoading] = useState(false)
+  const [mappingsLoading, setMappingsLoading] = useState(false)
+  const [currenciesLoading, setCurrenciesLoading] = useState(false)
+  const [vendorsLoading, setVendorsLoading] = useState(false)
+  const [inventoryLoading, setInventoryLoading] = useState(false)
   const [summaryAccountsLoading, setSummaryAccountsLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -469,6 +477,59 @@ function ERPTab({
   const canLoadParties = canViewCustomers || canAccessVendors || canAccessTransactions || canAccessVouchers || canAccessFixingRegister || canAccessDirectDeals
   const canLoadInventoryData = canAccessInventory || canAccessFixingRegister
   const canLoadDashboard = canViewAccounts || canAccessReports
+  const { loadCustomers } = useErpCustomers({
+    token,
+    canLoadParties,
+    setLoading: setCustomersLoading,
+    setCustomers,
+    setError,
+  })
+  const { loadMappings } = useErpMappings({
+    token,
+    canViewMappings,
+    canLoadReferenceData,
+    setLoading: setMappingsLoading,
+    setMappings,
+    setMappingSummary,
+    setAccounts,
+    setError,
+  })
+  const { loadCurrencies } = useErpCurrencies({
+    token,
+    canLoadReferenceData,
+    setLoading: setCurrenciesLoading,
+    setCurrencies,
+    setError,
+  })
+  const patchAccountEnquiryMetalRates = useCallback((rates) => {
+    if (!rates) return
+    setAccountEnquiryData((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        metals: {
+          ...prev.metals,
+          goldPrice: Number(rates.goldPrice ?? prev.metals?.goldPrice ?? 0),
+          silverPrice: Number(rates.silverPrice ?? prev.metals?.silverPrice ?? 0),
+          priceCurrency: rates.priceCurrency || prev.metals?.priceCurrency || 'USD',
+          updatedAt: rates.updatedAt || prev.metals?.updatedAt || null,
+        },
+      }
+    })
+  }, [])
+  const onMetalRatesForTabs = useCallback((rates) => {
+    startTransition(() => setMetalRates(rates))
+  }, [])
+  useErpMetalRatesRealtime({
+    token,
+    tenant: user?.tenant || user?.company,
+    canAccessERP,
+    activeTabRef,
+    accountEnquiryDataRef,
+    metalRatesRef,
+    onMetalRatesForTabs,
+    onEnquiryMetalRatesPatch: patchAccountEnquiryMetalRates,
+  })
   const [liveMetalFetchError, setLiveMetalFetchError] = useState(null)
   const erpLiveMetalSnapshot = useMemo(() => ({
     gold: Number(metalRates.goldPrice || 0),
@@ -727,6 +788,36 @@ function ERPTab({
   ])
   const goldPriceUSD = effectiveSpotPrices.goldPriceUSD
   const silverPriceUSD = effectiveSpotPrices.silverPriceUSD
+  const {
+    customerMarginSearch,
+    setCustomerMarginSearch,
+    customerMarginCompactView,
+    setCustomerMarginCompactView,
+    customerMarginSort,
+    setCustomerMarginSort,
+    customerMarginContextMenu,
+    setCustomerMarginContextMenu,
+    customerMarginRows,
+    handleCustomerMarginRowContextMenu,
+  } = useErpCustomerMargin({ activeTab, customers, goldPriceUSD, silverPriceUSD })
+  const {
+    supplierMarginSearch,
+    setSupplierMarginSearch,
+    supplierMarginCompactView,
+    setSupplierMarginCompactView,
+    supplierMarginSort,
+    setSupplierMarginSort,
+    supplierMarginContextMenu,
+    setSupplierMarginContextMenu,
+    supplierMarginRows,
+    handleSupplierMarginRowContextMenu,
+  } = useErpSupplierMargin({ activeTab, vendors })
+  useErpMarginContextMenuDismissal({
+    customerMarginContextMenu,
+    setCustomerMarginContextMenu,
+    supplierMarginContextMenu,
+    setSupplierMarginContextMenu,
+  })
   const totalFunds = accountEnquiryData ? Number(accountEnquiryData.balances?.netBalance || 0) : 0
   const modalStatementCurrency = erpBaseCurrencyCode
   const rawUnfixedMetalDedupeKeys = new Set()
@@ -1350,7 +1441,7 @@ function ERPTab({
   }, [inventoryStockCodeSettingsKey, inventoryStockCodeSettings])
   const loadDashboard = async () => {
     if (!canLoadDashboard) return
-    setLoading(true)
+    setDashboardLoading(true)
     try {
       const [data, chatData] = await Promise.all([
         erpAccountingAPI.getDashboardReport(token, { startDate: dashDateFrom, endDate: dashDateTo }),
@@ -1362,7 +1453,7 @@ function ERPTab({
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load dashboard')
     }
-    setLoading(false)
+    setDashboardLoading(false)
   }
   const loadAccounts = async (params = {}) => {
     const isSummaryScope = params.scope === 'summary'
@@ -1380,7 +1471,7 @@ function ERPTab({
         setSummaryAccountsLoading(true)
       }
     } else {
-      setLoading(true)
+      setAccountsLoading(true)
     }
     try {
       if (isSummaryScope) {
@@ -1403,7 +1494,7 @@ function ERPTab({
       setError(e.response?.data?.message || `Failed to load ${isSummaryScope ? 'account summary options' : 'accounts'}`)
     }
     if (isSummaryScope) setSummaryAccountsLoading(false)
-    else setLoading(false)
+    else setAccountsLoading(false)
   }
   const formatSummaryAccountLabel = (account) => {
     const code = String(account?.accountCode || '').trim()
@@ -1526,7 +1617,7 @@ function ERPTab({
     .filter((group) => group.accounts.length > 0)
   const loadLedger = async (options = {}) => {
     if (!canViewLedger) return
-    setLoading(true)
+    setLedgerLoading(true)
     try {
       const hasCursorOverride = Object.prototype.hasOwnProperty.call(options, 'cursor')
       const cursor = hasCursorOverride ? options.cursor : null
@@ -1557,48 +1648,7 @@ function ERPTab({
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load ledger')
     }
-    setLoading(false)
-  }
-  const loadCustomers = async (params) => {
-    if (!canLoadParties) return
-    setLoading(true)
-    try {
-      const data = await erpAccountingAPI.getCustomers(token, params)
-      setCustomers(data.customers || [])
-      setError('')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load customers')
-    }
-    setLoading(false)
-  }
-  const loadMappings = async (params = mappingFilters) => {
-    if (!canViewMappings) return
-    setLoading(true)
-    try {
-      const [mappingData, accountData] = await Promise.all([
-        erpAccountingAPI.getMappings(token, params),
-        canLoadReferenceData ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
-      ])
-      setMappings(mappingData.mappings || [])
-      setMappingSummary(mappingData.summary || { total: 0, shared: 0, byDepartment: {} })
-      if (accountData) setAccounts(accountData.accounts || [])
-      setError('')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load mappings')
-    }
-    setLoading(false)
-  }
-  const loadCurrencies = async () => {
-    if (!canLoadReferenceData) return
-    setLoading(true)
-    try {
-      const data = await erpAccountingAPI.getCurrencies(token)
-      setCurrencies(data.currencies || [])
-      setError('')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load currencies')
-    }
-    setLoading(false)
+    setLedgerLoading(false)
   }
   const loadReportBranding = async (brandingKey = selectedBrandingKey || DEFAULT_BRANDING.key) => {
     try {
@@ -1655,9 +1705,33 @@ function ERPTab({
       },
     }
   }
+  const transactionReferenceLoadedRef = useRef(false)
+  const loadTransactionReferenceData = useCallback(async () => {
+    if (transactionReferenceLoadedRef.current) return
+    transactionReferenceLoadedRef.current = true
+    try {
+      const [customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
+        canLoadParties ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
+        canLoadParties ? loadAllVendors({ includeInactive: true }) : Promise.resolve(null),
+        canLoadInventoryData ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
+        canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
+        canLoadReferenceData ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
+        canLoadReferenceData ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
+      ])
+      if (customerData) setCustomers(customerData.customers || [])
+      if (vendorData) setVendors(vendorData.vendors || [])
+      if (inventoryData) setInventoryProducts(inventoryData.products || [])
+      if (mappingData) setMappings(mappingData.mappings || [])
+      if (accountData) setAccounts(accountData.accounts || [])
+      if (currencyData) setCurrencies(currencyData.currencies || [])
+    } catch {
+      transactionReferenceLoadedRef.current = false
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadAllVendors is stable enough for reference bootstrap
+  }, [token, canLoadParties, canLoadInventoryData, canViewMappings, canLoadReferenceData])
   const loadTransactions = async (overrides = {}) => {
     if (!(canAccessTransactions || canAccessVouchers || canAccessFixingRegister)) return
-    setLoading(true)
+    setTransactionsLoading(true)
     try {
       const hasCursorOverride = Object.prototype.hasOwnProperty.call(overrides, 'cursor')
       const cursor = hasCursorOverride ? overrides.cursor : null
@@ -1676,15 +1750,7 @@ function ERPTab({
       if (!hasCursorOverride && overrides.page) {
         params.page = overrides.page
       }
-      const [data, customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
-        erpAccountingAPI.getTransactions(token, params),
-        canLoadParties ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
-        canLoadParties ? loadAllVendors({ includeInactive: true }) : Promise.resolve(null),
-        canLoadInventoryData ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
-        canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
-        canLoadReferenceData ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
-        canLoadReferenceData ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
-      ])
+      const data = await erpAccountingAPI.getTransactions(token, params)
       setTransactions(data.transactions || [])
       setTransactionSummary(data.summary || { totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
       setTransactionMeta((prev) => ({
@@ -1697,17 +1763,12 @@ function ERPTab({
         hasMore: Boolean(data.hasMore),
         cursorHistory,
       }))
-      if (customerData) setCustomers(customerData.customers || [])
-      if (vendorData) setVendors(vendorData.vendors || [])
-      if (inventoryData) setInventoryProducts(inventoryData.products || [])
-      if (mappingData) setMappings(mappingData.mappings || [])
-      if (accountData) setAccounts(accountData.accounts || [])
-      if (currencyData) setCurrencies(currencyData.currencies || [])
       setError('')
+      void loadTransactionReferenceData()
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load transactions')
     }
-    setLoading(false)
+    setTransactionsLoading(false)
   }
   const resetTransactionComposer = () => {
     setEditingTransactionId('')
@@ -1729,6 +1790,7 @@ function ERPTab({
     })
   }
   const populateTransactionForm = (tx) => {
+    void loadTransactionReferenceData()
     setEditingTransactionId(tx._id)
     setSelectedTransactionId(tx._id)
     setTransactionForm({
@@ -1779,7 +1841,7 @@ function ERPTab({
   }, [transactionForm.type, transactionForm.customerId, transactionForm.vendorId, customers, vendors, currencies])
   const loadVendors = async (filters = vendorFilters) => {
     if (!canLoadParties) return
-    setLoading(true)
+    setVendorsLoading(true)
     try {
       const data = await loadAllVendors(filters)
       setVendors(data.vendors || [])
@@ -1789,7 +1851,7 @@ function ERPTab({
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load vendors')
     }
-    setLoading(false)
+    setVendorsLoading(false)
   }
   const loadVendorDetails = useCallback(async (id) => {
     if (!id) {
@@ -1838,7 +1900,7 @@ function ERPTab({
   }
   const loadInventory = async () => {
     if (!canLoadInventoryData) return
-    setLoading(true)
+    setInventoryLoading(true)
     try {
       const productsData = await erpAccountingAPI.getInventoryProducts(token)
       setInventoryProducts(productsData.products || [])
@@ -1846,7 +1908,7 @@ function ERPTab({
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load inventory')
     }
-    setLoading(false)
+    setInventoryLoading(false)
   }
   const loadStockLedger = async () => {
     if (!canLoadInventoryData) return
@@ -1889,25 +1951,9 @@ function ERPTab({
       },
     }
   }
-  const patchAccountEnquiryMetalRates = (rates) => {
-    if (!rates) return
-    setAccountEnquiryData((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        metals: {
-          ...prev.metals,
-          goldPrice: Number(rates.goldPrice ?? prev.metals?.goldPrice ?? 0),
-          silverPrice: Number(rates.silverPrice ?? prev.metals?.silverPrice ?? 0),
-          priceCurrency: rates.priceCurrency || prev.metals?.priceCurrency || 'USD',
-          updatedAt: rates.updatedAt || prev.metals?.updatedAt || null,
-        },
-      }
-    })
-  }
   const loadReports = async (targetView = reportView) => {
     if (!canAccessReports) return
-    setLoading(true)
+    setReportsLoading(true)
     try {
       const { endDate, commonRange } = buildReportDateRange()
       const updates = {}
@@ -1958,7 +2004,7 @@ function ERPTab({
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load reports')
     }
-    setLoading(false)
+    setReportsLoading(false)
   }
   const loadLedgerReport = async (accountId) => {
     if (!accountId) {
@@ -2854,26 +2900,6 @@ function ERPTab({
     setError((prev) => (prev ? '' : prev))
   }, [activeTab])
   useEffect(() => {
-    if (!customerMarginContextMenu.open && !supplierMarginContextMenu.open) return undefined
-    const closeMenu = () => {
-      setCustomerMarginContextMenu((prev) => (prev.open ? { open: false, x: 0, y: 0, row: null } : prev))
-      setSupplierMarginContextMenu((prev) => (prev.open ? { open: false, x: 0, y: 0, row: null } : prev))
-    }
-    const handleEscape = (event) => {
-      if (event.key === 'Escape') closeMenu()
-    }
-    window.addEventListener('click', closeMenu)
-    window.addEventListener('resize', closeMenu)
-    window.addEventListener('scroll', closeMenu, true)
-    window.addEventListener('keydown', handleEscape)
-    return () => {
-      window.removeEventListener('click', closeMenu)
-      window.removeEventListener('resize', closeMenu)
-      window.removeEventListener('scroll', closeMenu, true)
-      window.removeEventListener('keydown', handleEscape)
-    }
-  }, [customerMarginContextMenu.open, supplierMarginContextMenu.open])
-  useEffect(() => {
     activeTabRef.current = activeTab
   }, [activeTab])
   useEffect(() => {
@@ -2967,7 +2993,6 @@ function ERPTab({
     if (!token || !canAccessERP) return undefined
 
     let stopRealtime = () => {}
-    let stopMetalRatesRealtime = () => {}
     const tenantKey = user?.tenant || user?.company
 
     const timer = window.setTimeout(() => {
@@ -2985,28 +3010,11 @@ function ERPTab({
           }
         },
       })
-      stopMetalRatesRealtime = startMetalRatesRealtime({
-        token,
-        tenant: tenantKey,
-        onRatesUpdate: (payload) => {
-          const rates = payload?.rates || payload?.data?.rates
-          if (!rates) return
-          metalRatesRef.current = rates
-          const tab = activeTabRef.current
-          if (erpTabNeedsLiveMetalRates(tab)) {
-            setMetalRates(rates)
-          }
-          if (tab === 'enquiry' && accountEnquiryDataRef.current?.account?.accountCode) {
-            patchAccountEnquiryMetalRates(rates)
-          }
-        },
-      })
     }, 300)
 
     return () => {
       window.clearTimeout(timer)
       stopRealtime()
-      stopMetalRatesRealtime()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- realtime handlers intentionally use refs + stable loaders
   }, [token, user?.tenant, user?.company, canAccessERP])
@@ -3103,190 +3111,6 @@ function ERPTab({
     })
     if (absAmount === 0) return formatted
     return `${formatted} ${direction}`
-  }
-  const customerMarginRows = useMemo(() => {
-    if (activeTab !== 'customer-margin') return []
-    const query = String(customerMarginSearch || '').trim().toLowerCase()
-    const rows = (customers || [])
-      .map((customer) => {
-        const outstanding = Number(customer?.outstandingBalance || 0)
-        const goldPosition = Number(customer?.goldPosition || 0)
-        const silverPosition = Number(customer?.silverPosition || 0)
-        const goldPrice = Number(customer?.metalRates?.goldPrice || goldPriceUSD || 0)
-        const silverPrice = Number(customer?.metalRates?.silverPrice || silverPriceUSD || 0)
-        const customerFunds = outstanding < 0 ? Math.abs(outstanding) : outstanding
-        const isLiabilityCustomerLedger = String(customer?.ledgerAccountId?.accountType || '').toLowerCase() === 'liability'
-        const fallbackRevaluation = isLiabilityCustomerLedger
-          ? 0
-          : (goldPosition * goldPrice) + (silverPosition * silverPrice)
-        const fallbackMargin = Math.abs(fallbackRevaluation) * 0.02
-        const fallbackMetrics = calculateAccountSummaryMetrics({
-          totalFunds: customerFunds,
-          revaluation: fallbackRevaluation,
-          marginAmount: fallbackMargin,
-        })
-        const marginAmount = Number(customer?.marginAmount ?? fallbackMargin)
-        const rawExcess = Number(customer?.marginExcess ?? fallbackMetrics.excess)
-        const rawEquity = Number(customer?.marginEquity ?? fallbackMetrics.netEquity)
-        const excess = rawExcess < 0 ? Math.abs(rawExcess) : rawExcess
-        const equity = rawEquity < 0 ? Math.abs(rawEquity) : rawEquity
-        const marginPercent = Number(customer?.marginPercent ?? fallbackMetrics.marginPercent)
-        const status = String(customer?.marginStatus || (equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL')).toUpperCase()
-        return {
-          id: customer?._id,
-          customerName: String(customer?.name || '-'),
-          balanceAbs: Math.abs(excess),
-          equity,
-          rawOutstanding: outstanding,
-          goldPosition,
-          silverPosition,
-          marginAmount,
-          excess,
-          status,
-          marginPercent,
-          accountCode: String(customer?.ledgerAccountId?.accountCode || ''),
-          description: String(customer?.ledgerAccountId?.accountName || `${String(customer?.name || '').trim()} customer`),
-        }
-      })
-      .filter((row) => (!query ? true : row.customerName.toLowerCase().includes(query)))
-    if (customerMarginSort === 'margin-asc') {
-      rows.sort((a, b) => {
-        const av = Number.isFinite(a.marginPercent) ? Number(a.marginPercent) : -1
-        const bv = Number.isFinite(b.marginPercent) ? Number(b.marginPercent) : -1
-        return av - bv
-      })
-    } else if (customerMarginSort === 'name-asc') {
-      rows.sort((a, b) => String(a.customerName || '').localeCompare(String(b.customerName || '')))
-    } else {
-      rows.sort((a, b) => {
-        const av = Number.isFinite(a.marginPercent) ? Number(a.marginPercent) : -1
-        const bv = Number.isFinite(b.marginPercent) ? Number(b.marginPercent) : -1
-        return bv - av
-      })
-    }
-    return rows
-  }, [activeTab, customers, customerMarginSearch, customerMarginSort, goldPriceUSD, silverPriceUSD])
-  const supplierMarginRows = useMemo(() => {
-    if (activeTab !== 'supplier-margin') return []
-    const query = String(supplierMarginSearch || '').trim().toLowerCase()
-    const rows = (vendors || [])
-      .map((vendor) => {
-        const outstanding = -Math.abs(Number(vendor?.outstanding ?? vendor?.outstandingBalance ?? 0))
-        const goldPosition = Number(vendor?.goldPosition || 0)
-        const silverPosition = Number(vendor?.silverPosition || 0)
-        const fallbackRevaluation = 0
-        const fallbackMargin = 0
-        const fallbackMetrics = calculateAccountSummaryMetrics({
-          totalFunds: outstanding,
-          revaluation: fallbackRevaluation,
-          marginAmount: fallbackMargin,
-        })
-        const marginAmount = Number(vendor?.marginAmount ?? fallbackMargin)
-        const excess = Number(vendor?.marginExcess ?? fallbackMetrics.excess)
-        const equity = Number(vendor?.marginEquity ?? fallbackMetrics.netEquity)
-        const marginPercent = Number(vendor?.marginPercent ?? fallbackMetrics.marginPercent)
-        const status = String(vendor?.marginStatus || (equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL')).toUpperCase()
-        return {
-          id: vendor?._id,
-          supplierName: String(vendor?.name || '-'),
-          balanceAbs: Math.abs(excess),
-          equity,
-          rawOutstanding: outstanding,
-          goldPosition,
-          silverPosition,
-          marginAmount,
-          excess,
-          status,
-          marginPercent,
-          accountCode: String(vendor?.ledgerAccountId?.accountCode || ''),
-          description: String(vendor?.ledgerAccountId?.accountName || `${String(vendor?.name || '').trim()} supplier`),
-        }
-      })
-      .filter((row) => (!query ? true : row.supplierName.toLowerCase().includes(query)))
-    if (supplierMarginSort === 'margin-asc') {
-      rows.sort((a, b) => {
-        const av = Number.isFinite(a.marginPercent) ? Number(a.marginPercent) : -1
-        const bv = Number.isFinite(b.marginPercent) ? Number(b.marginPercent) : -1
-        return av - bv
-      })
-    } else if (supplierMarginSort === 'name-asc') {
-      rows.sort((a, b) => String(a.supplierName || '').localeCompare(String(b.supplierName || '')))
-    } else {
-      rows.sort((a, b) => {
-        const av = Number.isFinite(a.marginPercent) ? Number(a.marginPercent) : -1
-        const bv = Number.isFinite(b.marginPercent) ? Number(b.marginPercent) : -1
-        return bv - av
-      })
-    }
-    return rows
-  }, [activeTab, vendors, supplierMarginSearch, supplierMarginSort])
-  const formatCustomerMarginEquity = (row) => {
-    const amount = Number(Math.abs(row?.equity || 0)).toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
-    if (Number(row?.equity || 0) > 0) return `+${amount}`
-    if (Number(row?.equity || 0) < 0) return `-${amount}`
-    return amount
-  }
-  const formatCustomerMarginPercent = (value) => {
-    if (!Number.isFinite(Number(value))) return '-'
-    return `${Number(value).toFixed(2)} %`
-  }
-  const formatCustomerMarginPosition = (value) => {
-    const amount = Number(value || 0)
-    if (!Number.isFinite(amount)) return '-'
-    return amount.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 6,
-    })
-  }
-  const formatCustomerMarginAmount = (value) => {
-    const amount = Number(value || 0)
-    if (!Number.isFinite(amount)) return '-'
-    return amount.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
-  }
-  const formatCustomerMarginExcessShort = (row) => {
-    const amount = Number(Math.abs(row?.excess ?? row?.balanceAbs ?? 0)).toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
-    if (Number(row?.excess || 0) > 0) return `Excess ${amount}`
-    if (Number(row?.excess || 0) < 0) return `Short ${amount}`
-    return '-'
-  }
-  const handleCustomerMarginRowContextMenu = (event, row) => {
-    event.preventDefault()
-    const menuWidth = 292
-    const menuHeight = 242
-    const viewportPad = 8
-    let x = event.clientX + 6
-    let y = event.clientY + 6
-    if (x + menuWidth > window.innerWidth - viewportPad) {
-      x = Math.max(viewportPad, window.innerWidth - menuWidth - viewportPad)
-    }
-    if (y + menuHeight > window.innerHeight - viewportPad) {
-      y = Math.max(viewportPad, window.innerHeight - menuHeight - viewportPad)
-    }
-    setCustomerMarginContextMenu({ open: true, x, y, row })
-  }
-  const handleSupplierMarginRowContextMenu = (event, row) => {
-    event.preventDefault()
-    const menuWidth = 292
-    const menuHeight = 242
-    const viewportPad = 8
-    let x = event.clientX + 6
-    let y = event.clientY + 6
-    if (x + menuWidth > window.innerWidth - viewportPad) {
-      x = Math.max(viewportPad, window.innerWidth - menuWidth - viewportPad)
-    }
-    if (y + menuHeight > window.innerHeight - viewportPad) {
-      y = Math.max(viewportPad, window.innerHeight - menuHeight - viewportPad)
-    }
-    setSupplierMarginContextMenu({ open: true, x, y, row })
   }
   const FIXING_REG_UNIT_PER_OZ = { GOZ: 1, GRAM: 31.1034768, KG: 0.0311034768, TOLA: 2.66667 }
   const fixingRegNormalizeUnit = (unit) => {
@@ -5196,6 +5020,7 @@ function ERPTab({
       </h2> */}
       {error && <div style={{ background: C.danger, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>{error}</div>}
       {success && <div style={{ background: C.s1, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>{success}</div>}
+      {activeTab === 'dashboard' && (
       <ERPDashboardTab
         activeTab={activeTab}
         C={C}
@@ -5218,7 +5043,9 @@ function ERPTab({
         setActiveTab={setActiveTabGuarded}
         onNavigateMain={onNavigateMain}
       />
+      )}
       {/* CHART OF ACCOUNTS TAB */}
+      {activeTab === 'accounts' && (
       <ERPAccountsTabContainer activeTab={activeTab}>
         <div>
           <div style={{ marginBottom: '1.25rem' }}>
@@ -5232,369 +5059,60 @@ function ERPTab({
           </Suspense>
         </div>
       </ERPAccountsTabContainer>
+      )}
       {/* LEDGER TAB */}
       {activeTab === 'customers' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
-            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Customers</h3>
-            {canManageCustomers && (
-              <button
-                onClick={() => setShowCustomerForm(!showCustomerForm)}
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: C.s1,
-                  color: C.t1,
-                  border: 'none',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                }}
-              >
-                + Add Customer
-              </button>
-            )}
-          </div>
-          {showCustomerForm && (
-            <form onSubmit={handleCreateCustomer} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
-              <input placeholder="Customer Name" value={customerForm.name} onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
-              <input placeholder="Phone" value={customerForm.phone} onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
-              <input placeholder="Email" value={customerForm.email} onChange={(e) => setCustomerForm({ ...customerForm, email: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
-              <input placeholder="Address" value={customerForm.address} onChange={(e) => setCustomerForm({ ...customerForm, address: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
-              <input placeholder="GST/VAT" value={customerForm.gstVat} onChange={(e) => setCustomerForm({ ...customerForm, gstVat: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
-              <input type="number" step="0.01" placeholder="Opening Balance" value={customerForm.openingBalance} onChange={(e) => setCustomerForm({ ...customerForm, openingBalance: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
-              <input type="number" step="0.01" placeholder="Credit Limit" value={customerForm.creditLimit} onChange={(e) => setCustomerForm({ ...customerForm, creditLimit: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
-              <input type="number" placeholder="Payment Terms (Days)" value={customerForm.paymentTermsDays} onChange={(e) => setCustomerForm({ ...customerForm, paymentTermsDays: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
-              <input placeholder="Currency (e.g. USD)" value={customerForm.currency} onChange={(e) => setCustomerForm({ ...customerForm, currency: e.target.value.toUpperCase() })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
-              <input placeholder="Notes" value={customerForm.notes} onChange={(e) => setCustomerForm({ ...customerForm, notes: e.target.value })} style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.75rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }} />
-              <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', marginRight: '0.5rem' }}>
-                {saving ? 'Saving...' : 'Create Customer'}
-              </button>
-              <button type="button" onClick={() => setShowCustomerForm(false)} style={{ padding: '0.5rem 1rem', background: C.p1, color: C.t2, border: `1px solid ${C.t2}`, borderRadius: '0.375rem', cursor: 'pointer' }}>
-                Cancel
-              </button>
-            </form>
-          )}
-          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Name</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Phone</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Email</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>GST/VAT</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>Opening</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>Outstanding</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>0-30</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>31-60</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>61-90</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'right', color: C.t1, fontWeight: '600' }}>90+</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Debtor A/C</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customers.map((customer) => (
-                  <tr key={customer._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
-                    <td style={{ padding: '0.75rem', color: C.t1, fontWeight: '600' }}>{customer.name}</td>
-                    <td style={{ padding: '0.75rem', color: C.t2 }}>{customer.phone || '-'}</td>
-                    <td style={{ padding: '0.75rem', color: C.t2 }}>{customer.email || '-'}</td>
-                    <td style={{ padding: '0.75rem', color: C.t2 }}>{customer.gstVat || '-'}</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.openingBalance || 0).toLocaleString()}</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right', color: Number(customer.outstandingBalance || 0) > 0 ? C.s1 : Number(customer.outstandingBalance || 0) < 0 ? '#DC2626' : C.t2, fontWeight: '600' }}>{Number(customer.outstandingBalance || 0).toLocaleString()}</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.aging?.bucket0to30 || 0).toLocaleString()}</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.aging?.bucket31to60 || 0).toLocaleString()}</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right', color: C.t2 }}>{Number(customer.aging?.bucket61to90 || 0).toLocaleString()}</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right', color: Number(customer.aging?.bucket90Plus || 0) > 0 ? '#F59E0B' : C.t2, fontWeight: Number(customer.aging?.bucket90Plus || 0) > 0 ? '700' : '400' }}>{Number(customer.aging?.bucket90Plus || 0).toLocaleString()}</td>
-                    <td style={{ padding: '0.75rem', color: C.t2 }}>{customer.ledgerAccountId?.accountCode || '-'}{customer.ledgerAccountId?.accountName ? ` - ${customer.ledgerAccountId.accountName}` : ''}</td>
-                    <td style={{ padding: '0.75rem', color: C.t2 }}>
-                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <button onClick={() => handleEditCustomer(customer)} style={{ padding: '0.35rem 0.7rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Edit</button>
-                        <button onClick={() => handleDeleteCustomer(customer)} style={{ padding: '0.35rem 0.7rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {customers.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No customers added yet.</p>}
-        </div>
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPCustomersTab
+            C={C}
+            canManageCustomers={canManageCustomers}
+            showCustomerForm={showCustomerForm}
+            setShowCustomerForm={setShowCustomerForm}
+            customerForm={customerForm}
+            setCustomerForm={setCustomerForm}
+            handleCreateCustomer={handleCreateCustomer}
+            saving={saving}
+            customers={customers}
+            handleEditCustomer={handleEditCustomer}
+            handleDeleteCustomer={handleDeleteCustomer}
+          />
+        </Suspense>
       )}
       {/* CUSTOMER MARGIN TAB */}
       {activeTab === 'customer-margin' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.9rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <button
-                onClick={() => setActiveTabGuarded('dashboard')}
-                title="Back to ERP Dashboard"
-                style={{ background: 'none', border: '1px solid #A7F3D0', borderRadius: '0.4rem', padding: '0.3rem 0.5rem', cursor: 'pointer', fontSize: '1rem', color: '#1a6647', display: 'flex', alignItems: 'center', lineHeight: 1, fontWeight: '700' }}
-              >←</button>
-              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Customer Margin</h3>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <select
-                value={customerMarginSort}
-                onChange={(e) => setCustomerMarginSort(e.target.value)}
-                style={{ padding: '0.48rem 0.62rem', border: '1px solid #CBD5E1', borderRadius: '0.45rem', background: '#FFFFFF', color: C.ink, fontSize: '0.82rem' }}
-              >
-                <option value="margin-desc">Sort: Margin % (High to Low)</option>
-                <option value="margin-asc">Sort: Margin % (Low to High)</option>
-                <option value="name-asc">Sort: Name (A-Z)</option>
-              </select>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.38rem', color: C.inkSoft, fontSize: '0.82rem', fontWeight: '600' }}>
-                <input
-                  type="checkbox"
-                  checked={customerMarginCompactView}
-                  onChange={(e) => setCustomerMarginCompactView(e.target.checked)}
-                />
-                Fixed List Area
-              </label>
-              <input
-                placeholder="Search customer"
-                value={customerMarginSearch}
-                onChange={(e) => setCustomerMarginSearch(e.target.value)}
-                style={{ width: 'min(320px, 100%)', padding: '0.5rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '0.45rem', background: '#FFFFFF', color: C.ink }}
-              />
-            </div>
-          </div>
-          <div style={{ border: '1px solid #BFD0E5', borderRadius: '0.45rem', overflow: 'hidden', background: '#FFFFFF' }}>
-            <div style={{ background: 'linear-gradient(180deg, #E9F3FF 0%, #D7E9FF 100%)', borderBottom: '1px solid #BFD0E5', padding: '0.55rem 0.8rem', fontSize: '1rem', fontWeight: '700', color: '#1E3A8A' }}>
-              Customer Margin
-            </div>
-            <div style={{ overflowX: 'auto', overflowY: customerMarginCompactView ? 'auto' : 'visible', maxHeight: customerMarginCompactView ? '380px' : 'none' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '0.88rem' }}>
-                <colgroup>
-                  <col style={{ width: '28%' }} />
-                  <col style={{ width: '10%' }} />
-                  <col style={{ width: '10%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '8%' }} />
-                  <col style={{ width: '8%' }} />
-                </colgroup>
-                <thead>
-                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #D9E2EC' }}>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'left', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Customer Name</th>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Gold Position</th>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Silver Position</th>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Equity</th>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Margin</th>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Excess</th>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Status</th>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Margin %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {customerMarginRows.map((row, index) => {
-                    const isNegative = row.status === 'NEGATIVE'
-                    const valueColor = isNegative ? '#DC2626' : '#1D4ED8'
-                    const excessColor = Number(row.excess || 0) < 0 ? '#DC2626' : '#1D4ED8'
-                    return (
-                      <tr
-                        key={row.id || index}
-                        onClick={(event) => handleCustomerMarginRowContextMenu(event, row)}
-                        onContextMenu={(event) => handleCustomerMarginRowContextMenu(event, row)}
-                        title="Click or right click to open details submenu"
-                        style={{ borderBottom: '1px solid #EEF2F7', background: index % 2 === 0 ? '#FFFFFF' : '#FCFDFF', height: '30px', cursor: 'context-menu' }}
-                      >
-                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', color: valueColor, fontWeight: '600', fontSize: '0.85rem', lineHeight: 1.08, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.customerName}</td>
-                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: Number(row.goldPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(row.goldPosition)}</td>
-                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: Number(row.silverPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(row.silverPosition)}</td>
-                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginEquity(row)}</td>
-                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: '#1D4ED8', fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginAmount(row.marginAmount)}</td>
-                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: excessColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginEquity({ equity: row.excess })}</td>
-                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.8rem', letterSpacing: '0.035em', lineHeight: 1.08 }}>{row.status}</td>
-                        <td style={{ padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPercent(row.marginPercent)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          {customerMarginContextMenu.open && customerMarginContextMenu.row && (
-            <div
-              onClick={(event) => event.stopPropagation()}
-              onContextMenu={(event) => event.preventDefault()}
-              style={{
-                position: 'fixed',
-                top: `${customerMarginContextMenu.y}px`,
-                left: `${customerMarginContextMenu.x}px`,
-                width: '292px',
-                background: '#FDFEFE',
-                border: '1px solid #9DB5D5',
-                boxShadow: '0 10px 24px rgba(15, 23, 42, 0.2)',
-                zIndex: 2000,
-                borderRadius: '0.2rem',
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{ padding: '0.35rem 0.5rem', borderBottom: '1px solid #D7E3F3', background: '#E7EFFA', color: '#15407E', fontSize: '0.76rem', fontWeight: '700', letterSpacing: '0.03em' }}>
-                CUSTOMER MARGIN SUB MENU
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '132px 1fr', fontSize: '0.78rem' }}>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Account Code</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827' }}>{customerMarginContextMenu.row.accountCode || '-'}</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Description</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{customerMarginContextMenu.row.description || '-'}</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Gold Position</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(customerMarginContextMenu.row.goldPosition)}</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Silver Position</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(customerMarginContextMenu.row.silverPosition)}</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Excess/Short</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginExcessShort(customerMarginContextMenu.row)}</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Margin</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginAmount(customerMarginContextMenu.row.marginAmount)}</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Margin %</div>
-                <div style={{ padding: '0.34rem 0.52rem', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPercent(customerMarginContextMenu.row.marginPercent)}</div>
-              </div>
-            </div>
-          )}
-          <div style={{ marginTop: '0.75rem', color: C.inkSoft, fontSize: '0.82rem' }}>
-            Equity shows signed exposure: positive values are favorable, negative values are payable.
-          </div>
-          {customerMarginRows.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No customers available for margin view.</p>}
-        </div>
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPCustomerMarginTab
+            C={C}
+            setActiveTabGuarded={setActiveTabGuarded}
+            customerMarginSort={customerMarginSort}
+            setCustomerMarginSort={setCustomerMarginSort}
+            customerMarginCompactView={customerMarginCompactView}
+            setCustomerMarginCompactView={setCustomerMarginCompactView}
+            customerMarginSearch={customerMarginSearch}
+            setCustomerMarginSearch={setCustomerMarginSearch}
+            customerMarginRows={customerMarginRows}
+            handleCustomerMarginRowContextMenu={handleCustomerMarginRowContextMenu}
+            customerMarginContextMenu={customerMarginContextMenu}
+          />
+        </Suspense>
       )}
       {/* SUPPLIER MARGIN TAB */}
       {activeTab === 'supplier-margin' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.9rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <button
-                onClick={() => setActiveTabGuarded('dashboard')}
-                title="Back to ERP Dashboard"
-                style={{ background: 'none', border: '1px solid #A7F3D0', borderRadius: '0.4rem', padding: '0.3rem 0.5rem', cursor: 'pointer', fontSize: '1rem', color: '#1a6647', display: 'flex', alignItems: 'center', lineHeight: 1, fontWeight: '700' }}
-              >â†</button>
-              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Supplier Margin</h3>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <select
-                value={supplierMarginSort}
-                onChange={(e) => setSupplierMarginSort(e.target.value)}
-                style={{ padding: '0.48rem 0.62rem', border: '1px solid #CBD5E1', borderRadius: '0.45rem', background: '#FFFFFF', color: C.ink, fontSize: '0.82rem' }}
-              >
-                <option value="margin-desc">Sort: Margin % (High to Low)</option>
-                <option value="margin-asc">Sort: Margin % (Low to High)</option>
-                <option value="name-asc">Sort: Name (A-Z)</option>
-              </select>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.38rem', color: C.inkSoft, fontSize: '0.82rem', fontWeight: '600' }}>
-                <input
-                  type="checkbox"
-                  checked={supplierMarginCompactView}
-                  onChange={(e) => setSupplierMarginCompactView(e.target.checked)}
-                />
-                Fixed List Area
-              </label>
-              <input
-                placeholder="Search supplier"
-                value={supplierMarginSearch}
-                onChange={(e) => setSupplierMarginSearch(e.target.value)}
-                style={{ width: 'min(320px, 100%)', padding: '0.5rem 0.65rem', border: '1px solid #CBD5E1', borderRadius: '0.45rem', background: '#FFFFFF', color: C.ink }}
-              />
-            </div>
-          </div>
-          <div style={{ border: '1px solid #BFD0E5', borderRadius: '0.45rem', overflow: 'hidden', background: '#FFFFFF' }}>
-            <div style={{ background: 'linear-gradient(180deg, #E9F3FF 0%, #D7E9FF 100%)', borderBottom: '1px solid #BFD0E5', padding: '0.55rem 0.8rem', fontSize: '1rem', fontWeight: '700', color: '#1E3A8A' }}>
-              Supplier Margin
-            </div>
-            <div style={{ overflowX: 'auto', overflowY: supplierMarginCompactView ? 'auto' : 'visible', maxHeight: supplierMarginCompactView ? '380px' : 'none' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '0.88rem' }}>
-                <colgroup>
-                  <col style={{ width: '28%' }} />
-                  <col style={{ width: '10%' }} />
-                  <col style={{ width: '10%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '8%' }} />
-                  <col style={{ width: '8%' }} />
-                </colgroup>
-                <thead>
-                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #D9E2EC' }}>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'left', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Supplier Name</th>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Gold Position</th>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Silver Position</th>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Equity</th>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Margin</th>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Excess</th>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', borderRight: '1px solid #DEE7F2', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700' }}>Status</th>
-                    <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#F3F7FC', padding: '0.46rem 0.68rem', textAlign: 'right', color: '#111827', fontSize: '0.8rem', letterSpacing: '0.02em', fontWeight: '700', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>Margin %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {supplierMarginRows.map((row, index) => {
-                    const isNegative = row.status === 'NEGATIVE'
-                    const valueColor = isNegative ? '#DC2626' : '#1D4ED8'
-                    const excessColor = Number(row.excess || 0) < 0 ? '#DC2626' : '#1D4ED8'
-                    return (
-                      <tr
-                        key={row.id || index}
-                        onClick={(event) => handleSupplierMarginRowContextMenu(event, row)}
-                        onContextMenu={(event) => handleSupplierMarginRowContextMenu(event, row)}
-                        title="Click or right click to open details submenu"
-                        style={{ borderBottom: '1px solid #EEF2F7', background: index % 2 === 0 ? '#FFFFFF' : '#FCFDFF', height: '30px', cursor: 'context-menu' }}
-                      >
-                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', color: valueColor, fontWeight: '600', fontSize: '0.85rem', lineHeight: 1.08, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.supplierName}</td>
-                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: Number(row.goldPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(row.goldPosition)}</td>
-                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: Number(row.silverPosition || 0) < 0 ? '#DC2626' : '#1D4ED8', fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(row.silverPosition)}</td>
-                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginEquity(row)}</td>
-                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: '#1D4ED8', fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginAmount(row.marginAmount)}</td>
-                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: excessColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginEquity({ equity: row.excess })}</td>
-                        <td style={{ borderRight: '1px solid #EEF3F9', padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.8rem', letterSpacing: '0.035em', lineHeight: 1.08 }}>{row.status}</td>
-                        <td style={{ padding: '0.34rem 0.68rem', verticalAlign: 'middle', textAlign: 'right', color: valueColor, fontWeight: '700', fontSize: '0.84rem', lineHeight: 1.08, fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPercent(row.marginPercent)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          {supplierMarginContextMenu.open && supplierMarginContextMenu.row && (
-            <div
-              onClick={(event) => event.stopPropagation()}
-              onContextMenu={(event) => event.preventDefault()}
-              style={{
-                position: 'fixed',
-                top: `${supplierMarginContextMenu.y}px`,
-                left: `${supplierMarginContextMenu.x}px`,
-                width: '292px',
-                background: '#FDFEFE',
-                border: '1px solid #9DB5D5',
-                boxShadow: '0 10px 24px rgba(15, 23, 42, 0.2)',
-                zIndex: 2000,
-                borderRadius: '0.2rem',
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{ padding: '0.35rem 0.5rem', borderBottom: '1px solid #D7E3F3', background: '#E7EFFA', color: '#15407E', fontSize: '0.76rem', fontWeight: '700', letterSpacing: '0.03em' }}>
-                SUPPLIER MARGIN SUB MENU
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '132px 1fr', fontSize: '0.78rem' }}>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Account Code</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827' }}>{supplierMarginContextMenu.row.accountCode || '-'}</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Description</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{supplierMarginContextMenu.row.description || '-'}</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Gold Position</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(supplierMarginContextMenu.row.goldPosition)}</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Silver Position</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPosition(supplierMarginContextMenu.row.silverPosition)}</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Excess/Short</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginExcessShort(supplierMarginContextMenu.row)}</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Margin</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderBottom: '1px solid #E8EEF7', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginAmount(supplierMarginContextMenu.row.marginAmount)}</div>
-                <div style={{ padding: '0.34rem 0.52rem', borderRight: '1px solid #E8EEF7', color: '#1E3A8A', fontWeight: '700' }}>Margin %</div>
-                <div style={{ padding: '0.34rem 0.52rem', color: '#111827', fontFamily: 'Consolas, "Courier New", monospace', fontVariantNumeric: 'tabular-nums' }}>{formatCustomerMarginPercent(supplierMarginContextMenu.row.marginPercent)}</div>
-              </div>
-            </div>
-          )}
-          <div style={{ marginTop: '0.75rem', color: C.inkSoft, fontSize: '0.82rem' }}>
-            Equity shows signed exposure: positive values are favorable, negative values are payable.
-          </div>
-          {supplierMarginRows.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No suppliers available for margin view.</p>}
-        </div>
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPSupplierMarginTab
+            C={C}
+            setActiveTabGuarded={setActiveTabGuarded}
+            supplierMarginSort={supplierMarginSort}
+            setSupplierMarginSort={setSupplierMarginSort}
+            supplierMarginCompactView={supplierMarginCompactView}
+            setSupplierMarginCompactView={setSupplierMarginCompactView}
+            supplierMarginSearch={supplierMarginSearch}
+            setSupplierMarginSearch={setSupplierMarginSearch}
+            supplierMarginRows={supplierMarginRows}
+            handleSupplierMarginRowContextMenu={handleSupplierMarginRowContextMenu}
+            supplierMarginContextMenu={supplierMarginContextMenu}
+          />
+        </Suspense>
       )}
       {activeTab === 'fixing-register' && (
         <Suspense fallback={<ErpSubTabFallback />}>
@@ -5688,308 +5206,62 @@ function ERPTab({
       )}
       {/* ACCOUNT MAPPINGS TAB */}
       {activeTab === 'mappings' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
-            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Account Mappings</h3>
-            {canManageAccounts && (
-              <button
-                onClick={() => setShowMappingForm(!showMappingForm)}
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: C.s1,
-                  color: C.t1,
-                  border: 'none',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                }}
-              >
-                + Add Mapping
-              </button>
-            )}
-          </div>
-          <p style={{ color: C.inkSoft, marginBottom: '1rem', fontSize: '0.875rem' }}>
-            📌 Auto-map accounts for transactions. When a user selects a transaction type, the system auto-fills debit and credit accounts.
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 320px) auto', gap: '0.75rem', marginBottom: '1rem', alignItems: 'center' }}>
-            <select
-              value={mappingFilters.department}
-              onChange={(e) => setMappingFilters((prev) => ({ ...prev, department: e.target.value }))}
-              style={{ display: 'block', width: '100%', padding: '0.6rem 0.75rem', background: '#F9FAFB', border: '1px solid #D1D5DB', color: C.ink, borderRadius: '0.5rem' }}
-            >
-              <option value="">All departments</option>
-              {LEDGER_DEPARTMENTS.map((department) => (
-                <option key={department} value={department}>{department}</option>
-              ))}
-            </select>
-            <div style={{ color: C.inkSoft, fontSize: '0.82rem', fontWeight: '700' }}>Filter scoped mappings by department</div>
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-            <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#EEF2FF', color: '#3730A3', fontSize: '0.76rem', fontWeight: '700' }}>Total: {Number(mappingSummary.total || 0).toLocaleString()}</span>
-            <span style={{ padding: '0.3rem 0.55rem', borderRadius: '999px', background: '#F3F4F6', color: '#374151', fontSize: '0.76rem', fontWeight: '700' }}>Shared: {Number(mappingSummary.shared || 0).toLocaleString()}</span>
-            {Object.entries(mappingSummary.byDepartment || {})
-              .sort((left, right) => {
-                const countDifference = Number(right[1] || 0) - Number(left[1] || 0)
-                if (countDifference !== 0) return countDifference
-                return String(left[0] || '').localeCompare(String(right[0] || ''))
-              })
-              .map(([department, count]) => (
-              <span key={department} style={{ ...getDepartmentBadgeStyle(department), padding: '0.3rem 0.55rem', borderRadius: '999px', fontSize: '0.76rem', fontWeight: '700', textTransform: 'capitalize' }}>
-                {department}: {Number(count || 0).toLocaleString()}
-              </span>
-            ))}
-          </div>
-          {showMappingForm && (
-            <form onSubmit={handleCreateMapping} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
-              <input
-                placeholder="Mapping Type"
-                value={mappingForm.mappingType}
-                onChange={(e) => setMappingForm({ ...mappingForm, mappingType: e.target.value })}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              />
-              <select
-                value={mappingForm.debitAccountId}
-                onChange={(e) => setMappingForm({ ...mappingForm, debitAccountId: e.target.value })}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              >
-                <option value="">Select Debit Account</option>
-                {accounts.map((account) => (
-                  <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
-                ))}
-              </select>
-              <select
-                value={mappingForm.creditAccountId}
-                onChange={(e) => setMappingForm({ ...mappingForm, creditAccountId: e.target.value })}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              >
-                <option value="">Select Credit Account</option>
-                {accounts.map((account) => (
-                  <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
-                ))}
-              </select>
-              <select
-                value={mappingForm.department}
-                onChange={(e) => setMappingForm({ ...mappingForm, department: e.target.value })}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              >
-                <option value="">Shared / All Departments</option>
-                {LEDGER_DEPARTMENTS.map((department) => (
-                  <option key={department} value={department}>{department}</option>
-                ))}
-              </select>
-              <input
-                placeholder="Description"
-                value={mappingForm.description}
-                onChange={(e) => setMappingForm({ ...mappingForm, description: e.target.value })}
-                style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
-              />
-              <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#FFFFFF', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', marginRight: '0.5rem' }}>
-                {saving ? 'Saving...' : 'Create Mapping'}
-              </button>
-              <button type="button" onClick={() => setShowMappingForm(false)} style={{ padding: '0.5rem 1rem', background: C.p1, color: C.t2, border: `1px solid ${C.t2}`, borderRadius: '0.375rem', cursor: 'pointer' }}>
-                Cancel
-              </button>
-            </form>
-          )}
-          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                  <th onClick={() => setSorting({...sorting, mappings: {by: 'type', asc: !sorting.mappings.asc}})} style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600', cursor: 'pointer', background: sorting.mappings.by === 'type' ? C.p2 : 'transparent' }}>Type {sorting.mappings.by === 'type' && (sorting.mappings.asc ? '▲' : '▼')}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Debit Account</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Credit Account</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Department</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', color: C.t1, fontWeight: '600' }}>Usage</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', color: C.t1, fontWeight: '600' }}>Active</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mappings
-                  .sort((a, b) => {
-                    if (sorting.mappings.by === 'type') {
-                      return sorting.mappings.asc
-                        ? String(a.mappingType || '').localeCompare(String(b.mappingType || ''))
-                        : String(b.mappingType || '').localeCompare(String(a.mappingType || ''))
-                    }
-                    return 0
-                  })
-                  .slice((pagination.mappings - 1) * ITEMS_PER_PAGE, pagination.mappings * ITEMS_PER_PAGE)
-                  .map((m) => (
-                    <tr key={m._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
-                      <td style={{ padding: '0.75rem', color: C.t1, fontWeight: '600' }}>{m.mappingType}</td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>{m.debitAccountId?.accountCode} - {m.debitAccountId?.accountName}</td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>{m.creditAccountId?.accountCode} - {m.creditAccountId?.accountName}</td>
-                      <td style={{ padding: '0.75rem' }}>
-                        <span style={{ ...getDepartmentBadgeStyle(m.department), padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.74rem', fontWeight: '700', textTransform: 'capitalize' }}>
-                          {m.department || 'shared'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '0.75rem', textAlign: 'center', color: m.usageCount > 0 ? C.s1 : C.t3, fontWeight: '600' }}>{m.usageCount || 0}</td>
-                      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                        <input type="checkbox" checked={m.isActive !== false} onChange={async () => {
-                          try {
-                            await erpAccountingAPI.updateMapping(token, m._id, {isActive: m.isActive === false})
-                            await loadMappings()
-                            showNotification(m.isActive === false ? '✅ Mapping activated' : '✅ Mapping deactivated')
-                          } catch (e) {
-                            setError(e.response?.data?.message || 'Failed to toggle mapping')
-                          }
-                        }} style={{cursor: 'pointer'}} />
-                      </td>
-                      <td style={{ padding: '0.75rem', color: C.t2 }}>
-                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                          <button onClick={() => setTestMapping(m) || setShowMappingTest(true)} title="Preview" style={{ padding: '0.35rem 0.5rem', background: '#7C3AED', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Test</button>
-                          <button onClick={() => handleEditMapping(m)} style={{ padding: '0.35rem 0.5rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Edit</button>
-                          <button onClick={() => handleDeleteMapping(m)} style={{ padding: '0.35rem 0.5rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.75rem' }}>Delete</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-          {/* Pagination for Mappings */}
-          {Math.ceil(mappings.length / ITEMS_PER_PAGE) > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-              <button onClick={() => setPagination({...pagination, mappings: Math.max(1, pagination.mappings - 1)})} disabled={pagination.mappings === 1} style={{padding: '0.4rem 0.8rem', background: pagination.mappings === 1 ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.mappings === 1 ? 'default' : 'pointer', borderRadius: '0.35rem'}}>← Prev</button>
-              {Array.from({length: Math.ceil(mappings.length / ITEMS_PER_PAGE)}, (_, i) => i + 1).map(p => (
-                <button key={p} onClick={() => setPagination({...pagination, mappings: p})} style={{padding: '0.4rem 0.6rem', background: p === pagination.mappings ? C.s1 : '#E5E7EB', color: p === pagination.mappings ? '#fff' : C.ink, border: 'none', cursor: 'pointer', borderRadius: '0.35rem', fontWeight: p === pagination.mappings ? '600' : '400'}}>{p}</button>
-              ))}
-              <button onClick={() => setPagination({...pagination, mappings: Math.min(Math.ceil(mappings.length / ITEMS_PER_PAGE), pagination.mappings + 1)})} disabled={pagination.mappings === Math.ceil(mappings.length / ITEMS_PER_PAGE)} style={{padding: '0.4rem 0.8rem', background: pagination.mappings === Math.ceil(mappings.length / ITEMS_PER_PAGE) ? '#D1D5DB' : C.s1, color: '#fff', border: 'none', cursor: pagination.mappings === Math.ceil(mappings.length / ITEMS_PER_PAGE) ? 'default' : 'pointer', borderRadius: '0.35rem'}}>Next →</button>
-            </div>
-          )}
-          {mappings.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No mappings configured yet.</p>}
-        </div>
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPMappingsTab
+            C={C}
+            canManageAccounts={canManageAccounts}
+            showMappingForm={showMappingForm}
+            setShowMappingForm={setShowMappingForm}
+            mappingFilters={mappingFilters}
+            setMappingFilters={setMappingFilters}
+            LEDGER_DEPARTMENTS={LEDGER_DEPARTMENTS}
+            mappingSummary={mappingSummary}
+            getDepartmentBadgeStyle={getDepartmentBadgeStyle}
+            mappingForm={mappingForm}
+            setMappingForm={setMappingForm}
+            accounts={accounts}
+            handleCreateMapping={handleCreateMapping}
+            saving={saving}
+            mappings={mappings}
+            sorting={sorting}
+            setSorting={setSorting}
+            pagination={pagination}
+            setPagination={setPagination}
+            ITEMS_PER_PAGE={ITEMS_PER_PAGE}
+            token={token}
+            loadMappings={loadMappings}
+            showNotification={showNotification}
+            setError={setError}
+            setTestMapping={setTestMapping}
+            setShowMappingTest={setShowMappingTest}
+            handleEditMapping={handleEditMapping}
+            handleDeleteMapping={handleDeleteMapping}
+          />
+        </Suspense>
       )}
       {/* ACCOUNT SUMMARY TAB */}
-      <ERPEnquiryTabContainer activeTab={activeTab}>
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-            <div>
-              <h3 style={{ marginBottom: '0.35rem', color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Account Summary</h3>
-              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.9rem' }}>Search any chart-of-account code to view balances, account details, and exportable summary details.</p>
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <span style={{ padding: '0.4rem 0.7rem', borderRadius: '999px', background: '#ECFDF5', color: '#065F46', fontSize: '0.78rem', fontWeight: '700' }}>{isSuperAdmin ? 'Super Admin' : isFinance ? 'Finance' : 'Department Head'}</span>
-              <span style={{ padding: '0.4rem 0.7rem', borderRadius: '999px', background: '#EFF6FF', color: '#1D4ED8', fontSize: '0.78rem', fontWeight: '700' }}>Role Based</span>
-            </div>
-          </div>
-          {!canViewBalanceEnquiry ? (
-            <div style={{ ...ERP_EMPTY_CARD_STYLE, borderStyle: 'solid', background: '#FEF2F2', color: '#991B1B' }}>Account summary access restricted. Ask an admin to enable the Account Summary ERP permission for this user.</div>
-          ) : (
-            <>
-              <div style={{ marginBottom: '1rem' }}>
-                <form onSubmit={handleAccountEnquiry} style={{ background: '#FAFAF7', border: '1px solid #D6D3C4', borderRadius: '0.75rem', padding: '1rem', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                    <p style={{ margin: 0, color: '#3F4B2E', fontWeight: '800', letterSpacing: '0.02em' }}>Account Lookup</p>
-                    <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>Type account code</span>
-                  </div>
-                  <input
-                    placeholder="Enter Account Number (e.g. 1000)"
-                    value={accountEnquiryCode}
-                    onChange={(e) => {
-                      setAccountEnquiryCode(e.target.value)
-                      setEnquiryStatus({ type: '', message: '' })
-                    }}
-                    style={{ display: 'block', width: '100%', padding: '0.7rem 0.8rem', marginBottom: '0.75rem', background: '#FFFFFF', border: '1px solid #B8BEA0', color: C.ink, borderRadius: '0.5rem' }}
-                  />
-                  {filteredGroupedSummaryAccounts.length > 0 && (
-                    <div style={{ marginTop: '-0.35rem', marginBottom: '0.75rem', border: '1px solid #D6D3C4', borderRadius: '0.6rem', background: '#FFFFFF', maxHeight: '300px', overflowY: 'auto', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.08)' }}>
-                      {filteredGroupedSummaryAccounts.map((group) => (
-                        <div key={group.type}>
-                          <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: '0.45rem 0.75rem', background: '#F5F7F0', borderBottom: '1px solid #E5E7EB', color: '#3F4B2E', fontSize: '0.76rem', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                            {group.type}
-                          </div>
-                          {group.accounts.map((account) => (
-                            <button
-                              key={account._id}
-                              type="button"
-                              onMouseDown={(event) => {
-                                event.preventDefault()
-                                setAccountEnquiryCode(account.accountCode)
-                                setEnquiryStatus({ type: '', message: '' })
-                                fetchAccountEnquiryByCode(account.accountCode)
-                              }}
-                              style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.65rem 0.75rem', border: 'none', borderBottom: '1px solid #F3F4F6', background: '#FFFFFF', color: C.ink, cursor: 'pointer', textAlign: 'left' }}
-                            >
-                              <span style={{ fontWeight: '800', minWidth: '56px', color: '#111827' }}>{account.accountCode}</span>
-                              <span style={{ flex: 1, color: '#4B5563', fontSize: '0.86rem' }}>{account.accountName}</span>
-                              <span style={{ color: '#6B7280', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{account.accountType}</span>
-                            </button>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <button type="submit" disabled={enquiryLoading} style={{ padding: '0.6rem 1rem', background: 'var(--purple)', color: '#FFFFFF', border: 'none', borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}>
-                      {enquiryLoading ? 'Loading...' : 'Load Summary'}
-                    </button>
-                    <span style={{ fontSize: '0.8rem', color: '#6B7280' }}>Live from ERP accounting balances</span>
-                  </div>
-                  {enquiryStatus.message && (
-                    <p style={{ marginTop: '0.6rem', marginBottom: 0, color: enquiryStatus.type === 'success' ? '#047857' : C.danger, fontWeight: '600', fontSize: '0.85rem' }}>
-                      {enquiryStatus.message}
-                    </p>
-                  )}
-                  {summaryAccountsLoading && (
-                    <p style={{ margin: '0.7rem 0 0', color: '#6B7280', fontSize: '0.82rem', fontWeight: '600' }}>
-                      Loading account list…
-                    </p>
-                  )}
-                  {!summaryAccountsLoading && !safeSummaryAccounts.length && (
-                    <p style={{ margin: '0.7rem 0 0', color: '#92400E', fontSize: '0.82rem', fontWeight: '600' }}>
-                      No accounts available for your role. Department heads only see mapped accounts in Account Summary.
-                    </p>
-                  )}
-                  <div style={{ marginTop: '0.9rem', paddingTop: '0.85rem', borderTop: '1px solid #E5E7EB' }}>
-                    <p style={{ margin: '0 0 0.5rem', color: '#6B7280', fontWeight: '700', fontSize: '0.78rem' }}>Quick Accounts</p>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
-                      {safeSummaryAccounts
-                        .slice()
-                        .sort((a, b) => String(a?.accountCode || '').localeCompare(String(b?.accountCode || '')))
-                        .slice(0, 8)
-                        .map((account) => (
-                          <button
-                            key={account._id}
-                            type="button"
-                            onClick={() => {
-                              setAccountEnquiryCode(account.accountCode)
-                              fetchAccountEnquiryByCode(account.accountCode)
-                            }}
-                            style={{ padding: '0.35rem 0.6rem', borderRadius: '999px', border: '1px solid #C7D2FE', background: '#EEF2FF', color: '#3730A3', cursor: 'pointer', fontSize: '0.76rem', fontWeight: '700' }}
-                            title={account.accountName}
-                          >
-                            {account.accountCode}
-                          </button>
-                        ))}
-                    </div>
-                  </div>
-                </form>
-              </div>
-              {enquiryHistory.length > 0 && (
-                <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem', marginBottom: '1rem' }}>
-                  <p style={{ margin: 0, color: C.ink, fontWeight: '700', marginBottom: '0.55rem' }}>Recent Account Summary History</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    {enquiryHistory.map((item) => (
-                      <button
-                        key={`${item.accountCode}-${item.searchedAt}`}
-                        type="button"
-                        onClick={() => fetchAccountEnquiryByCode(item.accountCode)}
-                        style={{ padding: '0.35rem 0.6rem', borderRadius: '0.4rem', border: '1px solid #D1D5DB', background: '#F9FAFB', color: C.ink, cursor: 'pointer', fontSize: '0.8rem' }}
-                        title={item.accountName || item.accountCode}
-                      >
-                        {item.accountCode}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </ERPEnquiryTabContainer>
+      {activeTab === 'enquiry' && (
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPEnquiryTab
+            activeTab={activeTab}
+            C={C}
+            isSuperAdmin={isSuperAdmin}
+            isFinance={isFinance}
+            canViewBalanceEnquiry={canViewBalanceEnquiry}
+            handleAccountEnquiry={handleAccountEnquiry}
+            accountEnquiryCode={accountEnquiryCode}
+            setAccountEnquiryCode={setAccountEnquiryCode}
+            setEnquiryStatus={setEnquiryStatus}
+            filteredGroupedSummaryAccounts={filteredGroupedSummaryAccounts}
+            fetchAccountEnquiryByCode={fetchAccountEnquiryByCode}
+            enquiryLoading={enquiryLoading}
+            enquiryStatus={enquiryStatus}
+            summaryAccountsLoading={summaryAccountsLoading}
+            safeSummaryAccounts={safeSummaryAccounts}
+            enquiryHistory={enquiryHistory}
+          />
+        </Suspense>
+      )}
       {(activeTab === 'transactions' || jumpToTransactionId) && (
         <Suspense fallback={<ErpSubTabFallback />}>
           <ERPTransactionsTab
@@ -6050,7 +5322,7 @@ function ERPTab({
         handleDeleteTransaction={handleDeleteTransaction}
         transactionMeta={transactionMeta}
         transactionPageCount={transactionPageCount}
-        loading={loading}
+        loading={transactionsLoading}
           />
         </Suspense>
       )}
@@ -6085,7 +5357,7 @@ function ERPTab({
         loadLedgerReport={loadLedgerReport}
         selectedReportAccountCode={selectedReportAccountCode}
         ledgerReportRows={ledgerReportRows}
-        loading={loading}
+        loading={reportsLoading}
         voucherSource={voucherSource}
         setVoucherSource={setVoucherSource}
         modalBackdropStyle={ERP_MODAL_BACKDROP_STYLE}
@@ -6217,536 +5489,51 @@ function ERPTab({
       )}
       {/* SETTINGS TAB */}
       {activeTab === 'settings' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
-            <h3 style={{ marginBottom: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Settings</h3>
-          </div>
-          <div style={{ marginBottom: '1.25rem', background: C.p1, padding: '1rem', borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
-            <h4 style={{ color: C.ink, marginTop: 0, marginBottom: '0.4rem', fontWeight: '700' }}>Logo Settings</h4>
-            <p style={{ marginTop: 0, marginBottom: '0.75rem', color: C.inkSoft, fontSize: '0.82rem' }}>
-              Upload one company logo here. It is used automatically by vouchers, statements, report printouts, and PDF exports for the active tenant.
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) repeat(3, minmax(130px, 0.7fr)) auto', gap: '0.65rem', alignItems: 'center' }}>
-              <select value={selectedBrandingKey} onChange={(e) => handleSelectBrandingProfile(e.target.value)} style={ERP_MODAL_INPUT_STYLE}>
-                {brandingProfiles.map((profile) => (
-                  <option key={profile.key} value={profile.key}>{brandingOptionLabel(profile)}{profile.isDefault ? ' (Default)' : ''}</option>
-                ))}
-              </select>
-              <input
-                type="number"
-                min="80"
-                max="260"
-                placeholder="Width"
-                value={brandingForm.logoWidth}
-                onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoWidth: e.target.value }))}
-                style={ERP_MODAL_INPUT_STYLE}
-              />
-              <input
-                type="number"
-                min="32"
-                max="120"
-                placeholder="Height"
-                value={brandingForm.logoHeight}
-                onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoHeight: e.target.value }))}
-                style={ERP_MODAL_INPUT_STYLE}
-              />
-              <select
-                value={brandingForm.logoFit}
-                onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoFit: e.target.value }))}
-                style={ERP_MODAL_INPUT_STYLE}
-              >
-                <option value="contain">Contain</option>
-                <option value="cover">Cover</option>
-                <option value="fill">Fill</option>
-              </select>
-              <label style={{ ...ERP_MODAL_INPUT_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginBottom: 0 }}>
-                Upload Logo
-                <input type="file" accept={LOGO_UPLOAD_ACCEPT} onChange={(e) => handleBrandingLogoFile(e.target.files?.[0])} style={{ display: 'none' }} />
-              </label>
-            </div>
-            <p style={{ margin: '0.45rem 0 0', color: C.inkSoft, fontSize: '0.78rem' }}>Supported logo files: PNG and SVG up to 3 MB.</p>
-            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.8rem' }}>
-              <div style={{ width: '180px', height: '64px', border: '1px dashed #D1D5DB', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                {brandingForm.logoUrl ? <img src={brandingForm.logoUrl} alt="Current logo preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : <span style={{ color: C.inkSoft, fontSize: '0.8rem' }}>No logo</span>}
-              </div>
-              <button type="button" disabled={saving || !canManageAccounts} onClick={handleSaveBranding} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: canManageAccounts ? 'pointer' : 'not-allowed', opacity: canManageAccounts ? 1 : 0.65 }}>
-                {saving ? 'Saving...' : 'Save Logo Settings'}
-              </button>
-            </div>
-          </div>
-          <div style={{ marginBottom: '1.25rem', background: C.p1, padding: '1rem', borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
-            <h4 style={{ color: C.ink, marginTop: 0, marginBottom: '0.4rem', fontWeight: '700' }}>Inventory Stock Code Format</h4>
-            <p style={{ marginTop: 0, marginBottom: '0.75rem', color: C.inkSoft, fontSize: '0.82rem' }}>
-              Configure auto stock-code format used in ERP Inventory mapping.
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.65rem' }}>
-              <select
-                value={inventoryStockCodeSettings.format}
-                onChange={(e) => setInventoryStockCodeSettings((prev) => ({ ...prev, format: e.target.value }))}
-                style={ERP_MODAL_INPUT_STYLE}
-              >
-                <option value="metal-purity">GOLD-9999</option>
-                <option value="prefix-metal-purity">RM-GOLD-9999</option>
-              </select>
-              <input
-                placeholder="Prefix"
-                value={inventoryStockCodeSettings.prefix}
-                onChange={(e) => setInventoryStockCodeSettings((prev) => ({ ...prev, prefix: e.target.value.toUpperCase() }))}
-                disabled={inventoryStockCodeSettings.format !== 'prefix-metal-purity'}
-                style={inventoryStockCodeSettings.format !== 'prefix-metal-purity' ? { ...ERP_MODAL_INPUT_STYLE, background: '#F8FAFC', color: C.inkSoft } : ERP_MODAL_INPUT_STYLE}
-              />
-            </div>
-            <p style={{ margin: '0.6rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>
-              Preview: {buildAutoStockCode({ mainStock: 'gold', customMainStock: '', metalType: 'gold', purity: '999.9' }, inventoryStockCodeSettings)}
-            </p>
-          </div>
-          <div style={{ marginBottom: '2rem' }}>
-            <h4 style={{ color: C.ink, marginBottom: '1rem', fontWeight: '700' }}>Report Branding</h4>
-            <form onSubmit={handleSaveBranding} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', border: `1px solid ${C.p2}`, marginBottom: '1rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) repeat(2, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                <select value={selectedBrandingKey} onChange={(e) => handleSelectBrandingProfile(e.target.value)} style={ERP_MODAL_INPUT_STYLE}>
-                  {brandingProfiles.map((profile) => (
-                    <option key={profile.key} value={profile.key}>{brandingOptionLabel(profile)}{profile.isDefault ? ' (Default)' : ''}</option>
-                  ))}
-                </select>
-                <input
-                  placeholder="Profile Key"
-                  value={brandingForm.key}
-                  onChange={(e) => {
-                    const nextKey = normalizeBrandingKey(e.target.value)
-                    setSelectedBrandingKey(nextKey)
-                    setBrandingForm((prev) => ({ ...prev, key: nextKey }))
-                  }}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <label style={{ ...ERP_MODAL_INPUT_STYLE, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: 0 }}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(brandingForm.isDefault)}
-                    onChange={(e) => setBrandingForm((prev) => ({ ...prev, isDefault: e.target.checked }))}
-                  />
-                  Set as default entity
-                </label>
-              </div>
-              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                <button type="button" onClick={handleCreateBrandingDraft} style={{ padding: '0.45rem 0.85rem', background: '#ECFDF5', color: '#065F46', border: '1px solid #A7F3D0', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600' }}>
-                  + New Entity Profile
-                </button>
-                <span style={{ color: C.inkSoft, fontSize: '0.82rem', alignSelf: 'center' }}>Each profile can represent a separate legal entity, branch, or reporting unit.</span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                <input
-                  placeholder="Entity Name"
-                  value={brandingForm.entityName}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, entityName: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="Branch / Unit"
-                  value={brandingForm.branchName}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, branchName: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="Company Name"
-                  value={brandingForm.companyName}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, companyName: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="Legal Name"
-                  value={brandingForm.legalName}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, legalName: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="Company Address"
-                  value={brandingForm.address}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, address: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="Company Phone"
-                  value={brandingForm.phone}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, phone: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="TRN / Tax Registration"
-                  value={brandingForm.trn}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, trn: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="Report Subtitle"
-                  value={brandingForm.reportSubtitle}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, reportSubtitle: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="Footer Text"
-                  value={brandingForm.reportFooter}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, reportFooter: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.75rem', alignItems: 'start', marginBottom: '0.75rem' }}>
-                <input
-                  placeholder="Logo URL or paste data URL"
-                  value={brandingForm.logoUrl}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoUrl: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <label style={{ ...ERP_MODAL_INPUT_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginBottom: 0 }}>
-                  Upload Logo
-                  <input
-                    type="file"
-                    accept={LOGO_UPLOAD_ACCEPT}
-                    onChange={(e) => handleBrandingLogoFile(e.target.files?.[0])}
-                    style={{ display: 'none' }}
-                  />
-                </label>
-              </div>
-              <p style={{ margin: '-0.35rem 0 0.75rem', color: C.inkSoft, fontSize: '0.78rem' }}>Supported logo files: PNG and SVG up to 3 MB.</p>
-              {brandingForm.logoUrl && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-                  <div style={{ padding: '0.75rem', border: `1px dashed ${C.p2}`, borderRadius: '0.5rem', background: '#FFFDF7' }}>
-                    <p style={{ marginTop: 0, marginBottom: '0.5rem', color: C.ink, fontWeight: '600' }}>Source Logo</p>
-                    <img src={brandingForm.logoUrl} alt="Brand logo source" style={{ maxHeight: '72px', maxWidth: '220px', objectFit: 'contain' }} />
-                  </div>
-                  <div style={{ padding: '0.75rem', border: `1px dashed ${C.p2}`, borderRadius: '0.5rem', background: '#FFFDF7' }}>
-                    <p style={{ marginTop: 0, marginBottom: '0.5rem', color: C.ink, fontWeight: '600' }}>Header Crop Result</p>
-                    <div style={{ width: `${clampBrandingDimension(brandingForm.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)}px`, height: `${clampBrandingDimension(brandingForm.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)}px`, border: '1px solid #D1D5DB', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                      {brandingPreviewLogo ? <img src={brandingPreviewLogo} alt="Brand logo processed preview" style={{ width: '100%', height: '100%', objectFit: 'fill' }} /> : null}
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-                <input
-                  type="number"
-                  min="80"
-                  max="260"
-                  placeholder="Logo Width"
-                  value={brandingForm.logoWidth}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoWidth: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  type="number"
-                  min="32"
-                  max="120"
-                  placeholder="Logo Height"
-                  value={brandingForm.logoHeight}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoHeight: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <select
-                  value={brandingForm.logoFit}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, logoFit: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                >
-                  <option value="contain">Contain</option>
-                  <option value="cover">Cover / Crop</option>
-                  <option value="fill">Fill / Stretch</option>
-                </select>
-              </div>
-              <div style={{ marginBottom: '1rem', padding: '1rem', borderRadius: '0.75rem', border: `1px solid ${C.p2}`, background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)' }}>
-                <p style={{ marginTop: 0, marginBottom: '0.75rem', color: C.ink, fontWeight: '700' }}>Company Profile Preview</p>
-                <div style={{ height: '10px', background: 'var(--grad-brand)', borderRadius: '999px', marginBottom: '14px' }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '2px solid #111827', paddingBottom: '0.9rem', marginBottom: '0.9rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                  <div style={{ minWidth: '260px', flex: '1 1 320px' }}>
-                    <p style={{ margin: '0 0 0.35rem', color: '#065F46', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>{brandingPreview.companyName || DEFAULT_BRANDING.companyName}</p>
-                    <p style={{ margin: '0 0 0.35rem', color: '#111827', fontSize: '1.3rem', fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 700 }}>ERP Financial Statement</p>
-                    <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem' }}>{brandingPreview.entityName || DEFAULT_BRANDING.entityName}{brandingPreview.branchName ? ` / ${brandingPreview.branchName}` : ''}</p>
-                    {brandingPreview.legalName ? <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem' }}>{brandingPreview.legalName}</p> : null}
-                    {brandingPreview.address ? <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem', whiteSpace: 'pre-line' }}>{brandingPreview.address}</p> : null}
-                    {(brandingPreview.phone || brandingPreview.trn) ? <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem' }}>{`${brandingPreview.phone || ''}${brandingPreview.phone && brandingPreview.trn ? ' | ' : ''}${brandingPreview.trn ? `TRN: ${brandingPreview.trn}` : ''}`}</p> : null}
-                    <p style={{ margin: '0 0 0.2rem', color: '#4B5563', fontSize: '0.8rem' }}>{brandingPreview.reportSubtitle || DEFAULT_BRANDING.reportSubtitle} | Prepared for statutory / CA-style review</p>
-                    <p style={{ margin: 0, color: '#4B5563', fontSize: '0.8rem' }}>Period: 01 Apr 2026 to 30 Apr 2026</p>
-                  </div>
-                  {brandingPreviewLogo ? (
-                    <div style={{ width: `${clampBrandingDimension(brandingPreview.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)}px`, height: `${clampBrandingDimension(brandingPreview.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)}px`, borderRadius: '0.35rem', overflow: 'hidden', background: '#FFFFFF', border: '1px solid #E5E7EB', flex: '0 0 auto' }}>
-                      <img src={brandingPreviewLogo} alt="Export header preview logo" style={{ width: '100%', height: '100%', objectFit: 'fill', display: 'block' }} />
-                    </div>
-                  ) : null}
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(120px, 1fr))', gap: '0.75rem', marginBottom: '0.9rem' }}>
-                  <div style={{ paddingTop: '0.85rem', borderTop: '1px solid #475569', color: '#374151', fontSize: '0.78rem' }}>{brandingPreview.preparedByTitle || DEFAULT_BRANDING.preparedByTitle}<br />{brandingPreview.preparedByName || DEFAULT_BRANDING.preparedByName}</div>
-                  <div style={{ paddingTop: '0.85rem', borderTop: '1px solid #475569', color: '#374151', fontSize: '0.78rem' }}>{brandingPreview.reviewedByTitle || DEFAULT_BRANDING.reviewedByTitle}<br />{brandingPreview.reviewedByName || DEFAULT_BRANDING.reviewedByName}</div>
-                  <div style={{ paddingTop: '0.85rem', borderTop: '1px solid #475569', color: '#374151', fontSize: '0.78rem' }}>{brandingPreview.approvedByTitle || DEFAULT_BRANDING.approvedByTitle}<br />{brandingPreview.approvedByName || DEFAULT_BRANDING.approvedByName}</div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', color: '#334155', fontSize: '0.74rem', flexWrap: 'wrap' }}>
-                  <span>{brandingPreview.companyName || DEFAULT_BRANDING.companyName} Reporting Suite</span>
-                  <span>{brandingPreview.reportFooter || DEFAULT_BRANDING.reportFooter}</span>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-                <input
-                  placeholder="Prepared By Title"
-                  value={brandingForm.preparedByTitle}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, preparedByTitle: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="Prepared By Name"
-                  value={brandingForm.preparedByName}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, preparedByName: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="Reviewed By Title"
-                  value={brandingForm.reviewedByTitle}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, reviewedByTitle: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="Reviewed By Name"
-                  value={brandingForm.reviewedByName}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, reviewedByName: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="Approved By Title"
-                  value={brandingForm.approvedByTitle}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, approvedByTitle: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="Approved By Name"
-                  value={brandingForm.approvedByName}
-                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, approvedByName: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                <button type="submit" disabled={saving || !canManageAccounts} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: canManageAccounts ? 'pointer' : 'not-allowed', opacity: canManageAccounts ? 1 : 0.65 }}>
-                  {saving ? 'Saving...' : 'Save Branding'}
-                </button>
-                <button type="button" onClick={() => setBrandingForm(reportBranding)} style={{ padding: '0.5rem 1rem', background: '#fff', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.375rem', cursor: 'pointer' }}>
-                  Reset Changes
-                </button>
-                <span style={{ color: C.inkSoft, fontSize: '0.82rem' }}>Use separate profiles per branch or legal entity. Uploaded logos give the most reliable PDF result.</span>
-              </div>
-            </form>
-          </div>
-          <div style={{ background: C.p1, padding: '1.5rem', borderRadius: '0.5rem', borderLeft: `4px solid ${C.s1}` }}>
-            <h4 style={{ color: C.t1, marginBottom: '1rem', fontWeight: '600' }}>📋 System Information</h4>
-            <ul style={{ color: C.t2, fontSize: '0.875rem', listStyle: 'none', padding: 0 }}>
-              <li style={{ marginBottom: '0.5rem' }}>✓ Central Ledger System: Every transaction creates one ledger entry</li>
-              <li style={{ marginBottom: '0.5rem' }}>✓ Auto Journal Logic: Debit/Credit pairs auto-populated based on mappings</li>
-              <li style={{ marginBottom: '0.5rem' }}>✓ Role-Based Access: Finance and Super Admin only</li>
-              <li style={{ marginBottom: '0.5rem' }}>✓ Multi-Currency: configurable base currency and exchange rates</li>
-              <li style={{ marginBottom: '0.5rem' }}>✓ Reports: Trial Balance, Ledger, and Dashboard all from ledger data</li>
-            </ul>
-          </div>
-        </div>
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPSettingsTab
+            C={C}
+            selectedBrandingKey={selectedBrandingKey}
+            setSelectedBrandingKey={setSelectedBrandingKey}
+            handleSelectBrandingProfile={handleSelectBrandingProfile}
+            brandingProfiles={brandingProfiles}
+            brandingForm={brandingForm}
+            setBrandingForm={setBrandingForm}
+            handleBrandingLogoFile={handleBrandingLogoFile}
+            saving={saving}
+            canManageAccounts={canManageAccounts}
+            handleSaveBranding={handleSaveBranding}
+            inventoryStockCodeSettings={inventoryStockCodeSettings}
+            setInventoryStockCodeSettings={setInventoryStockCodeSettings}
+            handleCreateBrandingDraft={handleCreateBrandingDraft}
+            brandingPreviewLogo={brandingPreviewLogo}
+            brandingPreview={brandingPreview}
+          />
+        </Suspense>
       )}
       {/* CURRENCIES TAB */}
       {activeTab === 'currencies' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
-            <div>
-              <h3 style={{ margin: 0, color: C.ink, fontSize: '1.25rem', fontWeight: '700' }}>Currency Master</h3>
-              <p style={{ margin: '0.3rem 0 0', color: C.inkSoft, fontSize: '0.84rem' }}>
-                {`Manage currency code master and conversion rates vs ${erpBaseCurrencyCode} for all ERP postings.`}
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {canManageAccounts && (
-                <button
-                  onClick={() => setShowCurrencyForm(!showCurrencyForm)}
-                  style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600' }}
-                >
-                  {showCurrencyForm ? 'Close Form' : '+ Add Currency'}
-                </button>
-              )}
-              {canManageAccounts && (
-                <button
-                  onClick={handleSyncCurrencyMaster}
-                  disabled={saving}
-                  style={{ padding: '0.5rem 1rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '600' }}
-                >
-                  {saving ? 'Syncing...' : 'Sync USD/EUR/AED/UZS'}
-                </button>
-              )}
-              <button
-                onClick={() => setActiveTabGuarded('settings')}
-                style={{ padding: '0.5rem 1rem', background: '#fff', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.375rem', cursor: 'pointer' }}
-              >
-                Back to Settings
-              </button>
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-              <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>Exchange Difference Accounts</h4>
-              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.82rem' }}>
-                System auto-creates and uses <strong>Exchange Gain (4190)</strong> and <strong>Exchange Loss (5190)</strong> when posting foreign-currency payment/receipt adjustments.
-              </p>
-            </div>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-              <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>{`Rate Direction (vs ${erpBaseCurrencyCode})`}</h4>
-              <p style={{ margin: 0, color: C.inkSoft, fontSize: '0.82rem' }}>
-                Exchange rate stores the <strong>{erpBaseCurrencyCode}</strong> value of <strong>1 unit</strong> of that currency code (base units per 1 unit of FC). Example when base is USD: AED 0.2723 means 1 AED = 0.2723 USD. When base is INR: USD 83.5 means 1 USD = 83.5 INR. When adding or editing, you can instead fill <strong>1 {erpBaseCurrencyCode} = (units)</strong> — the app saves <code>1 ÷ that number</code> so the grid matches.
-              </p>
-            </div>
-            <div style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '0.9rem' }}>
-              <h4 style={{ margin: 0, marginBottom: '0.45rem', color: C.ink, fontSize: '0.95rem' }}>USD amount converter</h4>
-              <p style={{ margin: '0 0 0.45rem', color: C.inkSoft, fontSize: '0.72rem' }}>
-                {erpBaseCurrencyCode === 'USD'
-                  ? 'Uses stored rates (USD per 1 unit of the target currency).'
-                  : `Converts USD → ${erpBaseCurrencyCode} using the USD row, then → target using each row’s ${erpBaseCurrencyCode} per 1 unit.`}
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="USD Amount"
-                  value={usdConversion.usdAmount}
-                  onChange={(e) => setUsdConversion((prev) => ({ ...prev, usdAmount: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <select
-                  value={usdConversion.targetCode}
-                  onChange={(e) => setUsdConversion((prev) => ({ ...prev, targetCode: e.target.value }))}
-                  style={ERP_MODAL_INPUT_STYLE}
-                >
-                  {currencies.map((currency) => (
-                    <option key={currency._id || currency.code} value={currency.code}>{currency.code} - {currency.name}</option>
-                  ))}
-                </select>
-              </div>
-              <p style={{ margin: '0.5rem 0 0', color: C.inkSoft, fontSize: '0.8rem' }}>
-                {usdConversion.usdAmount || '0'} USD = <strong style={{ color: C.ink }}>{Number(usdToTargetAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}</strong> {usdConversion.targetCode || '---'}
-              </p>
-              <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.75rem' }}>
-                1 {usdConversion.targetCode || '---'} = <strong style={{ color: C.ink }}>{Number(selectedUsdConversionRate || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</strong> {erpBaseCurrencyCode}
-              </p>
-              <p style={{ margin: '0.2rem 0 0', color: C.inkSoft, fontSize: '0.72rem' }}>
-                Rate used: {selectedUsdConversionRate > 0 ? selectedUsdConversionRate.toFixed(6) : 'N/A'} {erpBaseCurrencyCode} per {usdConversion.targetCode || 'unit'}
-              </p>
-            </div>
-          </div>
-          {showCurrencyForm && (
-            <form onSubmit={handleCreateCurrency} style={{ background: C.p1, padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem', border: `1px solid ${C.p2}` }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
-                <input
-                  placeholder="Currency Code"
-                  value={currencyForm.code}
-                  onChange={(e) => setCurrencyForm({ ...currencyForm, code: e.target.value.toUpperCase() })}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="Currency Name"
-                  value={currencyForm.name}
-                  onChange={(e) => setCurrencyForm({ ...currencyForm, name: e.target.value })}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  placeholder="Symbol"
-                  value={currencyForm.symbol}
-                  onChange={(e) => setCurrencyForm({ ...currencyForm, symbol: e.target.value })}
-                  style={ERP_MODAL_INPUT_STYLE}
-                />
-                <input
-                  type="number"
-                  step="0.0001"
-                  min="0"
-                  placeholder="Exchange Rate"
-                  value={currencyForm.exchangeRate}
-                  onChange={(e) => setCurrencyForm({ ...currencyForm, exchangeRate: e.target.value, oneUsdEquals: '' })}
-                  style={ERP_MODAL_INPUT_STYLE}
-                  disabled={currencyForm.baseCurrency}
-                />
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder={`1 ${erpBaseCurrencyCode} = (units of this currency)`}
-                  value={currencyForm.oneUsdEquals}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    const r = exchangeRateFromUnitsPerBase(v)
-                    setCurrencyForm({
-                      ...currencyForm,
-                      oneUsdEquals: v,
-                      exchangeRate: r !== null ? String(r) : currencyForm.exchangeRate,
-                    })
-                  }}
-                  style={ERP_MODAL_INPUT_STYLE}
-                  disabled={currencyForm.baseCurrency}
-                />
-              </div>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: C.ink, marginTop: '0.6rem' }}>
-                <input
-                  type="checkbox"
-                  checked={currencyForm.baseCurrency}
-                  onChange={(e) => {
-                    const base = e.target.checked
-                    setCurrencyForm({
-                      ...currencyForm,
-                      baseCurrency: base,
-                      exchangeRate: base ? 1 : currencyForm.exchangeRate,
-                      oneUsdEquals: base ? '' : currencyForm.oneUsdEquals,
-                    })
-                  }}
-                />
-                Set as base currency
-              </label>
-              <div style={{ marginTop: '0.75rem' }}>
-                <button type="submit" disabled={saving} style={{ padding: '0.5rem 1rem', background: C.s1, color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', marginRight: '0.5rem' }}>
-                  {saving ? 'Saving...' : 'Create Currency'}
-                </button>
-                <button type="button" onClick={() => setShowCurrencyForm(false)} style={{ padding: '0.5rem 1rem', background: '#fff', color: C.ink, border: `1px solid ${C.p2}`, borderRadius: '0.375rem', cursor: 'pointer' }}>
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
-          <div style={{ overflowX: 'auto', background: C.p1, borderRadius: '0.5rem', border: `1px solid ${C.p2}` }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${C.p2}` }}>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Code</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Name</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Symbol</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Exchange Rate</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>{`1 ${erpBaseCurrencyCode} =`}</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Base</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Active</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', color: C.t1, fontWeight: '600' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {currencies.map((c) => (
-                  <tr key={c._id} style={{ borderBottom: `1px solid ${C.p2}` }}>
-                    <td style={{ padding: '0.75rem', color: C.t1, fontWeight: '700' }}>{c.code}</td>
-                    <td style={{ padding: '0.75rem', color: C.t2 }}>{c.name}</td>
-                    <td style={{ padding: '0.75rem', color: C.t2 }}>{c.symbol || '-'}</td>
-                    <td style={{ padding: '0.75rem', color: C.t2 }}>{Number(c.exchangeRate || 0).toFixed(6)}</td>
-                    <td style={{ padding: '0.75rem', color: C.t2 }}>
-                      {c.baseCurrency
-                        ? '—'
-                        : (Number(c.exchangeRate || 0) > 0
-                          ? Number(1 / Number(c.exchangeRate || 1)).toLocaleString(undefined, { maximumFractionDigits: 4 })
-                          : '-')}
-                    </td>
-                    <td style={{ padding: '0.75rem', color: c.baseCurrency ? C.s1 : C.t2 }}>{c.baseCurrency ? '✓ Base' : '-'}</td>
-                    <td style={{ padding: '0.75rem', color: c.isActive ? '#065F46' : C.inkSoft }}>{c.isActive ? 'Active' : 'Inactive'}</td>
-                    <td style={{ padding: '0.75rem' }}>
-                      <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
-                        <button onClick={() => handleEditCurrency(c)} style={{ padding: '0.35rem 0.7rem', background: '#0F766E', color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Edit</button>
-                        <button onClick={() => handleDeleteCurrency(c)} style={{ padding: '0.35rem 0.7rem', background: C.danger, color: '#fff', border: 'none', borderRadius: '0.35rem', cursor: 'pointer' }}>Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {currencies.length === 0 && <p style={{ color: C.inkSoft, marginTop: '1rem', textAlign: 'center' }}>No currencies configured yet.</p>}
-        </div>
+        <Suspense fallback={<ErpSubTabFallback />}>
+          <ERPCurrenciesTab
+            C={C}
+            erpBaseCurrencyCode={erpBaseCurrencyCode}
+            canManageAccounts={canManageAccounts}
+            showCurrencyForm={showCurrencyForm}
+            setShowCurrencyForm={setShowCurrencyForm}
+            handleSyncCurrencyMaster={handleSyncCurrencyMaster}
+            saving={saving}
+            setActiveTabGuarded={setActiveTabGuarded}
+            usdConversion={usdConversion}
+            setUsdConversion={setUsdConversion}
+            usdToTargetAmount={usdToTargetAmount}
+            selectedUsdConversionRate={selectedUsdConversionRate}
+            currencyForm={currencyForm}
+            setCurrencyForm={setCurrencyForm}
+            handleCreateCurrency={handleCreateCurrency}
+            currencies={currencies}
+            handleEditCurrency={handleEditCurrency}
+            handleDeleteCurrency={handleDeleteCurrency}
+          />
+        </Suspense>
       )}
       {editState.record && (
         <div style={ERP_MODAL_BACKDROP_STYLE} onClick={closeEditModal}>
@@ -7033,6 +5820,7 @@ function ERPTab({
         </div>
       )}
       {/* VOUCHERS TAB */}
+      {(activeTab === 'vouchers' || jumpToVoucher) && (
       <ERPVouchersTabContainer activeTab={activeTab}>
         <Suspense fallback={<div style={{ padding: '1rem', color: C.inkSoft }}>Loading vouchers...</div>}>
           <VoucherTab
@@ -7049,6 +5837,7 @@ function ERPTab({
           />
         </Suspense>
       </ERPVouchersTabContainer>
+      )}
       {/* DIRECT DEALS TAB */}
       {activeTab === 'direct-deals' && (
         <Suspense fallback={<ErpSubTabFallback />}>

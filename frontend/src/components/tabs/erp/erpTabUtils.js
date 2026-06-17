@@ -201,6 +201,14 @@ const resolveAccountIdFromInput = (inputValue, accountOptions = []) => {
   return ''
 }
 
+function erpTabNeedsLiveMetalRates(tab) {
+  return tab === 'enquiry'
+    || tab === 'customer-margin'
+    || tab === 'supplier-margin'
+    || tab === 'inventory'
+    || tab === 'fixing-register'
+}
+
 export {
   DEFAULT_INVENTORY_STOCK_CODE_SETTINGS,
   accountLookupText,
@@ -212,6 +220,7 @@ export {
   decodeInventoryCategoryMeta,
   decodeInventoryCategoryPairs,
   encodeInventoryCategoryMeta,
+  erpTabNeedsLiveMetalRates,
   formatVatPercent,
   getTransactionActionLabels,
   getTransactionTypeLabels,
