@@ -33,10 +33,9 @@ const {
 } = require('../services/adminSettings')
 const { isLikelyExpoPushToken } = require('../services/expoPushNotifications')
 const { mergeNotificationPreferences } = require('../services/notificationPreferences')
+const { escapeRegex } = require('../utils/escapeRegex')
 
 const router = express.Router()
-
-const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 function resolveRequestTenant(req, requestedCompany) {
   // Priority: 1) hostname subdomain, 2) x-tenant header, 3) posted company field, 4) default

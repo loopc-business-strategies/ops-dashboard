@@ -33,6 +33,7 @@
     "lint:eslint:erp-shell-tabs": "node ./node_modules/eslint/bin/eslint.js \"frontend/src/components/tabs/ERPTab.jsx\" \"frontend/src/components/tabs/VoucherTab.jsx\" \"frontend/src/components/tabs/voucher/**/*.jsx\" \"frontend/src/components/tabs/erp/accountEnquiry/**/*.jsx\" --max-warnings=0",
     "lint:eslint:backend": "node ./node_modules/eslint/bin/eslint.js --max-warnings=0 \"backend/app.js\" \"backend/server.js\" \"backend/middleware/**/*.js\" \"backend/routes/**/*.js\" \"backend/utils/**/*.js\" \"backend/services/**/*.js\" \"backend/models/**/*.js\" \"backend/config/**/*.js\" \"backend/db/**/*.js\" \"backend/realtime/**/*.js\" \"backend/jobs/**/*.js\"",
     "check:ci-parity": "npm run lint && npm run typecheck:mobile && npm run sync:erp-access && npm --prefix backend run test:fast",
+    "check:ci-parity:full": "npm run check:ci-parity && npm run test:backend && npm run test:frontend",
     "lint:eslint:repo": "node ./node_modules/eslint/bin/eslint.js frontend/src --max-warnings=0",
     "check:tracked-paths": "node scripts/check-forbidden-tracked-paths.mjs",
     "check:dependency-audit": "node scripts/run-production-dependency-audit.mjs",

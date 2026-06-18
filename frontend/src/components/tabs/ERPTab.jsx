@@ -21,9 +21,10 @@ import { useERPTabStateAdapter } from './erp/useERPTabStateAdapter'
 import { useErpDashUiState } from './erp/useErpDashUiState'
 import { useErpDashWidgetData } from './erp/useErpDashWidgetData'
 import { useFixingRegisterPanelDrag } from './erp/useFixingRegisterPanelDrag'
+import { useFixingRegisterState } from './erp/useFixingRegisterState'
 import { useJvModalDragResize } from './erp/useJvModalDragResize'
 import { useFixingRegisterStockTypeOptions } from './erp/useFixingRegisterStockTypeOptions'
-import { loadFixingRegisterData } from './erp/fixingRegisterDataLoader'
+import { ERP_TAB_COLORS as C, TRANSACTION_STATUS_STYLES, ERP_EMPTY_CARD_STYLE, ERP_MODAL_BACKDROP_STYLE, ERP_MODAL_CARD_STYLE, ERP_MODAL_INPUT_STYLE } from './erp/erpTabPresentation'
 import { useTransactionComposer } from './erp/useTransactionComposer'
 import { useJournalVoucher } from './erp/useJournalVoucher'
 import AccountEnquiryModal from './erp/accountEnquiry/AccountEnquiryModal'
@@ -102,7 +103,6 @@ import {
 } from './erp/ERPBrandingUtils'
 import { resolveDocumentBranding } from './erp/documentBranding'
 import { loadExcel, loadPdfTools } from './erp/lazyExportLibs'
-import { ERP_TAB_COLORS as C, TRANSACTION_STATUS_STYLES, formatDateInputLocal, ERP_EMPTY_CARD_STYLE, ERP_MODAL_BACKDROP_STYLE, ERP_MODAL_CARD_STYLE, ERP_MODAL_INPUT_STYLE } from './erp/erpTabPresentation'
 import { exchangeRateFromUnitsPerBase, resolveCurrencyRowByCode } from './erp/erpCurrencyRowHelpers'
 import StatementExportOptionsModal from './erp/StatementExportOptionsModal'
 
@@ -183,27 +183,19 @@ function ERPTab({
     [summaryAccounts],
   )
   const [customers, setCustomers] = useState([])
-  const [fixingRegFilter, setFixingRegFilter] = useState({
-    metalType: '',
-    quantityUnit: 'GOZ',
-    rateUnit: 'GOZ',
-    orderBy: 'voucherNo',
-    fromDate: formatDateInputLocal(new Date(new Date().getFullYear(), 0, 1)),
-    toDate: formatDateInputLocal(new Date()),
-    groupBy: 'none',
-    partyFilter: 'all',
-    partySearch: '',
-    excludeOpeningBalance: false,
-    excludeFutures: false,
-    status: 'preview',
-  })
-  const [fixingRegResults, setFixingRegResults] = useState([])
-  const [fixingRegOpening, setFixingRegOpening] = useState({ qtyOz: 0, value: 0 })
-  const [fixingRegLoading, setFixingRegLoading] = useState(false)
-  const [fixingRegShown, setFixingRegShown] = useState(false)
-  const [fixingRegError, setFixingRegError] = useState('')
-  const [fixingRegPanelOffset, setFixingRegPanelOffset] = useState({ x: 0, y: 0 })
-  const [fixingRegPanelDrag, setFixingRegPanelDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+  const {
+    fixingRegFilter,
+    setFixingRegFilter,
+    fixingRegResults,
+    setFixingRegResults,
+    fixingRegOpening,
+    fixingRegLoading,
+    fixingRegShown,
+    setFixingRegShown,
+    fixingRegError,
+    setFixingRegError,
+    handleFixingRegProceed,
+  } = useFixingRegisterState({ token })
   const [ledger, setLedger] = useState([])
   const [mappings, setMappings] = useState([])
   const [currencies, setCurrencies] = useState([])
@@ -803,13 +795,11 @@ function ERPTab({
 
   const transactionPageCount = Math.max(1, Math.ceil(Number(transactionMeta.total || 0) / Number(transactionMeta.limit || 25)))
   const allVisibleTransactionsSelected = Boolean(transactions.length) && transactions.every((tx) => selectedTransactionIds.includes(tx._id))
-  const { beginFixingRegPanelDrag } = useFixingRegisterPanelDrag({
-    activeTab,
+  const {
     fixingRegPanelOffset,
     fixingRegPanelDrag,
-    setFixingRegPanelDrag,
-    setFixingRegPanelOffset,
-  })
+    beginFixingRegPanelDrag,
+  } = useFixingRegisterPanelDrag(activeTab)
   const { beginJvModalDrag, beginJvModalResize } = useJvModalDragResize({
     showLedgerForm,
     jvModalDrag,
@@ -2415,7 +2405,7 @@ function ERPTab({
     if (!hasSelected) {
       setFixingRegFilter((prev) => (prev.metalType === fallbackMetalType ? prev : { ...prev, metalType: fallbackMetalType }))
     }
-  }, [fixingRegisterStockTypeOptions, fixingRegFilter.metalType])
+  }, [fixingRegisterStockTypeOptions, fixingRegFilter.metalType, setFixingRegFilter])
   const formatMoney = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
   const formatMoneyAbs = (value) => Math.abs(Number(value || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })
   const formatReportDirectionalBalance = (row, fallbackDirection = '') => (
@@ -2466,20 +2456,6 @@ function ERPTab({
     })
     if (absAmount === 0) return formatted
     return `${formatted} ${direction}`
-  }
-  const handleFixingRegProceed = async () => {
-    setFixingRegError('')
-    setFixingRegLoading(true)
-    try {
-      const { rows, opening } = await loadFixingRegisterData({ token, fixingRegFilter })
-      setFixingRegOpening(opening)
-      setFixingRegResults(rows)
-      setFixingRegShown(true)
-    } catch (err) {
-      setFixingRegError(err?.response?.data?.message || err.message || 'Failed to load fixing register data.')
-    } finally {
-      setFixingRegLoading(false)
-    }
   }
   const getDepartmentBadgeStyle = (department) => {
     const deptValue = String(department || '').trim().toLowerCase()

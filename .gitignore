@@ -27,6 +27,10 @@ backend/build-meta.json
 # Optional coverage output
 coverage/
 
+# Jest transform cache (local only)
+**/.cache/jest/
+backend/node_modules/.cache/jest/
+
 # Local ESLint JSON reports
 eslint-report.json
 eslint-report*.json

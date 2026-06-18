@@ -1,13 +1,16 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 /** Draggable fixing-register filter panel offset while on the fixing-register tab. */
-export function useFixingRegisterPanelDrag({
-  activeTab,
-  fixingRegPanelOffset,
-  fixingRegPanelDrag,
-  setFixingRegPanelDrag,
-  setFixingRegPanelOffset,
-}) {
+export function useFixingRegisterPanelDrag(activeTab) {
+  const [fixingRegPanelOffset, setFixingRegPanelOffset] = useState({ x: 0, y: 0 })
+  const [fixingRegPanelDrag, setFixingRegPanelDrag] = useState({
+    active: false,
+    pointerX: 0,
+    pointerY: 0,
+    startX: 0,
+    startY: 0,
+  })
+
   const beginFixingRegPanelDrag = (event) => {
     if (event.button !== 0) return
     event.preventDefault()
@@ -45,7 +48,11 @@ export function useFixingRegisterPanelDrag({
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
     }
-  }, [activeTab, fixingRegPanelDrag, setFixingRegPanelDrag, setFixingRegPanelOffset])
+  }, [activeTab, fixingRegPanelDrag])
 
-  return { beginFixingRegPanelDrag }
+  return {
+    fixingRegPanelOffset,
+    fixingRegPanelDrag,
+    beginFixingRegPanelDrag,
+  }
 }

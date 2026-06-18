@@ -495,7 +495,7 @@ function registerCurrencyRoutes(deps) {
             },
           },
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       )
 
       const rates = buildMetalRatesResponse(rate)

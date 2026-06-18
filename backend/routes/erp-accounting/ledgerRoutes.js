@@ -3,6 +3,7 @@ const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAc
 const { runJvLedgerFxBackfillOnNativeDb } = require('../../services/jvLedgerFxBackfill')
 const { notifyErpUsers } = require('../../services/notificationDispatch')
 const { Joi, validateBodyStrict, validateParams } = require('../../middleware/validate')
+const { escapeRegex } = require('../../utils/escapeRegex')
 
 const objectId = Joi.string().hex().length(24)
 const idParamSchema = Joi.object({ id: objectId.required() })
@@ -50,8 +51,6 @@ const encodeCursor = (doc) => {
   if (!doc?._id || !doc?.date) return null
   return Buffer.from(JSON.stringify({ date: doc.date, id: String(doc._id) })).toString('base64')
 }
-
-const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const jvDescriptionHead = (description = '') => {
   const raw = String(description || '')

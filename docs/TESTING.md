@@ -10,7 +10,7 @@ npm run lint
 
 Runs workspace guardrails plus **strict ESLint** on production `frontend/src/components/tabs/erp/**/*.{js,jsx}` and `frontend/src/api/**/*.js` (`--max-warnings=0`), **`npm run lint:eslint:hooks-order`**, **`npm run lint:eslint:finance-ops`** (Finance + Operations tabs), **`npm run lint:eslint:extended-tabs`** (additional dashboard files listed in `package.json`; zero warnings), and **`npm run lint:eslint:erp-shell-tabs`** (**`ERPTab.jsx`** + **`VoucherTab.jsx`**; zero warnings).
 
-To lint the **entire** `frontend/src` tree (same flat config; may report many warnings outside the slices above):
+To lint the **entire** `frontend/src` tree (zero warnings, same as CI):
 
 ```powershell
 npm run lint:eslint:repo
@@ -18,13 +18,21 @@ npm run lint:eslint:repo
 
 ## CI parity shortcut (root)
 
-**`npm run lint`** does **not** run backend Jest, frontend Vitest, or mobile typecheck—those are separate GitHub Actions jobs. For a single local command that runs the root lint pipeline plus **mobile typecheck** and **backend fast Jest** (after `npm run sync:erp-access`):
+**`npm run lint`** does **not** run backend Jest, frontend Vitest, or mobile typecheck—those are separate GitHub Actions jobs.
+
+**`npm run check:ci-parity`** runs the root lint pipeline plus **mobile typecheck** and **backend fast Jest only** (`backend/tests/permissions.test.js` via `test:fast`). It is **not** a substitute for full CI.
 
 ```powershell
 npm run check:ci-parity
 ```
 
-Requires **`npm ci`** at the repo root, in **`backend/`**, and in **`mobile/`** first (see individual package READMEs). On **Windows**, use **Node 24** and see **`docs/WINDOWS-DEV.md`** for MongoDB Memory Server / **`MONGO_TEST_URI`** when backend tests fail. For **local Android release builds** without EAS, see **`docs/MOBILE-ANDROID-LOCAL-BUILD.md`**.
+For lint + mobile typecheck + **all** backend and frontend tests locally:
+
+```powershell
+npm run check:ci-parity:full
+```
+
+Requires **`npm ci`** at the repo root, in **`backend/`**, **`frontend/`**, and **`mobile/`** first (see individual package READMEs). On **Windows**, use **Node 24** and see **`docs/WINDOWS-DEV.md`** for MongoDB Memory Server / **`MONGO_TEST_URI`** when backend tests fail. For **local Android release builds** without EAS, see **`docs/MOBILE-ANDROID-LOCAL-BUILD.md`**.
 
 ## Full pre-release (matches `deploy:railway` spirit)
 
@@ -80,7 +88,12 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-CI installs Chromium with `npx playwright install --with-deps chromium` then runs the same script. Smoke tests live under `frontend/e2e/` and start a **preview** server (`build` + `vite preview`) via `playwright.config.js`.
+CI installs Chromium with `npx playwright install --with-deps chromium` then runs the same script. Tests live under `frontend/e2e/` and start a **preview** server (`build` + `vite preview`) via `playwright.config.js`.
+
+**Login auth smoke** (`frontend/e2e/login-auth.spec.js`):
+
+- **Mocked login** (always runs in CI): stubs `/api/auth/login` and `/api/auth/me`, submits the login form, asserts navigation to `/dashboard`.
+- **Live login** (optional): set `E2E_AUTH_NAME`, `E2E_AUTH_PASSWORD`, and optionally `E2E_AUTH_COMPANY` for a real API probe (skipped when unset).
 
 ## HTTP load smoke (optional)
 

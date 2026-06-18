@@ -12,7 +12,7 @@
 - **Voucher editor** — `frontend/src/components/tabs/voucher/VoucherEditorPanel.jsx`.
 - **Voucher print** — `useVoucherPrintModel.js`, `VoucherPrintPanel.jsx`.
 - **Voucher domain helpers** — `frontend/src/components/tabs/erp/voucherUtils.js` (doc numbering, FX, inventory decode, `sortVouchersByDocNo`, `nextVocNo`, `displayVoucherDocNo`, `computeVoucherGrandTotal`, `numberToWords`); re-exported from `voucher/voucherTabShared.js`.
-- **Fixing register** — `useFixingRegisterStockTypeOptions.js`, `fixingRegisterDataLoader.js`, `useFixingRegisterPanelDrag.js`; ERPTab imports `fixingRegFmt*` from `fixingRegisterUtils.js`.
+- **Fixing register** — `useFixingRegisterStockTypeOptions.js`, `fixingRegisterDataLoader.js`, `useFixingRegisterPanelDrag.js` (panel offset/drag state internal to hook), `useFixingRegisterState.js` (filter/results/load handler); ERPTab imports `fixingRegFmt*` from `fixingRegisterUtils.js`.
 - **Journal voucher** — `useJournalVoucher.js` wired in ERPTab (LoopC header-currency parity in `validateJvLines`); `useJvModalDragResize.js` for modal chrome.
 - **Transaction composer** — `useTransactionComposer.js` (form state, validation, create/update).
 

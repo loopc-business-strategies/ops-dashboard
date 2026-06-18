@@ -85,7 +85,7 @@ async function sweepDueProximityForTenant(tenantKey) {
         },
       },
       { $set: { dueProximityNotifiedForDue: row.dueDate } },
-      { new: true }
+      { returnDocument: 'after' }
     )
 
     if (!updated) continue

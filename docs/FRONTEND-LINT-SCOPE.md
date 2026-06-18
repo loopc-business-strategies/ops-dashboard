@@ -7,13 +7,16 @@ GitHub Actions runs ESLint with **zero warnings** on:
 
 Command: root `npm run lint:eslint:ci` (see [package.json](../package.json)).
 
+Additional zero-warning slices run in the root `npm run lint` pipeline: hooks order, finance/ops tabs, extended tabs, ERP shell tabs (`ERPTab.jsx`, `VoucherTab.jsx`), and the **full** `frontend/src` tree via `lint:eslint:repo`.
+
 ## Why
 
-The ERP tab area and the **shared API client layer** are high-churn and security-sensitive. CI enforces a strict bar there without blocking the entire legacy surface on day one.
+The ERP tab area and the **shared API client layer** are high-churn and security-sensitive. CI enforces a strict bar there first; the repo-wide ratchet (`lint:eslint:repo`) now enforces zero warnings on all of `frontend/src`.
 
 ## Local checks
 
-- **Same as CI:** `npm run lint:eslint:ci`
-- **Whole tree (may have warnings):** `npm run lint:eslint:repo`
+- **ERP + API slice (subset of CI):** `npm run lint:eslint:ci`
+- **Full frontend tree (same as CI repo ratchet):** `npm run lint:eslint:repo`
+- **Full lint pipeline (guardrails + all ESLint slices):** `npm run lint`
 
-When you touch files outside the ERP tab tree, run `lint:eslint:repo` locally before merging if you want broader consistency. Expanding the CI path is a deliberate repo-wide effort (fix warnings module-by-module, then widen the glob).
+When you touch dashboard tabs outside the ERP tree, `npm run lint` already covers them via `lint:eslint:repo`.

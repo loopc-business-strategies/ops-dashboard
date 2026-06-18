@@ -13,6 +13,7 @@ const {
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVoucherTypes')
 const { createReportResponseCache } = require('../../utils/reportResponseCache')
+const { escapeRegex } = require('../../utils/escapeRegex')
 const { _getOutstandingMapForAccounts } = require('../../utils/ledgerBalanceBatch')
 
 const enquiryCache = createReportResponseCache(120000)
@@ -585,7 +586,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const docRefQuery = {
         isDeleted: { $ne: true },
         $or: statementDocRefs.flatMap((docRef) => {
-          const escaped = docRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          const escaped = escapeRegex(docRef)
           return [
             { description: { $regex: escaped, $options: 'i' } },
             { notes: { $regex: escaped, $options: 'i' } },

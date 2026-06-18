@@ -1,3 +1,5 @@
+const { escapeRegex } = require('../../utils/escapeRegex')
+
 function registerTransactionRoutes(deps) {
   const fs = require('fs')
   const path = require('path')
@@ -149,8 +151,6 @@ const reversePostedTransactionEffects = async ({ tx, user, session, deleteReason
   })
 }
 
-const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
 const objectId = Joi.string().hex().length(24)
 
 const transactionListQuerySchema = Joi.object({
@@ -249,7 +249,7 @@ router.get('/transactions', protect, validateQuery(transactionListQuerySchema), 
     if (req.query.search) {
       const search = String(req.query.search).trim()
       if (search) {
-        const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+        const regex = new RegExp(escapeRegex(search), 'i')
         query.$or = [
           { description: regex },
           { type: regex },

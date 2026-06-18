@@ -240,6 +240,8 @@ Run this from repo root after Vercel and Railway finish deploying:
 npm run smoke:tenants
 ```
 
+For **GitHub Actions** post-deploy smoke (`post-deploy-tenant-smoke.yml`), configure repository secrets and verify workflow runs — see [`docs/SMOKE-SECRETS-CHECKLIST.md`](docs/SMOKE-SECRETS-CHECKLIST.md).
+
 What it validates:
 - [ ] mg/cg/loopc login portals are reachable
 - [ ] `/api/health` returns success for each tenant header pair

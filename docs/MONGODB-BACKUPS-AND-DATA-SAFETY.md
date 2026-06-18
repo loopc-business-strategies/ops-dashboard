@@ -37,6 +37,16 @@ This document is a **checklist** for operators. The app does not configure backu
 - **Archived** items: use **Show archived** on Operations **Projects**, open the item, and use **Unarchive** (clears `archivedAt` via the normal task update API).
 - **Soft-deleted** tasks: still in the database with `isDeleted: true`; recovery requires DB access or a future admin tool—backups remain the safety net.
 
+## Restore verification checklist (operators)
+
+Complete once per quarter (or after any cluster migration):
+
+- [ ] **Atlas / provider dashboard:** Continuous backup or snapshot schedule is **enabled** for every tenant cluster (`MONGO_URI`, `MONGO_URI_MG`, `MONGO_URI_CG`, `MONGO_URI_LOOPC`).
+- [ ] **Retention** documented (minimum 7 days; adjust for compliance).
+- [ ] **Restore drill:** Restore a snapshot to a **non-production** cluster or namespace; confirm the app can connect and read at least one known document per tenant.
+- [ ] **Runbook:** Name who can approve restore and expected RTO/RPO.
+- [ ] **Destructive scripts:** Confirm [`backend/scripts/destructive/_destructive-guard.js`](../backend/scripts/destructive/_destructive-guard.js) gates are understood before any `--apply` run in production.
+
 ## Related docs
 
 - [`DEPLOYMENT-CHECKLIST.md`](../DEPLOYMENT-CHECKLIST.md)
