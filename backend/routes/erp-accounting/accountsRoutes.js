@@ -4,6 +4,13 @@ const {
   shouldSuppressSpotMetalMtmForAccountEnquiry,
   computeBookedUnfixedRevaluationFromStatementRows,
 } = require('../../services/erpAccounting/metalMarginPolicy')
+const {
+  isUnfixedFixingType,
+  accumulateUnfixedMetalFromTransactions,
+  accumulateDirectDealMetalForCustomer,
+  resolveDirectDealLineSignedWeight,
+  resolveDirectDealLineMetalCode,
+} = require('../../services/erpAccounting/metalPositionPolicy')
 const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVoucherTypes')
 const { createReportResponseCache } = require('../../utils/reportResponseCache')
 const { getOutstandingMapForAccounts } = require('../../utils/ledgerBalanceBatch')
@@ -200,11 +207,6 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     const openingBalance = Number(account.openingBalance || 0)
     const netBalance = openingBalance + debitTotal - creditTotal
     const netDirection = netBalance > 0 ? 'Debit' : netBalance < 0 ? 'Credit' : 'Flat'
-    const isUnfixedFixingType = (value) => {
-      const normalized = String(value || '').trim().toLowerCase()
-      return ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(normalized)
-    }
-
     const rates = latestRate
       ? {
           goldPrice: Number(latestRate.goldPrice || 0),
@@ -223,31 +225,11 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
     // netBalance is already aggregated in base currency (amount * exchangeRate).
     const convertedToRateCurrency = Number(netBalance)
 
-    // Metal position: sum pureWeight from UNFIXED metal sale/purchase transactions for this ledger's
-    // linked customer and/or vendor (AP/creditor accounts use vendor linkage).
+    // Metal position: unfixed sale/purchase + metal transfers + confirmed direct deals.
     // Fixed deals must affect value only, while unfixed deals affect metal balance.
     // Do NOT derive metal position from cash balance — that produces fabricated metal positions.
     let goldBalance = 0
     let silverBalance = 0
-    const accumulateUnfixedMetalFromTransactions = (metalTxs) => {
-      for (const tx of metalTxs) {
-        const fixingType = tx?.voucherMeta?.fixingType || tx?.metalFixStatus || ''
-        if (!isUnfixedFixingType(fixingType)) continue
-        const lines = Array.isArray(tx.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-        for (const line of lines) {
-          const pw = Number(line.pureWeight || 0)
-          if (pw === 0) continue
-          const sc = String(line.stockCode || '').toUpperCase()
-          const isSilver = sc.includes('XAG') || sc.includes('SILV')
-          const sign = tx.type === 'purchase' ? 1 : -1
-          if (isSilver) {
-            silverBalance += sign * pw
-          } else {
-            goldBalance += sign * pw
-          }
-        }
-      }
-    }
 
     const [customerMetalTxs, vendorMetalTxs] = await Promise.all([
       linkedCustomer
@@ -267,8 +249,10 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
           }).select('type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
         : Promise.resolve([]),
     ])
-    accumulateUnfixedMetalFromTransactions(customerMetalTxs)
-    accumulateUnfixedMetalFromTransactions(vendorMetalTxs)
+    const unfixedCustomerMetal = accumulateUnfixedMetalFromTransactions(customerMetalTxs)
+    const unfixedVendorMetal = accumulateUnfixedMetalFromTransactions(vendorMetalTxs)
+    goldBalance += unfixedCustomerMetal.gold + unfixedVendorMetal.gold
+    silverBalance += unfixedCustomerMetal.silver + unfixedVendorMetal.silver
 
     const ledgerEntries = await Ledger.find({
       isDeleted: { $ne: true },
@@ -358,29 +342,23 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       }
     }
     accumulateTransferMetalFromTransactions(transferMetalTxs)
-    const resolveDirectDealLineWeightGram = (line = {}) => {
-      const qty = Number(line?.qty || 0)
-      if (!Number.isFinite(qty) || qty <= 0) return 0
-      const stockCode = String(line?.stockCode || 'OZ').trim().toUpperCase()
-      if (stockCode === 'KG') return qty * 1000
-      if (stockCode === 'GRAM') return qty
-      return qty * 31.1034768
+
+    if (linkedCustomer?._id) {
+      const customerDirectDeals = await DirectDeal.find({
+        status: 'confirmed',
+        isDeleted: { $ne: true },
+        'lineItems.customerId': linkedCustomer._id,
+      })
+        .select('lineItems.customerId lineItems.direction lineItems.metal lineItems.qty lineItems.stockCode')
+        .lean()
+      const directDealMetal = accumulateDirectDealMetalForCustomer(customerDirectDeals, linkedCustomer._id)
+      goldBalance += directDealMetal.gold
+      silverBalance += directDealMetal.silver
     }
-    const resolveDirectDealLineSignedWeight = (line = {}) => {
-      const grams = resolveDirectDealLineWeightGram(line)
-      if (grams <= 0) return 0
-      const direction = String(line?.direction || '').trim().toLowerCase()
-      // Customer direction semantics:
-      // buy  => company sold metal to customer => metal credit (negative sign)
-      // sell => company bought metal from customer => metal debit (positive sign)
-      return direction === 'buy' ? -grams : grams
-    }
+
     const resolveDirectDealLineType = (line = {}) => {
       const direction = String(line?.direction || '').trim().toLowerCase()
       return direction === 'buy' ? 'sale' : 'purchase'
-    }
-    const resolveDirectDealLineMetalCode = (line = {}) => {
-      return String(line?.metal || '').trim().toUpperCase() || ''
     }
     const resolveDirectDealLineIndexFromNotes = (notes = '') => {
       const match = String(notes || '').match(/line\s+(\d+)/i)

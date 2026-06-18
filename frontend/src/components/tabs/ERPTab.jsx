@@ -76,7 +76,7 @@ import {
   isMetalStatementEntry,
 } from './erp/statementHelpers'
 import { generateStatementHtml as buildStatementHtml } from './erp/statementPrintHtml'
-import { shouldSuppressSpotMetalMtmForAccountEnquiry } from './erp/metalMarginPolicy'
+import { shouldSuppressSpotMetalMtmForAccountEnquiry, computeMarginMetricsRaw } from './erp/metalMarginPolicy'
 import {
   canViewErpSubTab,
 } from '../../utils/erpSubTabPermissions'
@@ -311,6 +311,7 @@ function ERPTab({
   metalRatesRef.current = metalRates
   const [enquiryHistory, setEnquiryHistory] = useState([])
   const [showEnquiryModal, setShowEnquiryModal] = useState(false)
+  const showEnquiryModalRef = useRef(false)
   const [showEnquiryLookupMenu, setShowEnquiryLookupMenu] = useState(false)
   const [enquiryModalOffset, setEnquiryModalOffset] = useState({ x: 0, y: 0 })
   const [enquiryModalDrag, setEnquiryModalDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
@@ -525,6 +526,7 @@ function ERPTab({
     tenant: user?.tenant || user?.company,
     canAccessERP,
     activeTabRef,
+    showEnquiryModalRef,
     accountEnquiryDataRef,
     metalRatesRef,
     onMetalRatesForTabs,
@@ -788,6 +790,7 @@ function ERPTab({
   ])
   const goldPriceUSD = effectiveSpotPrices.goldPriceUSD
   const silverPriceUSD = effectiveSpotPrices.silverPriceUSD
+  const enquiryLiveRecalcEnabled = enquiryComputationEnabled && (goldPriceUSD > 0 || silverPriceUSD > 0)
   const {
     customerMarginSearch,
     setCustomerMarginSearch,
@@ -1063,7 +1066,10 @@ function ERPTab({
     statementUnfixedVoucherRevaluationByMetal.gold
     + statementUnfixedVoucherRevaluationByMetal.silver
     + statementUnfixedVoucherRevaluationByMetal.other
-  const useVoucherRevaluation = !enquirySuppressMetalSpotMtm && Math.abs(statementUnfixedVoucherRevaluation) > 0.000001
+  const useVoucherRevaluation = !enquirySuppressMetalSpotMtm
+    && !(enquiryLiveRecalcEnabled && accountEnquiryData)
+    && Math.abs(statementUnfixedVoucherRevaluation) > 0.000001
+  const enquiryUseLiveSpotMtm = enquiryLiveRecalcEnabled && !enquirySuppressMetalSpotMtm && Boolean(accountEnquiryData)
   const xauSpotValue = xauBalance * goldPriceUSD
   const xagSpotValue = xagBalance * silverPriceUSD
   let xauCurrentValue
@@ -1093,7 +1099,7 @@ function ERPTab({
   }
   const breakEvenPrice = resolvePayableBreakEvenPrice(xauBalance)
   const displayModalPositionCurrentValue = (spotBasedValue, bookedValue) => {
-    if (enquirySuppressMetalSpotMtm || !useVoucherRevaluation) {
+    if (enquiryUseLiveSpotMtm || enquirySuppressMetalSpotMtm || !useVoucherRevaluation) {
       return convertMetalSpotDisplayAmount(spotBasedValue)
     }
     return convertStatementDisplayAmount(bookedValue)
@@ -1175,10 +1181,22 @@ function ERPTab({
     return sum + Number(entry?.signedAmount || 0)
   }, 0)
   const modalTotalFundsDisplay = isCashOnHandEnquiry ? visibleStatementNetBalance : modalTotalFunds
+  const enquiryLiveMetrics = enquiryUseLiveSpotMtm
+    ? computeMarginMetricsRaw({
+      totalFunds: modalTotalFundsDisplay,
+      goldPosition: xauBalance,
+      silverPosition: xagBalance,
+      goldPrice: goldPriceUSD,
+      silverPrice: silverPriceUSD,
+      fundsMode: 'asIs',
+    })
+    : null
+  const modalRevaluationDisplay = enquiryLiveMetrics ? enquiryLiveMetrics.revaluation : modalRevaluation
+  const modalMarginAmtDisplay = enquiryLiveMetrics ? enquiryLiveMetrics.margin : modalMarginAmt
   const modalDisplayMetrics = calculateAccountSummaryMetrics({
     totalFunds: modalTotalFundsDisplay,
-    revaluation: modalRevaluation,
-    marginAmount: modalMarginAmt,
+    revaluation: modalRevaluationDisplay,
+    marginAmount: modalMarginAmtDisplay,
   })
   const modalNetEquityDisplay = modalDisplayMetrics.netEquity
   const modalExcessDisplay = modalDisplayMetrics.excess
@@ -2916,6 +2934,9 @@ function ERPTab({
   useEffect(() => {
     accountEnquiryDataRef.current = accountEnquiryData
   }, [accountEnquiryData])
+  useEffect(() => {
+    showEnquiryModalRef.current = showEnquiryModal
+  }, [showEnquiryModal])
   useEffect(() => {
     if (!canAccessERP || !token) {
       setError('You do not have access to the ERP Accounting module.')
@@ -5048,6 +5069,9 @@ function ERPTab({
         dashChatMessages={dashChatMessages}
         setActiveTab={setActiveTabGuarded}
         onNavigateMain={onNavigateMain}
+        goldPriceUSD={goldPriceUSD}
+        silverPriceUSD={silverPriceUSD}
+        dashboardLiveRecalcEnabled={activeTab === 'dashboard' && (goldPriceUSD > 0 || silverPriceUSD > 0)}
       />
       )}
       {/* CHART OF ACCOUNTS TAB */}
@@ -6010,7 +6034,7 @@ function ERPTab({
                       <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', overflow: 'hidden', background: '#FFFFFF' }}>
                         <div style={{ background: '#3F4B2E', padding: '0.7rem 1rem', borderBottom: '1px solid #2D3620' }}>
                           <span style={{ color: '#FFFFFF', fontWeight: '700', fontSize: '0.95rem' }}>Position</span>
-                          <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: '0.78rem', marginLeft: '0.5rem', fontWeight: '600' }}>(pure weight, grams - includes unfixed trades and metal transfers)</span>
+                          <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: '0.78rem', marginLeft: '0.5rem', fontWeight: '600' }}>(pure weight, grams — includes unfixed trades, direct deals, and metal transfers)</span>
                         </div>
                         <div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
@@ -6111,19 +6135,19 @@ function ERPTab({
                       {/* Revaluation */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Revaluation</span>
-                        <span style={{ color: getSignedColor(modalRevaluation), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalRevaluation, 2)}</span>
+                        <span style={{ color: getSignedColor(modalRevaluationDisplay), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalRevaluationDisplay, 2)}</span>
                       </div>
                       {/* Net Equity */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Net Equity</span>
-                        <span style={{ color: getAccountEnquirySignedMetricColor(modalNetEquityDisplay, { marginAmount: modalMarginAmt, netDirection: accountEnquiryData?.balances?.netDirection }), fontWeight: '700', fontSize: '1rem' }}>
+                        <span style={{ color: getAccountEnquirySignedMetricColor(modalNetEquityDisplay, { marginAmount: modalMarginAmtDisplay, netDirection: accountEnquiryData?.balances?.netDirection }), fontWeight: '700', fontSize: '1rem' }}>
                           {formatDirectionalBalance(modalNetEquityDisplay, { preferredDirection: resolveExposureDirection(modalNetEquityDisplay) })}
                         </span>
                       </div>
                       {/* Margin Amt @ 2% */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin Amt @ 2.0%</span>
-                        <span style={{ color: getSignedColor(modalMarginAmt), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalMarginAmt, 2)}</span>
+                        <span style={{ color: getSignedColor(modalMarginAmtDisplay), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalMarginAmtDisplay, 2)}</span>
                       </div>
                       {/* Excess with Currency Dropdown */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
@@ -6138,10 +6162,10 @@ function ERPTab({
                               <option key={currencyCode} value={currencyCode}>{currencyCode}</option>
                             ))}
                           </select>
-                          <span style={{ color: getAccountEnquirySignedMetricColor(modalExcessDisplay, { marginAmount: modalMarginAmt, netDirection: accountEnquiryData?.balances?.netDirection }), fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>
+                          <span style={{ color: getAccountEnquirySignedMetricColor(modalExcessDisplay, { marginAmount: modalMarginAmtDisplay, netDirection: accountEnquiryData?.balances?.netDirection }), fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>
                             {formatAccountEnquiryExcessDisplay({
                               excess: modalExcessDisplay,
-                              marginAmount: modalMarginAmt,
+                              marginAmount: modalMarginAmtDisplay,
                               netDirection: accountEnquiryData?.balances?.netDirection,
                               formatValue: (value) => formatStatementValue(value, 2),
                             })}

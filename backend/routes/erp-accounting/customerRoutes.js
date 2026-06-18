@@ -1,3 +1,9 @@
+const {
+  isUnfixedFixingType,
+  accumulateUnfixedMetalFromTransactions,
+  accumulateDirectDealMetalIntoMap,
+  roundMetalPosition,
+} = require('../../services/erpAccounting/metalPositionPolicy')
 const { computeMarginMetricsRaw, shouldSuppressSpotMetalMtmForCustomerDashboard } = require('../../services/erpAccounting/metalMarginPolicy')
 
 function registerCustomerRoutes(deps) {
@@ -14,6 +20,7 @@ function registerCustomerRoutes(deps) {
     Ledger,
     ChartOfAccount,
     Transaction,
+    DirectDeal,
     getLatestMetalRate,
     DEFAULT_METAL_RATES,
     canViewCustomers,
@@ -27,12 +34,7 @@ function registerCustomerRoutes(deps) {
   } = deps
 
   const strictBody = validateBodyStrict || validateBody
-  const isUnfixedFixingType = (value) => {
-    const normalized = String(value || '').trim().toLowerCase()
-    return ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(normalized)
-  }
-
-  const roundPosition = (value) => Number(Number(value || 0).toFixed(6))
+  const roundPosition = roundMetalPosition
   const calculateCustomerMargin = ({ totalFunds, goldPosition, silverPosition, goldPrice, silverPrice, suppressMetalSpotMtm = false }) => {
     const raw = computeMarginMetricsRaw({
       totalFunds,
@@ -75,7 +77,7 @@ function registerCustomerRoutes(deps) {
 
       const accountIds = customers.map((customer) => customer.ledgerAccountId?._id).filter(Boolean)
       const customerIds = customers.map((customer) => customer._id).filter(Boolean)
-      const [debitAggs, creditAggs, latestRate, metalTxs] = await Promise.all([
+      const [debitAggs, creditAggs, latestRate, metalTxs, directDeals] = await Promise.all([
         accountIds.length
           ? Ledger.aggregate([
               { $match: { debitAccountId: { $in: accountIds }, isDeleted: { $ne: true } } },
@@ -96,6 +98,13 @@ function registerCustomerRoutes(deps) {
               status: 'posted',
               isDeleted: { $ne: true },
             }).select('customerId type metalFixStatus voucherMeta.fixingType voucherMeta.lineItems').lean()
+          : Promise.resolve([]),
+        customerIds.length && DirectDeal
+          ? DirectDeal.find({
+              status: 'confirmed',
+              isDeleted: { $ne: true },
+              'lineItems.customerId': { $in: customerIds },
+            }).select('lineItems.customerId lineItems.direction lineItems.metal lineItems.qty lineItems.stockCode').lean()
           : Promise.resolve([]),
       ])
       const debitMap = new Map(debitAggs.map((row) => [String(row._id), row.total]))
@@ -127,6 +136,7 @@ function registerCustomerRoutes(deps) {
         })
         metalPositionMap.set(customerId, position)
       })
+      accumulateDirectDealMetalIntoMap(directDeals || [], metalPositionMap)
 
       const data = customers.map((customer) => {
         const accountId = String(customer.ledgerAccountId?._id || '')

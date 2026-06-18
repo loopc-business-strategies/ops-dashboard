@@ -11,6 +11,7 @@ export function useErpMetalRatesRealtime({
   tenant,
   canAccessERP,
   activeTabRef,
+  showEnquiryModalRef,
   accountEnquiryDataRef,
   metalRatesRef,
   onMetalRatesForTabs,
@@ -29,10 +30,12 @@ export function useErpMetalRatesRealtime({
           if (!rates) return
           metalRatesRef.current = rates
           const tab = activeTabRef.current
-          if (erpTabNeedsLiveMetalRates(tab)) {
+          const enquiryModalOpen = Boolean(showEnquiryModalRef?.current)
+          if (erpTabNeedsLiveMetalRates(tab) || enquiryModalOpen) {
             onMetalRatesForTabs(rates)
           }
-          if (tab === 'enquiry' && accountEnquiryDataRef.current?.account?.accountCode) {
+          const enquiryActive = tab === 'enquiry' || enquiryModalOpen
+          if (enquiryActive && accountEnquiryDataRef.current?.account?.accountCode) {
             onEnquiryMetalRatesPatch(rates)
           }
         },
@@ -48,6 +51,7 @@ export function useErpMetalRatesRealtime({
     tenant,
     canAccessERP,
     activeTabRef,
+    showEnquiryModalRef,
     accountEnquiryDataRef,
     metalRatesRef,
     onMetalRatesForTabs,

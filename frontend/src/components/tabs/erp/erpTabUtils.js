@@ -207,6 +207,7 @@ function erpTabNeedsLiveMetalRates(tab) {
     || tab === 'supplier-margin'
     || tab === 'inventory'
     || tab === 'fixing-register'
+    || tab === 'dashboard'
 }
 
 export {

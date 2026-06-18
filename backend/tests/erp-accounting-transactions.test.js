@@ -2346,4 +2346,88 @@ describe('ERP accounting transactions workflow', () => {
     expect(badAmountRes.status).toBe(400)
     expect(badAmountRes.body.message).toMatch(/amount/i)
   })
+
+  test('account enquiry and customer margins include direct deal metal in net position', async () => {
+    const DirectDeal = require('../models/DirectDeal')
+    const financeUser = await createUser({ name: 'Direct Deal Position Tester' })
+    const receivableAccount = await ChartOfAccount.create({
+      accountName: 'VJ Position Test (Debtor)',
+      accountCode: '1399',
+      accountType: 'Asset',
+      createdBy: financeUser._id,
+    })
+    const customer = await Customer.create({
+      name: 'VJ Position Test',
+      ledgerAccountId: receivableAccount._id,
+      isActive: true,
+      createdBy: financeUser._id,
+    })
+
+    await Transaction.create({
+      type: 'purchase',
+      customerId: customer._id,
+      status: 'posted',
+      amount: 13856.47,
+      currency: 'USD',
+      exchangeRate: 1,
+      date: new Date(),
+      description: 'Unfixed purchase position test',
+      voucherMeta: {
+        fixingType: 'non-fixing',
+        lineItems: [{ stockCode: 'XAU', pureWeight: 995 }],
+      },
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    await DirectDeal.create({
+      docNo: 'ORD/2026/000099',
+      entryType: 'fixing',
+      status: 'confirmed',
+      docDate: new Date(),
+      valueDate: new Date(),
+      currency: 'USD',
+      lineItems: [{
+        customerId: customer._id,
+        customerCode: receivableAccount.accountCode,
+        customerName: customer.name,
+        direction: 'buy',
+        metal: 'XAU',
+        qty: 10000,
+        stockCode: 'GRAM',
+        price: 140,
+        amount: 1400000,
+      }],
+      totalQty: 10000,
+      totalAmount: 1400000,
+      createdBy: financeUser._id,
+      updatedBy: financeUser._id,
+    })
+
+    const enquiryRes = await request(app)
+      .get('/api/erp-accounting/accounts/enquiry')
+      .query({ accountCode: '1399', refresh: '1' })
+      .set(authHeader(financeUser))
+
+    expect(enquiryRes.status).toBe(200)
+    expect(Number(enquiryRes.body.metals?.goldBalance || 0)).toBeCloseTo(-9005, 2)
+
+    const customersRes = await request(app)
+      .get('/api/erp-accounting/customers')
+      .set(authHeader(financeUser))
+
+    expect(customersRes.status).toBe(200)
+    const customerRow = (customersRes.body.customers || []).find((row) => String(row._id) === String(customer._id))
+    expect(customerRow).toBeTruthy()
+    expect(Number(customerRow.goldPosition || 0)).toBeCloseTo(-9005, 2)
+
+    const dashRes = await request(app)
+      .get('/api/erp-accounting/reports/dashboard')
+      .set(authHeader(financeUser))
+
+    expect(dashRes.status).toBe(200)
+    const marginRow = (dashRes.body.customerMargins || []).find((row) => String(row.id) === String(customer._id))
+    expect(marginRow).toBeTruthy()
+    expect(Number(marginRow.goldPosition || 0)).toBeCloseTo(-9005, 2)
+  })
 })

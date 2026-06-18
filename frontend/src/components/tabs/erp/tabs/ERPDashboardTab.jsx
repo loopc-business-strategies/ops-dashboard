@@ -23,6 +23,9 @@ export default function ERPDashboardTab({
   dashChatMessages,
   setActiveTab,
   onNavigateMain,
+  goldPriceUSD = 0,
+  silverPriceUSD = 0,
+  dashboardLiveRecalcEnabled = false,
 }) {
   return (
     <>
@@ -98,7 +101,11 @@ export default function ERPDashboardTab({
                 const span = Math.min(Math.max(Number(rawCols) || 1, 1), ERP_DASH_GRID_COLUMNS)
                 const isHovered = dashHoveredWid === wid
                 const edgeToEdge = wid === 'margins' || wid === 'apar' || wid === 'fixing'
-                const widgetOptions = {}
+                const widgetOptions = {
+                  goldPriceUSD,
+                  silverPriceUSD,
+                  liveRecalcEnabled: dashboardLiveRecalcEnabled,
+                }
                 return (
                   <div
                     key={wid}

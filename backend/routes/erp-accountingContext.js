@@ -386,6 +386,7 @@ function registerErpAccountingRoutes(router) {
     Ledger,
     ChartOfAccount,
     Transaction,
+    DirectDeal,
     getLatestMetalRate,
     DEFAULT_METAL_RATES,
     canViewCustomers,
