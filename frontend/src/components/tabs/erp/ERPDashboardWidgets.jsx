@@ -81,7 +81,7 @@ function MarginsWidget({
     const excess = options.favorableCredit && rawExcess < 0 ? Math.abs(rawExcess) : rawExcess
     const status = String(row?.status || (net > 0 ? 'POSITIVE' : net < 0 ? 'NEGATIVE' : 'NEUTRAL')).toUpperCase()
     const rawMargin = marginPercent ?? row?.marginPercent
-    const marginPercent = Number.isFinite(Number(rawMargin)) ? Number(rawMargin) : (marginAmount > 0 ? (Math.abs(net) / marginAmount) * 100 : 0)
+    marginPercent = Number.isFinite(Number(rawMargin)) ? Number(rawMargin) : (marginAmount > 0 ? (Math.abs(net) / marginAmount) * 100 : 0)
     const equityFmt = fmtSigned(net)
     const marginFmt = Number.isFinite(marginPercent) ? `${Number(marginPercent).toFixed(2)} %` : '—'
     return {
