@@ -3,7 +3,7 @@ const { getTenantUri, normalizeTenant } = require('../config/tenants')
 
 const tenantConnectionPromises = new Map()
 
-function envBool(value, defaultValue = false) {
+function _envBool(value, defaultValue = false) {
   if (value === undefined || value === null || value === '') return defaultValue
   return String(value).trim().toLowerCase() === 'true'
 }

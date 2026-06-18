@@ -386,7 +386,7 @@ function createTransactionAccountResolutionService({
     const type = String(transaction.type || '').toLowerCase()
     const voucherMeta = transaction?.voucherMeta || {}
     const voucherLine = resolvePrimaryVoucherFxLine(voucherMeta)
-    const voucherCurrencyCode = String(
+    const _voucherCurrencyCode = String(
       voucherMeta?.currCode
       || voucherLine?.currCode
       || currencyCode
@@ -421,7 +421,7 @@ function createTransactionAccountResolutionService({
           referenceRate,
         })
 
-        const foreignAmount = Number(fxMetrics.totalForeignAmount || 0)
+        const _foreignAmount = Number(fxMetrics.totalForeignAmount || 0)
         const lineRate = Number(fxMetrics.lineRate || exchangeRate || masterRate || 1)
 
         const expectedFC = Number(fxMetrics.expectedForeignAmount || (txAmount / referenceRate))

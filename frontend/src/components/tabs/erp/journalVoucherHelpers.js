@@ -224,21 +224,33 @@ const groupJvLedgerEntries = (entries = [], opts = {}) => {
 const validateJvLines = ({
   lines = [],
   jvMode = 'journal',
+  jvHeader = {},
   baseCurrencyCode = 'USD',
+  inventoryTenantKey = '',
   inferJvAccountCurrency = () => baseCurrencyCode,
   convertJvAmount = (amount) => Number(amount || 0),
   isExchangeLine = () => false,
+  normalizeJvCurrencyCode: normCur = normalizeJvCurrencyCode,
 } = {}) => {
   const lineIssuesById = {}
   const activeLines = []
   let totalDebit = 0
   let totalCredit = 0
+  let totalDebitRaw = 0
+  let totalCreditRaw = 0
+  const headerCur = normCur(jvHeader.currency || baseCurrencyCode)
+  const baseNorm = normCur(baseCurrencyCode)
+  const useDocCurrency = headerCur !== baseNorm
+  const loopcJournalHeaderLineCurrency = inventoryTenantKey === 'loopc' && jvMode === 'journal'
+  const treatLineAmountsAsHeaderCurrency = Boolean(loopcJournalHeaderLineCurrency || useDocCurrency)
 
   lines.forEach((line, index) => {
     const debit = Number(line.debit || 0)
     const credit = Number(line.credit || 0)
     const debitRawValue = Number.isFinite(debit) && debit > 0 ? debit : 0
     const creditRawValue = Number.isFinite(credit) && credit > 0 ? credit : 0
+    totalDebitRaw += debitRawValue
+    totalCreditRaw += creditRawValue
     const accountId = String(line.accountId || '').trim()
     const hasNarration = String(line.description || '').trim().length > 0
     const hasAmount = debitRawValue > 0 || creditRawValue > 0
@@ -247,19 +259,19 @@ const validateJvLines = ({
     let creditValue = creditRawValue
 
     if (accountId) {
-      const accountCurrency = inferJvAccountCurrency(accountId)
+      const lineAmountCurrency = treatLineAmountsAsHeaderCurrency ? headerCur : inferJvAccountCurrency(accountId)
       if (debitRawValue > 0) {
-        const normalizedDebit = convertJvAmount(debitRawValue, accountCurrency, baseCurrencyCode)
+        const normalizedDebit = convertJvAmount(debitRawValue, lineAmountCurrency, baseNorm)
         if (!Number.isFinite(normalizedDebit) || normalizedDebit <= 0) {
-          lineIssuesById[line.id] = `Row ${index + 1}: Missing or invalid currency rate for ${accountCurrency}`
+          lineIssuesById[line.id] = `Row ${index + 1}: Missing or invalid currency rate for ${lineAmountCurrency}`
         } else {
           debitValue = normalizedDebit
         }
       }
       if (creditRawValue > 0) {
-        const normalizedCredit = convertJvAmount(creditRawValue, accountCurrency, baseCurrencyCode)
+        const normalizedCredit = convertJvAmount(creditRawValue, lineAmountCurrency, baseNorm)
         if (!Number.isFinite(normalizedCredit) || normalizedCredit <= 0) {
-          lineIssuesById[line.id] = `Row ${index + 1}: Missing or invalid currency rate for ${accountCurrency}`
+          lineIssuesById[line.id] = `Row ${index + 1}: Missing or invalid currency rate for ${lineAmountCurrency}`
         } else {
           creditValue = normalizedCredit
         }
@@ -293,12 +305,23 @@ const validateJvLines = ({
   const hasCredit = totalCredit > 0
   const isBalanced = hasDebit && hasCredit && Math.abs(difference) < 0.005
   const canSave = !hasLineIssues && isBalanced && activeLines.length > 1
+  const displayTotalCurrency = treatLineAmountsAsHeaderCurrency ? headerCur : baseNorm
+  const displayDebitTotal = treatLineAmountsAsHeaderCurrency ? Number(totalDebitRaw.toFixed(2)) : totalDebit
+  const displayCreditTotal = treatLineAmountsAsHeaderCurrency ? Number(totalCreditRaw.toFixed(2)) : totalCredit
+  const useRawJvLineAmountsForSave = Boolean(useDocCurrency || loopcJournalHeaderLineCurrency)
 
   return {
     activeLines,
     lineIssuesById,
     totalDebit,
     totalCredit,
+    totalDebitRaw,
+    totalCreditRaw,
+    useDocCurrency,
+    useRawJvLineAmountsForSave,
+    displayTotalCurrency,
+    displayDebitTotal,
+    displayCreditTotal,
     difference,
     isBalanced,
     canSave,
@@ -306,13 +329,32 @@ const validateJvLines = ({
   }
 }
 
-const allocateJvLedgerEntries = (activeLines = []) => {
-  const debitQueue = activeLines
-    .filter((line) => Number(line.debit || 0) > 0)
-    .map((line) => ({ ...line, remaining: Number(Number(line.debit || 0).toFixed(2)) }))
-  const creditQueue = activeLines
-    .filter((line) => Number(line.credit || 0) > 0)
-    .map((line) => ({ ...line, remaining: Number(Number(line.credit || 0).toFixed(2)) }))
+const allocateJvLedgerEntries = (activeLines = [], { jvLines = [], useRawJvLineAmountsForSave = false } = {}) => {
+  let debitQueue
+  let creditQueue
+  if (useRawJvLineAmountsForSave) {
+    debitQueue = jvLines
+      .filter((line) => String(line.accountId || '').trim() && Number(line.debit || 0) > 0)
+      .map((line) => ({
+        accountId: line.accountId,
+        description: String(line.description || '').trim(),
+        remaining: Number(Number(line.debit || 0).toFixed(2)),
+      }))
+    creditQueue = jvLines
+      .filter((line) => String(line.accountId || '').trim() && Number(line.credit || 0) > 0)
+      .map((line) => ({
+        accountId: line.accountId,
+        description: String(line.description || '').trim(),
+        remaining: Number(Number(line.credit || 0).toFixed(2)),
+      }))
+  } else {
+    debitQueue = activeLines
+      .filter((line) => line.debit > 0)
+      .map((line) => ({ ...line, remaining: Number(line.debit.toFixed(2)) }))
+    creditQueue = activeLines
+      .filter((line) => line.credit > 0)
+      .map((line) => ({ ...line, remaining: Number(line.credit.toFixed(2)) }))
+  }
 
   if (!debitQueue.length || !creditQueue.length) {
     return {
@@ -643,6 +685,7 @@ function buildJvPostingPayloads({
   jvMode,
   jvGroupId,
   normalizeJvCurrencyCode: normCur = normalizeJvCurrencyCode,
+  strictUseDocCurrency = false,
 } = {}) {
   const isBankJV = jvMode === 'bank_jv'
   const sharedDesc = [jvHeader.docNo, jvHeader.narration].filter(Boolean).join(' — ') || 'Manual JV'
@@ -658,13 +701,15 @@ function buildJvPostingPayloads({
         payloads: null,
       }
     }
-    for (const row of entries) {
-      const fcRaw = Number(row.amount) / headerFxRate
-      const postAmt = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
-      if (!Number.isFinite(postAmt) || postAmt <= 0) {
-        return {
-          error: 'A JV line would round to zero in the header currency; adjust amounts or the FX rate.',
-          payloads: null,
+    if (!strictUseDocCurrency) {
+      for (const row of entries) {
+        const fcRaw = Number(row.amount) / headerFxRate
+        const postAmt = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
+        if (!Number.isFinite(postAmt) || postAmt <= 0) {
+          return {
+            error: 'A JV line would round to zero in the header currency; adjust amounts or the FX rate.',
+            payloads: null,
+          }
         }
       }
     }
@@ -675,10 +720,16 @@ function buildJvPostingPayloads({
     let postCurrency = baseCur
     let postRate = 1
     if (headerCur !== baseCur) {
-      const fcRaw = pairBase / headerFxRate
-      postAmount = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
-      postCurrency = headerCur
-      postRate = headerFxRate
+      if (strictUseDocCurrency) {
+        postAmount = pairBase
+        postCurrency = headerCur
+        postRate = headerFxRate
+      } else {
+        const fcRaw = pairBase / headerFxRate
+        postAmount = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
+        postCurrency = headerCur
+        postRate = headerFxRate
+      }
     }
     return {
       date: jvHeader.date,
@@ -762,7 +813,7 @@ const buildJvPrintHtml = ({
       <table>
         <thead><tr><th>No.</th><th>Account</th><th>Narration</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="5">No JV rows</td></tr>'}</tbody>
-        <tfoot><tr><td colspan="3" class="num">Total</td><td class="num">${Number(validation.totalDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td class="num">${Number(validation.totalCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr></tfoot>
+        <tfoot><tr><td colspan="3" class="num">Total</td><td class="num">${Number(validation.displayDebitTotal ?? validation.totalDebit ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td class="num">${Number(validation.displayCreditTotal ?? validation.totalCredit ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr></tfoot>
       </table>
       <div class="note">${escapeHtml(jvHeader.narration || '')}</div>
       <div class="signatures">

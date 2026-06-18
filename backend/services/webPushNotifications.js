@@ -9,7 +9,7 @@ const { buildCopy } = require('./expoPushNotifications')
 
 let WebPush = null
 try {
-  // eslint-disable-next-line import/no-extraneous-dependencies, global-require
+   
   WebPush = require('web-push')
 } catch {
   WebPush = null

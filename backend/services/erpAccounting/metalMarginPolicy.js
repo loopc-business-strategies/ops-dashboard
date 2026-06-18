@@ -107,7 +107,7 @@ function resolveBookedExposureSign(dealType = '', signedAmount = 0) {
   return 0
 }
 
-function resolveBookedLedgerAmountFromRow(row = {}) {
+function _resolveBookedLedgerAmountFromRow(row = {}) {
   const postedAmount = Math.abs(Number(
     row?.signedAmount || row?.debitAmount || row?.creditAmount || 0,
   ))

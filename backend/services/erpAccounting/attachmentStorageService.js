@@ -20,7 +20,7 @@ function resolveBackendBaseUrl(req) {
   return ''
 }
 
-function getGridFsBucket(connection) {
+function _getGridFsBucket(connection) {
   return new GridFSBucket(connection.db, { bucketName: 'transactionAttachments' })
 }
 

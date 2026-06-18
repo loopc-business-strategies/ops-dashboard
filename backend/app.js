@@ -328,7 +328,7 @@ function createApp() {
     res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found.` })
   })
 
-  app.use((err, req, res, next) => {
+  app.use((err, req, res, _next) => {
     if (isClientAbortError(err)) {
       if (!res.headersSent) res.status(400).end()
       return

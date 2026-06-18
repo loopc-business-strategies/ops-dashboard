@@ -886,7 +886,27 @@ export default function SalesTab() {
   }
 
   useEffect(() => {
-    loadAll()
+    let mounted = true
+    ;(async () => {
+      if (!canViewSalesCRM) return
+      setBusy(true)
+      try {
+        const [d, c, co, l, de, a, f] = await Promise.all([getDashboard(), getContacts(filters), getCompanies(), getLeads(), getDeals(), getActivities(), getFollowups()])
+        if (!mounted) return
+        setDashboard(d?.data || {})
+        setContacts(c?.data || [])
+        setCompanies(co?.data || [])
+        setLeads(l?.data || [])
+        setDeals(de?.data || [])
+        setActivities(a?.data || [])
+        setFollowups(f?.data || [])
+      } catch (e) {
+        if (mounted) setMsg(e?.response?.data?.message || 'Failed to load CRM data')
+      } finally {
+        if (mounted) setBusy(false)
+      }
+    })()
+    return () => { mounted = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canViewSalesCRM])
 

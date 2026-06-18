@@ -1,5 +1,4 @@
-import { Fragment } from 'react'
-import AccountCombobox from '../../../AccountCombobox'
+import JournalVoucherModal from './JournalVoucherModal'
 import {
   groupJvLedgerEntries,
   inferLegacyJvBatchDisplayFc,
@@ -159,265 +158,41 @@ export default function ERPLedgerTab({
               </button>
             )}
           </div>
-          {showLedgerForm && (() => {
-            const jvModeMeta = resolveJvModeMeta(jvMode)
-            const jvValidation = getJvValidation(jvLines)
-            const jvTotalDebit = jvValidation.totalDebit
-            const jvTotalCredit = jvValidation.totalCredit
-            const jvDisplayDebit = jvValidation.displayDebitTotal ?? jvValidation.totalDebit
-            const jvDisplayCredit = jvValidation.displayCreditTotal ?? jvValidation.totalCredit
-            const jvTotalCurrencyLabel = jvValidation.displayTotalCurrency || baseCurrencyCode
-            const jvDifference = jvValidation.difference
-            const jvIsBalanced = jvValidation.isBalanced
-            const jvFormLocked = jvReadOnly || jvEditEntryIds.length > 0
-            const cellSt = { padding: '0.28rem 0.4rem', border: '1px solid #D1D5DB', background: jvReadOnly ? '#F9FAFB' : '#fff', color: C.ink, borderRadius: '0.25rem', fontSize: '0.875rem', width: '100%', boxSizing: 'border-box' }
-            const numCellSt = { ...cellSt, textAlign: 'right' }
-            return (
-            <div
-              style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.62)', zIndex: 1700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
-              onClick={closeJvModal}
-            >
-              <div
-                style={{ width: `min(${jvModalSize.width}px, 92vw)`, height: `min(${jvModalSize.height}px, 90vh)`, transform: `translate(${jvModalOffset.x}px, ${jvModalOffset.y}px)`, userSelect: (jvModalDrag.active || jvModalResize.active) ? 'none' : 'auto', boxShadow: '0 28px 55px rgba(2, 6, 23, 0.45)', borderRadius: '0.6rem', position: 'relative', display: 'flex', flexDirection: 'column' }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div
-                  onMouseDown={beginJvModalDrag}
-                  style={{ background: '#0F172A', color: '#fff', padding: '0.62rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderTopLeftRadius: '0.6rem', borderTopRightRadius: '0.6rem', cursor: jvModalDrag.active ? 'grabbing' : 'grab', userSelect: 'none' }}
-                >
-                  <span style={{ fontWeight: '700', fontSize: '0.88rem' }}>{jvModeMeta.label}</span>
-                  <span style={{ color: '#94A3B8', fontSize: '0.72rem', marginLeft: '0.35rem' }}>drag window</span>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={closeJvModal}
-                    style={{ marginLeft: 'auto', background: '#F97316', border: 'none', color: '#111827', borderRadius: '0.35rem', padding: '0.34rem 0.65rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.78rem' }}
-                  >
-                    X Close
-                  </button>
-                </div>
-            <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderTop: 'none', borderBottomLeftRadius: '0.6rem', borderBottomRightRadius: '0.6rem', marginBottom: 0, overflow: 'hidden auto', flex: 1, minHeight: 0 }}>
-              {/* JV Header bar */}
-              <div style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%)', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ color: '#fff', fontWeight: '800', fontSize: '0.95rem', letterSpacing: '0.04em' }}>
-                  📒 {jvReadOnly ? `VIEW ${jvModeMeta.badge}` : jvEditEntryIds.length > 0 ? `EDIT ${jvModeMeta.badge}` : jvModeMeta.badge}
-                </span>
-                <span style={{ marginLeft: 'auto', color: '#94A3B8', fontSize: '0.75rem' }}>Base: {baseCurrencyCode}</span>
-              </div>
-
-              {jvReadOnly && (
-                <div style={{ padding: '0.45rem 1rem', background: '#EFF6FF', borderBottom: '1px solid #BFDBFE', color: '#1E40AF', fontSize: '0.78rem', fontWeight: '600' }}>
-                  View mode — click Edit from the list to modify
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: '0.45rem', padding: '0.55rem 1rem', background: '#E2E8F0', borderBottom: '1px solid #CBD5E1' }}>
-                {Object.entries(JV_MODE_META).map(([mode, meta]) => {
-                  const active = jvMode === mode
-                  return (
-                    <button
-                      key={`jv-mode-${mode}`}
-                      type="button"
-                      onClick={() => { void switchJvMode(mode) }}
-                      disabled={jvFormLocked}
-                      style={{
-                        padding: '0.35rem 0.7rem',
-                        borderRadius: '0.35rem',
-                        border: `1px solid ${active ? '#1D4ED8' : '#CBD5E1'}`,
-                        background: active ? '#DBEAFE' : '#F8FAFC',
-                        color: active ? '#1E3A8A' : '#334155',
-                        fontWeight: '700',
-                        cursor: jvFormLocked ? 'not-allowed' : 'pointer',
-                        opacity: jvFormLocked ? 0.65 : 1,
-                        fontSize: '0.78rem',
-                      }}
-                    >
-                      {meta.label}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Header fields */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem', padding: '0.65rem 1rem 0.5rem', alignItems: 'end', background: '#F1F5F9', borderBottom: '1px solid #CBD5E1' }}>
-                <div>
-                  <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Doc No</div>
-                  <input value={jvHeader.docNo} onChange={(e) => setJvHeader((p) => ({ ...p, docNo: e.target.value }))} placeholder={jvMode === 'bank_jv' ? 'BnkJV/2026/0001' : 'Jv/2026/0001'} style={cellSt} readOnly={jvReadOnly} disabled={jvReadOnly} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Date</div>
-                  <input type="date" value={jvHeader.date} onChange={(e) => setJvHeader((p) => ({ ...p, date: e.target.value }))} style={cellSt} readOnly={jvReadOnly} disabled={jvReadOnly} />
-                </div>
-                <div style={{ gridColumn: 'span 2' }}>
-                  <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Narration</div>
-                  <input value={jvHeader.narration} onChange={(e) => setJvHeader((p) => ({ ...p, narration: e.target.value }))} placeholder="Narration / description..." style={cellSt} readOnly={jvReadOnly} disabled={jvReadOnly} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.68rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '2px' }}>Currency</div>
-                  <select value={jvHeader.currency || baseCurrencyCode} onChange={(e) => setJvHeader((p) => ({ ...p, currency: e.target.value }))} style={cellSt} disabled={jvReadOnly}>
-                    {currencies.map((currency) => (
-                      <option key={currency._id || currency.code} value={currency.code}>{currency.code} - {currency.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Lines table */}
-              <div style={{ padding: '0 0 0 0', overflow: 'visible', position: 'relative', zIndex: 5 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                  <thead>
-                    <tr style={{ background: '#1E3A5F', color: '#fff' }}>
-                      <th style={{ padding: '0.45rem 0.5rem', textAlign: 'center', width: '36px', fontWeight: '600', fontSize: '0.75rem' }}>#</th>
-                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'left', minWidth: '240px', fontWeight: '600', fontSize: '0.75rem' }}>Account</th>
-                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'left', fontWeight: '600', fontSize: '0.75rem' }}>Description (optional)</th>
-                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', width: '160px', fontWeight: '600', fontSize: '0.75rem', color: '#93C5FD' }}>Debit (Line Curr)</th>
-                      <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', width: '160px', fontWeight: '600', fontSize: '0.75rem', color: '#FCA5A5' }}>Credit (Line Curr)</th>
-                      <th style={{ padding: '0.45rem 0.4rem', width: '36px' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {jvLines.map((line, idx) => {
-                      const lineIssue = jvValidation.lineIssuesById[line.id] || ''
-                      return (
-                        <Fragment key={`line-wrap-${line.id}`}>
-                          <tr key={`line-${line.id}`} style={{ background: idx % 2 === 0 ? '#fff' : '#F8FAFC', borderBottom: lineIssue ? 'none' : '1px solid #E5E7EB' }}>
-                            <td style={{ padding: '0.3rem 0.4rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.78rem', userSelect: 'none' }}>{idx + 1}</td>
-                            <td style={{ padding: '0.25rem 0.4rem', position: 'relative', zIndex: 20 }}>
-                              <AccountCombobox
-                                groups={jvMode === 'bank_jv' ? bankJvComboGroups : jvComboGroups}
-                                value={line.accountId || ''}
-                                onChange={(val, lbl) => resolveJvLineAccount(line.id, val, lbl)}
-                                onKeyDown={(e) => handleJvAccountKeyDown(e, idx)}
-                                placeholder="Type account code or name..."
-                                disabled={jvReadOnly}
-                                style={{ ...cellSt, minWidth: '220px', borderColor: lineIssue && !line.accountId ? '#FCA5A5' : '#D1D5DB' }}
-                              />
-                            </td>
-                            <td style={{ padding: '0.25rem 0.4rem' }}>
-                              <input
-                                value={line.description}
-                                onChange={(e) => updateJvLine(line.id, 'description', e.target.value)}
-                                onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
-                                placeholder="Line description..."
-                                style={{ ...cellSt, minWidth: '180px' }}
-                                readOnly={jvReadOnly}
-                                disabled={jvReadOnly}
-                              />
-                            </td>
-                            <td style={{ padding: '0.25rem 0.4rem' }}>
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={line.debit}
-                                onChange={(e) => updateJvLine(line.id, 'debit', e.target.value)}
-                                onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
-                                placeholder="0.00"
-                                style={{ ...numCellSt, color: '#1D4ED8', fontWeight: line.debit ? '700' : '400', borderColor: (lineIssue && Number(line.debit || 0) > 0 && Number(line.credit || 0) > 0) ? '#FCA5A5' : '#D1D5DB' }}
-                                readOnly={jvReadOnly}
-                                disabled={jvReadOnly}
-                              />
-                            </td>
-                            <td style={{ padding: '0.25rem 0.4rem' }}>
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={line.credit}
-                                onChange={(e) => updateJvLine(line.id, 'credit', e.target.value)}
-                                onKeyDown={(e) => handleJvLineKeyDown(e, idx)}
-                                placeholder="0.00"
-                                style={{ ...numCellSt, color: '#DC2626', fontWeight: line.credit ? '700' : '400', borderColor: (lineIssue && Number(line.debit || 0) > 0 && Number(line.credit || 0) > 0) ? '#FCA5A5' : '#D1D5DB' }}
-                                readOnly={jvReadOnly}
-                                disabled={jvReadOnly}
-                              />
-                            </td>
-                            <td style={{ padding: '0.25rem 0.3rem', textAlign: 'center' }}>
-                              {!jvReadOnly && jvLines.length > 2 && (
-                                <button type="button" onClick={() => removeJvLine(line.id)} title="Remove row" style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1, padding: '0 0.1rem' }}>×</button>
-                              )}
-                            </td>
-                          </tr>
-                          {lineIssue && (
-                            <tr key={`line-issue-${line.id}`} style={{ background: '#FEF2F2', borderBottom: '1px solid #FECACA' }}>
-                              <td></td>
-                              <td colSpan={5} style={{ padding: '0.2rem 0.5rem 0.35rem', color: '#B91C1C', fontSize: '0.74rem', fontWeight: '600' }}>
-                                {lineIssue}
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      )
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ background: '#F1F5F9', borderTop: '2px solid #CBD5E1' }}>
-                      <td colSpan={3} style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '700', fontSize: '0.82rem', color: C.ink }}>TOTAL</td>
-                      <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#1D4ED8' }}>{jvDisplayDebit > 0 ? jvDisplayDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
-                      <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontWeight: '800', fontSize: '0.92rem', color: '#DC2626' }}>{jvDisplayCredit > 0 ? jvDisplayCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* Balance status */}
-              {(jvTotalDebit > 0 || jvTotalCredit > 0 || jvValidation.hasLineIssues) && (
-                <div style={{ margin: '0.5rem 1rem 0', padding: '0.4rem 0.75rem', borderRadius: '0.375rem', background: jvIsBalanced ? '#DCFCE7' : '#FEF2F2', border: `1px solid ${jvIsBalanced ? '#86EFAC' : '#FECACA'}`, color: jvIsBalanced ? '#166534' : '#991B1B', fontSize: '0.82rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  {jvValidation.hasLineIssues
-                    ? Object.values(jvValidation.lineIssuesById)[0]
-                    : jvIsBalanced
-                    ? `✓ Balanced — Total = ${jvDisplayDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${jvTotalCurrencyLabel}`
-                    : `⚠ Debit and Credit totals are not balanced (diff: ${Math.abs(jvDifference).toFixed(2)} ${baseCurrencyCode})`}
-                </div>
-              )}
-
-              <div style={{ margin: '0.5rem 1rem 0', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(140px, 1fr))', gap: '0.45rem' }}>
-                <div style={{ border: '1px solid #BFDBFE', background: '#EFF6FF', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
-                  <div style={{ color: '#1D4ED8', fontSize: '0.72rem', fontWeight: '700' }}>Total Debit</div>
-                  <div style={{ color: '#1E3A8A', fontWeight: '800' }}>{jvDisplayDebit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                </div>
-                <div style={{ border: '1px solid #FECACA', background: '#FEF2F2', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
-                  <div style={{ color: '#DC2626', fontSize: '0.72rem', fontWeight: '700' }}>Total Credit</div>
-                  <div style={{ color: '#991B1B', fontWeight: '800' }}>{jvDisplayCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                </div>
-                <div style={{ border: `1px solid ${jvIsBalanced ? '#86EFAC' : '#FDE68A'}`, background: jvIsBalanced ? '#ECFDF5' : '#FFFBEB', borderRadius: '0.4rem', padding: '0.45rem 0.6rem' }}>
-                  <div style={{ color: jvIsBalanced ? '#166534' : '#92400E', fontSize: '0.72rem', fontWeight: '700' }}>Difference</div>
-                  <div style={{ color: jvIsBalanced ? '#166534' : '#B45309', fontWeight: '800' }}>{Math.abs(jvDifference).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                </div>
-              </div>
-
-              {/* Action row */}
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', padding: '0.65rem 1rem', background: '#F8FAFC', borderTop: '1px solid #E2E8F0', flexWrap: 'wrap' }}>
-                {!jvReadOnly && (
-                  <>
-                    <button type="button" onClick={addJvLine} style={{ padding: '0.38rem 0.8rem', background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>+ Add Row</button>
-                    <button
-                      type="button"
-                      onClick={handleSaveMultiLineJV}
-                      disabled={saving || !jvValidation.canSave}
-                      style={{ padding: '0.38rem 1.2rem', background: jvValidation.canSave ? '#16A34A' : '#9CA3AF', color: '#fff', border: 'none', borderRadius: '0.375rem', cursor: jvValidation.canSave ? 'pointer' : 'not-allowed', fontWeight: '700', fontSize: '0.85rem' }}
-                    >
-                      {saving ? 'Saving...' : jvEditEntryIds.length > 0 ? '💾 Update JV' : '💾 Save JV'}
-                    </button>
-                  </>
-                )}
-                <button type="button" onClick={handlePrintJvVoucher} style={{ padding: '0.38rem 0.8rem', background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '700', fontSize: '0.82rem' }}>Print JV</button>
-                <button type="button" onClick={closeJvModal} style={{ padding: '0.38rem 0.8rem', background: '#fff', color: '#374151', border: '1px solid #D1D5DB', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.82rem' }}>{jvReadOnly ? 'Close' : 'Cancel'}</button>
-                {!jvReadOnly && (
-                  <span style={{ marginLeft: 'auto', fontSize: '0.74rem', color: '#94A3B8' }}>Press <kbd style={{ background: '#E5E7EB', padding: '0 0.3rem', borderRadius: '0.2rem', fontSize: '0.72rem' }}>Enter</kbd> on last row to add a new line</span>
-                )}
-              </div>
-            </div>
-                <div
-                  onMouseDown={beginJvModalResize}
-                  title="Resize"
-                  style={{ position: 'absolute', right: '6px', bottom: '6px', width: '16px', height: '16px', cursor: 'nwse-resize', background: 'linear-gradient(135deg, transparent 50%, #64748B 50%)', borderBottomRightRadius: '0.35rem' }}
-                />
-              </div>
-            </div>
-            )
-          })()}
+          {showLedgerForm && (
+            <JournalVoucherModal
+              C={C}
+              JV_MODE_META={JV_MODE_META}
+              resolveJvModeMeta={resolveJvModeMeta}
+              jvMode={jvMode}
+              getJvValidation={getJvValidation}
+              jvLines={jvLines}
+              baseCurrencyCode={baseCurrencyCode}
+              closeJvModal={closeJvModal}
+              jvModalSize={jvModalSize}
+              jvModalOffset={jvModalOffset}
+              jvModalDrag={jvModalDrag}
+              jvModalResize={jvModalResize}
+              beginJvModalDrag={beginJvModalDrag}
+              switchJvMode={switchJvMode}
+              jvEditEntryIds={jvEditEntryIds}
+              currencies={currencies}
+              jvHeader={jvHeader}
+              setJvHeader={setJvHeader}
+              bankJvComboGroups={bankJvComboGroups}
+              jvComboGroups={jvComboGroups}
+              resolveJvLineAccount={resolveJvLineAccount}
+              handleJvAccountKeyDown={handleJvAccountKeyDown}
+              updateJvLine={updateJvLine}
+              handleJvLineKeyDown={handleJvLineKeyDown}
+              removeJvLine={removeJvLine}
+              addJvLine={addJvLine}
+              handlePrintJvVoucher={handlePrintJvVoucher}
+              handleSaveMultiLineJV={handleSaveMultiLineJV}
+              saving={saving}
+              beginJvModalResize={beginJvModalResize}
+              jvReadOnly={jvReadOnly}
+            />
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
             <input
               type="date"

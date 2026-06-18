@@ -72,7 +72,7 @@ const { TENANT_KEYS, getDefaultTenant, getTenantUri } = require('./config/tenant
 
 const app = createApp()
 
-function envBool(value, defaultValue = false) {
+function _envBool(value, defaultValue = false) {
   if (value === undefined || value === null || value === '') return defaultValue
   return String(value).trim().toLowerCase() === 'true'
 }

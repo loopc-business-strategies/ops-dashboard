@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import authAPI from '../../api/auth'
 import departmentStateAPI from '../../api/department-state'
@@ -1059,16 +1059,25 @@ function AdminTab() {
   const [selectedPermUserId, setSelectedPermUserId] = useState(null)
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
 
   const loadUsers = useCallback(async () => {
     try {
       setLoading(true)
+      setLoadError('')
       const data = await authAPI.getUsers(token)
-      setUsers(data.users || [])
+      if (mountedRef.current) setUsers(data.users || [])
     } catch (e) {
       console.error('Failed to load users', e)
+      if (mountedRef.current) setLoadError(e?.response?.data?.message || 'Failed to load users')
     } finally {
-      setLoading(false)
+      if (mountedRef.current) setLoading(false)
     }
   }, [token])
 
@@ -1090,6 +1099,12 @@ function AdminTab() {
         </div>
         <button type="button" title="Admin modules" style={{ width: 36, height: 36, borderRadius: 8, border: `1px solid ${ADMIN.border}`, background: '#fff', color: ADMIN.inkSoft, cursor: 'pointer' }}>▦</button>
       </div>
+
+      {loadError && (
+        <div style={{ marginBottom: '0.75rem', padding: '0.65rem 0.85rem', borderRadius: 8, background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FECACA', fontSize: '0.88rem' }}>
+          {loadError}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ display: 'grid', placeItems: 'center', padding: '4rem 0' }}>

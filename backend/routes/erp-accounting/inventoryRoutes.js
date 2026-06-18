@@ -42,7 +42,7 @@ function registerInventoryRoutes(deps) {
     Vendor,
     Ledger,
     ChartOfAccount,
-    canAccessInventory,
+    _canAccessInventory,
     canReadErpInventory,
     canWriteInventory,
     canManageInventorySettings,

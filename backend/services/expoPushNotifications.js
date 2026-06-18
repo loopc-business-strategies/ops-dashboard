@@ -8,7 +8,7 @@ const { normalizeTenant } = require('../config/tenants')
 
 let ExpoCtor = null
 try {
-  // eslint-disable-next-line import/no-extraneous-dependencies, global-require
+   
   ExpoCtor = require('expo-server-sdk').Expo
 } catch {
   ExpoCtor = null

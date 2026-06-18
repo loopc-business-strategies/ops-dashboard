@@ -1,14 +1,27 @@
-async function main() {
-  const credentials = [
-    { company: 'mg', name: 'loopcadmin', password: 'LoopcAdmin@2026!' },
-    { company: 'mg', name: 'mgadmin', password: 'MgAdmin@2026!' },
+require('dotenv').config();
+
+const apiBase = String(process.env.SMOKE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
+
+function buildCredentials() {
+  const entries = [
+  { company: 'mg', name: 'loopcadmin', password: process.env.LOOPC_ADMIN_PASSWORD },
+  { company: 'mg', name: 'mgadmin', password: process.env.MG_ADMIN_PASSWORD },
   ];
+  const credentials = entries.filter((entry) => entry.password);
+  if (!credentials.length) {
+    throw new Error('Set MG_ADMIN_PASSWORD and/or LOOPC_ADMIN_PASSWORD before running this script.');
+  }
+  return credentials;
+}
+
+async function main() {
+  const credentials = buildCredentials();
 
   let token = null;
   let activeUser = null;
 
   for (const cred of credentials) {
-    const login = await fetch('http://localhost:5000/api/auth/login', {
+    const login = await fetch(`${apiBase}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(cred),
@@ -38,7 +51,7 @@ async function main() {
   ];
 
   for (const path of endpoints) {
-    const res = await fetch(`http://localhost:5000${path}`, {
+    const res = await fetch(`${apiBase}${path}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     console.log(JSON.stringify({ activeUser, path, status: res.status }));

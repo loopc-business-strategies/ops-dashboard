@@ -191,12 +191,18 @@ const updateRoleSchema = Joi.object({
 // ==========================================
 router.post('/setup', validateBody(setupSchema), async (req, res) => {
   try {
-    if (process.env.NODE_ENV === 'production') {
+    const isProduction = process.env.NODE_ENV === 'production'
+    const isDevelopment = process.env.NODE_ENV === 'development'
+    const isTest = process.env.NODE_ENV === 'test'
+
+    if (isProduction) {
       const enabled = String(process.env.ENABLE_SETUP || '').trim().toLowerCase() === 'true'
       if (!enabled) {
         return res.status(403).json({ success: false, message: 'Setup is disabled in production.' })
       }
+    }
 
+    if (!isDevelopment && !isTest) {
       const expectedToken = String(process.env.SETUP_TOKEN || '').trim()
       const providedToken = String(
         req.headers['x-setup-token']

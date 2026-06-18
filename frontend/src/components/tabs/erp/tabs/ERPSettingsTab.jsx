@@ -16,6 +16,7 @@ export default function ERPSettingsTab({
   brandingProfiles,
   brandingForm,
   setBrandingForm,
+  reportBranding,
   handleBrandingLogoFile,
   saving,
   canManageAccounts,

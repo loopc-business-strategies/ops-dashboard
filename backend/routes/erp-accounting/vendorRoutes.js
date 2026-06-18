@@ -1,4 +1,5 @@
 const { Joi } = require('../../middleware/validate')
+const { escapeRegex } = require('../../utils/escapeRegex')
 const { restrictTo } = require('../../middleware/auth')
 const {
   planVendorRegistryMaintenance,
@@ -45,7 +46,7 @@ function registerVendorRoutes(deps) {
     ChartOfAccount,
     getLatestMetalRate,
     DEFAULT_METAL_RATES,
-    canAccessVendors,
+    _canAccessVendors,
     canManageVendors,
     canUpdateVendorOperational,
     canReadErpParties,
@@ -112,12 +113,13 @@ function registerVendorRoutes(deps) {
       if (riskLevel) query.riskLevel = riskLevel
       if (category) query.category = category
       if (search) {
+        const regex = new RegExp(escapeRegex(search), 'i')
         query.$or = [
-          { name: { $regex: search, $options: 'i' } },
-          { vendorCode: { $regex: search, $options: 'i' } },
-          { contactPerson: { $regex: search, $options: 'i' } },
-          { phone: { $regex: search, $options: 'i' } },
-          { email: { $regex: search, $options: 'i' } },
+          { name: regex },
+          { vendorCode: regex },
+          { contactPerson: regex },
+          { phone: regex },
+          { email: regex },
         ]
       }
 

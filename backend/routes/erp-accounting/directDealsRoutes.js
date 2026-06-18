@@ -1,4 +1,5 @@
 const { Joi, validateBody, validateBodyStrict, validateParams } = require('../../middleware/validate')
+const { escapeRegex } = require('../../utils/escapeRegex')
 
 const objectId = Joi.string().hex().length(24)
 const idParamSchema = Joi.object({ id: objectId.required() })
@@ -34,7 +35,7 @@ function registerDirectDealsRoutes(deps) {
     protect,
     DirectDeal,
     Ledger,
-    canAccessDirectDeals,
+    _canAccessDirectDeals,
     canReadDirectDeals,
     canManageDirectDeals,
     parsePagination,
@@ -69,7 +70,7 @@ function registerDirectDealsRoutes(deps) {
         }
       }
       if (req.query.search) {
-        const rx = new RegExp(String(req.query.search).trim(), 'i')
+        const rx = new RegExp(escapeRegex(String(req.query.search).trim()), 'i')
         query.$or = [
           { docNo: rx },
           { remarks: rx },

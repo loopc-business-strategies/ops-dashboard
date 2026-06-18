@@ -18,9 +18,9 @@ const { publishRealtimeEvent } = require('../utils/realtimeBus')
 const { softDeleteById } = require('../utils/softDelete')
 const {
   normalize,
-  escapeRegex,
+  _escapeRegex,
   canCreateTask,
-  isTaskCreator,
+  _isTaskCreator,
   canMutateTask,
   canDeleteTask,
   canViewTask,

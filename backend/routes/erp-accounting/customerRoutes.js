@@ -1,6 +1,6 @@
 const {
   isUnfixedFixingType,
-  accumulateUnfixedMetalFromTransactions,
+  _accumulateUnfixedMetalFromTransactions,
   accumulateDirectDealMetalIntoMap,
   roundMetalPosition,
 } = require('../../services/erpAccounting/metalPositionPolicy')
@@ -23,7 +23,7 @@ function registerCustomerRoutes(deps) {
     DirectDeal,
     getLatestMetalRate,
     DEFAULT_METAL_RATES,
-    canViewCustomers,
+    _canViewCustomers,
     canManageCustomers,
     canReadErpParties,
     parsePagination,

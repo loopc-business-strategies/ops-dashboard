@@ -7,7 +7,7 @@ const { buildReportDigestText } = require('../services/reportDigestService')
 const { mergeNotificationPreferences } = require('../services/notificationPreferences')
 
 const HOURLY_MS = 60 * 60 * 1000
-const DAILY_MS = 24 * 60 * 60 * 1000
+const _DAILY_MS = 24 * 60 * 60 * 1000
 
 const sentDailyKeys = new Set()
 

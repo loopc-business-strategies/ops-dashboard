@@ -297,20 +297,24 @@ function EmployeeList({ token }) {
   const [showForm,  setShowForm]  = useState(false)
   const [error,     setError]     = useState('')
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isMounted = () => true) => {
     setLoading(true)
     setError('')
     try {
       const data = await hrAPI.getEmployees(token)
-      setEmployees(data.employees || [])
+      if (isMounted()) setEmployees(data.employees || [])
     } catch {
-      setError('Failed to load employees.')
+      if (isMounted()) setError('Failed to load employees.')
     } finally {
-      setLoading(false)
+      if (isMounted()) setLoading(false)
     }
   }, [token])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    let mounted = true
+    load(() => mounted)
+    return () => { mounted = false }
+  }, [load])
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Delete ${name}?`)) return

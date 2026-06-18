@@ -8,11 +8,11 @@ const ReportBranding = require('../models/ReportBranding')
 const MetalRate = require('../models/MetalRate')
 const InventoryItem = require('../models/InventoryItem')
 const StockMovement = require('../models/StockMovement')
-const Supplier = require('../models/Supplier')
+const _Supplier = require('../models/Supplier')
 const Vendor = require('../models/Vendor')
 const Transaction = require('../models/Transaction')
 const DirectDeal = require('../models/DirectDeal')
-const Employee = require('../models/Employee')
+const _Employee = require('../models/Employee')
 const Customer = require('../models/Customer')
 const { createAccountCodeService } = require('../services/erpAccounting/accountCodeService')
 const {
@@ -47,7 +47,7 @@ const {
   transactionPatchSchema,
   transactionCreateSchema,
   ledgerEntrySchema,
-  hardDeleteSchema,
+  _hardDeleteSchema,
 } = require('./erp-accounting/schemas')
 const {
   normalizeTransactionNote,
@@ -68,11 +68,11 @@ const { registerInventoryRoutes } = require('./erp-accounting/inventoryRoutes')
 const { registerDirectDealsRoutes } = require('./erp-accounting/directDealsRoutes')
 const { registerAttachmentRoutes } = require('./erp-accounting/attachmentRoutes')
 const {
-  TRANSACTION_TYPES,
+  _TRANSACTION_TYPES,
   TRANSACTION_STATUSES,
   BASE_CURRENCY_CODE,
-  MAX_TRANSACTION_AMOUNT,
-  MAX_EXCHANGE_RATE,
+  _MAX_TRANSACTION_AMOUNT,
+  _MAX_EXCHANGE_RATE,
   toMoney,
   toQty,
   parseNumber,
@@ -114,11 +114,11 @@ const {
   isSuperAdmin,
   isDepartmentHead,
   isFinance,
-  isSales,
-  isOperations,
-  isProduction,
-  isHR,
-  roleName,
+  _isSales,
+  _isOperations,
+  _isProduction,
+  _isHR,
+  _roleName,
   canViewAccounts,
   canManageAccounts,
   canViewMappings,
@@ -134,7 +134,7 @@ const {
   canManageVendors,
   canUpdateVendorOperational,
   canAccessInventory,
-  canAccessTransactions,
+  _canAccessTransactions,
   canAccessOperationalTransactions,
   canReadErpReferenceData,
   canReadErpParties,
@@ -170,7 +170,7 @@ const fxRevaluationService = createFxRevaluationService({
 })
 
 const resolveReferenceExchangeRate = fxRevaluationService.resolveReferenceExchangeRate
-const resolveVoucherFxLineBaseAmount = fxRevaluationService.resolveVoucherFxLineBaseAmount
+const _resolveVoucherFxLineBaseAmount = fxRevaluationService.resolveVoucherFxLineBaseAmount
 const resolvePrimaryVoucherFxLine = fxRevaluationService.resolvePrimaryVoucherFxLine
 const resolveVoucherFxMetrics = fxRevaluationService.resolveVoucherFxMetrics
 const buildFxJournalRevaluationPreview = fxRevaluationService.buildFxJournalRevaluationPreview
@@ -179,8 +179,8 @@ const validateFxReferenceRateRequirement = fxRevaluationService.validateFxRefere
 
 let transactionPostingService = null
 
-const MAX_ACCOUNT_CODE_GENERATION_ATTEMPTS = Number(process.env.MAX_ACCOUNT_CODE_GENERATION_ATTEMPTS || 1000)
-const MAX_ACCOUNT_HIERARCHY_DEPTH = Number(process.env.MAX_ACCOUNT_HIERARCHY_DEPTH || 10)
+const _MAX_ACCOUNT_CODE_GENERATION_ATTEMPTS = Number(process.env.MAX_ACCOUNT_CODE_GENERATION_ATTEMPTS || 1000)
+const _MAX_ACCOUNT_HIERARCHY_DEPTH = Number(process.env.MAX_ACCOUNT_HIERARCHY_DEPTH || 10)
 
 const currencyBootstrapService = createCurrencyBootstrapService({
   Currency,
@@ -191,7 +191,7 @@ const ensureDefaultCurrencyMaster = currencyBootstrapService.ensureDefaultCurren
 
 const {
   ensureAccountByCode,
-  nextGeneratedAccountCode,
+  _nextGeneratedAccountCode,
   validateAccountParentAssignment,
   ensureChildAccountByName,
   nextCustomerAccountCode,
@@ -226,18 +226,18 @@ const voucherInventoryService = createVoucherInventoryImpactService({
   BASE_CURRENCY_CODE,
 })
 const {
-  resolveTransferPostingAmount,
+  _resolveTransferPostingAmount,
   prepareVoucherInventoryImpact,
   applyVoucherInventoryImpact,
 } = voucherInventoryService
 
 const {
-  ensureExchangeDifferenceAccounts,
+  _ensureExchangeDifferenceAccounts,
   nextDirectDealDocNo,
-  getMappedAccountIds,
+  _getMappedAccountIds,
   getAccountSummaryScope,
-  metalDisplayName,
-  resolveDirectDealCustomer,
+  _metalDisplayName,
+  _resolveDirectDealCustomer,
   normalizeDirectDealLine,
   syncDirectDealLedger,
   nextVendorCode,
@@ -308,11 +308,11 @@ const transactionAccountResolutionService = createTransactionAccountResolutionSe
 })
 
 const {
-  normalizeCurrencyCode,
-  findPreferredBankAccountByCurrency,
-  normalizeVoucherSettlementType,
-  ensureCashBankAccount,
-  resolveVoucherSettlementAccount,
+  _normalizeCurrencyCode,
+  _findPreferredBankAccountByCurrency,
+  _normalizeVoucherSettlementType,
+  _ensureCashBankAccount,
+  _resolveVoucherSettlementAccount,
   resolveTransactionAccounts,
   createLedgerFromTransaction,
 } = transactionAccountResolutionService
@@ -339,7 +339,7 @@ const {
   batchVendorSummaries,
 } = vendorComplianceService
 
-const { buildVendorAdvanceConfirmationError, ensurePaymentAdvanceConfirmed } = createVendorAdvanceConfirmationHelpers({
+const { _buildVendorAdvanceConfirmationError, ensurePaymentAdvanceConfirmed } = createVendorAdvanceConfirmationHelpers({
   ChartOfAccount,
   Currency,
   BASE_CURRENCY_CODE,

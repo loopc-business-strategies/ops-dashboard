@@ -1,7 +1,7 @@
 const {
-  isMetalStockInType,
-  isMetalStockOutType,
-  isMetalStockType,
+  _isMetalStockInType,
+  _isMetalStockOutType,
+  _isMetalStockType,
 } = require('./metalStockVoucherTypes')
 
 function applyPartyAccountPriority({

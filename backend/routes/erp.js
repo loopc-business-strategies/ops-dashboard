@@ -8,12 +8,13 @@ const FinanceRecord = require('../models/FinanceRecord')
 const ProcurementDoc = require('../models/ProcurementDoc')
 const ExpiryAlert = require('../models/ExpiryAlert')
 const { protect } = require('../middleware/auth')
-const { Joi, validateBody, validateParams } = require('../middleware/validate')
+const { Joi, validateBody, validateParams, validateQuery } = require('../middleware/validate')
+const { escapeRegex } = require('../utils/escapeRegex')
 const { softDeleteById } = require('../utils/softDelete')
 const {
   isSuperAdmin,
-  isDeptHead,
-  isFinanceRole,
+  _isDeptHead,
+  _isFinanceRole,
   canEditInventory,
   canViewInventoryCosts,
   canManageSuppliers,
@@ -95,7 +96,16 @@ const poCreateSchema = Joi.object({
   status:               Joi.string().trim().allow('').max(30).optional(),
 })
 
-const poPatchSchema = Joi.object({}).unknown(true)
+const poPatchSchema = Joi.object({
+  poNumber:             Joi.string().trim().min(1).max(80).optional(),
+  supplierId:           Joi.string().hex().length(24).optional(),
+  items:                Joi.array().items(poItemSchema).min(1).optional(),
+  expectedDeliveryDate: Joi.string().allow('', null).optional(),
+  paymentTerms:         Joi.string().trim().allow('').max(60).optional(),
+  status:               Joi.string().valid('draft', 'submitted', 'approved', 'ordered', 'in_transit', 'received', 'closed').optional(),
+  budgetApprovedByFinance: Joi.boolean().optional(),
+  finalApprovedBySuperAdmin: Joi.boolean().optional(),
+}).min(1)
 
 const workOrderCreateSchema = Joi.object({
   woNumber:        Joi.string().trim().min(1).max(80).required(),
@@ -106,7 +116,92 @@ const workOrderCreateSchema = Joi.object({
   targetDate:      Joi.string().allow('', null).optional(),
 })
 
-const workOrderPatchSchema = Joi.object({}).unknown(true)
+const workOrderPatchSchema = Joi.object({
+  quantity:       Joi.number().min(1).optional(),
+  product:          Joi.string().trim().allow('').max(200).optional(),
+  unit:             Joi.string().trim().allow('').max(30).optional(),
+  line:             Joi.string().trim().allow('').max(120).optional(),
+  startDate:        Joi.string().allow('', null).optional(),
+  progress:         Joi.number().min(0).max(100).optional(),
+  stage:            Joi.string().valid('casting', 'polishing', 'finishing', 'packaging', 'completed').optional(),
+  assignedTo:       Joi.string().trim().allow('').max(120).optional(),
+  materialNeeded:   Joi.array().items(Joi.object({
+    itemId: Joi.string().hex().length(24).optional(),
+    itemName: Joi.string().trim().allow('').max(200).optional(),
+    quantityNeeded: Joi.number().min(0).optional(),
+  })).optional(),
+  targetDate:       Joi.string().allow('', null).optional(),
+  status:           Joi.string().valid('pending', 'scheduled', 'in-progress', 'in_progress', 'quality_check', 'completed', 'on_hold', 'cancelled').optional(),
+  qcPassed:         Joi.boolean().allow(null).optional(),
+  qcNotes:          Joi.string().trim().allow('').max(500).optional(),
+}).min(1)
+
+const financeRecordCreateSchema = Joi.object({
+  recordType:   Joi.string().valid('expense', 'revenue', 'budget').required(),
+  category:     Joi.string().valid('raw_materials', 'salaries', 'utilities', 'sales_revenue', 'supplier_payments', 'other').optional(),
+  department:   Joi.string().trim().allow('').max(120).optional(),
+  amount:       Joi.number().required(),
+  date:         Joi.alternatives().try(Joi.date(), Joi.string()).optional(),
+  description:  Joi.string().trim().allow('').max(1000).optional(),
+  relatedDocId: Joi.string().hex().length(24).allow('', null).optional(),
+})
+
+const financeRecordPatchSchema = Joi.object({
+  recordType:   Joi.string().valid('expense', 'revenue', 'budget').optional(),
+  category:     Joi.string().valid('raw_materials', 'salaries', 'utilities', 'sales_revenue', 'supplier_payments', 'other').optional(),
+  department:   Joi.string().trim().allow('').max(120).optional(),
+  amount:       Joi.number().optional(),
+  date:         Joi.alternatives().try(Joi.date(), Joi.string()).optional(),
+  description:  Joi.string().trim().allow('').max(1000).optional(),
+  relatedDocId: Joi.string().hex().length(24).allow('', null).optional(),
+}).min(1)
+
+const procurementDocCreateSchema = Joi.object({
+  poId:       Joi.string().hex().length(24).required(),
+  docType:    Joi.string().valid('receipt', 'invoice', 'inspection_report', 'customs_doc', 'other').optional(),
+  fileName:   Joi.string().trim().min(1).max(255).required(),
+  fileUrl:    Joi.string().trim().allow('').max(500).optional(),
+  fileSize:   Joi.number().min(0).optional(),
+  expiryDate: Joi.string().allow('', null).optional(),
+})
+
+const inventoryListQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).optional(),
+  limit: Joi.number().integer().min(1).max(50).optional(),
+  search: Joi.string().trim().max(200).allow('').optional(),
+  type: Joi.string().valid('raw', 'wip', 'finished', 'consumable').optional(),
+  lowStockOnly: Joi.string().valid('true', 'false').optional(),
+})
+
+const purchaseOrderListQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).optional(),
+  limit: Joi.number().integer().min(1).max(50).optional(),
+  search: Joi.string().trim().max(200).allow('').optional(),
+  status: Joi.string().valid('draft', 'submitted', 'approved', 'ordered', 'in_transit', 'received', 'closed').optional(),
+})
+
+const workOrderListQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).optional(),
+  limit: Joi.number().integer().min(1).max(50).optional(),
+  search: Joi.string().trim().max(200).allow('').optional(),
+  stage: Joi.string().valid('casting', 'polishing', 'finishing', 'packaging', 'completed').optional(),
+  status: Joi.string().valid('pending', 'scheduled', 'in-progress', 'in_progress', 'quality_check', 'completed', 'on_hold', 'cancelled').optional(),
+})
+
+const financeRecordListQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).optional(),
+  limit: Joi.number().integer().min(1).max(50).optional(),
+  search: Joi.string().trim().max(200).allow('').optional(),
+  recordType: Joi.string().valid('expense', 'revenue', 'budget').optional(),
+  category: Joi.string().valid('raw_materials', 'salaries', 'utilities', 'sales_revenue', 'supplier_payments', 'other').optional(),
+  department: Joi.string().trim().max(120).optional(),
+})
+
+const procurementDocsQuerySchema = Joi.object({
+  poId: Joi.string().hex().length(24).optional(),
+  page: Joi.number().integer().min(1).optional(),
+  limit: Joi.number().integer().min(1).max(50).optional(),
+})
 // ────────────────────────────────────────────────────────────────────────────
 
 const ERP_PO_FINAL_APPROVAL_THRESHOLD = Number(process.env.ERP_PO_FINAL_APPROVAL_THRESHOLD || 50000)
@@ -150,7 +245,9 @@ const toInventoryResponse = (item, includeCostFields) => {
 
 const getPOAmount = (po) => (po.items || []).reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.unitPrice || 0)), 0)
 
-router.get('/inventory', protect, async (req, res) => {
+const buildSearchRegex = (search) => new RegExp(escapeRegex(String(search || '').trim()), 'i')
+
+router.get('/inventory', protect, validateQuery(inventoryListQuerySchema), async (req, res) => {
   try {
     const includeCostFields = canViewInventoryCosts(req.user)
     const page = Math.max(1, Number(req.query.page) || 1)
@@ -162,10 +259,11 @@ router.get('/inventory', protect, async (req, res) => {
 
     const query = { isDeleted: { $ne: true } }
     if (search) {
+      const regex = buildSearchRegex(search)
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { sku: { $regex: search, $options: 'i' } },
-        { supplierName: { $regex: search, $options: 'i' } },
+        { name: regex },
+        { sku: regex },
+        { supplierName: regex },
       ]
     }
     if (typeFilter) {
@@ -417,7 +515,7 @@ router.delete('/procurement/suppliers/:id', protect, validateParams(idParam), as
   }
 })
 
-router.get('/procurement/purchase-orders', protect, async (req, res) => {
+router.get('/procurement/purchase-orders', protect, validateQuery(purchaseOrderListQuerySchema), async (req, res) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1)
     const limit = Math.min(50, Number(req.query.limit) || 20)
@@ -427,9 +525,10 @@ router.get('/procurement/purchase-orders', protect, async (req, res) => {
 
     const query = { isDeleted: { $ne: true } }
     if (search) {
+      const regex = buildSearchRegex(search)
       query.$or = [
-        { poNumber: { $regex: search, $options: 'i' } },
-        { supplierName: { $regex: search, $options: 'i' } },
+        { poNumber: regex },
+        { supplierName: regex },
       ]
     }
     if (statusFilter) {
@@ -585,7 +684,7 @@ router.delete('/procurement/purchase-orders/:id', protect, validateParams(idPara
 })
 
 // Production Management Routes
-router.get('/production/work-orders', protect, async (req, res) => {
+router.get('/production/work-orders', protect, validateQuery(workOrderListQuerySchema), async (req, res) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1)
     const limit = Math.min(50, Number(req.query.limit) || 20)
@@ -596,7 +695,8 @@ router.get('/production/work-orders', protect, async (req, res) => {
 
     const query = { isDeleted: { $ne: true } }
     if (search) {
-      query.$or = [{ woNumber: { $regex: search, $options: 'i' } }, { assignedTo: { $regex: search, $options: 'i' } }]
+      const regex = buildSearchRegex(search)
+      query.$or = [{ woNumber: regex }, { assignedTo: regex }]
     }
     if (stageFilter) query.stage = stageFilter
     if (statusFilter) query.status = statusFilter
@@ -688,7 +788,7 @@ router.delete('/production/work-orders/:id', protect, validateParams(idParam), a
 })
 
 // Finance Management Routes
-router.get('/finance/records', protect, async (req, res) => {
+router.get('/finance/records', protect, validateQuery(financeRecordListQuerySchema), async (req, res) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1)
     const limit = Math.min(50, Number(req.query.limit) || 20)
@@ -700,7 +800,8 @@ router.get('/finance/records', protect, async (req, res) => {
 
     const query = { isDeleted: { $ne: true } }
     if (search) {
-      query.$or = [{ description: { $regex: search, $options: 'i' } }, { category: { $regex: search, $options: 'i' } }]
+      const regex = buildSearchRegex(search)
+      query.$or = [{ description: regex }, { category: regex }]
     }
     if (typeFilter) query.recordType = typeFilter
     if (categoryFilter) query.category = categoryFilter
@@ -729,14 +830,10 @@ router.get('/finance/records', protect, async (req, res) => {
   }
 })
 
-router.post('/finance/records', protect, async (req, res) => {
+router.post('/finance/records', protect, validateBody(financeRecordCreateSchema), async (req, res) => {
   try {
     if (!canManageFinance(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Finance Head or Super Admin can create finance records.' })
-    }
-
-    if (!req.body.recordType || !req.body.amount) {
-      return res.status(400).json({ success: false, message: 'Record type and amount are required.' })
     }
 
     const record = await FinanceRecord.create({
@@ -746,6 +843,7 @@ router.post('/finance/records', protect, async (req, res) => {
       amount: Number(req.body.amount),
       date: req.body.date || new Date(),
       description: req.body.description,
+      relatedDocId: req.body.relatedDocId || undefined,
       approvalStatus: 'pending',
       createdById: req.user._id,
       createdByName: req.user.name,
@@ -757,7 +855,7 @@ router.post('/finance/records', protect, async (req, res) => {
   }
 })
 
-router.put('/finance/records/:id', protect, async (req, res) => {
+router.put('/finance/records/:id', protect, validateParams(idParam), validateBody(financeRecordPatchSchema), async (req, res) => {
   try {
     if (!canManageFinance(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Finance Head or Super Admin can update finance records.' })
@@ -774,7 +872,7 @@ router.put('/finance/records/:id', protect, async (req, res) => {
   }
 })
 
-router.delete('/finance/records/:id', protect, async (req, res) => {
+router.delete('/finance/records/:id', protect, validateParams(idParam), async (req, res) => {
   try {
     if (!canManageFinance(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Finance Head or Super Admin can delete finance records.' })
@@ -792,7 +890,7 @@ router.delete('/finance/records/:id', protect, async (req, res) => {
 })
 
 // Procurement Document Upload & Expiry Routes
-router.get('/procurement/documents', protect, async (req, res) => {
+router.get('/procurement/documents', protect, validateQuery(procurementDocsQuerySchema), async (req, res) => {
   try {
     const poId = req.query.poId
     const page = Math.max(1, Number(req.query.page) || 1)
@@ -821,14 +919,10 @@ router.get('/procurement/documents', protect, async (req, res) => {
   }
 })
 
-router.post('/procurement/documents', protect, async (req, res) => {
+router.post('/procurement/documents', protect, validateBody(procurementDocCreateSchema), async (req, res) => {
   try {
     if (!canUploadProcDocs(req.user)) {
       return res.status(403).json({ success: false, message: 'Only Operations or Finance can upload procurement documents.' })
-    }
-
-    if (!req.body.poId || !req.body.fileName) {
-      return res.status(400).json({ success: false, message: 'PO ID and file name are required.' })
     }
 
     const doc = await ProcurementDoc.create({

@@ -56,7 +56,7 @@ function registerCurrencyRoutes(deps) {
     ReportBranding,
     MetalRate,
     InventoryItem,
-    canViewAccounts,
+    _canViewAccounts,
     canReadErpReferenceData,
     canUpdateMetalRates,
     canManageAccounts,

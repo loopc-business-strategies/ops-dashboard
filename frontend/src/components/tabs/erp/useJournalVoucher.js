@@ -113,7 +113,9 @@ export function useJournalVoucher(props) {
     return validateJvLines({
       lines,
       jvMode: p.jvMode,
+      jvHeader: p.jvHeader,
       baseCurrencyCode: p.baseCurrencyCode,
+      inventoryTenantKey: p.inventoryTenantKey,
       inferJvAccountCurrency: p.inferJvAccountCurrency,
       convertJvAmount: p.convertJvAmount,
       isExchangeLine,
@@ -152,7 +154,44 @@ export function useJournalVoucher(props) {
     }
   }, [])
 
-  const handleEditJv = useCallback(async (entry) => {
+  const resetJvModalChrome = useCallback(() => {
+    const p = propsRef.current
+    p.setJvModalOffset({ x: 0, y: 0 })
+    p.setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
+    p.setJvModalResize({
+      active: false,
+      pointerX: 0,
+      pointerY: 0,
+      startW: p.JV_MODAL_DEFAULT_SIZE.width,
+      startH: p.JV_MODAL_DEFAULT_SIZE.height,
+    })
+    p.setJvModalSize(p.JV_MODAL_DEFAULT_SIZE)
+  }, [])
+
+  const resetJvForm = useCallback(async (mode = 'journal') => {
+    const p = propsRef.current
+    p.setJvMode(mode)
+    p.setJvLines([emptyJvLine(1), emptyJvLine(2)])
+    p.setNextJvLineId(3)
+    p.setJvEditEntryIds([])
+    p.setJvReadOnly(false)
+    let docNo = p.buildJvDocNo(mode)
+    const refType = resolveJvModeMeta(mode).referenceType
+    try {
+      if (p.token) {
+        const data = await p.erpAccountingAPI.getNextJvDocNo(p.token, refType)
+        if (data?.success && data.docNo) docNo = data.docNo
+      }
+    } catch (_) { /* keep client-side sequence */ }
+    p.setJvHeader({
+      docNo,
+      date: new Date().toISOString().slice(0, 10),
+      narration: '',
+      currency: p.baseCurrencyCode,
+    })
+  }, [])
+
+  const loadJvFromEntry = useCallback(async (entry, { readOnly = false } = {}) => {
     const p = propsRef.current
     const rawDesc = String(entry.description || '')
     const docNoHead = (rawDesc.includes(' — ') ? rawDesc.split(' — ') : rawDesc.split(' - '))[0]?.trim() || ''
@@ -185,8 +224,8 @@ export function useJournalVoucher(props) {
         }
       }
     } catch (e) {
-      p.setError(e.response?.data?.message || 'Failed to load JV lines for editing')
-      return
+      p.setError(e.response?.data?.message || (readOnly ? 'Failed to load JV lines' : 'Failed to load JV lines for editing'))
+      return false
     }
     const editableEntries = filterJvEditableEntries(docMatchedEntries, entry, entryMode)
     const reconstructed = reconstructJvEditLines(editableEntries, entry, {
@@ -206,17 +245,95 @@ export function useJournalVoucher(props) {
       narration: reconstructed.narration,
       currency: reconstructed.headerCurrency,
     })
-    p.setJvModalOffset({ x: 0, y: 0 })
-    p.setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
-    p.setJvModalResize({
-      active: false,
-      pointerX: 0,
-      pointerY: 0,
-      startW: p.JV_MODAL_DEFAULT_SIZE.width,
-      startH: p.JV_MODAL_DEFAULT_SIZE.height,
-    })
-    p.setJvModalSize(p.JV_MODAL_DEFAULT_SIZE)
+    p.setJvReadOnly(readOnly)
+    resetJvModalChrome()
     p.setShowLedgerForm(true)
+    return true
+  }, [resetJvModalChrome])
+
+  const handleOpenJv = useCallback(async (entry) => {
+    await loadJvFromEntry(entry, { readOnly: true })
+  }, [loadJvFromEntry])
+
+  const handleEditJv = useCallback(async (entry) => {
+    await loadJvFromEntry(entry, { readOnly: false })
+  }, [loadJvFromEntry])
+
+  const closeJvModal = useCallback(() => {
+    const p = propsRef.current
+    p.setShowLedgerForm(false)
+    void resetJvForm(p.ledgerVoucherTab)
+    resetJvModalChrome()
+  }, [resetJvForm, resetJvModalChrome])
+
+  const openJvModal = useCallback(async (mode) => {
+    const p = propsRef.current
+    await resetJvForm(mode ?? p.ledgerVoucherTab)
+    resetJvModalChrome()
+    p.setShowLedgerForm(true)
+  }, [resetJvForm, resetJvModalChrome])
+
+  const switchJvMode = useCallback(async (mode) => {
+    const p = propsRef.current
+    if (p.jvEditEntryIds.length > 0 || p.jvReadOnly) return
+    p.setJvMode(mode)
+    let docNo = p.buildJvDocNo(mode)
+    try {
+      if (p.token) {
+        const data = await p.erpAccountingAPI.getNextJvDocNo(p.token, resolveJvModeMeta(mode).referenceType)
+        if (data?.success && data.docNo) docNo = data.docNo
+      }
+    } catch (_) { /* keep client fallback */ }
+    p.setJvHeader((prev) => ({ ...prev, docNo }))
+  }, [])
+
+  const handleRepairJvFxPreview = useCallback(async () => {
+    const p = propsRef.current
+    if (!p.canCloseLedgerPeriod || !p.token) return
+    p.setSaving(true)
+    try {
+      const data = await p.erpAccountingAPI.repairJvFxPreview(p.token, { mode: 'coa' })
+      const msg = `Preview: ${data.updated} postings would update (${data.candidateRows} base+1 candidates). Skipped line-events: ${data.skipped}.`
+      p.showNotification(msg)
+      if (Array.isArray(data.skipSamples) && data.skipSamples.length) {
+        console.info('[repairJvFx preview skip samples]', data.skipSamples)
+      }
+      p.setError('')
+    } catch (e) {
+      p.setError(e.response?.data?.message || 'JV FX repair preview failed')
+    } finally {
+      p.setSaving(false)
+    }
+  }, [])
+
+  const handleRepairJvFxApply = useCallback(async () => {
+    const p = propsRef.current
+    if (!p.canCloseLedgerPeriod || !p.token) return
+    const reason = window.prompt('Maintenance reason (min 8 characters)', 'JV ledger backfill store UZS and FX rate')
+    if (!reason || String(reason).trim().length < 8) {
+      p.showNotification('Apply cancelled: reason must be at least 8 characters.')
+      return
+    }
+    const confirmToken = window.prompt('Enter server DESTRUCTIVE_ADMIN_CONFIRM_TOKEN (production also needs ENABLE_DESTRUCTIVE_ADMIN_API=true)')
+    if (!confirmToken?.trim()) {
+      p.showNotification('Apply cancelled.')
+      return
+    }
+    p.setSaving(true)
+    try {
+      const data = await p.erpAccountingAPI.repairJvFxApply(p.token, {
+        mode: 'coa',
+        confirmToken: String(confirmToken).trim(),
+        reason: String(reason).trim(),
+      })
+      p.showNotification(data.message || `Updated ${data.updated} ledger postings`)
+      p.setError('')
+      await p.loadLedger()
+    } catch (e) {
+      p.setError(e.response?.data?.message || 'JV FX repair apply failed')
+    } finally {
+      p.setSaving(false)
+    }
   }, [])
 
   const handleSaveMultiLineJV = useCallback(async () => {
@@ -235,7 +352,10 @@ export function useJournalVoucher(props) {
       p.setError('Debit and Credit totals are not balanced')
       return
     }
-    const allocation = allocateJvLedgerEntries(validation.activeLines)
+    const allocation = allocateJvLedgerEntries(validation.activeLines, {
+      jvLines: p.jvLines,
+      useRawJvLineAmountsForSave: validation.useRawJvLineAmountsForSave,
+    })
     if (allocation.error) {
       p.setError(allocation.error)
       return
@@ -250,6 +370,7 @@ export function useJournalVoucher(props) {
       jvMode: p.jvMode,
       jvGroupId,
       normalizeJvCurrencyCode,
+      strictUseDocCurrency: Boolean(validation.useDocCurrency),
     })
     if (built.error) {
       p.setError(built.error)
@@ -304,7 +425,15 @@ export function useJournalVoucher(props) {
     removeJvLine,
     handleJvLineKeyDown,
     handleJvAccountKeyDown,
+    resetJvForm,
+    loadJvFromEntry,
+    handleOpenJv,
     handleEditJv,
+    closeJvModal,
+    openJvModal,
+    switchJvMode,
+    handleRepairJvFxPreview,
+    handleRepairJvFxApply,
     handleSaveMultiLineJV,
     handlePrintJvVoucher,
     getJvAccountById,

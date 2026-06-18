@@ -3,7 +3,6 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { getTenantBranding } from '../../config/tenantBranding'
 import erpAccountingAPI from '../../api/erp-accounting'
-import messagesAPI from '../../api/messages'
 import { readSummaryAccountsCache, writeSummaryAccountsCache } from '../../utils/erpSummaryAccountsCache'
 import { readAccountEnquiryCache, writeAccountEnquiryCache } from '../../utils/erpAccountEnquiryCache'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
@@ -19,21 +18,34 @@ import {
 } from './erpTabConstants'
 import { formatTransactionAuditEntry, formatTransactionCommentKind, getTransactionBulkSelectionLabel } from './transactionWorkflow'
 import { useERPTabStateAdapter } from './erp/useERPTabStateAdapter'
-import { useErpDashWidgets } from './erp/useErpDashWidgets'
+import { useErpDashUiState } from './erp/useErpDashUiState'
+import { useErpDashWidgetData } from './erp/useErpDashWidgetData'
+import { useFixingRegisterPanelDrag } from './erp/useFixingRegisterPanelDrag'
+import { useJvModalDragResize } from './erp/useJvModalDragResize'
+import { useFixingRegisterStockTypeOptions } from './erp/useFixingRegisterStockTypeOptions'
+import { loadFixingRegisterData } from './erp/fixingRegisterDataLoader'
+import { useTransactionComposer } from './erp/useTransactionComposer'
+import { useJournalVoucher } from './erp/useJournalVoucher'
+import AccountEnquiryModal from './erp/accountEnquiry/AccountEnquiryModal'
+import { useAccountEnquiryStatement } from './erp/accountEnquiry/useAccountEnquiryStatement'
+import { useAccountEnquiryModalDrag } from './erp/accountEnquiry/useAccountEnquiryModalDrag'
+import {
+  fixingRegFmtQty,
+  fixingRegFmtRate,
+  fixingRegFmtAmt,
+} from './erp/fixingRegisterUtils'
+
 import { deriveErpAccessPolicy, getAvailableTransactionTypes } from './erp/accessPolicy'
 import {
   ERPAccountsTabContainer,
-  ERPEnquiryTabContainer,
   ERPVouchersTabContainer,
 } from './erp/ERPTabContainers'
 import {
   DEFAULT_INVENTORY_STOCK_CODE_SETTINGS,
-  accountLookupText,
   buildAutoStockCode,
   buildUniqueStockCode,
   createInventoryMappingForm,
   createInventoryProductForm,
-  createTransactionForm,
   decodeInventoryCategoryMeta,
   decodeInventoryCategoryPairs,
   encodeInventoryCategoryMeta,
@@ -41,7 +53,6 @@ import {
   formatVatPercent,
   getTransactionActionLabels,
   getTransactionTypeLabels,
-  resolveAccountIdFromInput,
   resolveMainStockValueFromForm,
   resolveTransactionAttachmentUrl,
   titleCaseWords,
@@ -57,26 +68,16 @@ import { trialBalanceRowsForView } from './erp/trialBalanceReportRows'
 import { startERPRealtimeFeeds } from '../../utils/realtimeSocket'
 import {
   liveRatesToMetalRatesState,
-  resolveEffectiveSpotPrices,
   resolveInventoryValuationUnitCost,
 } from '../../utils/liveMetalRates'
 import { downloadBlob, downloadCsv, printStatementHtml } from './erp/exportHelpers'
 import {
-  accumulateUnfixedVoucherRevaluationByMetal,
-  buildStatementCurrencyOptions,
-  buildStatementMetalOptions,
-  calculateAccountSummaryMetrics,
   formatAccountEnquiryExcessDisplay,
   getAccountEnquirySignedMetricColor,
-  normalizeStatementCurrencyCode,
   resolveExposureDirection,
-  matchesStatementMetal,
-  resolveMetalCodeFromStockName,
-  resolveStatementMetalCode,
   isMetalStatementEntry,
 } from './erp/statementHelpers'
 import { generateStatementHtml as buildStatementHtml } from './erp/statementPrintHtml'
-import { shouldSuppressSpotMetalMtmForAccountEnquiry, computeMarginMetricsRaw } from './erp/metalMarginPolicy'
 import {
   canViewErpSubTab,
 } from '../../utils/erpSubTabPermissions'
@@ -87,20 +88,15 @@ import {
   createJvHeader as createNextJvHeader,
   emptyJvLine,
   extractLedgerJvDocNoFromDescription,
-  filterJvEditableEntries,
-  inferLegacyJvBatchDisplayFc,
   normalizeJvCurrencyCode,
-  reconstructJvEditLines,
   resolveJvModeMeta,
 } from './erp/journalVoucherHelpers'
 import {
   DEFAULT_BRANDING,
   DEFAULT_BRANDING_PROFILES,
-  LOGO_UPLOAD_ACCEPT,
   LOGO_UPLOAD_MAX_BYTES,
   normalizeBrandingKey,
   clampBrandingDimension,
-  brandingOptionLabel,
   createLogoRenderAsset,
   isSupportedLogoUpload,
 } from './erp/ERPBrandingUtils'
@@ -162,22 +158,22 @@ function ERPTab({
     })
   }, [setActiveTab, user])
   const canViewCurrentErpSubTab = canViewErpSubTab(user, activeTab)
-  const dashStorageKey = `erp_dash_${user?.name || 'default'}`
-  const [dashEditMode, setDashEditMode] = useState(false)
-  const { dashWidgets, setDashWidgets } = useErpDashWidgets({ dashStorageKey, dashEditMode })
-  const [dashHoveredWid, setDashHoveredWid] = useState(null)
-  const [dashWidgetCols, setDashWidgetCols] = useState({})
-  const [dashCustomizeOpen, setDashCustomizeOpen] = useState(false)
-  const [dashPickSelected, setDashPickSelected] = useState([])
-  const dashDragSrc = useRef(null)
+  const {
+    dashEditMode,
+    setDashEditMode,
+    dashWidgets,
+    setDashWidgets,
+    dashHoveredWid,
+    setDashHoveredWid,
+    dashWidgetCols,
+    setDashWidgetCols,
+    dashCustomizeOpen,
+    setDashCustomizeOpen,
+    dashPickSelected,
+    setDashPickSelected,
+    dashDragSrc,
+  } = useErpDashUiState({ user })
   const activeTabRef = useRef(activeTab)
-  // Dashboard date-range filter
-  const [dashDateFrom] = useState(() => {
-    const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-  })
-  const [dashDateTo] = useState(() => formatDateInputLocal(new Date()))
-  const [dashAutoRefresh] = useState(false)
-  const [dashChatMessages, setDashChatMessages] = useState([])
   const [accounts, setAccounts] = useState([])
   const [summaryAccounts, setSummaryAccounts] = useState([])
   const safeSummaryAccounts = useMemo(
@@ -225,17 +221,15 @@ function ERPTab({
     ),
     [currencies, erpBaseCurrencyCode],
   )
-  const [dashboard, setDashboard] = useState(null)
-  const [dashboardLoading, setDashboardLoading] = useState(false)
   const [transactionsLoading, setTransactionsLoading] = useState(false)
-  const [ledgerLoading, setLedgerLoading] = useState(false)
+  const [_ledgerLoading, setLedgerLoading] = useState(false)
   const [reportsLoading, setReportsLoading] = useState(false)
-  const [accountsLoading, setAccountsLoading] = useState(false)
-  const [customersLoading, setCustomersLoading] = useState(false)
-  const [mappingsLoading, setMappingsLoading] = useState(false)
-  const [currenciesLoading, setCurrenciesLoading] = useState(false)
-  const [vendorsLoading, setVendorsLoading] = useState(false)
-  const [inventoryLoading, setInventoryLoading] = useState(false)
+  const [_accountsLoading, setAccountsLoading] = useState(false)
+  const [_customersLoading, setCustomersLoading] = useState(false)
+  const [_mappingsLoading, setMappingsLoading] = useState(false)
+  const [_currenciesLoading, setCurrenciesLoading] = useState(false)
+  const [_vendorsLoading, setVendorsLoading] = useState(false)
+  const [_inventoryLoading, setInventoryLoading] = useState(false)
   const [summaryAccountsLoading, setSummaryAccountsLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -314,8 +308,6 @@ function ERPTab({
   const [showEnquiryModal, setShowEnquiryModal] = useState(false)
   const showEnquiryModalRef = useRef(false)
   const [showEnquiryLookupMenu, setShowEnquiryLookupMenu] = useState(false)
-  const [enquiryModalOffset, setEnquiryModalOffset] = useState({ x: 0, y: 0 })
-  const [enquiryModalDrag, setEnquiryModalDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
   const [detailsPanel, setDetailsPanel] = useState({
     pinned: false,
     floating: false,
@@ -366,8 +358,6 @@ function ERPTab({
   const [reportBranding, setReportBranding] = useState(DEFAULT_BRANDING)
   const [brandingForm, setBrandingForm] = useState(DEFAULT_BRANDING)
   const [brandingPreviewLogo, setBrandingPreviewLogo] = useState('')
-  const [transactionForm, setTransactionForm] = useState(createTransactionForm)
-  const [editingTransactionId, setEditingTransactionId] = useState('')
   const [transactionFilters, setTransactionFilters] = useState({ search: '', status: '', type: '', startDate: '', endDate: '' })
   const [transactionSummary, setTransactionSummary] = useState({ totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
   const [ledgerMeta, setLedgerMeta] = useState({ cursor: null, nextCursor: null, hasMore: false, cursorHistory: [] })
@@ -479,6 +469,16 @@ function ERPTab({
   const canLoadParties = canViewCustomers || canAccessVendors || canAccessTransactions || canAccessVouchers || canAccessFixingRegister || canAccessDirectDeals
   const canLoadInventoryData = canAccessInventory || canAccessFixingRegister
   const canLoadDashboard = canViewAccounts || canAccessReports
+  const {
+    dashboard,
+    dashChatMessages,
+    loadDashboard,
+  } = useErpDashWidgetData({
+    activeTab,
+    token,
+    canLoadDashboard,
+    setError,
+  })
   const { loadCustomers } = useErpCustomers({
     token,
     canLoadParties,
@@ -675,64 +675,10 @@ function ERPTab({
       purity: meta.purity || '',
     }
   })
-  const fixingRegisterStockTypeOptions = useMemo(() => {
-    const normalizeToMetalCode = (rawValue) => {
-      const normalized = String(rawValue || '').trim().toLowerCase()
-      if (!normalized) return ''
-      if (normalized === 'xau' || normalized === 'gold') return 'XAU'
-      if (normalized === 'xag' || normalized === 'silver') return 'XAG'
-      if (normalized === 'xpt' || normalized === 'platinum') return 'XPT'
-      if (normalized === 'xpd' || normalized === 'palladium') return null
-      return String(rawValue || '').trim().toUpperCase()
-    }
-    const stockTypeOptions = inventoryMappingProducts.map((item) => {
-      const meta = decodeInventoryCategoryMeta(item.category)
-      const source = meta.metalType || meta.mainStock || item.name
-      const metalCode = normalizeToMetalCode(source)
-      const labelName = titleCaseWords(meta.mainStock || meta.metalType || item.name || item.sku || 'Stock Type')
-      const puritySuffix = meta.purity ? ` (${meta.purity})` : ''
-      return {
-        id: item._id,
-        value: `${metalCode}::${item._id}`,
-        metalCode,
-        label: `${labelName}${puritySuffix}`,
-      }
-    }).filter((option) => Boolean(option.metalCode))
-    if (stockTypeOptions.length) {
-      return [
-        { id: 'all-metals', value: 'ALL::all', metalCode: 'ALL', label: 'All Metals' },
-        ...stockTypeOptions,
-      ]
-    }
-    // Legacy fallback for older datasets where stock types were not encoded in mapping records.
-    const legacyProductOptions = inventoryCatalogProducts.map((item) => {
-      const meta = decodeInventoryCategoryPairs(item.category)
-      const source = meta.metalType || meta.mainStock || item.name
-      const metalCode = normalizeToMetalCode(source)
-      const productLabel = titleCaseWords(meta.productCategory || item.name || item.sku || 'Product')
-      const puritySuffix = meta.productPurity ? ` (${meta.productPurity})` : ''
-      return {
-        id: item._id,
-        value: `${metalCode}::${item._id}`,
-        metalCode,
-        label: `${productLabel}${puritySuffix}`,
-      }
-    }).filter((option) => Boolean(option.metalCode))
-    if (legacyProductOptions.length) {
-      return [
-        { id: 'all-metals', value: 'ALL::all', metalCode: 'ALL', label: 'All Metals' },
-        ...legacyProductOptions,
-      ]
-    }
-    // Final fallback: allow fixing register to work even when no inventory stock type/product records exist.
-    return [
-      { id: 'all-metals', value: 'ALL::all', metalCode: 'ALL', label: 'All Metals' },
-      { id: 'metal-gold', value: 'XAU::fallback-gold', metalCode: 'XAU', label: 'Gold (XAU)' },
-      { id: 'metal-silver', value: 'XAG::fallback-silver', metalCode: 'XAG', label: 'Silver (XAG)' },
-      { id: 'metal-platinum', value: 'XPT::fallback-platinum', metalCode: 'XPT', label: 'Platinum (XPT)' },
-      { id: 'metal-other', value: 'OTHER::fallback-other', metalCode: 'OTHER', label: 'Other Metals' },
-    ]
-  }, [inventoryCatalogProducts, inventoryMappingProducts])
+  const fixingRegisterStockTypeOptions = useFixingRegisterStockTypeOptions({
+    inventoryMappingProducts,
+    inventoryCatalogProducts,
+  })
   const selectedInventoryStockType = inventoryStockTypeOptions.find((item) => item.id === inventoryProductForm.stockTypeId) || null
   const inventoryPurityFactorRaw = Number(inventoryProductForm.purity || 0)
   const inventoryPurityFactor = inventoryPurityFactorRaw > 1 ? inventoryPurityFactorRaw / 1000 : inventoryPurityFactorRaw
@@ -763,35 +709,54 @@ function ERPTab({
   })
   const availableTransactionTypes = getAvailableTransactionTypes(user, user?.company || user?.tenant?.key || user?.tenant?.name)
   const selectedTransaction = transactions.find((tx) => tx._id === selectedTransactionId) || null
-  const enquiryComputationEnabled = activeTab === 'enquiry' || showEnquiryModal
-  const rawStatementEntries = enquiryComputationEnabled ? (accountEnquiryData?.statement?.entries || []) : []
-  const needsLiveMetalForRender = enquiryComputationEnabled || erpTabNeedsLiveMetalRates(activeTab)
-  const resolveFixStatus = (entry) => {
-    const explicit = String(entry?.metalFixStatus || '').trim().toLowerCase()
-    if (explicit === 'fixed' || explicit === 'unfixed') return explicit
-    const text = `${String(entry?.description || '')} ${String(entry?.referenceType || '')}`.toLowerCase()
-    if (/non[\s-_]?fix|unfix|unfixed/.test(text)) return 'unfixed'
-    if (/fixing|fixed|price[\s-_]?fix/.test(text)) return 'fixed'
-    return 'unknown'
-  }
-  const effectiveSpotPrices = useMemo(() => resolveEffectiveSpotPrices({
-    liveSnapshot: needsLiveMetalForRender ? erpLiveMetalSnapshot : null,
-    enquiryGold: enquiryComputationEnabled ? accountEnquiryData?.metals?.goldPrice : 0,
-    enquirySilver: enquiryComputationEnabled ? accountEnquiryData?.metals?.silverPrice : 0,
-    fallbackGold: metalRates.goldPrice,
-    fallbackSilver: metalRates.silverPrice,
-  }), [
-    needsLiveMetalForRender,
+  const {
+    goldPriceUSD,
+    silverPriceUSD,
+    rawStatementEntries,
+    baseCurrencyCode,
+    statementSelectedMetalCode,
+    resolvePreferredStatementMetalCode,
+    statementDisplayCurrency,
+    statementFilterCurrencyOptions,
+    statementDisplayCurrencyOptions,
+    statementMetalOptions,
+    statementReferenceTypes,
+    statementDepartments,
+    filteredStatementEntries,
+    modalPositionRows,
+    formatStatementValue,
+    formatStatementNullableValue,
+    getSignedColor,
+    convertStatementDisplayAmount,
+    resolveStatementReceiptNo,
+    resolveMetalCode,
+    pureWeightRunningByEntryKey,
+    formatStatementDate,
+    recentPaymentReceiptEntry,
+    unfixedMetalEntries,
+    fixedMetalSummary,
+    unfixedMetalSummary,
+    unknownFixMetalEntries,
+    modalTotalFundsDisplay,
+    modalRevaluationDisplay,
+    modalNetEquityDisplay,
+    modalMarginAmtDisplay,
+    modalExcessDisplay,
+    modalMarginPctDisplay,
+    enquirySuppressMetalSpotMtm,
+  } = useAccountEnquiryStatement({
+    activeTab,
+    showEnquiryModal,
+    accountEnquiryData,
+    statementFilters,
+    statementMetalCommodityEnabled,
     erpLiveMetalSnapshot,
-    enquiryComputationEnabled,
-    accountEnquiryData?.metals?.goldPrice,
-    accountEnquiryData?.metals?.silverPrice,
-    metalRates.goldPrice,
-    metalRates.silverPrice,
-  ])
-  const goldPriceUSD = effectiveSpotPrices.goldPriceUSD
-  const silverPriceUSD = effectiveSpotPrices.silverPriceUSD
-  const enquiryLiveRecalcEnabled = enquiryComputationEnabled && (goldPriceUSD > 0 || silverPriceUSD > 0)
+    metalRates,
+    erpBaseCurrencyCode,
+    currencies,
+    inventoryStockTypeOptions,
+    convertJvAmount,
+  })
   const {
     customerMarginSearch,
     setCustomerMarginSearch,
@@ -828,579 +793,35 @@ function ERPTab({
     supplierMarginContextMenu,
     setSupplierMarginContextMenu,
   })
-  const totalFunds = accountEnquiryData ? Number(accountEnquiryData.balances?.netBalance || 0) : 0
-  const modalStatementCurrency = erpBaseCurrencyCode
-  const rawUnfixedMetalDedupeKeys = new Set()
-  const rawUnfixedStatementMetalHint = rawStatementEntries.reduce((acc, entry) => {
-    if (resolveFixStatus(entry) !== 'unfixed') return acc
-    if (!isMetalStatementEntry(entry)) return acc
-    const w = Number(entry.metalSignedWeight || 0)
-    if (!Number.isFinite(w) || w === 0) return acc
-    const tx = String(entry?.sourceTransactionId || '').trim()
-    if (tx) {
-      const dedupeKey = `${tx}:${Math.round(w * 1e6)}`
-      if (rawUnfixedMetalDedupeKeys.has(dedupeKey)) return acc
-      rawUnfixedMetalDedupeKeys.add(dedupeKey)
-    }
-    const mc = resolveStatementMetalCode(entry)
-    if (mc === 'XAG') acc.silver += w
-    else if (mc && mc !== '-') acc.gold += w
-    return acc
-  }, { gold: 0, silver: 0 })
-  const resolvePreferredStatementMetalCode = (entries = [], hint = { gold: 0, silver: 0 }) => {
-    const explicitMetal = entries.find((entry) => {
-      const metalCode = String(entry?.metalCode || '').trim().toUpperCase()
-      return metalCode === 'XAU' || metalCode === 'XAG'
-    })
-    if (explicitMetal?.metalCode) return String(explicitMetal.metalCode).trim().toUpperCase()
-    const goldAbs = Math.abs(Number(accountEnquiryData?.metals?.goldBalance || 0)) || Math.abs(hint.gold || 0)
-    const silverAbs = Math.abs(Number(accountEnquiryData?.metals?.silverBalance || 0)) || Math.abs(hint.silver || 0)
-    return silverAbs > goldAbs ? 'XAG' : 'XAU'
-  }
-  const defaultStatementMetalCode = resolvePreferredStatementMetalCode(rawStatementEntries, rawUnfixedStatementMetalHint)
-  const statementSelectedMetalCode = statementFilters.metalCommodity
-    ? resolveMetalCodeFromStockName(statementFilters.metalCommodity)
-    : defaultStatementMetalCode
-  const statementDisplayCurrency = normalizeStatementCurrencyCode(
-    statementFilters.showAmountIn
-    || accountEnquiryData?.balances?.rateCurrency
-    || accountEnquiryData?.account?.currency
-    || modalStatementCurrency,
-  ).trim().toUpperCase()
-  const baseCurrencyCode = erpBaseCurrencyCode
-  const statementFilterCurrencyOptions = buildStatementCurrencyOptions({
-    includeAll: true,
-    currencies,
-    accountCurrency: accountEnquiryData?.account?.currency,
-    rateCurrency: accountEnquiryData?.balances?.rateCurrency,
-    baseCurrency: baseCurrencyCode,
-    modalCurrency: modalStatementCurrency,
-  })
-  const statementDisplayCurrencyOptions = buildStatementCurrencyOptions({
-    includeAll: false,
-    currencies,
-    accountCurrency: accountEnquiryData?.account?.currency,
-    rateCurrency: accountEnquiryData?.balances?.rateCurrency,
-    baseCurrency: baseCurrencyCode,
-    modalCurrency: modalStatementCurrency,
-  })
-  const statementMetalOptions = buildStatementMetalOptions(inventoryStockTypeOptions)
-  const convertStatementDisplayAmount = (value) => {
-    const numeric = Number(value || 0)
-    if (!Number.isFinite(numeric)) return 0
-    const converted = convertJvAmount(numeric, modalStatementCurrency, statementDisplayCurrency)
-    return Number.isFinite(converted) ? converted : numeric
-  }
-  const spotMetalQuoteCurrency = normalizeStatementCurrencyCode(
-    accountEnquiryData?.metals?.priceCurrency || 'USD',
-  ).trim().toUpperCase()
-  const convertMetalSpotDisplayAmount = (value) => {
-    const numeric = Number(value || 0)
-    if (!Number.isFinite(numeric)) return 0
-    const converted = convertJvAmount(numeric, spotMetalQuoteCurrency, statementDisplayCurrency)
-    return Number.isFinite(converted) ? converted : numeric
-  }
-  const formatStatementValue = (value, digits = 2) => {
-    const num = Number(value || 0)
-    return num.toLocaleString(undefined, {
-      minimumFractionDigits: digits,
-      maximumFractionDigits: digits,
-    })
-  }
-  const formatStatementNullableValue = (value, digits = 2) => {
-    if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
-    return formatStatementValue(value, digits)
-  }
-  const getSignedColor = (value) => {
-    const num = Number(value || 0)
-    return num >= 0 ? '#111827' : '#c0392b'  // Red for negative
-  }
-  const isCashOnHandEnquiry = String(accountEnquiryData?.account?.accountCode || '').trim() === '1000'
-  const strictCashStatementTypes = new Set([
-    'payment',
-    'receipt',
-    'sale',
-    'purchase',
-    // DO NOT include 'journal' - exchange adjustments should NOT appear in Cash statement
-    // They post to P&L accounts (4190/5190), not to Cash (1000)
-    // 'journal',  // REMOVED
-    'jv',
-    'bank_jv',
-    'bank-jv',
-  ])
-  const resolveMetalCode = resolveStatementMetalCode
-  const isLikelyMongoId = (value) => /^[a-f0-9]{24}$/i.test(String(value || '').trim())
-  const resolveStatementReceiptNo = (entry = {}) => {
-    const parsedDocNo = (() => {
-      const text = `${String(entry.description || '')} ${String(entry.notes || '')}`
-      const match = text.match(/\b((?:Pay|Rec|Pur|Sal|MRec|MPay|BnkJV|JV|Jv)[/-]\d{4}[/-]\d{1,6})\b/i)
-      return String(match?.[1] || '').trim()
-    })()
-    const sourceNo = String(entry.sourceTransactionNumber || '').trim()
-    if (sourceNo && !isLikelyMongoId(sourceNo)) return sourceNo
-    if (parsedDocNo) return parsedDocNo
-    return '-'
-  }
-  const resolveDealSide = (entry) => {
-    const explicit = String(entry?.metalDealType || entry?.sourceTransactionType || '').toLowerCase().trim()
-    if (explicit === 'sale' || explicit === 'purchase' || explicit === 'metal_receipt' || explicit === 'metal_payment') return explicit
-    const referenceType = String(entry?.referenceType || '').toLowerCase().trim()
-    if (referenceType === 'sale' || referenceType === 'purchase' || referenceType === 'metal_receipt' || referenceType === 'metal_payment') return referenceType
-    return ''
-  }
-  const combineVoucherStatementRows = (entries = []) => {
-    const grouped = new Map()
-    const orderedKeys = []
-    entries.forEach((entry, index) => {
-      const dealSide = resolveDealSide(entry)
-      const sourceId = String(entry?.sourceTransactionId || '').trim()
-      const receiptNo = resolveStatementReceiptNo(entry)
-      const canGroup = sourceId && ['sale', 'purchase', 'metal_receipt', 'metal_payment'].includes(dealSide)
-      const key = canGroup ? `tx:${sourceId}` : `row:${entry?._id || index}`
-      if (!grouped.has(key)) {
-        grouped.set(key, {
-          ...entry,
-          _id: key,
-          statementRowIds: [entry?._id].filter(Boolean),
-          debitAmount: 0,
-          creditAmount: 0,
-          signedAmount: 0,
-          sourceTransactionType: entry?.sourceTransactionType || dealSide || entry?.referenceType || '',
-          metalDealType: entry?.metalDealType || dealSide,
-          referenceType: dealSide || entry?.referenceType || '',
-          offsetAccountCode: '',
-          offsetAccountName: '',
-          receiptNo,
-          metalSignedWeight: 0,
-          unfixedVoucherAmount: 0,
-        })
-        orderedKeys.push(key)
-      }
-      const row = grouped.get(key)
-      row.debitAmount += Number(entry?.debitAmount || 0)
-      row.creditAmount += Number(entry?.creditAmount || 0)
-      row.signedAmount += Number(entry?.signedAmount || 0)
-      row.statementRowIds = Array.from(new Set([...(row.statementRowIds || []), entry?._id].filter(Boolean)))
-      const incomingVoucherAmount = Number(entry?.unfixedVoucherAmount || 0)
-      if (Number.isFinite(incomingVoucherAmount) && Math.abs(incomingVoucherAmount) > Math.abs(Number(row.unfixedVoucherAmount || 0))) {
-        row.unfixedVoucherAmount = incomingVoucherAmount
-      }
-      const entryType = String(entry?.referenceType || '').toLowerCase()
-      if (entryType === dealSide || (!row.offsetAccountCode && entry?.offsetAccountCode)) {
-        row.offsetAccountCode = entry?.offsetAccountCode || row.offsetAccountCode
-        row.offsetAccountName = entry?.offsetAccountName || row.offsetAccountName
-      }
-      if (!row.sourceTransactionNumber && entry?.sourceTransactionNumber) row.sourceTransactionNumber = entry.sourceTransactionNumber
-      if (!row.metalFixStatus && entry?.metalFixStatus) row.metalFixStatus = entry.metalFixStatus
-      if (!row.metalCode && entry?.metalCode) row.metalCode = entry.metalCode
-      if (!row.isMetalTrade && entry?.isMetalTrade) row.isMetalTrade = entry.isMetalTrade
-      // Multi-leg vouchers often repeat the same metalSignedWeight on each ledger line; sum would double grams.
-      const incomingMetalW = Number(entry?.metalSignedWeight || 0)
-      if (Number.isFinite(incomingMetalW) && incomingMetalW !== 0) {
-        const cur = Number(row.metalSignedWeight || 0)
-        if (!cur) {
-          row.metalSignedWeight = incomingMetalW
-        } else {
-          const maxAbs = Math.max(Math.abs(cur), Math.abs(incomingMetalW))
-          const sameWithinGram = maxAbs > 0 && (Math.abs(cur - incomingMetalW) / maxAbs) < 1e-5
-          if (sameWithinGram) {
-            // Duplicate weight on another leg for the same voucher — keep a single physical weight.
-          } else {
-            row.metalSignedWeight = cur + incomingMetalW
-          }
-        }
-      }
-    })
-    return orderedKeys.map((key) => {
-      const row = grouped.get(key)
-      row.debitAmount = Number(row.debitAmount.toFixed(2))
-      row.creditAmount = Number(row.creditAmount.toFixed(2))
-      row.signedAmount = Number(row.signedAmount.toFixed(2))
-      row.unfixedVoucherAmount = Number(Number(row.unfixedVoucherAmount || 0).toFixed(2))
-      return row
-    })
-  }
-  const statementEntries = combineVoucherStatementRows(rawStatementEntries)
-  {
-    const sortStatementNewestFirst = (left, right) => {
-      const leftDate = new Date(left?.date || 0).getTime()
-      const rightDate = new Date(right?.date || 0).getTime()
-      if (rightDate !== leftDate) return rightDate - leftDate
-      return String(right?._id || '').localeCompare(String(left?._id || ''))
-    }
-    const sorted = [...statementEntries].sort(sortStatementNewestFirst)
-    let rb = Number(accountEnquiryData?.balances?.netBalance ?? 0)
-    if (!Number.isFinite(rb)) rb = 0
-    for (const row of sorted) {
-      row.runningBalance = rb
-      rb -= Number(row?.signedAmount || 0)
-    }
-  }
-  const deriveStatementUnfixedMetalBalances = (entries) => entries.reduce((acc, entry) => {
-    if (resolveFixStatus(entry) !== 'unfixed') return acc
-    if (!isMetalStatementEntry(entry)) return acc
-    const w = Number(entry.metalSignedWeight || 0)
-    if (!Number.isFinite(w) || w === 0) return acc
-    const mc = resolveStatementMetalCode(entry)
-    if (mc === 'XAG') acc.silver += w
-    else if (mc && mc !== '-') acc.gold += w
-    return acc
-  }, { gold: 0, silver: 0 })
-  const statementUnfixedMetalBalances = deriveStatementUnfixedMetalBalances(statementEntries)
-  const apiGoldBal = accountEnquiryData ? Number(accountEnquiryData.metals?.goldBalance || 0) : 0
-  const apiSilverBal = accountEnquiryData ? Number(accountEnquiryData.metals?.silverBalance || 0) : 0
-  const xauBalance = apiGoldBal !== 0 ? apiGoldBal : statementUnfixedMetalBalances.gold
-  const xagBalance = apiSilverBal !== 0 ? apiSilverBal : statementUnfixedMetalBalances.silver
-  const modalTotalFunds = totalFunds
-  // Creditor/vendor AP: flag drives enquiry layout — funds from ledger, revaluation from spot × net grams.
-  const enquirySuppressMetalSpotMtm = Boolean(
-    accountEnquiryData?.metals?.suppressMetalSpotMtm
-      || (accountEnquiryData && shouldSuppressSpotMetalMtmForAccountEnquiry(accountEnquiryData.account)),
-  )
-  const statementUnfixedVoucherRevaluationByMetal = accumulateUnfixedVoucherRevaluationByMetal(statementEntries, {
-    mode: enquirySuppressMetalSpotMtm ? 'booked' : 'unpriced',
-    resolveFixStatus,
-    isMetalEntry: isMetalStatementEntry,
-    resolveMetalCode: resolveStatementMetalCode,
-  })
-  const statementUnfixedVoucherRevaluation =
-    statementUnfixedVoucherRevaluationByMetal.gold
-    + statementUnfixedVoucherRevaluationByMetal.silver
-    + statementUnfixedVoucherRevaluationByMetal.other
-  const useVoucherRevaluation = !enquirySuppressMetalSpotMtm
-    && !(enquiryLiveRecalcEnabled && accountEnquiryData)
-    && Math.abs(statementUnfixedVoucherRevaluation) > 0.000001
-  const enquiryUseLiveSpotMtm = enquiryLiveRecalcEnabled && !enquirySuppressMetalSpotMtm && Boolean(accountEnquiryData)
-  const xauSpotValue = xauBalance * goldPriceUSD
-  const xagSpotValue = xagBalance * silverPriceUSD
-  let xauCurrentValue
-  let xagCurrentValue
-  let modalRevaluation
-  if (enquirySuppressMetalSpotMtm) {
-    // Creditor/vendor AP: ledger payable in Total Funds; revaluation = spot on net metal position.
-    xauCurrentValue = xauSpotValue
-    xagCurrentValue = xagSpotValue
-    modalRevaluation = xauSpotValue + xagSpotValue
-  } else {
-    xauCurrentValue = useVoucherRevaluation
-      ? statementUnfixedVoucherRevaluationByMetal.gold
-      : xauSpotValue
-    xagCurrentValue = useVoucherRevaluation
-      ? statementUnfixedVoucherRevaluationByMetal.silver
-      : xagSpotValue
-    modalRevaluation = useVoucherRevaluation
-      ? statementUnfixedVoucherRevaluation
-      : (xauCurrentValue + xagCurrentValue)
-  }
-  const modalMarginAmt = Math.abs(modalRevaluation) * 0.02
-  const resolvePayableBreakEvenPrice = (metalBalance) => {
-    const grams = Math.abs(Number(metalBalance || 0))
-    if (grams <= 0) return 0
-    return Math.abs(totalFunds) / grams
-  }
-  const breakEvenPrice = resolvePayableBreakEvenPrice(xauBalance)
-  const displayModalPositionCurrentValue = (spotBasedValue, bookedValue) => {
-    if (enquiryUseLiveSpotMtm || enquirySuppressMetalSpotMtm || !useVoucherRevaluation) {
-      return convertMetalSpotDisplayAmount(spotBasedValue)
-    }
-    return convertStatementDisplayAmount(bookedValue)
-  }
-  const modalPositionRows = enquiryComputationEnabled && accountEnquiryData ? [
-    {
-      key: 'xau',
-      type: 'XAU',
-      limits: 0,
-      balance: xauBalance,
-      price: convertMetalSpotDisplayAmount(goldPriceUSD),
-      currentValue: displayModalPositionCurrentValue(xauSpotValue, statementUnfixedVoucherRevaluationByMetal.gold),
-      breakEven: convertStatementDisplayAmount(breakEvenPrice),
-    },
-    {
-      key: 'xag',
-      type: 'XAG',
-      limits: 0,
-      balance: xagBalance,
-      price: convertMetalSpotDisplayAmount(silverPriceUSD),
-      currentValue: displayModalPositionCurrentValue(xagSpotValue, statementUnfixedVoucherRevaluationByMetal.silver),
-      breakEven: convertStatementDisplayAmount(resolvePayableBreakEvenPrice(xagBalance)),
-    },
-  ] : []
-  const buildPureWeightRunningBalancesByEntryKey = (entries, selectedMetalCode) => {
-    const selected = String(selectedMetalCode || '').trim().toUpperCase()
-    const isMetalRowForPureWt = (entry) => isMetalStatementEntry(entry) && resolveStatementMetalCode(entry) === selected
-    let closing = entries.reduce((sum, entry) => {
-      if (!isMetalRowForPureWt(entry)) return sum
-      return sum + Number(entry.metalSignedWeight || 0)
-    }, 0)
-    const map = new Map()
-    for (const entry of entries) {
-      if (!isMetalRowForPureWt(entry)) continue
-      map.set(entry._id, closing)
-      closing -= Number(entry.metalSignedWeight || 0)
-    }
-    return map
-  }
-  const pureWeightRunningByEntryKey = buildPureWeightRunningBalancesByEntryKey(statementEntries, statementSelectedMetalCode)
-  const statementReferenceTypes = Array.from(new Set(statementEntries.map((entry) => String(entry.referenceType || '').trim()).filter(Boolean))).sort()
-  const statementDepartments = Array.from(new Set(statementEntries.map((entry) => String(entry.department || '').trim()).filter(Boolean))).sort()
-  const filteredStatementEntries = statementEntries.filter((entry) => {
-    if (isCashOnHandEnquiry) {
-      const sourceType = String(entry?.sourceTransactionType || '').toLowerCase().trim()
-      const referenceType = String(entry?.referenceType || '').toLowerCase().trim()
-      const effectiveType = sourceType || referenceType
-      if (!strictCashStatementTypes.has(effectiveType)) return false
-    }
-    const entryDate = entry.date ? new Date(entry.date) : null
-    if (statementFilters.startDate) {
-      const start = new Date(statementFilters.startDate)
-      if (!entryDate || entryDate < start) return false
-    }
-    if (statementFilters.endDate) {
-      const end = new Date(statementFilters.endDate)
-      end.setHours(23, 59, 59, 999)
-      if (!entryDate || entryDate > end) return false
-    }
-    if (statementFilters.referenceType && String(entry.referenceType || '') !== statementFilters.referenceType) return false
-    if (statementFilters.department && String(entry.department || '') !== statementFilters.department) return false
-    if (statementFilters.fixStatus) {
-      const fixStatus = resolveFixStatus(entry)
-      if (statementFilters.fixStatus === 'fixed' && fixStatus !== 'fixed') return false
-      if (statementFilters.fixStatus === 'unfixed' && fixStatus !== 'unfixed') return false
-      if (statementFilters.fixStatus === 'unknown' && fixStatus !== 'unknown') return false
-    }
-    if (statementFilters.foreignCurrency) {
-      const entryCurrency = normalizeStatementCurrencyCode(entry.currency)
-      const selectedCurrency = normalizeStatementCurrencyCode(statementFilters.foreignCurrency)
-      if (entryCurrency !== selectedCurrency) return false
-    }
-    if (statementMetalCommodityEnabled && statementFilters.metalCommodity) {
-      if (!matchesStatementMetal(entry, statementFilters.metalCommodity)) return false
-    }
-    return true
-  })
-  const visibleStatementNetBalance = filteredStatementEntries.reduce((sum, entry) => {
-    return sum + Number(entry?.signedAmount || 0)
-  }, 0)
-  const modalTotalFundsDisplay = isCashOnHandEnquiry ? visibleStatementNetBalance : modalTotalFunds
-  const enquiryLiveMetrics = enquiryUseLiveSpotMtm
-    ? computeMarginMetricsRaw({
-      totalFunds: modalTotalFundsDisplay,
-      goldPosition: xauBalance,
-      silverPosition: xagBalance,
-      goldPrice: goldPriceUSD,
-      silverPrice: silverPriceUSD,
-      fundsMode: 'asIs',
-    })
-    : null
-  const modalRevaluationDisplay = enquiryLiveMetrics ? enquiryLiveMetrics.revaluation : modalRevaluation
-  const modalMarginAmtDisplay = enquiryLiveMetrics ? enquiryLiveMetrics.margin : modalMarginAmt
-  const modalDisplayMetrics = calculateAccountSummaryMetrics({
-    totalFunds: modalTotalFundsDisplay,
-    revaluation: modalRevaluationDisplay,
-    marginAmount: modalMarginAmtDisplay,
-  })
-  const modalNetEquityDisplay = modalDisplayMetrics.netEquity
-  const modalExcessDisplay = modalDisplayMetrics.excess
-  const modalMarginPctDisplay = modalDisplayMetrics.marginPercent
-  const metalFixingEntries = filteredStatementEntries
-    .map((entry) => {
-      const dealSide = resolveDealSide(entry)
-      if (dealSide !== 'sale' && dealSide !== 'purchase') return null
-      const isExplicitMetalTrade = Boolean(entry?.isMetalTrade)
-      const hasLegacyMetalHint = String(entry?.metalCode || '').trim() !== '' || /\bxau\b|\bxag\b|gold|silver/i.test(String(entry?.description || ''))
-      if (!isExplicitMetalTrade && !hasLegacyMetalHint) return null
-      const amount = Math.abs(Number(entry?.signedAmount ?? entry?.debitAmount ?? entry?.creditAmount ?? 0))
-      return {
-        ...entry,
-        dealSide,
-        fixStatus: resolveFixStatus(entry),
-        metalCode: resolveMetalCode(entry),
-        amount,
-      }
-    })
-    .filter(Boolean)
-  const fixedMetalEntries = metalFixingEntries.filter((entry) => entry.fixStatus === 'fixed')
-  const unfixedMetalEntries = metalFixingEntries.filter((entry) => entry.fixStatus === 'unfixed')
-  const unknownFixMetalEntries = metalFixingEntries.filter((entry) => entry.fixStatus === 'unknown')
-  const summarizeMetalDealRows = (rows) => rows.reduce((acc, row) => {
-    if (row.dealSide === 'sale') {
-      acc.saleCount += 1
-      acc.saleAmount += row.amount
-    }
-    if (row.dealSide === 'purchase') {
-      acc.purchaseCount += 1
-      acc.purchaseAmount += row.amount
-    }
-    return acc
-  }, {
-    saleCount: 0,
-    purchaseCount: 0,
-    saleAmount: 0,
-    purchaseAmount: 0,
-  })
-  const fixedMetalSummary = summarizeMetalDealRows(fixedMetalEntries)
-  const unfixedMetalSummary = summarizeMetalDealRows(unfixedMetalEntries)
-  const formatStatementDate = (value) => {
-    if (!value) return '-'
-    const dt = new Date(value)
-    if (Number.isNaN(dt.getTime())) return '-'
-    return dt.toLocaleDateString()
-  }
-  const recentPaymentReceiptEntry = [...rawStatementEntries]
-    .filter((entry) => {
-      const type = String(entry.referenceType || '').toLowerCase()
-      return type === 'payment' || type === 'receipt'
-    })
-    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))[0] || null
+
+  const {
+    enquiryModalOffset,
+    enquiryModalDrag,
+    beginEnquiryModalDrag,
+    enquiryBackdropColor,
+  } = useAccountEnquiryModalDrag(showEnquiryModal)
+
   const transactionPageCount = Math.max(1, Math.ceil(Number(transactionMeta.total || 0) / Number(transactionMeta.limit || 25)))
-  const isTransactionEditMode = Boolean(editingTransactionId)
   const allVisibleTransactionsSelected = Boolean(transactions.length) && transactions.every((tx) => selectedTransactionIds.includes(tx._id))
-  const enquiryBackdropColor = enquiryModalDrag.active ? 'rgba(15, 23, 42, 0.12)' : 'rgba(15, 23, 42, 0.45)'
-  const beginEnquiryModalDrag = (event) => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    setEnquiryModalDrag({
-      active: true,
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      startX: enquiryModalOffset.x,
-      startY: enquiryModalOffset.y,
-    })
-  }
-  const beginFixingRegPanelDrag = (event) => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    setFixingRegPanelDrag({
-      active: true,
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      startX: fixingRegPanelOffset.x,
-      startY: fixingRegPanelOffset.y,
-    })
-  }
-  const beginJvModalDrag = (event) => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    setJvModalDrag({
-      active: true,
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      startX: jvModalOffset.x,
-      startY: jvModalOffset.y,
-    })
-  }
-  const beginJvModalResize = (event) => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    event.stopPropagation()
-    setJvModalResize({
-      active: true,
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      startW: jvModalSize.width,
-      startH: jvModalSize.height,
-    })
-  }
-  useEffect(() => {
-    if (!showEnquiryModal) {
-      setEnquiryModalOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
-      setEnquiryModalDrag((prev) => {
-        if (!prev.active && prev.pointerX === 0 && prev.pointerY === 0 && prev.startX === 0 && prev.startY === 0) return prev
-        return { active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 }
-      })
-      return undefined
-    }
-    if (!enquiryModalDrag.active) return undefined
-    const handlePointerMove = (event) => {
-      setEnquiryModalOffset({
-        x: enquiryModalDrag.startX + (event.clientX - enquiryModalDrag.pointerX),
-        y: enquiryModalDrag.startY + (event.clientY - enquiryModalDrag.pointerY),
-      })
-    }
-    const handlePointerUp = () => {
-      setEnquiryModalDrag((prev) => ({ ...prev, active: false }))
-    }
-    window.addEventListener('mousemove', handlePointerMove)
-    window.addEventListener('mouseup', handlePointerUp)
-    return () => {
-      window.removeEventListener('mousemove', handlePointerMove)
-      window.removeEventListener('mouseup', handlePointerUp)
-    }
-  }, [showEnquiryModal, enquiryModalDrag])
-  useEffect(() => {
-    if (!showLedgerForm) {
-      setJvModalOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
-      setJvModalDrag((prev) => {
-        if (!prev.active && prev.pointerX === 0 && prev.pointerY === 0 && prev.startX === 0 && prev.startY === 0) return prev
-        return { active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 }
-      })
-      setJvModalResize((prev) => {
-        if (!prev.active && prev.pointerX === 0 && prev.pointerY === 0 && prev.startW === JV_MODAL_DEFAULT_SIZE.width && prev.startH === JV_MODAL_DEFAULT_SIZE.height) return prev
-        return { active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height }
-      })
-      setJvModalSize((prev) => (prev.width === JV_MODAL_DEFAULT_SIZE.width && prev.height === JV_MODAL_DEFAULT_SIZE.height ? prev : JV_MODAL_DEFAULT_SIZE))
-      return undefined
-    }
-    if (!jvModalDrag.active) return undefined
-    const onMouseMove = (event) => {
-      setJvModalOffset({
-        x: jvModalDrag.startX + (event.clientX - jvModalDrag.pointerX),
-        y: jvModalDrag.startY + (event.clientY - jvModalDrag.pointerY),
-      })
-    }
-    const onMouseUp = () => {
-      setJvModalDrag((prev) => ({ ...prev, active: false }))
-    }
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-    }
-  }, [showLedgerForm, jvModalDrag])
-  useEffect(() => {
-    if (!showLedgerForm || !jvModalResize.active) return undefined
-    const onMouseMove = (event) => {
-      const nextWidth = Math.max(860, Math.min(window.innerWidth - 24, jvModalResize.startW + (event.clientX - jvModalResize.pointerX)))
-      const nextHeight = Math.max(500, Math.min(window.innerHeight - 24, jvModalResize.startH + (event.clientY - jvModalResize.pointerY)))
-      setJvModalSize({ width: nextWidth, height: nextHeight })
-    }
-    const onMouseUp = () => {
-      setJvModalResize((prev) => ({ ...prev, active: false }))
-    }
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-    }
-  }, [showLedgerForm, jvModalResize])
-  useEffect(() => {
-    if (activeTab !== 'fixing-register') {
-      setFixingRegPanelOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }))
-      setFixingRegPanelDrag((prev) => {
-        if (!prev.active && prev.pointerX === 0 && prev.pointerY === 0 && prev.startX === 0 && prev.startY === 0) return prev
-        return { active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 }
-      })
-      return undefined
-    }
-    if (!fixingRegPanelDrag.active) return undefined
-    const onMouseMove = (event) => {
-      setFixingRegPanelOffset({
-        x: fixingRegPanelDrag.startX + (event.clientX - fixingRegPanelDrag.pointerX),
-        y: fixingRegPanelDrag.startY + (event.clientY - fixingRegPanelDrag.pointerY),
-      })
-    }
-    const onMouseUp = () => {
-      setFixingRegPanelDrag((prev) => ({ ...prev, active: false }))
-    }
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-    }
-  }, [activeTab, fixingRegPanelDrag])
+  const { beginFixingRegPanelDrag } = useFixingRegisterPanelDrag({
+    activeTab,
+    fixingRegPanelOffset,
+    fixingRegPanelDrag,
+    setFixingRegPanelDrag,
+    setFixingRegPanelOffset,
+  })
+  const { beginJvModalDrag, beginJvModalResize } = useJvModalDragResize({
+    showLedgerForm,
+    jvModalDrag,
+    setJvModalDrag,
+    jvModalOffset,
+    setJvModalOffset,
+    jvModalResize,
+    setJvModalResize,
+    jvModalSize,
+    setJvModalSize,
+    jvModalDefaultSize: JV_MODAL_DEFAULT_SIZE,
+  })
   useEffect(() => {
     try {
       const raw = localStorage.getItem(ENQUIRY_DETAILS_PANEL_STORAGE_KEY)
@@ -1464,22 +885,6 @@ function ERPTab({
       // ignore local preference save errors
     }
   }, [inventoryStockCodeSettingsKey, inventoryStockCodeSettings])
-  const loadDashboard = async () => {
-    if (!canLoadDashboard) return
-    setDashboardLoading(true)
-    try {
-      const [data, chatData] = await Promise.all([
-        erpAccountingAPI.getDashboardReport(token, { startDate: dashDateFrom, endDate: dashDateTo }),
-        messagesAPI.getLatestMessages(token, 'group', 10).catch(() => ({ messages: [] })),
-      ])
-      setDashboard(data)
-      setDashChatMessages(chatData?.messages || chatData || [])
-      setError('')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load dashboard')
-    }
-    setDashboardLoading(false)
-  }
   const loadAccounts = async (params = {}) => {
     const isSummaryScope = params.scope === 'summary'
     if (!canLoadReferenceData && !(isSummaryScope && canViewBalanceEnquiry)) return
@@ -1795,14 +1200,30 @@ function ERPTab({
     }
     setTransactionsLoading(false)
   }
-  const resetTransactionComposer = () => {
-    setEditingTransactionId('')
-    setTransactionForm({
-      ...createTransactionForm(),
-      currency: baseCurrencyCode,
-      exchangeRate: '1',
-    })
-  }
+  const {
+    transactionForm,
+    setTransactionForm,
+    editingTransactionId,
+    setEditingTransactionId: _setEditingTransactionId,
+    isTransactionEditMode,
+    resetTransactionComposer,
+    populateTransactionForm,
+    getTransactionValidationMessage: _getTransactionValidationMessage,
+    handleCreateTransaction,
+  } = useTransactionComposer({
+    baseCurrencyCode,
+    customers,
+    vendors,
+    currencies,
+    token,
+    loadTransactionReferenceData,
+    loadTransactions,
+    setError,
+    setSaving,
+    setSelectedTransactionId,
+    showNotification,
+    erpAccountingAPI,
+  })
   const toggleTransactionSelection = (id) => {
     setSelectedTransactionIds((prev) => prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id])
   }
@@ -1814,56 +1235,6 @@ function ERPTab({
       return Array.from(new Set([...prev, ...transactions.map((tx) => tx._id)]))
     })
   }
-  const populateTransactionForm = (tx) => {
-    void loadTransactionReferenceData()
-    setEditingTransactionId(tx._id)
-    setSelectedTransactionId(tx._id)
-    setTransactionForm({
-      type: tx.type || 'expense',
-      metalFixStatus: String(tx.voucherMeta?.fixingType || '').toLowerCase().includes('non') ? 'unfixed' : 'fixed',
-      amount: String(tx.amount ?? ''),
-      date: tx.date ? new Date(tx.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-      currency: tx.currency || 'USD',
-      exchangeRate: String(tx.exchangeRate ?? 1),
-      description: tx.description || '',
-      customerId: tx.customerId?._id || tx.customerId || '',
-      vendorId: tx.vendorId?._id || tx.vendorId || '',
-      inventoryItemId: tx.inventoryItemId?._id || tx.inventoryItemId || '',
-      mappingId: tx.mappingId?._id || tx.mappingId || '',
-      debitAccountId: tx.debitAccountId?._id || tx.debitAccountId || '',
-      creditAccountId: tx.creditAccountId?._id || tx.creditAccountId || '',
-    })
-  }
-  const getTransactionValidationMessage = () => {
-    if (!transactionForm.type || !transactionForm.amount) return 'Transaction type and amount are required'
-    if (Number(transactionForm.amount) <= 0) return 'Amount must be greater than zero'
-    if (['sale', 'receipt'].includes(transactionForm.type) && !transactionForm.customerId) return 'Customer is required for sales and receipts'
-    if (['purchase', 'payment'].includes(transactionForm.type) && !transactionForm.vendorId) return 'Vendor is required for purchases and payments'
-    return ''
-  }
-  useEffect(() => {
-    const normalizedType = String(transactionForm.type || '').toLowerCase()
-    if (!['receipt', 'payment'].includes(normalizedType)) return
-    let selectedAccountCurrency = ''
-    if (normalizedType === 'receipt' && transactionForm.customerId) {
-      const customer = customers.find((item) => String(item._id) === String(transactionForm.customerId))
-      selectedAccountCurrency = String(customer?.ledgerAccountId?.currency || customer?.currency || '').trim().toUpperCase()
-    }
-    if (normalizedType === 'payment' && transactionForm.vendorId) {
-      const vendor = vendors.find((item) => String(item._id) === String(transactionForm.vendorId))
-      selectedAccountCurrency = String(vendor?.ledgerAccountId?.currency || vendor?.currency || '').trim().toUpperCase()
-    }
-    if (!selectedAccountCurrency) return
-    if (String(transactionForm.currency || '').toUpperCase() === selectedAccountCurrency) return
-    const matchedCurrency = currencies.find((currency) => String(currency.code || '').toUpperCase() === selectedAccountCurrency)
-    const nextRate = Number(matchedCurrency?.exchangeRate || 1)
-    setTransactionForm((prev) => ({
-      ...prev,
-      currency: selectedAccountCurrency,
-      exchangeRate: Number.isFinite(nextRate) && nextRate > 0 ? String(nextRate) : prev.exchangeRate,
-    }))
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- sync party account currency when party changes only (omit manual `currency` edits)
-  }, [transactionForm.type, transactionForm.customerId, transactionForm.vendorId, customers, vendors, currencies])
   const loadVendors = async (filters = vendorFilters) => {
     if (!canLoadParties) return
     setVendorsLoading(true)
@@ -2063,35 +1434,6 @@ function ERPTab({
       setLedgerReportRows(data.report || [])
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load ledger report')
-    }
-  }
-  const handleCreateTransaction = async (e) => {
-    e.preventDefault()
-    const validationMessage = getTransactionValidationMessage()
-    if (validationMessage) {
-      setError(validationMessage)
-      return
-    }
-    try {
-      setSaving(true)
-      const payload = {
-        ...transactionForm,
-        currency: baseCurrencyCode,
-        exchangeRate: 1,
-        amount: Number(transactionForm.amount),
-        ...(['sale', 'purchase'].includes(String(transactionForm.type || '').toLowerCase()) ? { metalFixStatus: transactionForm.metalFixStatus || 'fixed' } : {}),
-      }
-      const response = isTransactionEditMode
-        ? await erpAccountingAPI.updateTransaction(token, editingTransactionId, payload)
-        : await erpAccountingAPI.createTransaction(token, payload)
-      resetTransactionComposer()
-      setSelectedTransactionId(response.transaction?._id || '')
-      await loadTransactions({ cursor: null, cursorHistory: [] })
-      showNotification(isTransactionEditMode ? '✅ Transaction updated' : '✅ Transaction created as draft')
-    } catch (e) {
-      setError(e.response?.data?.message || `Failed to ${isTransactionEditMode ? 'update' : 'create'} transaction`)
-    } finally {
-      setSaving(false)
     }
   }
   const handleDeleteTransaction = async (id) => {
@@ -3046,21 +2388,6 @@ function ERPTab({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- realtime handlers intentionally use refs + stable loaders
   }, [token, user?.tenant, user?.company, canAccessERP])
-  // Load dashboard once per tab visit and when date range changes
-  useEffect(() => {
-    if (activeTab !== 'dashboard' || !canLoadDashboard || !token) return
-    loadDashboard()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, dashDateFrom, dashDateTo, token, canLoadDashboard])
-  // Auto-refresh every 30 seconds when enabled and on dashboard tab
-  useEffect(() => {
-    if (!dashAutoRefresh || activeTab !== 'dashboard') return
-    const interval = setInterval(() => {
-      if (canLoadDashboard && token) loadDashboard()
-    }, 30000)
-    return () => clearInterval(interval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dashAutoRefresh, activeTab])
   useEffect(() => {
     if (activeTab !== 'vouchers' || !token) return
     if (!customers.length) loadCustomers({ limit: 200 })
@@ -3140,269 +2467,12 @@ function ERPTab({
     if (absAmount === 0) return formatted
     return `${formatted} ${direction}`
   }
-  const FIXING_REG_UNIT_PER_OZ = { GOZ: 1, GRAM: 31.1034768, KG: 0.0311034768, TOLA: 2.66667 }
-  const fixingRegNormalizeUnit = (unit) => {
-    const normalized = String(unit || 'GOZ').trim().toUpperCase()
-    if (normalized === 'OZ' || normalized === 'OUNCE' || normalized === 'OUNCES') return 'GOZ'
-    return normalized
-  }
-  const fixingRegConvertQty = (oz, unit) => oz * (FIXING_REG_UNIT_PER_OZ[fixingRegNormalizeUnit(unit)] || 1)
-  const fixingRegConvertRate = (pricePerOz, unit) => pricePerOz / (FIXING_REG_UNIT_PER_OZ[fixingRegNormalizeUnit(unit)] || 1)
-  const fixingRegConvertToOz = (qty, unit) => {
-    const normalizedUnit = fixingRegNormalizeUnit(unit)
-    const factor = FIXING_REG_UNIT_PER_OZ[normalizedUnit] || 1
-    return Number(qty || 0) / factor
-  }
-  const fixingRegFmtQty = (oz, unit) => fixingRegConvertQty(oz, unit).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 4 })
-  const fixingRegFmtRate = (p, unit) => fixingRegConvertRate(p, unit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })
-  const fixingRegFmtAmt = (v) => Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const handleFixingRegProceed = async () => {
     setFixingRegError('')
     setFixingRegLoading(true)
     try {
-      const today = new Date(); today.setHours(23, 59, 59, 999)
-      const fromDate = fixingRegFilter.fromDate ? new Date(`${fixingRegFilter.fromDate}T00:00:00`) : null
-      const openingEndDate = fromDate ? new Date(fromDate.getTime() - 86400000) : null
-      const selectedMetalCode = String(fixingRegFilter.metalType || '').split('::')[0].toUpperCase()
-      const primaryMetalCodes = new Set(['XAU', 'XAG', 'XPT', 'XPD'])
-      const isAllMetalSelection = !selectedMetalCode || selectedMetalCode === 'ALL'
-      const isOtherMetalSelection = selectedMetalCode === 'OTHER'
-      const matchesSelectedMetal = (metalCodeRaw) => {
-        const metalCode = String(metalCodeRaw || '').toUpperCase()
-        if (isAllMetalSelection) return true
-        if (isOtherMetalSelection) return metalCode && !primaryMetalCodes.has(metalCode)
-        return metalCode === selectedMetalCode
-      }
-      const fetchAllPages = async (fetchFn, key, limit = 200) => {
-        const allRows = []
-        let page = 1
-        let total = 0
-        do {
-          const data = await fetchFn({ page, limit })
-          const chunk = Array.isArray(data?.[key]) ? data[key] : []
-          allRows.push(...chunk)
-          total = Number(data?.total || chunk.length)
-          if (!chunk.length) break
-          page += 1
-        } while (allRows.length < total)
-        return allRows
-      }
-      const baseTxParams = {
-        startDate: fixingRegFilter.fromDate,
-        endDate: fixingRegFilter.toDate,
-      }
-      const openingTxParams = openingEndDate ? {
-        endDate: openingEndDate.toISOString().slice(0, 10),
-      } : null
-      if (fixingRegFilter.status === 'final') baseTxParams.status = 'posted'
-      if (openingTxParams && fixingRegFilter.status === 'final') openingTxParams.status = 'posted'
-      const [saleTxs, purchaseTxs, deals, openingSaleTxs, openingPurchaseTxs, openingDeals] = await Promise.all([
-        fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...baseTxParams, ...p, type: 'sale' }), 'transactions', 200),
-        fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...baseTxParams, ...p, type: 'purchase' }), 'transactions', 200),
-        fetchAllPages((p) => erpAccountingAPI.getDirectDeals(token, {
-          ...p,
-          startDate: fixingRegFilter.fromDate,
-          endDate: fixingRegFilter.toDate,
-          ...(fixingRegFilter.status === 'final' ? { status: 'confirmed' } : {}),
-        }), 'deals', 100),
-        openingTxParams
-          ? fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...openingTxParams, ...p, type: 'sale' }), 'transactions', 200)
-          : Promise.resolve([]),
-        openingTxParams
-          ? fetchAllPages((p) => erpAccountingAPI.getTransactions(token, { ...openingTxParams, ...p, type: 'purchase' }), 'transactions', 200)
-          : Promise.resolve([]),
-        openingTxParams
-          ? fetchAllPages((p) => erpAccountingAPI.getDirectDeals(token, {
-            ...p,
-            endDate: openingEndDate.toISOString().slice(0, 10),
-            ...(fixingRegFilter.status === 'final' ? { status: 'confirmed' } : {}),
-          }), 'deals', 100)
-          : Promise.resolve([]),
-      ])
-      const buildRows = ({ txSales = [], txPurchases = [], directDeals = [] }) => {
-        const rows = []
-        const toValidNumber = (value) => {
-          if (value === null || value === undefined || value === '') return null
-          const parsed = Number(value)
-          return Number.isFinite(parsed) ? parsed : null
-        }
-        const resolveUnfixAmount = (line = {}) => {
-          const premium = toValidNumber(line.premiumAmount)
-            ?? toValidNumber(line.premiumAmt)
-            ?? toValidNumber(line.premium)
-            ?? toValidNumber(line.premiumValueAmount)
-          if (premium !== null) return premium
-          const total = toValidNumber(line.totalAmount) ?? toValidNumber(line.amountLC)
-          const metal = toValidNumber(line.metalAmount)
-          if (total !== null && metal !== null) return total - metal
-          return 0
-        }
-        const txRows = [...txSales, ...txPurchases]
-        for (const tx of txRows) {
-          const lines = Array.isArray(tx?.voucherMeta?.lineItems) ? tx.voucherMeta.lineItems : []
-          const txFixingTypeRaw = String(tx?.voucherMeta?.fixingType || tx?.metalFixStatus || '').trim().toLowerCase()
-          const txFixingMode = ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfix'].includes(txFixingTypeRaw) ? 'Unfixing' : 'Fixing'
-          const voucherNo = String(tx?.voucherMeta?.vocNo || tx?.voucherMeta?.refNo || tx?._id || '').trim()
-          const branch = tx?.voucherMeta?.branch || 'HO'
-          const partyName = tx?.customerId?.name || tx?.vendorId?.name || tx?.voucherMeta?.partyName || '—'
-          const docDate = tx?.voucherMeta?.docDate || tx?.date || null
-          const valueDate = tx?.voucherMeta?.valueDate || tx?.date || null
-          if (fixingRegFilter.excludeFutures && valueDate && new Date(valueDate) > today) continue
-          if (fixingRegFilter.partyFilter === 'selected' && fixingRegFilter.partySearch.trim()) {
-            if (!partyName.toLowerCase().includes(fixingRegFilter.partySearch.trim().toLowerCase())) continue
-          }
-          if (!lines.length) {
-            if (!isAllMetalSelection) continue
-            if (fixingRegFilter.excludeOpeningBalance && /opening/i.test(String(tx?.description || ''))) continue
-            rows.push({
-              rowId: `${tx._id}-0`,
-              sourceType: 'Voucher',
-              voucherNo,
-              docDate,
-              valueDate,
-              branch,
-              customerName: partyName,
-              direction: tx.type === 'purchase' ? 'buy' : 'sell',
-              metal: '',
-              qty: 0,
-              price: Number(tx?.voucherMeta?.metalRate || 0),
-              amount: Number(tx?.amount || 0),
-              dealStatus: tx?.status || 'draft',
-              remarks: tx?.description || '',
-              fixingMode: txFixingMode,
-              groupKey: fixingRegFilter.groupBy === 'customer' ? partyName : fixingRegFilter.groupBy === 'branch' ? branch : fixingRegFilter.groupBy === 'valuedate' ? new Date(valueDate || docDate || Date.now()).toISOString().slice(0, 10) : 'All',
-            })
-            continue
-          }
-          lines.forEach((line, idx) => {
-            const lineMetal = resolveVoucherLineMetalCode(line)
-            if (!matchesSelectedMetal(lineMetal)) return
-            const narration = String(line.narration || tx?.description || '')
-            const pureWeightGram = Number(line.pureWeight || line.grossWeight || 0)
-            const qtyOz = pureWeightGram > 0 ? (pureWeightGram / 31.1034768) : 0
-            if (fixingRegFilter.excludeOpeningBalance && /opening/i.test(narration)) return
-            rows.push({
-              rowId: `${tx._id}-${idx}`,
-              sourceType: 'Voucher',
-              voucherNo,
-              docDate,
-              valueDate,
-              branch,
-              customerName: partyName,
-              direction: tx.type === 'purchase' ? 'buy' : 'sell',
-              metal: lineMetal || '',
-              qty: qtyOz,
-              price: Number(line.metalRate || tx?.voucherMeta?.metalRate || 0),
-              amount: txFixingMode === 'Unfixing'
-                ? resolveUnfixAmount(line)
-                : Number(line.totalAmount || line.amountLC || tx?.amount || 0),
-              dealStatus: tx?.status || 'draft',
-              remarks: narration,
-              fixingMode: txFixingMode,
-              groupKey: fixingRegFilter.groupBy === 'customer' ? partyName : fixingRegFilter.groupBy === 'branch' ? branch : fixingRegFilter.groupBy === 'valuedate' ? new Date(valueDate || docDate || Date.now()).toISOString().slice(0, 10) : 'All',
-            })
-          })
-        }
-        for (const deal of directDeals) {
-          if (deal.isDeleted) continue
-          if (fixingRegFilter.status === 'final' && deal.status !== 'confirmed') continue
-          const dealEntryType = String(deal.entryType || 'fixing').trim().toLowerCase()
-          const dealFixingMode = ['non-fixing', 'non_fixing', 'nonfixing', 'unfixed', 'unfixing'].includes(dealEntryType) ? 'Unfixing' : 'Fixing'
-          const dealDocDate = new Date(deal.docDate)
-          const dealValueDate = new Date(deal.valueDate)
-          if (fixingRegFilter.excludeOpeningBalance && /opening/i.test(deal.remarks || '')) continue
-          if (fixingRegFilter.excludeFutures && dealValueDate > today) continue
-          for (const line of deal.lineItems || []) {
-            const lineMetal = resolveDirectDealMetalCode(line.metal || 'XAU')
-            if (!matchesSelectedMetal(lineMetal)) continue
-            const qtyOz = fixingRegConvertToOz(Number(line.qty || 0), line.stockCode || 'OZ')
-            const partyName = line.customerName || '—'
-            if (fixingRegFilter.partyFilter === 'selected' && fixingRegFilter.partySearch.trim()) {
-              if (!partyName.toLowerCase().includes(fixingRegFilter.partySearch.trim().toLowerCase())) continue
-            }
-            const groupKey =
-              fixingRegFilter.groupBy === 'customer' ? (partyName)
-              : fixingRegFilter.groupBy === 'branch' ? (deal.branch || 'HO')
-              : fixingRegFilter.groupBy === 'valuedate' ? new Date(deal.valueDate).toISOString().slice(0, 10)
-              : 'All'
-            rows.push({
-              rowId: `${deal._id}-${line._id || Math.random().toString(36).slice(2, 8)}`,
-              sourceType: 'Fixing Deal',
-              voucherNo: deal.docNo,
-              docDate: dealDocDate,
-              valueDate: dealValueDate,
-              branch: deal.branch || 'HO',
-              dealStatus: deal.status,
-              remarks: deal.remarks || '',
-              direction: line.direction,
-              metal: lineMetal || 'XAU',
-              qty: qtyOz,
-              eqOz: Number(line.eqOz || 0),
-              stockCode: (line.stockCode || 'OZ').toUpperCase(),
-              price: Number(line.price || 0),
-              amount: Number(line.amount || 0),
-              customerName: partyName,
-              customerCode: line.customerCode || '',
-              fixingMode: dealFixingMode,
-              groupKey,
-            })
-          }
-        }
-        rows.sort((a, b) => {
-          const orderBy = fixingRegFilter.orderBy || 'voucherNo'
-          if (orderBy === 'docDate' || orderBy === 'valueDate') {
-            const dateKey = orderBy
-            const dateCompare = new Date(a[dateKey] || 0) - new Date(b[dateKey] || 0)
-            if (dateCompare !== 0) return dateCompare
-          }
-          const aVoucher = String(a.voucherNo || '')
-          const bVoucher = String(b.voucherNo || '')
-          const voucherCompare = aVoucher.localeCompare(bVoucher, undefined, { numeric: true, sensitivity: 'base' })
-          if (voucherCompare !== 0) return voucherCompare
-          return new Date(a.docDate || 0) - new Date(b.docDate || 0)
-        })
-        return rows
-      }
-      const resolveVoucherLineMetalCode = (line = {}) => {
-        const raw = String(line.stockCode || line.productType || line.narration || '').trim().toUpperCase()
-        if (!raw) return ''
-        if (raw.includes('XAU') || raw.includes('GOLD')) return 'XAU'
-        if (raw.includes('XAG') || raw.includes('SILVER')) return 'XAG'
-        if (raw.includes('XPT') || raw.includes('PLATINUM')) return 'XPT'
-        if (raw.includes('XPD') || raw.includes('PALLADIUM')) return 'XPD'
-        return ''
-      }
-      const resolveDirectDealMetalCode = (value) => {
-        const raw = String(value || '').trim().toUpperCase()
-        if (!raw) return ''
-        if (raw === 'XAU' || raw.includes('GOLD')) return 'XAU'
-        if (raw === 'XAG' || raw.includes('SILV')) return 'XAG'
-        if (raw === 'XPT' || raw.includes('PLAT')) return 'XPT'
-        if (raw === 'XPD' || raw.includes('PALL')) return 'XPD'
-        return raw
-      }
-      const openingRows = fixingRegFilter.excludeOpeningBalance
-        ? []
-        : buildRows({ txSales: openingSaleTxs, txPurchases: openingPurchaseTxs, directDeals: openingDeals })
-      const rows = buildRows({ txSales: saleTxs, txPurchases: purchaseTxs, directDeals: deals })
-      const openingQtyOz = openingRows.reduce((sum, row) => {
-        const mode = String(row?.fixingMode || '').trim().toLowerCase()
-        if (mode === 'unfixing') return sum
-        const qty = Number(row.qty || 0)
-        const sign = String(row.direction || '').toLowerCase() === 'buy' ? 1 : -1
-        return sum + (sign * qty)
-      }, 0)
-      const getRowSignedAmount = (row) => {
-        const amount = Number(row?.amount || 0)
-        const mode = String(row?.fixingMode || '').trim().toLowerCase()
-        if (mode === 'unfixing') return amount
-        const sign = String(row?.direction || '').toLowerCase() === 'buy' ? 1 : -1
-        return sign * amount
-      }
-      const openingValue = openingRows.reduce((sum, row) => {
-        return sum + getRowSignedAmount(row)
-      }, 0)
-      setFixingRegOpening({ qtyOz: openingQtyOz, value: openingValue })
+      const { rows, opening } = await loadFixingRegisterData({ token, fixingRegFilter })
+      setFixingRegOpening(opening)
       setFixingRegResults(rows)
       setFixingRegShown(true)
     } catch (err) {
@@ -3483,7 +2553,68 @@ function ERPTab({
     w.focus()
     w.print()
   }
-  const escapeHtml = (value) => String(value ?? '')
+  const {
+    updateJvLine,
+    resolveJvLineAccount,
+    getJvValidation,
+    addJvLine,
+    removeJvLine,
+    handleJvLineKeyDown,
+    handleJvAccountKeyDown,
+    resetJvForm: _resetJvForm,
+    handleOpenJv,
+    handleEditJv,
+    closeJvModal,
+    openJvModal,
+    switchJvMode,
+    handleRepairJvFxPreview,
+    handleRepairJvFxApply,
+    handleSaveMultiLineJV,
+    handlePrintJvVoucher,
+    getJvAccountById: _getJvAccountById,
+    isExchangeLine: _isExchangeLine,
+  } = useJournalVoucher({
+    jvMode,
+    setJvMode,
+    jvLines,
+    setJvLines,
+    jvHeader,
+    setJvHeader,
+    nextJvLineId,
+    setNextJvLineId,
+    jvEditEntryIds,
+    setJvEditEntryIds,
+    jvReadOnly,
+    setJvReadOnly,
+    entryAccountOptions,
+    baseCurrencyCode,
+    inventoryTenantKey,
+    convertJvAmount,
+    inferJvAccountCurrency,
+    token,
+    erpAccountingAPI,
+    currencies,
+    setError,
+    setSaving,
+    loadLedger,
+    loadDashboard,
+    showNotification,
+    branding,
+    buildBrandingLogoTag,
+    openPrintWindow,
+    defaultCompanyName: DEFAULT_BRANDING.companyName,
+    user,
+    JV_MODAL_DEFAULT_SIZE,
+    setJvModalOffset,
+    setJvModalDrag,
+    setJvModalResize,
+    setJvModalSize,
+    setShowLedgerForm,
+    buildJvDocNo,
+    ledgerVoucherTab,
+    canCloseLedgerPeriod,
+  })
+  const _escapeHtml = (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -4141,613 +3272,6 @@ function ERPTab({
         <p>⛔ This ERP page is not enabled in your permissions.</p>
       </div>
     )
-  }
-  // ─── Multi-line Journal Voucher helpers ──────────────────────────────────────
-  const getJvAccountById = (accountId) => entryAccountOptions.find((item) => String(item?._id) === String(accountId || '')) || null
-  const getJvAccountCode = (accountId) => String(getJvAccountById(accountId)?.accountCode || '').trim().toUpperCase()
-  const isExchangeAccountCode = (code) => ['4190', '5190'].includes(String(code || '').trim().toUpperCase())
-  const isExchangeLine = (line) => isExchangeAccountCode(getJvAccountCode(line?.accountId))
-  const applyBankJvExchangeBalancing = (lines) => {
-    if (jvMode !== 'bank_jv') return lines
-    const hasManualFxEntry = lines.some((line) => {
-      if (!isExchangeLine(line)) return false
-      const hasAmount = Number(line.debit || 0) > 0 || Number(line.credit || 0) > 0
-      return hasAmount && !line.autoFx
-    })
-    if (hasManualFxEntry) return lines
-    const withoutFxAmounts = lines.map((line) => (
-      isExchangeLine(line) && line.autoFx
-        ? { ...line, debit: '', credit: '' }
-        : line
-    ))
-    const nonFxLines = withoutFxAmounts.filter((line) => String(line.accountId || '').trim() && !isExchangeLine(line))
-    if (nonFxLines.length < 2) return withoutFxAmounts
-    let baseDebit = 0
-    let baseCredit = 0
-    for (const line of nonFxLines) {
-      const accountCurrency = inferJvAccountCurrency(line.accountId)
-      const debitRaw = Number(line.debit || 0)
-      const creditRaw = Number(line.credit || 0)
-      const debitValue = Number.isFinite(debitRaw) && debitRaw > 0 ? debitRaw : 0
-      const creditValue = Number.isFinite(creditRaw) && creditRaw > 0 ? creditRaw : 0
-      if (debitValue > 0) {
-        const normalizedDebit = convertJvAmount(debitValue, accountCurrency, baseCurrencyCode)
-        if (!Number.isFinite(normalizedDebit)) return withoutFxAmounts
-        baseDebit += normalizedDebit
-      }
-      if (creditValue > 0) {
-        const normalizedCredit = convertJvAmount(creditValue, accountCurrency, baseCurrencyCode)
-        if (!Number.isFinite(normalizedCredit)) return withoutFxAmounts
-        baseCredit += normalizedCredit
-      }
-    }
-    const difference = Number((baseDebit - baseCredit).toFixed(2))
-    if (Math.abs(difference) < 0.005) return withoutFxAmounts
-    const needsDebitFx = difference < 0
-    const targetCode = needsDebitFx ? '5190' : '4190'
-    const targetAccount = entryAccountOptions.find((item) => String(item?.accountCode || '').trim().toUpperCase() === targetCode)
-    if (!targetAccount?._id) return withoutFxAmounts
-    let workingLines = withoutFxAmounts
-    let targetLine = withoutFxAmounts.find((line) => getJvAccountCode(line.accountId) === targetCode)
-      || withoutFxAmounts.find((line) => isExchangeLine(line))
-      || withoutFxAmounts.find((line) => {
-        const hasAccount = String(line.accountId || '').trim().length > 0
-        const hasAmount = Number(line.debit || 0) > 0 || Number(line.credit || 0) > 0
-        const hasNarration = String(line.description || '').trim().length > 0
-        return !hasAccount && !hasAmount && !hasNarration
-      })
-    // If user filled both bank rows and there is no free/FX row, auto-add one for instant balancing.
-    if (!targetLine) {
-      const nextId = Math.max(0, ...withoutFxAmounts.map((line) => Number(line.id || 0))) + 1
-      targetLine = { id: nextId, accountId: '', accountInput: '', description: '', debit: '', credit: '', autoFx: true }
-      workingLines = [...withoutFxAmounts, targetLine]
-    }
-    const targetCurrency = inferJvAccountCurrency(targetAccount._id)
-    const fxAmount = convertJvAmount(Math.abs(difference), baseCurrencyCode, targetCurrency)
-    if (!Number.isFinite(fxAmount) || fxAmount <= 0) return workingLines
-    return workingLines.map((line) => {
-      if (line.id !== targetLine.id) return line
-      return {
-        ...line,
-        accountId: String(targetAccount._id),
-        accountInput: accountLookupText(targetAccount),
-        debit: needsDebitFx ? String(fxAmount) : '',
-        credit: needsDebitFx ? '' : String(fxAmount),
-        autoFx: true,
-      }
-    })
-  }
-  const updateJvLine = (id, field, value) => {
-    setJvLines((prev) => {
-      const withEdited = prev.map((line) => {
-        if (line.id !== id) return line
-        if (field === 'debit') return { ...line, debit: value, credit: '', autoFx: false, autoSync: false }
-        if (field === 'credit') return { ...line, credit: value, debit: '', autoFx: false, autoSync: false }
-        return { ...line, [field]: value, autoFx: false, autoSync: false }
-      })
-      if (jvMode !== 'bank_jv' || !['debit', 'credit'].includes(field)) return withEdited
-      const enteredAmount = Number(value || 0)
-      if (!Number.isFinite(enteredAmount) || enteredAmount <= 0) return applyBankJvExchangeBalancing(withEdited)
-      const sourceLine = withEdited.find((line) => line.id === id)
-      if (!sourceLine?.accountId) return applyBankJvExchangeBalancing(withEdited)
-      if (isExchangeLine(sourceLine) && enteredAmount > 0) return withEdited
-      const targetField = field === 'debit' ? 'credit' : 'debit'
-      const targetLine = withEdited.find((line) => {
-        if (line.id === id) return false
-        if (!String(line.accountId || '').trim()) return false
-        if (isExchangeLine(line)) return false
-        return true
-      })
-      if (!targetLine) return applyBankJvExchangeBalancing(withEdited)
-      const existingTargetValue = Number(targetLine[targetField] || 0)
-      const preserveManualTarget = Number.isFinite(existingTargetValue)
-        && existingTargetValue > 0
-        && !targetLine.autoSync
-      if (preserveManualTarget) {
-        return applyBankJvExchangeBalancing(withEdited)
-      }
-      const sourceCurrency = inferJvAccountCurrency(sourceLine.accountId)
-      const targetCurrency = inferJvAccountCurrency(targetLine.accountId)
-      const convertedAmount = convertJvAmount(enteredAmount, sourceCurrency, targetCurrency)
-      if (!Number.isFinite(convertedAmount) || convertedAmount <= 0) return applyBankJvExchangeBalancing(withEdited)
-      const withSyncedPair = withEdited.map((line) => {
-        if (line.id !== targetLine.id) return line
-        return targetField === 'debit'
-          ? { ...line, debit: String(convertedAmount), credit: '', autoFx: false, autoSync: true }
-          : { ...line, credit: String(convertedAmount), debit: '', autoFx: false, autoSync: true }
-      })
-      return applyBankJvExchangeBalancing(withSyncedPair)
-    })
-  }
-  const resolveJvLineAccount = (lineId, value, label = '') => {
-    const resolvedId = resolveAccountIdFromInput(value, entryAccountOptions)
-    const account = resolvedId ? entryAccountOptions.find((a) => String(a._id) === String(resolvedId)) : null
-    const resolvedLabel = account ? accountLookupText(account) : label
-    setJvLines((prev) => {
-      const withResolved = prev.map((line) => (
-        line.id !== lineId
-          ? line
-          : { ...line, accountId: resolvedId || '', accountInput: resolvedLabel || '', autoFx: false, autoSync: false }
-      ))
-      return applyBankJvExchangeBalancing(withResolved)
-    })
-  }
-  const getJvValidation = (lines) => {
-    const lineIssuesById = {}
-    const activeLines = []
-    let totalDebit = 0
-    let totalCredit = 0
-    let totalDebitRaw = 0
-    let totalCreditRaw = 0
-    const headerCur = normalizeJvCurrencyCode(jvHeader.currency || baseCurrencyCode)
-    const baseNorm = normalizeJvCurrencyCode(baseCurrencyCode)
-    const useDocCurrency = headerCur !== baseNorm
-    // LoopC INR-base: journal lines are entered in voucher (header) currency; do not re-interpret
-    // per GL account currency when header === base (avoids USD-tagged COA inflating INR totals).
-    const loopcJournalHeaderLineCurrency = inventoryTenantKey === 'loopc' && jvMode === 'journal'
-    const treatLineAmountsAsHeaderCurrency = Boolean(loopcJournalHeaderLineCurrency || useDocCurrency)
-    lines.forEach((line, index) => {
-      const debit = Number(line.debit || 0)
-      const credit = Number(line.credit || 0)
-      const debitRawValue = Number.isFinite(debit) && debit > 0 ? debit : 0
-      const creditRawValue = Number.isFinite(credit) && credit > 0 ? credit : 0
-      totalDebitRaw += debitRawValue
-      totalCreditRaw += creditRawValue
-      const accountId = String(line.accountId || '').trim()
-      const hasNarration = String(line.description || '').trim().length > 0
-      const hasAmount = debitRawValue > 0 || creditRawValue > 0
-      const hasTyped = hasAmount || hasNarration || accountId
-      let debitValue = debitRawValue
-      let creditValue = creditRawValue
-      if (accountId) {
-        const lineAmountCurrency = treatLineAmountsAsHeaderCurrency ? headerCur : inferJvAccountCurrency(accountId)
-        if (debitRawValue > 0) {
-          const normalizedDebit = convertJvAmount(debitRawValue, lineAmountCurrency, baseNorm)
-          if (!Number.isFinite(normalizedDebit) || normalizedDebit <= 0) {
-            lineIssuesById[line.id] = `Row ${index + 1}: Missing or invalid currency rate for ${lineAmountCurrency}`
-          } else {
-            debitValue = normalizedDebit
-          }
-        }
-        if (creditRawValue > 0) {
-          const normalizedCredit = convertJvAmount(creditRawValue, lineAmountCurrency, baseNorm)
-          if (!Number.isFinite(normalizedCredit) || normalizedCredit <= 0) {
-            lineIssuesById[line.id] = `Row ${index + 1}: Missing or invalid currency rate for ${lineAmountCurrency}`
-          } else {
-            creditValue = normalizedCredit
-          }
-        }
-      }
-      if (debitValue > 0 && creditValue > 0) {
-        lineIssuesById[line.id] = `Row ${index + 1}: Only one side allowed per row`
-      } else if (hasTyped && !hasAmount && !(jvMode === 'bank_jv' && isExchangeLine(line))) {
-        lineIssuesById[line.id] = `Row ${index + 1}: Enter debit or credit amount`
-      } else if (hasAmount && !accountId) {
-        lineIssuesById[line.id] = `Row ${index + 1}: Account is required`
-      }
-      totalDebit += debitValue
-      totalCredit += creditValue
-      if (!lineIssuesById[line.id] && hasAmount && accountId) {
-        activeLines.push({
-          id: line.id,
-          accountId,
-          description: String(line.description || '').trim(),
-          debit: debitValue,
-          credit: creditValue,
-        })
-      }
-    })
-    const difference = Number((totalDebit - totalCredit).toFixed(2))
-    const hasLineIssues = Object.keys(lineIssuesById).length > 0
-    const hasDebit = totalDebit > 0
-    const hasCredit = totalCredit > 0
-    const isBalanced = hasDebit && hasCredit && Math.abs(difference) < 0.005
-    const canSave = !hasLineIssues && isBalanced && activeLines.length > 1
-    const displayTotalCurrency = treatLineAmountsAsHeaderCurrency ? headerCur : baseNorm
-    const displayDebitTotal = treatLineAmountsAsHeaderCurrency ? Number(totalDebitRaw.toFixed(2)) : totalDebit
-    const displayCreditTotal = treatLineAmountsAsHeaderCurrency ? Number(totalCreditRaw.toFixed(2)) : totalCredit
-    const useRawJvLineAmountsForSave = Boolean(useDocCurrency || loopcJournalHeaderLineCurrency)
-    return {
-      activeLines,
-      lineIssuesById,
-      totalDebit,
-      totalCredit,
-      totalDebitRaw,
-      totalCreditRaw,
-      useDocCurrency,
-      useRawJvLineAmountsForSave,
-      displayTotalCurrency,
-      displayDebitTotal,
-      displayCreditTotal,
-      difference,
-      isBalanced,
-      canSave,
-      hasLineIssues,
-    }
-  }
-  const addJvLine = () => {
-    setJvLines((prev) => [...prev, emptyJvLine(nextJvLineId)])
-    setNextJvLineId((n) => n + 1)
-  }
-  const removeJvLine = (id) => {
-    setJvLines((prev) => prev.filter((l) => l.id !== id))
-  }
-  const handleJvLineKeyDown = (e, idx) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (idx === jvLines.length - 1) addJvLine()
-    }
-  }
-  const handleJvAccountKeyDown = (e, idx) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (idx === jvLines.length - 1) addJvLine()
-    }
-  }
-  const resetJvForm = async (mode = 'journal') => {
-    setJvMode(mode)
-    setJvLines([emptyJvLine(1), emptyJvLine(2)])
-    setNextJvLineId(3)
-    setJvEditEntryIds([])
-    setJvReadOnly(false)
-    let docNo = buildJvDocNo(mode)
-    const refType = resolveJvModeMeta(mode).referenceType
-    try {
-      if (token) {
-        const data = await erpAccountingAPI.getNextJvDocNo(token, refType)
-        if (data?.success && data.docNo) docNo = data.docNo
-      }
-    } catch (_) { /* keep client-side sequence from current page */ }
-    setJvHeader({
-      docNo,
-      date: new Date().toISOString().slice(0, 10),
-      narration: '',
-      currency: baseCurrencyCode,
-    })
-  }
-  const loadJvFromEntry = async (entry, { readOnly = false } = {}) => {
-    const rawDesc = String(entry.description || '')
-    const docNoHead = (rawDesc.includes(' — ') ? rawDesc.split(' — ') : rawDesc.split(' - '))[0]?.trim() || ''
-    const docNo = docNoHead
-    const hasDocPrefix = /^(jv|bnkjv)[/-]/i.test(String(docNo || ''))
-    const entryMode = String(entry?.referenceType || '').toLowerCase() === 'bank_jv' ? 'bank_jv' : 'journal'
-    const refTypeFilter = entryMode
-    let docMatchedEntries = [entry]
-    try {
-      const batchId = entry.referenceId ? String(entry.referenceId).trim() : ''
-      if (batchId && /^[a-fA-F0-9]{24}$/.test(batchId)) {
-        const data = await erpAccountingAPI.getLedger(token, {
-          referenceType: refTypeFilter,
-          referenceId: batchId,
-          limit: 300,
-          page: 1,
-        })
-        if (Array.isArray(data?.entries) && data.entries.length) {
-          docMatchedEntries = data.entries
-        }
-      } else if (docNo && hasDocPrefix) {
-        const data = await erpAccountingAPI.getLedger(token, {
-          referenceType: refTypeFilter,
-          docNoPrefix: docNo,
-          limit: 300,
-          page: 1,
-        })
-        if (Array.isArray(data?.entries) && data.entries.length) {
-          docMatchedEntries = data.entries
-        }
-      }
-    } catch (e) {
-      setError(e.response?.data?.message || (readOnly ? 'Failed to load JV lines' : 'Failed to load JV lines for editing'))
-      return false
-    }
-    const editableEntries = filterJvEditableEntries(docMatchedEntries, entry, entryMode)
-    const reconstructed = reconstructJvEditLines(editableEntries, entry, {
-      baseCurrencyCode,
-      normalizeJvCurrencyCode,
-      convertJvAmount,
-      inferJvAccountCurrency,
-      inferLegacyJvBatchDisplayFc,
-    })
-    setJvMode(reconstructed.entryMode)
-    setJvEditEntryIds(reconstructed.jvEditEntryIds)
-    setJvLines(reconstructed.lines)
-    setNextJvLineId(reconstructed.nextJvLineId)
-    setJvHeader({
-      docNo: reconstructed.headerDocNo,
-      date: reconstructed.entryDate,
-      narration: reconstructed.narration,
-      currency: reconstructed.headerCurrency,
-    })
-    setJvReadOnly(readOnly)
-    setJvModalOffset({ x: 0, y: 0 })
-    setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
-    setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
-    setJvModalSize(JV_MODAL_DEFAULT_SIZE)
-    setShowLedgerForm(true)
-    return true
-  }
-  const handleOpenJv = async (entry) => {
-    await loadJvFromEntry(entry, { readOnly: true })
-  }
-  const handleEditJv = async (entry) => {
-    await loadJvFromEntry(entry, { readOnly: false })
-  }
-  const handleRepairJvFxPreview = async () => {
-    if (!canCloseLedgerPeriod || !token) return
-    setSaving(true)
-    try {
-      const data = await erpAccountingAPI.repairJvFxPreview(token, { mode: 'coa' })
-      const msg = `Preview: ${data.updated} postings would update (${data.candidateRows} base+1 candidates). Skipped line-events: ${data.skipped}.`
-      showNotification(msg)
-      if (Array.isArray(data.skipSamples) && data.skipSamples.length) {
-        console.info('[repairJvFx preview skip samples]', data.skipSamples)
-      }
-      setError('')
-    } catch (e) {
-      setError(e.response?.data?.message || 'JV FX repair preview failed')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleRepairJvFxApply = async () => {
-    if (!canCloseLedgerPeriod || !token) return
-    const reason = window.prompt('Maintenance reason (min 8 characters)', 'JV ledger backfill store UZS and FX rate')
-    if (!reason || String(reason).trim().length < 8) {
-      showNotification('Apply cancelled: reason must be at least 8 characters.')
-      return
-    }
-    const confirmToken = window.prompt('Enter server DESTRUCTIVE_ADMIN_CONFIRM_TOKEN (production also needs ENABLE_DESTRUCTIVE_ADMIN_API=true)')
-    if (!confirmToken?.trim()) {
-      showNotification('Apply cancelled.')
-      return
-    }
-    setSaving(true)
-    try {
-      const data = await erpAccountingAPI.repairJvFxApply(token, {
-        mode: 'coa',
-        confirmToken: String(confirmToken).trim(),
-        reason: String(reason).trim(),
-      })
-      showNotification(data.message || `Updated ${data.updated} ledger postings`)
-      setError('')
-      await loadLedger()
-    } catch (e) {
-      setError(e.response?.data?.message || 'JV FX repair apply failed')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const closeJvModal = () => {
-    setShowLedgerForm(false)
-    void resetJvForm(ledgerVoucherTab)
-    setJvModalOffset({ x: 0, y: 0 })
-    setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
-    setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
-    setJvModalSize(JV_MODAL_DEFAULT_SIZE)
-  }
-  const openJvModal = async (mode = ledgerVoucherTab) => {
-    await resetJvForm(mode)
-    setJvModalOffset({ x: 0, y: 0 })
-    setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
-    setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
-    setJvModalSize(JV_MODAL_DEFAULT_SIZE)
-    setShowLedgerForm(true)
-  }
-  const switchJvMode = async (mode) => {
-    if (jvEditEntryIds.length > 0 || jvReadOnly) return
-    setJvMode(mode)
-    let docNo = buildJvDocNo(mode)
-    try {
-      if (token) {
-        const data = await erpAccountingAPI.getNextJvDocNo(token, resolveJvModeMeta(mode).referenceType)
-        if (data?.success && data.docNo) docNo = data.docNo
-      }
-    } catch (_) { /* keep client fallback */ }
-    setJvHeader((prev) => ({ ...prev, docNo }))
-  }
-  const handlePrintJvVoucher = async () => {
-    const validation = getJvValidation(jvLines)
-    const modeMeta = resolveJvModeMeta(jvMode)
-    const logoMarkup = await buildBrandingLogoTag(branding, 'margin-left:auto;')
-    const rows = (validation.activeLines.length ? validation.activeLines : jvLines)
-      .map((line, index) => {
-        const account = getJvAccountById(line.accountId)
-        const accountText = account
-          ? `${account.accountCode || ''} - ${account.accountName || ''}`
-          : (line.accountInput || line.accountId || '')
-        return `
-          <tr>
-            <td>${index + 1}</td>
-            <td>${escapeHtml(accountText)}</td>
-            <td>${escapeHtml(line.description || jvHeader.narration || '')}</td>
-            <td class="num">${Number(line.debit || 0) > 0 ? Number(line.debit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}</td>
-            <td class="num">${Number(line.credit || 0) > 0 ? Number(line.credit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}</td>
-          </tr>
-        `
-      })
-      .join('')
-    const body = `
-      <div class="doc-head">
-        <div>
-          <div class="company">${escapeHtml(branding.companyName || DEFAULT_BRANDING.companyName)}</div>
-          ${branding.address ? `<div class="meta">${escapeHtml(branding.address).replace(/\n/g, '<br />')}</div>` : ''}
-          ${branding.phone ? `<div class="meta">Telephone: ${escapeHtml(branding.phone)}</div>` : ''}
-          ${branding.trn ? `<div class="meta">TRN: ${escapeHtml(branding.trn)}</div>` : ''}
-        </div>
-        ${logoMarkup}
-      </div>
-      <h1>${escapeHtml(modeMeta.badge)}</h1>
-      <div class="meta-grid">
-        <div><strong>Doc No:</strong> ${escapeHtml(jvHeader.docNo || '')}</div>
-        <div><strong>Date:</strong> ${escapeHtml(jvHeader.date || '')}</div>
-        <div><strong>Currency:</strong> ${escapeHtml(jvHeader.currency || baseCurrencyCode)}</div>
-        <div><strong>Prepared By:</strong> ${escapeHtml(user?.name || '')}</div>
-      </div>
-      <table>
-        <thead><tr><th>No.</th><th>Account</th><th>Narration</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="5">No JV rows</td></tr>'}</tbody>
-        <tfoot><tr><td colspan="3" class="num">Total</td><td class="num">${(validation.displayDebitTotal ?? validation.totalDebit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td class="num">${(validation.displayCreditTotal ?? validation.totalCredit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr></tfoot>
-      </table>
-      <div class="note">${escapeHtml(jvHeader.narration || '')}</div>
-      <div class="signatures">
-        <div>Prepared By</div>
-        <div>Checked By</div>
-        <div>Authorised Signatory</div>
-      </div>
-    `
-    openPrintWindow(modeMeta.badge, body)
-    showNotification('JV print layout opened')
-  }
-  const handleSaveMultiLineJV = async () => {
-    const validation = getJvValidation(jvLines)
-    if (validation.hasLineIssues) {
-      const firstLineIssue = Object.values(validation.lineIssuesById)[0]
-      setError(firstLineIssue || 'Please fix JV row errors before saving')
-      return
-    }
-    if (!validation.activeLines.length) {
-      setError('Add at least one debit row and one credit row')
-      return
-    }
-    if (!validation.isBalanced) {
-      setError('Debit and Credit totals are not balanced')
-      return
-    }
-    const headerCur = normalizeJvCurrencyCode(jvHeader.currency || baseCurrencyCode)
-    const baseCur = normalizeJvCurrencyCode(baseCurrencyCode)
-    const strictUseDocCurrency = Boolean(validation.useDocCurrency)
-    const useRawJvLineAmountsForSave = Boolean(validation.useRawJvLineAmountsForSave)
-
-    let debitQueue
-    let creditQueue
-    if (useRawJvLineAmountsForSave) {
-      debitQueue = jvLines
-        .filter((line) => String(line.accountId || '').trim() && Number(line.debit || 0) > 0)
-        .map((line) => ({
-          accountId: line.accountId,
-          description: String(line.description || '').trim(),
-          remaining: Number(Number(line.debit || 0).toFixed(2)),
-        }))
-      creditQueue = jvLines
-        .filter((line) => String(line.accountId || '').trim() && Number(line.credit || 0) > 0)
-        .map((line) => ({
-          accountId: line.accountId,
-          description: String(line.description || '').trim(),
-          remaining: Number(Number(line.credit || 0).toFixed(2)),
-        }))
-    } else {
-      debitQueue = validation.activeLines
-        .filter((line) => line.debit > 0)
-        .map((line) => ({ ...line, remaining: Number(line.debit.toFixed(2)) }))
-      creditQueue = validation.activeLines
-        .filter((line) => line.credit > 0)
-        .map((line) => ({ ...line, remaining: Number(line.credit.toFixed(2)) }))
-    }
-    if (!debitQueue.length || !creditQueue.length) {
-      setError('JV requires at least one debit row and one credit row')
-      return
-    }
-    const entries = []
-    let drIndex = 0
-    let crIndex = 0
-    while (drIndex < debitQueue.length && crIndex < creditQueue.length) {
-      const debitLine = debitQueue[drIndex]
-      const creditLine = creditQueue[crIndex]
-      const pairAmount = Math.min(debitLine.remaining, creditLine.remaining)
-      if (pairAmount > 0) {
-        entries.push({
-          debitAccountId: debitLine.accountId,
-          creditAccountId: creditLine.accountId,
-          amount: Number(pairAmount.toFixed(2)),
-          lineDesc: [debitLine.description, creditLine.description].filter(Boolean).join(' | '),
-        })
-      }
-      debitLine.remaining = Number((debitLine.remaining - pairAmount).toFixed(2))
-      creditLine.remaining = Number((creditLine.remaining - pairAmount).toFixed(2))
-      if (debitLine.remaining <= 0.004) drIndex += 1
-      if (creditLine.remaining <= 0.004) crIndex += 1
-    }
-    const debitRemainder = debitQueue.reduce((sum, line) => sum + Math.max(0, line.remaining), 0)
-    const creditRemainder = creditQueue.reduce((sum, line) => sum + Math.max(0, line.remaining), 0)
-    if (debitRemainder > 0.01 || creditRemainder > 0.01) {
-      setError('Failed to allocate JV lines into balanced ledger entries')
-      return
-    }
-    const isBankJV = jvMode === 'bank_jv'
-    const sharedDesc = [jvHeader.docNo, jvHeader.narration].filter(Boolean).join(' — ') || 'Manual JV'
-    const makeJvGroupObjectId = () => {
-      const hex = '0123456789abcdef'
-      let s = ''
-      for (let i = 0; i < 24; i += 1) s += hex[Math.floor(Math.random() * 16)]
-      return s
-    }
-    const jvGroupId = makeJvGroupObjectId()
-    let headerFxRate = 1
-    if (headerCur !== baseCur) {
-      const curRow = currencies.find((c) => normalizeJvCurrencyCode(c?.code) === headerCur)
-      headerFxRate = Number(curRow?.exchangeRate || 0)
-      if (!Number.isFinite(headerFxRate) || headerFxRate <= 0) {
-        setError(`Cannot post in ${headerCur}: add an active ${headerCur} currency with exchangeRate (vs ${baseCur}) in Master → Currencies.`)
-        return
-      }
-      if (!strictUseDocCurrency) {
-        for (const row of entries) {
-          const fcRaw = Number(row.amount) / headerFxRate
-          const postAmt = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
-          if (!Number.isFinite(postAmt) || postAmt <= 0) {
-            setError('A JV line would round to zero in the header currency; adjust amounts or the FX rate.')
-            return
-          }
-        }
-      }
-    }
-    setSaving(true)
-    try {
-      // If editing an existing JV, reverse old entries first and post replacements.
-      // This keeps the accounting audit trail intact.
-      if (jvEditEntryIds.length > 0) {
-        await Promise.all(jvEditEntryIds.map((id) => erpAccountingAPI.deleteLedgerEntry(token, id)))
-      }
-      await Promise.all(entries.map((entry) => {
-        const pairBase = Number(entry.amount)
-        let postAmount = pairBase
-        let postCurrency = baseCur
-        let postRate = 1
-        if (headerCur !== baseCur) {
-          if (strictUseDocCurrency) {
-            postAmount = pairBase
-            postCurrency = headerCur
-            postRate = headerFxRate
-          } else {
-            const fcRaw = pairBase / headerFxRate
-            postAmount = headerFxRate < 0.001 ? Math.round(fcRaw) : Number(fcRaw.toFixed(2))
-            postCurrency = headerCur
-            postRate = headerFxRate
-          }
-        }
-        return erpAccountingAPI.createLedgerEntry(token, {
-          date: jvHeader.date,
-          description: entry.lineDesc ? `${sharedDesc} — ${entry.lineDesc}` : sharedDesc,
-          notes: jvHeader.narration || '',
-          referenceType: isBankJV ? 'bank_jv' : 'journal',
-          referenceId: jvGroupId,
-          currency: postCurrency,
-          exchangeRate: postRate,
-          debitAccountId: entry.debitAccountId,
-          creditAccountId: entry.creditAccountId,
-          amount: postAmount,
-        })
-      }))
-      const isEdit = jvEditEntryIds.length > 0
-      const voucherLabel = isBankJV ? 'Bank JV' : 'Journal Voucher'
-      closeJvModal()
-      await Promise.all([loadLedger(), loadDashboard()])
-      showNotification(isEdit ? `✅ ${voucherLabel} updated — ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} reposted` : `✅ ${voucherLabel} saved — ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} posted`)
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to save Journal Voucher')
-    } finally {
-      setSaving(false)
-    }
   }
   // ─────────────────────────────────────────────────────────────────────────────
   const handleCreateCustomer = async (e) => {
@@ -5540,6 +4064,7 @@ function ERPTab({
             brandingProfiles={brandingProfiles}
             brandingForm={brandingForm}
             setBrandingForm={setBrandingForm}
+            reportBranding={reportBranding}
             handleBrandingLogoFile={handleBrandingLogoFile}
             saving={saving}
             canManageAccounts={canManageAccounts}
@@ -5938,530 +4463,71 @@ function ERPTab({
         </div>
       )}
       {/* ACCOUNT SUMMARY POPUP MODAL - TRADING PLATFORM STYLE */}
-      {showEnquiryModal && (
-        <div
-          onClick={(e) => { if (e.target === e.currentTarget) setShowEnquiryModal(false) }}
-          style={{ position: 'fixed', inset: 0, background: enquiryBackdropColor, transition: 'background 120ms ease', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}
-        >
-          <div style={{ background: '#fff', borderRadius: '8px', width: 'min(1100px, 100%)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 42px rgba(0,0,0,0.35)', transform: `translate(${enquiryModalOffset.x}px, ${enquiryModalOffset.y}px)` }}>
-            {/* Header - Dark Green Bar */}
-            <div
-              onMouseDown={beginEnquiryModalDrag}
-              style={{ background: '#3F4B2E', color: '#FFFFFF', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', cursor: enquiryModalDrag.active ? 'grabbing' : 'grab', userSelect: 'none' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontWeight: '700', fontSize: '1.1rem' }}>Account Details — Statement of Account</span>
-                {enquiryLoading && <span style={{ fontSize: '0.9rem', opacity: 0.8 }}>(Loading…)</span>}
-              </div>
-              <button onClick={() => setShowEnquiryModal(false)} style={{ background: 'transparent', border: 'none', color: '#FFFFFF', cursor: 'pointer', fontSize: '20px', padding: '0', lineHeight: 1 }}>✕</button>
-            </div>
-            {/* Scrollable Content Area */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '1.2rem 1.5rem' }}>
-              {/* Account lookup row */}
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1.2rem', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <label style={{ fontSize: '0.95rem', color: '#374151', fontWeight: '600' }}>Account Number</label>
-                  <div style={{ position: 'relative', width: '340px' }}>
-                    <input
-                      value={accountEnquiryCode}
-                      onChange={(e) => {
-                        setAccountEnquiryCode(e.target.value)
-                        setShowEnquiryLookupMenu(true)
-                        setEnquiryStatus({ type: '', message: '' })
-                      }}
-                      onFocus={() => setShowEnquiryLookupMenu(true)}
-                      onBlur={() => {
-                        window.setTimeout(() => setShowEnquiryLookupMenu(false), 120)
-                      }}
-                      placeholder="Type account code or pick from dropdown"
-                      autoComplete="off"
-                      style={{ border: '1px solid #CBD5E0', padding: '0.6rem 0.8rem', fontSize: '0.95rem', width: '100%', borderRadius: '0.5rem', background: '#FFFFFF' }}
-                    />
-                    {showEnquiryLookupMenu && filteredGroupedSummaryAccounts.length > 0 && (
-                      <div style={{ position: 'absolute', top: 'calc(100% + 0.35rem)', left: 0, right: 0, zIndex: 5, border: '1px solid #D6D3C4', borderRadius: '0.6rem', background: '#FFFFFF', maxHeight: '260px', overflowY: 'auto', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.12)' }}>
-                        {filteredGroupedSummaryAccounts.map((group) => (
-                          <div key={group.type}>
-                            <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: '0.45rem 0.75rem', background: '#F5F7F0', borderBottom: '1px solid #E5E7EB', color: '#3F4B2E', fontSize: '0.76rem', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                              {group.type}
-                            </div>
-                            {group.accounts.map((account) => (
-                              <button
-                                key={account._id}
-                                type="button"
-                                onMouseDown={(event) => {
-                                  event.preventDefault()
-                                  setShowEnquiryLookupMenu(false)
-                                  setAccountEnquiryCode(account.accountCode)
-                                  setEnquiryStatus({ type: '', message: '' })
-                                  fetchAccountEnquiryByCode(account.accountCode)
-                                }}
-                                style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.65rem 0.75rem', border: 'none', borderBottom: '1px solid #F3F4F6', background: '#FFFFFF', color: C.ink, cursor: 'pointer', textAlign: 'left' }}
-                              >
-                                <span style={{ fontWeight: '800', minWidth: '56px', color: '#111827' }}>{account.accountCode}</span>
-                                <span style={{ flex: 1, color: '#4B5563', fontSize: '0.86rem' }}>{account.accountName}</span>
-                                <span style={{ color: '#6B7280', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{account.accountType}</span>
-                              </button>
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowEnquiryLookupMenu(false)
-                      fetchAccountEnquiryByCode(accountEnquiryCode)
-                    }}
-                    disabled={enquiryLoading}
-                    style={{ padding: '0.6rem 1.2rem', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: enquiryLoading ? 'not-allowed' : 'pointer', fontWeight: '700', fontSize: '0.95rem', opacity: enquiryLoading ? 0.7 : 1 }}
-                  >
-                    {enquiryLoading ? 'Loading…' : 'Load Summary'}
-                  </button>
-                </div>
-              </div>
-              {enquiryStatus.message && !enquiryLoading && (
-                <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: enquiryStatus.type === 'success' ? '#047857' : '#c0392b', fontWeight: '600' }}>{enquiryStatus.message}</p>
-              )}
-              {!accountEnquiryData ? (
-                <div style={{ border: '1px solid #E5E7EB', borderRadius: '0.6rem', background: '#F9FAFB', padding: '1.5rem', color: '#6B7280', fontSize: '0.95rem', textAlign: 'center' }}>
-                  {enquiryLoading ? '⟳ Loading account statement...' : '→ Enter account number and click Load Summary to view position'}
-                </div>
-              ) : (
-                <>
-                  {/* 2-Column Layout */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                    {/* LEFT COLUMN - Account Details Box with Position Table */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-                      {/* Account Details Panel */}
-                      <div style={{ border: '2px solid #3F4B2E', borderRadius: '0.6rem', background: '#F5F7F0', padding: '1rem', position: 'relative' }}>
-                        <div style={{ borderBottom: '1px solid #D1D5DB', paddingBottom: '0.8rem', marginBottom: '0.8rem' }}>
-                          <h3 style={{ margin: '0 0 0.4rem', color: '#111827', fontWeight: '800', fontSize: '1.1rem' }}>{accountEnquiryData.account.accountName || 'Account'}</h3>
-                          <p style={{ margin: 0, color: '#6B7280', fontSize: '0.9rem', lineHeight: '1.4' }}>{accountEnquiryData.account.description || accountEnquiryData.account.accountName}</p>
-                          {accountEnquiryData.account.description && (
-                            <p style={{ margin: '0.4rem 0 0', color: '#6B7280', fontSize: '0.85rem' }}>Code: {accountEnquiryData.account.accountCode}</p>
-                          )}
-                        </div>
-                      </div>
-                      {/* Metal position (grams) + unfixed activity */}
-                      <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', overflow: 'hidden', background: '#FFFFFF' }}>
-                        <div style={{ background: '#3F4B2E', padding: '0.7rem 1rem', borderBottom: '1px solid #2D3620' }}>
-                          <span style={{ color: '#FFFFFF', fontWeight: '700', fontSize: '0.95rem' }}>Position</span>
-                          <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: '0.78rem', marginLeft: '0.5rem', fontWeight: '600' }}>(pure weight, grams — includes unfixed trades, direct deals, and metal transfers)</span>
-                        </div>
-                        <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                            <thead>
-                              <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
-                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Type</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Limits</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Balance</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Price</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Current Value</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Break Even</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {modalPositionRows.map((row, index) => (
-                                <tr key={row.key} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                                  <td style={{ padding: '0.7rem', fontWeight: '700', color: '#111827' }}>{row.type}</td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.limits, 0)}</td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.balance), fontWeight: '600' }}>
-                                    {formatDirectionalBalance(row.balance, { minDigits: 6, maxDigits: 6 })}
-                                  </td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.price, 4)}</td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: getSignedColor(row.currentValue), fontWeight: '700' }}>
-                                    {formatDirectionalBalance(row.currentValue)}
-                                  </td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#374151', fontSize: '0.85rem' }}>{formatStatementValue(row.breakEven, 4)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <div style={{ borderTop: '1px solid #CBD5E0', background: '#FAFBFC', padding: '0.55rem 0.75rem' }}>
-                          <p style={{ margin: 0, color: '#374151', fontWeight: '800', fontSize: '0.82rem' }}>Unfixed metal sales & purchases</p>
-                          <p style={{ margin: '0.2rem 0 0', color: '#64748B', fontSize: '0.72rem', lineHeight: 1.4 }}>Rows below reflect the same filters as the statement. Amounts are absolute signed cash effect.</p>
-                        </div>
-                        <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                            <thead>
-                              <tr style={{ background: '#E8EBE0', borderBottom: '2px solid #CBD5E0' }}>
-                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Date</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Deal</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'left', fontWeight: '700', color: '#374151' }}>Metal</th>
-                                <th style={{ padding: '0.7rem', textAlign: 'right', fontWeight: '700', color: '#374151' }}>Amount</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {unfixedMetalEntries.length ? unfixedMetalEntries.slice(0, 8).map((row, index) => (
-                                <tr key={row._id || `${row.date}-${index}`} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                                  <td style={{ padding: '0.7rem', color: '#111827' }}>{formatStatementDate(row.date)}</td>
-                                  <td style={{ padding: '0.7rem', color: '#111827', fontWeight: '600', textTransform: 'capitalize' }}>{row.dealSide}</td>
-                                  <td style={{ padding: '0.7rem', color: '#111827' }}>{row.metalCode}</td>
-                                  <td style={{ padding: '0.7rem', textAlign: 'right', color: '#111827', fontWeight: '700' }}>{formatStatementValue(row.amount, 2)}</td>
-                                </tr>
-                              )) : (
-                                <tr>
-                                  <td colSpan={4} style={{ padding: '0.8rem', textAlign: 'center', color: '#6B7280', fontSize: '0.86rem' }}>
-                                    No unfixed metal sale/purchase rows match the selected filters.
-                                  </td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                      <div style={{ border: '1px solid #CBD5E0', borderRadius: '0.6rem', background: '#F8FAFC', padding: '0.85rem 0.95rem' }}>
-                        <p style={{ margin: 0, color: '#111827', fontWeight: '800', fontSize: '0.92rem' }}>Fixing / Unfixing Metal Sales & Purchases</p>
-                        <p style={{ margin: '0.3rem 0 0', color: '#475569', fontSize: '0.8rem', lineHeight: 1.45 }}>
-                          Fixed means price locked and finalized. Unfixed means price is still pending; those flows are included in the Position balance and listed above under unfixed activity.
-                        </p>
-                        <div style={{ marginTop: '0.65rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem' }}>
-                          <div style={{ border: '1px solid #BBF7D0', background: '#ECFDF5', borderRadius: '0.45rem', padding: '0.55rem' }}>
-                            <p style={{ margin: 0, color: '#166534', fontWeight: '800', fontSize: '0.8rem' }}>Fixed</p>
-                            <p style={{ margin: '0.2rem 0 0', color: '#166534', fontSize: '0.76rem' }}>Sales: {fixedMetalSummary.saleCount} ({formatStatementValue(fixedMetalSummary.saleAmount, 2)})</p>
-                            <p style={{ margin: '0.15rem 0 0', color: '#166534', fontSize: '0.76rem' }}>Purchases: {fixedMetalSummary.purchaseCount} ({formatStatementValue(fixedMetalSummary.purchaseAmount, 2)})</p>
-                          </div>
-                          <div style={{ border: '1px solid #FDE68A', background: '#FFFBEB', borderRadius: '0.45rem', padding: '0.55rem' }}>
-                            <p style={{ margin: 0, color: '#92400E', fontWeight: '800', fontSize: '0.8rem' }}>Unfixed</p>
-                            <p style={{ margin: '0.2rem 0 0', color: '#92400E', fontSize: '0.76rem' }}>Sales: {unfixedMetalSummary.saleCount} ({formatStatementValue(unfixedMetalSummary.saleAmount, 2)})</p>
-                            <p style={{ margin: '0.15rem 0 0', color: '#92400E', fontSize: '0.76rem' }}>Purchases: {unfixedMetalSummary.purchaseCount} ({formatStatementValue(unfixedMetalSummary.purchaseAmount, 2)})</p>
-                          </div>
-                        </div>
-                        {unknownFixMetalEntries.length > 0 && (
-                          <p style={{ margin: '0.55rem 0 0', color: '#6B7280', fontSize: '0.75rem' }}>
-                            {unknownFixMetalEntries.length} metal sale/purchase entries are missing explicit fixing keywords.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    {/* RIGHT COLUMN - Financial Metrics */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem', background: '#F9FAFB', borderRadius: '0.6rem', border: '1px solid #E5E7EB' }}>
-                      {/* Total Funds */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
-                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Total Funds</span>
-                        <span style={{ color: '#111827', fontWeight: '700', fontSize: '1rem' }}>
-                          {formatDirectionalBalance(modalTotalFundsDisplay, { preferredDirection: accountEnquiryData?.balances?.netDirection })}
-                        </span>
-                      </div>
-                      {/* Revaluation */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
-                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Revaluation</span>
-                        <span style={{ color: getSignedColor(modalRevaluationDisplay), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalRevaluationDisplay, 2)}</span>
-                      </div>
-                      {/* Net Equity */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
-                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Net Equity</span>
-                        <span style={{ color: getAccountEnquirySignedMetricColor(modalNetEquityDisplay, { marginAmount: modalMarginAmtDisplay, netDirection: accountEnquiryData?.balances?.netDirection }), fontWeight: '700', fontSize: '1rem' }}>
-                          {formatDirectionalBalance(modalNetEquityDisplay, { preferredDirection: resolveExposureDirection(modalNetEquityDisplay) })}
-                        </span>
-                      </div>
-                      {/* Margin Amt @ 2% */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
-                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin Amt @ 2.0%</span>
-                        <span style={{ color: getSignedColor(modalMarginAmtDisplay), fontWeight: '700', fontSize: '1rem' }}>{formatStatementValue(modalMarginAmtDisplay, 2)}</span>
-                      </div>
-                      {/* Excess with Currency Dropdown */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
-                        <label style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Excess</label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <select
-                            value={excessCurrency || baseCurrencyCode}
-                            onChange={(e) => setExcessCurrency(e.target.value)}
-                            style={{ border: '1px solid #CBD5E0', borderRadius: '0.4rem', background: '#FFFFFF', fontSize: '0.85rem', padding: '0.3rem 0.5rem', fontWeight: '600' }}
-                          >
-                            {(statementDisplayCurrencyOptions.length ? statementDisplayCurrencyOptions : [baseCurrencyCode]).map((currencyCode) => (
-                              <option key={currencyCode} value={currencyCode}>{currencyCode}</option>
-                            ))}
-                          </select>
-                          <span style={{ color: getAccountEnquirySignedMetricColor(modalExcessDisplay, { marginAmount: modalMarginAmtDisplay, netDirection: accountEnquiryData?.balances?.netDirection }), fontWeight: '800', fontSize: '1.05rem', minWidth: '80px', textAlign: 'right' }}>
-                            {formatAccountEnquiryExcessDisplay({
-                              excess: modalExcessDisplay,
-                              marginAmount: modalMarginAmtDisplay,
-                              netDirection: accountEnquiryData?.balances?.netDirection,
-                              formatValue: (value) => formatStatementValue(value, 2),
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                      {/* Margin % */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.4rem' }}>
-                        <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Margin %</span>
-                        <span style={{ color: '#1565c0', fontWeight: '800', fontSize: '1.1rem' }}>{formatStatementValue(modalMarginPctDisplay, 2)}%</span>
-                      </div>
-                      <p style={{ margin: '0.45rem 0 0', color: '#6B7280', fontSize: '0.72rem', lineHeight: 1.45 }}>
-                        Customer credit balances are treated as favorable in Customer Margin; supplier credit balances remain payable.
-                        {enquirySuppressMetalSpotMtm && (
-                          <span>
-                            {' '}
-                            For creditor/vendor payables, Total Funds uses the ledger payable balance; revaluation uses live spot on the net unfixed metal position (grams).
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  {/* Full Statement Table */}
-                  <div style={{ marginTop: '1.25rem', border: '1px solid #CBD5E0', borderRadius: '0.65rem', overflow: 'hidden', background: '#FFFFFF' }}>
-                    <div style={{ padding: '0.85rem 1rem', background: '#F5F7F0', borderBottom: '1px solid #D1D5DB', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                      <div>
-                        <p style={{ margin: 0, fontSize: '0.95rem', color: '#111827', fontWeight: '800' }}>Full Statement of Account</p>
-                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: '#6B7280' }}>{filteredStatementEntries.length} entries shown</p>
-                      </div>
-                      {recentPaymentReceiptEntry && (
-                        <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '0.45rem', padding: '0.45rem 0.6rem' }}>
-                          <p style={{ margin: 0, fontSize: '0.73rem', color: '#065F46', fontWeight: '700' }}>Recent Payment/Receipt</p>
-                          <p style={{ margin: '0.15rem 0 0', fontSize: '0.8rem', color: '#065F46', fontWeight: '700' }}>
-                            {formatStatementDate(recentPaymentReceiptEntry.date)} · {String(recentPaymentReceiptEntry.referenceType || '').toUpperCase()} · #{resolveStatementReceiptNo(recentPaymentReceiptEntry)}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #E5E7EB', background: '#FAFBFC' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.55rem' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Filter</span>
-                        <div style={{ flex: 1, height: '1px', background: '#E2E8F0' }} />
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', marginBottom: '0.75rem' }}>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>Date From</span>
-                          <input
-                            type="date"
-                            value={statementFilters.startDate}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, startDate: e.target.value }))}
-                            style={ERP_MODAL_INPUT_STYLE}
-                          />
-                        </label>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>Date To</span>
-                          <input
-                            type="date"
-                            value={statementFilters.endDate}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, endDate: e.target.value }))}
-                            style={ERP_MODAL_INPUT_STYLE}
-                          />
-                        </label>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>All Types</span>
-                          <select
-                            value={statementFilters.referenceType}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, referenceType: e.target.value }))}
-                            style={ERP_MODAL_INPUT_STYLE}
-                          >
-                            <option value="">All Types</option>
-                            {statementReferenceTypes.map((type) => (
-                              <option key={type} value={type}>{type}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>All Departments</span>
-                          <select
-                            value={statementFilters.department}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, department: e.target.value }))}
-                            style={ERP_MODAL_INPUT_STYLE}
-                          >
-                            <option value="">All Departments</option>
-                            {statementDepartments.map((department) => (
-                              <option key={department} value={department}>{department}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>All Fixing Status</span>
-                          <select
-                            value={statementFilters.fixStatus}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, fixStatus: e.target.value }))}
-                            style={ERP_MODAL_INPUT_STYLE}
-                          >
-                            <option value="">All Fixing Status</option>
-                            <option value="fixed">Fixed Only</option>
-                            <option value="unfixed">Unfixed Only</option>
-                            <option value="unknown">Unknown Only</option>
-                          </select>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setStatementFilters({ startDate: '', endDate: '', referenceType: '', department: '', fixStatus: '', foreignCurrency: '', metalCommodity: '', showAmountIn: '' })
-                            setStatementMetalCommodityEnabled(false)
-                          }}
-                          style={{ padding: '0.65rem 0.75rem', background: '#E5E7EB', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer', height: 'fit-content', alignSelf: 'end', fontWeight: '600', fontSize: '0.78rem' }}
-                        >
-                          Reset
-                        </button>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', margin: '0.1rem 0 0.55rem' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Display</span>
-                        <div style={{ flex: 1, height: '1px', background: '#E2E8F0' }} />
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.6rem', marginBottom: '0.75rem' }}>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>Foreign Currency</span>
-                          <select
-                            value={statementFilters.foreignCurrency}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, foreignCurrency: e.target.value }))}
-                            style={ERP_MODAL_INPUT_STYLE}
-                          >
-                            {statementFilterCurrencyOptions.map((currencyCode) => (
-                              <option key={currencyCode} value={currencyCode === 'ALL' ? '' : currencyCode}>
-                                {currencyCode === 'ALL' ? 'All' : currencyCode}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>Metal/Commodities</span>
-                          <div style={{ display: 'grid', gap: '0.45rem' }}>
-                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: '#334155', fontSize: '0.78rem', fontWeight: '700' }}>
-                              <input
-                                type="checkbox"
-                                checked={statementMetalCommodityEnabled}
-                                onChange={(e) => {
-                                  const enabled = e.target.checked
-                                  setStatementMetalCommodityEnabled(enabled)
-                                  if (!enabled) {
-                                    setStatementFilters((prev) => ({ ...prev, metalCommodity: '' }))
-                                  } else if (!statementFilters.metalCommodity) {
-                                    setStatementFilters((prev) => ({ ...prev, metalCommodity: 'Gold' }))
-                                  }
-                                }}
-                                style={{ cursor: 'pointer' }}
-                              />
-                              Enable metal filter
-                            </label>
-                            <select
-                              value={statementFilters.metalCommodity || ''}
-                              onChange={(e) => setStatementFilters((prev) => ({ ...prev, metalCommodity: e.target.value }))}
-                              style={{ ...ERP_MODAL_INPUT_STYLE, marginBottom: 0, opacity: statementMetalCommodityEnabled ? 1 : 0.55 }}
-                              disabled={!statementMetalCommodityEnabled}
-                            >
-                              <option value="">All Metals</option>
-                              {statementMetalOptions.map((metalOption) => (
-                                <option key={metalOption} value={metalOption}>{metalOption}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </label>
-                        <label style={{ display: 'grid', gap: '0.28rem', color: '#64748B', fontSize: '0.78rem', fontWeight: '700' }}>
-                          <span>Show Amount In</span>
-                          <select
-                            value={statementFilters.showAmountIn || statementDisplayCurrency}
-                            onChange={(e) => setStatementFilters((prev) => ({ ...prev, showAmountIn: e.target.value }))}
-                            style={ERP_MODAL_INPUT_STYLE}
-                          >
-                            {statementDisplayCurrencyOptions.map((currencyCode) => (
-                              <option key={currencyCode} value={currencyCode}>{currencyCode}</option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: '#334155', fontSize: '0.82rem', fontWeight: '600', background: '#F8FAFC', border: '1px solid #D1D5DB', borderRadius: '0.5rem', padding: '0.62rem 0.7rem', cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={showStatementAuditIds}
-                          onChange={(e) => setShowStatementAuditIds(e.target.checked)}
-                          style={{ cursor: 'pointer' }}
-                        />
-                        Show Transaction ID
-                      </label>
-                    </div>
-                    <div ref={statementTableRef} tabIndex={-1} style={{ overflowX: 'auto' }} data-statement-table="true">
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
-                        <thead>
-                          <tr style={{ background: '#E8EBE0', borderBottom: '1px solid #CBD5E0' }}>
-                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Date</th>
-                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Receipt No</th>
-                            {showStatementAuditIds && <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Transaction ID</th>}
-                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Deal</th>
-                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Fixing</th>
-                            <th style={{ padding: '0.6rem', textAlign: 'left', color: '#374151', fontWeight: '700' }}>Offset Account</th>
-                            <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Amount In {statementDisplayCurrency}</th>
-                            <th colSpan={3} style={{ padding: '0.6rem', textAlign: 'center', color: '#111827', fontWeight: '800', borderLeft: '1px solid #CBD5E0' }}>Pure WT In Grams</th>
-                          </tr>
-                          <tr style={{ background: '#EEF1E8', borderBottom: '2px solid #CBD5E0' }}>
-                            <th colSpan={showStatementAuditIds ? 6 : 5} style={{ padding: 0, border: 0 }} />
-                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700', borderLeft: '1px solid #CBD5E0' }}>Debit</th>
-                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Credit</th>
-                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Balance</th>
-                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700', borderLeft: '1px solid #CBD5E0' }}>Debit</th>
-                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Credit</th>
-                            <th style={{ padding: '0.45rem 0.6rem', textAlign: 'right', color: '#374151', fontWeight: '700' }}>Balance</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredStatementEntries.length === 0 ? (
-                            <tr>
-                              <td colSpan={showStatementAuditIds ? 13 : 12} style={{ padding: '1rem', textAlign: 'center', color: '#6B7280', fontStyle: 'italic' }}>
-                                No statement entries found for selected filters.
-                              </td>
-                            </tr>
-                          ) : (
-                            filteredStatementEntries.map((entry, index) => {
-                              const receiptNo = resolveStatementReceiptNo(entry)
-                              // Account enquiry statement amounts are already in base currency from API.
-                              const debitUsd = Number(entry.debitAmount || 0)
-                              const creditUsd = Number(entry.creditAmount || 0)
-                              const balanceUsd = Number(entry.runningBalance || 0)
-                              const debitDisplay = convertStatementDisplayAmount(debitUsd)
-                              const creditDisplay = convertStatementDisplayAmount(creditUsd)
-                              const balanceDisplay = convertStatementDisplayAmount(balanceUsd)
-                              const sourceType = String(entry.sourceTransactionType || entry.referenceType || '').toLowerCase()
-                              const entryMetalCode = resolveMetalCode(entry)
-                              const isMetalRow = isMetalStatementEntry(entry) && entryMetalCode === statementSelectedMetalCode
-                              const signedPureWeight = Number(entry.metalSignedWeight || 0)
-                              const debitPureWeight = isMetalRow && signedPureWeight > 0 ? signedPureWeight : (isMetalRow ? 0 : null)
-                              const creditPureWeight = isMetalRow && signedPureWeight < 0 ? Math.abs(signedPureWeight) : (isMetalRow ? 0 : null)
-                              const balancePureWeight = isMetalRow ? (pureWeightRunningByEntryKey.get(entry._id) ?? null) : null
-                              return (
-                                <tr key={entry._id || `${entry.date}-${index}`} style={{ background: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                                  <td style={{ padding: '0.6rem', color: '#374151' }}>{formatStatementDate(entry.date)}</td>
-                                  <td style={{ padding: '0.6rem', color: '#111827', fontFamily: 'monospace', fontSize: '0.8rem' }}>{receiptNo}</td>
-                                  {showStatementAuditIds && <td style={{ padding: '0.6rem', color: '#475569', fontFamily: 'monospace', fontSize: '0.78rem' }}>{entry.sourceTransactionId || '-'}</td>}
-                                  <td style={{ padding: '0.6rem', color: '#374151', textTransform: 'capitalize' }}>{entry.metalDealType || '-'}</td>
-                                  <td style={{ padding: '0.6rem' }}>
-                                    {(sourceType === 'sale' || sourceType === 'purchase') && (entry.metalFixStatus === 'fixed' || entry.metalFixStatus === 'unfixed') ? (
-                                      <span style={{ background: entry.metalFixStatus === 'fixed' ? '#DCFCE7' : '#FEF3C7', color: entry.metalFixStatus === 'fixed' ? '#166534' : '#92400E', borderRadius: '999px', padding: '0.12rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', textTransform: 'capitalize' }}>
-                                        {entry.metalFixStatus}
-                                      </span>
-                                    ) : '-'}
-                                  </td>
-                                  <td style={{ padding: '0.6rem', color: '#374151' }}>
-                                    {entry.offsetAccountCode ? `${entry.offsetAccountCode}${entry.offsetAccountName ? ` - ${entry.offsetAccountName}` : ''}` : '-'}
-                                  </td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{formatStatementValue(debitDisplay, 2)}</td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementValue(creditDisplay, 2)}</td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: getSignedColor(balanceDisplay), fontWeight: '700' }}>
-                                    {formatDirectionalBalance(balanceDisplay)}
-                                  </td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#065F46', fontWeight: '600', borderLeft: '1px solid #E5E7EB' }}>{formatStatementNullableValue(debitPureWeight, 2)}</td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: '#B91C1C', fontWeight: '600' }}>{formatStatementNullableValue(creditPureWeight, 2)}</td>
-                                  <td style={{ padding: '0.6rem', textAlign: 'right', color: getSignedColor(balancePureWeight), fontWeight: '700' }}>
-                                    {balancePureWeight === null ? '-' : formatDirectionalBalance(balancePureWeight)}
-                                  </td>
-                                </tr>
-                              )
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-            {/* Footer */}
-            <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-              {canExportAccountSummary && accountEnquiryData && (
-                <>
-                  <button onClick={handleViewStatement} style={{ padding: '0.6rem 1.2rem', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>👁 View Statement</button>
-                  <button onClick={handleExportEnquiryPdf} style={{ padding: '0.6rem 1.2rem', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
-                </>
-              )}
-              <button onClick={() => setShowEnquiryModal(false)} style={{ padding: '0.6rem 1.2rem', background: '#6B7280', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AccountEnquiryModal
+        open={showEnquiryModal}
+        onClose={() => setShowEnquiryModal(false)}
+        enquiryBackdropColor={enquiryBackdropColor}
+        enquiryModalOffset={enquiryModalOffset}
+        enquiryModalDrag={enquiryModalDrag}
+        beginEnquiryModalDrag={beginEnquiryModalDrag}
+        enquiryLoading={enquiryLoading}
+        accountEnquiryCode={accountEnquiryCode}
+        setAccountEnquiryCode={setAccountEnquiryCode}
+        setShowEnquiryLookupMenu={setShowEnquiryLookupMenu}
+        showEnquiryLookupMenu={showEnquiryLookupMenu}
+        filteredGroupedSummaryAccounts={filteredGroupedSummaryAccounts}
+        setEnquiryStatus={setEnquiryStatus}
+        fetchAccountEnquiryByCode={fetchAccountEnquiryByCode}
+        enquiryStatus={enquiryStatus}
+        accountEnquiryData={accountEnquiryData}
+        modalPositionRows={modalPositionRows}
+        formatStatementValue={formatStatementValue}
+        getSignedColor={getSignedColor}
+        formatDirectionalBalance={formatDirectionalBalance}
+        unfixedMetalEntries={unfixedMetalEntries}
+        formatStatementDate={formatStatementDate}
+        fixedMetalSummary={fixedMetalSummary}
+        unfixedMetalSummary={unfixedMetalSummary}
+        unknownFixMetalEntries={unknownFixMetalEntries}
+        modalTotalFundsDisplay={modalTotalFundsDisplay}
+        modalRevaluationDisplay={modalRevaluationDisplay}
+        modalNetEquityDisplay={modalNetEquityDisplay}
+        modalMarginAmtDisplay={modalMarginAmtDisplay}
+        modalExcessDisplay={modalExcessDisplay}
+        modalMarginPctDisplay={modalMarginPctDisplay}
+        enquirySuppressMetalSpotMtm={enquirySuppressMetalSpotMtm}
+        excessCurrency={excessCurrency}
+        setExcessCurrency={setExcessCurrency}
+        baseCurrencyCode={baseCurrencyCode}
+        statementDisplayCurrencyOptions={statementDisplayCurrencyOptions}
+        filteredStatementEntries={filteredStatementEntries}
+        recentPaymentReceiptEntry={recentPaymentReceiptEntry}
+        resolveStatementReceiptNo={resolveStatementReceiptNo}
+        statementFilters={statementFilters}
+        setStatementFilters={setStatementFilters}
+        statementReferenceTypes={statementReferenceTypes}
+        statementDepartments={statementDepartments}
+        setStatementMetalCommodityEnabled={setStatementMetalCommodityEnabled}
+        statementMetalCommodityEnabled={statementMetalCommodityEnabled}
+        statementFilterCurrencyOptions={statementFilterCurrencyOptions}
+        statementMetalOptions={statementMetalOptions}
+        statementDisplayCurrency={statementDisplayCurrency}
+        showStatementAuditIds={showStatementAuditIds}
+        setShowStatementAuditIds={setShowStatementAuditIds}
+        statementTableRef={statementTableRef}
+        convertStatementDisplayAmount={convertStatementDisplayAmount}
+        resolveMetalCode={resolveMetalCode}
+        statementSelectedMetalCode={statementSelectedMetalCode}
+        pureWeightRunningByEntryKey={pureWeightRunningByEntryKey}
+        formatStatementNullableValue={formatStatementNullableValue}
+        canExportAccountSummary={canExportAccountSummary}
+        handleViewStatement={handleViewStatement}
+        handleExportEnquiryPdf={handleExportEnquiryPdf}
+        getAccountEnquirySignedMetricColor={getAccountEnquirySignedMetricColor}
+        formatAccountEnquiryExcessDisplay={formatAccountEnquiryExcessDisplay}
+        resolveExposureDirection={resolveExposureDirection}
+        isMetalStatementEntry={isMetalStatementEntry}
+      />
       <StatementExportOptionsModal
         open={exportOptionsOpen}
         onClose={() => setExportOptionsOpen(false)}

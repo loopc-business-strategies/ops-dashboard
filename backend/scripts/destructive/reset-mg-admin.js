@@ -4,8 +4,11 @@ const bcrypt = require('bcryptjs');
 const User = require('../../models/User');
 
 async function main() {
+  const mgAdminPassword = process.env.MG_ADMIN_PASSWORD;
+  if (!mgAdminPassword) throw new Error('MG_ADMIN_PASSWORD is required.');
+
   const Model = await User.getTenantModel('mg');
-  const hash = await bcrypt.hash('MgAdmin@2026!', 10);
+  const hash = await bcrypt.hash(mgAdminPassword, 10);
 
   await Model.updateOne(
     { name: 'mgadmin' },

@@ -81,7 +81,7 @@ async function runJvLedgerFxBackfillOnNativeDb(db, options = {}) {
   const dryRun = options.dryRun !== false
   const mode = String(options.mode || 'coa').toLowerCase()
   const forceCurrency = String(options.forceCurrency || '').trim().toUpperCase()
-  const verbose = Boolean(options.verbose)
+  const _verbose = Boolean(options.verbose)
 
   if (mode !== 'coa' && mode !== 'force') {
     const err = new Error('INVALID_MODE')
@@ -146,7 +146,7 @@ async function runJvLedgerFxBackfillOnNativeDb(db, options = {}) {
     let fcCurrency = inferFcForGroup(group, coaById, baseCurrencyCode, mode, forceCurrency)
 
     if (mode === 'force' && (!fcCurrency || fcCurrency === baseCurrencyCode)) {
-      for (const e of group) bump('force_currency_invalid')
+      for (const _e of group) bump('force_currency_invalid')
       pushSkipSample(refKey, 'force_currency_invalid', `forceCurrency=${forceCurrency || '(empty)'}`)
       continue
     }
@@ -160,18 +160,18 @@ async function runJvLedgerFxBackfillOnNativeDb(db, options = {}) {
         'coa_all_base_or_ambiguous_fc',
         `lines=${group.length} debit=${dr?.accountCode || '?'} cur=${dr?.currency ?? ''} credit=${cr?.accountCode || '?'} cur=${cr?.currency ?? ''}`,
       )
-      for (const e of group) bump('coa_all_base_or_ambiguous_fc')
+      for (const _e of group) bump('coa_all_base_or_ambiguous_fc')
       continue
     }
 
     if (fcCurrency === baseCurrencyCode) {
-      for (const e of group) bump('inferred_fc_is_base')
+      for (const _e of group) bump('inferred_fc_is_base')
       continue
     }
 
     const rate = rateMap[fcCurrency]
     if (!Number.isFinite(rate) || rate <= 0) {
-      for (const e of group) bump(`missing_fx_${fcCurrency}`)
+      for (const _e of group) bump(`missing_fx_${fcCurrency}`)
       pushSkipSample(refKey, `missing_fx_${fcCurrency}`, `No active ${fcCurrency} rate in currencies`)
       continue
     }

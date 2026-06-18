@@ -5,7 +5,7 @@ const {
   computeBookedUnfixedRevaluationFromStatementRows,
 } = require('../../services/erpAccounting/metalMarginPolicy')
 const {
-  isUnfixedFixingType,
+  _isUnfixedFixingType,
   accumulateUnfixedMetalFromTransactions,
   accumulateDirectDealMetalForCustomer,
   resolveDirectDealLineSignedWeight,
@@ -13,7 +13,7 @@ const {
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVoucherTypes')
 const { createReportResponseCache } = require('../../utils/reportResponseCache')
-const { getOutstandingMapForAccounts } = require('../../utils/ledgerBalanceBatch')
+const { _getOutstandingMapForAccounts } = require('../../utils/ledgerBalanceBatch')
 
 const enquiryCache = createReportResponseCache(120000)
 const summaryAccountsCache = createReportResponseCache(120000)
@@ -39,12 +39,12 @@ function registerAccountsRoutes(deps) {
     Customer,
     BASE_CURRENCY_CODE,
     DEFAULT_METAL_RATES,
-    toMoney,
+    _toMoney,
     parsePagination,
     getLatestMetalRate,
     getAccountSummaryScope,
     validateAccountParentAssignment,
-    canViewAccounts,
+    _canViewAccounts,
     canViewAccountSummary,
     canReadErpReferenceData,
     canManageAccounts,

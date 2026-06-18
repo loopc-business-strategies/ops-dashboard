@@ -1,6 +1,7 @@
 function registerTransactionRoutes(deps) {
   const fs = require('fs')
   const path = require('path')
+  const { Joi, validateQuery } = require('../../middleware/validate')
   const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
   const { reverseMetalVoucherStockForVoid } = require('../../utils/metalVoucherStockReversal')
   const { normalizeVoucherMetaDocNo } = require('../../utils/voucherDocNo')
@@ -44,7 +45,7 @@ function registerTransactionRoutes(deps) {
     validateAttachmentContent,
     canAccessReports,
     isSuperAdmin,
-    toMoney,
+    _toMoney,
     parsePagination,
     canCreateTransactionFor,
     canAccessOperationalTransactions,
@@ -53,7 +54,7 @@ function registerTransactionRoutes(deps) {
     getRoleTransactionTypes,
     getDisabledVoucherTypeMessage,
     BASE_CURRENCY_CODE,
-    applyPartyAccountPriority,
+    _applyPartyAccountPriority,
     StockMovement,
     InventoryItem,
     toQty,
@@ -150,6 +151,34 @@ const reversePostedTransactionEffects = async ({ tx, user, session, deleteReason
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+const objectId = Joi.string().hex().length(24)
+
+const transactionListQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).optional(),
+  limit: Joi.number().integer().min(1).max(200).optional(),
+  cursor: Joi.string().trim().allow('').optional(),
+  type: Joi.string().trim().max(80).optional(),
+  status: Joi.string().trim().max(40).optional(),
+  customerId: objectId.optional(),
+  vendorId: objectId.optional(),
+  startDate: Joi.string().trim().allow('').optional(),
+  endDate: Joi.string().trim().allow('').optional(),
+  search: Joi.string().trim().max(200).allow('').optional(),
+})
+
+const transactionCommentSchema = Joi.object({
+  message: Joi.string().trim().min(1).max(2000).required(),
+  mentionedUserIds: Joi.array().items(objectId).max(20).optional(),
+  mentionedNames: Joi.array().items(Joi.string().trim().max(120)).max(20).optional(),
+})
+
+const transactionBulkActionSchema = Joi.object({
+  ids: Joi.array().items(objectId).min(1).max(100).required(),
+  action: Joi.string().valid('submit', 'approve', 'post').required(),
+  comment: Joi.string().trim().allow('').max(2000).optional(),
+  mappingOverride: Joi.object().optional(),
+})
+
 const extractMentionNames = (message) => {
   const matches = String(message || '').matchAll(/@([A-Za-z0-9._-]+)/g)
   return Array.from(new Set(Array.from(matches).map((match) => String(match[1] || '').trim()).filter(Boolean)))
@@ -179,7 +208,7 @@ const resolveMentionedUsers = async (message, payload = {}) => {
     .limit(20)
 }
 
-router.get('/transactions', protect, async (req, res) => {
+router.get('/transactions', protect, validateQuery(transactionListQuerySchema), async (req, res) => {
   try {
     if (!canAccessOperationalTransactions(req.user)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
@@ -795,7 +824,7 @@ router.post('/transactions/:id/revalue-fx-journal', protect, async (req, res) =>
   }
 })
 
-router.post('/transactions/:id/comments', protect, async (req, res) => {
+router.post('/transactions/:id/comments', protect, validateBody(transactionCommentSchema), async (req, res) => {
   try {
     if (!canAccessOperationalTransactions(req.user)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
@@ -804,7 +833,7 @@ router.post('/transactions/:id/comments', protect, async (req, res) => {
     const tx = await Transaction.findById(req.params.id)
     if (!tx || tx.isDeleted) return res.status(404).json({ success: false, message: 'Transaction not found' })
 
-    const message = normalizeTransactionNote(req.body?.message)
+    const message = normalizeTransactionNote(req.body.message)
     if (!message) return res.status(400).json({ success: false, message: 'Comment is required' })
 
     const mentionedUsers = await resolveMentionedUsers(message, req.body)
@@ -1006,19 +1035,16 @@ router.post('/transactions/:id/reject', protect, async (req, res) => {
   }
 })
 
-router.post('/transactions/bulk-action', protect, async (req, res) => {
+router.post('/transactions/bulk-action', protect, validateBody(transactionBulkActionSchema), async (req, res) => {
   try {
     if (!canAccessOperationalTransactions(req.user)) {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
 
-    const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter(Boolean) : []
-    const action = String(req.body?.action || '')
-    const comment = normalizeTransactionNote(req.body?.comment)
-    const mappingOverride = req.body?.mappingOverride || {}
-
-    if (!ids.length) return res.status(400).json({ success: false, message: 'Select at least one transaction' })
-    if (!['submit', 'approve', 'post'].includes(action)) return res.status(400).json({ success: false, message: 'Invalid bulk action' })
+    const ids = req.body.ids
+    const action = req.body.action
+    const comment = normalizeTransactionNote(req.body.comment)
+    const mappingOverride = req.body.mappingOverride || {}
 
     const transactions = await Transaction.find({ _id: { $in: ids }, isDeleted: { $ne: true } }).sort({ createdAt: -1 })
     const results = { successIds: [], failed: [] }

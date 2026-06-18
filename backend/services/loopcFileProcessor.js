@@ -147,6 +147,7 @@ async function processUploadedFile(file) {
 
   // Generic binary — try utf8 read
   const maybeText = buffer.toString('utf8')
+  // eslint-disable-next-line no-control-regex -- strip binary control chars when sniffing text files
   const printableRatio = maybeText.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').length / Math.max(maybeText.length, 1)
   if (printableRatio > 0.95 && maybeText.length > 0) {
     return {

@@ -1,7 +1,7 @@
 // FILE: src/components/tabs/ProductionTab.jsx
 // Production Control Center — 9 sub-tabs, role-based access
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import erpAPI from '../../api/erp'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -1199,14 +1199,20 @@ function Planning({ canEdit, showToast }) {
     progress:  wo.progress || 0,
   })
 
-  const load = useCallback(async () => {
-    try {
-      const res = await erpAPI.getWorkOrders(token)
-      setOrders((res.workOrders || res.data || []).map(toRow))
-    } catch { /* keep previous */ } finally { setLoading(false) }
-  }, [token])
-
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const res = await erpAPI.getWorkOrders(token)
+        if (mounted) setOrders((res.workOrders || res.data || []).map(toRow))
+      } catch (e) {
+        if (mounted) showToast?.(e?.response?.data?.message || 'Failed to load work orders')
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    })()
+    return () => { mounted = false }
+  }, [token, showToast])
 
   const set = f => e => setForm(p => ({ ...p, [f]: e.target.value }))
 

@@ -33,7 +33,7 @@
     "backfill:jv-ledger-fc:apply": "node scripts/backfill-jv-ledger-base-to-fc.js --apply"
   },
   "dependencies": {
-    "@sentry/node": "^8.55.2",
+    "@sentry/node": "^10.58.0",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

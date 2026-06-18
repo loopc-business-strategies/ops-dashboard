@@ -38,6 +38,32 @@ export default [
     ],
   },
   {
+    files: [
+      'backend/app.js',
+      'backend/server.js',
+      'backend/middleware/**/*.js',
+      'backend/routes/**/*.js',
+      'backend/utils/**/*.js',
+      'backend/services/**/*.js',
+      'backend/models/**/*.js',
+      'backend/config/**/*.js',
+      'backend/db/**/*.js',
+      'backend/realtime/**/*.js',
+      'backend/jobs/**/*.js',
+    ],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'commonjs',
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      ...js.configs.recommended.rules,
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
+    },
+  },
+  {
     files: ['frontend/src/**/*.{js,jsx}'],
     ignores: [
       'frontend/src/**/*.test.{js,jsx}',

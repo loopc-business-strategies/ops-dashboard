@@ -406,7 +406,7 @@ router.put('/ledger/:id', protect, validateParams(idParamSchema), validateBodySt
     if (!canEditLedgerEntry(req.user, entry)) {
       return res.status(403).json({ success: false, message: 'Can only edit your own entries' })
     }
-    const { date, debitAccountId, creditAccountId, amount, description, referenceType } = req.body
+    const { date, debitAccountId, creditAccountId, _amount, description, referenceType } = req.body
     if (debitAccountId && creditAccountId && debitAccountId === creditAccountId) {
       return res.status(400).json({ success: false, message: 'Debit and Credit accounts must be different' })
     }

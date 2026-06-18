@@ -132,7 +132,7 @@ async function gatherLiveMetalContext(req) {
   }
 }
 
-async function gatherTaskSummary(user) {
+async function _gatherTaskSummary(_user) {
   try {
     const { gatherTaskSnapshot } = require('./loopcContextService')
     return gatherTaskSnapshot()

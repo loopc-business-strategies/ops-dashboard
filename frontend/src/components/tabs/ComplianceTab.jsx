@@ -202,7 +202,10 @@ function ComplianceTab() {
       if (ups.length)  setUpdates(norm(ups))
       if (ags.length)  setAgreements(norm(ags))
       loadedRef.current = true
-    }).catch(() => { loadedRef.current = true })
+    }).catch((e) => {
+      if (!cancelled) setToast(e?.response?.data?.message || 'Failed to load compliance data')
+      loadedRef.current = true
+    })
     return () => { cancelled = true }
   }, [token])
 

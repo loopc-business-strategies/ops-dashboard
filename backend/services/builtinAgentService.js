@@ -166,7 +166,7 @@ function buildSummaryReply(ctx) {
 }
 
 function buildInventoryReply(ctx) {
-  const { user, snapshot } = ctx
+  const { _user, snapshot } = ctx
   const { erp, metals } = snapshot
   const lines = [
     `**Inventory status (${String(ctx.tenant).toUpperCase()})**`,
@@ -184,7 +184,7 @@ function buildInventoryReply(ctx) {
 }
 
 function buildSalesReply(ctx) {
-  const { user, snapshot } = ctx
+  const { _user, snapshot } = ctx
   const { crm } = snapshot
   return [
     `**Sales & CRM (${String(ctx.tenant).toUpperCase()})**`,

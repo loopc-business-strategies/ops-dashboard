@@ -22,6 +22,7 @@ import {
 } from '../../api/operationsLegalDocuments'
 import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 import AccountCombobox from '../AccountCombobox'
+import LegalDocxPreviewBody from '../legal/LegalDocxPreviewBody'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -344,45 +345,6 @@ function legalDocPreviewKind(mime, fileName = '') {
   const looksDocx = ext === 'docx' || docxMime || (m === 'application/octet-stream' && ext === 'docx')
   if (looksDocx) return 'docx'
   return 'none'
-}
-
-function LegalDocxPreviewBody({ arrayBuffer, showToast }) {
-  const hostRef = useRef(null)
-  const toastRef = useRef(showToast)
-  toastRef.current = showToast
-  useEffect(() => {
-    const el = hostRef.current
-    if (!el || !arrayBuffer) return undefined
-    let cancelled = false
-    el.innerHTML = ''
-    ;(async () => {
-      try {
-        const { renderAsync } = await import('docx-preview')
-        if (cancelled) return
-        await renderAsync(arrayBuffer, el, undefined, { inWrapper: true })
-      } catch (e) {
-        if (!cancelled) {
-          el.innerHTML = ''
-          const p = document.createElement('p')
-          p.style.cssText = 'padding:16px;color:#b91c1c;font-size:13px;line-height:1.5'
-          p.textContent = e?.message || 'Could not render Word preview.'
-          el.appendChild(p)
-          toastRef.current?.('Preview', e?.message || 'Word preview failed.')
-        }
-      }
-    })()
-    return () => {
-      cancelled = true
-      if (el) el.innerHTML = ''
-    }
-  }, [arrayBuffer])
-  return (
-    <div
-      ref={hostRef}
-      className="legal-docx-preview-host"
-      style={{ padding: '12px 16px', minHeight: 280, fontSize: 12, color: C.t2 }}
-    />
-  )
 }
 
 function LegalDocumentsCard({ canEdit, showToast }) {
@@ -1213,7 +1175,7 @@ function LegalDocumentsCard({ canEdit, showToast }) {
                 <pre style={{ margin: 0, padding: 14, fontSize: 12, color: C.t2, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'ui-monospace, monospace' }}>{preview.text}</pre>
               )}
               {preview.kind === 'docx' && preview.docxArrayBuffer && (
-                <LegalDocxPreviewBody arrayBuffer={preview.docxArrayBuffer} showToast={showToast} />
+                <LegalDocxPreviewBody arrayBuffer={preview.docxArrayBuffer} showToast={showToast} hostStyle={{ color: C.t2 }} />
               )}
               {preview.kind === 'office' && (
                 <div style={{ padding: 24, fontSize: 13, color: C.t2, lineHeight: 1.5 }}>

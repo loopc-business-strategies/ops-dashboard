@@ -67,8 +67,8 @@ function registerReportRoutes(deps) {
     buildProfitLossComparisons,
     buildBalanceSheetSummary,
     buildBalanceSheetComparisons,
-    getAgingForAccount,
-    getOutstandingForAccount,
+    _getAgingForAccount,
+    _getOutstandingForAccount,
     buildDocumentExpiryBuckets,
     evaluateVendorCompliance,
     canAccessReports,
@@ -79,9 +79,9 @@ function registerReportRoutes(deps) {
     isUnfixedFixingType,
     roundPosition,
     calculateMarginMetrics,
-    normalizeMetalPayload,
+    _normalizeMetalPayload,
     getCurrencyMultiplier,
-    buildInventoryMetalPriceMap,
+    _buildInventoryMetalPriceMap,
     normalizeMetalsDevApiKey,
     fetchExternalMetalPrices,
     buildFallbackMetalPrices,
@@ -1032,7 +1032,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     let expenseTotal = 0
     const expenseByAccount = {}
     periodLedger.forEach((entry) => {
-      const debitType = getType(entry.debitAccountId)
+      const _debitType = getType(entry.debitAccountId)
       const creditType = getType(entry.creditAccountId)
       if (creditType === 'Income') income += getLedgerEntryAmount(entry)
       if (isDashboardExpenseLedgerEntry(entry, getType)) {

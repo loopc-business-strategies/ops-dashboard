@@ -1,18 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import AccountCombobox from '../AccountCombobox'
 import axios from '../../api/client'
 import { useLanguage } from '../../context/LanguageContext'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import { getTenantBranding, isVoucherTypeEnabled } from '../../config/tenantBranding'
-import DocumentPrintHeader from './erp/DocumentPrintHeader'
-import MGMetalInvoicePrintLayout from './erp/MGMetalInvoicePrintLayout'
-import MGVoucherPrintLayout from './erp/MGVoucherPrintLayout'
-import VoucherAttachmentsPanel from './erp/VoucherAttachmentsPanel'
-import { resolveDocumentBranding } from './erp/documentBranding'
 import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
 import { buildMetalRatesFromApiPayload, marketPricesToRates, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
-import { BASE, cfg, fmt, today, S, labelStyle, inputStyle, sectionBox, sectionHeader, sectionBody, btn, tabBtn, classicHeaderShell, classicHeaderGrid, classicPanel, classicPanelTitle, classicPartyGrid, classicPartyCard, classicPartyCardHeader, classicPartyCardTitle, classicPartyCardCodeWrap, classicPartyCardCode, classicPartyCardCodeInput, classicPartyCardSearch, classicPartyCardName, classicPartyCardBody, classicPartyCardField, classicPartyCardFieldLabel, classicPartyCardFieldValue, classicRightGrid, classicLabel, classicInput, classicReadInput, metalWin, metalTopInlineRow, metalTopField, emptyLine, normalizeMongoIdField, emptyHeader, getDocYear, parseAnyVoucherDocMeta, parseVoucherDocMeta, buildVoucherDocNo, coerceVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity } from './voucher/voucherTabShared'
+import { BASE, cfg, fmt, today, S, btn, tabBtn, emptyLine, normalizeMongoIdField, emptyHeader, coerceVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
 import { buildVoucherTypeConfigs } from './voucher/voucherTypeConfigs'
+import VoucherListPanel from './voucher/VoucherListPanel'
+import { useVoucherPrintModel } from './voucher/useVoucherPrintModel'
+import VoucherPrintPanel from './voucher/VoucherPrintPanel'
+import VoucherEditorPanel from './voucher/VoucherEditorPanel'
 import { deriveErpAccessPolicy, canCreateTransactionFor } from './erp/accessPolicy'
 
 const VOUCHER_TAB_TYPES = ['payment', 'receipt', 'purchase', 'sale', 'metal_receipt', 'metal_payment']
@@ -714,6 +712,22 @@ export default function VoucherTab({
         : receiptPaymentLegacyGrand,
   }
 
+  const printModel = useVoucherPrintModel({
+    voucherType,
+    header,
+    effectiveLineItems,
+    totals,
+    accounts,
+    user,
+    reportBranding,
+    voucherLabel: (voucherConfigs[voucherType] || voucherConfigs.payment).label,
+    isMetalVoucher: isMetalStockVoucherType(voucherType),
+    isSimpleMetalVoucher: isMetalTransferVoucherType(voucherType),
+    findPartyOptionByCode,
+    resolveVoucherParty,
+    lineItems,
+  })
+
   const canCreate = voucherType === 'payment'
     ? canCreatePayment
     : voucherType === 'receipt'
@@ -726,24 +740,12 @@ export default function VoucherTab({
             ? canCreateMetalPayment
             : canCreateSale
 
-  const sortVouchersByDocNo = useCallback((items, type) => {
-    const src = Array.isArray(items) ? [...items] : []
-    return src.sort((a, b) => {
-      const am = parseAnyVoucherDocMeta(a?.voucherMeta?.vocNo) || parseVoucherDocMeta(a?.voucherMeta?.vocNo, type)
-      const bm = parseAnyVoucherDocMeta(b?.voucherMeta?.vocNo) || parseVoucherDocMeta(b?.voucherMeta?.vocNo, type)
-      const ak = am?.sortKey ?? 0
-      const bk = bm?.sortKey ?? 0
-      if (ak !== bk) return ak - bk
-      return new Date(a?.date || 0).getTime() - new Date(b?.date || 0).getTime()
-    })
-  }, [])
+  const sortVouchers = useCallback((items, type) => sortVouchersByDocNo(items, type), [])
 
-  const displayVoucherDocNo = useCallback((voucher, typeOverride = voucherType) => {
-    const meta = voucher?.voucherMeta || {}
-    const docDate = meta.docDate || voucher?.date || header.docDate
-    const voucherKind = String(voucher?.type || typeOverride || voucherType || '').toLowerCase()
-    return coerceVoucherDocNo(voucherKind, meta.vocNo, docDate)
-  }, [voucherType, header.docDate])
+  const resolveDisplayVoucherDocNo = useCallback(
+    (voucher, typeOverride = voucherType) => displayVoucherDocNo(voucher, typeOverride || voucherType, header.docDate),
+    [voucherType, header.docDate],
+  )
 
   // ─── load vouchers ───────────────────────────────────────────────────────────
   const loadVouchers = useCallback(async () => {
@@ -754,7 +756,7 @@ export default function VoucherTab({
         ...cfg(),
         params: { type: voucherType, limit: 200 },
       })
-      const txs = sortVouchersByDocNo(
+      const txs = sortVouchers(
         (res.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
         voucherType
       )
@@ -764,7 +766,7 @@ export default function VoucherTab({
     } finally {
       setLoadingList(false)
     }
-  }, [voucherType, canView, sortVouchersByDocNo])
+  }, [voucherType, canView, sortVouchers])
 
   useEffect(() => { loadVouchers() }, [loadVouchers])
 
@@ -803,20 +805,9 @@ export default function VoucherTab({
     }
   }, [modalDrag])
 
-  // ─── next voucher number ─────────────────────────────────────────────────────
-  const nextVocNo = (list, voucherTypeOverride = voucherType, docDateOverride = header.docDate) => {
-    const src = Array.isArray(list) ? list : vouchers
-    const normalizedType = String(voucherTypeOverride || voucherType || '').toLowerCase()
-    const currentYear = Number(getDocYear(docDateOverride))
-    const nos = src
-      .map((v) => parseAnyVoucherDocMeta(v?.voucherMeta?.vocNo) || parseVoucherDocMeta(v?.voucherMeta?.vocNo, normalizedType))
-      .filter(Boolean)
-      .filter((meta) => meta.year === 0 || meta.year === currentYear)
-      .map((meta) => meta.seq)
-      .filter((n) => Number.isFinite(n) && n > 0)
-    const next = nos.length ? Math.max(...nos) + 1 : 1
-    return buildVoucherDocNo(normalizedType, docDateOverride, next)
-  }
+  const resolveNextVocNo = (list, voucherTypeOverride = voucherType, docDateOverride = header.docDate) => (
+    nextVocNo(list, voucherTypeOverride, docDateOverride, vouchers)
+  )
 
   // ─── open create ────────────────────────────────────────────────────────────
   const openCreate = (freshList, forcedType = voucherType) => {
@@ -832,7 +823,7 @@ export default function VoucherTab({
     const baseHeader = emptyHeader()
     const nextHeader = {
       ...baseHeader,
-      vocNo: nextVocNo(freshList, forcedType, baseHeader.docDate),
+      vocNo: resolveNextVocNo(freshList, forcedType, baseHeader.docDate),
     }
     setEditingId(null)
     setHeader(nextHeader)
@@ -856,7 +847,7 @@ export default function VoucherTab({
         ...cfg(),
         params: { type, limit: 200 },
       })
-      const txs = sortVouchersByDocNo(
+      const txs = sortVouchers(
         (res.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
         type
       )
@@ -1062,7 +1053,7 @@ export default function VoucherTab({
         return
       }
       if (!window.confirm('Clear this unsaved voucher entry?')) return
-      setHeader({ ...emptyHeader(), vocNo: nextVocNo() })
+      setHeader({ ...emptyHeader(), vocNo: resolveNextVocNo() })
       setSelectedPartyId('')
       setRecentPartyVouchers([])
       setLineItems([])
@@ -1096,7 +1087,7 @@ export default function VoucherTab({
         ...cfg(),
         params: { type: voucherType, limit: 200 },
       })
-      const remaining = sortVouchersByDocNo(
+      const remaining = sortVouchers(
         (res.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
         voucherType
       )
@@ -1195,7 +1186,7 @@ export default function VoucherTab({
           ...cfg(),
           params: { type: tnorm, limit: 200 },
         })
-        const txs = sortVouchersByDocNo(
+        const txs = sortVouchers(
           (res.data.transactions || []).filter((row) => row.voucherMeta && row.voucherMeta.vocNo),
           tnorm,
         )
@@ -1224,7 +1215,7 @@ export default function VoucherTab({
     canView,
     token,
     enabledVoucherTypes,
-    sortVouchersByDocNo,
+    sortVouchers,
   ])
 
   const handleWorkflowAction = async (action) => {
@@ -1552,7 +1543,7 @@ export default function VoucherTab({
         ...cfg(),
         params: { type: voucherType, limit: 200 },
       })
-      const refreshed = sortVouchersByDocNo(
+      const refreshed = sortVouchers(
         (res2.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
         voucherType
       )
@@ -1976,7 +1967,7 @@ export default function VoucherTab({
         ...cfg(),
         params: { type: voucherType, limit: 200 },
       })
-      const nextVouchers = sortVouchersByDocNo(
+      const nextVouchers = sortVouchers(
         (refreshed.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
         voucherType
       )
@@ -2002,7 +1993,7 @@ export default function VoucherTab({
         ...cfg(),
         params: { type: voucherType, limit: 200 },
       })
-      const nextVouchers = sortVouchersByDocNo(
+      const nextVouchers = sortVouchers(
         (refreshed.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
         voucherType
       )
@@ -2043,23 +2034,6 @@ export default function VoucherTab({
       ? ['No.', 'Stock Code', 'Product Type', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', '']
       : ['No.', 'Stock Code', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.', 'Rate Type', 'Metal Rate', 'Metal Amount', 'Total', ''])
     : ['No.', 'A/C Code', 'Type', 'Curr', 'Amount FC', 'Amount LC', '']
-  const branding = user?.branding || {}
-  const tenant = user?.tenant || {}
-  const activeTenantBranding = getTenantBranding(user?.company || tenant?.key || tenant?.name)
-  const documentBranding = resolveDocumentBranding({ reportBranding, user, tenantBranding: activeTenantBranding })
-  const voucher = {
-    currency: header?.currCode || 'USD',
-    partyName: header?.partyName || '',
-    partyAccount: header?.partyCode || '',
-  }
-  const companyPhone = documentBranding.phone || branding?.phone || tenant?.phone || activeTenantBranding?.phone || ''
-  const companyTrn = documentBranding.trn || branding?.trn || tenant?.trn || activeTenantBranding?.trn || ''
-  const currencyLabel = voucher?.currency || 'USD'
-  const payNoValue = header?.vocNo || ''
-  const payDateValue = header?.docDate || ''
-  const preparedByValue = user?.name || ''
-  const trnValue = companyTrn || ''
-  const phoneValue = companyPhone || ''
   const inventoryStockOptions = inventoryProducts
     .filter((item) => String(item.sku || '').trim())
     // Keep mapped inventory records only, so legacy records do not show duplicate-like stock choices.
@@ -2078,100 +2052,6 @@ export default function VoucherTab({
       if (byMetal !== 0) return byMetal
       return a.code.localeCompare(b.code)
     })
-
-  const numberToWords = (amount) => {
-    if (!amount || isNaN(amount)) return ''
-    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
-      'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
-      'Seventeen', 'Eighteen', 'Nineteen']
-    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
-    const numToWord = (n) => {
-      if (n === 0) return ''
-      if (n < 20) return `${ones[n]} `
-      if (n < 100) return `${tens[Math.floor(n / 10)]} ${ones[n % 10]} `
-      if (n < 1000) return `${ones[Math.floor(n / 100)]} Hundred ${numToWord(n % 100)}`
-      if (n < 1000000) return `${numToWord(Math.floor(n / 1000))}Thousand ${numToWord(n % 1000)}`
-      if (n < 1000000000) return `${numToWord(Math.floor(n / 1000000))}Million ${numToWord(n % 1000000)}`
-      return `${numToWord(Math.floor(n / 1000000000))}Billion ${numToWord(n % 1000000000)}`
-    }
-    const intPart = Math.floor(Math.abs(amount))
-    const decPart = Math.round((Math.abs(amount) - intPart) * 100)
-    let words = numToWord(intPart).trim()
-    if (decPart > 0) words += ` and ${numToWord(decPart).trim()} Cents`
-    return words.trim()
-  }
-
-  const printTitleByType = {
-    payment: 'Payment Voucher',
-    receipt: 'Receipt Voucher',
-    purchase: 'Metal Purchase Voucher',
-    sale: 'Metal Sale Voucher',
-    metal_receipt: 'Metal Receipt Voucher',
-    metal_payment: 'Metal Payment Voucher',
-  }
-  const printTitle = printTitleByType[voucherType] || voucherLabel
-  const printMeta = [
-    { label: 'Doc No', value: payNoValue },
-    { label: 'Doc Date', value: payDateValue },
-    ...(isSimpleMetalVoucher ? [] : [{ label: 'Value Date', value: header?.valueDate || payDateValue }]),
-    { label: 'Prepared By', value: preparedByValue },
-    ...(isMetalVoucher && !isSimpleMetalVoucher ? [{ label: 'Fixing', value: normalizeVoucherFixingType(header?.fixingType) }] : []),
-  ]
-  const printAmountLabel = `Amount (${currencyLabel || 'USD'})`
-  const printPostingDirection = (voucherType === 'receipt' || voucherType === 'sale' || voucherType === 'metal_payment') ? 'CREDITED' : 'DEBITED'
-  const accountNameByCode = (code) => (accounts || []).find((a) => getAccountCodeValue(a) === String(code || '').trim())?.accountName || ''
-  const tenantIdentity = [
-    activeTenantBranding?.key,
-    tenant?.key,
-    tenant?.name,
-    user?.company,
-    documentBranding?.companyName,
-    branding?.displayName,
-  ].map((value) => String(value || '').trim().toLowerCase()).join(' ')
-  const isModernGoldTenant = /\bmg\b/.test(tenantIdentity) || tenantIdentity.includes('modern gold')
-  const isMgCurrencyVoucher = isModernGoldTenant && ['payment', 'receipt'].includes(voucherType)
-  const isMgMetalVoucher = isModernGoldTenant && isMetalStockVoucherType(voucherType)
-  const mgPrintTitle = voucherType === 'receipt' ? 'RECEIPT CURRENCY' : 'CURRENCY PAYMENT'
-  const mgBranch = header?.branch || effectiveLineItems?.find((line) => line?.branch)?.branch || 'HO'
-  const mgLogoImage = documentBranding.logoUrl || ''
-  const mgCompanyName = 'MODERN GOLD JEWELRY MANUFACTURING'
-  const mgCompanyAddress = '242, Girvonbulok Street, Davlatabad District,\nNamangan City, Namangan Region,\nRepublic of Uzbekistan.'
-  const mgLineItems = Array.isArray(effectiveLineItems) ? effectiveLineItems : []
-  const mgPrimaryLine = mgLineItems[0] || {}
-  const mgSelectedParty = findPartyOptionByCode(voucher?.partyAccount)
-  const mgResolvedParty = resolveVoucherParty(String(header?.partyCode || '').trim())
-  const mgPartyPrintPhone = String(mgResolvedParty?.phone || '').trim()
-  const mgPartyPrintAddress = String(mgResolvedParty?.address || '').trim()
-  const mgPartyAccountCode = String(voucher?.partyAccount || mgSelectedParty?.partyCode || '').trim()
-  const mgPartyAccountName = String(voucher?.partyName || mgSelectedParty?.partyName || accountNameByCode(mgPartyAccountCode) || '').trim()
-  const mgAccountDescription = () => {
-    const joined = `${mgPartyAccountName}${mgPartyAccountCode ? ` ${mgPartyAccountCode}` : ''}`.trim()
-    return joined || mgPartyAccountCode || mgPartyAccountName || ''
-  }
-  const mgAmountCurrencyName = {
-    AED: 'United Arab Emirates Dirham',
-    USD: 'United States Dollar',
-    EUR: 'Euro',
-    GBP: 'Pound Sterling',
-    UZS: 'Uzbekistani Som',
-  }[String(currencyLabel || '').toUpperCase()] || currencyLabel || ''
-  const mgAmountWords = totals.grandTotal > 0
-    ? `${numberToWords(totals.grandTotal)} ${mgAmountCurrencyName} Only`
-    : ''
-  const mgFixingDisplay = normalizeVoucherFixingType(header?.fixingType) === 'non-fixing' ? 'UNFIXED' : 'FIXED'
-  const mgMetalInvoiceTitle = `${
-    voucherType === 'purchase'
-      ? 'PURCHASE INVOICE'
-      : voucherType === 'metal_receipt'
-        ? 'METAL RECEIPT'
-        : voucherType === 'metal_payment'
-          ? 'METAL PAYMENT'
-          : 'SALE INVOICE'
-  } (${mgFixingDisplay})`
-  const mgMetalCopyLabel = (voucherType === 'purchase' || voucherType === 'metal_receipt') ? 'ACCOUNTS COPY' : 'PARTY COPY'
-  const mgMetalPostingDirection = (voucherType === 'purchase' || voucherType === 'metal_receipt') ? 'DEBITED' : 'CREDITED'
-  const mgMetalRateValue = mgLineItems.find((line) => Number(line?.metalRate || 0) > 0)?.metalRate || ''
-  const mgMetalRateLabel = mgMetalRateValue ? `${fmt(mgMetalRateValue)} / SOZ (${currencyLabel || 'USD'})` : ''
 
   // ────────────────────────────────────────────────────────────────────────────
   // RENDER
@@ -2248,1475 +2128,134 @@ export default function VoucherTab({
 
       {/* ═══════════════════════════════════════════════════════ LIST MODE */}
       {mode === 'list' && (
-        <div>
-          <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '700', color: S.ink }}>
-              {voucherLabel} — List
-            </h3>
-            <select
-              value={selectedStatus}
-              onChange={e => setSelectedStatus(e.target.value)}
-              style={{ ...inputStyle, width: '140px' }}
-            >
-              <option value="">{t('all')} {t('status')}</option>
-              <option value="draft">{t('statusDraft')}</option>
-              <option value="submitted">{t('statusSubmitted')}</option>
-              <option value="approved">{t('statusApproved')}</option>
-              <option value="posted">{t('statusPosted')}</option>
-              <option value="returned">{t('statusReturned')}</option>
-              <option value="rejected">{t('statusRejected')}</option>
-            </select>
-            <button style={btn('gray')} onClick={loadVouchers}>↺ Refresh</button>
-            {canCreate && (
-              <button style={{ ...btn('primary'), marginLeft: 'auto' }} onClick={() => openCreate()}>+ New</button>
-            )}
-          </div>
-
-          {loadingList ? (
-            <p style={{ color: S.muted }}>{t('loading')}</p>
-          ) : filteredVouchers.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem', color: S.muted, border: `2px dashed ${S.border}`, borderRadius: '0.5rem' }}>
-              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</div>
-              <p>No {voucherLabel.toLowerCase()}s found.</p>
-              {canCreate && (
-                <button style={{ ...btn('primary'), marginTop: '1rem' }} onClick={() => openCreate()}>
-                  + New {voucherLabel}
-                </button>
-              )}
-            </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                <thead>
-                  <tr style={{ background: S.headerBg }}>
-                    {['Doc No', 'Doc Date', ...(isSimpleMetalVoucher ? [] : ['Value Date']), 'Party Code', 'Party Name', ...(isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? ['Fixing'] : []), ...(isSimpleMetalVoucher ? [] : ['Currency']), 'Grand Total', 'Status', 'Actions'].map(h => (
-                      <th key={h} style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: '700', color: S.ink, borderBottom: `2px solid ${S.border}`, whiteSpace: 'nowrap' }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredVouchers.map((v, i) => {
-                    const m = v.voucherMeta || {}
-                    const isRpList = ['receipt', 'payment'].includes(String(voucherType || '').toLowerCase())
-                    const grand = (m.lineItems || []).reduce((s, l) => {
-                      if (isRpList) {
-                        const fc = parseFloat(l.amountFC)
-                        if (Number.isFinite(fc) && fc !== 0) return s + fc
-                      }
-                      return s + (parseFloat(l.amountWithVAT) || parseFloat(l.amountLC) || parseFloat(l.amountFC) || 0)
-                    }, 0)
-                    const statusColors = {
-                      draft: { bg: '#FEF3C7', color: '#92400E' },
-                      submitted: { bg: '#DBEAFE', color: '#1D4ED8' },
-                      approved: { bg: '#DCFCE7', color: '#166534' },
-                      posted: { bg: '#D1FAE5', color: '#065F46' },
-                      returned: { bg: '#FCE7F3', color: '#9D174D' },
-                      rejected: { bg: '#FEE2E2', color: '#B91C1C' },
-                    }
-                    const sc = statusColors[v.status] || { bg: '#F3F4F6', color: '#374151' }
-                    const fixingDisplay = m.fixingType === 'non-fixing' ? 'Unfixed' : 'Fixed'
-                    return (
-                      <tr key={v._id} style={{ background: i % 2 === 0 ? S.white : S.bg, borderBottom: `1px solid ${S.border}` }}>
-                        <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', color: S.green }}>{displayVoucherDocNo(v)}</td>
-                        <td style={{ padding: '0.55rem 0.75rem' }}>{m.docDate ? String(m.docDate).slice(0, 10) : (v.date ? v.date.slice(0, 10) : '-')}</td>
-                        {!isSimpleMetalVoucher && (
-                          <td style={{ padding: '0.55rem 0.75rem' }}>{m.valueDate ? String(m.valueDate).slice(0, 10) : (v.date ? v.date.slice(0, 10) : '-')}</td>
-                        )}
-                        <td style={{ padding: '0.55rem 0.75rem' }}>{m.partyCode || '-'}</td>
-                        <td style={{ padding: '0.55rem 0.75rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.partyName || '-'}</td>
-                        {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher && (
-                          <td style={{ padding: '0.55rem 0.75rem' }}>
-                            <span style={{ padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: fixingDisplay === 'Unfixed' ? '#FEE2E2' : '#DCFCE7', color: fixingDisplay === 'Unfixed' ? '#B91C1C' : '#166534' }}>
-                              {fixingDisplay}
-                            </span>
-                          </td>
-                        )}
-                        
-                        {!isSimpleMetalVoucher && (
-                          <td style={{ padding: '0.55rem 0.75rem' }}>{v.currency}</td>
-                        )}
-                        <td style={{ padding: '0.55rem 0.75rem', fontWeight: '700', textAlign: 'right' }}>{fmt(grand)}</td>
-                        <td style={{ padding: '0.55rem 0.75rem' }}>
-                          <span style={{ padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', background: sc.bg, color: sc.color }}>
-                            {v.status}
-                          </span>
-                        </td>
-                        <td style={{ padding: '0.55rem 0.75rem' }}>
-                          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                            <button style={{ ...btn('secondary'), padding: '0.25rem 0.6rem', fontSize: '0.78rem' }} onClick={() => openVoucher(v)}>
-                              {isReadOnly ? 'View' : 'Open'}
-                            </button>
-                            {!isReadOnly && ['draft', 'returned', 'rejected'].includes(v.status) && (
-                              <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() => handleListWorkflowAction(v, 'submit')}
-                                style={{ ...btn('gray'), padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#F59E0B', color: '#111827' }}
-                              >
-                                {t('submit')}
-                              </button>
-                            )}
-                            {canManageWorkflow && v.status === 'submitted' && (
-                              <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() => handleListWorkflowAction(v, 'approve')}
-                                style={{ ...btn('gray'), padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#0EA5E9', color: '#FFFFFF' }}
-                              >
-                                {t('approve')}
-                              </button>
-                            )}
-                            {canManageWorkflow && ['submitted', 'approved'].includes(v.status) && (
-                              <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() => handleListWorkflowAction(v, 'return')}
-                                style={{ ...btn('gray'), padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#F472B6', color: '#831843' }}
-                              >
-                                {t('returnForEdit')}
-                              </button>
-                            )}
-                            {canManageWorkflow && ['submitted', 'approved', 'returned'].includes(v.status) && (
-                              <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() => handleListWorkflowAction(v, 'reject')}
-                                style={{ ...btn('gray'), padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#FEE2E2', color: '#B91C1C' }}
-                              >
-                                {t('reject')}
-                              </button>
-                            )}
-                            {canManageWorkflow && ['submitted', 'approved'].includes(v.status) && (
-                              <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() => handleListWorkflowAction(v, 'post')}
-                                style={{ ...btn('primary'), padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
-                              >
-                                {t('post')}
-                              </button>
-                            )}
-                            {(isSuperAdmin || isFinance) && v.status === 'posted' && (
-                              <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() => handleVoidVoucher(v)}
-                                style={{ ...btn('danger'), padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
-                              >
-                                Void
-                              </button>
-                            )}
-                            {isSuperAdmin && ['receipt', 'payment'].includes(String(v.type || voucherType).toLowerCase()) && v.status === 'posted' && (
-                              <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() => handleRevalueFxJournal(v)}
-                                style={{ ...btn('gray'), padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#E0F2FE', color: '#0C4A6E' }}
-                              >
-                                Revalue FX
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-              <p style={{ marginTop: '0.5rem', color: S.muted, fontSize: '0.8rem' }}>{filteredVouchers.length} voucher(s)</p>
-            </div>
-          )}
-        </div>
+        <VoucherListPanel
+          voucherLabel={voucherLabel}
+          voucherType={voucherType}
+          isSimpleMetalVoucher={isSimpleMetalVoucher}
+          selectedStatus={selectedStatus}
+          onSelectedStatusChange={setSelectedStatus}
+          t={t}
+          loadVouchers={loadVouchers}
+          canCreate={canCreate}
+          loadingList={loadingList}
+          filteredVouchers={filteredVouchers}
+          openCreate={openCreate}
+          openVoucher={openVoucher}
+          isReadOnly={isReadOnly}
+          saving={saving}
+          handleListWorkflowAction={handleListWorkflowAction}
+          canManageWorkflow={canManageWorkflow}
+          isSuperAdmin={isSuperAdmin}
+          isFinance={isFinance}
+          handleVoidVoucher={handleVoidVoucher}
+          handleRevalueFxJournal={handleRevalueFxJournal}
+          displayVoucherDocNo={resolveDisplayVoucherDocNo}
+        />
       )}
 
-      {/* ═══════════════════════════════════════════════════════ CREATE / VIEW MODE */}
-      {(mode === 'create' || mode === 'view') && (
-        <div
-          style={(mode === 'create' || mode === 'view')
-            ? {
-                position: 'fixed',
-                inset: 0,
-                background: 'rgba(15, 23, 42, 0.45)',
-                zIndex: 1200,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '1rem',
-              }
-            : undefined}
-          onClick={(mode === 'create' || mode === 'view') ? handleVoucherModalBackdropClick : undefined}
-        >
-          <div
-            style={(mode === 'create' || mode === 'view')
-              ? {
-                  width: isMetalVoucher ? 'min(1160px, 96vw)' : 'min(1180px, 96vw)',
-                  maxHeight: '92vh',
-                  overflowY: 'auto',
-                  background: isMetalVoucher ? '#E3E6EB' : S.white,
-                  borderRadius: '0.7rem',
-                  border: isMetalVoucher ? metalWin.shell.border : '2px solid #4F73AB',
-                  boxShadow: '0 16px 32px rgba(15, 23, 42, 0.48), inset 0 1px 0 rgba(255,255,255,0.2)',
-                  padding: '0',
-                  transform: `translate(${modalOffset.x}px, ${modalOffset.y}px)`,
-                }
-              : undefined}
-            onClick={(mode === 'create' || mode === 'view') ? (e) => e.stopPropagation() : undefined}
-          >
-          {/* ── Top title bar ── */}
-          {/* ── ERP-style Title Bar (draggable) ── */}
-          <div
-            style={{
-              background: 'var(--grad-brand)',
-              color: '#fff',
-              padding: '4px 8px 5px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              borderBottom: '1px solid rgba(0,0,0,0.15)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)',
-              borderRadius: '0.5rem 0.5rem 0 0',
-              marginBottom: 0,
-              flexShrink: 0,
-              cursor: mode === 'create' ? (modalDrag ? 'grabbing' : 'grab') : 'default',
-              userSelect: mode === 'create' ? 'none' : 'auto',
-            }}
-            onMouseDown={mode === 'create' ? handleModalHeaderMouseDown : undefined}
-          >
-            <div style={{ width: 60 }} />
-            <span style={{ fontSize: 13, fontWeight: 700, flex: 1, textAlign: 'center', letterSpacing: '.2px', textShadow: '0 1px 0 rgba(0,0,0,0.28)' }}>
-              {voucherLabelT}{header.vocNo ? ` — #${header.vocNo}` : ''}
-            </span>
-            <div style={{ display: 'flex', gap: 2 }}>
-              {['─', '□'].map((ch) => (
-                <button key={ch} type="button" style={{ width: 18, height: 15, background: 'linear-gradient(180deg,#D8DCE3,#A9B2C1)', border: '1px solid #6F7B8B', borderTop: '1px solid #EFF3F8', borderLeft: '1px solid #E5EAF1', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#1F2937', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)' }}>{ch}</button>
-              ))}
-              <button
-                type="button"
-                title="Close"
-                onMouseDown={(e) => {
-                  if (e.button !== 0) return
-                  e.preventDefault()
-                  e.stopPropagation()
-                  handleExitVoucherForm()
-                }}
-                onClick={(e) => {
-                  e.preventDefault()
-                }}
-                style={{ width: 18, height: 15, background: 'linear-gradient(180deg,#E3D8D8,#C4A0A0)', border: '1px solid #8A6F6F', borderTop: '1px solid #F4E9E9', borderLeft: '1px solid #EFDDDD', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#3F1D1D', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)' }}
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-
-          {/* ── ERP Classic Toolbar ── */}
-          {(() => {
-            const compactMetalTb = false
-            const tbS = {
-              minWidth: compactMetalTb ? 24 : 68,
-              width: compactMetalTb ? 24 : undefined,
-              height: compactMetalTb ? 22 : 24,
-              background: 'linear-gradient(180deg,#FBFBFB 0%,#E5E5E5 48%,#CACACA 100%)',
-              border: '1px solid #A9A9A9',
-              borderTop: '1px solid #F8F8F8',
-              borderLeft: '1px solid #ECECEC',
-              borderRadius: 2,
-              cursor: 'pointer',
-              fontSize: compactMetalTb ? 10 : 10.5,
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 1px 0 rgba(255,255,255,0.9) inset, 1px 1px 1px rgba(0,0,0,0.22)',
-              color: '#222',
-              padding: compactMetalTb ? 0 : '0 7px',
-              flexShrink: 0,
-              whiteSpace: compactMetalTb ? 'normal' : 'nowrap',
-            }
-            const TbBtn = ({ tip, label, icon, onClick, style: extra = {}, disabled = false }) => (
-              <button
-                type="button"
-                title={tip}
-                onMouseDown={disabled ? undefined : (e) => {
-                  if (e.button !== 0) return
-                  e.preventDefault()
-                  e.stopPropagation()
-                  runToolbarAction(label || tip || 'Action', () => onClick?.(e))
-                }}
-                onClick={(e) => {
-                  e.preventDefault()
-                }}
-                disabled={disabled}
-                style={{ ...tbS, ...extra, ...(disabled ? { opacity: 0.35, cursor: 'default', pointerEvents: 'none' } : { pointerEvents: 'auto' }) }}
-              >
-                {compactMetalTb ? icon : label}
-              </button>
-            )
-            const Sep = () => <div style={{ width: 1, height: 20, background: '#b0b0b0', margin: '0 3px', flexShrink: 0 }} />
-            const curIdx = vouchers.findIndex(v => v._id === editingId)
-            return (
-              <div style={{
-                background: isMetalVoucher
-                  ? 'linear-gradient(180deg,#F0F0F0,#D7D7D7)'
-                  : 'linear-gradient(180deg,#F0F0F0,#D7D7D7)',
-                borderBottom: isMetalVoucher ? '2px solid #9C9C9C' : '2px solid #9C9C9C',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.85)',
-                padding: '3px 6px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                flexWrap: 'nowrap',
-                overflowX: 'auto',
-                marginBottom: '0.6rem',
-              }}>
-                <TbBtn tip="New — opens a blank form to enter a new voucher" label="New" onClick={() => openCreate()} disabled={!canCreate} />
-                <TbBtn tip="Edit — unlocks the current record for modification" label="Edit" onClick={handleEditUnlock} disabled={isReadOnly || (!editingId && mode !== 'create')} />
-                <TbBtn tip="Delete — removes the current voucher" label="Delete" onClick={handleDeleteVoucher} style={{ color: '#b00020' }} disabled={isReadOnly || (Boolean(editingId) && !canDeleteCurrentVoucher)} />
-                <TbBtn tip="Save — saves your data permanently" label="Save" onClick={saveVoucher} style={{ color: '#065f46' }} disabled={formReadOnly} />
-                <TbBtn tip="Cancel — discards unsaved changes" label="Cancel" onClick={handleCancelChanges} />
-                <Sep />
-                <TbBtn tip="|◀ First — jumps to the very first voucher on record" label="|◀ First" icon="⏮" onClick={navFirst} disabled={curIdx <= 0} />
-                <TbBtn tip="◀ Previous — goes one record back" label="◀ Previous" icon="◀" onClick={navPrev} disabled={curIdx <= 0} />
-                <TbBtn tip="▶ Next — goes one record forward" label="▶ Next" icon="▶" onClick={navNext} disabled={curIdx < 0 || curIdx >= vouchers.length - 1} />
-                <TbBtn tip="▶| Last — jumps to the most recent voucher" label="▶| Last" icon="⏭" onClick={navLast} disabled={curIdx < 0 || curIdx >= vouchers.length - 1} />
-                <Sep />
-                <TbBtn tip="Print/Preview — prints or previews the current invoice" label="Print/Preview" onClick={() => window.print()} />
-                <TbBtn tip="Search/Find — search by voucher number, party, or date" label="Search/Find" onClick={handleSearchFind} />
-                <TbBtn tip="Barcode — scan or view an item barcode linked to stock" label="Barcode" onClick={handleBarcodeAction} />
-                <TbBtn tip="Refresh Parties — reload customer and vendor list" label="↺ Parties" onClick={refreshParties} />
-                <Sep />
-                <TbBtn tip="Exit — closes the voucher form and returns to the main menu" label="Exit" icon="■" onClick={handleExitVoucherForm} style={{ color: '#b00020' }} />
-                <div style={{ flex: 1 }} />
-              </div>
-            )
-          })()}
-
-          {/* ── Body padding wrapper ── */}
-          <div style={isMetalVoucher ? metalWin.body : { padding: '0.75rem 0.9rem' }}>
-
-          {/* ── Voucher section menu ── */}
-          <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0', flexWrap: 'wrap', alignItems: 'flex-end', padding: '0 0.15rem', borderBottom: '1px solid #BFC5CB' }}>
-            <button style={tabBtn(menuTab === 'header')} onClick={() => setMenuTab('header')}>
-              {isMetalVoucher ? 'Stock Details' : 'Header Details'}
-            </button>
-            <button style={tabBtn(menuTab === 'attachments')} onClick={() => setMenuTab('attachments')}>
-              {t('attachments')}
-            </button>
-          </div>
-
-          {/* ── Header Details ── */}
-          {menuTab === 'header' && (
-            <div style={sectionBox}>
-              <div style={sectionBody}>
-                {isMetalVoucher && (
-                  <div style={metalTopInlineRow}>
-                    <div style={metalTopField}>
-                      <label style={classicLabel}>Party Account</label>
-                      <AccountCombobox
-                        groups={metalPartyComboGroups}
-                        value={selectedPartyId}
-                        onChange={(val) => handlePartySelect(val)}
-                        placeholder="Customer, vendor, or chart account…"
-                        style={formReadOnly ? classicReadInput : classicInput}
-                        disabled={formReadOnly}
-                      />
-                    </div>
-                  </div>
-                )}
-                <div style={classicHeaderShell}>
-                  <div style={classicHeaderGrid}>
-                    <div style={{ ...classicPanel, flex: '0 1 640px', minWidth: '320px' }}>
-                      <div style={classicPanelTitle}>Party Details</div>
-                      <div style={classicPartyGrid}>
-                        {!isMetalVoucher && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                            <label style={classicLabel}>Party Account</label>
-                            <AccountCombobox
-                              groups={partyComboGroups}
-                              value={selectedPartyId}
-                              onChange={(val) => handlePartySelect(val)}
-                              placeholder="Type account name or code…"
-                              style={formReadOnly ? classicReadInput : classicInput}
-                              disabled={formReadOnly}
-                            />
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                          <label style={classicLabel}>Party Code</label>
-                          <input
-                            style={formReadOnly ? classicReadInput : classicInput}
-                            value={header.partyCode}
-                            onChange={e => setHdr('partyCode', e.target.value)}
-                            onKeyDown={handlePartyCodeEnter}
-                            placeholder={voucherConfig.partyPlaceholder}
-                            readOnly={formReadOnly}
-                          />
-                        </div>
-                      </div>
-                      {(() => {
-                        const resolvedParty = resolveVoucherParty(header.partyCode)
-                        const partyCardTitle = resolvedParty?.partyType === 'vendor'
-                          ? 'Vendor Details'
-                          : resolvedParty?.partyType === 'customer'
-                            ? 'Customer Details'
-                            : 'Party Details'
-                        const partyDisplayName = resolvedParty?.partyName || header.partyName || 'No party selected'
-                        const partyEmail = resolvedParty?.email || '—'
-                        const partyPhone = resolvedParty?.phone || '—'
-                        const partyAddress = resolvedParty?.address || '—'
-
-                        return (
-                          <div style={classicPartyCard}>
-                            <div style={classicPartyCardHeader}>
-                              <div style={classicPartyCardTitle}>{partyCardTitle}</div>
-                              <div style={classicPartyCardCodeWrap}>
-                                <div style={classicPartyCardCode}>
-                                  <input
-                                    style={classicPartyCardCodeInput}
-                                    value={header.partyCode}
-                                    onChange={e => setHdr('partyCode', e.target.value)}
-                                    onKeyDown={handlePartyCodeEnter}
-                                    placeholder="Code"
-                                    readOnly={formReadOnly}
-                                  />
-                                </div>
-                                <button
-                                  type="button"
-                                  style={classicPartyCardSearch}
-                                  onClick={searchPartyByCode}
-                                  disabled={formReadOnly}
-                                  title="Search party by code"
-                                >
-                                  ⌕
-                                </button>
-                              </div>
-                            </div>
-                            <div style={classicPartyCardName}>{partyDisplayName}</div>
-                            <div style={classicPartyCardBody}>
-                              <div style={classicPartyCardField}>
-                                <span style={classicPartyCardFieldLabel}>Email</span>
-                                <span style={classicPartyCardFieldValue}>{partyEmail}</span>
-                              </div>
-                              <div style={classicPartyCardField}>
-                                <span style={classicPartyCardFieldLabel}>Phone</span>
-                                <span style={classicPartyCardFieldValue}>{partyPhone}</span>
-                              </div>
-                              <div style={{ ...classicPartyCardField, gridColumn: '1 / -1' }}>
-                                <span style={classicPartyCardFieldLabel}>Address</span>
-                                <span style={classicPartyCardFieldValue}>{partyAddress}</span>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })()}
-                    </div>
-
-                    <div style={{ ...classicPanel, flex: '0 1 430px', minWidth: '300px' }}>
-                      <div style={classicRightGrid}>
-                        <label style={classicLabel}>Doc No :</label>
-                        <input
-                          style={classicReadInput}
-                          value={header.vocNo}
-                          readOnly
-                        />
-
-                        {isMetalStockVoucherType(voucherType) && !isSimpleMetalVoucher ? (
-                          <>
-                            <label style={classicLabel}>Fixing Type :</label>
-                            <select
-                              style={formReadOnly ? classicReadInput : classicInput}
-                              value={header.fixingType}
-                              onChange={e => setHdr('fixingType', e.target.value)}
-                              disabled={formReadOnly}
-                            >
-                              <option value="fixing">Fixed</option>
-                              <option value="non-fixing">UnFixed</option>
-                            </select>
-                          </>
-                        ) : !isMetalStockVoucherType(voucherType) ? (
-                          <>
-                            <label style={classicLabel}>Voc Type :</label>
-                            <input style={classicReadInput} value={voucherCode} readOnly />
-                          </>
-                        ) : null}
-
-                        <label style={classicLabel}>Doc Date :</label>
-                        <input
-                          style={formReadOnly ? classicReadInput : classicInput}
-                          type="date"
-                          value={header.docDate}
-                          onChange={e => setHdr('docDate', e.target.value)}
-                          readOnly={formReadOnly}
-                        />
-
-                        {!isSimpleMetalVoucher && (
-                          <>
-                            <label style={classicLabel}>Value Date :</label>
-                            <input
-                              style={formReadOnly ? classicReadInput : classicInput}
-                              type="date"
-                              value={header.valueDate}
-                              onChange={e => setHdr('valueDate', e.target.value)}
-                              readOnly={formReadOnly}
-                            />
-
-                            <label style={classicLabel}>Curr. Code :</label>
-                            <select
-                              style={formReadOnly ? classicReadInput : classicInput}
-                              value={header.currCode}
-                              onChange={e => handleHeaderCurrencyChange(e.target.value)}
-                              disabled={formReadOnly}
-                            >
-                              {currencyOptions.length === 0 ? (
-                                <option value="USD">USD</option>
-                              ) : currencyOptions.map((item) => (
-                                <option key={item.code} value={item.code}>
-                                  {item.code}{item.name ? ` - ${item.name}` : ''}{item.isActive ? '' : ' (Inactive)'}
-                                </option>
-                              ))}
-                            </select>
-
-                            <label style={classicLabel}>Curr. Rate :</label>
-                            <input
-                              style={formReadOnly ? classicReadInput : classicInput}
-                              value={header.currRate}
-                              onChange={e => handleHeaderCurrRateChange(e.target.value)}
-                              type="number"
-                              step="0.000001"
-                              title="AED auto-default: 3.674 (you can edit manually)"
-                              readOnly={formReadOnly}
-                            />
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Account Details tab ── */}
-          {showAccountDetailsTab && (
-            <div style={sectionBox}>
-              <div style={sectionBody}>
-                <div style={{ marginBottom: '0.85rem', border: `1px solid ${S.border}`, borderRadius: '0.45rem', padding: '0.6rem 0.7rem', background: '#FAFAFA' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', marginBottom: '0.45rem' }}>
-                    <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: '700', color: S.ink }}>
-                      Recent {voucherLabel} (Last 5)
-                    </p>
-                    {loadingRecentPartyVouchers && <span style={{ fontSize: '0.75rem', color: S.muted }}>Loading...</span>}
-                  </div>
-                  {!recentPartyVouchers.length ? (
-                    <p style={{ margin: 0, fontSize: '0.8rem', color: S.muted }}>
-                      No recent vouchers found for this account.
-                    </p>
-                  ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                        <thead>
-                          <tr style={{ background: S.headerBg }}>
-                            {['Doc No', 'Date', 'Type', 'Amount', 'Status'].map((headerCell) => (
-                              <th key={headerCell} style={{ padding: '0.38rem 0.5rem', textAlign: headerCell === 'Amount' ? 'right' : 'left', borderBottom: `1px solid ${S.border}`, color: S.ink }}>{headerCell}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {recentPartyVouchers.map((item, idx) => (
-                            <tr key={item.id} style={{ background: idx % 2 === 0 ? S.white : S.bg, borderBottom: `1px solid ${S.border}` }}>
-                              <td style={{ padding: '0.35rem 0.5rem', fontWeight: '700', color: S.green }}>{item.vocNo}</td>
-                              <td style={{ padding: '0.35rem 0.5rem' }}>{item.date}</td>
-                              <td style={{ padding: '0.35rem 0.5rem', textTransform: 'capitalize' }}>{item.type}</td>
-                              <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', fontWeight: '700' }}>{item.currency} {fmt(item.amount)}</td>
-                              <td style={{ padding: '0.35rem 0.5rem', textTransform: 'capitalize' }}>{item.status}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {lineItems.length === 0 ? (
-                  <p style={{ color: S.muted, fontSize: '0.875rem' }}>No line items added yet. Switch to Line Items tab to add entries.</p>
-                ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                    <thead>
-                      <tr style={{ background: S.headerBg }}>
-                        {(isMetalVoucher
-                          ? (isSimpleMetalVoucher
-                            ? ['Stock Code', 'Product Type', 'PCS', 'Gross Wt.', 'Purity', 'Pure Wt.', 'Narration']
-                            : ['Stock Code', 'PCS', 'Gross Wt.', 'Purity', 'Pure Wt.', 'Rate Type', 'Metal Rate', 'Metal Amount', 'Total', 'Narration'])
-                          : ['A/C Code', 'Type', 'Currency', 'Amount FC', 'Amount LC', 'Narration']
-                        ).map(h => (
-                          <th key={h} style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: '700', color: S.ink, borderBottom: `1px solid ${S.border}` }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lineItems.map((l, i) => (
-                        <tr key={i} style={{ borderBottom: `1px solid ${S.border}`, background: i % 2 === 0 ? S.white : S.bg }}>
-                          {isMetalVoucher ? (
-                            <>
-                              <td style={{ padding: '0.5rem 0.75rem', fontWeight: '600' }}>{l.stockCode || '-'}</td>
-                              {isSimpleMetalVoucher && (
-                                <td style={{ padding: '0.5rem 0.75rem' }}>{l.productType || '-'}</td>
-                              )}
-                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.pcs || '-'}</td>
-                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.grossWeight || '-'}</td>
-                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.purity || '-'}</td>
-                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{l.pureWeight || '-'}</td>
-                              {!isSimpleMetalVoucher && (
-                                <>
-                                  <td style={{ padding: '0.5rem 0.75rem' }}>{l.rateType || '-'}</td>
-                                  <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(parseFloat(l.metalRate) || ((parseFloat(l.weightInOz) || 0) > 0 ? ((parseFloat(l.metalAmount) || 0) / (parseFloat(l.weightInOz) || 0)) : 0))}</td>
-                                  <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(l.metalAmount)}</td>
-                                  <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: '700' }}>{fmt(l.totalAmount || l.amountLC)}</td>
-                                </>
-                              )}
-                              <td style={{ padding: '0.5rem 0.75rem' }}>{l.narration || l.remarks || '-'}</td>
-                            </>
-                          ) : (
-                            <>
-                              <td style={{ padding: '0.5rem 0.75rem' }}>{l.acCode}</td>
-                              <td style={{ padding: '0.5rem 0.75rem' }}>{l.type}</td>
-                              <td style={{ padding: '0.5rem 0.75rem' }}>{l.currCode}</td>
-                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(l.amountFC)}</td>
-                              <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{fmt(l.amountLC)}</td>
-                              <td style={{ padding: '0.5rem 0.75rem' }}>{l.narration}</td>
-                            </>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ── Line Items panel ── */}
-          {(menuTab === 'header' || menuTab === 'lineItems') && (
-            <div style={sectionBox}>
-              <div style={{ ...(isMetalVoucher ? { ...classicPanelTitle, ...metalWin.tabLabel } : classicPanelTitle), display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>{isMetalVoucher ? 'Stock Details' : 'LINE ITEMS'}</span>
-              </div>
-
-              {/* Line items table */}
-              <div style={{ overflowX: 'auto', borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #C9CED6', background: '#FFFFFF' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
-                  <thead>
-                    <tr style={isMetalVoucher ? metalWin.headerRow : { background: 'linear-gradient(180deg, #F8F9FB 0%, #E7EAF0 100%)' }}>
-                      {lineTableHeaders.map(h => (
-                        <th key={h} style={{ padding: '0.34rem 0.48rem', textAlign: ['Amount FC', 'Amount LC', 'Metal Rate', 'Metal Amount', 'Total', 'PCS', 'Gr. Wt.', 'Purity', 'Pure Wt.'].includes(h) ? 'right' : 'left', fontWeight: '700', color: isMetalVoucher ? '#374151' : '#374151', borderBottom: isMetalVoucher ? '1px solid #C9CED6' : '1px solid #C9CED6', borderRight: isMetalVoucher ? '1px solid #E5E7EB' : '1px solid #E5E7EB', whiteSpace: 'nowrap' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lineItems.length === 0 ? (
-                      <tr>
-                        <td colSpan={lineTableHeaders.length} style={{ padding: '1rem', textAlign: 'center', color: S.muted, borderBottom: '1px solid #D7DBE0' }}>
-                          {formReadOnly ? 'No line items.' : 'Click "Add" below to add entries.'}
-                        </td>
-                      </tr>
-                    ) : lineItems.map((l, i) => (
-                      <tr key={i} style={{ background: i % 2 === 0 ? '#FFFFFF' : '#FBFBFC', borderBottom: isMetalVoucher ? metalWin.tableCell.borderBottom : '1px solid #D7DBE0' }}>
-                        <td style={{ padding: '0.28rem 0.48rem', borderRight: isMetalVoucher ? metalWin.tableCell.borderRight : '1px solid #EEF1F4', background: isMetalVoucher ? metalWin.tableCell.background : undefined }}>{i + 1}</td>
-                        {isMetalVoucher ? (
-                          <>
-                            <td style={{ padding: '0.28rem 0.48rem', fontWeight: '600', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.stockCode || '-'}</td>
-                            {isSimpleMetalVoucher && (
-                              <td style={{ padding: '0.28rem 0.48rem', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.productType || '-'}</td>
-                            )}
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.pcs || '-'}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.grossWeight || '-'}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.purity || '-'}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.pureWeight || '-'}</td>
-                            {!isSimpleMetalVoucher && (
-                              <>
-                                <td style={{ padding: '0.28rem 0.48rem', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{l.rateType || '-'}</td>
-                                <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(parseFloat(l.metalRate) || ((parseFloat(l.weightInOz) || 0) > 0 ? ((parseFloat(l.metalAmount) || 0) / (parseFloat(l.weightInOz) || 0)) : 0))}</td>
-                                <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(l.metalAmount)}</td>
-                                <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', fontWeight: '700', borderRight: metalWin.tableCell.borderRight, background: metalWin.tableCell.background }}>{fmt(l.totalAmount || l.amountLC)}</td>
-                              </>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <td style={{ padding: '0.28rem 0.48rem', fontWeight: '600', borderRight: '1px solid #EEF1F4' }}>{l.acCode}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', borderRight: '1px solid #EEF1F4' }}>
-                              <span style={{ padding: '0.08rem 0.28rem', borderRadius: '0.2rem', fontSize: '0.68rem', fontWeight: '700', background: normalizeLineType(l.type) === 'Cash' ? '#D1FAE5' : normalizeLineType(l.type) === 'Cheque' || normalizeLineType(l.type) === 'TT' ? '#DBEAFE' : '#FEF3C7', color: normalizeLineType(l.type) === 'Cash' ? '#065F46' : normalizeLineType(l.type) === 'Cheque' || normalizeLineType(l.type) === 'TT' ? '#1D4ED8' : '#92400E' }}>
-                                {normalizeLineType(l.type) === 'TT' ? 'TT' : normalizeLineType(l.type)}
-                              </span>
-                            </td>
-                            <td style={{ padding: '0.28rem 0.48rem', borderRight: '1px solid #EEF1F4' }}>{l.currCode}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', borderRight: '1px solid #EEF1F4' }}>{fmt(l.amountFC)}</td>
-                            <td style={{ padding: '0.28rem 0.48rem', textAlign: 'right', fontWeight: '700', borderRight: '1px solid #EEF1F4' }}>{fmt(l.amountLC)}</td>
-                          </>
-                        )}
-                        <td style={{ padding: '0.24rem 0.42rem' }}>
-                          {!isReadOnly && (
-                            <div style={{ display: 'flex', gap: '0.3rem' }}>
-                              <button style={{ ...btn('secondary'), padding: '0.14rem 0.42rem', fontSize: '0.68rem', borderRadius: '0.18rem' }} onClick={() => handleEditLineClick(i)}>Edit</button>
-                              <button style={{ ...btn('danger'), padding: '0.14rem 0.42rem', fontSize: '0.68rem', borderRadius: '0.18rem' }} onClick={() => handleDeleteLineClick(i)}>Del</button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* ── Line Detail Add/Edit Form ── */}
-              {showLineForm && (
-                <div style={{ borderTop: '2px solid #A0A8B0', background: '#FAFBFC', padding: 0 }}>
-                  <div style={{ ...classicPanelTitle }}>
-                    {editingLineIdx !== null ? 'Edit Line Item' : 'Add Line Item'}
-                  </div>
-                  <div style={{ padding: '0.5rem 0.55rem' }}>
-
-                  {isMetalVoucher ? (
-                    <>
-                      <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '1fr' : '2.35fr 1.25fr auto', gap: '0.75rem', alignItems: 'start', marginBottom: '0.6rem' }}>
-                        <div style={{ border: `1px solid ${S.border}`, background: S.white }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '110px minmax(180px, 1fr)' : '110px minmax(180px, 1fr) 90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, background: S.headerBg }}>Stock *</div>
-                            <select
-                              style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }}
-                              value={lineForm.stockCode}
-                              onChange={(e) => handleStockSelection(e.target.value)}
-                            >
-                              <option value="">{loadingInventoryProducts ? 'Loading stock...' : 'Select stock'}</option>
-                              {inventoryStockOptions.map((option) => (
-                                <option key={option.code} value={option.code}>{option.label}</option>
-                              ))}
-                            </select>
-                            {!isSimpleMetalVoucher && (
-                              <>
-                                <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Location</div>
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.location} onChange={e => setLF('location', e.target.value)} />
-                              </>
-                            )}
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', color: S.ink, background: S.headerBg }}>Product Type</div>
-                            <select
-                              style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }}
-                              value={lineForm.productType}
-                              onChange={(e) => {
-                                const selectedName = e.target.value
-                                if (!selectedName) {
-                                  setLineForm((prev) => ({ ...prev, productType: '' }))
-                                  return
-                                }
-                                setLineForm((prev) => applyProductTypeAutoFill({ ...prev, productType: selectedName }, selectedName))
-                              }}
-                            >
-                              <option value="">Select product type</option>
-                              {inventoryProducts
-                                .filter(p => String(p.category || '').includes('recordType=product'))
-                                .map(p => <option key={p._id} value={p.name}>{p.name}</option>)
-                              }
-                            </select>
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>PCS</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="1" value={lineForm.pcs} onChange={e => setLineForm(prev => applyProductTypeAutoFill({ ...prev, pcs: e.target.value }))} />
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '110px minmax(90px, 1fr)' : '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Gross Weight</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.grossWeight} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, grossWeight: e.target.value }))} />
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Purity</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.purity} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, purity: e.target.value }))} />
-                            <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }}>Pure Weight</div>
-                            <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.pureWeight} onChange={e => { const pw = parseFloat(e.target.value) || 0; setLineForm(prev => applyLineAutoCalc({ ...prev, pureWeight: e.target.value, weightInOz: pw > 0 ? (pw / 31.1034768).toFixed(3) : '' })) }} />
-                          </div>
-                          {!isSimpleMetalVoucher && (
-                            <>
-                              <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                                <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Weight In OZ.</div>
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} value={lineForm.weightInOz || ((parseFloat(lineForm.pureWeight) || 0) > 0 ? ((parseFloat(lineForm.pureWeight) || 0) / 31.1034768).toFixed(3) : '')} onChange={e => setLF('weightInOz', e.target.value)} />
-                                <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }} />
-                                <div style={{ borderLeft: `1px solid ${S.border}`, background: '#F9FAFB' }} />
-                              </div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(90px, 1fr) 110px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                                <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', background: S.headerBg }}>Tax Type</div>
-                                <select style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.vatType || 'VAT'} onChange={e => setLF('vatType', e.target.value)}>
-                                  <option value="VAT">VAT</option>
-                                  <option value="GST">GST</option>
-                                  <option value="Sales Tax">Sales Tax</option>
-                                  <option value="None">None</option>
-                                </select>
-                                <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', borderLeft: `1px solid ${S.border}`, background: S.headerBg }} />
-                                <div style={{ borderLeft: `1px solid ${S.border}`, background: '#F9FAFB' }} />
-                              </div>
-                            </>
-                          )}
-
-                        </div>
-
-                        {!isSimpleMetalVoucher && (
-                        <div style={{ display: 'grid', gap: '0.5rem' }}>
-                          <div style={{ border: `1px solid ${S.border}`, background: S.white }}>
-                            <div style={{ padding: '0.28rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', borderBottom: `1px solid ${S.border}`, background: S.headerBg }}>Making / Margin</div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate Type</div>
-                              <select style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)}>
-                                <option value="OZ">OZ</option>
-                                <option value="GRAM">GRAM</option>
-                                <option value="KG">KG</option>
-                              </select>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate</div>
-                              <input
-                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }}
-                                type="number"
-                                step="0.01"
-                                value={lineForm.metalRate}
-                                onChange={e => setLF('metalRate', e.target.value)}
-                              />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)' }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Amount</div>
-                              <input
-                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', background: '#F9FAFB' }}
-                                type="number"
-                                step="0.01"
-                                value={lineForm.metalAmount}
-                                readOnly
-                              />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderTop: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Purity Diff</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.001" value={lineForm.purityDiff} onChange={e => setLF('purityDiff', e.target.value)} />
-                            </div>
-                          </div>
-
-                          <div style={{ border: `1px solid ${S.border}`, background: S.white }}>
-                            <div style={{ padding: '0.28rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', borderBottom: `1px solid ${S.border}`, background: S.headerBg }}>Premium Values</div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Premi. Curr.</div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '58px minmax(44px, 1fr)' }}>
-                                <select style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.25rem' }} value={lineForm.currCode} onChange={e => handleLineCurrencyChange(e.target.value)}>
-                                  {currencyOptions.length === 0 ? (
-                                    <option value="USD">USD</option>
-                                  ) : currencyOptions.map((item) => (
-                                    <option key={item.code} value={item.code}>{item.code}</option>
-                                  ))}
-                                </select>
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.35rem', textAlign: 'right' }} type="number" step="0.000001" value={lineForm.premiumValue} onChange={e => setLF('premiumValue', e.target.value)} />
-                              </div>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate</div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '58px minmax(44px, 1fr)' }}>
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.25rem' }} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)} />
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.35rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.metalRate} onChange={e => setLF('metalRate', e.target.value)} />
-                              </div>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Total (FC)</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} readOnly value={lineForm.metalAmount || ''} />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '98px minmax(80px, 1fr)' }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Total (LC)</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} readOnly value={lineForm.totalAmount || lineForm.amountLC || ''} />
-                            </div>
-                          </div>
-                        </div>
-                        )}
-
-                        {!isSimpleMetalVoucher && (
-                        <div style={{ display: 'grid', gap: '0.5rem' }}>
-                          <div style={{ border: `1px solid ${S.border}`, background: S.white, minWidth: '180px' }}>
-                            <div style={{ padding: '0.28rem 0.45rem', fontSize: '0.72rem', fontWeight: '700', borderBottom: `1px solid ${S.border}`, background: S.headerBg }}>Metal Rate & Amount</div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate Type</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem' }} value={lineForm.rateType} onChange={e => setLF('rateType', e.target.value)} />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Rate</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.metalRate} onChange={e => setLineForm(prev => applyLineAutoCalc({ ...prev, metalRate: e.target.value }))} />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Metal Amt</div>
-                              <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', color: '#991B1B', fontWeight: '700', background: '#F9FAFB' }} type="number" step="0.01" value={lineForm.metalAmount} readOnly />
-                            </div>
-                            <>
-                              <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                                <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Premium Amt</div>
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', background: '#F9FAFB' }} type="number" step="0.01" value={lineForm.premiumAmount || ''} readOnly />
-                              </div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                                <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem' }}>Making Chg.</div>
-                                <input style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right' }} type="number" step="0.01" value={lineForm.makingCharges} onChange={e => setLF('makingCharges', e.target.value)} />
-                              </div>
-                            </>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)', borderBottom: `1px solid ${S.border}` }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700' }}>Total</div>
-                              <input
-                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', fontWeight: '700', background: '#F9FAFB' }}
-                                type="number"
-                                step="0.01"
-                                value={lineForm.totalAmount}
-                                readOnly
-                              />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(90px, 1fr)' }}>
-                              <div style={{ padding: '0.3rem 0.45rem', fontSize: '0.72rem', fontWeight: '700' }}>Total Amt+Tax</div>
-                              <input
-                                style={{ ...inputStyle, border: 0, borderRadius: 0, padding: '0.3rem 0.45rem', textAlign: 'right', fontWeight: '700' }}
-                                readOnly
-                                value={lineForm.amountWithVAT || ''}
-                              />
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'grid', gap: '0.35rem' }}>
-                            <button style={{ ...btn('gray'), minWidth: '92px' }} onClick={() => {
-                              saveLine()
-                              if (!lineForm.stockCode.trim()) return
-                              setTimeout(() => openAddLine(), 50)
-                            }}>
-                              Continue
-                            </button>
-                            <button style={{ ...btn('primary'), minWidth: '92px' }} onClick={saveLine}>Save</button>
-                            <button style={{ ...btn('secondary'), minWidth: '92px' }} onClick={cancelLine}>Cancel</button>
-                          </div>
-                        </div>
-                        )}
-                      </div>
-
-                      {isSimpleMetalVoucher && (
-                        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.55rem' }}>
-                          <button style={{ ...btn('gray'), minWidth: '92px' }} onClick={() => {
-                            saveLine()
-                            if (!lineForm.stockCode.trim()) return
-                            setTimeout(() => openAddLine(), 50)
-                          }}>
-                            Continue
-                          </button>
-                          <button style={{ ...btn('primary'), minWidth: '92px' }} onClick={saveLine}>Save</button>
-                          <button style={{ ...btn('secondary'), minWidth: '92px' }} onClick={cancelLine}>Cancel</button>
-                        </div>
-                      )}
-
-                      <div style={{ display: 'grid', gridTemplateColumns: isSimpleMetalVoucher ? '1fr' : '1fr 180px', gap: '0.55rem', marginBottom: '0.2rem' }}>
-                        <div>
-                          <label style={labelStyle}>Narration</label>
-                          <input style={inputStyle} value={lineForm.narration} onChange={e => setLF('narration', e.target.value)} />
-                        </div>
-                        {!isSimpleMetalVoucher && (
-                          <div>
-                            <label style={labelStyle}>Silver Purity %</label>
-                            <input style={inputStyle} type="number" step="0.01" value={lineForm.silverPurity} onChange={e => setLF('silverPurity', e.target.value)} />
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ border: '1px solid #C9CED6', borderRadius: '0.15rem', overflow: 'visible', background: '#FFFFFF', fontSize: '0.78rem' }}>
-                      {/* Row 1: Type | A/C Code | Curr | Rate */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 96px 1.6fr 58px 1fr 60px 1fr', borderBottom: '1px solid #E5E7EB' }}>
-                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Type</div>
-                        <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.type} onChange={e => handleLineTypeChange(e.target.value)}>
-                          <option value="Cash">Cash</option>
-                          <option value="TT">TT</option>
-                          <option value="Card">Card</option>
-                        </select>
-                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>A/C Code *</div>
-                        <AccountCombobox
-                          groups={lineAccountComboGroups}
-                          value={lineForm.acCode || ''}
-                          onChange={(val) => setLF('acCode', val)}
-                          placeholder="— Select Account —"
-                          style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }}
-                          disabled={formReadOnly}
-                        />
-                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Curr</div>
-                        <select style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB' }} value={lineForm.currCode} onChange={e => handleLineCurrencyChange(e.target.value)}>
-                          {currencyOptions.length === 0 ? (
-                            <option value="USD">USD</option>
-                          ) : currencyOptions.map((item) => (
-                            <option key={item.code} value={item.code}>{item.code}</option>
-                          ))}
-                        </select>
-                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Rate</div>
-                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%' }} type="text" inputMode="decimal" value={lineForm.currRate} onChange={e => handleCurrRateChange(e.target.value)} placeholder={header.currRate} />
-                        </div>
-                      {/* Ref Rate row - shows for payment/receipt with non-base foreign currency */}
-                      {['payment', 'receipt'].includes(String(voucherType || '').toLowerCase()) &&
-                        String(lineForm.currCode || 'USD').toUpperCase() !== baseCurrencyCode && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 72px 1fr', borderBottom: '1px solid #E5E7EB', background: '#FFFBEB' }}>
-                          <div style={{ padding: '0.26rem 0.45rem', background: '#FEF3C7', fontWeight: '700', fontSize: '0.7rem', color: '#92400E', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Ref Rate</div>
-                          <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFFBEB', outline: 'none', textAlign: 'right', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.referenceRate || ''} onChange={e => setLF('referenceRate', e.target.value)} placeholder="Original invoice rate" />
-                          <div style={{ padding: '0.26rem 0.45rem', background: '#FEF3C7', fontSize: '0.68rem', color: '#92400E', borderRight: '1px solid #DDE1E8', display: 'flex', alignItems: 'center' }}></div>
-                          <div style={{ padding: '0.26rem 0.45rem', fontSize: '0.68rem', color: '#92400E', fontStyle: 'italic', display: 'flex', alignItems: 'center' }}>Rate when obligation was created (for FX gain/loss)</div>
-                        </div>
-                      )}
-                      {/* Amount row */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 72px 1fr', borderBottom: '1px solid #E5E7EB' }}>
-                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Amt FC</div>
-                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.amountFC} onChange={e => handleAmountFC(e.target.value)} onKeyDown={handleLineAmountEnter} />
-                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Amt LC *</div>
-                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', textAlign: 'right', width: '100%', boxSizing: 'border-box' }} type="text" inputMode="decimal" value={lineForm.amountLC} onChange={e => handleAmountLC(e.target.value)} onKeyDown={handleLineAmountEnter} />
-                      </div>
-
-                      {/* Narration row */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '76px 1fr', borderBottom: '1px solid #E5E7EB' }}>
-                        <div style={{ padding: '0.26rem 0.45rem', background: '#F3F4F6', fontWeight: '700', fontSize: '0.7rem', color: '#4B5563', textTransform: 'uppercase', display: 'flex', alignItems: 'center', borderRight: '1px solid #DDE1E8' }}>Narration</div>
-                        <input style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', width: '100%', boxSizing: 'border-box' }} value={lineForm.narration} onChange={e => setLF('narration', e.target.value)} />
-                      </div>
-                      {/* Action buttons */}
-                      <div style={{ display: 'flex', gap: '0.4rem', padding: '0.32rem 0.55rem', background: 'linear-gradient(180deg, #F3F4F6 0%, #E8EAED 100%)', borderTop: '1px solid #D4D8DE' }}>
-                        <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #FFFFFF 0%, #DCDCDC 100%)', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92)' }} onClick={() => { saveLine(); if (!lineForm.acCode.trim()) return; setTimeout(() => openAddLine(), 50) }}>Continue</button>
-                        <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #16A34A 0%, #059669 100%)', border: '1px solid #047857', borderRadius: '0.15rem', cursor: 'pointer', color: '#FFF', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)' }} onClick={saveLine}>Save</button>
-                        <button style={{ padding: '0.2rem 0.65rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #FFFFFF 0%, #DCDCDC 100%)', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92)' }} onClick={cancelLine}>Cancel</button>
-                      </div>
-                    </div>
-                  )}
-                  </div>
-                </div>
-              )}
-
-              {/* ── Bottom strip: Actions + Remarks + Amount Summary ── */}
-              <div style={{ borderTop: '2px solid #B8BEC8', background: 'linear-gradient(180deg, #F4F5F7 0%, #E8EAED 100%)', padding: '0.38rem 0.55rem' }}>
-                <div style={{ display: 'flex', gap: '0.55rem', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                  {/* Left: Add/Edit/Delete + Remarks */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.38rem', flex: 1 }}>
-                    {!isReadOnly && (
-                      <div style={{ display: 'flex', gap: '0.3rem' }}>
-                        <button
-                          style={{ padding: '0.2rem 0.72rem', fontSize: '0.74rem', fontWeight: '700', background: 'linear-gradient(180deg, #FFFFFF 0%, #DCDCDC 100%)', border: '1px solid #9CA3AF', borderRadius: '0.15rem', cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.92), 0 1px 1px rgba(0,0,0,0.06)' }}
-                          onClick={handleAddLineClick}
-                        >Add</button>
-                      </div>
-                    )}
-
-                  </div>
-                  {/* Right: Amount Summary / Total Summary */}
-                  <div style={{ border: '1px solid #8EA0C5', borderRadius: '0.15rem', background: '#FFFFFF', minWidth: '245px', overflow: 'hidden', flexShrink: 0 }}>
-                    <div style={{ ...(isMetalVoucher ? metalWin.summaryHeader : { background: 'linear-gradient(180deg, #E8EAED 0%, #D4D8DF 100%)', color: '#374151' }), borderBottom: isMetalVoucher ? `1px solid ${S.greenDark}` : '1px solid #8EA0C5', padding: '0.2rem 0.65rem', fontSize: '0.7rem', fontWeight: '700', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{isSimpleMetalVoucher ? 'Total Summary' : 'Amount Summary'}</div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.77rem' }}>
-                      <tbody>
-                        {isSimpleMetalVoucher && (
-                          <>
-                            <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                              <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Gross Weight :</td>
-                              <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{totals.grossWeightTotal > 0 ? totals.grossWeightTotal.toFixed(3) : '0.000'}</td>
-                            </tr>
-                            <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                              <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Pure Weight :</td>
-                              <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{totals.pureWeightTotal > 0 ? totals.pureWeightTotal.toFixed(3) : '0.000'}</td>
-                            </tr>
-                            <tr style={{ background: '#F1F3F6' }}>
-                              <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>Total PCS :</td>
-                              <td style={{ padding: '0.24rem 0.65rem', textAlign: 'right', fontWeight: '800', color: S.green, fontSize: '0.87rem' }}>{totals.pcsTotal > 0 ? Math.round(totals.pcsTotal).toLocaleString('en-US') : '0'}</td>
-                            </tr>
-                          </>
-                        )}
-                        {!isSimpleMetalVoucher && isMetalVoucher && (
-                          <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Metal Amount :</td>
-                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.metalTotal)}</td>
-                          </tr>
-                        )}
-                        {!isSimpleMetalVoucher && isMetalVoucher && totals.premiumTotal !== 0 && (
-                          <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Premium Amount :</td>
-                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.premiumTotal)}</td>
-                          </tr>
-                        )}
-                        {!isSimpleMetalVoucher && isMetalVoucher && totals.makingTotal !== 0 && (
-                          <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Making Charges :</td>
-                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.makingTotal)}</td>
-                          </tr>
-                        )}
-                        {!isSimpleMetalVoucher && isMetalVoucher && (
-                          <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>Gross Amount :</td>
-                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.total)}</td>
-                          </tr>
-                        )}
-                        {!isSimpleMetalVoucher && isMetalVoucher && (
-                          <tr style={{ borderBottom: '1px solid #E8EAED' }}>
-                            <td style={{ padding: '0.18rem 0.65rem', color: '#374151' }}>VAT Amount :</td>
-                            <td style={{ padding: '0.18rem 0.65rem', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.vatAmount)}</td>
-                          </tr>
-                        )}
-                        {!isSimpleMetalVoucher && (
-                        <tr style={{ background: '#F1F3F6' }}>
-                          <td style={{ padding: '0.24rem 0.65rem', color: '#111827', fontWeight: '700' }}>{`Net Amt (${receiptPaymentNetAmtLabelCurrency || header.currCode || 'USD'}) :`}</td>
-                          <td style={{ padding: '0.24rem 0.65rem', textAlign: 'right', fontWeight: '800', color: S.green, fontSize: '0.87rem' }}>{fmt(totals.grandTotal)}</td>
-                        </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Attachments panel ── */}
-          {menuTab === 'attachments' && (
-            <VoucherAttachmentsPanel
-              editingId={editingId}
-              attachments={currentAttachments}
-              isReadOnly={isReadOnly}
-              saving={saving}
-              attachmentInputKey={attachmentInputKey}
-              onUpload={handleUploadVoucherAttachments}
-              onPreview={handlePreviewVoucherAttachment}
-              onDelete={handleDeleteVoucherAttachment}
-              styles={{ sectionBox, sectionHeader, sectionBody, btn, S }}
-            />
-          )}
-
-          {/* ── Voucher Workflow ── */}
-          {editingId && (
-            <div style={{ ...classicPanel, marginBottom: '0.75rem' }}>
-              <div style={{ ...classicPanelTitle }}>{t('approvalWorkflow')}</div>
-              <div style={{ padding: '0.5rem 0.65rem' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(320px, 1.6fr)', gap: '0.75rem', alignItems: 'start' }}>
-                  <div>
-                    <label style={labelStyle}>Workflow Note</label>
-                    <textarea
-                      value={workflowNote}
-                      onChange={(e) => setWorkflowNote(e.target.value)}
-                      rows={3}
-                      placeholder="Optional note for submit / approve / post"
-                      style={{ ...inputStyle, resize: 'vertical', minHeight: '76px' }}
-                      readOnly={isReadOnly || saving}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ padding: '0.2rem 0.5rem', borderRadius: '999px', fontSize: '0.76rem', fontWeight: '700', background: currentVoucherStatus === 'draft' ? '#FEF3C7' : currentVoucherStatus === 'submitted' ? '#DBEAFE' : currentVoucherStatus === 'approved' ? '#DCFCE7' : currentVoucherStatus === 'posted' ? '#D1FAE5' : currentVoucherStatus === 'returned' ? '#FCE7F3' : '#FEE2E2', color: currentVoucherStatus === 'draft' ? '#92400E' : currentVoucherStatus === 'submitted' ? '#1D4ED8' : currentVoucherStatus === 'approved' ? '#166534' : currentVoucherStatus === 'posted' ? '#065F46' : currentVoucherStatus === 'returned' ? '#9D174D' : '#B91C1C' }}>
-                      Current: {currentVoucherStatus}
-                    </span>
-                    {canSubmitWorkflow && (
-                      <button type="button" disabled={saving} onClick={() => handleWorkflowAction('submit')} style={{ ...btn('gray'), background: '#F59E0B', color: '#111827' }}>
-                        {t('submit')}
-                      </button>
-                    )}
-                    {canApproveWorkflow && (
-                      <button type="button" disabled={saving} onClick={() => handleWorkflowAction('approve')} style={{ ...btn('gray'), background: '#0EA5E9', color: '#FFFFFF' }}>
-                        {t('approve')}
-                      </button>
-                    )}
-                    {canReturnWorkflow && (
-                      <button type="button" disabled={saving} onClick={() => handleWorkflowAction('return')} style={{ ...btn('gray'), background: '#F472B6', color: '#831843' }}>
-                        {t('returnForEdit')}
-                      </button>
-                    )}
-                    {canRejectWorkflow && (
-                      <button type="button" disabled={saving} onClick={() => handleWorkflowAction('reject')} style={{ ...btn('gray'), background: '#FEE2E2', color: '#B91C1C' }}>
-                        {t('reject')}
-                      </button>
-                    )}
-                    {canPostWorkflow && (
-                      <button type="button" disabled={saving} onClick={() => handleWorkflowAction('post')} style={{ ...btn('primary') }}>
-                        {t('post')}
-                      </button>
-                    )}
-                    {canRevalueCurrentVoucher && (
-                      <button type="button" disabled={saving} onClick={() => handleRevalueFxJournal(currentVoucher)} style={{ ...btn('gray'), background: '#E0F2FE', color: '#0C4A6E' }}>
-                        Revalue FX Journal
-                      </button>
-                    )}
-                    {!canSubmitWorkflow && !canApproveWorkflow && !canReturnWorkflow && !canRejectWorkflow && !canPostWorkflow && (
-                      <span style={{ color: S.muted, fontSize: '0.82rem' }}>No workflow action available for your role or current status.</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Action buttons ── */}
-          {!isReadOnly && (
-            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', paddingTop: '1rem', borderTop: `1px solid ${S.border}` }}>
-              <button
-                style={{ ...btn('primary'), opacity: saving ? 0.7 : 1 }}
-                onClick={saveVoucher}
-                disabled={saving}
-              >
-                {saving ? 'Saving...' : (editingId ? '💾 Update Voucher' : '💾 Save Voucher')}
-              </button>
-              <button style={btn('secondary')} onClick={() => setMode('list')}>
-                {t('cancel')}
-              </button>
-            </div>
-          )}
-          {isReadOnly && (
-            <div style={{ marginTop: '0.75rem' }}>
-              <button style={btn('secondary')} onClick={() => setMode('list')}>← Back</button>
-            </div>
-          )}
-          </div>
-          </div>
-        </div>
-      )}
+      <VoucherEditorPanel
+        applyLineAutoCalc={applyLineAutoCalc}
+        applyProductTypeAutoFill={applyProductTypeAutoFill}
+        attachmentInputKey={attachmentInputKey}
+        baseCurrencyCode={baseCurrencyCode}
+        canApproveWorkflow={canApproveWorkflow}
+        canCreate={canCreate}
+        canDeleteCurrentVoucher={canDeleteCurrentVoucher}
+        canPostWorkflow={canPostWorkflow}
+        canRejectWorkflow={canRejectWorkflow}
+        canReturnWorkflow={canReturnWorkflow}
+        canRevalueCurrentVoucher={canRevalueCurrentVoucher}
+        canSubmitWorkflow={canSubmitWorkflow}
+        cancelLine={cancelLine}
+        currencyOptions={currencyOptions}
+        currentAttachments={currentAttachments}
+        currentVoucher={currentVoucher}
+        currentVoucherStatus={currentVoucherStatus}
+        editingId={editingId}
+        editingLineIdx={editingLineIdx}
+        formReadOnly={formReadOnly}
+        handleAddLineClick={handleAddLineClick}
+        handleAmountFC={handleAmountFC}
+        handleAmountLC={handleAmountLC}
+        handleBarcodeAction={handleBarcodeAction}
+        handleCancelChanges={handleCancelChanges}
+        handleCurrRateChange={handleCurrRateChange}
+        handleDeleteLineClick={handleDeleteLineClick}
+        handleDeleteVoucher={handleDeleteVoucher}
+        handleDeleteVoucherAttachment={handleDeleteVoucherAttachment}
+        handleEditLineClick={handleEditLineClick}
+        handleEditUnlock={handleEditUnlock}
+        handleExitVoucherForm={handleExitVoucherForm}
+        handleHeaderCurrRateChange={handleHeaderCurrRateChange}
+        handleHeaderCurrencyChange={handleHeaderCurrencyChange}
+        handleLineAmountEnter={handleLineAmountEnter}
+        handleLineCurrencyChange={handleLineCurrencyChange}
+        handleLineTypeChange={handleLineTypeChange}
+        handleModalHeaderMouseDown={handleModalHeaderMouseDown}
+        handlePartyCodeEnter={handlePartyCodeEnter}
+        handlePartySelect={handlePartySelect}
+        handlePreviewVoucherAttachment={handlePreviewVoucherAttachment}
+        handleRevalueFxJournal={handleRevalueFxJournal}
+        handleSearchFind={handleSearchFind}
+        handleStockSelection={handleStockSelection}
+        handleUploadVoucherAttachments={handleUploadVoucherAttachments}
+        handleVoucherModalBackdropClick={handleVoucherModalBackdropClick}
+        handleWorkflowAction={handleWorkflowAction}
+        header={header}
+        inventoryProducts={inventoryProducts}
+        inventoryStockOptions={inventoryStockOptions}
+        isMetalVoucher={isMetalVoucher}
+        isReadOnly={isReadOnly}
+        isSimpleMetalVoucher={isSimpleMetalVoucher}
+        lineAccountComboGroups={lineAccountComboGroups}
+        lineForm={lineForm}
+        lineItems={lineItems}
+        lineTableHeaders={lineTableHeaders}
+        loadingInventoryProducts={loadingInventoryProducts}
+        loadingRecentPartyVouchers={loadingRecentPartyVouchers}
+        menuTab={menuTab}
+        metalPartyComboGroups={metalPartyComboGroups}
+        modalDrag={modalDrag}
+        modalOffset={modalOffset}
+        mode={mode}
+        navFirst={navFirst}
+        navLast={navLast}
+        navNext={navNext}
+        navPrev={navPrev}
+        openAddLine={openAddLine}
+        openCreate={openCreate}
+        partyComboGroups={partyComboGroups}
+        receiptPaymentNetAmtLabelCurrency={receiptPaymentNetAmtLabelCurrency}
+        recentPartyVouchers={recentPartyVouchers}
+        refreshParties={refreshParties}
+        resolveVoucherParty={resolveVoucherParty}
+        runToolbarAction={runToolbarAction}
+        saveLine={saveLine}
+        saveVoucher={saveVoucher}
+        saving={saving}
+        searchPartyByCode={searchPartyByCode}
+        selectedPartyId={selectedPartyId}
+        setHdr={setHdr}
+        setLF={setLF}
+        setLineForm={setLineForm}
+        setMenuTab={setMenuTab}
+        setMode={setMode}
+        setWorkflowNote={setWorkflowNote}
+        showAccountDetailsTab={showAccountDetailsTab}
+        showLineForm={showLineForm}
+        t={t}
+        totals={totals}
+        voucherCode={voucherCode}
+        voucherConfig={voucherConfig}
+        voucherLabel={voucherLabel}
+        voucherLabelT={voucherLabelT}
+        voucherType={voucherType}
+        vouchers={vouchers}
+        workflowNote={workflowNote}
+      />
     </div>
 
-    <div className="voucher-print-only" style={{ display: 'none', padding: isMgCurrencyVoucher || isMgMetalVoucher ? '0 10px' : '18px 24px', color: '#111827', fontFamily: 'Arial, sans-serif', fontSize: '12px' }}>
-      {isMgCurrencyVoucher ? (
-        <MGVoucherPrintLayout
-          companyName={mgCompanyName}
-          companyAddress={mgCompanyAddress}
-          documentEmail={documentBranding?.email}
-          phoneValue={phoneValue}
-          logoImage={mgLogoImage}
-          printTitle={mgPrintTitle}
-          accountDescription={mgAccountDescription}
-          trnValue={trnValue}
-          docNoValue={payNoValue}
-          branch={mgBranch}
-          dateValue={payDateValue}
-          preparedByValue={preparedByValue}
-          amountLabel={printAmountLabel}
-          currencyLabel={currencyLabel}
-          lineItems={mgLineItems}
-          primaryLine={mgPrimaryLine}
-          totals={totals}
-          amountWords={mgAmountWords}
-          partyName={voucher?.partyName}
-          partyAddress={mgPartyPrintAddress}
-          partyPhone={mgPartyPrintPhone}
-          normalizeLineType={normalizeLineType}
-          fmt={fmt}
-        />
-      ) : isMgMetalVoucher ? (
-        <MGMetalInvoicePrintLayout
-          companyName={mgCompanyName}
-          companyAddress={mgCompanyAddress}
-          logoImage={mgLogoImage}
-          invoiceTitle={mgMetalInvoiceTitle}
-          copyLabel={mgMetalCopyLabel}
-          partyName={mgPartyAccountName}
-          partyCode={mgPartyAccountCode}
-          trnValue={trnValue}
-          docNoValue={payNoValue}
-          branch={mgBranch}
-          dateValue={payDateValue}
-          paymentTerms={header?.paymentTerms || ''}
-          salesman={preparedByValue}
-          fixingLabel={mgFixingDisplay}
-          metalRateLabel={mgMetalRateLabel}
-          currencyLabel={currencyLabel || 'USD'}
-          lineItems={mgLineItems}
-          totals={totals}
-          amountWords={mgAmountWords}
-          postingDirection={mgMetalPostingDirection}
-          fmt={fmt}
-        />
-      ) : (
-      <>
-      <DocumentPrintHeader branding={documentBranding} title={printTitle} meta={printMeta} />
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '12px', marginBottom: '10px' }}>
-        <div style={{ border: '1px dashed #6B7280', padding: '8px' }}>
-          <div>{voucher?.partyAccount || ''}</div>
-          <div style={{ marginTop: '6px' }} />
-          <div style={{ textAlign: 'center' }}>{trnValue ? `TRN - ${trnValue}` : ''}</div>
-        </div>
-        <div style={{ border: '1px dashed #6B7280', padding: '8px' }}>
-          <div><strong>PAY NO</strong> : {payNoValue || ''}</div>
-          <div><strong>Date</strong> : {payDateValue || ''}</div>
-          <div><strong>Prepared By</strong> : {preparedByValue || ''}</div>
-        </div>
-      </div>
-
-      {voucherType === 'payment' ? (
-        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', marginBottom: '8px' }}>
-          <thead>
-            <tr style={{ background: '#E5E7EB' }}>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '42px' }}>No.</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px' }}>{isMetalVoucher ? 'Stock / Account Description' : 'Account Description'}</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '90px' }}>{isMetalVoucher ? 'Metal' : 'Type'}</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{isMetalVoucher ? 'Pure Wt.' : 'Amount FC'}</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{isMetalVoucher ? 'Total' : printAmountLabel}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(Array.isArray(effectiveLineItems) ? effectiveLineItems : []).map((line, idx) => {
-              const accountCode = line?.acCode || ''
-              const paymentType = normalizeLineType(line?.type) || ''
-              return (
-                <tr key={`print-line-${idx}`}>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'center', verticalAlign: 'top' }}>{idx + 1}</td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>
-                    <div>{accountCode || ''}</div>
-                    <div style={{ fontSize: '9px', color: '#555' }}>
-                      {paymentType || ''}
-                    </div>
-                  </td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>{paymentType || ''}</td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountFC || 0)}</td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(line?.amountLC || 0)}</td>
-                </tr>
-              )
-            })}
-            {(Array.isArray(effectiveLineItems) ? effectiveLineItems : []).length === 0 && (
-              <tr>
-                <td colSpan={5} style={{ border: '1px solid #111827', padding: '8px', textAlign: 'center' }}>No line items</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', marginBottom: '8px' }}>
-          <thead>
-            <tr style={{ background: '#E5E7EB' }}>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '42px' }}>No.</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px' }}>Account Description</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '90px' }}>Type</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>Amount FC</th>
-              <th style={{ border: '1px solid #111827', padding: '6px 4px', width: '110px' }}>{`Amount (${currencyLabel || 'USD'})`}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(Array.isArray(effectiveLineItems) ? effectiveLineItems : []).map((line, idx) => {
-              const accountCode = line?.acCode || ''
-              const accountName = accountNameByCode(accountCode)
-              const paymentType = normalizeLineType(line?.type) || ''
-              const customerAccountNo = line?.partyAccount || voucher?.partyAccount || ''
-              const metalLabel = line?.metalSymbol || line?.metalName || line?.productType || ''
-              const lineTotal = Number(line?.totalAmount || line?.amountWithVAT || line?.amountLC || line?.amountFC || 0)
-              return (
-                <tr key={`print-line-${idx}`}>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'center', verticalAlign: 'top' }}>{idx + 1}</td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>
-                    {isMetalVoucher ? (
-                      <>
-                        <div>{`${line?.stockCode || accountCode || ''}${line?.productType ? ` - ${line.productType}` : accountName ? ` - ${accountName}` : ''}`}</div>
-                        <div style={{ fontSize: '9px', color: '#555' }}>{line?.remarks || line?.narration || customerAccountNo || ''}</div>
-                      </>
-                    ) : (
-                      <>
-                        <div>{`${accountCode || ''}${accountName ? ` - ${accountName}` : ''}`}</div>
-                        <div>{customerAccountNo || ''}</div>
-                        <div>{paymentType || ''}</div>
-                      </>
-                    )}
-                  </td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', verticalAlign: 'top' }}>{isMetalVoucher ? metalLabel : paymentType}</td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{isMetalVoucher ? fmt(line?.pureWeight || 0) : fmt(line?.amountFC || 0)}</td>
-                  <td style={{ border: '1px solid #111827', padding: '6px 4px', textAlign: 'right', verticalAlign: 'top' }}>{fmt(isMetalVoucher ? lineTotal : line?.amountLC || 0)}</td>
-                </tr>
-              )
-            })}
-            {(Array.isArray(effectiveLineItems) ? effectiveLineItems : []).length === 0 && (
-              <tr>
-                <td colSpan={5} style={{ border: '1px solid #111827', padding: '8px', textAlign: 'center' }}>No line items</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      )}
-
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px' }}>
-        <tbody>
-          <tr>
-            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{`Total (${currencyLabel || 'USD'})`}</td>
-            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', width: '110px', fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
-          </tr>
-          <tr>
-            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{`Total Value (${currencyLabel || 'USD'})`}</td>
-            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
-          </tr>
-          <tr>
-            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{`Total Party Value (${currencyLabel || 'USD'})`}</td>
-            <td style={{ border: '1px solid #111827', padding: '4px 6px', textAlign: 'right', fontWeight: '700' }}>{fmt(totals.grandTotal || 0)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* ── DEBIT NOTICE ── */}
-      <div style={{
-        border: '1px solid #111827',
-        padding: '6px 10px',
-        fontSize: '10px',
-        lineHeight: '1.75',
-        marginTop: '4px'
-      }}>
-        <div style={{ marginBottom: '3px', color: '#555', fontSize: '9px' }}>
-          Your account has been updated with :
-        </div>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          gap: '16px',
-          flexWrap: 'wrap'
-        }}>
-          {/* LEFT — Currency + numeric amount + DEBITED */}
-          <div style={{ fontWeight: '700', fontSize: '11px', color: '#111827', flexShrink: 0 }}>
-            {currencyLabel || 'USD'} {fmt(totals.grandTotal || 0)} {printPostingDirection}
-          </div>
-          {/* RIGHT — Amount in words */}
-          <div style={{
-            fontStyle: 'italic',
-            fontSize: '9px',
-            color: '#333333',
-            flex: 1,
-            textAlign: 'right'
-          }}>
-            {totals.grandTotal > 0
-              ? `${numberToWords(totals.grandTotal)} ${currencyLabel || 'USD'} Only`
-              : ''}
-          </div>
-        </div>
-      </div>
-
-      {/* ── NARRATION / NOTE LINE ── */}
-      <div style={{
-        border: '1px solid #111827',
-        borderTop: '1px solid #111827',
-        padding: '5px 10px',
-        fontSize: '9px',
-        color: '#151111',
-        minHeight: '22px'
-      }}>
-        {lineItems?.[0]?.narration || ''}
-      </div>
-
-      <div style={{ marginTop: '10px', fontSize: '11px' }}>Confirmed for & on behalf of</div>
-      {voucherType === 'payment' ? (
-        <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '20px' }}>
-          <div style={{ fontWeight: '600', fontSize: '11px', color: '#111' }}>
-            {voucher?.partyName || ''}
-          </div>
-          <div style={{ fontWeight: '600', fontSize: '11px', color: '#111' }}>
-            {voucher?.partyAccount || ''}
-          </div>
-        </div>
-      ) : (
-        <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'space-between', gap: '12px', minHeight: '20px' }}>
-          <div>{voucher?.partyName || ''}</div>
-          <div>{voucher?.partyAccount || ''}</div>
-        </div>
-      )}
-
-      <div style={{ marginTop: '88px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '36px', textAlign: 'center', fontWeight: '700' }}>
-        <div>
-          <div style={{ borderTop: '1px solid #111827', paddingTop: '4px' }}>RECEIVER'S SIGNATURE</div>
-        </div>
-        <div>
-          <div style={{ borderTop: '1px solid #111827', paddingTop: '4px' }}>CHECKED BY</div>
-        </div>
-        <div>
-          <div style={{ borderTop: '1px solid #111827', paddingTop: '4px' }}>AUTHORISED SIGNATORY</div>
-        </div>
-      </div>
-      </>
-      )}
-    </div>
+    <VoucherPrintPanel printModel={printModel} />
     </>
   )
 }

@@ -1,14 +1,15 @@
 /**
  * Input Validation Middleware
- * 
+ *
  * Protects against:
  * - Prototype pollution via dangerous key names (__proto__, constructor, prototype)
- * - NoSQL injection via $ query operators (via Joi validation at route level)
- * 
- * IMPORTANT: This middleware does NOT sanitize string content.
- * Sanitization should happen at render time on the frontend, not on input.
- * Mutating input strings can corrupt passwords, accounting text, and user data.
+ * - NoSQL injection via MongoDB query operators in keys ($gt, $ne, etc.)
+ *
+ * String values are preserved as-is so passwords and accounting text are not mutated.
+ * XSS protection happens at render time on the frontend.
  */
+
+const mongoSanitize = require('mongo-sanitize')
 
 // Keys that must never appear in any payload — reject outright
 const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
@@ -28,21 +29,29 @@ function hasDangerousKey(data) {
 // ──────────────────────────────────────────────────────────────
 // Main validation middleware — reject dangerous keys but preserve all values
 // ──────────────────────────────────────────────────────────────
+function sanitizePart(part) {
+  if (!part || typeof part !== 'object') return part
+  if (hasDangerousKey(part)) return null
+  return mongoSanitize(part)
+}
+
 function sanitizeMiddleware(req, res, next) {
   try {
-    // Reject any request that contains prototype-polluting keys
-    for (const part of [req.body, req.query, req.params]) {
-      if (part && hasDangerousKey(part)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid input: prohibited keys detected.',
-        })
-      }
+    const sanitizedBody = sanitizePart(req.body)
+    const sanitizedQuery = sanitizePart(req.query)
+    const sanitizedParams = sanitizePart(req.params)
+
+    if (sanitizedBody === null || sanitizedQuery === null || sanitizedParams === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid input: prohibited keys detected.',
+      })
     }
 
-    // Input values are preserved as-is.
-    // Joi schema validation happens at each route handler.
-    // XSS protection happens at render time on the frontend.
+    if (sanitizedBody !== undefined) req.body = sanitizedBody
+    if (sanitizedQuery !== undefined) req.query = sanitizedQuery
+    if (sanitizedParams !== undefined) req.params = sanitizedParams
+
     next()
   } catch (error) {
     console.error('Validation error:', error.message)

@@ -6,7 +6,8 @@ const fs = require('fs')
 const path = require('path')
 const multer = require('multer')
 const { protect } = require('../middleware/auth')
-const { Joi, validateBody, validateParams } = require('../middleware/validate')
+const { Joi, validateBody, validateParams, validateQuery } = require('../middleware/validate')
+const { escapeRegex } = require('../utils/escapeRegex')
 const CrmContact  = require('../models/CrmContact')
 const CrmCompany  = require('../models/CrmCompany')
 const CrmLead     = require('../models/CrmLead')
@@ -19,6 +20,7 @@ const {
   canEditCrm,
   canDeleteCrm,
   isSalesRep,
+  isSalesHead,
 } = require('../services/permissions/moduleAccessPolicy')
 
 const router = express.Router()
@@ -28,6 +30,10 @@ router.use(protect)
 const LEAD_STAGES = ['Prospect', 'Contacted', 'Qualified', 'Proposal', 'Negotiating', 'Closed Won', 'Closed Lost']
 const DEAL_STAGES = [...LEAD_STAGES]
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
+
+const activitiesListQuerySchema = Joi.object({
+  contactId: Joi.string().hex().length(24).optional(),
+})
 
 const contactCreateSchema = Joi.object({
   firstName:      Joi.string().trim().min(1).max(80).required(),
@@ -643,10 +649,13 @@ router.get('/contacts', salesOnly, async (req, res) => {
     if (type   && type !== 'All')   filter.contactType = type
     if (status && status !== 'All') filter.status = status
     if (rep    && rep !== 'All')    filter.assignedRep = rep
-    if (search) filter.$or = [
-      { firstName: new RegExp(search, 'i') }, { lastName: new RegExp(search, 'i') },
-      { email:     new RegExp(search, 'i') }, { companyName: new RegExp(search, 'i') },
+    if (search) {
+      const regex = new RegExp(escapeRegex(String(search).trim()), 'i')
+      filter.$or = [
+      { firstName: regex }, { lastName: regex },
+      { email: regex }, { companyName: regex },
     ]
+    }
     const contacts = await CrmContact.find(filter).sort({ createdAt: -1 })
     res.json({ success: true, data: contacts })
   } catch (e) {
@@ -1070,7 +1079,7 @@ router.delete('/deals/:id', salesOnly, async (req, res) => {
 })
 
 // ─── ACTIVITIES ──────────────────────────────────────────────────────────────
-router.get('/activities', salesOnly, async (req, res) => {
+router.get('/activities', salesOnly, validateQuery(activitiesListQuerySchema), async (req, res) => {
   try {
     const filter = { isDeleted: false }
     if (isSalesRep(req.user) && !isSalesHead(req.user)) filter.createdBy = req.user._id
