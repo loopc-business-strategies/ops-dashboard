@@ -242,7 +242,7 @@ function getNavItems(perms, t, chatUnread = 0, branding) {
     { id: 'erp-vendors',      label: 'Vendors',        group: 'erp', erpSub: 'vendors',      show: canShowErpSubTab('vendors') },
     { id: 'erp-inventory',    label: 'Inventory',      group: 'erp', erpSub: 'inventory',    show: canShowErpSubTab('inventory') },
     { id: 'erp-vouchers',     label: 'Vouchers',       group: 'erp', erpSub: 'vouchers',     show: canShowErpSubTab('vouchers') },
-    { id: 'erp-direct-deals',    label: 'Direct Deals',    group: 'erp', erpSub: 'direct-deals',    show: canShowErpSubTab('direct-deals') },
+    { id: 'erp-direct-deals',    label: 'Fixing Deals',    group: 'erp', erpSub: 'direct-deals',    show: canShowErpSubTab('direct-deals') },
     { id: 'erp-fixing-register', label: 'Net Position', group: 'erp', erpSub: 'fixing-register', show: canShowErpSubTab('fixing-register') },
     { id: 'procurement-plus', label: 'Procurement Plus', group: 'departments', show: Boolean(branding?.featureFlags?.procurementPlus) && perms.canViewModule('procurement-plus') },
   ]

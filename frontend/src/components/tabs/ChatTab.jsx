@@ -156,7 +156,7 @@ const GROUP_MODULES = [
   { key: 'reports', label: 'Reports', desc: 'View and export reports', icon: '◰', tone: '#FCE7F3' },
   { key: 'vendors', label: 'Vendors', desc: 'Manage vendors', icon: '♧', tone: '#E0F2FE' },
   { key: 'inventory', label: 'Inventory', desc: 'Manage inventory', icon: '▧', tone: '#DCFCE7' },
-  { key: 'direct-deals', label: 'Direct Deals', desc: 'Manage direct deals', icon: '⌘', tone: '#FEF3C7' },
+  { key: 'direct-deals', label: 'Fixing Deals', desc: 'Manage fixing deals', icon: '⌘', tone: '#FEF3C7' },
   { key: 'fixing-register', label: 'Net Position', desc: 'View net position', icon: '☷', tone: '#FCE7F3' },
 ]
 

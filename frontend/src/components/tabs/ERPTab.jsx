@@ -249,6 +249,7 @@ function ERPTab({
   const [jvMode, setJvMode] = useState('journal')
   const [ledgerVoucherTab, setLedgerVoucherTab] = useState('journal')
   const [jvEditEntryIds, setJvEditEntryIds] = useState([]) // IDs of entries being edited (empty = new JV)
+  const [jvReadOnly, setJvReadOnly] = useState(false)
   const [currencyForm, setCurrencyForm] = useState({
     code: '',
     name: '',
@@ -3326,7 +3327,7 @@ function ERPTab({
               : 'All'
             rows.push({
               rowId: `${deal._id}-${line._id || Math.random().toString(36).slice(2, 8)}`,
-              sourceType: 'Direct Deal',
+              sourceType: 'Fixing Deal',
               voucherNo: deal.docNo,
               docDate: dealDocDate,
               valueDate: dealValueDate,
@@ -4388,6 +4389,7 @@ function ERPTab({
     setJvLines([emptyJvLine(1), emptyJvLine(2)])
     setNextJvLineId(3)
     setJvEditEntryIds([])
+    setJvReadOnly(false)
     let docNo = buildJvDocNo(mode)
     const refType = resolveJvModeMeta(mode).referenceType
     try {
@@ -4403,7 +4405,7 @@ function ERPTab({
       currency: baseCurrencyCode,
     })
   }
-  const handleEditJv = async (entry) => {
+  const loadJvFromEntry = async (entry, { readOnly = false } = {}) => {
     const rawDesc = String(entry.description || '')
     const docNoHead = (rawDesc.includes(' — ') ? rawDesc.split(' — ') : rawDesc.split(' - '))[0]?.trim() || ''
     const docNo = docNoHead
@@ -4435,8 +4437,8 @@ function ERPTab({
         }
       }
     } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load JV lines for editing')
-      return
+      setError(e.response?.data?.message || (readOnly ? 'Failed to load JV lines' : 'Failed to load JV lines for editing'))
+      return false
     }
     const editableEntries = filterJvEditableEntries(docMatchedEntries, entry, entryMode)
     const reconstructed = reconstructJvEditLines(editableEntries, entry, {
@@ -4456,11 +4458,19 @@ function ERPTab({
       narration: reconstructed.narration,
       currency: reconstructed.headerCurrency,
     })
+    setJvReadOnly(readOnly)
     setJvModalOffset({ x: 0, y: 0 })
     setJvModalDrag({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
     setJvModalResize({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
     setJvModalSize(JV_MODAL_DEFAULT_SIZE)
     setShowLedgerForm(true)
+    return true
+  }
+  const handleOpenJv = async (entry) => {
+    await loadJvFromEntry(entry, { readOnly: true })
+  }
+  const handleEditJv = async (entry) => {
+    await loadJvFromEntry(entry, { readOnly: false })
   }
   const handleRepairJvFxPreview = async () => {
     if (!canCloseLedgerPeriod || !token) return
@@ -4524,7 +4534,7 @@ function ERPTab({
     setShowLedgerForm(true)
   }
   const switchJvMode = async (mode) => {
-    if (jvEditEntryIds.length > 0) return
+    if (jvEditEntryIds.length > 0 || jvReadOnly) return
     setJvMode(mode)
     let docNo = buildJvDocNo(mode)
     try {
@@ -5224,6 +5234,8 @@ function ERPTab({
         ledger={ledger}
         ledgerMeta={ledgerMeta}
         loadLedger={loadLedger}
+        jvReadOnly={jvReadOnly}
+        handleOpenJv={handleOpenJv}
         handleEditJv={handleEditJv}
         handleEditLedger={handleEditLedger}
         handleReconcileLedger={handleReconcileLedger}

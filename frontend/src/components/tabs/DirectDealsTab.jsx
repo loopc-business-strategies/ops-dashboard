@@ -518,7 +518,7 @@ export default function DirectDealsTab({ token, customers = [], currencies: _cur
     const { jsPDF, autoTable } = await loadPdfTools()
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
     pdf.setFontSize(14)
-    pdf.text('Direct Deal Voucher', 40, 36)
+    pdf.text('Fixing Deal Voucher', 40, 36)
     pdf.setFontSize(10)
     pdf.text(`Doc No: ${deal.docNo || '-'}`, 40, 56)
     pdf.text(`Type: ${deal.entryType === 'fixing' ? 'Fixing' : 'Non-Fixing'}`, 220, 56)
@@ -728,7 +728,7 @@ export default function DirectDealsTab({ token, customers = [], currencies: _cur
     triggerDownload(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'direct-deals-import-template.xlsx')
   }
 
-  const editDeal = (deal, idxOverride) => {
+  const openDeal = (deal, idxOverride) => {
     const idx = idxOverride !== undefined ? idxOverride : deals.findIndex((d) => d._id === deal._id)
     setCurrentDealIdx(idx)
     setEditingId(deal._id)
@@ -760,11 +760,18 @@ export default function DirectDealsTab({ token, customers = [], currencies: _cur
     setShowModal(true)
   }
 
+  const openDealForEdit = (deal) => {
+    openDeal(deal)
+    if (hasManage && !(deal.status === 'confirmed' && !isSuperAdmin)) {
+      setViewMode('EDIT')
+    }
+  }
+
   // Navigate to a deal by index in the deals array
   const navToDeal = (idx) => {
     if (idx < 0 || idx >= deals.length) return
     const deal = deals[idx]
-    editDeal(deal, idx)
+    openDeal(deal, idx)
   }
 
   const validate = () => {
@@ -898,7 +905,7 @@ export default function DirectDealsTab({ token, customers = [], currencies: _cur
             {/* ── Title bar ── */}
             <div style={{ background: 'linear-gradient(180deg,#6a8cbf 0%,#3a5f9a 40%,#2a4f8a 100%)', color: '#fff', padding: '5px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #2a4f8a', flexShrink: 0 }}>
               <div style={{ width: 60 }} />
-              <span style={{ fontSize: 13, fontWeight: 700, flex: 1, textAlign: 'center', letterSpacing: '.3px' }}>Direct Deals</span>
+              <span style={{ fontSize: 13, fontWeight: 700, flex: 1, textAlign: 'center', letterSpacing: '.3px' }}>Fixing Deals</span>
               <div style={{ display: 'flex', gap: 2 }}>
                 {['─', '□'].map((ch) => (
                   <button key={ch} type="button" style={{ width: 18, height: 16, background: 'linear-gradient(180deg,#d0d0d0,#a0a0a0)', border: '1px solid #888', borderRadius: 2, cursor: 'pointer', fontSize: 9, color: '#222', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{ch}</button>
@@ -935,7 +942,7 @@ export default function DirectDealsTab({ token, customers = [], currencies: _cur
                   <span style={{ fontSize: 7, marginTop: 1 }}>Save</span>
                 </span>
               </button>
-              <button type="button" title="Cancel — Discard unsaved changes" style={tbBtnSt} onClick={() => { if (!editingId) { resetForm(); setShowModal(false) } else { editDeal(deals.find((d) => d._id === editingId)) } }}>
+              <button type="button" title="Cancel — Discard unsaved changes" style={tbBtnSt} onClick={() => { if (!editingId) { resetForm(); setShowModal(false) } else { openDeal(deals.find((d) => d._id === editingId)) } }}>
                 <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
                   <span style={{ fontSize: 10 }}>↩</span>
                   <span style={{ fontSize: 7, marginTop: 1 }}>Cancel</span>
@@ -1343,7 +1350,8 @@ export default function DirectDealsTab({ token, customers = [], currencies: _cur
                     <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                       <button type='button' style={btnStyle('secondary')} onClick={() => exportDealToPdf(deal)}>{t('exportPdf')}</button>
                       <button type='button' style={btnStyle('ghost')} onClick={() => exportDealToExcel(deal)}>{t('exportExcel')}</button>
-                      <button type='button' style={btnStyle('secondary')} onClick={() => editDeal(deal)} disabled={deal.status === 'confirmed' && !isSuperAdmin}>{t('edit')}</button>
+                      <button type='button' style={btnStyle('secondary')} onClick={() => openDeal(deal)}>{t('open')}</button>
+                      <button type='button' style={btnStyle('secondary')} onClick={() => openDealForEdit(deal)} disabled={deal.status === 'confirmed' && !isSuperAdmin}>{t('edit')}</button>
                       {deal.status === 'draft' && hasManage && (
                         <button
                           type='button'
