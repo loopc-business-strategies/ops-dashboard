@@ -799,7 +799,13 @@ function ERPTab({
     setCustomerMarginContextMenu,
     customerMarginRows,
     handleCustomerMarginRowContextMenu,
-  } = useErpCustomerMargin({ activeTab, customers, goldPriceUSD, silverPriceUSD })
+  } = useErpCustomerMargin({
+    activeTab,
+    customers,
+    goldPriceUSD,
+    silverPriceUSD,
+    liveRecalcEnabled: activeTab === 'customer-margin' && (goldPriceUSD > 0 || silverPriceUSD > 0),
+  })
   const {
     supplierMarginSearch,
     setSupplierMarginSearch,

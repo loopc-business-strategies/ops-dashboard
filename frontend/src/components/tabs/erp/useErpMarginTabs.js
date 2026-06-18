@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { calculateAccountSummaryMetrics } from './statementHelpers'
+import {
+  computeMarginMetricsRaw,
+  shouldSuppressSpotMetalMtmForCustomerDashboard,
+} from './metalMarginPolicy'
 
 function positionMarginContextMenu(event) {
   const menuWidth = 292
@@ -35,7 +39,13 @@ function sortMarginRows(rows, sortKey, nameKey) {
   return rows
 }
 
-export function useErpCustomerMargin({ activeTab, customers, goldPriceUSD, silverPriceUSD }) {
+export function useErpCustomerMargin({
+  activeTab,
+  customers,
+  goldPriceUSD,
+  silverPriceUSD,
+  liveRecalcEnabled = false,
+}) {
   const [customerMarginSearch, setCustomerMarginSearch] = useState('')
   const [customerMarginCompactView, setCustomerMarginCompactView] = useState(true)
   const [customerMarginSort, setCustomerMarginSort] = useState('margin-desc')
@@ -49,10 +59,44 @@ export function useErpCustomerMargin({ activeTab, customers, goldPriceUSD, silve
         const outstanding = Number(customer?.outstandingBalance || 0)
         const goldPosition = Number(customer?.goldPosition || 0)
         const silverPosition = Number(customer?.silverPosition || 0)
+        const accountType = customer?.ledgerAccountId?.accountType
+        const suppressMetalSpotMtm = shouldSuppressSpotMetalMtmForCustomerDashboard(accountType)
+
+        if (liveRecalcEnabled) {
+          const goldPrice = Number(goldPriceUSD || 0)
+          const silverPrice = Number(silverPriceUSD || 0)
+          const metrics = computeMarginMetricsRaw({
+            totalFunds: outstanding,
+            goldPosition,
+            silverPosition,
+            goldPrice,
+            silverPrice,
+            suppressMetalSpotMtm,
+            fundsMode: 'customerAbsIfNegative',
+          })
+          const excess = metrics.excess < 0 ? Math.abs(metrics.excess) : metrics.excess
+          const equity = metrics.equity < 0 ? Math.abs(metrics.equity) : metrics.equity
+          return {
+            id: customer?._id,
+            customerName: String(customer?.name || '-'),
+            balanceAbs: Math.abs(excess),
+            equity,
+            rawOutstanding: outstanding,
+            goldPosition,
+            silverPosition,
+            marginAmount: metrics.margin,
+            excess,
+            status: metrics.status,
+            marginPercent: metrics.marginPercent,
+            accountCode: String(customer?.ledgerAccountId?.accountCode || ''),
+            description: String(customer?.ledgerAccountId?.accountName || `${String(customer?.name || '').trim()} customer`),
+          }
+        }
+
         const goldPrice = Number(customer?.metalRates?.goldPrice || goldPriceUSD || 0)
         const silverPrice = Number(customer?.metalRates?.silverPrice || silverPriceUSD || 0)
         const customerFunds = outstanding < 0 ? Math.abs(outstanding) : outstanding
-        const isLiabilityCustomerLedger = String(customer?.ledgerAccountId?.accountType || '').toLowerCase() === 'liability'
+        const isLiabilityCustomerLedger = suppressMetalSpotMtm
         const fallbackRevaluation = isLiabilityCustomerLedger
           ? 0
           : (goldPosition * goldPrice) + (silverPosition * silverPrice)
@@ -87,7 +131,7 @@ export function useErpCustomerMargin({ activeTab, customers, goldPriceUSD, silve
       })
       .filter((row) => (!query ? true : row.customerName.toLowerCase().includes(query)))
     return sortMarginRows(rows, customerMarginSort, 'customerName')
-  }, [activeTab, customers, customerMarginSearch, customerMarginSort, goldPriceUSD, silverPriceUSD])
+  }, [activeTab, customers, customerMarginSearch, customerMarginSort, goldPriceUSD, silverPriceUSD, liveRecalcEnabled])
 
   const handleCustomerMarginRowContextMenu = useCallback((event, row) => {
     event.preventDefault()

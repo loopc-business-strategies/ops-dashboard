@@ -5,6 +5,7 @@ import {
   formatCustomerMarginPercent,
   formatCustomerMarginPosition,
 } from '../marginFormatters'
+import ErpMetalLivePricesBar from '../ErpMetalLivePricesBar'
 
 export default function ERPCustomerMarginTab({
   C,
@@ -56,6 +57,7 @@ export default function ERPCustomerMarginTab({
                   />
                 </div>
               </div>
+              <ErpMetalLivePricesBar />
               <div style={{ border: '1px solid #BFD0E5', borderRadius: '0.45rem', overflow: 'hidden', background: '#FFFFFF' }}>
                 <div style={{ background: 'linear-gradient(180deg, #E9F3FF 0%, #D7E9FF 100%)', borderBottom: '1px solid #BFD0E5', padding: '0.55rem 0.8rem', fontSize: '1rem', fontWeight: '700', color: '#1E3A8A' }}>
                   Customer Margin
