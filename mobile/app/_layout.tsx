@@ -8,7 +8,14 @@ import { NotificationsProvider } from '@/src/context/NotificationsContext'
 import { mgBranding } from '@/src/config/branding'
 import { initMobileSentry } from '@/src/lib/sentryInit'
 
+import { useDeepLinkNavigation } from '@/src/navigation/useDeepLinkNavigation'
+
 initMobileSentry()
+
+function DeepLinkNavigationBridge() {
+  useDeepLinkNavigation()
+  return null
+}
 
 export { ErrorBoundary } from 'expo-router'
 
@@ -54,6 +61,7 @@ export default function RootLayout() {
         <AuthGate>
           <ChatProvider>
             <NotificationsProvider>
+              <DeepLinkNavigationBridge />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="index" />
                 <Stack.Screen name="login" />

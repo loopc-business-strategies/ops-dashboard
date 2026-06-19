@@ -76,3 +76,10 @@ export async function fetchAccountsForLedger(token: string) {
     params: { page: 1, limit: 500 },
   })
 }
+
+export async function getAccountEnquiry(token: string, accountCode: string) {
+  return apiRequest<{ success?: boolean; account?: Record<string, unknown> }>(`${ACCOUNTS_BASE}/enquiry`, {
+    token,
+    params: { accountCode, statementLimit: 60, refresh: '1' },
+  })
+}

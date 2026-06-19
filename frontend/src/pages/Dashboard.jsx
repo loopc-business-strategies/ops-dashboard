@@ -12,6 +12,7 @@ import {
   dashboardSearchFromState,
   isPrimaryNavClick,
   parseDashboardUrl,
+  parseEnquiryDeepLink,
 } from '../utils/dashboardNavigation'
 import BuildInfoBadge from '../components/BuildInfoBadge'
 import TopbarMetalTickers from '../components/TopbarMetalTickers'
@@ -458,9 +459,14 @@ function Dashboard() {
 
   const buildNavHref = useCallback((item) => {
     if (item.group === 'erp') {
+      const enquiry = item.erpSub === 'enquiry'
+        ? parseEnquiryDeepLink(searchParams.toString())
+        : null
       return buildDashboardHref({
         tabId: 'erp',
         erpSub: item.erpSub,
+        account: enquiry?.account,
+        view: enquiry?.view,
         company: tenantForHref,
         includeCompany,
       })
@@ -470,7 +476,7 @@ function Dashboard() {
       company: tenantForHref,
       includeCompany,
     })
-  }, [tenantForHref, includeCompany])
+  }, [tenantForHref, includeCompany, searchParams])
 
   const buildTabHref = useCallback((tabId, options = {}) => {
     const { erpSub, sub } = options

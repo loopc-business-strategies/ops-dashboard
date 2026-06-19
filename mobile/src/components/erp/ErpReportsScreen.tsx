@@ -14,6 +14,7 @@ import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
 import {
   fetchAccountsForLedger,
+  getAccountEnquiry,
   getBalanceSheetReport,
   getCustomerOutstandingReport,
   getDayBookReport,
@@ -61,7 +62,13 @@ function fmt(v: unknown) {
   return num(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-export default function ErpReportsScreen() {
+export default function ErpReportsScreen({
+  initialAccountCode = '',
+  initialView = '',
+}: {
+  initialAccountCode?: string
+  initialView?: string
+} = {}) {
   const { token, user } = useAuth()
   const allowed = canAccessErpReports(user)
 
@@ -87,6 +94,8 @@ export default function ErpReportsScreen() {
   const [accountQuery, setAccountQuery] = useState('')
   const [selectedAccountId, setSelectedAccountId] = useState('')
   const [ledgerRows, setLedgerRows] = useState<unknown[]>([])
+  const [enquiryAccount, setEnquiryAccount] = useState<Record<string, unknown> | null>(null)
+  const [enquiryLoading, setEnquiryLoading] = useState(false)
 
   const dateCtx = useMemo(
     () => buildReportDateRange(period, customStart.trim(), customEnd.trim()),
@@ -191,6 +200,47 @@ export default function ErpReportsScreen() {
     }
   }, [token, allowed, reportView, selectedAccountId, dateCtx.commonRange])
 
+  useEffect(() => {
+    const code = String(initialAccountCode || '').trim()
+    if (!code || !token || !allowed) return undefined
+    setEnquiryLoading(true)
+    setAccountQuery(code)
+    if (initialView === 'statement') setReportView('ledger')
+    let cancelled = false
+    void getAccountEnquiry(token, code)
+      .then((res) => {
+        if (cancelled) return
+        setEnquiryAccount((res?.account as Record<string, unknown>) || null)
+      })
+      .catch(() => {
+        if (!cancelled) setEnquiryAccount(null)
+      })
+      .finally(() => {
+        if (!cancelled) setEnquiryLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [initialAccountCode, initialView, token, allowed])
+
+  useEffect(() => {
+    const code = String(initialAccountCode || '').trim()
+    if (!code || !accounts.length || !token) return undefined
+    const match = accounts.find((a) => String(a.accountCode || '').trim() === code)
+    if (!match) return undefined
+    setSelectedAccountId(match._id)
+    if (initialView !== 'statement' && reportView !== 'ledger') return undefined
+    let cancelled = false
+    void getLedgerReport(token, { accountId: match._id, ...dateCtx.commonRange })
+      .then((led) => {
+        if (!cancelled) setLedgerRows((led as { report?: unknown[] })?.report || [])
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [initialAccountCode, initialView, accounts, token, dateCtx.commonRange, reportView])
+
   const trialRowsRaw = (trialBalance as { trialBalance?: TrialBalanceRow[] } | null)?.trialBalance || []
   const trialRows = trialBalanceRowsForView(reportView, trialRowsRaw)
   const trialShown = trialRows.slice(0, TRIAL_UI_CAP)
@@ -229,6 +279,27 @@ export default function ErpReportsScreen() {
     >
       <Text style={styles.title}>ERP Reports</Text>
       <Text style={styles.lead}>Same report types as the web dashboard. Pull down to refresh.</Text>
+
+      {initialAccountCode ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Account Summary — {initialAccountCode}</Text>
+          {enquiryLoading ? (
+            <ActivityIndicator color={mgBranding.colors.primary} style={{ marginTop: 8 }} />
+          ) : enquiryAccount ? (
+            <>
+              <Text style={styles.rowName}>{String(enquiryAccount.accountName || 'Account')}</Text>
+              <Text style={styles.rowRight}>
+                Balance: {fmt(enquiryAccount.closingBalance ?? enquiryAccount.balance)}
+              </Text>
+              {initialView === 'statement' ? (
+                <Text style={styles.muted}>Ledger statement lines loaded below when available.</Text>
+              ) : null}
+            </>
+          ) : (
+            <Text style={styles.muted}>Could not load account summary. Try ledger drilldown.</Text>
+          )}
+        </View>
+      ) : null}
 
       <Text style={styles.section}>Period</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>

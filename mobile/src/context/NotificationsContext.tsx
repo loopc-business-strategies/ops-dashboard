@@ -26,7 +26,7 @@ function normalizePushData(raw: unknown): Record<string, unknown> {
 }
 
 /** Map Expo push / response payload to the same shape as Socket.IO `notification` events. */
-function expoNotificationToPayload(n: Notifications.Notification): NotificationPayload {
+export function expoNotificationToPayload(n: Notifications.Notification): NotificationPayload {
   const content = n.request?.content
   const data = normalizePushData(content?.data)
   const topType = String(data.type || '').trim()

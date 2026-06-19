@@ -22,18 +22,18 @@ describe('resolveMobileNotificationRoute', () => {
     }))).toEqual({ screen: 'chat', chatId: `d:${senderId}` })
   })
 
-  it('routes voucher approval to ERP tab', () => {
+  it('routes voucher approval to ERP vouchers tab', () => {
     expect(resolveMobileNotificationRoute(baseItem({
       type: 'transaction_approved',
       data: { transactionId: '507f1f77bcf86cd799439099', type: 'payment' },
-    }))).toEqual({ screen: 'erp' })
+    }))).toEqual({ screen: 'erp', erpSubTab: 'vouchers' })
   })
 
-  it('routes account balance alert to ERP tab', () => {
+  it('routes account balance alert to ERP enquiry with account', () => {
     expect(resolveMobileNotificationRoute(baseItem({
       type: 'account_balance_sign_changed',
       data: { accountCode: '1000' },
-    }))).toEqual({ screen: 'erp' })
+    }))).toEqual({ screen: 'erp', erpSubTab: 'enquiry', account: '1000' })
   })
 
   it('returns null for unknown notification types', () => {

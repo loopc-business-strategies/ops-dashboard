@@ -2,7 +2,7 @@ import type { AppNotificationItem } from '@/src/notifications/notificationMap'
 
 export type MobileNotificationRoute =
   | { screen: 'chat'; chatId: string }
-  | { screen: 'erp' }
+  | { screen: 'erp'; account?: string; view?: string; erpSubTab?: string }
   | null
 
 function resolveChatTargetId(data: Record<string, unknown>, type: string): string | null {
@@ -43,7 +43,7 @@ export function resolveMobileNotificationRoute(item: AppNotificationItem): Mobil
   if (chatId) return { screen: 'chat', chatId }
 
   if (type === 'transaction_chat_mention' && validTx) {
-    return { screen: 'erp' }
+    return { screen: 'erp', erpSubTab: 'transactions' }
   }
 
   if (
@@ -61,11 +61,11 @@ export function resolveMobileNotificationRoute(item: AppNotificationItem): Mobil
     ].includes(type)
     && validTx
   ) {
-    return { screen: 'erp' }
+    return { screen: 'erp', erpSubTab: 'vouchers' }
   }
 
   if (type === 'account_balance_sign_changed' && accountCode) {
-    return { screen: 'erp' }
+    return { screen: 'erp', erpSubTab: 'enquiry', account: accountCode }
   }
 
   return null

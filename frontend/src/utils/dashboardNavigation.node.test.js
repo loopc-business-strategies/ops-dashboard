@@ -91,6 +91,16 @@ describe('dashboardNavigation', () => {
     expect(params.get('view')).toBeNull()
   })
 
+  test('buildDashboardHref preserves enquiry account for sidebar open-in-new-tab', () => {
+    const href = buildDashboardHref({
+      tabId: 'erp',
+      erpSub: 'enquiry',
+      account: '1000',
+      view: 'statement',
+    })
+    expect(href).toBe('/dashboard?tab=erp-enquiry&account=1000&view=statement')
+  })
+
   test('enquiryDeepLinkKey dedupes account summary loads', () => {
     expect(enquiryDeepLinkKey({ account: '1000' })).toBe('1000|')
     expect(enquiryDeepLinkKey({ account: '1000', view: 'statement' })).toBe('1000|statement')

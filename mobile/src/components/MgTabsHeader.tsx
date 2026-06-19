@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { mgBranding } from '@/src/config/branding'
 import { useNotifications, type AppNotificationItem } from '@/src/context/NotificationsContext'
+import { navigateDeepLink } from '@/src/navigation/deepLinkRouter'
 import { resolveMobileNotificationRoute } from '@/src/notifications/resolveNotificationRoute'
 
 type TabHeaderProps = {
@@ -62,9 +63,12 @@ export function MgTabsHeader({ options, route }: TabHeaderProps) {
       router.push({ pathname: '/chat/[chatId]' as never, params: { chatId: target.chatId } })
       return
     }
-    if (target.screen === 'erp') {
-      router.push('/(tabs)/erp')
-    }
+    navigateDeepLink(router, {
+      screen: 'erp',
+      erpSubTab: target.erpSubTab,
+      account: target.account,
+      view: target.view,
+    })
   }
 
   const renderRow = ({ item }: { item: AppNotificationItem }) => (
