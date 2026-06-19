@@ -41,9 +41,7 @@ export function LiveMetalPricesBar() {
     <View style={styles.root}>
       <View style={styles.headerRow}>
         <Text style={styles.headerTitle}>LIVE SPOT PRICES</Text>
-        <Text style={styles.headerSubline} numberOfLines={1}>
-          {headerSubline}
-        </Text>
+        <Text style={styles.headerSubline}>{headerSubline}</Text>
       </View>
 
       <View style={styles.cardsRow}>
@@ -60,10 +58,17 @@ export function LiveMetalPricesBar() {
                 <Text style={[styles.swatchText, { color: symColor }]}>{sym}</Text>
               </View>
               <View style={styles.cardBody}>
-                <View style={styles.priceRow}>
-                  <Text style={styles.metalLabel}>{label}</Text>
-                  <Text style={styles.spotPrice}>{fmtSpot(price)}</Text>
-                </View>
+                <Text style={styles.metalLabel} numberOfLines={1}>
+                  {label}
+                </Text>
+                <Text
+                  style={styles.spotPrice}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.9}
+                >
+                  {fmtSpot(price)}
+                </Text>
                 <Text
                   style={[
                     styles.moveRow,
@@ -75,7 +80,6 @@ export function LiveMetalPricesBar() {
                           : styles.moveDown
                         : styles.moveMuted,
                   ]}
-                  numberOfLines={1}
                 >
                   {move ? `${move.arrow} ${move.rest}` : metalStatusSubline(snapshot, price, error)}
                 </Text>
@@ -102,12 +106,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 4,
     marginBottom: 10,
-    flexWrap: 'wrap',
   },
   headerTitle: {
     fontSize: 12,
@@ -116,68 +118,59 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   headerSubline: {
-    flex: 1,
     fontSize: 11,
     color: mgBranding.colors.muted,
     fontWeight: '600',
-    textAlign: 'right',
   },
   cardsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
     gap: 8,
   },
   card: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    alignItems: 'flex-start',
+    gap: 10,
+    width: '100%',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderRadius: 8,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#D1D5DB',
-    minWidth: '30%',
-    flexGrow: 1,
-    flexBasis: '30%',
-    maxWidth: '100%',
   },
   swatch: {
-    width: 24,
-    height: 24,
+    width: 28,
+    height: 28,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 2,
   },
   swatchText: {
-    fontSize: 8,
+    fontSize: 9,
     fontWeight: '800',
   },
   cardBody: {
     flex: 1,
     minWidth: 0,
   },
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    gap: 6,
-  },
   metalLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: '#475569',
   },
   spotPrice: {
-    fontSize: 14,
+    marginTop: 2,
+    fontSize: 18,
     fontWeight: '700',
     color: mgBranding.colors.text,
     fontVariant: ['tabular-nums'],
   },
   moveRow: {
-    marginTop: 2,
-    fontSize: 10,
+    marginTop: 4,
+    fontSize: 11,
     fontWeight: '600',
+    flexWrap: 'wrap',
   },
   moveUp: {
     color: mgBranding.colors.success,
