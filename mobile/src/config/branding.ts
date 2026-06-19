@@ -1,6 +1,8 @@
+const { APP_NAME } = require('../../appName.cjs')
+
 export const mgBranding = {
   key: 'mg',
-  appName: 'Nexa MG',
+  appName: APP_NAME as 'Nexa MG',
   displayName: 'MG',
   companyName: 'MODERN GOLD JEWELRY MANUFACTURING',
   tagline: 'Metal Group Operations',
