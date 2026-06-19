@@ -33,6 +33,23 @@ async function verifyPortal(tenant) {
   return { tenant, status: response.status, url }
 }
 
+async function verifyDashboardDeepLinkShell(tenant) {
+  const url = `https://${tenant}.${BASE_DOMAIN}/dashboard?tab=erp-enquiry&account=1000`
+  const response = await fetchWithTimeout(url)
+  const body = await response.text()
+
+  if (!response.ok) {
+    throw new Error(`${tenant.toUpperCase()} dashboard deep link responded with ${response.status}`)
+  }
+
+  const hasShellMarkup = /id="root"/i.test(body)
+  if (!hasShellMarkup) {
+    throw new Error(`${tenant.toUpperCase()} dashboard deep link did not return SPA shell`)
+  }
+
+  return { tenant, status: response.status, url }
+}
+
 async function verifyReadiness(tenant) {
   const response = await fetchWithTimeout(`${API_BASE}/api/ready`, {
     headers: {
@@ -84,6 +101,9 @@ async function run() {
   for (const tenant of TENANTS) {
     const portal = await verifyPortal(tenant)
     console.log(`✔ ${tenant.toUpperCase()} portal OK (${portal.status})`)
+
+    const deepLink = await verifyDashboardDeepLinkShell(tenant)
+    console.log(`✔ ${tenant.toUpperCase()} dashboard deep-link shell OK (${deepLink.status})`)
 
     const readiness = await verifyReadiness(tenant)
     console.log(`✔ ${tenant.toUpperCase()} ready (${readiness.status}) build=${readiness.buildSha}`)

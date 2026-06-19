@@ -9,9 +9,11 @@ import {
   View,
 } from 'react-native'
 import { SymbolView } from 'expo-symbols'
+import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { mgBranding } from '@/src/config/branding'
 import { useNotifications, type AppNotificationItem } from '@/src/context/NotificationsContext'
+import { resolveMobileNotificationRoute } from '@/src/notifications/resolveNotificationRoute'
 
 type TabHeaderProps = {
   options: { title?: string }
@@ -46,14 +48,29 @@ function formatRelativeTime(d: Date): string {
 /** Custom tab header: title bar + real-time notifications bell (Socket.IO `/notifications`). */
 export function MgTabsHeader({ options, route }: TabHeaderProps) {
   const insets = useSafeAreaInsets()
+  const router = useRouter()
   const title = resolveTitle(route.name, options.title)
   const { items, unreadCount, markRead, markAllRead } = useNotifications()
   const [modalOpen, setModalOpen] = useState(false)
 
+  const handleNotificationPress = (item: AppNotificationItem) => {
+    markRead(item.id)
+    const target = resolveMobileNotificationRoute(item)
+    if (!target) return
+    setModalOpen(false)
+    if (target.screen === 'chat') {
+      router.push({ pathname: '/chat/[chatId]' as never, params: { chatId: target.chatId } })
+      return
+    }
+    if (target.screen === 'erp') {
+      router.push('/(tabs)/erp')
+    }
+  }
+
   const renderRow = ({ item }: { item: AppNotificationItem }) => (
     <TouchableOpacity
       style={[styles.notifRow, !item.read && styles.notifRowUnread]}
-      onPress={() => markRead(item.id)}
+      onPress={() => handleNotificationPress(item)}
       activeOpacity={0.7}
     >
       <Text style={styles.notifTitle}>{item.title}</Text>

@@ -4,7 +4,17 @@ Run after major ERP/Voucher refactors on **mg**, **loopc**, and **cg** productio
 
 Reference: [`ERP-TAB-REFACTOR-ROADMAP.md`](ERP-TAB-REFACTOR-ROADMAP.md)
 
-**Deploy `c33d27c`+ (dashboard deep links + unified URL builder):** complete operator sign-off below. CI covers URL parsing and navigation smoke only — it cannot substitute for voucher print / JV FX validation on live tenants.
+**Deploy `c33d27c`+ (dashboard deep links + unified URL builder):** complete operator sign-off below. Automated coverage:
+
+| Check | Automated |
+|-------|-----------|
+| URL builder unit tests | `frontend/src/utils/dashboardNavigation.node.test.js` |
+| Dashboard navigation Vitest | `frontend/src/__tests__/dashboard-navigation.test.jsx` |
+| Enquiry deep-link hook | `frontend/src/__tests__/useEnquiryDeepLinkEffects.test.jsx` |
+| Playwright deep links | `frontend/e2e/dashboard-navigation.spec.js` |
+| Post-deploy SPA shell | `npm run smoke:tenants` (dashboard `?tab=erp-enquiry&account=…`) |
+
+CI cannot substitute for voucher print / JV FX validation on live tenants.
 
 ## Dashboard deep links (new)
 

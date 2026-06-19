@@ -11,6 +11,7 @@ import VoucherListPanel from './voucher/VoucherListPanel'
 import { useVoucherPrintModel } from './voucher/useVoucherPrintModel'
 import VoucherPrintPanel from './voucher/VoucherPrintPanel'
 import VoucherEditorPanel from './voucher/VoucherEditorPanel'
+import { useVoucherPendingOpen } from './voucher/useVoucherPendingOpen'
 import { deriveErpAccessPolicy, canCreateTransactionFor } from './erp/accessPolicy'
 import {
   filterActiveAccounts,
@@ -1148,50 +1149,7 @@ export default function VoucherTab({
   }
   openVoucherRef.current = openVoucher
 
-  useEffect(() => {
-    if (!pendingOpenTransactionId || !pendingOpenTransactionType || typeof onPendingOpenTransactionConsumed !== 'function') {
-      return undefined
-    }
-    if (!canView || !token) {
-      onPendingOpenTransactionConsumed()
-      return undefined
-    }
-    const tnorm = String(pendingOpenTransactionType || '').toLowerCase()
-    if (!tnorm || !enabledVoucherTypes.includes(tnorm)) {
-      setError('This voucher type is not available for your tenant or role.')
-      onPendingOpenTransactionConsumed()
-      return undefined
-    }
-    let cancelled = false
-    ;(async () => {
-      try {
-        const res = await axios.get(`${BASE}/transactions`, {
-          ...cfg(),
-          params: { type: tnorm, limit: 200 },
-        })
-        const txs = sortVouchers(
-          (res.data.transactions || []).filter((row) => row.voucherMeta && row.voucherMeta.vocNo),
-          tnorm,
-        )
-        if (cancelled) return
-        setVoucherType(tnorm)
-        setVouchers(txs)
-        const v = txs.find((row) => String(row._id) === String(pendingOpenTransactionId))
-        if (v) {
-          openVoucherRef.current?.(v)
-        } else {
-          setError('That voucher was not found in the list. Try opening Vouchers and refreshing.')
-        }
-      } catch (e) {
-        if (!cancelled) setError(e.response?.data?.message || 'Failed to open voucher from notification')
-      } finally {
-        if (!cancelled) onPendingOpenTransactionConsumed()
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [
+  useVoucherPendingOpen({
     pendingOpenTransactionId,
     pendingOpenTransactionType,
     onPendingOpenTransactionConsumed,
@@ -1199,7 +1157,11 @@ export default function VoucherTab({
     token,
     enabledVoucherTypes,
     sortVouchers,
-  ])
+    setError,
+    setVoucherType,
+    setVouchers,
+    openVoucherRef,
+  })
 
   const handleWorkflowAction = async (action) => {
     if (!editingId) return

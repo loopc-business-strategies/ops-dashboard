@@ -6,6 +6,8 @@ export type AppNotificationItem = {
   message: string
   createdAt: Date
   read: boolean
+  type: string
+  data: Record<string, unknown>
 }
 
 function voucherKindLabel(kind: string): string {
@@ -66,5 +68,7 @@ export function mapPayloadToItem(payload: NotificationPayload): AppNotificationI
         ? payload.timestamp
         : new Date(payload?.timestamp ? String(payload.timestamp) : Date.now()),
     read: false,
+    type,
+    data,
   }
 }
