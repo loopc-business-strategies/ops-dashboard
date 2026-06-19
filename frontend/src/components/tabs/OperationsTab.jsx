@@ -25,293 +25,45 @@ import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 import AccountCombobox from '../AccountCombobox'
 import LegalDocxPreviewBody from '../legal/LegalDocxPreviewBody'
 
-// ─── Design tokens ─────────────────────────────────────────────────────────────
-const C = {
-  grad:   'var(--grad-brand)',
-  gbar:   'var(--grad-bar)',
-  green:  '#065f46', cyan:   '#00b4d8', yellow: '#ffd600',
-  orange: '#9a3412', red:    '#ff4757', gold:   '#f59e0b',
-  t1:'#1c2a33', t2:'#374151', t3:'#334155', t4:'#475569',
-  border: 'rgba(var(--purple-rgb),0.15)', border2:'rgba(var(--purple-rgb),0.35)',
-  card:'#ffffff', card2:'#f8f9fa', inp:'#f8f9fa',
-  pur: 'var(--purple)',
-}
-const B = {
-  pri:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', border:'none', background:'var(--grad-brand)', color:'#fff', boxShadow:'0 4px 15px rgba(var(--purple-rgb),.35)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  sec:   { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'var(--purple)', border:'1px solid var(--purple)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#475569', border:`1px solid rgba(var(--purple-rgb),0.15)`, whiteSpace:'nowrap', fontFamily:'inherit' },
-  warn:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(255,112,67,.15)', color:'#9a3412', border:'1px solid rgba(255,112,67,.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  succ:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(0,200,150,.15)', color:'#065f46', border:'1px solid rgba(0,200,150,.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
-  sm:    { padding:'5px 11px', fontSize:11 },
-}
+import {
+  getOpsTabs,
+  opsPct,
+  INIT_SUPPLIERS,
+  INIT_GOLD,
+  INIT_ROUTES,
+  INIT_SEC_VENDORS,
+  INIT_INCIDENTS,
+  INIT_VENDORS,
+  INIT_INVENTORY,
+  INIT_CHECKLIST,
+  INIT_NOTIFS,
+} from './operations/operationsSeedData'
+import { OPS_C as C } from './operations/operationsTabTokens'
+import {
+  B,
+  stars,
+  Badge,
+  ProgBar,
+  ProgRow,
+  StatCard,
+  Card,
+  CardTitle,
+  TableWrap,
+  TableHead,
+  SH,
+  Restrict,
+  ML,
+  MI,
+  MS,
+  MTA,
+  Modal,
+  Toast,
+  TH,
+  TD,
+  IS,
+} from './operations/operationsTabUI'
 
-function getOpsTabs(t) {
-  return [
-    { id:'kpi',       label:`📊 ${t('kpiOverview')}` },
-    { id:'checklist', label:`✅ ${t('readiness')}` },
-    { id:'supply',    label:`🏭 ${t('supplyChain')}` },
-    { id:'gold',      label:`🥇 ${t('goldSourcing')}` },
-    { id:'routes',    label:`🚛 ${t('transport')}` },
-    { id:'security',  label:`🔒 ${t('security')}` },
-    { id:'vendors',   label:`📄 ${t('contracts')}` },
-    { id:'inventory', label:`📦 ${t('inventory')}` },
-    { id:'legal-docs', label:`📑 ${t('opsLegalDocuments')}` },
-    { id:'map',       label:`🗺️ ${t('liveMap')}` },
-    { id:'analytics', label:`📈 ${t('analytics')}` },
-    { id:'projects',     label:`📋 ${t('opsProjectsNav')}` },
-  ]
-}
-
-// ─── Seed data ──────────────────────────────────────────────────────────────────
-const INIT_SUPPLIERS = [
-  { id:1, name:'SinoTech Ltd',    cat:'Machinery',   od:'Mar 12, 2025', ed:'Apr 20, 2025', ad:'Apr 25, 2025', qty:'3 units', qr:'3 units', pay:'Fully Paid',   qc:'Passed',  st:'Completed',       notes:'Crusher delivered on time' },
-  { id:2, name:'KazMach Co',      cat:'Machinery',   od:'Apr 5, 2025',  ed:'Apr 30, 2025', ad:'—',            qty:'1 unit',  qr:'0',       pay:'Advance Paid', qc:'Pending', st:'Pending External',notes:'Conveyor belt in customs' },
-  { id:3, name:'EuroEquip GmbH',  cat:'Machinery',   od:'—',            ed:'Jun 15, 2025', ad:'—',            qty:'1 unit',  qr:'0',       pay:'Not Paid',     qc:'Pending', st:'Not Started',     notes:'Refinery pump pending' },
-  { id:4, name:'ChemEx Corp',     cat:'Chemicals',   od:'Apr 10, 2025', ed:'Apr 28, 2025', ad:'—',            qty:'500 kg',  qr:'0',       pay:'Advance Paid', qc:'Pending', st:'In Progress',     notes:'Reagents in transit' },
-  { id:5, name:'LocalSupply KZ',  cat:'Consumables', od:'Apr 1, 2025',  ed:'Apr 10, 2025', ad:'Apr 9, 2025',  qty:'Bulk',    qr:'Bulk',    pay:'Fully Paid',   qc:'Passed',  st:'Completed',       notes:'Site consumables delivered' },
-]
-
-const INIT_GOLD = [
-  { id:1, code:'GS-001', name:'Altyn Partners (Confidential)',      vol:120, actual:96,  stage:'Contract Signed',   cst:'Active',    comp:'Yes', officer:'Omar K.',  region:'East KZ',    risk:'Low',    lastAct:'Apr 10, 2025', nextAction:'Quarterly review call Apr 20' },
-  { id:2, code:'GS-002', name:'Northern Highlands Collective',      vol:80,  actual:52,  stage:'Final Negotiation', cst:'Pending',   comp:'No',  officer:'Omar K.',  region:'North KZ',   risk:'Medium', lastAct:'Apr 5, 2025',  nextAction:'Send contract draft by Apr 18' },
-  { id:3, code:'GS-003', name:'KazGold Artisanal Network',          vol:50,  actual:18,  stage:'MoU Stage',         cst:'Draft',     comp:'No',  officer:'Aidar B.', region:'Central KZ', risk:'Medium', lastAct:'Mar 28, 2025', nextAction:'MoU signing meeting Apr 22' },
-  { id:4, code:'GS-004', name:'CrossBorder Commodities',            vol:0,   actual:0,   stage:'On Hold',           cst:'Suspended', comp:'No',  officer:'—',        region:'South KZ',   risk:'High',   lastAct:'Feb 15, 2025', nextAction:'Compliance review required' },
-]
-
-const INIT_ROUTES = [
-  { id:1, name:'Route KAZ-1 (Primary)',   origin:'Almaty',           dest:'Site Alpha',             carrier:'KazTrans LLC',    mode:'Road', eta:'6 hrs',  st:'Active',    risk:'Low',    lastInc:'None',      insurance:'Active', gps:'Active',   checkpoints:'4/4', notes:'Armed escort after km 240' },
-  { id:2, name:'Route KAZ-2 (Alternate)', origin:'Shymkent',         dest:'Site Alpha',             carrier:'SteppeLogistics', mode:'Road', eta:'9 hrs',  st:'On Hold',   risk:'Medium', lastInc:'Mar 28',    insurance:'Active', gps:'Inactive', checkpoints:'2/4', notes:'Security clearance review' },
-  { id:3, name:'Route AIR-1',             origin:'Almaty Airport',   dest:'Site Airstrip',          carrier:'KazAir Cargo',    mode:'Air',  eta:'45 min', st:'Active',    risk:'Low',    lastInc:'None',      insurance:'Active', gps:'Active',   checkpoints:'2/2', notes:'High-value shipments only' },
-  { id:4, name:'Route RAIL-1',            origin:'Astana Rail Hub',  dest:'Site Rail Siding',       carrier:'KTZ Freight',     mode:'Rail', eta:'18 hrs', st:'Suspended', risk:'High',   lastInc:'Apr 2',     insurance:'Active', gps:'Inactive', checkpoints:'1/5', notes:'Suspended — security review' },
-]
-
-const INIT_SEC_VENDORS = [
-  { id:1, vendor:'SecureForce KZ', proto:'Approved',       escort:'Yes',     lastRev:'Apr 5, 2025',  nextRev:'Jul 5, 2025',  incidents:2, threat:'Medium', route:'KAZ-1, KAZ-2' },
-  { id:2, vendor:'AlphaGuard Ltd', proto:'Pending Review', escort:'Pending', lastRev:'Mar 15, 2025', nextRev:'May 15, 2025', incidents:0, threat:'Low',    route:'AIR-1' },
-]
-
-const INIT_INCIDENTS = [
-  { id:'INC-003', date:'Apr 2, 2025',  route:'Route RAIL-1', vendor:'Internal',        type:'Route Breach',          sev:'High',   st:'Under Investigation', res:'Investigation ongoing' },
-  { id:'INC-002', date:'Mar 28, 2025', route:'Route KAZ-2',  vendor:'SecureForce KZ',  type:'Escort Delay',          sev:'Medium', st:'Resolved',            res:'Escort breakdown resolved. Protocol updated.' },
-  { id:'INC-001', date:'Mar 15, 2025', route:'Route KAZ-1',  vendor:'Internal',        type:'Documentation Issue',   sev:'Low',    st:'Resolved',            res:'Customs paperwork corrected within 24hrs' },
-]
-
-const INIT_VENDORS = [
-  { id:1, name:'SecureForce KZ',    svc:'Armed Security',    val:'$180,000', signed:'Yes',     exp:'Dec 31, 2025', terms:'Monthly',       mgr:'Omar K.', rating:5, renewal:'Active',             days:261 },
-  { id:2, name:'KazTrans LLC',      svc:'Road Freight',      val:'$95,000',  signed:'Yes',     exp:'Sep 30, 2025', terms:'Per Shipment',  mgr:'Bilal R.',rating:4, renewal:'Renewal Due',        days:169 },
-  { id:3, name:'ChemEx Corp',       svc:'Chemical Supply',   val:'$42,000',  signed:'Yes',     exp:'Oct 15, 2025', terms:'Net 30',        mgr:'Omar K.', rating:3, renewal:'Active',             days:184 },
-  { id:4, name:'SteppeLogistics',   svc:'Alternate Freight', val:'$60,000',  signed:'No',      exp:'—',            terms:'TBD',           mgr:'Bilal R.',rating:2, renewal:'Under Negotiation',  days:null },
-  { id:5, name:'AlphaGuard Ltd',    svc:'Security Backup',   val:'$75,000',  signed:'Pending', exp:'Nov 1, 2025',  terms:'Monthly',       mgr:'Omar K.', rating:3, renewal:'Active',             days:201 },
-  { id:6, name:'KAZ Equipment Svc', svc:'Maintenance',       val:'$28,000',  signed:'Yes',     exp:'Aug 1, 2025',  terms:'Quarterly',     mgr:'Bilal R.',rating:4, renewal:'Renewal Due',        days:109 },
-]
-
-const INIT_INVENTORY = [
-  { id:'INV-001', item:'Drive Belt (Heavy)',      stock:2,   min:3,   sup:'KAZ Equipment Svc', last:'Apr 13, 2025', st:'Critical' },
-  { id:'INV-002', item:'Filter Kit (Industrial)', stock:8,   min:5,   sup:'ChemEx Corp',        last:'Apr 10, 2025', st:'Sufficient' },
-  { id:'INV-003', item:'Spindle Bearing Set',     stock:1,   min:2,   sup:'EuroEquip GmbH',     last:'Apr 3, 2025',  st:'Low Stock' },
-  { id:'INV-004', item:'Lubricant Oil (5L)',       stock:12,  min:4,   sup:'LocalSupply KZ',     last:'Apr 12, 2025', st:'Sufficient' },
-  { id:'INV-005', item:'Processing Reagent',       stock:180, min:200, sup:'ChemEx Corp',        last:'Apr 8, 2025',  st:'Low Stock' },
-  { id:'INV-006', item:'Safety Equipment Kit',     stock:0,   min:5,   sup:'LocalSupply KZ',     last:'Mar 20, 2025', st:'Critical' },
-]
-
-const INIT_CHECKLIST = [
-  { item:'Site Access Roads Secured',           assign:'Ahmad Y.',  st:'Done',        due:'Apr 5',  by:'Ahmad Y.',  ts:'Apr 5 09:00' },
-  { item:'Machinery Procurement Confirmed',     assign:'Omar K.',   st:'Done',        due:'Apr 8',  by:'Omar K.',   ts:'Apr 8 11:30' },
-  { item:'Security Vendor Contracts Signed',    assign:'Omar K.',   st:'Done',        due:'Apr 10', by:'Omar K.',   ts:'Apr 10 14:00' },
-  { item:'Customs Clearance — All Equipment',   assign:'Bilal R.',  st:'In Progress', due:'Apr 20', by:'—',         ts:'—' },
-  { item:'Route KAZ-1 Safety Audit',            assign:'Ahmad Y.',  st:'Done',        due:'Apr 7',  by:'Ahmad Y.',  ts:'Apr 7 16:00' },
-  { item:'Inventory Minimum Levels Met',        assign:'Bilal R.',  st:'Blocked',     due:'Apr 16', by:'—',         ts:'—' },
-  { item:'Gold Sourcing Channel Compliance',    assign:'Omar K.',   st:'In Progress', due:'Apr 22', by:'—',         ts:'—' },
-  { item:'Vendor Payment Schedules Confirmed',  assign:'Omar F.',   st:'Done',        due:'Apr 12', by:'Omar F.',   ts:'Apr 12 10:00' },
-  { item:'Emergency Response Protocol Updated', assign:'Ahmad Y.',  st:'In Progress', due:'Apr 25', by:'—',         ts:'—' },
-  { item:'Staff Safety Induction Completed',    assign:'Fatima N.', st:'Done',        due:'Apr 10', by:'Fatima N.', ts:'Apr 10 09:00' },
-  { item:'Insurance Certificates Renewed',      assign:'Omar F.',   st:'Done',        due:'Apr 15', by:'Omar F.',   ts:'Apr 14 15:30' },
-]
-
-const INIT_NOTIFS = [
-  { id:'ON1', lv:'crit', read:false, title:'🔴 Contract Expiring in 169 Days — KazTrans LLC',      desc:'KazTrans LLC contract expires Sep 30. Renewal process should start now.',                           time:'Today' },
-  { id:'ON2', lv:'high', read:false, title:'🟠 Security Review Overdue — Route RAIL-1',            desc:'Route RAIL-1 suspended. Security review was due Apr 10 and has not been completed.',                time:'2 hrs ago' },
-  { id:'ON3', lv:'crit', read:false, title:'🔴 Incident Reported — Route RAIL-1',                  desc:'Route breach INC-003 reported Apr 2. Investigation ongoing. Escalation required.',                  time:'2 days ago' },
-  { id:'ON4', lv:'med',  read:false, title:'🟡 Delivery Overdue — KazMach Conveyor Belt',          desc:'KazMach Co conveyor belt expected Apr 30 but currently held at Almaty customs. Action needed.',     time:'Today' },
-  { id:'ON5', lv:'med',  read:false, title:'🟡 Gold Channel Compliance Issue — GS-002 & GS-003',  desc:'Two gold sourcing channels have incomplete compliance documentation. Review by Apr 22.',              time:'Yesterday' },
-  { id:'ON6', lv:'suc',  read:true,  title:'🟢 New Delivery Confirmed — SinoTech Ltd',             desc:'Crusher Unit A from SinoTech Ltd delivered and accepted. Quality check passed.',                    time:'Apr 10' },
-  { id:'ON7', lv:'high', read:true,  title:'🟠 GPS Inactive on Route KAZ-2',                       desc:'GPS tracking is not active on Route KAZ-2. Security risk. Update required.',                        time:'Apr 8' },
-  { id:'ON8', lv:'crit', read:false, title:'🔴 Safety Equipment Kit — Stock Zero',                 desc:'Safety Equipment Kit has zero stock. Minimum is 5 units. Immediate restock required.',              time:'Today' },
-]
-
-// ─── Helpers ────────────────────────────────────────────────────────────────────
-function pct(v, t) { return Math.max(0, Math.min(100, Math.round((v / Math.max(t, 1)) * 100))) }
-function stars(n) {
-  return Array.from({ length: 5 }, (_, i) => (
-    <span key={i} style={{ color: i < n ? C.gold : C.t4, fontSize:14 }}>★</span>
-  ))
-}
-
-const BADGE_MAP = {
-  'Completed':             { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
-  'Active':                { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
-  'Approved':              { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
-  'Passed':                { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
-  'Sufficient':            { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
-  'Fully Paid':            { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
-  'Yes':                   { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
-  'Resolved':              { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
-  'Done':                  { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
-  'Contract Signed':       { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
-  'In Progress':           { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
-  'Under review':        { bg:'rgba(var(--purple-rgb),.15)',  color:'var(--purple)', b:'rgba(var(--purple-rgb),.3)' },
-  'Advance Paid':          { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
-  'Pending':               { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
-  'Pending Review':        { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
-  'Low Stock':             { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
-  'On Hold':               { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
-  'Renewal Due':           { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
-  'Under Negotiation':     { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
-  'Under Investigation':   { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
-  'Final Negotiation':     { bg:'rgba(0,180,216,.12)',   color:'#00b4d8', b:'rgba(0,180,216,.3)' },
-  'MoU Stage':             { bg:'rgba(0,180,216,.12)',   color:'#00b4d8', b:'rgba(0,180,216,.3)' },
-  'Pending External':      { bg:'rgba(var(--purple-rgb),.15)',  color:'var(--purple)', b:'rgba(var(--purple-rgb),.3)' },
-  'Not Started':           { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
-  'No':                    { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
-  'Suspended':             { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
-  'Not Paid':              { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
-  'Inactive':              { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
-  'To Do':                 { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
-  'Draft':                 { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' },
-  'Critical':              { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
-  'Blocked':               { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
-  'Overdue':               { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
-  'High':                  { bg:'rgba(255,71,87,.12)',   color:'#ff4757', b:'rgba(255,71,87,.3)' },
-  'Medium':                { bg:'rgba(255,214,0,.10)',   color:'#ffd600', b:'rgba(255,214,0,.3)' },
-  'Low':                   { bg:'rgba(0,200,150,.12)',   color:'#065f46', b:'rgba(0,200,150,.3)' },
-  'Road':                  { bg:'rgba(0,180,216,.12)',   color:'#00b4d8', b:'rgba(0,180,216,.3)' },
-  'Air':                   { bg:'rgba(var(--purple-rgb),.15)',  color:'var(--purple)', b:'rgba(var(--purple-rgb),.3)' },
-  'Rail':                  { bg:'rgba(245,158,11,.12)',  color:'#f59e0b', b:'rgba(245,158,11,.3)' },
-}
-function Badge({ s }) {
-  const cf = BADGE_MAP[s] || { bg:'rgba(255,255,255,.05)', color:'#475569', b:'rgba(255,255,255,.1)' }
-  return <span style={{ display:'inline-flex', alignItems:'center', fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:cf.bg, color:cf.color, border:`1px solid ${cf.b}`, whiteSpace:'nowrap' }}>{s}</span>
-}
-
-function ProgBar({ pct: p, color, height=7 }) {
-  return (
-    <div style={{ flex:1, height, background:'rgba(255,255,255,.06)', borderRadius:4, overflow:'hidden' }}>
-      <div style={{ height:'100%', width:`${p}%`, background:color, borderRadius:4, transition:'width .5s' }} />
-    </div>
-  )
-}
-function ProgRow({ label, p, color }) {
-  return (
-    <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10, fontSize:12 }}>
-      <div style={{ width:160, color:C.t2, fontWeight:500, flexShrink:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</div>
-      <ProgBar pct={p} color={color} />
-      <div style={{ width:38, textAlign:'right', fontWeight:700, color:C.t1, fontSize:12 }}>{p}%</div>
-    </div>
-  )
-}
-
-function StatCard({ label, value, sub, dot }) {
-  return (
-    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:'14px 16px', position:'relative', overflow:'hidden' }}>
-      <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:C.gbar }} />
-      <div style={{ fontSize:10, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.08em', marginBottom:8 }}>{label}</div>
-      <div style={{ fontSize:24, fontWeight:800, color:C.t1, lineHeight:1 }}>{value}</div>
-      {sub && <div style={{ fontSize:11, color:C.t3, marginTop:7, display:'flex', alignItems:'center', gap:5 }}>
-        {dot && <span style={{ width:6, height:6, borderRadius:'50%', background:dot, display:'inline-block', flexShrink:0 }} />}
-        {sub}
-      </div>}
-    </div>
-  )
-}
-
-function Card({ children, style = {} }) {
-  return (
-    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:'16px 18px', position:'relative', overflow:'hidden', ...style }}>
-      <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:C.gbar }} />
-      {children}
-    </div>
-  )
-}
-function CardTitle({ children, right }) {
-  return <div style={{ fontSize:13, fontWeight:800, color:C.t1, marginBottom:14, display:'flex', alignItems:'center', justifyContent:'space-between' }}>{children}{right && <div>{right}</div>}</div>
-}
-
-function TableWrap({ children }) {
-  return <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, overflow:'hidden' }}>{children}</div>
-}
-function TableHead({ title, subtitle, right }) {
-  return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 18px 12px', borderBottom:`1px solid ${C.border}`, flexWrap:'wrap', gap:8 }}>
-      <div>
-        <div style={{ fontSize:14, fontWeight:800, color:C.t1 }}>{title}</div>
-        {subtitle && <div style={{ fontSize:12, color:C.t3, marginTop:2 }}>{subtitle}</div>}
-      </div>
-      {right && <div style={{ display:'flex', gap:8 }}>{right}</div>}
-    </div>
-  )
-}
-
-const TH = { fontSize:10, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.08em', padding:'10px 14px', textAlign:'left', borderBottom:`1px solid ${C.border}`, background:'rgba(255,255,255,0.02)', whiteSpace:'nowrap' }
-const TD = { padding:'11px 14px', borderBottom:'1px solid rgba(255,255,255,.04)', fontSize:12.5, color:C.t2, verticalAlign:'middle' }
-
-function SH({ title, sub, children }) {
-  return (
-    <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:18 }}>
-      <div>
-        <div style={{ fontSize:16, fontWeight:800, color:C.t1 }}>{title}</div>
-        {sub && <div style={{ fontSize:12, color:C.t3, marginTop:3 }}>{sub}</div>}
-      </div>
-      {children && <div style={{ display:'flex', gap:8, flexShrink:0, marginTop:2 }}>{children}</div>}
-    </div>
-  )
-}
-
-function Restrict({ text, amber }) {
-  const col = amber ? C.gold : C.red
-  return (
-    <div style={{ background:`${col}10`, border:`1px solid ${col}25`, borderRadius:10, padding:'13px 16px', fontSize:13, color:col, display:'flex', alignItems:'center', gap:10, lineHeight:1.5 }}>
-      <span style={{ fontSize:20 }}>🔒</span>{text}
-    </div>
-  )
-}
-
-// ─── Modal base ─────────────────────────────────────────────────────────────────
-const IS = { width:'100%', background:'rgba(255,255,255,.05)', border:'1.5px solid rgba(var(--purple-rgb),.25)', borderRadius:8, padding:'10px 14px', fontSize:13, color:C.t1, fontFamily:'inherit', outline:'none', marginBottom:12, boxSizing:'border-box' }
-function ML({ children }) { return <div style={{ fontSize:11, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:5 }}>{children}</div> }
-function MI(props) { return <input {...props} style={IS} /> }
-function MS({ children, ...p }) { return <select {...p} style={{ ...IS, appearance:'auto' }}>{children}</select> }
-function MTA(props) { return <textarea {...props} style={{ ...IS, resize:'vertical', minHeight:65 }} /> }
-
-function Modal({ title, sub, onClose, onSave, saveLabel = 'Save', children }) {
-  return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.65)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(8px)' }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background:'#ffffff', border:`1px solid ${C.border2}`, borderRadius:14, padding:24, width:580, maxWidth:'94vw', maxHeight:'88vh', overflowY:'auto', position:'relative' }}>
-        <div style={{ position:'absolute', top:0, left:0, width:3, height:'100%', background:C.grad, borderRadius:'14px 0 0 14px' }} />
-        <button onClick={onClose} style={{ position:'absolute', top:14, right:16, background:'none', border:'none', color:C.t3, fontSize:18, cursor:'pointer' }}>✕</button>
-        <h3 style={{ fontSize:17, fontWeight:800, color:C.t1, marginBottom:4 }}>{title}</h3>
-        <div style={{ fontSize:12, color:C.t3, marginBottom:18 }}>{sub}</div>
-        {children}
-        <div style={{ display:'flex', gap:8, marginTop:4 }}>
-          <button onClick={onClose} style={{ flex:1, padding:10, borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', border:'none', background:'rgba(255,255,255,.07)', color:C.t2 }}>Cancel</button>
-          <button onClick={onSave} style={{ flex:1, padding:10, borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', border:'none', background:C.grad, color:'#fff' }}>{saveLabel}</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Toast ───────────────────────────────────────────────────────────────────────
-function Toast({ t }) {
-  if (!t) return null
-  return (
-    <div style={{ position:'fixed', bottom:22, right:22, minWidth:260, background:'#ffffff', border:`1px solid ${C.border2}`, borderLeft:`3px solid var(--purple)`, borderRadius:10, padding:'13px 18px', zIndex:9999, boxShadow:'0 8px 30px rgba(var(--purple-rgb),.22)' }}>
-      <style>{`@keyframes toastIn{from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
-      <div style={{ fontWeight:700, color:C.t1, marginBottom:3, animation:'toastIn .3s ease' }}>{t.title}</div>
-      <div style={{ fontSize:12, color:C.t3 }}>{t.msg}</div>
-    </div>
-  )
-}
+const pct = opsPct
 
 const LEGAL_DOC_ACCEPT = [
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.txt',

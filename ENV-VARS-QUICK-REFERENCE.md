@@ -15,7 +15,34 @@ NODE_ENV=production
 PORT=5000
 DEFAULT_TENANT=loopc
 JWT_SECRET=<GENERATE-A-RANDOM-STRING-32-CHARS-MIN>
+SERVER_BASE_URL=https://api.loopcstrategies.com
 ```
+
+`SERVER_BASE_URL` — absolute base for ERP attachment download URLs (no trailing slash). Warned in production if missing.
+
+### CORS (frontend origins)
+
+```
+CLIENT_URLS=https://mg.loopcstrategies.com,https://cg.loopcstrategies.com,https://loopc.loopcstrategies.com,https://app.loopcstrategies.com,https://loopcstrategies.com
+CLIENT_URL=https://mg.loopcstrategies.com,https://cg.loopcstrategies.com,https://loopc.loopcstrategies.com,https://loopcstrategies.com
+```
+
+Include **`https://app.loopcstrategies.com`** if that host is used ([vercel.json](vercel.json) API proxy). Both `CLIENT_URL` and `CLIENT_URLS` are merged in [backend/app.js](backend/app.js).
+
+### Push notifications (mobile + web)
+
+```
+EXPO_ACCESS_TOKEN=<expo-access-token-for-mg-ops-mobile>
+WEB_PUSH_PUBLIC_KEY=<vapid-public-key>
+WEB_PUSH_PRIVATE_KEY=<vapid-private-key>
+WEB_PUSH_SUBJECT=mailto:support@yourdomain.com
+```
+
+Verify on deploy: `GET /api/ready` → `integrations.expoPushAccessTokenSet` and `webPushVapidKeysSet`.
+
+See [docs/RAILWAY_EXPO_PUSH.md](docs/RAILWAY_EXPO_PUSH.md) and [docs/PUSH-NOTIFICATIONS.md](docs/PUSH-NOTIFICATIONS.md).
+
+**OpenAI:** paste `OPENAI_API_KEY` without trailing newlines (or run `node scripts/trim-railway-openai-key.mjs`).
 
 ### Persistent uploads (Railway volume)
 

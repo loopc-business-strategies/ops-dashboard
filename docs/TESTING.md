@@ -97,6 +97,16 @@ CI installs Chromium with `npx playwright install --with-deps chromium` then run
 - **Mocked login** (always runs in CI): stubs `/api/auth/login` and `/api/auth/me`, submits the login form, asserts navigation to `/dashboard`.
 - **Live login** (optional): set `E2E_AUTH_NAME`, `E2E_AUTH_PASSWORD`, and optionally `E2E_AUTH_COMPANY` for a real API probe (skipped when unset).
 
+## ERP acceptance automation
+
+Production API + tenant shell checks, CORS, and local test bundle:
+
+```powershell
+npm run smoke:erp-acceptance
+```
+
+Manual voucher / JV FX / enquiry UI sign-off remains in [ERP-ACCEPTANCE-CHECKLIST.md](ERP-ACCEPTANCE-CHECKLIST.md).
+
 ## HTTP load smoke (optional)
 
 With the **backend** listening (for example `npm run dev:backend` from the repo root), in another shell from the **repository root**:

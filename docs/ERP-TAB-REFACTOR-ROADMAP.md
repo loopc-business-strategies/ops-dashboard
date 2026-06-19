@@ -2,6 +2,10 @@
 
 `frontend/src/components/tabs/ERPTab.jsx` and `frontend/src/components/tabs/VoucherTab.jsx` are large surface areas. The goal is **routable or lazy-loaded submodules** and **shared `erp/` helpers** without changing user-visible behaviour.
 
+## Operations tab (refactor)
+
+- Seed data + design tokens + shared UI chrome extracted from `OperationsTab.jsx` into `frontend/src/components/tabs/operations/` (`operationsSeedData.js`, `operationsTabTokens.js`, `operationsTabUI.jsx`).
+
 ## Wired in ERPTab (done)
 
 - `frontend/src/components/tabs/erp/metalMarginPolicy.js` — account enquiry creditor/vendor spot MTM suppression (kept in sync with `backend/services/erpAccounting/metalMarginPolicy.js`).

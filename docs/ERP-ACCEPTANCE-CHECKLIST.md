@@ -13,6 +13,7 @@ Reference: [`ERP-TAB-REFACTOR-ROADMAP.md`](ERP-TAB-REFACTOR-ROADMAP.md)
 | Enquiry deep-link hook | `frontend/src/__tests__/useEnquiryDeepLinkEffects.test.jsx` |
 | Playwright deep links | `frontend/e2e/dashboard-navigation.spec.js` |
 | Post-deploy SPA shell | `npm run smoke:tenants` (dashboard `?tab=erp-enquiry&account=…`) |
+| Production API + CORS + unit/E2E bundle | `npm run smoke:erp-acceptance` |
 
 CI cannot substitute for voucher print / JV FX validation on live tenants.
 

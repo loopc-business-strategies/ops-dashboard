@@ -25,7 +25,8 @@ Web push and in-app Socket notifications are unaffected.
    mobile/android/app/google-services.json
    ```
 
-   (This path is gitignored — do not commit unless your team policy allows it.)
+   Template (do not commit real keys): [`mobile/android/app/google-services.json.example`](../mobile/android/app/google-services.json.example).  
+   Verify locally: `npm run check:fcm`.
 
 ## Step 2 — Upload FCM credentials to Expo
 
