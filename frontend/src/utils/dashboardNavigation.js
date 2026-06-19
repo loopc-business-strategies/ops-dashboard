@@ -99,3 +99,50 @@ export function dashboardSearchFromState({
 
   return params
 }
+
+/**
+ * Build Account Summary deep link (/dashboard?tab=erp-enquiry&account=…&view=statement).
+ */
+export function buildEnquiryHref({
+  account,
+  view,
+  company,
+  includeCompany = false,
+} = {}) {
+  const params = new URLSearchParams()
+  params.set('tab', 'erp-enquiry')
+  const code = String(account || '').trim()
+  if (code) params.set('account', code)
+  if (view === 'statement') params.set('view', 'statement')
+  if (includeCompany && company) params.set('company', company)
+  const qs = params.toString()
+  return qs ? `${DASHBOARD_PATH}?${qs}` : `${DASHBOARD_PATH}?tab=erp-enquiry`
+}
+
+/**
+ * Read Account Summary params from the current dashboard URL.
+ */
+export function parseEnquiryDeepLink(search) {
+  const params = new URLSearchParams(String(search || ''))
+  const tabParam = params.get('tab') || ''
+  if (tabParam !== 'erp-enquiry') {
+    return { account: null, view: null }
+  }
+  return {
+    account: String(params.get('account') || '').trim() || null,
+    view: params.get('view') || null,
+  }
+}
+
+/**
+ * Merge Account Summary params into an existing URLSearchParams copy.
+ */
+export function applyEnquiryParams(params, { account, view } = {}) {
+  const next = new URLSearchParams(params)
+  const code = String(account || '').trim()
+  if (code) next.set('account', code)
+  else next.delete('account')
+  if (view === 'statement') next.set('view', 'statement')
+  else next.delete('view')
+  return next
+}

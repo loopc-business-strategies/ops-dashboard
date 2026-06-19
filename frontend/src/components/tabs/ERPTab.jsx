@@ -1,7 +1,13 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { getTenantBranding } from '../../config/tenantBranding'
+import { getTenantBranding, isLocalTenantHost } from '../../config/tenantBranding'
+import {
+  applyEnquiryParams,
+  buildEnquiryHref,
+  parseEnquiryDeepLink,
+} from '../../utils/dashboardNavigation'
 import erpAccountingAPI from '../../api/erp-accounting'
 import { readSummaryAccountsCache, writeSummaryAccountsCache } from '../../utils/erpSummaryAccountsCache'
 import { buildEntryAccountOptions, filterActiveAccounts } from './erp/accountDropdownHelpers'
@@ -308,6 +314,29 @@ function ERPTab({
   const [statementPreviewHtml, setStatementPreviewHtml] = useState('')
   const [statementPreviewLoading, setStatementPreviewLoading] = useState(false)
   const [statementPreviewTitle, setStatementPreviewTitle] = useState('Statement of Account')
+  const [pendingStatementPreview, setPendingStatementPreview] = useState(false)
+  const skipNextEnquiryDeepLinkRef = useRef(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const enquiryIncludeCompany = useMemo(
+    () => typeof window !== 'undefined' && isLocalTenantHost(window.location.hostname),
+    [],
+  )
+  const enquiryCompany = user?.company || user?.tenant || ''
+  const syncEnquiryUrl = useCallback(({ account, view, replace = true } = {}) => {
+    skipNextEnquiryDeepLinkRef.current = true
+    setSearchParams((prev) => {
+      const next = applyEnquiryParams(prev, { account, view })
+      next.set('tab', 'erp-enquiry')
+      if (enquiryIncludeCompany && enquiryCompany) next.set('company', enquiryCompany)
+      return next
+    }, { replace })
+  }, [setSearchParams, enquiryIncludeCompany, enquiryCompany])
+  const buildAccountEnquiryHref = useCallback((account, view) => buildEnquiryHref({
+    account,
+    view,
+    company: enquiryCompany,
+    includeCompany: enquiryIncludeCompany,
+  }), [enquiryCompany, enquiryIncludeCompany])
   const [showEnquiryLookupMenu, setShowEnquiryLookupMenu] = useState(false)
   const [detailsPanel, setDetailsPanel] = useState({
     pinned: false,
@@ -2169,6 +2198,11 @@ function ERPTab({
       setAccountEnquiryCode(cleanCode)
       setAccountEnquiryData(cached)
       setEnquiryLoading(false)
+      syncEnquiryUrl({
+        account: cleanCode,
+        view: options.openStatementPreview ? 'statement' : null,
+      })
+      if (options.openStatementPreview) setPendingStatementPreview(true)
     }
     try {
       if (shouldOpenModal) setShowEnquiryModal(true)
@@ -2193,6 +2227,11 @@ function ERPTab({
       pushEnquiryHistory(data.account)
       setError('')
       setEnquiryStatus({ type: 'success', message: `Account ${data.account.accountCode} summary loaded successfully` })
+      syncEnquiryUrl({
+        account: data.account.accountCode,
+        view: options.openStatementPreview ? 'statement' : null,
+      })
+      if (options.openStatementPreview) setPendingStatementPreview(true)
       if (!cached) showNotification('✅ Account summary loaded')
     } catch (e) {
       if (!cached) {
@@ -2686,6 +2725,8 @@ function ERPTab({
     statementFilters,
   })
   const handleViewStatement = async () => {
+    const code = accountEnquiryData?.account?.accountCode || accountEnquiryCode
+    if (code) syncEnquiryUrl({ account: code, view: 'statement' })
     setStatementPreviewHtml('')
     setStatementPreviewTitle('Statement of Account')
     setStatementPreviewLoading(true)
@@ -3225,6 +3266,60 @@ function ERPTab({
     // One-shot deep link from notifications; fetchAccountEnquiryByCode is intentionally omitted from deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpToEnquiryAccountCode, onJumpToEnquiryConsumed])
+
+  useEffect(() => {
+    if (activeTab !== 'enquiry') return undefined
+    if (skipNextEnquiryDeepLinkRef.current) {
+      skipNextEnquiryDeepLinkRef.current = false
+      return undefined
+    }
+    const { account, view } = parseEnquiryDeepLink(searchParams.toString())
+    if (!account) return undefined
+    ;(async () => {
+      await fetchAccountEnquiryByCode(account, {
+        openModal: true,
+        openStatementPreview: view === 'statement',
+      })
+    })()
+    return undefined
+    // Deep link from URL; fetchAccountEnquiryByCode intentionally omitted from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, searchParams])
+
+  useEffect(() => {
+    if (!pendingStatementPreview || !accountEnquiryData) return undefined
+    setPendingStatementPreview(false)
+    let cancelled = false
+    ;(async () => {
+      setStatementPreviewHtml('')
+      setStatementPreviewTitle('Statement of Account')
+      setStatementPreviewLoading(true)
+      setShowStatementPreview(true)
+      try {
+        const htmlData = await generateStatementHtml()
+        if (cancelled) return
+        if (!htmlData) {
+          setShowStatementPreview(false)
+          return
+        }
+        setStatementPreviewHtml(htmlData.html)
+        setStatementPreviewTitle(`Statement of Account — ${htmlData.accountCode || 'Account'}`)
+        showNotification('Statement preview opened')
+      } catch (err) {
+        if (cancelled) return
+        console.error('Statement preview error:', err)
+        setShowStatementPreview(false)
+        setError('Failed to open statement preview.')
+      } finally {
+        if (!cancelled) setStatementPreviewLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // generateStatementHtml reads live enquiry filters; run once when preview is requested.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingStatementPreview, accountEnquiryData])
 
   if (!canAccessERP) {
     return (
@@ -3792,6 +3887,7 @@ function ERPTab({
             summaryAccountsLoading={summaryAccountsLoading}
             safeSummaryAccounts={safeSummaryAccounts}
             enquiryHistory={enquiryHistory}
+            buildAccountEnquiryHref={buildAccountEnquiryHref}
           />
         </Suspense>
       )}
@@ -4489,6 +4585,7 @@ function ERPTab({
         formatStatementNullableValue={formatStatementNullableValue}
         canExportAccountSummary={canExportAccountSummary}
         handleViewStatement={handleViewStatement}
+        buildAccountEnquiryHref={buildAccountEnquiryHref}
         handleExportEnquiryPdf={handleExportEnquiryPdf}
         getAccountEnquirySignedMetricColor={getAccountEnquirySignedMetricColor}
         formatAccountEnquiryExcessDisplay={formatAccountEnquiryExcessDisplay}

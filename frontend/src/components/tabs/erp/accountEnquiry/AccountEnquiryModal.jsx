@@ -1,4 +1,10 @@
 import { ERP_TAB_COLORS as C, ERP_MODAL_INPUT_STYLE } from '../erpTabPresentation'
+import { isPrimaryNavClick } from '../../../../utils/dashboardNavigation'
+
+const linkButtonStyle = {
+  textDecoration: 'none',
+  display: 'inline-block',
+}
 
 export default function AccountEnquiryModal({
   open,
@@ -59,6 +65,7 @@ export default function AccountEnquiryModal({
   formatStatementNullableValue,
   canExportAccountSummary,
   handleViewStatement,
+  buildAccountEnquiryHref,
   handleExportEnquiryPdf,
   getAccountEnquirySignedMetricColor,
   formatAccountEnquiryExcessDisplay,
@@ -135,16 +142,29 @@ export default function AccountEnquiryModal({
                       </div>
                     )}
                   </div>
-                  <button
-                    onClick={() => {
+                  <a
+                    href={buildAccountEnquiryHref?.(accountEnquiryCode) || '#'}
+                    onClick={(event) => {
+                      if (!isPrimaryNavClick(event)) return
+                      event.preventDefault()
                       setShowEnquiryLookupMenu(false)
                       fetchAccountEnquiryByCode(accountEnquiryCode)
                     }}
-                    disabled={enquiryLoading}
-                    style={{ padding: '0.6rem 1.2rem', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: enquiryLoading ? 'not-allowed' : 'pointer', fontWeight: '700', fontSize: '0.95rem', opacity: enquiryLoading ? 0.7 : 1 }}
+                    style={{
+                      ...linkButtonStyle,
+                      padding: '0.6rem 1.2rem',
+                      background: 'var(--purple)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '0.5rem',
+                      cursor: enquiryLoading ? 'not-allowed' : 'pointer',
+                      fontWeight: '700',
+                      fontSize: '0.95rem',
+                      opacity: enquiryLoading ? 0.7 : 1,
+                    }}
                   >
                     {enquiryLoading ? 'Loading…' : 'Load Summary'}
-                  </button>
+                  </a>
                 </div>
               </div>
               {enquiryStatus.message && !enquiryLoading && (
@@ -581,7 +601,27 @@ export default function AccountEnquiryModal({
             <div style={{ background: '#F9FAFB', borderTop: '1px solid #E5E7EB', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               {canExportAccountSummary && accountEnquiryData && (
                 <>
-                  <button onClick={handleViewStatement} style={{ padding: '0.6rem 1.2rem', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>👁 View Statement</button>
+                  <a
+                    href={buildAccountEnquiryHref?.(accountEnquiryData?.account?.accountCode, 'statement') || '#'}
+                    onClick={(event) => {
+                      if (!isPrimaryNavClick(event)) return
+                      event.preventDefault()
+                      handleViewStatement()
+                    }}
+                    style={{
+                      ...linkButtonStyle,
+                      padding: '0.6rem 1.2rem',
+                      background: '#3B82F6',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.95rem',
+                      cursor: 'pointer',
+                      fontWeight: '700',
+                    }}
+                  >
+                    👁 View Statement
+                  </a>
                   <button onClick={handleExportEnquiryPdf} style={{ padding: '0.6rem 1.2rem', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '0.5rem', fontSize: '0.95rem', cursor: 'pointer', fontWeight: '700' }}>Export PDF</button>
                 </>
               )}

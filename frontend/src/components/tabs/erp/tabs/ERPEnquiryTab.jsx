@@ -1,5 +1,8 @@
 import { ERPEnquiryTabContainer } from '../ERPTabContainers'
 import { ERP_EMPTY_CARD_STYLE } from '../erpTabPresentation'
+import { isPrimaryNavClick } from '../../../../utils/dashboardNavigation'
+
+const linkButtonStyle = { textDecoration: 'none', display: 'inline-block' }
 
 export default function ERPEnquiryTab({
   activeTab,
@@ -18,6 +21,7 @@ export default function ERPEnquiryTab({
   summaryAccountsLoading,
   safeSummaryAccounts,
   enquiryHistory,
+  buildAccountEnquiryHref,
 }) {
   return (
     <ERPEnquiryTabContainer activeTab={activeTab}>
@@ -80,9 +84,27 @@ export default function ERPEnquiryTab({
                         </div>
                       )}
                       <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <button type="submit" disabled={enquiryLoading} style={{ padding: '0.6rem 1rem', background: 'var(--purple)', color: '#FFFFFF', border: 'none', borderRadius: '0.45rem', cursor: 'pointer', fontWeight: '700' }}>
+                        <a
+                          href={buildAccountEnquiryHref?.(accountEnquiryCode) || '#'}
+                          onClick={(event) => {
+                            if (!isPrimaryNavClick(event)) return
+                            event.preventDefault()
+                            handleAccountEnquiry(event)
+                          }}
+                          style={{
+                            ...linkButtonStyle,
+                            padding: '0.6rem 1rem',
+                            background: 'var(--purple)',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            borderRadius: '0.45rem',
+                            cursor: enquiryLoading ? 'not-allowed' : 'pointer',
+                            fontWeight: '700',
+                            opacity: enquiryLoading ? 0.7 : 1,
+                          }}
+                        >
                           {enquiryLoading ? 'Loading...' : 'Load Summary'}
-                        </button>
+                        </a>
                         <span style={{ fontSize: '0.8rem', color: '#6B7280' }}>Live from ERP accounting balances</span>
                       </div>
                       {enquiryStatus.message && (
@@ -108,18 +130,30 @@ export default function ERPEnquiryTab({
                             .sort((a, b) => String(a?.accountCode || '').localeCompare(String(b?.accountCode || '')))
                             .slice(0, 8)
                             .map((account) => (
-                              <button
+                              <a
                                 key={account._id}
-                                type="button"
-                                onClick={() => {
+                                href={buildAccountEnquiryHref?.(account.accountCode) || '#'}
+                                onClick={(event) => {
+                                  if (!isPrimaryNavClick(event)) return
+                                  event.preventDefault()
                                   setAccountEnquiryCode(account.accountCode)
-                                  fetchAccountEnquiryByCode(account.accountCode)
+                                  fetchAccountEnquiryByCode(account.accountCode, { openModal: true })
                                 }}
-                                style={{ padding: '0.35rem 0.6rem', borderRadius: '999px', border: '1px solid #C7D2FE', background: '#EEF2FF', color: '#3730A3', cursor: 'pointer', fontSize: '0.76rem', fontWeight: '700' }}
+                                style={{
+                                  ...linkButtonStyle,
+                                  padding: '0.35rem 0.6rem',
+                                  borderRadius: '999px',
+                                  border: '1px solid #C7D2FE',
+                                  background: '#EEF2FF',
+                                  color: '#3730A3',
+                                  cursor: 'pointer',
+                                  fontSize: '0.76rem',
+                                  fontWeight: '700',
+                                }}
                                 title={account.accountName}
                               >
                                 {account.accountCode}
-                              </button>
+                              </a>
                             ))}
                         </div>
                       </div>
@@ -130,15 +164,28 @@ export default function ERPEnquiryTab({
                       <p style={{ margin: 0, color: C.ink, fontWeight: '700', marginBottom: '0.55rem' }}>Recent Account Summary History</p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                         {enquiryHistory.map((item) => (
-                          <button
+                          <a
                             key={`${item.accountCode}-${item.searchedAt}`}
-                            type="button"
-                            onClick={() => fetchAccountEnquiryByCode(item.accountCode)}
-                            style={{ padding: '0.35rem 0.6rem', borderRadius: '0.4rem', border: '1px solid #D1D5DB', background: '#F9FAFB', color: C.ink, cursor: 'pointer', fontSize: '0.8rem' }}
+                            href={buildAccountEnquiryHref?.(item.accountCode) || '#'}
+                            onClick={(event) => {
+                              if (!isPrimaryNavClick(event)) return
+                              event.preventDefault()
+                              fetchAccountEnquiryByCode(item.accountCode, { openModal: true })
+                            }}
+                            style={{
+                              ...linkButtonStyle,
+                              padding: '0.35rem 0.6rem',
+                              borderRadius: '0.4rem',
+                              border: '1px solid #D1D5DB',
+                              background: '#F9FAFB',
+                              color: C.ink,
+                              cursor: 'pointer',
+                              fontSize: '0.8rem',
+                            }}
                             title={item.accountName || item.accountCode}
                           >
                             {item.accountCode}
-                          </button>
+                          </a>
                         ))}
                       </div>
                     </div>
