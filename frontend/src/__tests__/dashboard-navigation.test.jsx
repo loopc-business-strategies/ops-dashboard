@@ -53,7 +53,22 @@ vi.mock('../components/BuildInfoBadge', () => ({
 }))
 
 vi.mock('../components/tabs/OverviewTab', () => ({
-  default: () => <div>overview-tab</div>,
+  default: ({ onNavigate, buildTabHref }) => (
+    <div>
+      <div>overview-tab</div>
+      {buildTabHref ? (
+        <a
+          href={buildTabHref('finance')}
+          onClick={(event) => {
+            event.preventDefault()
+            onNavigate?.('finance')
+          }}
+        >
+          Revenue
+        </a>
+      ) : null}
+    </div>
+  ),
 }))
 vi.mock('../components/tabs/AdminTab', () => ({
   default: () => <div>admin-tab</div>,
@@ -167,6 +182,22 @@ describe('Dashboard navigation behavior', () => {
   it('loads HR tab from URL deep link', async () => {
     renderDashboard('/dashboard?tab=hr&sub=labour_law')
     expect(await screen.findByText('hr-tab')).toBeTruthy()
+  })
+
+  it('loads Account Summary from URL deep link with account param', async () => {
+    renderDashboard('/dashboard?tab=erp-enquiry&account=1000&view=statement')
+    expect(await screen.findByText('erp-tab-focus:enquiry')).toBeTruthy()
+  })
+
+  it('overview finance KPI link includes tab query for open in new tab', async () => {
+    renderDashboard()
+    await screen.findByText('overview-tab')
+
+    const financeLink = screen.getByRole('link', { name: /Revenue/i })
+    expect(financeLink.getAttribute('href')).toContain('tab=finance')
+    fireEvent.click(financeLink)
+
+    expect(await screen.findByText('finance-tab')).toBeTruthy()
   })
 
   it('bell lists chat notification and opens Chat tab when row is clicked', async () => {

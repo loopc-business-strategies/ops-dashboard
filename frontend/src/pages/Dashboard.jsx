@@ -272,10 +272,10 @@ function getNavItems(perms, t, chatUnread = 0, branding) {
 }
 
 // ── Render the content for each tab ────────────
-function renderTab(tabId, navigateToTab, setChatUnread, erpSubTab, chatTabProps = {}, erpTabProps = {}) {
+function renderTab(tabId, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabProps = {}, erpTabProps = {}) {
   switch (tabId) {
     case 'overview':
-      return <OverviewTab onNavigate={navigateToTab} />
+      return <OverviewTab onNavigate={navigateToTab} buildTabHref={buildTabHref} />
 
     case 'chat':
       return (
@@ -342,12 +342,12 @@ function renderTab(tabId, navigateToTab, setChatUnread, erpSubTab, chatTabProps 
   }
 }
 
-function renderTabContent(tabId, navigateToTab, setChatUnread, erpSubTab, chatTabProps = {}, erpTabProps = {}) {
+function renderTabContent(tabId, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabProps = {}, erpTabProps = {}) {
   const resetKey = tabId === 'erp' ? `erp:${erpSubTab || 'dashboard'}` : tabId
   return (
     <TabErrorBoundary resetKey={resetKey}>
       <Suspense fallback={<TabLoadingFallback />}>
-        {renderTab(tabId, navigateToTab, setChatUnread, erpSubTab, chatTabProps, erpTabProps)}
+        {renderTab(tabId, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabProps, erpTabProps)}
       </Suspense>
     </TabErrorBoundary>
   )
@@ -467,6 +467,24 @@ function Dashboard() {
     }
     return buildDashboardHref({
       tabId: item.id,
+      company: tenantForHref,
+      includeCompany,
+    })
+  }, [tenantForHref, includeCompany])
+
+  const buildTabHref = useCallback((tabId, options = {}) => {
+    const { erpSub, sub } = options
+    if (tabId === 'erp' || erpSub) {
+      return buildDashboardHref({
+        tabId: 'erp',
+        erpSub: erpSub || 'dashboard',
+        company: tenantForHref,
+        includeCompany,
+      })
+    }
+    return buildDashboardHref({
+      tabId,
+      sub,
       company: tenantForHref,
       includeCompany,
     })
@@ -1222,11 +1240,11 @@ function Dashboard() {
         >
           {activeTab === 'chat' ? (
             <div className="flex-1 min-h-0 flex flex-col">
-              {renderTabContent(activeTab, navigateToTab, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
+              {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
             </div>
           ) : (
             <div className="flex-1 min-h-0" style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
-              {renderTabContent(activeTab, navigateToTab, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
+              {renderTabContent(activeTab, navigateToTab, buildTabHref, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
             </div>
           )}
         </main>

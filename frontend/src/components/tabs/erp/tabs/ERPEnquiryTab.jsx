@@ -63,21 +63,26 @@ export default function ERPEnquiryTab({
                                 {group.type}
                               </div>
                               {group.accounts.map((account) => (
-                                <button
+                                <a
                                   key={account._id}
-                                  type="button"
+                                  href={buildAccountEnquiryHref?.(account.accountCode) || '#'}
                                   onMouseDown={(event) => {
+                                    if (!isPrimaryNavClick(event)) return
                                     event.preventDefault()
                                     setAccountEnquiryCode(account.accountCode)
                                     setEnquiryStatus({ type: '', message: '' })
-                                    fetchAccountEnquiryByCode(account.accountCode)
+                                    fetchAccountEnquiryByCode(account.accountCode, { openModal: true })
                                   }}
-                                  style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.65rem 0.75rem', border: 'none', borderBottom: '1px solid #F3F4F6', background: '#FFFFFF', color: C.ink, cursor: 'pointer', textAlign: 'left' }}
+                                  onClick={(event) => {
+                                    if (!isPrimaryNavClick(event)) return
+                                    event.preventDefault()
+                                  }}
+                                  style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.65rem 0.75rem', border: 'none', borderBottom: '1px solid #F3F4F6', background: '#FFFFFF', color: C.ink, cursor: 'pointer', textAlign: 'left', textDecoration: 'none' }}
                                 >
                                   <span style={{ fontWeight: '800', minWidth: '56px', color: '#111827' }}>{account.accountCode}</span>
                                   <span style={{ flex: 1, color: '#4B5563', fontSize: '0.86rem' }}>{account.accountName}</span>
                                   <span style={{ color: '#6B7280', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{account.accountType}</span>
-                                </button>
+                                </a>
                               ))}
                             </div>
                           ))}

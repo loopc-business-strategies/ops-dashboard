@@ -6,7 +6,7 @@
 
 - `frontend/src/components/tabs/erp/metalMarginPolicy.js` — account enquiry creditor/vendor spot MTM suppression (kept in sync with `backend/services/erpAccounting/metalMarginPolicy.js`).
 - Tab shells under `frontend/src/components/tabs/erp/tabs/` (e.g. `ERPReportsTab`, `ERPInventoryTab`).
-- **Account enquiry** — `AccountEnquiryModal.jsx`, `useAccountEnquiryStatement.js`, `useAccountEnquiryModalDrag.js` imported and used in ERPTab (inline statement math, drag handlers, and modal JSX removed).
+- **Account enquiry** — `AccountEnquiryModal.jsx`, `useAccountEnquiryStatement.js`, `useAccountEnquiryModalDrag.js`, `useEnquiryDeepLinkEffects.js` imported and used in ERPTab (inline statement math, drag handlers, modal JSX, and deep-link effects removed).
 - **Dashboard widgets** — `useErpDashWidgets.js` (layout persistence via `useErpDashUiState`), `useErpDashUiState.js` (arrange/customize UI), `useErpDashWidgetData.js` (report + chat fetch; tab-visit effects live in the hook).
 - **Voucher list** — `frontend/src/components/tabs/voucher/VoucherListPanel.jsx`.
 - **Voucher editor** — `frontend/src/components/tabs/voucher/VoucherEditorPanel.jsx`.

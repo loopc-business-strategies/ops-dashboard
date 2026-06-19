@@ -1,10 +1,18 @@
 # ERP refactor acceptance checklist
 
-Run after major ERP/Voucher refactors on **mg** and **loopc** production (or staging when available). Mark each tenant: Pass / Fail / N/A.
+Run after major ERP/Voucher refactors on **mg**, **loopc**, and **cg** production (or staging when available). Mark each tenant: Pass / Fail / N/A.
 
 Reference: [`ERP-TAB-REFACTOR-ROADMAP.md`](ERP-TAB-REFACTOR-ROADMAP.md)
 
-**Deploy `e805f1f` (ERP tab refactor):** checklist below is the operator sign-off template. Complete manually on mg and loopc; CI cannot substitute for voucher print / JV FX validation.
+**Deploy `c33d27c`+ (dashboard deep links + unified URL builder):** complete operator sign-off below. CI covers URL parsing and navigation smoke only — it cannot substitute for voucher print / JV FX validation on live tenants.
+
+## Dashboard deep links (new)
+
+- [ ] Sidebar item **Open in new tab** restores the same module/ERP sub-tab without logout.
+- [ ] Account Summary **Load Summary** / **View Statement** open in new tab with `account` (+ optional `view=statement`) preserved.
+- [ ] Re-clicking **Account Summary** in the sidebar while viewing an account does **not** strip `account` / `view` from the URL.
+- [ ] Overview KPI / department links update the URL (`?tab=…`) and support open in new tab.
+- [ ] Account autocomplete dropdown entries open in new tab with the correct account code in the URL.
 
 ## Account enquiry
 

@@ -8,6 +8,7 @@ import hrAPI from '../../api/hr'
 import attendanceAPI from '../../api/attendance'
 import messagesAPI from '../../api/messages'
 import { ModuleTabColumn } from '../layout/ModuleTabChrome'
+import { isPrimaryNavClick } from '../../utils/dashboardNavigation'
 
 const resolveApiOrigin = () => {
   const configured = String(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -214,19 +215,58 @@ function getSeverityTone(severity) {
   return 'text-yellow-800 border-yellow-300 bg-yellow-100'
 }
 
-function KpiCard({ title, value, hint, tone: _tone = 'green', onClick, readOnly }) {
+function TabNavLink({ tabId, options, buildTabHref, onNavigate, className, style, children }) {
+  const href = buildTabHref?.(tabId, options) || '#'
   return (
-    <button
-      onClick={onClick}
-      type="button"
-      className={`relative overflow-hidden text-left bg-white border border-gray-200 rounded-xl px-4 py-4 min-h-[128px] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md shadow-sm ${onClick ? '' : 'cursor-default'}`}
-      style={{ minHeight: 128, padding: '16px 18px', borderRadius: '0.75rem', borderColor: '#e5e7eb', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}
-      disabled={!onClick}
+    <a
+      href={href}
+      className={className}
+      style={style}
+      onClick={(event) => {
+        if (!isPrimaryNavClick(event)) return
+        event.preventDefault()
+        onNavigate?.(tabId, options)
+      }}
     >
+      {children}
+    </a>
+  )
+}
+
+function KpiCard({ title, value, hint, tone: _tone = 'green', onClick, href, readOnly }) {
+  const cardClass = `relative overflow-hidden text-left bg-white border border-gray-200 rounded-xl px-4 py-4 min-h-[128px] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md shadow-sm ${onClick || href ? '' : 'cursor-default'}`
+  const cardStyle = { minHeight: 128, padding: '16px 18px', borderRadius: '0.75rem', borderColor: '#e5e7eb', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }
+  const content = (
+    <>
       <span aria-hidden className="absolute left-0 top-0 right-0 h-0.5 w-full bg-gradient-to-r from-violet-500 via-purple-500 to-emerald-500" />
       <p className="text-[11px] text-gray-500 tracking-[0.14em] uppercase mt-1.5">{title}</p>
       <p className="text-[32px] sm:text-[36px] leading-[1.08] font-bold text-gray-900 mt-2">{value}</p>
       <p className="text-xs text-gray-600 mt-2">{hint}{readOnly ? ' - read only' : ''}</p>
+    </>
+  )
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        onClick={onClick}
+        className={`${cardClass} block no-underline text-inherit`}
+        style={cardStyle}
+      >
+        {content}
+      </a>
+    )
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      type="button"
+      className={cardClass}
+      style={cardStyle}
+      disabled={!onClick}
+    >
+      {content}
     </button>
   )
 }
@@ -247,7 +287,7 @@ function Section({ title, action, children }) {
   )
 }
 
-function OverviewTab({ onNavigate }) {
+function OverviewTab({ onNavigate, buildTabHref }) {
   const { user, token } = useAuth()
   const perms = usePermissions()
   const { t } = useLanguage()
@@ -389,7 +429,8 @@ function OverviewTab({ onNavigate }) {
       setMessageFilter('dm')
       focusSection(messagesSectionRef)
       highlightSection('messages')
-      showToast('Showing Direct Messages')
+      onNavigate?.('chat')
+      showToast('Opening Chat')
     }
   }
 
@@ -846,7 +887,7 @@ function OverviewTab({ onNavigate }) {
       return
     }
     if (lower.includes('supplier')) {
-      onNavigate?.('erp')
+      onNavigate?.('erp', { erpSub: 'vendors' })
       return
     }
     if (lower.includes('lead') || lower.includes('meeting')) {
@@ -1116,7 +1157,12 @@ function OverviewTab({ onNavigate }) {
             hint={card.hint}
             tone={card.tone}
             readOnly={isReadOnlyExec}
-            onClick={card.tab && card.tab !== 'overview' ? () => onNavigate?.(card.tab) : undefined}
+            href={card.tab && card.tab !== 'overview' ? buildTabHref?.(card.tab) : undefined}
+            onClick={card.tab && card.tab !== 'overview' ? (event) => {
+              if (!isPrimaryNavClick(event)) return
+              event.preventDefault()
+              onNavigate?.(card.tab)
+            } : undefined}
           />
         ))}
       </div>
@@ -1132,9 +1178,14 @@ function OverviewTab({ onNavigate }) {
               <p className="text-sm text-gray-800">{m.line1}</p>
               <p className="text-xs text-gray-700 mt-1.5">{m.line2}</p>
               <p className="text-xs text-gray-700 mt-0.5">{m.line3}</p>
-              <button onClick={() => onNavigate?.(TAB_BY_DEPT[m.dept])} className="mt-3 text-sm text-emerald-700 hover:text-emerald-800 font-medium">
+              <TabNavLink
+                tabId={TAB_BY_DEPT[m.dept]}
+                buildTabHref={buildTabHref}
+                onNavigate={onNavigate}
+                className="mt-3 text-sm text-emerald-700 hover:text-emerald-800 font-medium inline-block"
+              >
                 View {'->'}
-              </button>
+              </TabNavLink>
             </div>
           ))}
         </div>
@@ -1551,9 +1602,15 @@ function OverviewTab({ onNavigate }) {
               <p className="text-xs text-gray-600 mb-2">Department Health Radar (summary)</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {DEMO_DEPT_METRICS.map((m) => (
-                  <button key={`rad-${m.dept}`} onClick={() => onNavigate?.(TAB_BY_DEPT[m.dept])} className="text-left p-2 rounded border border-gray-200 bg-gray-50 text-gray-700 hover:text-gray-900">
+                  <TabNavLink
+                    key={`rad-${m.dept}`}
+                    tabId={TAB_BY_DEPT[m.dept]}
+                    buildTabHref={buildTabHref}
+                    onNavigate={onNavigate}
+                    className="text-left p-2 rounded border border-gray-200 bg-gray-50 text-gray-700 hover:text-gray-900 block no-underline"
+                  >
                     {m.title}: {m.status}
-                  </button>
+                  </TabNavLink>
                 ))}
               </div>
             </div>
@@ -1595,7 +1652,14 @@ function OverviewTab({ onNavigate }) {
           {deadlineRows.map((d) => (
             <div key={d.id} className="flex items-center justify-between border border-gray-200 rounded-lg p-2 bg-white">
               <p className="text-xs text-gray-800">{d.when} · {d.text}</p>
-              <button className="text-xs text-gray-600 hover:text-gray-800 capitalize" onClick={() => onNavigate?.(TAB_BY_DEPT[d.dept] || 'overview')}>{d.dept}</button>
+              <TabNavLink
+                tabId={TAB_BY_DEPT[d.dept] || 'overview'}
+                buildTabHref={buildTabHref}
+                onNavigate={onNavigate}
+                className="text-xs text-gray-600 hover:text-gray-800 capitalize"
+              >
+                {d.dept}
+              </TabNavLink>
             </div>
           ))}
         </div>
