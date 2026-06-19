@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import complianceAPI from '../../api/compliance'
+import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 import { ErpSubTabButton, ModulePageHeading, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
 const C = {
@@ -154,16 +155,22 @@ function RowActions({ canEdit, onEdit, onDelete, extra }) {
 }
 
 function ComplianceTab() {
-  const { user, token } = useAuth()
+  const { user, token, company } = useAuth()
   const perms = usePermissions()
   const { t } = useLanguage()
   const TABS = useMemo(() => getComplianceTabs(t), [t])
+  const allowedSubIds = useMemo(() => TABS.map((tabItem) => tabItem.id), [TABS])
+  const { subTab: tab, buildSubHref, handleSubTabClick } = useDashboardModuleSubTab(
+    'compliance',
+    allowedSubIds,
+    'eligibility',
+    company,
+  )
   const USE_SEED_DATA =
     !import.meta.env.PROD
     && import.meta.env.DEV
     && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
 
-  const [tab, setTab] = useState('eligibility')
   const [toast, setToast] = useState('')
   const [eligibility, setEligibility] = useState(USE_SEED_DATA ? INIT_ELIGIBILITY : [])
   const [approvals, setApprovals] = useState(USE_SEED_DATA ? INIT_APPROVALS : [])
@@ -385,7 +392,12 @@ function ComplianceTab() {
 
       <div className="flex gap-2 flex-wrap">
         {TABS.map((tabItem) => (
-          <ErpSubTabButton key={tabItem.id} active={tab === tabItem.id} onClick={() => setTab(tabItem.id)}>
+          <ErpSubTabButton
+            key={tabItem.id}
+            active={tab === tabItem.id}
+            href={buildSubHref(tabItem.id)}
+            onClick={(event) => handleSubTabClick(tabItem.id, event)}
+          >
             {tabItem.label}
           </ErpSubTabButton>
         ))}

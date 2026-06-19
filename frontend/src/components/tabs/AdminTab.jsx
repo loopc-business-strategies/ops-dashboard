@@ -3,6 +3,8 @@ import { useAuth } from '../../context/AuthContext'
 import authAPI from '../../api/auth'
 import departmentStateAPI from '../../api/department-state'
 import { useLanguage } from '../../context/LanguageContext'
+import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
+import { isPrimaryNavClick } from '../../utils/dashboardNavigation'
 
 const ROLES = [
   { value: 'super_admin', label: 'Super Admin', desc: 'Full access + user management' },
@@ -158,26 +160,42 @@ function Toast({ message }) {
   )
 }
 
-function AdminTabButton({ active, onClick, icon, label }) {
+function AdminTabButton({ active, onClick, href, icon, label }) {
+  const style = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.45rem',
+    padding: '0.55rem 1.1rem',
+    borderRadius: '0.55rem',
+    border: active ? 'none' : `1px solid ${ADMIN.border}`,
+    background: active ? ADMIN.primary : '#fff',
+    color: active ? '#fff' : ADMIN.ink,
+    fontWeight: 700,
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+    boxShadow: active ? '0 4px 14px rgba(99,102,241,0.35)' : 'none',
+    textDecoration: 'none',
+  }
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        onClick={(event) => {
+          if (!isPrimaryNavClick(event)) return
+          event.preventDefault()
+          onClick?.(event)
+        }}
+        style={style}
+      >
+        {icon}
+        {label}
+      </a>
+    )
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.45rem',
-        padding: '0.55rem 1.1rem',
-        borderRadius: '0.55rem',
-        border: active ? 'none' : `1px solid ${ADMIN.border}`,
-        background: active ? ADMIN.primary : '#fff',
-        color: active ? '#fff' : ADMIN.ink,
-        fontWeight: 700,
-        fontSize: '0.875rem',
-        cursor: 'pointer',
-        boxShadow: active ? '0 4px 14px rgba(99,102,241,0.35)' : 'none',
-      }}
-    >
+    <button type="button" onClick={onClick} style={style}>
       {icon}
       {label}
     </button>
@@ -1053,9 +1071,15 @@ function SettingsTab() {
 }
 
 function AdminTab() {
-  const { token } = useAuth()
+  const { token, company } = useAuth()
   const { t } = useLanguage()
-  const [subTab, setSubTab] = useState('users')
+  const adminSubIds = useMemo(() => ['users', 'permissions', 'settings'], [])
+  const { subTab, setSubTab, buildSubHref, handleSubTabClick } = useDashboardModuleSubTab(
+    'admin',
+    adminSubIds,
+    'users',
+    company,
+  )
   const [selectedPermUserId, setSelectedPermUserId] = useState(null)
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -1094,7 +1118,14 @@ function AdminTab() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.1rem' }}>
         <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
           {tabs.map((tab) => (
-            <AdminTabButton key={tab.id} active={subTab === tab.id} onClick={() => setSubTab(tab.id)} icon={tab.icon} label={tab.label} />
+            <AdminTabButton
+              key={tab.id}
+              active={subTab === tab.id}
+              href={buildSubHref(tab.id)}
+              onClick={(event) => handleSubTabClick(tab.id, event)}
+              icon={tab.icon}
+              label={tab.label}
+            />
           ))}
         </div>
         <button type="button" title="Admin modules" style={{ width: 36, height: 36, borderRadius: 8, border: `1px solid ${ADMIN.border}`, background: '#fff', color: ADMIN.inkSoft, cursor: 'pointer' }}>▦</button>

@@ -3,10 +3,11 @@
 //   The HR section of the dashboard.
 //   Sub-tabs: Employee List, Labour Law, Current Updates, Admin
 
-import { useCallback, useState, useEffect, useRef } from 'react'
+import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import hrAPI from '../../api/hr'
 import { useLanguage } from '../../context/LanguageContext'
+import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 import { ErpSubTabButton, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
 function getHRSubTabs(t) {
@@ -445,10 +446,16 @@ function CurrentUpdates() {
 
 // ── Main HRTab component ─────────────────────────
 export default function HRTab() {
-  const { token } = useAuth()
-  const [subTab, setSubTab] = useState('employee_list')
+  const { token, company } = useAuth()
   const { t } = useLanguage()
   const HR_SUB_TABS = getHRSubTabs(t)
+  const allowedSubIds = useMemo(() => HR_SUB_TABS.map((tab) => tab.id), [HR_SUB_TABS])
+  const { subTab, buildSubHref, handleSubTabClick } = useDashboardModuleSubTab(
+    'hr',
+    allowedSubIds,
+    'employee_list',
+    company,
+  )
 
   const renderSubTab = () => {
     switch (subTab) {
@@ -463,7 +470,12 @@ export default function HRTab() {
     <ModuleTabColumn>
       <div className="flex gap-2 flex-wrap">
         {HR_SUB_TABS.map((tab) => (
-          <ErpSubTabButton key={tab.id} active={subTab === tab.id} onClick={() => setSubTab(tab.id)}>
+          <ErpSubTabButton
+            key={tab.id}
+            active={subTab === tab.id}
+            href={buildSubHref(tab.id)}
+            onClick={(event) => handleSubTabClick(tab.id, event)}
+          >
             {tab.label}
           </ErpSubTabButton>
         ))}

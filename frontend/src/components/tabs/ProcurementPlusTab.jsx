@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import erpUnified from '../../api/erpUnified'
 import { ErpSubTabButton, ModulePageHeading, ModuleTabColumn } from '../layout/ModuleTabChrome'
+import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 
 const C = {
   card: '#ffffff',
@@ -48,9 +49,15 @@ function Input({ value, onChange, placeholder, type = 'text' }) {
 }
 
 export default function ProcurementPlusTab() {
-  const { token } = useAuth()
+  const { token, company } = useAuth()
   const { isReadOnly } = usePermissions()
-  const [activeTab, setActiveTab] = useState('suppliers')
+  const allowedSubIds = useMemo(() => TABS.map((tab) => tab.id), [])
+  const { subTab: activeTab, buildSubHref, handleSubTabClick } = useDashboardModuleSubTab(
+    'procurement-plus',
+    allowedSubIds,
+    'suppliers',
+    company,
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [suppliers, setSuppliers] = useState([])
@@ -145,7 +152,14 @@ export default function ProcurementPlusTab() {
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {TABS.map((tab) => (
-          <ErpSubTabButton key={tab.id} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)}>{tab.label}</ErpSubTabButton>
+          <ErpSubTabButton
+            key={tab.id}
+            active={activeTab === tab.id}
+            href={buildSubHref(tab.id)}
+            onClick={(event) => handleSubTabClick(tab.id, event)}
+          >
+            {tab.label}
+          </ErpSubTabButton>
         ))}
       </div>
 

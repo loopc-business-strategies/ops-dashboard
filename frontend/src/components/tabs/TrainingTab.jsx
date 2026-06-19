@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import trainingAPI from '../../api/training'
+import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
@@ -1289,11 +1290,18 @@ function NotifPanel({ notifs, setNotifs, onClose }) {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function TrainingTab() {
-  const { token } = useAuth()
+  const { token, company } = useAuth()
   const perms    = usePermissions()
   const isAdmin  = perms.isSuperAdmin
   const { t } = useLanguage()
   const TABS = useMemo(() => getTrainingTabs(t), [t])
+  const allowedSubIds = useMemo(() => TABS.map((tabItem) => tabItem.id), [TABS])
+  const { subTab: activeTab, buildSubHref, handleSubTabClick } = useDashboardModuleSubTab(
+    'training',
+    allowedSubIds,
+    'kpi',
+    company,
+  )
   const isHead   = perms.isDepartmentHead   // Training Head
   const isMgmt   = perms.isManagement
   const isUser   = perms.isDepartmentUser   // Trainer or HR Manager
@@ -1306,7 +1314,6 @@ export default function TrainingTab() {
   const isTrainer = isUser && !isMgmt
   const USE_SEED_DATA = import.meta.env.DEV && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
 
-  const [activeTab,   setActiveTab]   = useState('kpi')
   const [sessions,    setSessions]    = useState(USE_SEED_DATA ? INIT_SESSIONS : [])
   const [batches,     setBatches]     = useState(USE_SEED_DATA ? INIT_BATCHES : [])
   const [attendance,  setAttendance]  = useState(USE_SEED_DATA ? INIT_ATTENDANCE : [])
@@ -1591,7 +1598,12 @@ export default function TrainingTab() {
         )}
       >
         {TABS.map((t) => (
-          <ErpSubTabButton key={t.id} active={t.id === activeTab} onClick={() => setActiveTab(t.id)}>
+          <ErpSubTabButton
+            key={t.id}
+            active={t.id === activeTab}
+            href={buildSubHref(t.id)}
+            onClick={(event) => handleSubTabClick(t.id, event)}
+          >
             {t.label}
           </ErpSubTabButton>
         ))}

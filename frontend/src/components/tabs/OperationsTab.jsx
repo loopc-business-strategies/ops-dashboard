@@ -21,6 +21,7 @@ import {
   normalizeLegalDocumentId,
 } from '../../api/operationsLegalDocuments'
 import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
+import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 import AccountCombobox from '../AccountCombobox'
 import LegalDocxPreviewBody from '../legal/LegalDocxPreviewBody'
 
@@ -3350,8 +3351,15 @@ export default function OperationsTab() {
   const perms = usePermissions()
   const isAdmin    = perms.isSuperAdmin
   const { t } = useLanguage()
-  const { token, user } = useAuth()
+  const { token, user, company } = useAuth()
   const TABS = useMemo(() => getOpsTabs(t), [t])
+  const allowedSubIds = useMemo(() => TABS.map((tabItem) => tabItem.id), [TABS])
+  const { subTab: activeTab, buildSubHref, handleSubTabClick } = useDashboardModuleSubTab(
+    'operations',
+    allowedSubIds,
+    'kpi',
+    company,
+  )
   const isHead     = perms.isDepartmentHead
   const isMgmt     = perms.isManagement
   const isUser     = perms.isDepartmentUser
@@ -3359,7 +3367,6 @@ export default function OperationsTab() {
   const canEdit    = isAdmin || isHead
   const USE_SEED_DATA = import.meta.env.DEV && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
 
-  const [activeTab, setActiveTab] = useState('kpi')
   const [suppliers, setSuppliers] = useState(USE_SEED_DATA ? INIT_SUPPLIERS : [])
   const [gold,      setGold]      = useState(USE_SEED_DATA ? INIT_GOLD : [])
   const [routes,    setRoutes]    = useState(USE_SEED_DATA ? INIT_ROUTES : [])
@@ -3674,7 +3681,12 @@ export default function OperationsTab() {
         )}
       >
         {TABS.map((t) => (
-          <ErpSubTabButton key={t.id} active={t.id === activeTab} onClick={() => setActiveTab(t.id)}>
+          <ErpSubTabButton
+            key={t.id}
+            active={t.id === activeTab}
+            href={buildSubHref(t.id)}
+            onClick={(event) => handleSubTabClick(t.id, event)}
+          >
             {t.label}
           </ErpSubTabButton>
         ))}

@@ -139,6 +139,7 @@ function ErpSubTabFallback() {
 function ERPTab({
   focusTab,
   onNavigateMain,
+  onErpSubTabChange,
   jumpToTransactionId = null,
   onJumpToTransactionConsumed,
   jumpToVoucher = null,
@@ -156,9 +157,11 @@ function ERPTab({
     setActiveTab((prev) => {
       const candidate = typeof next === 'function' ? next(prev) : next
       if (!candidate || typeof candidate !== 'string') return prev
-      return canViewErpSubTab(user, candidate) ? candidate : prev
+      const resolved = canViewErpSubTab(user, candidate) ? candidate : prev
+      if (resolved !== prev) onErpSubTabChange?.(resolved)
+      return resolved
     })
-  }, [setActiveTab, user])
+  }, [setActiveTab, user, onErpSubTabChange])
   const canViewCurrentErpSubTab = canViewErpSubTab(user, activeTab)
   const {
     dashEditMode,

@@ -91,9 +91,9 @@ vi.mock('../components/tabs/ERPTab', () => ({
   ),
 }))
 
-function renderDashboard() {
+function renderDashboard(initialEntry = '/dashboard') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Dashboard />
     </MemoryRouter>
   )
@@ -152,10 +152,21 @@ describe('Dashboard navigation behavior', () => {
   it('navigates to ERP ledger and passes focusTab=ledger to ERPTab', async () => {
     renderDashboard()
 
-    const ledgerButton = await screen.findByRole('button', { name: 'Ledger' })
-    fireEvent.click(ledgerButton)
+    const ledgerLink = await screen.findByRole('link', { name: 'Ledger' })
+    expect(ledgerLink.getAttribute('href')).toContain('tab=erp-ledger')
+    fireEvent.click(ledgerLink)
 
     expect(await screen.findByText('erp-tab-focus:ledger')).toBeTruthy()
+  })
+
+  it('loads ERP supplier margin from URL deep link', async () => {
+    renderDashboard('/dashboard?tab=erp-supplier-margin')
+    expect(await screen.findByText('erp-tab-focus:supplier-margin')).toBeTruthy()
+  })
+
+  it('loads HR tab from URL deep link', async () => {
+    renderDashboard('/dashboard?tab=hr&sub=labour_law')
+    expect(await screen.findByText('hr-tab')).toBeTruthy()
   })
 
   it('bell lists chat notification and opens Chat tab when row is clicked', async () => {

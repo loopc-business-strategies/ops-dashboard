@@ -42,6 +42,7 @@ import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import { ErpSubTabButton, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
+import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 
 const C = {
   bg: '#f4f7f6',
@@ -805,9 +806,19 @@ function ContactProfile({ contact, tab, setTab, activities, deals, canSeeKyc, on
 }
 
 export default function SalesTab() {
-  const { user } = useAuth()
+  const { user, company } = useAuth()
   const perms = usePermissions()
   const { t } = useLanguage()
+  const SALES_SECTIONS = useMemo(
+    () => ['dashboard', 'contacts', 'leads', 'companies', 'deals', 'activities', 'followups'],
+    [],
+  )
+  const { subTab: section, buildSubHref, handleSubTabClick } = useDashboardModuleSubTab(
+    'sales',
+    SALES_SECTIONS,
+    'dashboard',
+    company,
+  )
   const role = user?.role || ''
   const dep = (user?.department || '').toLowerCase()
 
@@ -823,7 +834,6 @@ export default function SalesTab() {
   const canSeeKyc = isSuperAdmin || isSalesHead
   const canSeeDealFinancials = isSuperAdmin || isSalesHead || isFinanceManager
 
-  const [section, setSection] = useState('dashboard')
   const [dashboard, setDashboard] = useState({ totalContacts: 0, activeLeads: 0, hotLeads: 0, dealsClosedWon: 0, pipelineValue: 0, winRate: 0, overdueFollowups: 0, revenueThisMonth: 0 })
   const [contacts, setContacts] = useState([])
   const [companies, setCompanies] = useState([])
@@ -1191,13 +1201,13 @@ export default function SalesTab() {
           </div>
         )}
       >
-        <ErpSubTabButton active={section === 'dashboard'} onClick={() => setSection('dashboard')}>{t('crmDashboard')}</ErpSubTabButton>
-        <ErpSubTabButton active={section === 'contacts'} onClick={() => setSection('contacts')}>{t('contacts')}</ErpSubTabButton>
-        <ErpSubTabButton active={section === 'leads'} onClick={() => setSection('leads')}>{t('leads')}</ErpSubTabButton>
-        <ErpSubTabButton active={section === 'companies'} onClick={() => setSection('companies')}>{t('companies')}</ErpSubTabButton>
-        <ErpSubTabButton active={section === 'deals'} onClick={() => setSection('deals')}>{t('deals')}</ErpSubTabButton>
-        <ErpSubTabButton active={section === 'activities'} onClick={() => setSection('activities')}>{t('activities')}</ErpSubTabButton>
-        <ErpSubTabButton active={section === 'followups'} onClick={() => setSection('followups')}>{t('followups')}</ErpSubTabButton>
+        <ErpSubTabButton active={section === 'dashboard'} href={buildSubHref('dashboard')} onClick={(event) => handleSubTabClick('dashboard', event)}>{t('crmDashboard')}</ErpSubTabButton>
+        <ErpSubTabButton active={section === 'contacts'} href={buildSubHref('contacts')} onClick={(event) => handleSubTabClick('contacts', event)}>{t('contacts')}</ErpSubTabButton>
+        <ErpSubTabButton active={section === 'leads'} href={buildSubHref('leads')} onClick={(event) => handleSubTabClick('leads', event)}>{t('leads')}</ErpSubTabButton>
+        <ErpSubTabButton active={section === 'companies'} href={buildSubHref('companies')} onClick={(event) => handleSubTabClick('companies', event)}>{t('companies')}</ErpSubTabButton>
+        <ErpSubTabButton active={section === 'deals'} href={buildSubHref('deals')} onClick={(event) => handleSubTabClick('deals', event)}>{t('deals')}</ErpSubTabButton>
+        <ErpSubTabButton active={section === 'activities'} href={buildSubHref('activities')} onClick={(event) => handleSubTabClick('activities', event)}>{t('activities')}</ErpSubTabButton>
+        <ErpSubTabButton active={section === 'followups'} href={buildSubHref('followups')} onClick={(event) => handleSubTabClick('followups', event)}>{t('followups')}</ErpSubTabButton>
       </ModuleSubTabRow>
 
       {section === 'dashboard' && (

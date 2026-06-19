@@ -368,7 +368,10 @@ function Login() {
     setError('')
     try {
       await login(name.trim(), password, company)
-      navigate('/dashboard')
+      const dashboardPath = window.location.search.includes('company=') || window.location.search.includes('tenant=')
+        ? `/dashboard${window.location.search}`
+        : (isPlainLocalHost ? `/dashboard?company=${company}` : '/dashboard')
+      navigate(dashboardPath)
     } catch (err) {
       setLoading(false)
       if (!err.response) {

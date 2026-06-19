@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext'
 import erpAPI from '../../api/erp'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
+import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 import { ErpSubTabButton, ModulePageHeading, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 
 const USE_SEED_DATA =
@@ -1775,12 +1776,18 @@ function NotificationsPanel({ open, onClose, notifications, onAcknowledge, onEsc
 
 // ── Main Component ────────────────────────────────
 export default function ProductionTab() {
-  const { user } = useAuth()
+  const { user, company } = useAuth()
   const { isSuperAdmin, isManagement, isDepartmentHead, isReadOnly } = usePermissions()
   const { t } = useLanguage()
   const SUB_TABS = useMemo(() => getProductionTabs(t), [t])
+  const allowedSubIds = useMemo(() => SUB_TABS.map((tab) => tab.id), [SUB_TABS])
+  const { subTab: activeTab, buildSubHref, handleSubTabClick } = useDashboardModuleSubTab(
+    'production',
+    allowedSubIds,
+    'kpi',
+    company,
+  )
 
-  const [activeTab, setActiveTab] = useState('kpi')
   const [toast, setToast] = useState(null)
   const [notifOpen, setNotifOpen]         = useState(false)
   const [notifications, setNotifications] = useState(USE_SEED_DATA ? NOTIFICATIONS_DATA : [])
@@ -1855,7 +1862,12 @@ export default function ProductionTab() {
 
       <ModuleSubTabRow>
         {SUB_TABS.map((tab) => (
-          <ErpSubTabButton key={tab.id} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)}>
+          <ErpSubTabButton
+            key={tab.id}
+            active={activeTab === tab.id}
+            href={buildSubHref(tab.id)}
+            onClick={(event) => handleSubTabClick(tab.id, event)}
+          >
             {tab.label}
           </ErpSubTabButton>
         ))}

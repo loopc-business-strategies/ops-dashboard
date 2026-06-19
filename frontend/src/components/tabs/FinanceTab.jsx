@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect, Fragment } from 'react'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
+import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
 import financeAPI from '../../api/finance'
 import erpAccountingAPI from '../../api/erp-accounting'
 import { Modal } from '../ui-components'
@@ -1457,9 +1458,16 @@ function AuditTrail({ finRole: _finRole, can, auditLog }) {
 // ═══════════════════════════════════════════════════════════════
 export default function FinanceTab() {
   const { isSuperAdmin, isManagement, isDepartmentHead, isDepartmentUser, isExternal } = usePermissions()
-  const { user, token } = useAuth()
+  const { user, token, company } = useAuth()
   const { t } = useLanguage()
   const TABS = useMemo(() => getFinanceTabs(t), [t])
+  const allowedSubIds = useMemo(() => TABS.map((tabItem) => tabItem.id), [TABS])
+  const { subTab: activeTab, buildSubHref, handleSubTabClick } = useDashboardModuleSubTab(
+    'finance',
+    allowedSubIds,
+    'kpi',
+    company,
+  )
 
   // Map dashboard roles → finance-specific role
   const finRole = useMemo(() => {
@@ -1486,7 +1494,6 @@ export default function FinanceTab() {
     && import.meta.env.DEV
     && String(import.meta.env.VITE_ENABLE_SEED_DATA || '').toLowerCase() === 'true'
 
-  const [activeTab,    setActiveTab]    = useState('kpi')
   const [invoices,     setInvoices]     = useState(USE_SEED_DATA ? INIT_INVOICES : [])
   const [expenses,     setExpenses]     = useState(USE_SEED_DATA ? INIT_EXPENSES : [])
   const [payroll,      setPayroll]      = useState(USE_SEED_DATA ? INIT_PAYROLL : [])
@@ -1578,7 +1585,12 @@ export default function FinanceTab() {
 
       <ModuleSubTabRow>
         {TABS.map((t) => (
-          <ErpSubTabButton key={t.id} active={activeTab === t.id} onClick={() => setActiveTab(t.id)}>
+          <ErpSubTabButton
+            key={t.id}
+            active={activeTab === t.id}
+            href={buildSubHref(t.id)}
+            onClick={(event) => handleSubTabClick(t.id, event)}
+          >
             {t.label}
           </ErpSubTabButton>
         ))}

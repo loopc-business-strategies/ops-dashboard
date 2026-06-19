@@ -28,12 +28,42 @@ const pillActive = {
   boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
 }
 
+function handleSubTabNavClick(event, onClick) {
+  if (onClick) onClick(event)
+}
+
 /**
  * ERP-style sub-tab button (same visual language as ERPTab internal tab pills).
+ * When `href` is set, supports right-click / ctrl+click open in new tab.
  */
-export function ErpSubTabButton({ active, children, onClick, style = {}, type = 'button' }) {
+export function ErpSubTabButton({
+  active,
+  children,
+  onClick,
+  href,
+  style = {},
+  type = 'button',
+}) {
+  const mergedStyle = { ...pillIdle, ...(active ? pillActive : {}), ...style, textDecoration: 'none', display: 'inline-block' }
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        onClick={(event) => {
+          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
+          event.preventDefault()
+          handleSubTabNavClick(event, onClick)
+        }}
+        style={mergedStyle}
+      >
+        {children}
+      </a>
+    )
+  }
+
   return (
-    <button type={type} onClick={onClick} style={{ ...pillIdle, ...(active ? pillActive : {}), ...style }}>
+    <button type={type} onClick={onClick} style={mergedStyle}>
       {children}
     </button>
   )

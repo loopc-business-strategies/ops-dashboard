@@ -2,12 +2,17 @@
 // Main dashboard shell — sidebar navigation + lazy-loaded tab modules.
 
 import React, { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage, LANGUAGES } from '../context/LanguageContext'
-import { getTenantBranding } from '../config/tenantBranding'
-import { resolveAllowedErpSubTab } from '../utils/erpSubTabPermissions'
+import { getTenantBranding, isLocalTenantHost } from '../config/tenantBranding'
+import {
+  buildDashboardHref,
+  dashboardSearchFromState,
+  isPrimaryNavClick,
+  parseDashboardUrl,
+} from '../utils/dashboardNavigation'
 import BuildInfoBadge from '../components/BuildInfoBadge'
 import TopbarMetalTickers from '../components/TopbarMetalTickers'
 import AIAgentWidget from '../components/AIAgentWidget'
@@ -191,17 +196,25 @@ function resolveRealtimeBellErpFields(payload) {
 }
 
 // ── Sidebar nav item ────────────────────────────
-function NavItem({ label, active, onClick, badge }) {
+function NavItem({ label, active, href, onClick, badge }) {
   return (
-    <button onClick={onClick}
-      className={`sidebar-item w-full justify-center text-center${active ? ' active' : ''}`}>
+    <a
+      href={href}
+      onClick={(event) => {
+        if (!isPrimaryNavClick(event)) return
+        event.preventDefault()
+        onClick?.()
+      }}
+      className={`sidebar-item w-full justify-center text-center${active ? ' active' : ''}`}
+      style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+    >
       <span className="truncate">{label}</span>
       {badge && (
         <span style={{ fontSize: 11, background: 'var(--purple)', color: '#fff', borderRadius: 999, padding: '1px 6px', lineHeight: 1.4 }}>
           {badge}
         </span>
       )}
-    </button>
+    </a>
   )
 }
 
@@ -259,16 +272,16 @@ function getNavItems(perms, t, chatUnread = 0, branding) {
 }
 
 // ── Render the content for each tab ────────────
-function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps = {}, erpTabProps = {}) {
+function renderTab(tabId, navigateToTab, setChatUnread, erpSubTab, chatTabProps = {}, erpTabProps = {}) {
   switch (tabId) {
     case 'overview':
-      return <OverviewTab onNavigate={setActiveTab} />
+      return <OverviewTab onNavigate={navigateToTab} />
 
     case 'chat':
       return (
         <ChatTab
           onUnreadChange={setChatUnread}
-          onBack={() => setActiveTab('erp')}
+          onBack={() => navigateToTab('erp', { erpSub: erpSubTab || 'dashboard' })}
           openChatId={chatTabProps.openChatId}
           onOpenChatIdConsumed={chatTabProps.onOpenChatIdConsumed}
           focusComposerNonce={chatTabProps.focusComposerNonce || 0}
@@ -306,7 +319,8 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps =
       return (
         <ERPTab
           focusTab={erpSubTab}
-          onNavigateMain={setActiveTab}
+          onNavigateMain={navigateToTab}
+          onErpSubTabChange={erpTabProps.onErpSubTabChange}
           jumpToTransactionId={erpTabProps.jumpToTransactionId}
           onJumpToTransactionConsumed={erpTabProps.onJumpToTransactionConsumed}
           jumpToVoucher={erpTabProps.jumpToVoucher}
@@ -328,12 +342,12 @@ function renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps =
   }
 }
 
-function renderTabContent(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps = {}, erpTabProps = {}) {
+function renderTabContent(tabId, navigateToTab, setChatUnread, erpSubTab, chatTabProps = {}, erpTabProps = {}) {
   const resetKey = tabId === 'erp' ? `erp:${erpSubTab || 'dashboard'}` : tabId
   return (
     <TabErrorBoundary resetKey={resetKey}>
       <Suspense fallback={<TabLoadingFallback />}>
-        {renderTab(tabId, setActiveTab, setChatUnread, erpSubTab, chatTabProps, erpTabProps)}
+        {renderTab(tabId, navigateToTab, setChatUnread, erpSubTab, chatTabProps, erpTabProps)}
       </Suspense>
     </TabErrorBoundary>
   )
@@ -346,14 +360,20 @@ function Dashboard() {
   const { user, token, logout, company } = useAuth()
   const perms = usePermissions()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { t, isRTL, switchLanguage, langMeta } = useLanguage()
 
-  const [activeTab,    setActiveTab]    = useState('overview')
+  const initialUrl = useMemo(
+    () => parseDashboardUrl(typeof window !== 'undefined' ? window.location.search : '', null),
+    [],
+  )
+
+  const [activeTab,    setActiveTab]    = useState(initialUrl.activeTab)
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
   const [adminOpen,    setAdminOpen]    = useState(true)
   const [deptOpen,     setDeptOpen]     = useState(true)
   const [erpOpen,      setErpOpen]      = useState(true)
-  const [erpSubTab,    setErpSubTab]    = useState('dashboard')
+  const [erpSubTab,    setErpSubTab]    = useState(initialUrl.erpSubTab)
   const [chatUnread,   setChatUnread]   = useState(0)
   const [langMenuOpen, setLangMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
@@ -381,6 +401,76 @@ function Dashboard() {
   const hideTimerRef = useRef(null)
 
   const branding = useMemo(() => getTenantBranding(user?.company || company), [company, user?.company])
+  const includeCompany = useMemo(
+    () => typeof window !== 'undefined' && isLocalTenantHost(window.location.hostname),
+    [],
+  )
+  const tenantForHref = user?.company || company
+
+  const writeDashboardUrl = useCallback(({
+    tabId,
+    erpSub,
+    sub,
+    replace = true,
+  } = {}) => {
+    const nextActive = tabId ?? activeTab
+    const nextErpSub = erpSub ?? (nextActive === 'erp' ? erpSubTab : 'dashboard')
+    let nextSub = sub
+    if (nextSub === undefined && nextActive !== 'erp') {
+      nextSub = searchParams.get('sub')
+    }
+    if (nextActive === 'erp' || sub === null) {
+      nextSub = null
+    }
+
+    const params = dashboardSearchFromState({
+      activeTab: nextActive,
+      erpSubTab: nextErpSub,
+      moduleSubTab: nextSub,
+      company: tenantForHref,
+      includeCompany,
+    })
+    setSearchParams(params, { replace })
+  }, [activeTab, erpSubTab, searchParams, tenantForHref, includeCompany, setSearchParams])
+
+  const navigateToTab = useCallback((tabId, options = {}) => {
+    const { erpSub, sub, replace = true } = options
+    const nextActive = tabId
+    const nextErpSub = nextActive === 'erp' ? (erpSub || erpSubTab || 'dashboard') : erpSubTab
+
+    setActiveTab(nextActive)
+    if (nextActive === 'erp') setErpSubTab(nextErpSub)
+
+    writeDashboardUrl({
+      tabId: nextActive,
+      erpSub: nextActive === 'erp' ? nextErpSub : undefined,
+      sub: sub === undefined ? (nextActive === 'erp' ? null : searchParams.get('sub')) : sub,
+      replace,
+    })
+  }, [erpSubTab, searchParams, writeDashboardUrl])
+
+  const handleErpSubTabChange = useCallback((subTab) => {
+    setActiveTab('erp')
+    setErpSubTab(subTab)
+    writeDashboardUrl({ tabId: 'erp', erpSub: subTab, sub: null })
+  }, [writeDashboardUrl])
+
+  const buildNavHref = useCallback((item) => {
+    if (item.group === 'erp') {
+      return buildDashboardHref({
+        tabId: 'erp',
+        erpSub: item.erpSub,
+        company: tenantForHref,
+        includeCompany,
+      })
+    }
+    return buildDashboardHref({
+      tabId: item.id,
+      company: tenantForHref,
+      includeCompany,
+    })
+  }, [tenantForHref, includeCompany])
+
   const metalRatesEnabled = Boolean(token && ['mg', 'cg', 'loopc'].includes(branding.key))
   const navItems = getNavItems(perms, t, chatUnread, branding)
   const notifUnreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications])
@@ -404,6 +494,7 @@ function Dashboard() {
       onJumpToVoucherConsumed: consumeErpVoucherJump,
       jumpToEnquiryAccountCode: pendingErpEnquiryAccountCode,
       onJumpToEnquiryConsumed: consumeErpEnquiryJump,
+      onErpSubTabChange: handleErpSubTabChange,
     }),
     [
       pendingErpJumpTransactionId,
@@ -412,6 +503,7 @@ function Dashboard() {
       consumeErpVoucherJump,
       pendingErpEnquiryAccountCode,
       consumeErpEnquiryJump,
+      handleErpSubTabChange,
     ],
   )
 
@@ -596,19 +688,12 @@ function Dashboard() {
     })
   }, [token, user, t])
 
-  // Sync active tab from URL search params
+  // Sync active tab from URL (back/forward, deep links)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const tabParam = params.get('tab')
-    if (tabParam) {
-      if (tabParam.startsWith('erp-')) {
-        setActiveTab('erp')
-        setErpSubTab(resolveAllowedErpSubTab(user, tabParam.replace('erp-', ''), 'dashboard'))
-      } else {
-        setActiveTab(tabParam)
-      }
-    }
-  }, [user])
+    const parsed = parseDashboardUrl(searchParams.toString(), user)
+    setActiveTab((prev) => (prev === parsed.activeTab ? prev : parsed.activeTab))
+    setErpSubTab((prev) => (prev === parsed.erpSubTab ? prev : parsed.erpSubTab))
+  }, [searchParams, user])
 
   const handleShellMouseMove = (e) => {
     if (!isDesktop) return
@@ -627,13 +712,12 @@ function Dashboard() {
   }
 
   const handleTabSelect = (tabId) => {
-    setActiveTab(tabId)
+    navigateToTab(tabId, { sub: null })
     if (!isDesktop) closeSidebar()
   }
 
   const handleErpTabSelect = (subTab) => {
-    setActiveTab('erp')
-    setErpSubTab(subTab)
+    navigateToTab('erp', { erpSub: subTab, sub: null })
     if (!isDesktop) closeSidebar()
   }
 
@@ -645,7 +729,7 @@ function Dashboard() {
     if (n?.chatTargetId) {
       setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)))
       setNotifOpen(false)
-      setActiveTab('chat')
+      navigateToTab('chat', { sub: null })
       setPendingChatOpenId(n.chatTargetId)
       setChatComposerFocusNonce((v) => v + 1)
       return
@@ -653,8 +737,7 @@ function Dashboard() {
     if (n?.erpEnquiryAccountCode) {
       setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)))
       setNotifOpen(false)
-      setActiveTab('erp')
-      setErpSubTab('enquiry')
+      navigateToTab('erp', { erpSub: 'enquiry', sub: null })
       setPendingErpJumpTransactionId(null)
       setPendingErpVoucherJump(null)
       setPendingErpEnquiryAccountCode(n.erpEnquiryAccountCode)
@@ -663,9 +746,8 @@ function Dashboard() {
     if (n?.erpTransactionId) {
       setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)))
       setNotifOpen(false)
-      setActiveTab('erp')
       const sub = n.erpJumpSubTab === 'vouchers' ? 'vouchers' : 'transactions'
-      setErpSubTab(sub)
+      navigateToTab('erp', { erpSub: sub, sub: null })
       setPendingErpEnquiryAccountCode(null)
       if (sub === 'vouchers') {
         setPendingErpJumpTransactionId(null)
@@ -678,7 +760,7 @@ function Dashboard() {
         setPendingErpJumpTransactionId(n.erpTransactionId)
       }
     }
-  }, [])
+  }, [navigateToTab])
 
   const toggleSidebar = () => {
     clearHideTimer()
@@ -758,6 +840,7 @@ function Dashboard() {
           {/* Main */}
           {mainItems.map(item => (
             <NavItem key={item.id} {...item}
+              href={buildNavHref(item)}
               active={activeTab === item.id}
               onClick={() => handleTabSelect(item.id)} />
           ))}
@@ -775,6 +858,7 @@ function Dashboard() {
               </button>
               {adminOpen && adminItems.map(item => (
                 <NavItem key={item.id} {...item}
+                  href={buildNavHref(item)}
                   active={activeTab === item.id}
                   onClick={() => handleTabSelect(item.id)} />
               ))}
@@ -794,6 +878,7 @@ function Dashboard() {
               </button>
               {deptOpen && deptItems.map(item => (
                 <NavItem key={item.id} {...item}
+                  href={buildNavHref(item)}
                   active={activeTab === item.id}
                   onClick={() => handleTabSelect(item.id)} />
               ))}
@@ -813,6 +898,7 @@ function Dashboard() {
               </button>
               {erpOpen && erpItems.map(item => (
                 <NavItem key={item.id} {...item}
+                  href={buildNavHref(item)}
                   active={activeTab === 'erp' && erpSubTab === item.erpSub}
                   onClick={() => handleErpTabSelect(item.erpSub)} />
               ))}
@@ -1135,11 +1221,11 @@ function Dashboard() {
         >
           {activeTab === 'chat' ? (
             <div className="flex-1 min-h-0 flex flex-col">
-              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
+              {renderTabContent(activeTab, navigateToTab, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
             </div>
           ) : (
             <div className="flex-1 min-h-0" style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
-              {renderTabContent(activeTab, setActiveTab, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
+              {renderTabContent(activeTab, navigateToTab, setChatUnread, erpSubTab, chatTabRealtimeProps, erpTabRealtimeProps)}
             </div>
           )}
         </main>
