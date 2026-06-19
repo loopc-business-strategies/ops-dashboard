@@ -12,6 +12,7 @@ Reference: [`ERP-TAB-REFACTOR-ROADMAP.md`](ERP-TAB-REFACTOR-ROADMAP.md)
 - [ ] Open enquiry for a **customer** metal account — MTM and position rows look correct.
 - [ ] Full statement: pure-weight running balance dedupes merged legs (no duplicate gram rows for same voucher leg).
 - [ ] Statement filters (metal, currency, date) still apply; export PDF / view statement works.
+- [ ] **View Statement** opens in-tab draggable preview (not a new browser window).
 
 ## Vouchers
 

@@ -28,8 +28,10 @@ import { ERP_TAB_COLORS as C, TRANSACTION_STATUS_STYLES, ERP_EMPTY_CARD_STYLE, E
 import { useTransactionComposer } from './erp/useTransactionComposer'
 import { useJournalVoucher } from './erp/useJournalVoucher'
 import AccountEnquiryModal from './erp/accountEnquiry/AccountEnquiryModal'
+import StatementPreviewModal from './erp/accountEnquiry/StatementPreviewModal'
 import { useAccountEnquiryStatement } from './erp/accountEnquiry/useAccountEnquiryStatement'
 import { useAccountEnquiryModalDrag } from './erp/accountEnquiry/useAccountEnquiryModalDrag'
+import { useStatementPreviewModalDrag } from './erp/accountEnquiry/useStatementPreviewModalDrag'
 import {
   fixingRegFmtQty,
   fixingRegFmtRate,
@@ -299,6 +301,10 @@ function ERPTab({
   const [enquiryHistory, setEnquiryHistory] = useState([])
   const [showEnquiryModal, setShowEnquiryModal] = useState(false)
   const showEnquiryModalRef = useRef(false)
+  const [showStatementPreview, setShowStatementPreview] = useState(false)
+  const [statementPreviewHtml, setStatementPreviewHtml] = useState('')
+  const [statementPreviewLoading, setStatementPreviewLoading] = useState(false)
+  const [statementPreviewTitle, setStatementPreviewTitle] = useState('Statement of Account')
   const [showEnquiryLookupMenu, setShowEnquiryLookupMenu] = useState(false)
   const [detailsPanel, setDetailsPanel] = useState({
     pinned: false,
@@ -792,6 +798,13 @@ function ERPTab({
     beginEnquiryModalDrag,
     enquiryBackdropColor,
   } = useAccountEnquiryModalDrag(showEnquiryModal)
+
+  const {
+    statementPreviewOffset,
+    statementPreviewDrag,
+    beginStatementPreviewDrag,
+    statementPreviewBackdropColor,
+  } = useStatementPreviewModalDrag(showStatementPreview)
 
   const transactionPageCount = Math.max(1, Math.ceil(Number(transactionMeta.total || 0) / Number(transactionMeta.limit || 25)))
   const allVisibleTransactionsSelected = Boolean(transactions.length) && transactions.every((tx) => selectedTransactionIds.includes(tx._id))
@@ -2675,45 +2688,25 @@ function ERPTab({
     statementFilters,
   })
   const handleViewStatement = async () => {
-    const w = window.open('', '_blank')
-    if (!w) {
-      setError('Popup blocked. Please allow popups for statement preview')
-      return
-    }
-    w.document.open()
-    w.document.write(`
-      <html>
-        <head><title>Preparing Statement</title></head>
-        <body style="margin:0;padding:32px;font-family:Arial, sans-serif;color:#111827;background:#ffffff;">
-          Preparing statement...
-        </body>
-      </html>
-    `)
-    w.document.close()
+    setStatementPreviewHtml('')
+    setStatementPreviewTitle('Statement of Account')
+    setStatementPreviewLoading(true)
+    setShowStatementPreview(true)
     try {
       const htmlData = await generateStatementHtml()
       if (!htmlData) {
-        w.close()
+        setShowStatementPreview(false)
         return
       }
-      w.document.open()
-      w.document.write(htmlData.html)
-      w.document.close()
-      w.focus()
+      setStatementPreviewHtml(htmlData.html)
+      setStatementPreviewTitle(`Statement of Account — ${htmlData.accountCode || 'Account'}`)
       showNotification('Statement preview opened')
     } catch (err) {
       console.error('Statement preview error:', err)
-      w.document.open()
-      w.document.write(`
-        <html>
-          <head><title>Statement Error</title></head>
-          <body style="margin:0;padding:32px;font-family:Arial, sans-serif;color:#991B1B;background:#ffffff;">
-            Failed to open statement preview.
-          </body>
-        </html>
-      `)
-      w.document.close()
+      setShowStatementPreview(false)
       setError('Failed to open statement preview.')
+    } finally {
+      setStatementPreviewLoading(false)
     }
   }
   const handlePrintStatement = async () => {
@@ -4503,6 +4496,17 @@ function ERPTab({
         formatAccountEnquiryExcessDisplay={formatAccountEnquiryExcessDisplay}
         resolveExposureDirection={resolveExposureDirection}
         isMetalStatementEntry={isMetalStatementEntry}
+      />
+      <StatementPreviewModal
+        open={showStatementPreview}
+        onClose={() => setShowStatementPreview(false)}
+        title={statementPreviewTitle}
+        html={statementPreviewHtml}
+        loading={statementPreviewLoading}
+        backdropColor={statementPreviewBackdropColor}
+        modalOffset={statementPreviewOffset}
+        modalDrag={statementPreviewDrag}
+        beginModalDrag={beginStatementPreviewDrag}
       />
       <StatementExportOptionsModal
         open={exportOptionsOpen}
