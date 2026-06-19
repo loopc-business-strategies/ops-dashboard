@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'vitest'
 import {
   buildDashboardHref,
+  buildDashboardSearchParams,
   buildDashboardTabParam,
   buildEnquiryHref,
   dashboardSearchFromState,
+  enquiryDeepLinkKey,
   isPrimaryNavClick,
   parseDashboardUrl,
   parseEnquiryDeepLink,
@@ -60,5 +62,38 @@ describe('dashboardNavigation', () => {
       view: 'statement',
     })
     expect(parseEnquiryDeepLink('?tab=erp-ledger')).toEqual({ account: null, view: null })
+  })
+
+  test('buildDashboardSearchParams preserves enquiry params when re-opening Account Summary', () => {
+    const preserveFrom = '?tab=erp-enquiry&account=1000&view=statement&company=mg'
+    const params = buildDashboardSearchParams({
+      activeTab: 'erp',
+      erpSubTab: 'enquiry',
+      preserveFrom,
+      company: 'mg',
+      includeCompany: true,
+    })
+    expect(params.get('tab')).toBe('erp-enquiry')
+    expect(params.get('account')).toBe('1000')
+    expect(params.get('view')).toBe('statement')
+    expect(params.get('company')).toBe('mg')
+  })
+
+  test('buildDashboardSearchParams clears enquiry params when leaving Account Summary', () => {
+    const preserveFrom = '?tab=erp-enquiry&account=1000&view=statement'
+    const params = buildDashboardSearchParams({
+      activeTab: 'erp',
+      erpSubTab: 'ledger',
+      preserveFrom,
+    })
+    expect(params.get('tab')).toBe('erp-ledger')
+    expect(params.get('account')).toBeNull()
+    expect(params.get('view')).toBeNull()
+  })
+
+  test('enquiryDeepLinkKey dedupes account summary loads', () => {
+    expect(enquiryDeepLinkKey({ account: '1000' })).toBe('1000|')
+    expect(enquiryDeepLinkKey({ account: '1000', view: 'statement' })).toBe('1000|statement')
+    expect(enquiryDeepLinkKey({ account: '' })).toBe('')
   })
 })

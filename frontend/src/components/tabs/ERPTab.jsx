@@ -4,8 +4,9 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { getTenantBranding, isLocalTenantHost } from '../../config/tenantBranding'
 import {
-  applyEnquiryParams,
+  buildDashboardSearchParams,
   buildEnquiryHref,
+  enquiryDeepLinkKey,
   parseEnquiryDeepLink,
 } from '../../utils/dashboardNavigation'
 import erpAccountingAPI from '../../api/erp-accounting'
@@ -315,7 +316,7 @@ function ERPTab({
   const [statementPreviewLoading, setStatementPreviewLoading] = useState(false)
   const [statementPreviewTitle, setStatementPreviewTitle] = useState('Statement of Account')
   const [pendingStatementPreview, setPendingStatementPreview] = useState(false)
-  const skipNextEnquiryDeepLinkRef = useRef(false)
+  const lastEnquiryDeepLinkKeyRef = useRef('')
   const [searchParams, setSearchParams] = useSearchParams()
   const enquiryIncludeCompany = useMemo(
     () => typeof window !== 'undefined' && isLocalTenantHost(window.location.hostname),
@@ -323,13 +324,15 @@ function ERPTab({
   )
   const enquiryCompany = user?.company || user?.tenant || ''
   const syncEnquiryUrl = useCallback(({ account, view, replace = true } = {}) => {
-    skipNextEnquiryDeepLinkRef.current = true
-    setSearchParams((prev) => {
-      const next = applyEnquiryParams(prev, { account, view })
-      next.set('tab', 'erp-enquiry')
-      if (enquiryIncludeCompany && enquiryCompany) next.set('company', enquiryCompany)
-      return next
-    }, { replace })
+    setSearchParams((prev) => buildDashboardSearchParams({
+      activeTab: 'erp',
+      erpSubTab: 'enquiry',
+      enquiryAccount: account,
+      enquiryView: view,
+      company: enquiryCompany,
+      includeCompany: enquiryIncludeCompany,
+      preserveFrom: prev,
+    }), { replace })
   }, [setSearchParams, enquiryIncludeCompany, enquiryCompany])
   const buildAccountEnquiryHref = useCallback((account, view) => buildEnquiryHref({
     account,
@@ -2193,11 +2196,16 @@ function ERPTab({
       return
     }
     const tenantKey = user?.tenant || user?.company || 'default'
+    const deepLinkKey = enquiryDeepLinkKey({
+      account: cleanCode,
+      view: options.openStatementPreview ? 'statement' : null,
+    })
     const cached = readAccountEnquiryCache(tenantKey, cleanCode)
     if (cached) {
       setAccountEnquiryCode(cleanCode)
       setAccountEnquiryData(cached)
       setEnquiryLoading(false)
+      lastEnquiryDeepLinkKeyRef.current = deepLinkKey
       syncEnquiryUrl({
         account: cleanCode,
         view: options.openStatementPreview ? 'statement' : null,
@@ -2227,6 +2235,7 @@ function ERPTab({
       pushEnquiryHistory(data.account)
       setError('')
       setEnquiryStatus({ type: 'success', message: `Account ${data.account.accountCode} summary loaded successfully` })
+      lastEnquiryDeepLinkKeyRef.current = deepLinkKey
       syncEnquiryUrl({
         account: data.account.accountCode,
         view: options.openStatementPreview ? 'statement' : null,
@@ -2235,6 +2244,9 @@ function ERPTab({
       if (!cached) showNotification('✅ Account summary loaded')
     } catch (e) {
       if (!cached) {
+        if (lastEnquiryDeepLinkKeyRef.current === deepLinkKey) {
+          lastEnquiryDeepLinkKeyRef.current = ''
+        }
         setAccountEnquiryData(null)
         const msg = e.response?.data?.message || 'Failed to fetch account summary'
         setError(msg)
@@ -3268,20 +3280,29 @@ function ERPTab({
   }, [jumpToEnquiryAccountCode, onJumpToEnquiryConsumed])
 
   useEffect(() => {
-    if (activeTab !== 'enquiry') return undefined
-    if (skipNextEnquiryDeepLinkRef.current) {
-      skipNextEnquiryDeepLinkRef.current = false
+    if (activeTab !== 'enquiry') {
+      lastEnquiryDeepLinkKeyRef.current = ''
       return undefined
     }
     const { account, view } = parseEnquiryDeepLink(searchParams.toString())
-    if (!account) return undefined
+    if (!account) {
+      lastEnquiryDeepLinkKeyRef.current = ''
+      return undefined
+    }
+    const key = enquiryDeepLinkKey({ account, view })
+    if (lastEnquiryDeepLinkKeyRef.current === key) return undefined
+    lastEnquiryDeepLinkKeyRef.current = key
+    let cancelled = false
     ;(async () => {
       await fetchAccountEnquiryByCode(account, {
         openModal: true,
         openStatementPreview: view === 'statement',
       })
+      if (cancelled) lastEnquiryDeepLinkKeyRef.current = ''
     })()
-    return undefined
+    return () => {
+      cancelled = true
+    }
     // Deep link from URL; fetchAccountEnquiryByCode intentionally omitted from deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, searchParams])

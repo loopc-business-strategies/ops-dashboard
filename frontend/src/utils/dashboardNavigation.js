@@ -21,20 +21,90 @@ export function buildDashboardTabParam({ tabId, erpSub } = {}) {
 }
 
 /**
- * Build /dashboard href with tab, optional sub, and optional tenant on localhost.
+ * Stable key for deduping Account Summary deep-link fetches.
+ */
+export function enquiryDeepLinkKey({ account, view } = {}) {
+  const code = String(account || '').trim()
+  if (!code) return ''
+  return `${code}|${view === 'statement' ? 'statement' : ''}`
+}
+
+/**
+ * Single source of truth for dashboard URL search params.
+ * Preserves enquiry account/view when staying on erp-enquiry unless explicitly overridden.
+ */
+export function buildDashboardSearchParams({
+  activeTab,
+  erpSubTab,
+  moduleSubTab,
+  enquiryAccount,
+  enquiryView,
+  company,
+  includeCompany = false,
+  preserveFrom,
+} = {}) {
+  const params = new URLSearchParams()
+  const erpSub = activeTab === 'erp' ? (erpSubTab || 'dashboard') : null
+  const tabParam = activeTab === 'erp'
+    ? buildDashboardTabParam({ tabId: 'erp', erpSub })
+    : (activeTab || 'overview')
+
+  params.set('tab', tabParam)
+
+  if (activeTab !== 'erp' && moduleSubTab) {
+    params.set('sub', moduleSubTab)
+  }
+
+  const isEnquiry = activeTab === 'erp' && erpSub === 'enquiry'
+  if (isEnquiry) {
+    let account = null
+    let view = null
+
+    if (enquiryAccount !== undefined) {
+      account = enquiryAccount
+      view = enquiryView !== undefined ? enquiryView : null
+    } else if (preserveFrom) {
+      const preserved = parseEnquiryDeepLink(
+        typeof preserveFrom === 'string' ? preserveFrom : preserveFrom.toString(),
+      )
+      account = preserved.account
+      view = preserved.view
+    }
+
+    const code = String(account || '').trim()
+    if (code) params.set('account', code)
+    if (view === 'statement') params.set('view', 'statement')
+  }
+
+  if (includeCompany && company) {
+    params.set('company', company)
+  }
+
+  return params
+}
+
+/**
+ * Build /dashboard href with tab, optional sub, enquiry params, and optional tenant on localhost.
  */
 export function buildDashboardHref({
   tabId,
   erpSub,
   sub,
+  account,
+  view,
   company,
   includeCompany = false,
 } = {}) {
-  const params = new URLSearchParams()
-  const tabParam = buildDashboardTabParam({ tabId, erpSub })
-  if (tabParam) params.set('tab', tabParam)
-  if (sub) params.set('sub', sub)
-  if (includeCompany && company) params.set('company', company)
+  const activeTab = (tabId === 'erp' || erpSub) ? 'erp' : (tabId || 'overview')
+  const params = buildDashboardSearchParams({
+    activeTab,
+    erpSubTab: erpSub || 'dashboard',
+    moduleSubTab: sub,
+    enquiryAccount: account,
+    enquiryView: view,
+    company,
+    includeCompany,
+  })
 
   const qs = params.toString()
   return qs ? `${DASHBOARD_PATH}?${qs}` : DASHBOARD_PATH
@@ -79,25 +149,22 @@ export function dashboardSearchFromState({
   activeTab,
   erpSubTab,
   moduleSubTab,
+  enquiryAccount,
+  enquiryView,
   company,
   includeCompany = false,
+  preserveFrom,
 } = {}) {
-  const params = new URLSearchParams()
-  const tabParam = activeTab === 'erp'
-    ? buildDashboardTabParam({ tabId: 'erp', erpSub: erpSubTab || 'dashboard' })
-    : (activeTab || 'overview')
-
-  params.set('tab', tabParam)
-
-  if (activeTab !== 'erp' && moduleSubTab) {
-    params.set('sub', moduleSubTab)
-  }
-
-  if (includeCompany && company) {
-    params.set('company', company)
-  }
-
-  return params
+  return buildDashboardSearchParams({
+    activeTab,
+    erpSubTab,
+    moduleSubTab,
+    enquiryAccount,
+    enquiryView,
+    company,
+    includeCompany,
+    preserveFrom,
+  })
 }
 
 /**
@@ -109,14 +176,14 @@ export function buildEnquiryHref({
   company,
   includeCompany = false,
 } = {}) {
-  const params = new URLSearchParams()
-  params.set('tab', 'erp-enquiry')
-  const code = String(account || '').trim()
-  if (code) params.set('account', code)
-  if (view === 'statement') params.set('view', 'statement')
-  if (includeCompany && company) params.set('company', company)
-  const qs = params.toString()
-  return qs ? `${DASHBOARD_PATH}?${qs}` : `${DASHBOARD_PATH}?tab=erp-enquiry`
+  return buildDashboardHref({
+    tabId: 'erp',
+    erpSub: 'enquiry',
+    account,
+    view,
+    company,
+    includeCompany,
+  })
 }
 
 /**
@@ -138,11 +205,11 @@ export function parseEnquiryDeepLink(search) {
  * Merge Account Summary params into an existing URLSearchParams copy.
  */
 export function applyEnquiryParams(params, { account, view } = {}) {
-  const next = new URLSearchParams(params)
-  const code = String(account || '').trim()
-  if (code) next.set('account', code)
-  else next.delete('account')
-  if (view === 'statement') next.set('view', 'statement')
-  else next.delete('view')
-  return next
+  return buildDashboardSearchParams({
+    activeTab: 'erp',
+    erpSubTab: 'enquiry',
+    enquiryAccount: account,
+    enquiryView: view,
+    preserveFrom: params,
+  })
 }

@@ -429,6 +429,7 @@ function Dashboard() {
       moduleSubTab: nextSub,
       company: tenantForHref,
       includeCompany,
+      preserveFrom: searchParams,
     })
     setSearchParams(params, { replace })
   }, [activeTab, erpSubTab, searchParams, tenantForHref, includeCompany, setSearchParams])
