@@ -2,6 +2,14 @@ export function isActiveChartAccount(account) {
   return Boolean(account) && account.isActive !== false
 }
 
+/** Reject empty codes and 24-char hex strings (Mongo ObjectIds used as fallback party codes). */
+export function isValidPartyAccountCode(code) {
+  const normalized = String(code || '').trim()
+  if (!normalized) return false
+  if (/^[a-f0-9]{24}$/i.test(normalized)) return false
+  return true
+}
+
 export function filterActiveAccounts(accounts = []) {
   const seen = new Set()
   return (Array.isArray(accounts) ? accounts : [])
@@ -14,10 +22,20 @@ export function filterActiveAccounts(accounts = []) {
     })
 }
 
+/** Active chart accounts suitable for voucher party dropdowns (valid account codes only). */
+export function filterPartyAccounts(accounts = []) {
+  return filterActiveAccounts(accounts).filter((account) => {
+    const code = String(account?.accountCode || account?.code || '').trim()
+    return isValidPartyAccountCode(code)
+  })
+}
+
 export function isActiveCustomer(customer) {
   if (!customer || customer.isActive === false) return false
   const ledger = customer.ledgerAccountId
-  if (ledger && typeof ledger === 'object' && ledger.isActive === false) return false
+  if (!ledger || typeof ledger !== 'object' || !ledger._id) return false
+  if (ledger.isActive === false) return false
+  if (!isValidPartyAccountCode(ledger.accountCode)) return false
   return true
 }
 
@@ -25,7 +43,9 @@ export function isActiveVendor(vendor) {
   if (!vendor || vendor.isActive === false) return false
   if (vendor.deletedAt) return false
   const ledger = vendor.ledgerAccountId
-  if (ledger && typeof ledger === 'object' && ledger.isActive === false) return false
+  if (!ledger || typeof ledger !== 'object' || !ledger._id) return false
+  if (ledger.isActive === false) return false
+  if (!isValidPartyAccountCode(ledger.accountCode) && !isValidPartyAccountCode(vendor.vendorCode)) return false
   return true
 }
 

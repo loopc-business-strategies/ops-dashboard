@@ -5,6 +5,7 @@ import {
   filterActiveAccounts,
   filterActiveCustomers,
   filterActiveVendors,
+  filterPartyAccounts,
 } from './accountDropdownHelpers'
 
 describe('accountDropdownHelpers', () => {
@@ -22,13 +23,15 @@ describe('accountDropdownHelpers', () => {
       { _id: 'c1', isActive: true, ledgerAccountId: { _id: 'a1', accountCode: '3000', isActive: true } },
       { _id: 'c2', isActive: false, ledgerAccountId: { _id: 'a2', accountCode: '3001', isActive: true } },
       { _id: 'c3', isActive: true, ledgerAccountId: { _id: 'a3', accountCode: '3002', isActive: false } },
+      { _id: 'c4', isActive: true, ledgerAccountId: null },
+      { _id: 'c5', isActive: true, ledgerAccountId: { _id: 'a5', accountCode: '69f9a1ef682467dc3f029e42', isActive: true } },
     ]
     expect(filterActiveCustomers(rows).map((row) => row._id)).toEqual(['c1'])
   })
 
   test('filterActiveVendors rejects deleted or inactive vendors', () => {
     const rows = [
-      { _id: 'v1', isActive: true, ledgerAccountId: { _id: 'a1', isActive: true } },
+      { _id: 'v1', isActive: true, vendorCode: 'VEN-0001', ledgerAccountId: { _id: 'a1', accountCode: '2100', isActive: true } },
       { _id: 'v2', isActive: true, deletedAt: '2026-01-01' },
       { _id: 'v3', isActive: false },
     ]
@@ -51,5 +54,14 @@ describe('accountDropdownHelpers', () => {
     ]
     const customers = [{ _id: 'c1', isActive: true, ledgerAccountId: { _id: 'a1', accountCode: '3000', isActive: true } }]
     expect(excludeLedgerAccountsRepresentedByParties(accounts, customers, []).map((row) => row._id)).toEqual(['a2'])
+  })
+
+  test('filterPartyAccounts rejects mongo-id account codes', () => {
+    const rows = [
+      { _id: 'a1', accountCode: '1303', isActive: true },
+      { _id: 'a2', accountCode: '69f9a1ef682467dc3f029e42', isActive: true },
+      { _id: 'a3', accountCode: '2000', isActive: false },
+    ]
+    expect(filterPartyAccounts(rows).map((row) => row._id)).toEqual(['a1'])
   })
 })

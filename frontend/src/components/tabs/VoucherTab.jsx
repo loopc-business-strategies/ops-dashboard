@@ -13,10 +13,10 @@ import VoucherPrintPanel from './voucher/VoucherPrintPanel'
 import VoucherEditorPanel from './voucher/VoucherEditorPanel'
 import { deriveErpAccessPolicy, canCreateTransactionFor } from './erp/accessPolicy'
 import {
-  excludeLedgerAccountsRepresentedByParties,
   filterActiveAccounts,
   filterActiveCustomers,
   filterActiveVendors,
+  filterPartyAccounts,
 } from './erp/accountDropdownHelpers'
 
 const VOUCHER_TAB_TYPES = ['payment', 'receipt', 'purchase', 'sale', 'metal_receipt', 'metal_payment']
@@ -67,6 +67,7 @@ export default function VoucherTab({
   const activeCustomers = filterActiveCustomers(customers)
   const activeVendors = filterActiveVendors(vendors)
   const activeAccounts = filterActiveAccounts(accounts)
+  const partyChartAccounts = filterPartyAccounts(accounts)
   const mergedCurrencies = localCurrencies.length > 0 ? localCurrencies : (Array.isArray(currencies) ? currencies : [])
   const currencyOptions = mergedCurrencies
     .filter((item) => String(item?.code || '').trim())
@@ -259,7 +260,7 @@ export default function VoucherTab({
   }, [activeCustomers, activeVendors, voucherType])
 
   const PARTY_TYPE_ORDER = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
-  const partyOptions = activeAccounts
+  const partyOptions = partyChartAccounts
     .map((account) => {
       const code = getAccountCodeValue(account)
       const name = String(account?.accountName || account?.name || '').trim()
@@ -294,53 +295,7 @@ export default function VoucherTab({
     options: g.items.map((item) => ({ value: item.id, label: item.label })),
   }))
 
-  const isMetalVoucherHeader = isMetalStockVoucherType(voucherType)
-  const metalPartyComboGroups = (() => {
-    if (!isMetalVoucherHeader) return partyComboGroups
-    const customerOpts = activeCustomers
-      .map((c) => {
-        const code = String(c.ledgerAccountId?.accountCode || '').trim() || String(c._id)
-        const name = String(c.name || '').trim() || 'Customer'
-        return { value: `customer:${String(c._id)}`, label: `${code} — ${name}` }
-      })
-      .filter((o) => o.value && o.label)
-
-    const vendorOpts = activeVendors
-      .map((v) => {
-        const code = String(v.vendorCode || v.ledgerAccountId?.accountCode || '').trim() || String(v._id)
-        const name = String(v.name || '').trim() || 'Vendor'
-        return { value: `vendor:${String(v._id)}`, label: `${code} — ${name}` }
-      })
-      .filter((o) => o.value && o.label)
-
-    const chartAccountsForMetal = excludeLedgerAccountsRepresentedByParties(activeAccounts, activeCustomers, activeVendors)
-      .map((account) => {
-        const code = getAccountCodeValue(account)
-        const name = String(account?.accountName || account?.name || '').trim()
-        return {
-          id: `account:${String(account?._id || code)}`,
-          accountType: String(account?.accountType || 'Other').trim() || 'Other',
-          label: `${code}${name ? ` - ${name}` : ''}`,
-        }
-      })
-      .filter((item) => item.label)
-    const chartGroups = chartAccountsForMetal.reduce((groups, item) => {
-      const existing = groups.find((g) => g.type === item.accountType)
-      if (existing) existing.items.push(item)
-      else groups.push({ type: item.accountType, items: [item] })
-      return groups
-    }, [])
-    const chartComboGroups = chartGroups.map((g) => ({
-      label: g.type,
-      options: g.items.map((item) => ({ value: item.id, label: item.label })),
-    }))
-
-    const out = []
-    if (customerOpts.length) out.push({ label: 'Customers', options: customerOpts })
-    if (vendorOpts.length) out.push({ label: 'Vendors', options: vendorOpts })
-    out.push(...chartComboGroups)
-    return out
-  })()
+  const metalPartyComboGroups = partyComboGroups
 
   const findPartyOptionByCode = useCallback((code) => {
     const lookupValue = normalizeLookupValue(code)

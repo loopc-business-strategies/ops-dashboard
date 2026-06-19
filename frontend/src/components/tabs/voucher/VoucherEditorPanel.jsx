@@ -299,7 +299,7 @@ export default function VoucherEditorPanel({
                         groups={metalPartyComboGroups}
                         value={selectedPartyId}
                         onChange={(val) => handlePartySelect(val)}
-                        placeholder="Customer, vendor, or chart account…"
+                        placeholder="Type account name or code…"
                         style={formReadOnly ? classicReadInput : classicInput}
                         disabled={formReadOnly}
                       />
