@@ -47,6 +47,16 @@ test.describe('dashboard navigation deep links', () => {
     const enquiryLink = page.getByRole('link', { name: 'Account Summary' })
     await expect(enquiryLink).toHaveAttribute('href', /tab=erp-enquiry/)
   })
+
+  test('sidebar Account Summary href preserves account from current URL', async ({ page }) => {
+    await stubAuthApi(page)
+    await stubDashboardDataApi(page)
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await page.goto('/dashboard?tab=erp-enquiry&account=1000&view=statement', { waitUntil: 'domcontentloaded' })
+    const enquiryLink = page.getByRole('link', { name: 'Account Summary' })
+    await expect(enquiryLink).toHaveAttribute('href', /account=1000/)
+    await expect(enquiryLink).toHaveAttribute('href', /view=statement/)
+  })
 })
 
 test.describe('login auth smoke', () => {
@@ -74,5 +84,27 @@ test.describe('login auth smoke', () => {
     await page.getByRole('button', { name: /sign in/i }).click()
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 })
     await expect(page.locator('#root')).toBeVisible()
+  })
+})
+
+test.describe('live API enquiry deep link', () => {
+  test('opens Account Summary tab with account query after real login', async ({ page }) => {
+    const name = process.env.E2E_AUTH_NAME
+    const password = process.env.E2E_AUTH_PASSWORD
+    const company = process.env.E2E_AUTH_COMPANY || 'loopc'
+    const account = process.env.E2E_ENQUIRY_ACCOUNT || '1000'
+    test.skip(!name || !password, 'Set E2E_AUTH_NAME and E2E_AUTH_PASSWORD for live enquiry test')
+
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await page.goto(`/login?company=${company}`, { waitUntil: 'domcontentloaded' })
+    await page.getByPlaceholder('Enter your username').fill(name)
+    await page.getByPlaceholder('Enter your password').fill(password)
+    await page.getByRole('button', { name: /sign in/i }).click()
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 })
+
+    await page.goto(`/dashboard?tab=erp-enquiry&account=${encodeURIComponent(account)}`, { waitUntil: 'domcontentloaded' })
+    await expect(page).toHaveURL(new RegExp(`account=${account}`))
+    await expect(page.getByRole('link', { name: 'Account Summary' })).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText('Account Summary', { exact: false }).first()).toBeVisible({ timeout: 30_000 })
   })
 })

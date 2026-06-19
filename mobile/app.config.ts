@@ -14,6 +14,7 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.loopc.mg.ops',
+    associatedDomains: ['applinks:mg.loopcstrategies.com'],
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
     },
@@ -25,6 +26,20 @@ const config: ExpoConfig = {
       foregroundImage: './assets/images/android-icon-foreground.png',
       backgroundImage: './assets/images/android-icon-background.png',
     },
+    intentFilters: [
+      {
+        action: 'VIEW',
+        autoVerify: true,
+        category: ['BROWSABLE', 'DEFAULT'],
+        data: [
+          {
+            scheme: 'https',
+            host: 'mg.loopcstrategies.com',
+            pathPrefix: '/dashboard',
+          },
+        ],
+      },
+    ],
   },
   web: {
     bundler: 'metro',

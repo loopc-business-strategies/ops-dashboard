@@ -72,6 +72,7 @@ export function parseIncomingDeepLink(rawUrl: string): MobileDeepLinkTarget | nu
     if (tabParam) {
       return parseIncomingDeepLink(`mgops://local?${params.toString()}`)
     }
+    return { screen: 'home' }
   }
 
   return null

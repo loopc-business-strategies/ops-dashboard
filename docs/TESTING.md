@@ -80,7 +80,7 @@ From the **repository root** (after `npm ci` in `frontend/`):
 npm run test:e2e
 ```
 
-Includes **`e2e/dashboard-navigation.spec.js`** (dashboard deep links, Account Summary URL params) and SPA shell smoke. Live API login test runs only when `E2E_AUTH_NAME` / `E2E_AUTH_PASSWORD` are set.
+Includes **`e2e/dashboard-navigation.spec.js`** (dashboard deep links, Account Summary URL params) and SPA shell smoke. Live API login and enquiry tests run only when `E2E_AUTH_NAME` / `E2E_AUTH_PASSWORD` are set (optional `E2E_ENQUIRY_ACCOUNT`, default `1000`).
 
 Or from `frontend/`:
 

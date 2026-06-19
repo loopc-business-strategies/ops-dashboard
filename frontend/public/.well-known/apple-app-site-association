@@ -1,0 +1,21 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["TEAMID.com.loopc.mg.ops"],
+        "components": [
+          {
+            "/": "/dashboard",
+            "?": {
+              "tab": "?*"
+            }
+          },
+          {
+            "/": "/dashboard/*"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -20,6 +20,10 @@ describe('dashboardDeepLink', () => {
     })
   })
 
+  it('parses bare /dashboard path as home', () => {
+    expect(parseIncomingDeepLink('https://mg.loopcstrategies.com/dashboard')).toEqual({ screen: 'home' })
+  })
+
   it('builds mgops enquiry href', () => {
     expect(buildMgopsDashboardHref({ account: '1000', view: 'statement' }))
       .toBe('mgops://dashboard?tab=erp-enquiry&account=1000&view=statement')

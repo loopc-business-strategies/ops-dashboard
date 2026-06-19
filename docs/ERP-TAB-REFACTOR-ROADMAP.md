@@ -17,6 +17,10 @@
 - **Journal voucher** — `useJournalVoucher.js` wired in ERPTab (LoopC header-currency parity in `validateJvLines`); `useJvModalDragResize.js` for modal chrome.
 - **Transaction composer** — `useTransactionComposer.js` (form state, validation, create/update).
 
+## Finance tab (done)
+
+- **Finance modals** — `frontend/src/components/tabs/finance/FinanceModals.jsx` + `financeTabTokens.js` extracted from `FinanceTab.jsx`.
+
 `ERPTab.jsx` is ~4550 lines after enquiry + dashboard wire-up (down from ~6460 on main).
 
 ## Presentational splits (done)
