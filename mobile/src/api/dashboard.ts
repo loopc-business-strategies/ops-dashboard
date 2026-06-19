@@ -13,6 +13,7 @@ export type MarginRow = {
   status?: string
   goldPosition?: number
   silverPosition?: number
+  marginRevaluation?: number
 }
 
 export type FixingPosition = {

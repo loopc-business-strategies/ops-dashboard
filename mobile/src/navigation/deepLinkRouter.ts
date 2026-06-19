@@ -1,7 +1,7 @@
-import type { Router } from 'expo-router'
+import type { useRouter } from 'expo-router'
 import type { MobileDeepLinkTarget } from './dashboardDeepLink'
 
-export function navigateDeepLink(router: Router, target: MobileDeepLinkTarget) {
+export function navigateDeepLink(router: ReturnType<typeof useRouter>, target: MobileDeepLinkTarget) {
   if (target.screen === 'chat') {
     if (target.chatId) {
       router.push({ pathname: '/chat/[chatId]' as never, params: { chatId: target.chatId } })

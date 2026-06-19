@@ -15,12 +15,29 @@ type Props = {
   id: ErpDashWidgetId
   dashboard: DashboardPayload | null
   chatMessages: ChatMessage[]
+  goldPriceUSD?: number
+  silverPriceUSD?: number
+  liveRecalcEnabled?: boolean
 }
 
-export function renderDashboardWidget({ id, dashboard, chatMessages }: Props) {
+export function renderDashboardWidget({
+  id,
+  dashboard,
+  chatMessages,
+  goldPriceUSD = 0,
+  silverPriceUSD = 0,
+  liveRecalcEnabled = false,
+}: Props) {
   switch (id) {
     case 'margins':
-      return <MarginsWidget dashboard={dashboard} />
+      return (
+        <MarginsWidget
+          dashboard={dashboard}
+          goldPriceUSD={goldPriceUSD}
+          silverPriceUSD={silverPriceUSD}
+          liveRecalcEnabled={liveRecalcEnabled}
+        />
+      )
     case 'fixing':
       return <FixingWidget dashboard={dashboard} />
     case 'bank':

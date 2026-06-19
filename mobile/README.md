@@ -6,7 +6,7 @@ Read-only MG companion app (iOS / Android) for the ops-dashboard platform.
 
 ## Tabs
 
-- **Home** — ERP dashboard cards (margins, fixing, bank, cash flow, expenses, volume, AP/AR, chat preview, alerts). Live Gold / Silver / Platinum spot prices are shown in the **tab header** (same `/metal-rates/live` API as the web MG dashboard, MT4-backed when the bridge feed is fresh).
+- **Home** — ERP dashboard cards (margins, fixing, bank, cash flow, expenses, volume, AP/AR, chat preview, alerts). **Live Gold / Silver / Platinum** spot prices appear at the top of the Home tab (same `/metal-rates/live` API as the web MG dashboard, MT4-backed when the bridge feed is fresh). Customer and supplier margin equity/% recalculate as spot moves.
 - **ERP** — **ERP Reports** (trial balance, P&L, balance sheet, day book, outstanding, forex, ledger drilldown); same `/api/erp-accounting/reports/*` APIs as web. Automated checks: `npm test` in `mobile/` (permissions + path regression tests). Backend smoke: `node backend/scripts/smoke-erp-api.js` with `SMOKE_LOGIN_COMPANY=mg` (cookie session). **Mobile JWT smoke:** `npm run smoke:mobile:api` with env credentials (Bearer + `X-Client: mobile`; includes ERP GETs + chat reads + socket + push-token API).
 - **+** — quick actions placeholder (coming soon modal)
 - **Chat** — team chat (DMs, groups, send messages, @mentions, create group)
@@ -179,10 +179,11 @@ Mobile login sends `X-Client: mobile` and expects `{ token, user }` from `POST /
 
 Deploy the backend auth update before testing against production.
 
-## Live metal tickers (tab header)
+## Live metal prices (Home tab)
 
-- Gold, Silver, and Platinum use the same **`/api/erp-accounting/metal-rates/live`** endpoint as the MG web dashboard (MT4-backed when the bridge feed is fresh).
-- The tab bar header refreshes every **15 seconds** while the app is foregrounded; **pull to refresh** on Home also updates spot prices.
+- Gold, Silver, and Platinum use the same **`/api/erp-accounting/currencies/metal-rates/live`** endpoint as the MG web dashboard (MT4-backed when the bridge feed is fresh), with Socket.IO **`/metal-rates`** updates when connected.
+- The **Home** screen shows a live spot strip above dashboard widgets; prices poll every **15 seconds** while the app is foregrounded (60s when the socket is connected). **Pull to refresh** on Home also updates spot prices.
+- The **Margins** widget recalculates equity and margin % from live gold/silver gram prices (same logic as the web ERP dashboard).
 - **Manual QA:** Log in as MG, open the web dashboard in parallel, and confirm the three headline numbers match (allow a few seconds for poll timing).
 
 ## Build — Android without EAS (recommended default)

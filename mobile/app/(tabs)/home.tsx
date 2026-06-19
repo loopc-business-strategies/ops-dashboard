@@ -9,15 +9,19 @@ import {
 } from 'react-native'
 import { router, useFocusEffect } from 'expo-router'
 import { DashboardWidgetCard } from '@/src/components/dashboard/DashboardWidgetCard'
+import { LiveMetalPricesBar } from '@/src/components/dashboard/LiveMetalPricesBar'
 import { renderDashboardWidget } from '@/src/components/dashboard/renderDashboardWidget'
 import { ERP_DASH_WIDGETS } from '@/src/constants/erpDashboardWidgets'
 import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
+import { useLiveMetalRates } from '@/src/hooks/useLiveMetalRates'
 import { fetchDashboard, type DashboardPayload } from '@/src/api/dashboard'
 import { fetchLatestMessages, type ChatMessage } from '@/src/api/messages'
+import { resolveEffectiveSpotPrices } from '@/src/utils/liveMetalRates'
 
 export default function HomeScreen() {
   const { token } = useAuth()
+  const { snapshot: liveSnapshot, refresh: refreshLiveMetalRates } = useLiveMetalRates()
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,6 +37,7 @@ export default function HomeScreen() {
       const [dash, messagesRaw] = await Promise.all([
         fetchDashboard(token),
         fetchLatestMessages(token, 'group', 10).catch(() => [] as ChatMessage[]),
+        isRefresh ? refreshLiveMetalRates() : Promise.resolve(),
       ])
       setDashboard(dash)
       setChatMessages(messagesRaw)
@@ -42,13 +47,16 @@ export default function HomeScreen() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [token])
+  }, [token, refreshLiveMetalRates])
 
   useFocusEffect(
     useCallback(() => {
       load(false)
     }, [load]),
   )
+
+  const { goldPriceUSD, silverPriceUSD } = resolveEffectiveSpotPrices({ liveSnapshot })
+  const liveRecalcEnabled = goldPriceUSD > 0 || silverPriceUSD > 0
 
   if (loading && !dashboard) {
     return (
@@ -66,6 +74,8 @@ export default function HomeScreen() {
     >
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
+      <LiveMetalPricesBar />
+
       <Text style={styles.section}>My Dashboard</Text>
       {ERP_DASH_WIDGETS.map((widget) => (
         <DashboardWidgetCard
@@ -79,6 +89,9 @@ export default function HomeScreen() {
             id: widget.id,
             dashboard,
             chatMessages,
+            goldPriceUSD,
+            silverPriceUSD,
+            liveRecalcEnabled,
           })}
         </DashboardWidgetCard>
       ))}

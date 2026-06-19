@@ -1,35 +1,34 @@
 import { useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
-import type { DashboardPayload, MarginRow } from '@/src/api/dashboard'
+import type { DashboardPayload } from '@/src/api/dashboard'
 import { mgBranding } from '@/src/config/branding'
-import { fmtMoney, fmtPosition, fmtSigned } from '@/src/utils/format'
+import { fmtPosition, fmtSigned } from '@/src/utils/format'
+import { mapMarginRow } from '@/src/utils/marginWidgetHelpers'
 import { widgetStyles } from '@/src/components/dashboard/widgetStyles'
 
 const MAX_ROWS = 5
 
-function mapMarginRow(row: MarginRow, nameKey: 'customerName' | 'supplierName', favorableCredit = false) {
-  const rawNet = Number(row?.equity ?? row?.netCashFlow ?? 0)
-  const marginAmount = Number(row?.marginAmount || 0)
-  const net = favorableCredit && rawNet < 0 ? Math.abs(rawNet) : rawNet
-  const rawMargin = row?.marginPercent
-  const marginPercent = Number.isFinite(Number(rawMargin))
-    ? Number(rawMargin)
-    : marginAmount > 0
-      ? (Math.abs(net) / marginAmount) * 100
-      : 0
-  return {
-    name: String(row?.[nameKey] || row?.name || '-'),
-    equity: net,
-    marginPercent,
-    goldPosition: Number(row?.goldPosition || 0),
-    silverPosition: Number(row?.silverPosition || 0),
-  }
+type Props = {
+  dashboard: DashboardPayload | null
+  goldPriceUSD?: number
+  silverPriceUSD?: number
+  liveRecalcEnabled?: boolean
 }
 
-export function MarginsWidget({ dashboard }: { dashboard: DashboardPayload | null }) {
+export function MarginsWidget({
+  dashboard,
+  goldPriceUSD = 0,
+  silverPriceUSD = 0,
+  liveRecalcEnabled = false,
+}: Props) {
   const [tab, setTab] = useState<'customers' | 'suppliers'>('customers')
-  const customers = (dashboard?.customerMargins || []).map((r) => mapMarginRow(r, 'customerName', true))
-  const suppliers = (dashboard?.supplierMargins?.rows || []).map((r) => mapMarginRow(r, 'supplierName'))
+  const recalcOptions = { goldPriceUSD, silverPriceUSD, liveRecalcEnabled }
+  const customers = (dashboard?.customerMargins || []).map((r) =>
+    mapMarginRow(r, 'customerName', { ...recalcOptions, favorableCredit: true }),
+  )
+  const suppliers = (dashboard?.supplierMargins?.rows || []).map((r) =>
+    mapMarginRow(r, 'supplierName', recalcOptions),
+  )
   const rows = tab === 'suppliers' ? suppliers : customers
 
   return (

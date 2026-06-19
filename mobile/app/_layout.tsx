@@ -5,6 +5,7 @@ import { Stack, useRouter, useSegments } from 'expo-router'
 import { AuthProvider, useAuth } from '@/src/context/AuthContext'
 import { ChatProvider } from '@/src/context/ChatContext'
 import { NotificationsProvider } from '@/src/context/NotificationsContext'
+import { LiveMetalRatesProvider } from '@/src/context/LiveMetalRatesContext'
 import { mgBranding } from '@/src/config/branding'
 import { initMobileSentry } from '@/src/lib/sentryInit'
 
@@ -61,6 +62,7 @@ export default function RootLayout() {
         <AuthGate>
           <ChatProvider>
             <NotificationsProvider>
+              <LiveMetalRatesProvider>
               <DeepLinkNavigationBridge />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="index" />
@@ -77,6 +79,7 @@ export default function RootLayout() {
                   }}
                 />
               </Stack>
+              </LiveMetalRatesProvider>
             </NotificationsProvider>
           </ChatProvider>
         </AuthGate>
