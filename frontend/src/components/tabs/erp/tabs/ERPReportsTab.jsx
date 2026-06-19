@@ -1,4 +1,5 @@
 import { trialBalanceRowsForView } from '../trialBalanceReportRows'
+import { filterActiveAccounts } from '../accountDropdownHelpers'
 
 export default function ERPReportsTab({
   activeTab,
@@ -38,6 +39,7 @@ export default function ERPReportsTab({
   handleOpenVoucherSource,
   handleJumpToTransaction,
 }) {
+  const activeAccounts = filterActiveAccounts(accounts)
   const TRIAL_BALANCE_UI_ROW_CAP = 500
   const DAY_BOOK_UI_ROW_CAP = 600
 
@@ -457,7 +459,7 @@ export default function ERPReportsTab({
                 <select
                   value={selectedReportAccountId}
                   onChange={(e) => {
-                    const account = accounts.find((acc) => acc._id === e.target.value)
+                    const account = activeAccounts.find((acc) => acc._id === e.target.value)
                     setSelectedReportAccountId(e.target.value)
                     setSelectedReportAccountCode(account?.accountCode || '')
                     loadLedgerReport(e.target.value)
@@ -465,7 +467,7 @@ export default function ERPReportsTab({
                   style={{ ...modalInputStyle, marginBottom: 0 }}
                 >
                   <option value="">Select Account For Ledger Drilldown</option>
-                  {accounts.map((account) => (
+                  {activeAccounts.map((account) => (
                     <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
                   ))}
                 </select>

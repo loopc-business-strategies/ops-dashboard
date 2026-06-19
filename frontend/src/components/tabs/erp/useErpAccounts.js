@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
+import { filterActiveAccounts } from './accountDropdownHelpers'
 
 export function useErpAccounts({
   token,
@@ -36,15 +37,26 @@ export function useErpAccounts({
     try {
       if (isSummaryScope) {
         const data = await erpAccountingAPI.getAccounts(token, { ...params, page: 1, limit: 5000 })
-        const rows = data.accounts || []
+        const rows = filterActiveAccounts(data.accounts || [])
         const uniqueById = new Map()
         rows.forEach((item) => {
           if (item?._id) uniqueById.set(item._id, item)
         })
         setSummaryAccounts(Array.from(uniqueById.values()))
       } else {
-        const data = await erpAccountingAPI.getAccounts(token, params)
-        setAccounts(data.accounts || [])
+        const pageSize = 500
+        let page = 1
+        let total = Number.POSITIVE_INFINITY
+        let collected = []
+        while (collected.length < total) {
+          const data = await erpAccountingAPI.getAccounts(token, { ...params, page, limit: pageSize })
+          const rows = data.accounts || []
+          collected = collected.concat(rows)
+          total = Number(data.total || collected.length)
+          if (!rows.length) break
+          page += 1
+        }
+        setAccounts(filterActiveAccounts(collected))
       }
       setError('')
     } catch (e) {

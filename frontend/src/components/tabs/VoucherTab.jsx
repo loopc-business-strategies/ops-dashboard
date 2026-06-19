@@ -12,6 +12,12 @@ import { useVoucherPrintModel } from './voucher/useVoucherPrintModel'
 import VoucherPrintPanel from './voucher/VoucherPrintPanel'
 import VoucherEditorPanel from './voucher/VoucherEditorPanel'
 import { deriveErpAccessPolicy, canCreateTransactionFor } from './erp/accessPolicy'
+import {
+  excludeLedgerAccountsRepresentedByParties,
+  filterActiveAccounts,
+  filterActiveCustomers,
+  filterActiveVendors,
+} from './erp/accountDropdownHelpers'
 
 const VOUCHER_TAB_TYPES = ['payment', 'receipt', 'purchase', 'sale', 'metal_receipt', 'metal_payment']
 
@@ -58,9 +64,13 @@ export default function VoucherTab({
   const [latestMetalRates, setLatestMetalRates] = useState({ goldPrice: 0, silverPrice: 0, priceCurrency: 'USD', updatedAt: null })
   const customers = localCustomers.length > 0 ? localCustomers : propCustomers
   const vendors = localVendors.length > 0 ? localVendors : propVendors
+  const activeCustomers = filterActiveCustomers(customers)
+  const activeVendors = filterActiveVendors(vendors)
+  const activeAccounts = filterActiveAccounts(accounts)
   const mergedCurrencies = localCurrencies.length > 0 ? localCurrencies : (Array.isArray(currencies) ? currencies : [])
   const currencyOptions = mergedCurrencies
     .filter((item) => String(item?.code || '').trim())
+    .filter((item) => item.isActive !== false)
     .map((item) => ({
       code: String(item.code || '').trim().toUpperCase(),
       name: String(item.name || '').trim(),
@@ -198,16 +208,14 @@ export default function VoucherTab({
     const lookupValue = normalizeLookupValue(partyCode)
     if (!lookupValue) return null
 
-    const vendorMatch = vendors.find((item) => {
-      if (item.ledgerAccountId && item.ledgerAccountId.isActive === false) return false
+    const vendorMatch = activeVendors.find((item) => {
       const ledgerCode = normalizeLookupValue(item.ledgerAccountId?.accountCode)
       return lookupValue === normalizeLookupValue(item._id)
         || lookupValue === normalizeLookupValue(item.vendorCode)
         || lookupValue === ledgerCode
     })
 
-    const customerMatch = customers.find((item) => {
-      if (item.ledgerAccountId && item.ledgerAccountId.isActive === false) return false
+    const customerMatch = activeCustomers.find((item) => {
       const ledgerCode = normalizeLookupValue(item.ledgerAccountId?.accountCode)
       return lookupValue === normalizeLookupValue(item._id) || lookupValue === ledgerCode
     })
@@ -248,10 +256,10 @@ export default function VoucherTab({
       if (customerMatch) return toCustomer(customerMatch)
     }
     return null
-  }, [customers, vendors, voucherType])
+  }, [activeCustomers, activeVendors, voucherType])
 
   const PARTY_TYPE_ORDER = ['Asset', 'Liability', 'Equity', 'Income', 'Expense']
-  const partyOptions = (Array.isArray(accounts) ? accounts : [])
+  const partyOptions = activeAccounts
     .map((account) => {
       const code = getAccountCodeValue(account)
       const name = String(account?.accountName || account?.name || '').trim()
@@ -289,8 +297,7 @@ export default function VoucherTab({
   const isMetalVoucherHeader = isMetalStockVoucherType(voucherType)
   const metalPartyComboGroups = (() => {
     if (!isMetalVoucherHeader) return partyComboGroups
-    const customerOpts = customers
-      .filter((c) => !(c.ledgerAccountId && c.ledgerAccountId.isActive === false))
+    const customerOpts = activeCustomers
       .map((c) => {
         const code = String(c.ledgerAccountId?.accountCode || '').trim() || String(c._id)
         const name = String(c.name || '').trim() || 'Customer'
@@ -298,8 +305,7 @@ export default function VoucherTab({
       })
       .filter((o) => o.value && o.label)
 
-    const vendorOpts = vendors
-      .filter((v) => !(v.ledgerAccountId && v.ledgerAccountId.isActive === false))
+    const vendorOpts = activeVendors
       .map((v) => {
         const code = String(v.vendorCode || v.ledgerAccountId?.accountCode || '').trim() || String(v._id)
         const name = String(v.name || '').trim() || 'Vendor'
@@ -307,10 +313,32 @@ export default function VoucherTab({
       })
       .filter((o) => o.value && o.label)
 
+    const chartAccountsForMetal = excludeLedgerAccountsRepresentedByParties(activeAccounts, activeCustomers, activeVendors)
+      .map((account) => {
+        const code = getAccountCodeValue(account)
+        const name = String(account?.accountName || account?.name || '').trim()
+        return {
+          id: `account:${String(account?._id || code)}`,
+          accountType: String(account?.accountType || 'Other').trim() || 'Other',
+          label: `${code}${name ? ` - ${name}` : ''}`,
+        }
+      })
+      .filter((item) => item.label)
+    const chartGroups = chartAccountsForMetal.reduce((groups, item) => {
+      const existing = groups.find((g) => g.type === item.accountType)
+      if (existing) existing.items.push(item)
+      else groups.push({ type: item.accountType, items: [item] })
+      return groups
+    }, [])
+    const chartComboGroups = chartGroups.map((g) => ({
+      label: g.type,
+      options: g.items.map((item) => ({ value: item.id, label: item.label })),
+    }))
+
     const out = []
     if (customerOpts.length) out.push({ label: 'Customers', options: customerOpts })
     if (vendorOpts.length) out.push({ label: 'Vendors', options: vendorOpts })
-    out.push(...partyComboGroups)
+    out.push(...chartComboGroups)
     return out
   })()
 
@@ -325,7 +353,7 @@ export default function VoucherTab({
 
   const LINE_ACCOUNT_TYPE_ORDER = ACCOUNT_TYPES
   const lineAccountComboGroups = (() => {
-    const accountList = (Array.isArray(accounts) ? accounts : [])
+    const accountList = activeAccounts
       .map((a) => ({
         code: getAccountCodeValue(a),
         name: String(a?.accountName || a?.name || '').trim(),
@@ -1585,7 +1613,7 @@ export default function VoucherTab({
   const openAddLine = () => {
     setEditingLineIdx(null)
     const defaultType = 'Cash'
-    const defaultAccountCode = pickDefaultAccountCodeByType(accounts, defaultType)
+    const defaultAccountCode = pickDefaultAccountCodeByType(activeAccounts, defaultType)
     const baseLine = {
       ...emptyLine(),
       currCode: header.currCode || 'USD',
@@ -1683,7 +1711,7 @@ export default function VoucherTab({
     setLF('type', normalized)
     setLF('typeCode', normalized.toUpperCase())
 
-    const suggestedAccountCode = pickDefaultAccountCodeByType(accounts, normalized)
+    const suggestedAccountCode = pickDefaultAccountCodeByType(activeAccounts, normalized)
     if (suggestedAccountCode) {
       setLF('acCode', suggestedAccountCode)
     }
@@ -1863,7 +1891,7 @@ export default function VoucherTab({
     }
     if (String(partyId).startsWith('customer:')) {
       const id = String(partyId).slice('customer:'.length)
-      const c = customers.find((item) => String(item._id) === id)
+      const c = activeCustomers.find((item) => String(item._id) === id)
       if (!c) {
         setHdr('partyCode', '')
         setHdr('partyName', '')
@@ -1877,7 +1905,7 @@ export default function VoucherTab({
     }
     if (String(partyId).startsWith('vendor:')) {
       const id = String(partyId).slice('vendor:'.length)
-      const v = vendors.find((item) => String(item._id) === id)
+      const v = activeVendors.find((item) => String(item._id) === id)
       if (!v) {
         setHdr('partyCode', '')
         setHdr('partyName', '')

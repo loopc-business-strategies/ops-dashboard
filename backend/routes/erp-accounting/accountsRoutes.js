@@ -59,7 +59,7 @@ router.get('/accounts', protect, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Forbidden' })
     }
     const summaryMaxLimit = 500
-    const { page, limit, skip } = parsePagination(req.query, 50, isSummaryScope ? summaryMaxLimit : 200)
+    const { page, limit, skip } = parsePagination(req.query, 50, isSummaryScope ? summaryMaxLimit : 5000)
     const query = { isActive: true }
     let summaryCacheKey = null
     if (isSummaryScope) {

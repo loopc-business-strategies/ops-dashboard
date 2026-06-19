@@ -1,3 +1,5 @@
+import { filterActiveAccounts } from '../accountDropdownHelpers'
+
 export default function TransactionComposerForm({
   C,
   modalInputStyle,
@@ -16,6 +18,7 @@ export default function TransactionComposerForm({
   accounts,
   saving,
 }) {
+  const activeAccounts = filterActiveAccounts(accounts)
   return (
     <form onSubmit={handleCreateTransaction} style={{ background: C.p1, border: `1px solid ${C.p2}`, borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
@@ -59,11 +62,11 @@ export default function TransactionComposerForm({
         </select>
         <select value={transactionForm.debitAccountId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, debitAccountId: e.target.value }))} style={modalInputStyle}>
           <option value="">Debit Account Override</option>
-          {accounts.map((account) => <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>)}
+          {activeAccounts.map((account) => <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>)}
         </select>
         <select value={transactionForm.creditAccountId} onChange={(e) => setTransactionForm((prev) => ({ ...prev, creditAccountId: e.target.value }))} style={modalInputStyle}>
           <option value="">Credit Account Override</option>
-          {accounts.map((account) => <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>)}
+          {activeAccounts.map((account) => <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>)}
         </select>
         <input placeholder="Description" value={transactionForm.description} onChange={(e) => setTransactionForm((prev) => ({ ...prev, description: e.target.value }))} style={modalInputStyle} />
       </div>

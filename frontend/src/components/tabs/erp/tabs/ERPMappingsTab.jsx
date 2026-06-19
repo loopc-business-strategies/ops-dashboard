@@ -1,4 +1,5 @@
 import erpAccountingAPI from '../../../../api/erp-accounting'
+import { filterActiveAccounts } from '../accountDropdownHelpers'
 
 export default function ERPMappingsTab({
   C,
@@ -30,6 +31,7 @@ export default function ERPMappingsTab({
   handleEditMapping,
   handleDeleteMapping,
 }) {
+  const activeAccounts = filterActiveAccounts(accounts)
   return (
     <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem', flexWrap: 'wrap' }}>
@@ -96,7 +98,7 @@ export default function ERPMappingsTab({
                     style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
                   >
                     <option value="">Select Debit Account</option>
-                    {accounts.map((account) => (
+                    {activeAccounts.map((account) => (
                       <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
                     ))}
                   </select>
@@ -106,7 +108,7 @@ export default function ERPMappingsTab({
                     style={{ display: 'block', width: '100%', padding: '0.5rem', marginBottom: '0.5rem', background: C.p2, border: 'none', color: C.t1, borderRadius: '0.375rem' }}
                   >
                     <option value="">Select Credit Account</option>
-                    {accounts.map((account) => (
+                    {activeAccounts.map((account) => (
                       <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
                     ))}
                   </select>

@@ -4,6 +4,7 @@ import {
   inferLegacyJvBatchDisplayFc,
   normalizeJvCurrencyCode,
 } from '../journalVoucherHelpers'
+import { filterActiveAccounts } from '../accountDropdownHelpers'
 
 export default function ERPLedgerTab({
   activeTab,
@@ -62,6 +63,7 @@ export default function ERPLedgerTab({
   handleRepairJvFxPreview,
   handleRepairJvFxApply,
 }) {
+  const activeAccounts = filterActiveAccounts(accounts)
   const visibleJvLedgerEntries = activeTab === 'ledger'
     ? ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab)
     : []
@@ -232,7 +234,7 @@ export default function ERPLedgerTab({
               style={modalInputStyle}
             >
               <option value="">All Accounts</option>
-              {accounts.map((account) => (
+              {activeAccounts.map((account) => (
                 <option key={account._id} value={account._id}>{account.accountCode} - {account.accountName}</option>
               ))}
             </select>

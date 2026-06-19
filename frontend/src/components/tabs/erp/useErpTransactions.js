@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import erpAccountingAPI from '../../../api/erp-accounting'
 import { fetchAllVendorsAggregated } from './useErpVendors'
+import { filterActiveAccounts } from './accountDropdownHelpers'
 
 export function useErpTransactions({
   token,
@@ -73,10 +74,10 @@ export function useErpTransactions({
       const [data, customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
         erpAccountingAPI.getTransactions(token, params),
         canLoadParties ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
-        canLoadParties ? fetchAllVendorsAggregated(token, { includeInactive: true }) : Promise.resolve(null),
+        canLoadParties ? fetchAllVendorsAggregated(token, { includeInactive: false }) : Promise.resolve(null),
         canLoadInventoryData ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
         canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
-        canLoadReferenceData ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
+        canLoadReferenceData ? erpAccountingAPI.getAccounts(token, { page: 1, limit: 5000 }) : Promise.resolve(null),
         canLoadReferenceData ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
       ])
       setTransactions(data.transactions || [])
@@ -95,7 +96,7 @@ export function useErpTransactions({
       if (vendorData) setVendors(vendorData.vendors || [])
       if (inventoryData) setInventoryProducts(inventoryData.products || [])
       if (mappingData) setMappings(mappingData.mappings || [])
-      if (accountData) setAccounts(accountData.accounts || [])
+      if (accountData) setAccounts(filterActiveAccounts(accountData.accounts || []))
       if (currencyData) setCurrencies(currencyData.currencies || [])
       setError('')
     } catch (e) {

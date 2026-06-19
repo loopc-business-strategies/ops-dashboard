@@ -4,6 +4,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { getTenantBranding } from '../../config/tenantBranding'
 import erpAccountingAPI from '../../api/erp-accounting'
 import { readSummaryAccountsCache, writeSummaryAccountsCache } from '../../utils/erpSummaryAccountsCache'
+import { buildEntryAccountOptions, filterActiveAccounts } from './erp/accountDropdownHelpers'
 import { readAccountEnquiryCache, writeAccountEnquiryCache } from '../../utils/erpAccountEnquiryCache'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import {
@@ -178,7 +179,7 @@ function ERPTab({
   const [accounts, setAccounts] = useState([])
   const [summaryAccounts, setSummaryAccounts] = useState([])
   const safeSummaryAccounts = useMemo(
-    () => (Array.isArray(summaryAccounts) ? summaryAccounts : [])
+    () => filterActiveAccounts(Array.isArray(summaryAccounts) ? summaryAccounts : [])
       .filter((item) => item?._id && String(item?.accountCode || '').trim())
       .map((item) => ({ ...item, accountCode: String(item.accountCode).trim() })),
     [summaryAccounts],
@@ -887,7 +888,7 @@ function ERPTab({
     if (isSummaryScope) {
       const cached = readSummaryAccountsCache(tenantKey)
       if (Array.isArray(cached) && cached.length) {
-        const normalized = cached
+        const normalized = filterActiveAccounts(cached)
           .filter((item) => item?._id && String(item?.accountCode || '').trim())
           .map((item) => ({ ...item, accountCode: String(item.accountCode).trim() }))
         setSummaryAccounts(normalized)
@@ -900,8 +901,8 @@ function ERPTab({
     }
     try {
       if (isSummaryScope) {
-        const data = await erpAccountingAPI.getAccounts(token, { ...params, page: 1, limit: 500 })
-        const rows = data.accounts || []
+        const data = await erpAccountingAPI.getAccounts(token, { ...params, page: 1, limit: 5000 })
+        const rows = filterActiveAccounts(data.accounts || [])
         const uniqueById = new Map()
         rows.forEach((item) => {
           const code = String(item?.accountCode || '').trim()
@@ -911,8 +912,19 @@ function ERPTab({
         setSummaryAccounts(next)
         writeSummaryAccountsCache(tenantKey, next)
       } else {
-        const data = await erpAccountingAPI.getAccounts(token, params)
-        setAccounts(data.accounts || [])
+        const pageSize = 500
+        let page = 1
+        let total = Number.POSITIVE_INFINITY
+        let collected = []
+        while (collected.length < total) {
+          const data = await erpAccountingAPI.getAccounts(token, { ...params, page, limit: pageSize })
+          const rows = data.accounts || []
+          collected = collected.concat(rows)
+          total = Number(data.total || collected.length)
+          if (!rows.length) break
+          page += 1
+        }
+        setAccounts(filterActiveAccounts(collected))
       }
       setError('')
     } catch (e) {
@@ -958,20 +970,11 @@ function ERPTab({
       else groups.push({ type, accounts: [account] })
       return groups
     }, []), [safeSummaryAccounts])
-  const entryAccountOptions = useMemo(() => {
-    const baseEntryAccountOptions = safeSummaryAccounts.length ? safeSummaryAccounts : accounts
-    const customerVendorLedgerOptions = [...(Array.isArray(customers) ? customers : []), ...(Array.isArray(vendors) ? vendors : [])]
-      .map((party) => party?.ledgerAccountId)
-      .filter((ledger) => ledger && (ledger._id || ledger.accountCode))
-    const seenEntryAccountKeys = new Set()
-    return [...baseEntryAccountOptions, ...customerVendorLedgerOptions].filter((account) => {
-      const key = String(account?._id || account?.accountCode || '').trim()
-      if (!key) return false
-      if (seenEntryAccountKeys.has(key)) return false
-      seenEntryAccountKeys.add(key)
-      return true
-    })
-  }, [safeSummaryAccounts, accounts, customers, vendors])
+  const entryAccountOptions = useMemo(() => buildEntryAccountOptions({
+    accounts: safeSummaryAccounts.length ? safeSummaryAccounts : accounts,
+    customers,
+    vendors,
+  }), [safeSummaryAccounts, accounts, customers, vendors])
   const jvComboGroups = useMemo(() => ACCOUNT_TYPE_ORDER
     .map((type) => ({
       label: type,
@@ -1066,7 +1069,7 @@ function ERPTab({
         hasMore: Boolean(ledgerData.hasMore),
         cursorHistory,
       })
-      if (accountData) setAccounts(accountData.accounts || [])
+      if (accountData) setAccounts(filterActiveAccounts(accountData.accounts || []))
       if (currencyData) setCurrencies(currencyData.currencies || [])
       if (mappingData) setMappings(mappingData.mappings || [])
       setError('')
@@ -1137,17 +1140,17 @@ function ERPTab({
     try {
       const [customerData, vendorData, inventoryData, mappingData, accountData, currencyData] = await Promise.all([
         canLoadParties ? erpAccountingAPI.getCustomers(token) : Promise.resolve(null),
-        canLoadParties ? loadAllVendors({ includeInactive: true }) : Promise.resolve(null),
+        canLoadParties ? loadAllVendors({ includeInactive: false }) : Promise.resolve(null),
         canLoadInventoryData ? erpAccountingAPI.getInventoryProducts(token) : Promise.resolve(null),
         canViewMappings ? erpAccountingAPI.getMappings(token) : Promise.resolve(null),
-        canLoadReferenceData ? erpAccountingAPI.getAccounts(token) : Promise.resolve(null),
+        canLoadReferenceData ? erpAccountingAPI.getAccounts(token, { page: 1, limit: 5000 }) : Promise.resolve(null),
         canLoadReferenceData ? erpAccountingAPI.getCurrencies(token) : Promise.resolve(null),
       ])
       if (customerData) setCustomers(customerData.customers || [])
       if (vendorData) setVendors(vendorData.vendors || [])
       if (inventoryData) setInventoryProducts(inventoryData.products || [])
       if (mappingData) setMappings(mappingData.mappings || [])
-      if (accountData) setAccounts(accountData.accounts || [])
+      if (accountData) setAccounts(filterActiveAccounts(accountData.accounts || []))
       if (currencyData) setCurrencies(currencyData.currencies || [])
     } catch {
       transactionReferenceLoadedRef.current = false
@@ -2385,12 +2388,12 @@ function ERPTab({
   }, [token, user?.tenant, user?.company, canAccessERP])
   useEffect(() => {
     if (activeTab !== 'vouchers' || !token) return
-    if (!customers.length) loadCustomers({ limit: 200 })
-    if (!vendors.length) loadVendors()
+    loadCustomers({ limit: 500 })
+    loadVendors()
     if (!currencies.length) loadCurrencies()
-    if (!accounts.length) loadAccounts()
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- tab bootstrap: loaders intentionally omitted from deps
-  }, [activeTab, token, customers.length, vendors.length, currencies.length, accounts.length])
+    loadAccounts()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- tab bootstrap: refresh reference data when entering vouchers
+  }, [activeTab, token])
   useEffect(() => {
     if (activeTab !== 'direct-deals' || !token) return
     if (!customers.length) loadCustomers({ limit: 200 })
