@@ -9,13 +9,13 @@ Web push and in-app Socket notifications are unaffected.
 | Item | Where |
 |------|--------|
 | `EXPO_ACCESS_TOKEN` | Railway → `ops-dashboard` service (verify: `GET /api/ready` → `expoPushAccessTokenSet: true`) |
-| EAS project ID | `mobile/app.config.ts` → `extra.eas.projectId` (`3fe355ea-49d0-480f-a0c1-33432daa0e63`) |
+| EAS project ID | `mobile/app.config.ts` → `extra.eas.projectId` (`f049f1a3-d499-416b-97af-e082bca658fa`) |
 | Android package | `com.loopc.mg.ops` |
 
 ## Step 1 — Firebase project
 
 1. Open [Firebase Console](https://console.firebase.google.com/).
-2. Create or select a project (e.g. `mg-ops`).
+2. Create or select a project (e.g. **Nexa MG**; Firebase project ID may remain `mg-ops-push`).
 3. **Add app** → **Android**.
 4. **Android package name:** `com.loopc.mg.ops` (must match `app.config.ts`).
 5. Download **`google-services.json`**.
@@ -32,7 +32,7 @@ Web push and in-app Socket notifications are unaffected.
 
 Expo’s push service delivers to Android via FCM credentials stored on your Expo account.
 
-1. Sign in at [expo.dev](https://expo.dev) → project **mg-ops-mobile** (project ID above).
+1. Sign in at [expo.dev](https://expo.dev) → project **nexa-mg** (Nexa MG; project ID above).
 2. Open **Project settings** → **Credentials** → **Android** → **Push Notifications**.
 3. Upload **FCM V1 service account key** (Firebase → Project settings → Service accounts → Generate new private key JSON), **or** follow Expo’s wizard for **FCM legacy** if prompted.
 4. The Expo account must match the one used for `EXPO_ACCESS_TOKEN` on Railway.

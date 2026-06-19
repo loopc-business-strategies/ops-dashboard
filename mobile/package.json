@@ -1,5 +1,5 @@
 {
-  "name": "mg-ops-mobile",
+  "name": "nexa-mg",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "packageManager": "npm@10.8.2",

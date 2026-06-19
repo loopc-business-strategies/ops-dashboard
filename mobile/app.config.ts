@@ -7,7 +7,7 @@ const APP_VERSION = '1.0.0'
 
 const config: ExpoConfig = {
   name: APP_NAME,
-  slug: 'mg-ops-mobile',
+  slug: 'nexa-mg',
   version: APP_VERSION,
   orientation: 'portrait',
   icon: './assets/images/icon.png',
@@ -75,13 +75,13 @@ const config: ExpoConfig = {
   /** Required for bare / prebuild (`android/` in repo). Bump when shipping incompatible native or OTA changes. */
   runtimeVersion: APP_VERSION,
   updates: {
-    url: 'https://u.expo.dev/3fe355ea-49d0-480f-a0c1-33432daa0e63',
+    url: 'https://u.expo.dev/f049f1a3-d499-416b-97af-e082bca658fa',
   },
   extra: {
     tenant: 'mg',
     apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://api.loopcstrategies.com',
     eas: {
-      projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID || '3fe355ea-49d0-480f-a0c1-33432daa0e63',
+      projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID || 'f049f1a3-d499-416b-97af-e082bca658fa',
     },
   },
 }

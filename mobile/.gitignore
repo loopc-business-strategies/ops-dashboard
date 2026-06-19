@@ -40,3 +40,5 @@ yarn-error.*
 
 # Firebase Android config (see docs/MOBILE-ANDROID-PUSH-FCM.md)
 android/app/google-services.json
+fcm.json
+*-firebase-adminsdk-*.json

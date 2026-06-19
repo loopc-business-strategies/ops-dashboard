@@ -55,7 +55,7 @@ npm run mobile:build:android:preview
 npm run mobile:build:ios:preview
 ```
 
-Download the build from the URL EAS prints, or from https://expo.dev/accounts/YOUR_ACCOUNT/projects/mg-ops-mobile/builds
+Download the build from the URL EAS prints, or from https://expo.dev/accounts/YOUR_ACCOUNT/projects/nexa-mg/builds
 
 ### Step 2 — Store production builds
 
