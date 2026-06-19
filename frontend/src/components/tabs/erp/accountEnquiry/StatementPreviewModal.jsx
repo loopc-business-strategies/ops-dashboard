@@ -1,23 +1,102 @@
-export default function StatementPreviewModal({
+import { memo, useEffect, useRef, useState } from 'react'
+
+function StatementPreviewModal({
   open,
   onClose,
   title,
   html,
   loading,
-  backdropColor,
-  modalOffset,
-  modalDrag,
-  beginModalDrag,
 }) {
+  const panelRef = useRef(null)
+  const offsetRef = useRef({ x: 0, y: 0 })
+  const dragSessionRef = useRef(null)
+  const moveHandlerRef = useRef(null)
+  const upHandlerRef = useRef(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  const applyPanelTransform = () => {
+    const panel = panelRef.current
+    if (!panel) return
+    const { x, y } = offsetRef.current
+    panel.style.transform = `translate3d(${x}px, ${y}px, 0)`
+  }
+
+  const cleanupDragListeners = () => {
+    if (moveHandlerRef.current) {
+      window.removeEventListener('mousemove', moveHandlerRef.current)
+      moveHandlerRef.current = null
+    }
+    if (upHandlerRef.current) {
+      window.removeEventListener('mouseup', upHandlerRef.current)
+      upHandlerRef.current = null
+    }
+    dragSessionRef.current = null
+    document.body.style.removeProperty('user-select')
+  }
+
+  const stopDrag = () => {
+    cleanupDragListeners()
+    setIsDragging(false)
+  }
+
+  const beginModalDrag = (event) => {
+    if (event.button !== 0) return
+    if (event.target.closest('button')) return
+    event.preventDefault()
+    cleanupDragListeners()
+    dragSessionRef.current = {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      startOffsetX: offsetRef.current.x,
+      startOffsetY: offsetRef.current.y,
+    }
+    const onDragMove = (moveEvent) => {
+      const session = dragSessionRef.current
+      if (!session) return
+      offsetRef.current = {
+        x: session.startOffsetX + (moveEvent.clientX - session.pointerX),
+        y: session.startOffsetY + (moveEvent.clientY - session.pointerY),
+      }
+      applyPanelTransform()
+    }
+    const onDragEnd = () => {
+      stopDrag()
+    }
+    moveHandlerRef.current = onDragMove
+    upHandlerRef.current = onDragEnd
+    setIsDragging(true)
+    document.body.style.userSelect = 'none'
+    window.addEventListener('mousemove', onDragMove)
+    window.addEventListener('mouseup', onDragEnd)
+  }
+
+  useEffect(() => {
+    if (open) return undefined
+    offsetRef.current = { x: 0, y: 0 }
+    if (panelRef.current) {
+      panelRef.current.style.transform = ''
+      panelRef.current.style.willChange = ''
+    }
+    cleanupDragListeners()
+    setIsDragging(false)
+    return undefined
+  }, [open])
+
+  useEffect(() => () => {
+    cleanupDragListeners()
+  }, [])
+
   if (!open) return null
+
+  const backdropColor = isDragging ? 'rgba(15, 23, 42, 0.12)' : 'rgba(15, 23, 42, 0.45)'
+
   return (
     <div
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      onClick={(e) => { if (e.target === e.currentTarget && !isDragging) onClose() }}
       style={{
         position: 'fixed',
         inset: 0,
         background: backdropColor,
-        transition: 'background 120ms ease',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -26,6 +105,7 @@ export default function StatementPreviewModal({
       }}
     >
       <div
+        ref={panelRef}
         style={{
           background: '#fff',
           borderRadius: '8px',
@@ -35,7 +115,7 @@ export default function StatementPreviewModal({
           flexDirection: 'column',
           overflow: 'hidden',
           boxShadow: '0 20px 42px rgba(0,0,0,0.35)',
-          transform: `translate(${modalOffset.x}px, ${modalOffset.y}px)`,
+          willChange: isDragging ? 'transform' : undefined,
         }}
       >
         <div
@@ -48,14 +128,16 @@ export default function StatementPreviewModal({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '1rem',
-            cursor: modalDrag.active ? 'grabbing' : 'grab',
+            cursor: isDragging ? 'grabbing' : 'grab',
             userSelect: 'none',
             flexShrink: 0,
+            touchAction: 'none',
           }}
         >
           <span style={{ fontWeight: '700', fontSize: '1.05rem' }}>{title}</span>
           <button
             type="button"
+            onMouseDown={(event) => event.stopPropagation()}
             onClick={() => onClose()}
             style={{
               background: 'transparent',
@@ -87,7 +169,14 @@ export default function StatementPreviewModal({
             <iframe
               title="Statement preview"
               srcDoc={html}
-              style={{ width: '100%', height: '100%', border: 'none', display: 'block', background: '#FFFFFF' }}
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                display: 'block',
+                background: '#FFFFFF',
+                pointerEvents: isDragging ? 'none' : 'auto',
+              }}
             />
           )}
         </div>
@@ -121,3 +210,5 @@ export default function StatementPreviewModal({
     </div>
   )
 }
+
+export default memo(StatementPreviewModal)

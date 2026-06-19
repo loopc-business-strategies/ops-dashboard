@@ -31,7 +31,6 @@ import AccountEnquiryModal from './erp/accountEnquiry/AccountEnquiryModal'
 import StatementPreviewModal from './erp/accountEnquiry/StatementPreviewModal'
 import { useAccountEnquiryStatement } from './erp/accountEnquiry/useAccountEnquiryStatement'
 import { useAccountEnquiryModalDrag } from './erp/accountEnquiry/useAccountEnquiryModalDrag'
-import { useStatementPreviewModalDrag } from './erp/accountEnquiry/useStatementPreviewModalDrag'
 import {
   fixingRegFmtQty,
   fixingRegFmtRate,
@@ -798,13 +797,6 @@ function ERPTab({
     beginEnquiryModalDrag,
     enquiryBackdropColor,
   } = useAccountEnquiryModalDrag(showEnquiryModal)
-
-  const {
-    statementPreviewOffset,
-    statementPreviewDrag,
-    beginStatementPreviewDrag,
-    statementPreviewBackdropColor,
-  } = useStatementPreviewModalDrag(showStatementPreview)
 
   const transactionPageCount = Math.max(1, Math.ceil(Number(transactionMeta.total || 0) / Number(transactionMeta.limit || 25)))
   const allVisibleTransactionsSelected = Boolean(transactions.length) && transactions.every((tx) => selectedTransactionIds.includes(tx._id))
@@ -4503,10 +4495,6 @@ function ERPTab({
         title={statementPreviewTitle}
         html={statementPreviewHtml}
         loading={statementPreviewLoading}
-        backdropColor={statementPreviewBackdropColor}
-        modalOffset={statementPreviewOffset}
-        modalDrag={statementPreviewDrag}
-        beginModalDrag={beginStatementPreviewDrag}
       />
       <StatementExportOptionsModal
         open={exportOptionsOpen}
