@@ -272,7 +272,7 @@ export default function SettingsScreen() {
 
       <View style={styles.card}>
         <Text style={styles.label}>App</Text>
-        <Text style={styles.meta}>MG Ops Mobile v{Constants.expoConfig?.version || '1.0.0'}</Text>
+        <Text style={styles.meta}>{mgBranding.appName} v{Constants.expoConfig?.version || '1.0.0'}</Text>
         <Text style={styles.meta}>View-only companion app</Text>
       </View>
 

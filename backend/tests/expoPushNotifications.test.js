@@ -3,6 +3,7 @@ const {
   buildExpoMessage,
   isLikelyExpoPushToken,
 } = require('../services/expoPushNotifications')
+const { MOBILE_APP_NAME } = require('../config/mobileApp')
 
 describe('expoPushNotifications', () => {
   test('isLikelyExpoPushToken accepts Exponent and Expo token formats', () => {
@@ -33,7 +34,8 @@ describe('expoPushNotifications', () => {
   test('buildCopy handles voucher and report types', () => {
     expect(buildCopy('voucher_posted', { message: 'Pay/2026/0001 posted' }).body).toContain('Pay/2026/0001')
     expect(buildCopy('jv_posted', { message: '' }).title).toBe('Journal posted')
-    expect(buildCopy('report_digest', { title: 'MG Ops report', message: 'line1' }).title).toBe('MG Ops report')
+    expect(buildCopy('report_digest', { title: `${MOBILE_APP_NAME} report`, message: 'line1' }).title).toBe(`${MOBILE_APP_NAME} report`)
+    expect(buildCopy('report_digest', { message: 'line1' }).title).toBe(`${MOBILE_APP_NAME} report`)
     expect(buildCopy('gold_price_alert', { message: '' }).title).toBe('Gold price alert')
   })
 })

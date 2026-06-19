@@ -1,4 +1,4 @@
-# Android push (FCM) for MG Ops mobile
+# Android push (FCM) for Nexa MG mobile
 
 Local **release APK/AAB** builds need **Firebase Cloud Messaging (FCM)** wired into the native Android project. Without it, the app may still obtain an Expo push token, but **OS notifications will not arrive** when the app is in the background.
 
@@ -64,7 +64,7 @@ Install the new APK on the device (uninstall old build if package signature chan
 
 ## Step 4 — Test on device
 
-1. Open **MG Ops** → log in → **Allow notifications**.
+1. Open **Nexa MG** → log in → **Allow notifications**.
 2. **Settings** tab → **Register for push** (should say “Push registered with server.”).
 3. Background the app (home button).
 4. Trigger an event (chat message, voucher approval, etc.).

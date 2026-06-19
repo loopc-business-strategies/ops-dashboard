@@ -5,6 +5,7 @@ const { forEachConfiguredTenantTaskDb } = require('./tenantTaskSweep')
 const { notifyUsers, notifyErpUsers } = require('../services/notificationDispatch')
 const { buildReportDigestText } = require('../services/reportDigestService')
 const { mergeNotificationPreferences } = require('../services/notificationPreferences')
+const { MOBILE_APP_NAME } = require('../config/mobileApp')
 
 const HOURLY_MS = 60 * 60 * 1000
 const _DAILY_MS = 24 * 60 * 60 * 1000
@@ -137,7 +138,7 @@ async function sweepScheduledReportDigests(tenantKey) {
     const text = await buildReportDigestText(tenantKey, prefs)
     await notifyUsers(tenantKey, [String(user._id)], 'report_digest', {
       message: text,
-      title: 'MG Ops daily report',
+      title: `${MOBILE_APP_NAME} daily report`,
     })
   }
 }

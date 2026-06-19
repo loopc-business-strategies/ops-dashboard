@@ -1,5 +1,6 @@
 export const mgBranding = {
   key: 'mg',
+  appName: 'Nexa MG',
   displayName: 'MG',
   companyName: 'MODERN GOLD JEWELRY MANUFACTURING',
   tagline: 'Metal Group Operations',

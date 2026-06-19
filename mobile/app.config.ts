@@ -1,10 +1,11 @@
 import type { ExpoConfig } from 'expo/config'
+import { mgBranding } from './src/config/branding'
 
 /** Keep in sync with `version`. Bare workflow requires a string `runtimeVersion`, not `{ policy: ... }`. */
 const APP_VERSION = '1.0.0'
 
 const config: ExpoConfig = {
-  name: 'MG Ops',
+  name: mgBranding.appName,
   slug: 'mg-ops-mobile',
   version: APP_VERSION,
   orientation: 'portrait',

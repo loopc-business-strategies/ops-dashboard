@@ -4,6 +4,7 @@ const { resolveRequestTenantKey } = require('../config/tenants')
 const { mergeNotificationPreferences } = require('../services/notificationPreferences')
 const { buildReportDigestText } = require('../services/reportDigestService')
 const { notifyUsers } = require('../services/notificationDispatch')
+const { MOBILE_APP_NAME } = require('../config/mobileApp')
 
 const router = express.Router()
 
@@ -26,7 +27,7 @@ router.post('/report-digest/send', protect, async (req, res) => {
     const text = await buildReportDigestText(tenant, prefs)
     const result = await notifyUsers(tenant, [String(req.user._id)], 'report_digest', {
       message: text,
-      title: 'MG Ops report',
+      title: `${MOBILE_APP_NAME} report`,
     })
     res.json({ success: true, text, ...result })
   } catch (e) {

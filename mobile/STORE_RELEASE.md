@@ -1,4 +1,4 @@
-# MG Ops Mobile — App Store & Play Store
+# Nexa MG Mobile — App Store & Play Store
 
 Default **no-EAS** workflow (local Metro, local Gradle, no `eas update` billing): **[../docs/MOBILE-NO-EAS.md](../docs/MOBILE-NO-EAS.md)**.
 
@@ -76,7 +76,7 @@ EAS manages signing credentials on first run (follow prompts, or use `eas creden
 ### Step 3 — Submit to stores
 
 1. Create app listings:
-   - **Google Play:** app name `MG Ops`, package `com.loopc.mg.ops`
+   - **Google Play:** app name `Nexa MG`, package `com.loopc.mg.ops`
    - **App Store Connect:** bundle ID `com.loopc.mg.ops`
 
 2. Update `mobile/eas.json` → `submit.production.ios` with your Apple ID, ASC app ID, and team ID.
@@ -116,7 +116,7 @@ EXPO_TOKEN=your_token npm run build:production:android
 
 | | Value |
 |--|--------|
-| Name | MG Ops |
+| Name | Nexa MG |
 | Android package | `com.loopc.mg.ops` |
 | iOS bundle ID | `com.loopc.mg.ops` |
 | API | `https://api.loopcstrategies.com` |

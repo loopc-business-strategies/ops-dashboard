@@ -1,6 +1,6 @@
-# MG Ops mobile — avoid EAS billing and queues
+# Nexa MG mobile — avoid EAS billing and queues
 
-This doc is the **recommended default workflow** for the MG Ops mobile app when you want **no Expo Application Services (EAS) build queue**, **no EAS Update (OTA) usage**, and **no dependency on Expo cloud** for day-to-day work.
+This doc is the **recommended default workflow** for the Nexa MG mobile app when you want **no Expo Application Services (EAS) build queue**, **no EAS Update (OTA) usage**, and **no dependency on Expo cloud** for day-to-day work.
 
 ## Which path should I use?
 

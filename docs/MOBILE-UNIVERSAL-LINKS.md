@@ -1,4 +1,4 @@
-# Mobile universal links (MG Ops)
+# Mobile universal links (Nexa MG)
 
 HTTPS links on **mg.loopcstrategies.com** can open the MG mobile app when configured.
 
@@ -32,4 +32,4 @@ After changing native config, run `npx expo prebuild` (or EAS build) so AndroidM
 
 1. Deploy web so `https://mg.loopcstrategies.com/.well-known/apple-app-site-association` returns JSON.
 2. Install release build on device.
-3. Open `https://mg.loopcstrategies.com/dashboard?tab=erp-enquiry&account=1000` in Safari/Chrome — should offer to open MG Ops.
+3. Open `https://mg.loopcstrategies.com/dashboard?tab=erp-enquiry&account=1000` in Safari/Chrome — should offer to open Nexa MG.

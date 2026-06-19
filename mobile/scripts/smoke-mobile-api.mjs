@@ -1,5 +1,5 @@
 /**
- * Live API smoke for MG Ops mobile: JWT + X-Client: mobile (same as the app).
+ * Live API smoke for Nexa MG mobile: JWT + X-Client: mobile (same as the app).
  *
  * Covers:
  *   - Auth: login, me

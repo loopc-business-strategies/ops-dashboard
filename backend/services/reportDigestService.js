@@ -3,6 +3,7 @@ const Transaction = require('../models/Transaction')
 const ChartOfAccount = require('../models/ChartOfAccount')
 const MetalRate = require('../models/MetalRate')
 const { mergeNotificationPreferences } = require('./notificationPreferences')
+const { MOBILE_APP_NAME } = require('../config/mobileApp')
 const { runWithTenantConnection } = require('../db/tenantModelProxy')
 const { connectTenant } = require('../db/tenantConnections')
 
@@ -31,7 +32,7 @@ async function withTenantModels(tenant, fn) {
 async function buildReportDigestText(tenant, preferences = {}) {
   const merged = mergeNotificationPreferences(preferences)
   const digest = merged.reportDigest
-  const lines = ['MG Ops daily report']
+  const lines = [`${MOBILE_APP_NAME} daily report`]
 
   return withTenantModels(tenant, async () => {
     const from = startOfToday()

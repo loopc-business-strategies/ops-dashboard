@@ -40,9 +40,10 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.hero}>
           <View style={styles.logoBadge}>
-            <Text style={styles.logoText}>MG</Text>
+            <Text style={styles.logoTextPrimary}>Nexa</Text>
+            <Text style={styles.logoTextSecondary}>MG</Text>
           </View>
-          <Text style={styles.title}>{mgBranding.displayName} Ops</Text>
+          <Text style={styles.title}>{mgBranding.appName}</Text>
           <Text style={styles.company}>{mgBranding.companyName}</Text>
           <Text style={styles.tagline}>{mgBranding.tagline}</Text>
         </View>
@@ -98,7 +99,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 16,
   },
-  logoText: { color: '#fff', fontSize: 28, fontWeight: '800' },
+  logoTextPrimary: { color: '#fff', fontSize: 22, fontWeight: '800', lineHeight: 24 },
+  logoTextSecondary: { color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: '700', marginTop: 2 },
   title: { color: '#fff', fontSize: 28, fontWeight: '800' },
   company: { color: 'rgba(255,255,255,0.92)', fontSize: 12, textAlign: 'center', marginTop: 8, lineHeight: 18 },
   tagline: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 8 },

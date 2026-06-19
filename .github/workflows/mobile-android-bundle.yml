@@ -1,4 +1,4 @@
-# Build MG Ops Android release AAB with local Gradle (no EAS). Linux paths avoid Windows 260-char Ninja limits.
+# Build Nexa MG Android release AAB with local Gradle (no EAS). Linux paths avoid Windows 260-char Ninja limits.
 name: Mobile Android bundle (local Gradle)
 
 on:

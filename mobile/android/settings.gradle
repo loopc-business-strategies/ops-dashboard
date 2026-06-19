@@ -31,7 +31,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
 }
 expoAutolinking.useExpoModules()
 
-rootProject.name = 'MG Ops'
+rootProject.name = 'Nexa MG'
 
 expoAutolinking.useExpoVersionCatalog()
 

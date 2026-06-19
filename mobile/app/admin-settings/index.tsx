@@ -105,7 +105,7 @@ export default function AdminUsersScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await deleteUser(token!, id, 'Removed via MG Ops mobile admin')
+            await deleteUser(token!, id, `Removed via ${mgBranding.appName} mobile admin`)
             load(true)
           } catch (err) {
             Alert.alert('Error', err instanceof Error ? err.message : 'Delete failed')

@@ -5,6 +5,7 @@
 
 const User = require('../models/User')
 const { normalizeTenant } = require('../config/tenants')
+const { MOBILE_APP_NAME } = require('../config/mobileApp')
 
 let ExpoCtor = null
 try {
@@ -36,13 +37,13 @@ function buildCopy(type, data = {}) {
 
   if (type === 'report_digest') {
     return {
-      title: String(data.title || 'MG Ops report').slice(0, MAX_TITLE),
+      title: String(data.title || `${MOBILE_APP_NAME} report`).slice(0, MAX_TITLE),
       body: (msg || 'Daily report').slice(0, MAX_BODY),
     }
   }
 
   if (msg) {
-    return { title: 'MG Ops', body: msg.slice(0, MAX_BODY) }
+    return { title: MOBILE_APP_NAME, body: msg.slice(0, MAX_BODY) }
   }
   switch (type) {
     case 'transaction_chat_mention':
@@ -81,13 +82,13 @@ function buildCopy(type, data = {}) {
     case 'vendor_overdue':
       return { title: 'Vendor overdue', body: (msg || String(data.vendorName || 'Vendor payment overdue')).slice(0, MAX_BODY) }
     case 'report_digest':
-      return { title: String(data.title || 'MG Ops report').slice(0, MAX_TITLE), body: (msg || 'Daily report').slice(0, MAX_BODY) }
+      return { title: String(data.title || `${MOBILE_APP_NAME} report`).slice(0, MAX_TITLE), body: (msg || 'Daily report').slice(0, MAX_BODY) }
     case 'gold_price_alert':
       return { title: 'Gold price alert', body: (msg || 'Gold price moved significantly.').slice(0, MAX_BODY) }
     case 'account_balance_sign_changed':
       return { title: 'Account crossed zero', body: 'An account balance changed from negative to positive or vice versa.'.slice(0, MAX_BODY) }
     default:
-      return { title: 'MG Ops', body: String(type || 'Notification').slice(0, MAX_BODY) }
+      return { title: MOBILE_APP_NAME, body: String(type || 'Notification').slice(0, MAX_BODY) }
   }
 }
 

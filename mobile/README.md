@@ -1,4 +1,4 @@
-# MG Ops Mobile
+# Nexa MG Mobile
 
 Read-only MG companion app (iOS / Android) for the ops-dashboard platform.
 
