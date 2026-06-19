@@ -92,7 +92,7 @@ async function buildReportDigestText(tenant, preferences = {}) {
           if (String(row.creditAccountId) === String(acc._id)) balance -= amt
         }
       }
-      lines.push(`Bank & cash (approx): ${fmtMoney(balance)}`)
+      lines.push(`Bank & cash: ${fmtMoney(balance)}`)
     }
 
     if (digest.includeGoldPrice) {
