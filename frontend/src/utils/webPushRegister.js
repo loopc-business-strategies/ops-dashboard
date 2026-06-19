@@ -1,11 +1,13 @@
 /**
  * Register Web Push after dashboard login (HTTPS or localhost).
- * Requires VITE_WEB_PUSH_PUBLIC_KEY and backend WEB_PUSH_* VAPID keys.
+ * Public key: VITE_WEB_PUSH_PUBLIC_KEY at build time, or GET /api/push/web-config at runtime.
  */
 
 import axios, { apiUrl } from '../api/client'
 
 const STORAGE_KEY = 'ops_dashboard_web_push_subscription_v1'
+
+let cachedPublicKey = ''
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -21,15 +23,37 @@ export function isWebPushConfigured() {
   return Boolean(String(key || '').trim())
 }
 
-export async function ensureWebPushSubscription() {
-  if (typeof window === 'undefined') return
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+export async function resolveWebPushPublicKey() {
+  const fromVite = String(import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY || '').trim()
+  if (fromVite) return fromVite
+  if (cachedPublicKey) return cachedPublicKey
+  try {
+    const { data } = await axios.get(apiUrl('/api/push/web-config'), { withCredentials: true })
+    const key = String(data?.publicKey || '').trim()
+    if (key) cachedPublicKey = key
+    return key
+  } catch {
+    return ''
+  }
+}
 
-  const vapidPublic = String(import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY || '').trim()
-  if (!vapidPublic) return
+export async function isWebPushAvailable() {
+  if (isWebPushConfigured()) return true
+  const key = await resolveWebPushPublicKey()
+  return Boolean(key)
+}
+
+export async function ensureWebPushSubscription() {
+  if (typeof window === 'undefined') return { ok: false, reason: 'not-browser' }
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return { ok: false, reason: 'unsupported' }
+  }
+
+  const vapidPublic = await resolveWebPushPublicKey()
+  if (!vapidPublic) return { ok: false, reason: 'not-configured' }
 
   if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    return
+    return { ok: false, reason: 'insecure-context' }
   }
 
   try {
@@ -37,7 +61,7 @@ export async function ensureWebPushSubscription() {
     await reg.update()
 
     const permission = await Notification.requestPermission()
-    if (permission !== 'granted') return
+    if (permission !== 'granted') return { ok: false, reason: 'permission-denied' }
 
     let sub = await reg.pushManager.getSubscription()
     if (!sub) {
@@ -48,12 +72,16 @@ export async function ensureWebPushSubscription() {
     }
 
     const json = sub.toJSON()
-    if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return
+    if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+      return { ok: false, reason: 'invalid-subscription' }
+    }
 
     await axios.post(apiUrl('/api/auth/me/web-push-subscription'), json, { withCredentials: true })
     window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(json))
-  } catch {
-    // Permission denied, wrong key, or network — ignore
+    return { ok: true }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { ok: false, reason: message || 'subscribe-failed' }
   }
 }
 

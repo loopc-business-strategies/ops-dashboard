@@ -18,7 +18,7 @@ Two channels reach users outside the open app:
    npx web-push generate-vapid-keys
    ```
 
-3. **Vercel (frontend):** Add `VITE_WEB_PUSH_PUBLIC_KEY` to the frontend environment (public key only).
+3. **Vercel (frontend):** Add `VITE_WEB_PUSH_PUBLIC_KEY` to the frontend environment (public key only), **or** rely on runtime `GET /api/push/web-config` (same public key as Railway).
 4. **Railway (API):** Add the **same** public key plus the **private** key to the backend service.
 
 Web Push requires **HTTPS** (or `localhost` for dev). Users must allow notifications in the browser prompt.

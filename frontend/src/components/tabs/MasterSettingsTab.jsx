@@ -7,7 +7,7 @@ import {
 } from '../../api/notifications'
 import {
   ensureWebPushSubscription,
-  isWebPushConfigured,
+  isWebPushAvailable,
 } from '../../utils/webPushRegister'
 
 const UI = {
@@ -87,6 +87,7 @@ export default function MasterSettingsTab() {
   const [status, setStatus] = useState('')
   const [preview, setPreview] = useState('')
   const [webPushMsg, setWebPushMsg] = useState('')
+  const [webPushAvailable, setWebPushAvailable] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -101,6 +102,10 @@ export default function MasterSettingsTab() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    void isWebPushAvailable().then(setWebPushAvailable)
+  }, [])
 
   const persist = useCallback(async (next) => {
     setSaving(true)
@@ -176,12 +181,18 @@ export default function MasterSettingsTab() {
 
   const enableWebPush = async () => {
     setWebPushMsg('')
-    try {
-      await ensureWebPushSubscription()
+    const result = await ensureWebPushSubscription()
+    if (result.ok) {
       setWebPushMsg('Browser notifications enabled (if permission was granted).')
-    } catch (e) {
-      setWebPushMsg(e?.message || 'Could not enable browser notifications')
+      return
     }
+    const reasons = {
+      'not-configured': 'Web push is not configured on the API (WEB_PUSH_PUBLIC_KEY).',
+      'permission-denied': 'Notification permission was denied in the browser.',
+      unsupported: 'This browser does not support Web Push.',
+      'insecure-context': 'Web Push requires HTTPS.',
+    }
+    setWebPushMsg(reasons[result.reason] || result.reason || 'Could not enable browser notifications')
   }
 
   if (loading || !prefs) {
@@ -258,11 +269,11 @@ export default function MasterSettingsTab() {
       <section style={UI.card}>
         <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, color: UI.ink }}>Web push (browser)</h3>
         <p style={{ margin: '0 0 12px', fontSize: 13, color: UI.muted }}>
-          {isWebPushConfigured()
+          {webPushAvailable
             ? 'Enable notifications in this browser for alerts when the tab is in the background.'
-            : 'Web push is not configured on this deployment (VITE_WEB_PUSH_PUBLIC_KEY).'}
+            : 'Web push is not configured on this deployment (API WEB_PUSH_PUBLIC_KEY or VITE_WEB_PUSH_PUBLIC_KEY).'}
         </p>
-        {isWebPushConfigured() && (
+        {webPushAvailable && (
           <button type="button" onClick={() => void enableWebPush()} style={{ padding: '10px 14px', borderRadius: 8, border: 'none', background: UI.primary, color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
             Enable browser notifications
           </button>

@@ -3,6 +3,7 @@ import Constants from 'expo-constants'
 import * as Notifications from 'expo-notifications'
 import * as SecureStore from 'expo-secure-store'
 import * as authApi from '@/src/api/auth'
+import { EAS_PROJECT_ID } from '@/src/config/easProject'
 
 const STORED_PUSH_TOKEN_KEY = 'mg_ops_expo_push_token'
 
@@ -65,10 +66,10 @@ export async function registerExpoPushAndPost(sessionToken: string): Promise<boo
   }
 
   const projectId =
-    (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId
-  const tokenResponse = await Notifications.getExpoPushTokenAsync(
-    projectId ? { projectId: String(projectId) } : undefined,
-  )
+    Constants.easConfig?.projectId
+    || (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId
+    || EAS_PROJECT_ID
+  const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId: String(projectId) })
   const expoToken = String(tokenResponse.data || '').trim()
   if (!expoToken) return false
 

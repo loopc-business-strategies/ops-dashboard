@@ -377,8 +377,15 @@ router.post('/me/push-token', protect, validateBody(expoPushTokenSchema), async 
     const existing = Array.isArray(user.expoPushTokens)
       ? user.expoPushTokens.map((e) => ({ token: String(e.token || ''), updatedAt: e.updatedAt || new Date() }))
       : []
-    const deduped = existing.filter((e) => e.token && e.token !== token)
-    deduped.unshift({ token, updatedAt: new Date() })
+    const isMobileClient = String(req.headers['x-client'] || '').toLowerCase() === 'mobile'
+    // After Expo project migration, replace stale tokens from the old experience (one active device per register).
+    const deduped = isMobileClient
+      ? [{ token, updatedAt: new Date() }]
+      : (() => {
+        const next = existing.filter((e) => e.token && e.token !== token)
+        next.unshift({ token, updatedAt: new Date() })
+        return next
+      })()
     user.expoPushTokens = deduped.slice(0, 8)
     await user.save({ validateBeforeSave: false })
     res.json({ success: true })

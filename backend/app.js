@@ -302,6 +302,7 @@ function createApp() {
   app.use('/api/attendance', attendanceRoutes)
   app.use('/api/messages', messageRoutes)
   app.use('/api/notifications', require('./routes/notifications'))
+  app.use('/api/push', require('./routes/push'))
   app.use('/api/crm', crmRoutes)
   app.use('/api/department-state', departmentStateRoutes)
   app.use('/api/realtime', realtimeRoutes)

@@ -1,6 +1,7 @@
 import type { ExpoConfig } from 'expo/config'
 
 const { APP_NAME } = require('./appName.cjs')
+const { EAS_PROJECT_ID } = require('./easProject.cjs')
 
 /** Keep in sync with `version`. Bare workflow requires a string `runtimeVersion`, not `{ policy: ... }`. */
 const APP_VERSION = '1.0.0'
@@ -75,13 +76,13 @@ const config: ExpoConfig = {
   /** Required for bare / prebuild (`android/` in repo). Bump when shipping incompatible native or OTA changes. */
   runtimeVersion: APP_VERSION,
   updates: {
-    url: 'https://u.expo.dev/f049f1a3-d499-416b-97af-e082bca658fa',
+    url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
   },
   extra: {
     tenant: 'mg',
     apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://api.loopcstrategies.com',
     eas: {
-      projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID || 'f049f1a3-d499-416b-97af-e082bca658fa',
+      projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID || EAS_PROJECT_ID,
     },
   },
 }
