@@ -31,6 +31,7 @@ function createTransactionAccountResolutionService({
 
   const normalizeCurrencyCode = (value, fallback = BASE_CURRENCY_CODE) => {
     const code = String(value || fallback || 'USD').trim().toUpperCase()
+    if (['SOM', 'SOMS', 'SUM'].includes(code)) return 'UZS'
     return code || String(fallback || BASE_CURRENCY_CODE || 'USD').trim().toUpperCase()
   }
 
@@ -50,7 +51,8 @@ function createTransactionAccountResolutionService({
     const preferredCodesByCurrency = {
       USD: ['101001', '1010'],
       AED: ['101002'],
-      SOMS: ['101003'],
+      UZS: ['101002', '101003'],
+      SOMS: ['101002', '101003'],
     }
 
     const preferredCodes = preferredCodesByCurrency[normalizedCurrency] || []

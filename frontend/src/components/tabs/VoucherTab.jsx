@@ -1631,6 +1631,7 @@ export default function VoucherTab({
     const suggestedAccountCode = pickDefaultAccountCodeByType(activeAccounts, normalized)
     if (suggestedAccountCode) {
       setLF('acCode', suggestedAccountCode)
+      applySettlementAccountCurrency(suggestedAccountCode)
     }
 
     if (normalized === 'Cash') {
@@ -1643,6 +1644,46 @@ export default function VoucherTab({
   // Payment/Receipt: simple FC ↔ LC conversion via exchange rate — no VAT/tax.
   // UI convention is "1 USD = FC" for non-USD currencies (e.g. UZS 12048.1928).
   //   → LC = FC / rate, and FC = LC * rate
+  const normalizeSettlementCurrencyCode = (value = '') => {
+    const code = String(value || '').trim().toUpperCase()
+    if (['SOM', 'SOMS', 'SUM'].includes(code)) return 'UZS'
+    return code || 'USD'
+  }
+
+  const applySettlementAccountCurrency = (accountCode) => {
+    if (!['payment', 'receipt'].includes(String(voucherType || '').toLowerCase())) return
+    const code = String(accountCode || '').trim()
+    if (!code) return
+
+    const account = activeAccounts.find((a) => getAccountCodeValue(a) === code)
+    if (!account) return
+
+    const settlementCurrency = normalizeSettlementCurrencyCode(account.currency)
+    const hasCurrency = settlementCurrency === 'USD'
+      || currencyOptions.some((item) => item.code === settlementCurrency)
+    if (!hasCurrency) return
+    if (String(header.currCode || '').trim().toUpperCase() === settlementCurrency) return
+
+    const resolved = resolvePaymentRate(settlementCurrency)
+    setHeader((prev) => ({
+      ...prev,
+      currCode: settlementCurrency,
+      currRate: resolved.rate.toFixed(6),
+      currRateSource: resolved.source,
+    }))
+    setLineForm((prev) => recalcReceiptPaymentLine({
+      ...prev,
+      currCode: settlementCurrency,
+      currRate: resolved.rate.toFixed(6),
+      currRateSource: resolved.source,
+    }, 'rate'))
+  }
+
+  const handleLineAcCodeChange = (val) => {
+    setLF('acCode', val)
+    applySettlementAccountCurrency(val)
+  }
+
   const recalcReceiptPaymentLine = (baseLine, source) => {
     const next = { ...baseLine }
     const parseEditableNumber = (value) => {
@@ -2133,6 +2174,7 @@ export default function VoucherTab({
         handleExitVoucherForm={handleExitVoucherForm}
         handleHeaderCurrRateChange={handleHeaderCurrRateChange}
         handleHeaderCurrencyChange={handleHeaderCurrencyChange}
+        handleLineAcCodeChange={handleLineAcCodeChange}
         handleLineAmountEnter={handleLineAmountEnter}
         handleLineCurrencyChange={handleLineCurrencyChange}
         handleLineTypeChange={handleLineTypeChange}

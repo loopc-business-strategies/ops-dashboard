@@ -146,7 +146,8 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         if (id && String(id) !== String(account._id)) relatedAccountIds.push(id)
       })
     }
-    if (account.accountCode === '2100') {
+    // Accounts Payable (2000) rolls up vendor sub-ledgers — not Payroll Payable (2100).
+    if (account.accountCode === '2000') {
       const vendorLedgerIds = await Vendor.find({ isActive: true, deletedAt: null, ledgerAccountId: { $ne: null } }).distinct('ledgerAccountId')
       vendorLedgerIds.forEach((id) => {
         if (id && String(id) !== String(account._id)) relatedAccountIds.push(id)
@@ -438,7 +439,7 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       const name = String(candidate.accountName || '').toLowerCase().trim()
       let score = 0
       if (/receivable|payable|creditor|debtor|customer|vendor/.test(name)) score += 8
-      if (code === '1100' || code === '2100') score += 8
+      if (code === '1100' || code === '2000' || code === '2100') score += 8
       if (/exchange\s*gain|exchange\s*loss|forex|fx\s*gain|fx\s*loss/.test(name)) score -= 10
       if (code === '1000' || code === '1010' || /cash|bank/.test(name)) score -= 4
       return score

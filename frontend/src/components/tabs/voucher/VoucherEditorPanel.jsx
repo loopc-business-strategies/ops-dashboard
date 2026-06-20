@@ -45,6 +45,7 @@ export default function VoucherEditorPanel({
   handleExitVoucherForm,
   handleHeaderCurrRateChange,
   handleHeaderCurrencyChange,
+  handleLineAcCodeChange,
   handleLineAmountEnter,
   handleLineCurrencyChange,
   handleLineTypeChange,
@@ -913,7 +914,7 @@ export default function VoucherEditorPanel({
                         <AccountCombobox
                           groups={lineAccountComboGroups}
                           value={lineForm.acCode || ''}
-                          onChange={(val) => setLF('acCode', val)}
+                          onChange={(val) => handleLineAcCodeChange(val)}
                           placeholder="— Select Account —"
                           style={{ border: 0, borderRadius: 0, padding: '0.26rem 0.45rem', fontSize: '0.78rem', background: '#FFF', outline: 'none', borderRight: '1px solid #E5E7EB', width: '100%', boxSizing: 'border-box' }}
                           disabled={formReadOnly}
