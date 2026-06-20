@@ -13,10 +13,9 @@ const {
 } = require('../../services/erpAccounting/metalPositionPolicy')
 const { resolveTransferSignedPureWeight } = require('../../utils/metalStockVoucherTypes')
 const { createReportResponseCache } = require('../../utils/reportResponseCache')
-const { escapeRegex } = require('../../utils/escapeRegex')
 const { _getOutstandingMapForAccounts } = require('../../utils/ledgerBalanceBatch')
 
-const enquiryCache = createReportResponseCache(120000)
+const enquiryCache = createReportResponseCache(180000)
 const summaryAccountsCache = createReportResponseCache(120000)
 const METAL_TRANSFER_LEDGER_TYPES = ['metal_receipt', 'metal_payment']
 
@@ -260,10 +259,9 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
       isDeleted: { $ne: true },
       $or: [{ debitAccountId: { $in: targetAccountIds } }, { creditAccountId: { $in: targetAccountIds } }],
     })
-      .select('date referenceType referenceId description amount exchangeRate currency debitAccountId creditAccountId createdBy createdAt notes')
+      .select('date referenceType referenceId description amount exchangeRate currency debitAccountId creditAccountId createdAt notes department')
       .populate('debitAccountId', 'accountCode accountName')
       .populate('creditAccountId', 'accountCode accountName')
-      .populate('createdBy', 'name')
       .sort({ date: -1, createdAt: -1 })
       .limit(statementLimit)
       .lean()
@@ -583,78 +581,13 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
         .filter(Boolean)
     ))
 
-    if (statementDocRefs.length > 0) {
-      const docRefQuery = {
-        isDeleted: { $ne: true },
-        $or: statementDocRefs.flatMap((docRef) => {
-          const escaped = escapeRegex(docRef)
-          return [
-            { description: { $regex: escaped, $options: 'i' } },
-            { notes: { $regex: escaped, $options: 'i' } },
-          ]
-        }),
-      }
+    const paymentReceiptDocRefs = statementDocRefs
+      .map((ref) => String(ref || '').trim())
+      .filter((ref) => /^(pay|receipt|rec)[/-]/i.test(ref))
 
-      const documentMatchedLedgerEntries = await Ledger.find(docRefQuery)
-        .populate('debitAccountId', 'accountCode accountName')
-        .populate('creditAccountId', 'accountCode accountName')
-        .select('description notes debitAccountId creditAccountId amount exchangeRate')
-        .lean()
-
-      const docCounterpartyCandidates = new Map()
-      documentMatchedLedgerEntries.forEach((entry) => {
-        const docRef = extractLedgerDocumentRef(entry)
-        if (!docRef) return
-        const debitAccount = entry.debitAccountId || null
-        const creditAccount = entry.creditAccountId || null
-        const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
-        const candidateAccounts = [debitAccount, creditAccount]
-
-        candidateAccounts.forEach((candidateAccount) => {
-          if (!candidateAccount || isTargetAccount(candidateAccount)) return
-          const counterpartyCode = String(candidateAccount.accountCode || '').trim()
-          const counterpartyName = String(candidateAccount.accountName || '').trim()
-          if (!counterpartyCode && !counterpartyName) return
-
-          const key = `${docRef}:${counterpartyCode}:${counterpartyName}`
-          const existing = docCounterpartyCandidates.get(key) || {
-            docRef,
-            accountCode: counterpartyCode,
-            accountName: counterpartyName,
-            score: scoreCounterpartyAccount({ accountCode: counterpartyCode, accountName: counterpartyName }),
-            amountWeight: 0,
-          }
-          existing.amountWeight += Math.abs(amount)
-          docCounterpartyCandidates.set(key, existing)
-        })
-      })
-
-      const groupedByDocRef = new Map()
-      for (const candidate of docCounterpartyCandidates.values()) {
-        const arr = groupedByDocRef.get(candidate.docRef) || []
-        arr.push(candidate)
-        groupedByDocRef.set(candidate.docRef, arr)
-      }
-
-      for (const [docRef, candidates] of groupedByDocRef.entries()) {
-        candidates.sort((a, b) => {
-          if (b.score !== a.score) return b.score - a.score
-          return b.amountWeight - a.amountWeight
-        })
-        const best = candidates[0]
-        if (best?.accountCode || best?.accountName) {
-          documentDisplayOffsetByRef.set(normalizeDocRef(docRef), {
-            accountCode: best.accountCode,
-            accountName: best.accountName,
-          })
-        }
-      }
-
-      const paymentReceiptDocRefs = statementDocRefs
-        .map((ref) => String(ref || '').trim())
-        .filter((ref) => /^(pay|receipt|rec)[/-]/i.test(ref))
-
-      if (paymentReceiptDocRefs.length > 0) {
+    // Resolve payment/receipt offset accounts via posted transactions (indexed vocNo lookup).
+    // Skip legacy regex scans over the full ledger — they were the main enquiry latency bottleneck.
+    if (paymentReceiptDocRefs.length > 0) {
         const linkedDocTransactions = await Transaction.find({
           isDeleted: { $ne: true },
           $or: [
@@ -744,7 +677,6 @@ router.get('/accounts/enquiry', protect, async (req, res) => {
             documentDisplayOffsetByRef.set(ref, resolved)
           })
         })
-      }
     }
 
     const directDealIds = ledgerEntries

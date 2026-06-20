@@ -2190,6 +2190,7 @@ function ERPTab({
   const fetchAccountEnquiryByCode = async (accountCode, options = {}) => {
     const cleanCode = resolveAccountEnquiryCodeInput(accountCode)
     const shouldOpenModal = Boolean(options.openModal)
+    const forceRefresh = Boolean(options.forceRefresh)
     if (!cleanCode) {
       setError('Please enter account number')
       setEnquiryStatus({ type: 'error', message: 'Please enter account number' })
@@ -2200,7 +2201,7 @@ function ERPTab({
       account: cleanCode,
       view: options.openStatementPreview ? 'statement' : null,
     })
-    const cached = readAccountEnquiryCache(tenantKey, cleanCode)
+    const cached = !forceRefresh ? readAccountEnquiryCache(tenantKey, cleanCode) : null
     if (cached) {
       setAccountEnquiryCode(cleanCode)
       setAccountEnquiryData(cached)
@@ -2210,14 +2211,19 @@ function ERPTab({
         account: cleanCode,
         view: options.openStatementPreview ? 'statement' : null,
       })
+      if (shouldOpenModal) setShowEnquiryModal(true)
       if (options.openStatementPreview) setPendingStatementPreview(true)
+      setEnquiryStatus({ type: 'success', message: `Account ${cached.account?.accountCode || cleanCode} summary loaded from cache` })
+      return
     }
     try {
       if (shouldOpenModal) setShowEnquiryModal(true)
-      if (!cached) setEnquiryLoading(true)
+      setEnquiryLoading(true)
       setShowEnquiryLookupMenu(false)
       setEnquiryStatus({ type: '', message: '' })
-      const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, { statementLimit: 120, refresh: '1' })
+      const enquiryParams = { statementLimit: 80 }
+      if (forceRefresh) enquiryParams.refresh = '1'
+      const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, enquiryParams)
       setAccountEnquiryCode(cleanCode)
       setAccountEnquiryData(data)
       writeAccountEnquiryCache(tenantKey, cleanCode, data)
@@ -2241,17 +2247,15 @@ function ERPTab({
         view: options.openStatementPreview ? 'statement' : null,
       })
       if (options.openStatementPreview) setPendingStatementPreview(true)
-      if (!cached) showNotification('✅ Account summary loaded')
+      showNotification('✅ Account summary loaded')
     } catch (e) {
-      if (!cached) {
-        if (lastEnquiryDeepLinkKeyRef.current === deepLinkKey) {
-          lastEnquiryDeepLinkKeyRef.current = ''
-        }
-        setAccountEnquiryData(null)
-        const msg = e.response?.data?.message || 'Failed to fetch account summary'
-        setError(msg)
-        setEnquiryStatus({ type: 'error', message: msg })
+      if (lastEnquiryDeepLinkKeyRef.current === deepLinkKey) {
+        lastEnquiryDeepLinkKeyRef.current = ''
       }
+      setAccountEnquiryData(null)
+      const msg = e.response?.data?.message || 'Failed to fetch account summary'
+      setError(msg)
+      setEnquiryStatus({ type: 'error', message: msg })
     } finally {
       setEnquiryLoading(false)
     }
@@ -2264,7 +2268,9 @@ function ERPTab({
   }
   const handleAccountEnquiry = async (e) => {
     e.preventDefault()
-    await fetchAccountEnquiryByCode(accountEnquiryCode, { openModal: true })
+    const cleanCode = resolveAccountEnquiryCodeInput(accountEnquiryCode)
+    const alreadyLoaded = String(accountEnquiryData?.account?.accountCode || '').trim() === cleanCode
+    await fetchAccountEnquiryByCode(accountEnquiryCode, { openModal: true, forceRefresh: alreadyLoaded })
   }
   useEffect(() => {
     loadEnquiryHistory()
