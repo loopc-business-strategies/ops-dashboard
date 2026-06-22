@@ -22,12 +22,13 @@ export { ErrorBoundary } from 'expo-router'
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
-  const { branding } = useTenantBranding()
+  const { branding, isReady } = useTenantBranding()
   const segments = useSegments()
   const router = useRouter()
+  const bootstrapping = isLoading || !isReady
 
   useEffect(() => {
-    if (isLoading) return
+    if (bootstrapping) return
 
     const root = segments[0]
     const inAuthGroup = root === 'login'
@@ -43,9 +44,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     } else if (isAuthenticated && inAuthGroup) {
       router.replace('/(tabs)/home')
     }
-  }, [isAuthenticated, isLoading, router, segments])
+  }, [isAuthenticated, bootstrapping, router, segments])
 
-  if (isLoading) {
+  if (bootstrapping) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: branding.colors.background }}>
         <ActivityIndicator size="large" color={branding.colors.primary} />

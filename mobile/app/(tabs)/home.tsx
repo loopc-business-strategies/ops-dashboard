@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   RefreshControl,
@@ -12,8 +12,9 @@ import { DashboardWidgetCard } from '@/src/components/dashboard/DashboardWidgetC
 import { LiveMetalPricesBar } from '@/src/components/dashboard/LiveMetalPricesBar'
 import { renderDashboardWidget } from '@/src/components/dashboard/renderDashboardWidget'
 import { ERP_DASH_WIDGETS } from '@/src/constants/erpDashboardWidgets'
-import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
+import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { useLiveMetalRates } from '@/src/hooks/useLiveMetalRates'
 import { fetchDashboard, type DashboardPayload } from '@/src/api/dashboard'
 import { fetchLatestMessages, type ChatMessage } from '@/src/api/messages'
@@ -21,6 +22,8 @@ import { resolveEffectiveSpotPrices } from '@/src/utils/liveMetalRates'
 
 export default function HomeScreen() {
   const { token } = useAuth()
+  const { branding, companyCode } = useTenantBranding()
+  const sessionReady = useTenantSessionReady()
   const { snapshot: liveSnapshot, refresh: refreshLiveMetalRates } = useLiveMetalRates()
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -28,8 +31,15 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    setDashboard(null)
+    setChatMessages([])
+    setError('')
+    setLoading(true)
+  }, [companyCode])
+
   const load = useCallback(async (isRefresh = false) => {
-    if (!token) return
+    if (!token || !sessionReady) return
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
     setError('')
@@ -47,7 +57,7 @@ export default function HomeScreen() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [token, refreshLiveMetalRates])
+  }, [token, sessionReady, refreshLiveMetalRates])
 
   useFocusEffect(
     useCallback(() => {
@@ -58,25 +68,25 @@ export default function HomeScreen() {
   const { goldPriceUSD, silverPriceUSD } = resolveEffectiveSpotPrices({ liveSnapshot })
   const liveRecalcEnabled = goldPriceUSD > 0 || silverPriceUSD > 0
 
-  if (loading && !dashboard) {
+  if ((loading || !sessionReady) && !dashboard) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={mgBranding.colors.primary} />
+        <ActivityIndicator color={branding.colors.primary} />
       </View>
     )
   }
 
   return (
     <ScrollView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: branding.colors.background }]}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
     >
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <Text style={[styles.error, { color: branding.colors.danger }]}>{error}</Text> : null}
 
       <LiveMetalPricesBar />
 
-      <Text style={styles.section}>My Dashboard</Text>
+      <Text style={[styles.section, { color: branding.colors.muted }]}>My Dashboard</Text>
       {ERP_DASH_WIDGETS.map((widget) => (
         <DashboardWidgetCard
           key={widget.id}
@@ -100,17 +110,16 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: mgBranding.colors.background },
+  root: { flex: 1 },
   content: { padding: 16, paddingBottom: 32 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   section: {
     fontSize: 13,
     fontWeight: '800',
-    color: mgBranding.colors.muted,
     marginTop: 8,
     marginBottom: 10,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
-  error: { color: mgBranding.colors.danger, marginBottom: 10 },
+  error: { marginBottom: 10 },
 })

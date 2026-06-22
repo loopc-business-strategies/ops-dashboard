@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockState = { extra: {} as Record<string, string | undefined> }
+const secureStore = {
+  companyCode: null as string | null,
+  sessionToken: null as string | null,
+}
 
 vi.mock('expo-constants', () => ({
   default: {
@@ -13,15 +17,32 @@ vi.mock('expo-constants', () => ({
 }))
 
 vi.mock('expo-secure-store', () => ({
-  getItemAsync: vi.fn(async () => null),
-  setItemAsync: vi.fn(async () => undefined),
-  deleteItemAsync: vi.fn(async () => undefined),
+  getItemAsync: vi.fn(async (key: string) => {
+    if (key === 'nexa_company_code') return secureStore.companyCode
+    if (key === 'mg_ops_session_token') return secureStore.sessionToken
+    return null
+  }),
+  setItemAsync: vi.fn(async (key: string, value: string) => {
+    if (key === 'nexa_company_code') secureStore.companyCode = value
+    if (key === 'mg_ops_session_token') secureStore.sessionToken = value
+  }),
+  deleteItemAsync: vi.fn(async (key: string) => {
+    if (key === 'nexa_company_code') secureStore.companyCode = null
+    if (key === 'mg_ops_session_token') secureStore.sessionToken = null
+  }),
 }))
+
+function jwtWithCompany(company: string) {
+  const payload = Buffer.from(JSON.stringify({ company })).toString('base64url')
+  return `header.${payload}.signature`
+}
 
 describe('tenant config (Nexa mobile API / tenant)', () => {
   beforeEach(() => {
     vi.resetModules()
     mockState.extra = {}
+    secureStore.companyCode = null
+    secureStore.sessionToken = null
     delete process.env.EXPO_PUBLIC_API_URL
   })
 
@@ -50,5 +71,29 @@ describe('tenant config (Nexa mobile API / tenant)', () => {
     process.env.EXPO_PUBLIC_API_URL = 'https://staging.example.test'
     const { API_URL } = await import('./tenant')
     expect(API_URL).toBe('https://staging.example.test')
+  })
+
+  it('decodeTenantFromJwt reads company from JWT payload', async () => {
+    const { decodeTenantFromJwt } = await import('./tenant')
+    expect(decodeTenantFromJwt(jwtWithCompany('cg'))).toBe('cg')
+    expect(decodeTenantFromJwt(jwtWithCompany('LOOPC'))).toBe('loopc')
+    expect(decodeTenantFromJwt('not-a-jwt')).toBeNull()
+    expect(decodeTenantFromJwt(null)).toBeNull()
+  })
+
+  it('bootstrapTenantFromStorage prefers JWT company over stored company code', async () => {
+    secureStore.companyCode = 'mg'
+    secureStore.sessionToken = jwtWithCompany('cg')
+    const { bootstrapTenantFromStorage, getTenant } = await import('./tenant')
+    await expect(bootstrapTenantFromStorage()).resolves.toBe('cg')
+    expect(getTenant()).toBe('cg')
+  })
+
+  it('bootstrapTenantFromStorage falls back to stored company code when JWT has no company', async () => {
+    secureStore.companyCode = 'loopc'
+    secureStore.sessionToken = jwtWithCompany('')
+    const { bootstrapTenantFromStorage, getTenant } = await import('./tenant')
+    await expect(bootstrapTenantFromStorage()).resolves.toBe('loopc')
+    expect(getTenant()).toBe('loopc')
   })
 })

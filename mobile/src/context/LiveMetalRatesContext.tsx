@@ -9,7 +9,8 @@ import React, {
 import { AppState, type AppStateStatus } from 'react-native'
 import { fetchLiveMetalRates, fetchSavedMetalRates } from '@/src/api/metalRates'
 import { useAuth } from '@/src/context/AuthContext'
-import { getTenant } from '@/src/config/tenant'
+import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { startMetalRatesRealtime } from '@/src/realtime/metalRatesSocket'
 import {
   LIVE_METAL_POLL_MS,
@@ -43,7 +44,12 @@ type LiveMetalRatesContextValue = {
 
 const LiveMetalRatesContext = createContext<LiveMetalRatesContextValue | null>(null)
 
-function useLiveMetalRatesState(token: string | null, enabled: boolean) {
+function useLiveMetalRatesState(
+  token: string | null,
+  enabled: boolean,
+  companyCode: string,
+  sessionReady: boolean,
+) {
   const [snapshot, setSnapshot] = useState<LiveMetalSnapshot>(EMPTY_SNAPSHOT)
   const [error, setError] = useState<MetalRatesError | null>(null)
   const lastSnapshotRef = useRef<{ gold: number; silver: number; platinum: number } | null>(null)
@@ -98,7 +104,7 @@ function useLiveMetalRatesState(token: string | null, enabled: boolean) {
   }, [])
 
   const load = useCallback(async () => {
-    if (!token || !enabled) return
+    if (!token || !enabled || !sessionReady) return
     if (Date.now() < pollPausedUntilRef.current) return
     if (!appActiveRef.current) return
 
@@ -133,7 +139,7 @@ function useLiveMetalRatesState(token: string | null, enabled: boolean) {
       }
       setError(parsed)
     }
-  }, [applyRates, enabled, token])
+  }, [applyRates, enabled, sessionReady, token])
 
   const schedulePoll = useCallback(() => {
     if (pollTimerRef.current) {
@@ -173,11 +179,18 @@ function useLiveMetalRatesState(token: string | null, enabled: boolean) {
   }, [enabled, load])
 
   useEffect(() => {
-    if (!enabled || !token) return undefined
+    setSnapshot(EMPTY_SNAPSHOT)
+    setError(null)
+    lastSnapshotRef.current = null
+    sourceRef.current = ''
+  }, [companyCode])
+
+  useEffect(() => {
+    if (!enabled || !token || !sessionReady) return undefined
 
     const stop = startMetalRatesRealtime({
       token,
-      tenant: getTenant(),
+      tenant: companyCode,
       onConnect: () => {
         socketConnectedRef.current = true
         schedulePoll()
@@ -196,15 +209,17 @@ function useLiveMetalRatesState(token: string | null, enabled: boolean) {
       socketConnectedRef.current = false
       stop()
     }
-  }, [applyRates, enabled, schedulePoll, token])
+  }, [applyRates, companyCode, enabled, schedulePoll, sessionReady, token])
 
   return { snapshot, error, refresh: load }
 }
 
 export function LiveMetalRatesProvider({ children }: { children: React.ReactNode }) {
   const { token, isAuthenticated } = useAuth()
+  const { companyCode } = useTenantBranding()
+  const sessionReady = useTenantSessionReady()
   const enabled = Boolean(token && isAuthenticated)
-  const value = useLiveMetalRatesState(token, enabled)
+  const value = useLiveMetalRatesState(token, enabled, companyCode, sessionReady)
 
   return <LiveMetalRatesContext.Provider value={value}>{children}</LiveMetalRatesContext.Provider>
 }

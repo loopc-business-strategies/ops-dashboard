@@ -10,6 +10,8 @@ import React, {
 import { Platform } from 'react-native'
 import * as Notifications from 'expo-notifications'
 import { useAuth } from '@/src/context/AuthContext'
+import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import {
   startUserNotificationsSocket,
   type NotificationPayload,
@@ -51,6 +53,8 @@ const NotificationsContext = createContext<NotificationsContextValue | null>(nul
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
   const { token, user } = useAuth()
+  const { companyCode } = useTenantBranding()
+  const sessionReady = useTenantSessionReady()
   const [items, setItems] = useState<AppNotificationItem[]>([])
   const seenPushIdsRef = useRef<Set<string>>(new Set())
   const pushBootstrapRef = useRef(false)
@@ -63,7 +67,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   }, [])
 
   useEffect(() => {
-    if (!token || !user) {
+    if (!token || !user || !sessionReady) {
       setItems([])
       return undefined
     }
@@ -73,11 +77,11 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     })
 
     return stop
-  }, [token, user, appendPayload])
+  }, [token, user, sessionReady, companyCode, appendPayload])
 
   /** OS push (e.g. voucher approved) also appears in the header bell — same as web bell + badge. */
   useEffect(() => {
-    if (!token || !user) return undefined
+    if (!token || !user || !sessionReady) return undefined
 
     const ingestExpo = (n: Notifications.Notification, dedupePrefix: string) => {
       const id = `${dedupePrefix}:${n.request.identifier}`
@@ -107,7 +111,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       subReceived.remove()
       subResponse.remove()
     }
-  }, [token, user, appendPayload])
+  }, [token, user, sessionReady, companyCode, appendPayload])
 
   const markRead = useCallback((id: string) => {
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))

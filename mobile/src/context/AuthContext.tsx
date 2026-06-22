@@ -3,9 +3,9 @@ import * as SecureStore from 'expo-secure-store'
 import { setAuthToken } from '@/src/api/client'
 import * as authApi from '@/src/api/auth'
 import type { AuthUser } from '@/src/api/auth'
+import { SESSION_TOKEN_KEY } from '@/src/config/tenant'
+import { useTenantBranding } from '@/src/context/TenantContext'
 import { registerExpoPushAndPost, unregisterExpoPushFromBackend, attachExpoPushReregistration } from '@/src/services/expoPushRegistration'
-
-const TOKEN_KEY = 'mg_ops_session_token'
 
 type AuthContextValue = {
   user: AuthUser | null
@@ -20,6 +20,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { isReady, syncTenantFromSession } = useTenantBranding()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -29,28 +30,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(nextUser)
     setAuthToken(nextToken)
     if (nextToken) {
-      await SecureStore.setItemAsync(TOKEN_KEY, nextToken)
+      await SecureStore.setItemAsync(SESSION_TOKEN_KEY, nextToken)
     } else {
-      await SecureStore.deleteItemAsync(TOKEN_KEY)
+      await SecureStore.deleteItemAsync(SESSION_TOKEN_KEY)
     }
   }, [])
 
   const refreshUser = useCallback(async () => {
-    const stored = await SecureStore.getItemAsync(TOKEN_KEY)
+    const stored = await SecureStore.getItemAsync(SESSION_TOKEN_KEY)
     if (!stored) {
       await applySession(null, null)
       return
     }
     setAuthToken(stored)
     const me = await authApi.fetchMe(stored)
+    if (me.user.company) {
+      await syncTenantFromSession(me.user.company)
+    }
     await applySession(stored, me.user)
-  }, [applySession])
+  }, [applySession, syncTenantFromSession])
 
   useEffect(() => {
+    if (!isReady) return
     refreshUser()
       .catch(() => applySession(null, null))
       .finally(() => setIsLoading(false))
-  }, [applySession, refreshUser])
+  }, [applySession, isReady, refreshUser])
 
   useEffect(() => {
     if (!token) return undefined
@@ -72,12 +77,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token, user?.id])
 
   const login = useCallback(async (name: string, password: string, companyCode: string) => {
-    const data = await authApi.login(name.trim(), password, companyCode.trim().toLowerCase())
+    const normalizedCode = companyCode.trim().toLowerCase()
+    const data = await authApi.login(name.trim(), password, normalizedCode)
     if (!data.token) {
       throw new Error('Mobile login requires API token. Deploy backend auth update or use X-Client: mobile.')
     }
+    const sessionCompany = String(data.user.company || normalizedCode).trim().toLowerCase()
+    if (sessionCompany !== normalizedCode) {
+      throw new Error('Session company does not match entered company code.')
+    }
+    await syncTenantFromSession(sessionCompany)
     await applySession(data.token, data.user)
-  }, [applySession])
+  }, [applySession, syncTenantFromSession])
 
   const logout = useCallback(async () => {
     try {

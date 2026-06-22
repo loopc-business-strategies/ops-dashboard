@@ -37,6 +37,26 @@ const postedReceipt = (createdBy, suffix = '') => ({
   updatedBy: createdBy,
 })
 
+async function seedTenantTransactions(tenant, user, count) {
+  const conn = await connectTenant(tenant)
+  registerAllOnConnection(conn)
+  await runWithTenantConnection(conn, tenant, () =>
+    Transaction.insertMany(
+      Array.from({ length: count }, (_, index) => postedReceipt(user._id, index)),
+    ),
+  )
+}
+
+async function mobileTransactionsRequest(tenant, user) {
+  return request(app)
+    .get('/api/erp-accounting/transactions')
+    .set('Host', 'api.loopcstrategies.com')
+    .set('x-tenant', tenant)
+    .set('x-company', tenant)
+    .set('X-Client', 'mobile')
+    .set('Authorization', `Bearer ${tokenFor(user, tenant)}`)
+}
+
 beforeAll(async () => {
   process.env.NODE_ENV = 'test'
   process.env.JWT_SECRET = 'test-secret'
@@ -57,21 +77,27 @@ beforeAll(async () => {
 afterEach(async () => {
   if (!isMongooseConnected(mongoose)) return
   await Transaction.deleteMany({})
-  const mgConn = await connectTenant('mg')
-  registerAllOnConnection(mgConn)
-  await runWithTenantConnection(mgConn, 'mg', () => Transaction.deleteMany({}))
+  for (const tenant of ['mg', 'cg', 'loopc']) {
+    const conn = await connectTenant(tenant)
+    registerAllOnConnection(conn)
+    await runWithTenantConnection(conn, tenant, () => Transaction.deleteMany({}))
+  }
   await Promise.all([
     (await User.getTenantModel('mg')).deleteMany({}),
+    (await User.getTenantModel('cg')).deleteMany({}),
     (await User.getTenantModel('loopc')).deleteMany({}),
   ])
 })
 
 afterAll(async () => {
   if (isMongooseConnected(mongoose)) {
-    await Promise.all([
-      connectTenant('mg').then((conn) => conn.close()).catch(() => {}),
-      connectTenant('loopc').then((conn) => conn.close()).catch(() => {}),
-    ])
+    await Promise.all(
+      ['mg', 'cg', 'loopc'].map((tenant) =>
+        connectTenant(tenant)
+          .then((conn) => conn.close())
+          .catch(() => {}),
+      ),
+    )
   }
   await disconnectMongooseIfConnected(mongoose)
   if (mongo) await mongo.stop()
@@ -96,26 +122,13 @@ describe('Mobile Bearer tenant DB binding for transactions', () => {
       role: 'super_admin',
     })
 
-    const mgConn = await connectTenant('mg')
-    registerAllOnConnection(mgConn)
-    await runWithTenantConnection(mgConn, 'mg', () =>
-      Transaction.insertMany(
-        Array.from({ length: 43 }, (_, index) => postedReceipt(mgUser._id, index)),
-      ),
-    )
-
+    await seedTenantTransactions('mg', mgUser, 43)
     await Transaction.insertMany([
       postedReceipt(loopcUser._id, 1),
       postedReceipt(loopcUser._id, 2),
     ])
 
-    const mobileRes = await request(app)
-      .get('/api/erp-accounting/transactions')
-      .set('Host', 'api.loopcstrategies.com')
-      .set('x-tenant', 'mg')
-      .set('x-company', 'mg')
-      .set('X-Client', 'mobile')
-      .set('Authorization', `Bearer ${tokenFor(mgUser, 'mg')}`)
+    const mobileRes = await mobileTransactionsRequest('mg', mgUser)
 
     expect(mobileRes.status).toBe(200)
     expect(mobileRes.body.success).toBe(true)
@@ -130,5 +143,66 @@ describe('Mobile Bearer tenant DB binding for transactions', () => {
 
     expect(cookieRes.status).toBe(200)
     expect(Number(cookieRes.body.summary?.totalCount || 0)).toBe(43)
+  })
+
+  test('Bearer mobile client reads CG transactions, not default LoopC DB', async () => {
+    const CgUser = await User.getTenantModel('cg')
+    const cgUser = await CgUser.create({
+      name: 'cg-super',
+      email: 'cg-super@example.com',
+      password: 'password123',
+      role: 'super_admin',
+      allowedModules: ['erp'],
+    })
+
+    const LoopcUser = await User.getTenantModel('loopc')
+    const loopcUser = await LoopcUser.create({
+      name: 'loopc-user-cg',
+      email: 'loopc-user-cg@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+
+    await seedTenantTransactions('cg', cgUser, 17)
+    await Transaction.insertMany([
+      postedReceipt(loopcUser._id, 101),
+      postedReceipt(loopcUser._id, 102),
+    ])
+
+    const mobileRes = await mobileTransactionsRequest('cg', cgUser)
+
+    expect(mobileRes.status).toBe(200)
+    expect(mobileRes.body.success).toBe(true)
+    expect(Number(mobileRes.body.summary?.totalCount || 0)).toBe(17)
+    expect(mobileRes.body.transactions).toHaveLength(17)
+  })
+
+  test('Bearer mobile client reads LoopC transactions from LoopC DB', async () => {
+    const LoopcUser = await User.getTenantModel('loopc')
+    const loopcUser = await LoopcUser.create({
+      name: 'loopc-super',
+      email: 'loopc-super@example.com',
+      password: 'password123',
+      role: 'super_admin',
+      allowedModules: ['erp'],
+    })
+
+    const MgUser = await User.getTenantModel('mg')
+    const mgUser = await MgUser.create({
+      name: 'mg-user-loopc',
+      email: 'mg-user-loopc@example.com',
+      password: 'password123',
+      role: 'super_admin',
+    })
+
+    await seedTenantTransactions('loopc', loopcUser, 5)
+    await seedTenantTransactions('mg', mgUser, 99)
+
+    const mobileRes = await mobileTransactionsRequest('loopc', loopcUser)
+
+    expect(mobileRes.status).toBe(200)
+    expect(mobileRes.body.success).toBe(true)
+    expect(Number(mobileRes.body.summary?.totalCount || 0)).toBe(5)
+    expect(mobileRes.body.transactions).toHaveLength(5)
   })
 })

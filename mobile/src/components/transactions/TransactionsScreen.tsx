@@ -14,6 +14,7 @@ import {
 import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import {
   fetchAllTransactions,
   type TransactionRow,
@@ -105,7 +106,8 @@ function buildApiParams(filters: FilterState) {
 
 export default function TransactionsScreen() {
   const { token, user } = useAuth()
-  const { companyCode, isReady } = useTenantBranding()
+  const { companyCode } = useTenantBranding()
+  const sessionReady = useTenantSessionReady()
   const allowed = canAccessTransactions(user)
 
   const [draftFilters, setDraftFilters] = useState<FilterState>(DEFAULT_FILTERS)
@@ -123,7 +125,7 @@ export default function TransactionsScreen() {
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh' = 'initial') => {
-      if (!token || !allowed || !isReady) return
+      if (!token || !allowed || !sessionReady) return
       if (mode === 'refresh') setRefreshing(true)
       else setLoading(true)
       setError('')
@@ -150,24 +152,32 @@ export default function TransactionsScreen() {
         setRefreshing(false)
       }
     },
-    [token, allowed, isReady, appliedFilters],
+    [token, allowed, sessionReady, appliedFilters],
   )
 
   useEffect(() => {
-    if (!token || !allowed || !isReady) {
-      if (!isReady) return
+    if (!token || !allowed || !sessionReady) {
+      if (!sessionReady) return
       setLoading(false)
       return
     }
     void load('initial')
-  }, [token, allowed, isReady, companyCode, appliedFilters, load])
+  }, [token, allowed, sessionReady, companyCode, appliedFilters, load])
 
   useEffect(() => {
-    if (!token || !allowed) return
+    setRows([])
+    setSummary(EMPTY_SUMMARY)
+    setListCapped(false)
+    setError('')
+    setLoading(true)
+  }, [companyCode])
+
+  useEffect(() => {
+    if (!token || !allowed || !sessionReady) return
     void fetchAccountsForLedger(token)
       .then((data) => setAccounts(data.accounts || []))
       .catch(() => setAccounts([]))
-  }, [token, allowed])
+  }, [token, allowed, sessionReady])
 
   const displayRows = useMemo(
     () => filterTransactionsByAccount(rows, appliedFilters.accountCode),
@@ -234,7 +244,7 @@ export default function TransactionsScreen() {
     )
   }
 
-  if ((!isReady || loading) && rows.length === 0) {
+  if ((!sessionReady || loading) && rows.length === 0) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={mgBranding.colors.primary} />

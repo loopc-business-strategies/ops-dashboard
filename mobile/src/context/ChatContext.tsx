@@ -9,6 +9,8 @@ import {
 } from '@/src/api/messages'
 import { startChatMessageEvents } from '@/src/realtime/chatSse'
 import { useAuth } from '@/src/context/AuthContext'
+import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import type { ChatAttachment, ChatConversation, ChatParticipant } from '@/src/types/chat'
 import { buildConversations, extractMentionParticipants, onlyMongoIds, participantFromRow, isMongoIdString } from '@/src/utils/chat'
 
@@ -62,6 +64,8 @@ function buildMessagePayload(
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const { token, user } = useAuth()
+  const { companyCode } = useTenantBranding()
+  const sessionReady = useTenantSessionReady()
   const myAuthId = String(user?.id || '')
   const [participants, setParticipants] = useState<ChatParticipant[]>([])
   const [conversations, setConversations] = useState<ChatConversation[]>([])
@@ -69,7 +73,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState('')
 
   const refresh = useCallback(async () => {
-    if (!token || !myAuthId) return
+    if (!token || !myAuthId || !sessionReady) return
     setError('')
     try {
       const [messagesRaw, participantsRaw, groupsRaw] = await Promise.all([
@@ -85,20 +89,27 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [token, myAuthId])
+  }, [token, myAuthId, sessionReady])
 
   useEffect(() => {
-    if (!token) return
+    setParticipants([])
+    setConversations([])
+    setError('')
+    setLoading(true)
+  }, [companyCode])
+
+  useEffect(() => {
+    if (!token || !sessionReady) return
     setLoading(true)
     refresh()
     const interval = setInterval(() => {
       refresh().catch(() => undefined)
     }, 20000)
     return () => clearInterval(interval)
-  }, [token, refresh])
+  }, [token, sessionReady, companyCode, refresh])
 
   useEffect(() => {
-    if (!token || !myAuthId) return undefined
+    if (!token || !myAuthId || !sessionReady) return undefined
     let debounce: ReturnType<typeof setTimeout> | null = null
     const scheduleRefresh = () => {
       if (debounce) clearTimeout(debounce)
@@ -112,7 +123,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       if (debounce) clearTimeout(debounce)
       stop()
     }
-  }, [token, myAuthId, refresh])
+  }, [token, myAuthId, sessionReady, companyCode, refresh])
 
   const getConversation = useCallback(
     (id: string) => conversations.find((c) => c.id === id),

@@ -12,6 +12,8 @@ import {
 } from 'react-native'
 import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
+import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import {
   fetchAccountsForLedger,
   getAccountEnquiry,
@@ -70,6 +72,8 @@ export default function ErpReportsScreen({
   initialView?: string
 } = {}) {
   const { token, user } = useAuth()
+  const { companyCode } = useTenantBranding()
+  const sessionReady = useTenantSessionReady()
   const allowed = canAccessErpReports(user)
 
   const [reportView, setReportView] = useState<ErpReportViewId>('summary')
@@ -103,7 +107,7 @@ export default function ErpReportsScreen({
   )
 
   const refresh = useCallback(async () => {
-    if (!token || !allowed) return
+    if (!token || !allowed || !sessionReady) return
     setLoading(true)
     setError('')
     const { commonRange, endDate } = dateCtx
@@ -166,12 +170,27 @@ export default function ErpReportsScreen({
     } finally {
       setLoading(false)
     }
-  }, [token, allowed, dateCtx, includeZeroTrial, selectedAccountId, reportView])
+  }, [token, allowed, sessionReady, dateCtx, includeZeroTrial, selectedAccountId, reportView])
 
   useEffect(() => {
-    if (!token || !allowed) return
+    setTrialBalance(null)
+    setProfitLoss(null)
+    setBalanceSheet(null)
+    setDayBook(null)
+    setCustomerOutstanding(null)
+    setVendorOutstanding(null)
+    setForex(null)
+    setAccounts([])
+    setLedgerRows([])
+    setEnquiryAccount(null)
+    setError('')
+    setLoading(false)
+  }, [companyCode])
+
+  useEffect(() => {
+    if (!token || !allowed || !sessionReady) return
     void refresh()
-  }, [token, allowed, refresh])
+  }, [token, allowed, sessionReady, companyCode, refresh])
 
   const onRefresh = useCallback(async () => {
     if (!token || !allowed) return
