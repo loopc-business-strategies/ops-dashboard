@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { buildDashboardHref, isPrimaryNavClick } from '../utils/dashboardNavigation'
 import { isLocalTenantHost } from '../config/tenantBranding'
@@ -13,7 +13,7 @@ export function resolveModuleSubTabFromUrl({
   moduleTabId,
   allowedSubIds,
   defaultSub,
-  isModuleActive = false,
+  isModuleActive = true,
 }) {
   if (tabParam === moduleTabId) {
     if (subFromUrl && allowedSubIds.includes(subFromUrl)) return subFromUrl
@@ -21,6 +21,11 @@ export function resolveModuleSubTabFromUrl({
   }
   if (isModuleActive) return undefined
   return defaultSub
+}
+
+/** True when URL tab/sub changed (back/forward, deep link) — not on optimistic click before router updates. */
+export function shouldSyncSubTabFromUrl(prevTab, prevSub, nextTab, nextSub) {
+  return prevTab !== nextTab || prevSub !== nextSub
 }
 
 /**
@@ -31,13 +36,14 @@ export function useDashboardModuleSubTab(
   allowedSubIds,
   defaultSub,
   company,
-  { isModuleActive = false } = {},
+  { isModuleActive = true } = {},
 ) {
   const [searchParams] = useSearchParams()
   const includeCompany = typeof window !== 'undefined' && isLocalTenantHost(window.location.hostname)
 
   const tabParam = searchParams.get('tab')
   const subFromUrl = searchParams.get('sub')
+  const allowedKey = allowedSubIds.join(',')
 
   const resolvedFromUrl = useMemo(
     () => resolveModuleSubTabFromUrl({
@@ -62,10 +68,18 @@ export function useDashboardModuleSubTab(
     }) ?? defaultSub
   ))
 
+  const lastSyncedRef = useRef({ tab: undefined, sub: undefined, allowedKey: '' })
+
   useEffect(() => {
+    const prev = lastSyncedRef.current
+    const urlChanged = shouldSyncSubTabFromUrl(prev.tab, prev.sub, tabParam, subFromUrl)
+    const allowlistChanged = prev.allowedKey !== allowedKey
+    if (!urlChanged && !allowlistChanged) return
+
+    lastSyncedRef.current = { tab: tabParam, sub: subFromUrl, allowedKey }
     if (resolvedFromUrl === undefined) return
     setSubTabInternal(resolvedFromUrl)
-  }, [resolvedFromUrl])
+  }, [tabParam, subFromUrl, resolvedFromUrl, allowedKey])
 
   const buildSubHref = useCallback(
     (subId) => buildDashboardHref({

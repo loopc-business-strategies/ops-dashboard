@@ -1208,7 +1208,7 @@ function TenantsTab() {
   )
 }
 
-function AdminTab({ isModuleActive = false }) {
+function AdminTab() {
   const { token, company, user } = useAuth()
   const { t } = useLanguage()
   const isPlatformAdmin = Boolean(
@@ -1227,7 +1227,6 @@ function AdminTab({ isModuleActive = false }) {
     adminSubIds,
     'users',
     company,
-    { isModuleActive },
   )
   const [selectedPermUserId, setSelectedPermUserId] = useState(null)
   const [users, setUsers] = useState([])

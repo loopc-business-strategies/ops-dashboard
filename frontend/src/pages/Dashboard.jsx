@@ -294,7 +294,7 @@ function renderTab(tabId, navigateToTab, buildTabHref, setChatUnread, erpSubTab,
       return <MasterSettingsTab />
 
     case 'admin':
-      return <AdminTab isModuleActive />
+      return <AdminTab />
 
     case 'hr':
       return <HRTab />
@@ -735,7 +735,7 @@ function Dashboard() {
       sub: activeTab === 'erp' ? null : searchParams.get('sub'),
       replace: true,
     })
-  }, [activeTab, erpSubTab, searchParams, writeDashboardUrl])
+  }, [activeTab, erpSubTab, writeDashboardUrl])
 
   const handleShellMouseMove = (e) => {
     if (!isDesktop) return
