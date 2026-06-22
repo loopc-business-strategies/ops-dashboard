@@ -5,6 +5,7 @@ import { PermissionEditor } from '@/src/components/admin/PermissionEditor'
 import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
+import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import { fetchUsers, getUserId, updateUserPermissions } from '@/src/api/users'
 import type { ModulePermissions } from '@/src/constants/admin'
 
@@ -12,6 +13,7 @@ export default function PermissionsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { token } = useAuth()
   const sessionReady = useTenantSessionReady()
+  const tenantSessionKey = useTenantSessionKey()
   const router = useRouter()
   const [userName, setUserName] = useState('')
   const [perms, setPerms] = useState<ModulePermissions>({})
@@ -21,6 +23,10 @@ export default function PermissionsScreen() {
 
   useEffect(() => {
     if (!token || !id || !sessionReady) return
+    setLoading(true)
+    setError('')
+    setUserName('')
+    setPerms({})
     fetchUsers(token)
       .then((users) => {
         const user = users.find((u) => getUserId(u) === id)
@@ -31,7 +37,7 @@ export default function PermissionsScreen() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load permissions'))
       .finally(() => setLoading(false))
-  }, [token, id, sessionReady])
+  }, [token, id, sessionReady, tenantSessionKey])
 
   const onSave = async () => {
     if (!token || !id || !sessionReady) return

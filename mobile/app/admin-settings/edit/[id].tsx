@@ -5,6 +5,7 @@ import { UserForm } from '@/src/components/admin/UserForm'
 import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
+import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import { fetchUsers, getUserId, updateUser } from '@/src/api/users'
 import type { UserFormState } from '@/src/constants/admin'
 import { formToPayload, userToForm, validateUserForm } from '@/src/utils/userForm'
@@ -13,6 +14,7 @@ export default function EditUserScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { token } = useAuth()
   const sessionReady = useTenantSessionReady()
+  const tenantSessionKey = useTenantSessionKey()
   const router = useRouter()
   const [form, setForm] = useState<UserFormState | null>(null)
   const [loading, setLoading] = useState(true)
@@ -21,6 +23,9 @@ export default function EditUserScreen() {
 
   useEffect(() => {
     if (!token || !id || !sessionReady) return
+    setLoading(true)
+    setError('')
+    setForm(null)
     fetchUsers(token)
       .then((users) => {
         const user = users.find((u) => getUserId(u) === id)
@@ -29,7 +34,7 @@ export default function EditUserScreen() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load user'))
       .finally(() => setLoading(false))
-  }, [token, id, sessionReady])
+  }, [token, id, sessionReady, tenantSessionKey])
 
   const onSave = async () => {
     if (!form || !token || !id || !sessionReady) return

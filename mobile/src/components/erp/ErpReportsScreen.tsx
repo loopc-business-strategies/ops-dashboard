@@ -14,6 +14,7 @@ import { useTenantBranding } from '@/src/context/TenantContext'
 import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
+import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import {
   fetchAccountsForLedger,
   getAccountEnquiry,
@@ -72,8 +73,9 @@ export default function ErpReportsScreen({
   initialView?: string
 } = {}) {
   const { token, user } = useAuth()
-  const { companyCode, branding } = useTenantBranding()
+  const { branding } = useTenantBranding()
   const sessionReady = useTenantSessionReady()
+  const tenantSessionKey = useTenantSessionKey()
   const allowed = canAccessErpReports(user)
   const styles = useMemo(() => createErpStyles(branding), [branding])
 
@@ -186,12 +188,12 @@ export default function ErpReportsScreen({
     setEnquiryAccount(null)
     setError('')
     setLoading(false)
-  }, [companyCode])
+  }, [tenantSessionKey])
 
   useEffect(() => {
     if (!token || !allowed || !sessionReady) return
     void refresh()
-  }, [token, allowed, sessionReady, companyCode, refresh])
+  }, [token, allowed, sessionReady, tenantSessionKey, refresh])
 
   const onRefresh = useCallback(async () => {
     if (!token || !allowed) return
@@ -287,6 +289,14 @@ export default function ErpReportsScreen({
     return (
       <View style={styles.center}>
         <Text style={styles.muted}>You do not have access to ERP Reports.</Text>
+      </View>
+    )
+  }
+
+  if (!sessionReady || (loading && !refreshing)) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={branding.colors.primary} />
       </View>
     )
   }

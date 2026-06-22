@@ -6,7 +6,7 @@ export function useTenantSessionReady(): boolean {
   const { isReady, companyCode } = useTenantBranding()
   const { token, user } = useAuth()
   if (!isReady) return false
-  if (!token) return true
+  if (!token) return false
   const sessionCompany = normalizeSessionCompany(user?.company)
   return sessionCompany === companyCode
 }

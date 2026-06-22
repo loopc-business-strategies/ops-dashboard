@@ -15,8 +15,8 @@ import { RoleBadge } from '@/src/components/admin/RoleBadge'
 import { DEPTS, ROLES } from '@/src/constants/admin'
 import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
-import { useTenantBranding } from '@/src/context/TenantContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
+import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import {
   deleteUser,
   fetchUsers,
@@ -27,8 +27,8 @@ import {
 
 export default function AdminUsersScreen() {
   const { token, user: me } = useAuth()
-  const { companyCode } = useTenantBranding()
   const sessionReady = useTenantSessionReady()
+  const tenantSessionKey = useTenantSessionKey()
   const router = useRouter()
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -57,7 +57,7 @@ export default function AdminUsersScreen() {
     setUsers([])
     setError('')
     setLoading(true)
-  }, [companyCode])
+  }, [tenantSessionKey])
 
   useFocusEffect(
     useCallback(() => {

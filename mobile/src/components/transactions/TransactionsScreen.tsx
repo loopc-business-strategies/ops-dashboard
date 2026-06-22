@@ -15,6 +15,7 @@ import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantBranding } from '@/src/context/TenantContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
+import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import {
   fetchAllTransactions,
   type TransactionRow,
@@ -74,7 +75,15 @@ const DEFAULT_FILTERS: FilterState = {
   accountCode: '',
 }
 
-function SummaryChip({ label, value }: { label: string; value: number }) {
+function SummaryChip({
+  label,
+  value,
+  styles,
+}: {
+  label: string
+  value: number
+  styles: ReturnType<typeof createTransactionStyles>
+}) {
   return (
     <View style={styles.summaryChip}>
       <Text style={styles.summaryChipLabel}>{label}</Text>
@@ -106,8 +115,9 @@ function buildApiParams(filters: FilterState) {
 
 export default function TransactionsScreen() {
   const { token, user } = useAuth()
-  const { companyCode, branding } = useTenantBranding()
+  const { branding } = useTenantBranding()
   const sessionReady = useTenantSessionReady()
+  const tenantSessionKey = useTenantSessionKey()
   const styles = useMemo(() => createTransactionStyles(branding), [branding])
   const allowed = canAccessTransactions(user)
 
@@ -163,7 +173,7 @@ export default function TransactionsScreen() {
       return
     }
     void load('initial')
-  }, [token, allowed, sessionReady, companyCode, appliedFilters, load])
+  }, [token, allowed, sessionReady, tenantSessionKey, appliedFilters, load])
 
   useEffect(() => {
     setRows([])
@@ -171,7 +181,7 @@ export default function TransactionsScreen() {
     setListCapped(false)
     setError('')
     setLoading(true)
-  }, [companyCode])
+  }, [tenantSessionKey])
 
   useEffect(() => {
     if (!token || !allowed || !sessionReady) return
@@ -245,7 +255,7 @@ export default function TransactionsScreen() {
     )
   }
 
-  if ((!sessionReady || loading) && rows.length === 0) {
+  if (!sessionReady || loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={branding.colors.primary} />
@@ -261,13 +271,13 @@ export default function TransactionsScreen() {
         style={styles.summaryScroll}
         contentContainerStyle={styles.summaryRow}
       >
-        <SummaryChip label="Total" value={Number(summary.totalCount || 0)} />
-        <SummaryChip label="Draft" value={Number(summary.draft || 0)} />
-        <SummaryChip label="Submitted" value={Number(summary.submitted || 0)} />
-        <SummaryChip label="Approved" value={Number(summary.approved || 0)} />
-        <SummaryChip label="Posted" value={Number(summary.posted || 0)} />
-        <SummaryChip label="Returned" value={Number(summary.returned || 0)} />
-        <SummaryChip label="Rejected" value={Number(summary.rejected || 0)} />
+        <SummaryChip label="Total" value={Number(summary.totalCount || 0)} styles={styles} />
+        <SummaryChip label="Draft" value={Number(summary.draft || 0)} styles={styles} />
+        <SummaryChip label="Submitted" value={Number(summary.submitted || 0)} styles={styles} />
+        <SummaryChip label="Approved" value={Number(summary.approved || 0)} styles={styles} />
+        <SummaryChip label="Posted" value={Number(summary.posted || 0)} styles={styles} />
+        <SummaryChip label="Returned" value={Number(summary.returned || 0)} styles={styles} />
+        <SummaryChip label="Rejected" value={Number(summary.rejected || 0)} styles={styles} />
       </ScrollView>
 
       {filtersActive ? (

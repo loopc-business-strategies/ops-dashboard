@@ -17,6 +17,7 @@ import { mgBranding } from '@/src/config/branding'
 import { useTenantBranding } from '@/src/context/TenantContext'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
+import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import {
   fetchNotificationPreferences,
   previewReportDigest,
@@ -35,6 +36,7 @@ export default function SettingsScreen() {
   const { user, token, logout } = useAuth()
   const { companyCode } = useTenantBranding()
   const sessionReady = useTenantSessionReady()
+  const tenantSessionKey = useTenantSessionKey()
   const router = useRouter()
   const showAdmin = isSuperAdmin(user)
   const [permissionStatus, setPermissionStatus] = useState<string>('—')
@@ -68,7 +70,7 @@ export default function SettingsScreen() {
     setDigestPreview('')
     setPrefsStatus('')
     setPrefsLoading(true)
-  }, [companyCode])
+  }, [tenantSessionKey])
 
   useEffect(() => {
     void refreshPermission()
@@ -76,7 +78,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     void loadPrefs()
-  }, [loadPrefs, companyCode])
+  }, [loadPrefs, tenantSessionKey])
 
   const persistPrefs = useCallback(async (next: NotificationPreferences) => {
     if (!token || !sessionReady) return

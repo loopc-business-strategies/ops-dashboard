@@ -11,6 +11,7 @@ import { startChatMessageEvents } from '@/src/realtime/chatSse'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantBranding } from '@/src/context/TenantContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
+import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import type { ChatAttachment, ChatConversation, ChatParticipant } from '@/src/types/chat'
 import { buildConversations, extractMentionParticipants, onlyMongoIds, participantFromRow, isMongoIdString } from '@/src/utils/chat'
 
@@ -66,6 +67,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const { token, user } = useAuth()
   const { companyCode } = useTenantBranding()
   const sessionReady = useTenantSessionReady()
+  const tenantSessionKey = useTenantSessionKey()
   const myAuthId = String(user?.id || '')
   const [participants, setParticipants] = useState<ChatParticipant[]>([])
   const [conversations, setConversations] = useState<ChatConversation[]>([])
@@ -96,7 +98,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setConversations([])
     setError('')
     setLoading(true)
-  }, [companyCode])
+  }, [tenantSessionKey])
+
+  useEffect(() => {
+    if (!token) {
+      setParticipants([])
+      setConversations([])
+      setError('')
+      setLoading(true)
+    }
+  }, [token])
 
   useEffect(() => {
     if (!token || !sessionReady) return

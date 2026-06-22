@@ -63,7 +63,7 @@ export default function ChatListScreen() {
         <TextInput
           style={styles.search}
           placeholder="Search chats…"
-          placeholderTextColor={b.colors.muted}
+          placeholderTextColor={branding.colors.muted}
           value={search}
           onChangeText={setSearch}
         />

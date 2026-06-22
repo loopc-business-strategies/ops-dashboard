@@ -57,15 +57,25 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return children
 }
 
+function SessionScopedProviders({ children }: { children: React.ReactNode }) {
+  const { tenantSessionKey } = useAuth()
+
+  return (
+    <ChatProvider key={tenantSessionKey}>
+      <NotificationsProvider key={tenantSessionKey}>
+        <LiveMetalRatesProvider key={tenantSessionKey}>{children}</LiveMetalRatesProvider>
+      </NotificationsProvider>
+    </ChatProvider>
+  )
+}
+
 export default function RootLayout() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <TenantProvider>
       <AuthProvider>
         <AuthGate>
-          <ChatProvider>
-            <NotificationsProvider>
-              <LiveMetalRatesProvider>
+          <SessionScopedProviders>
               <DeepLinkNavigationBridge />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="index" />
@@ -82,9 +92,7 @@ export default function RootLayout() {
                   }}
                 />
               </Stack>
-              </LiveMetalRatesProvider>
-            </NotificationsProvider>
-          </ChatProvider>
+          </SessionScopedProviders>
         </AuthGate>
       </AuthProvider>
       </TenantProvider>

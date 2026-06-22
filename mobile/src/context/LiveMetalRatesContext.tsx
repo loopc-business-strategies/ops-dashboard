@@ -11,6 +11,7 @@ import { fetchLiveMetalRates, fetchSavedMetalRates } from '@/src/api/metalRates'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantBranding } from '@/src/context/TenantContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
+import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import { startMetalRatesRealtime } from '@/src/realtime/metalRatesSocket'
 import {
   LIVE_METAL_POLL_MS,
@@ -49,6 +50,7 @@ function useLiveMetalRatesState(
   enabled: boolean,
   companyCode: string,
   sessionReady: boolean,
+  tenantSessionKey: string,
 ) {
   const [snapshot, setSnapshot] = useState<LiveMetalSnapshot>(EMPTY_SNAPSHOT)
   const [error, setError] = useState<MetalRatesError | null>(null)
@@ -183,7 +185,7 @@ function useLiveMetalRatesState(
     setError(null)
     lastSnapshotRef.current = null
     sourceRef.current = ''
-  }, [companyCode])
+  }, [tenantSessionKey])
 
   useEffect(() => {
     if (!enabled || !token || !sessionReady) return undefined
@@ -218,8 +220,9 @@ export function LiveMetalRatesProvider({ children }: { children: React.ReactNode
   const { token, isAuthenticated } = useAuth()
   const { companyCode } = useTenantBranding()
   const sessionReady = useTenantSessionReady()
+  const tenantSessionKey = useTenantSessionKey()
   const enabled = Boolean(token && isAuthenticated)
-  const value = useLiveMetalRatesState(token, enabled, companyCode, sessionReady)
+  const value = useLiveMetalRatesState(token, enabled, companyCode, sessionReady, tenantSessionKey)
 
   return <LiveMetalRatesContext.Provider value={value}>{children}</LiveMetalRatesContext.Provider>
 }

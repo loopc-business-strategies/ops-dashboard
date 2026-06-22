@@ -6,12 +6,15 @@ import type { AuthUser } from '@/src/api/auth'
 import { SESSION_TOKEN_KEY } from '@/src/config/tenant'
 import { useTenantBranding } from '@/src/context/TenantContext'
 import { registerExpoPushAndPost, unregisterExpoPushFromBackend, attachExpoPushReregistration } from '@/src/services/expoPushRegistration'
+import { buildTenantSessionKey } from '@/src/utils/tenantSessionKey'
 
 type AuthContextValue = {
   user: AuthUser | null
   token: string | null
   isLoading: boolean
   isAuthenticated: boolean
+  sessionEpoch: number
+  tenantSessionKey: string
   login: (name: string, password: string, companyCode: string) => Promise<void>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
@@ -20,10 +23,11 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { isReady, syncTenantFromSession, resetForLogout } = useTenantBranding()
+  const { isReady, companyCode, syncTenantFromSession, resetForLogout } = useTenantBranding()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [sessionEpoch, setSessionEpoch] = useState(0)
 
   const applySession = useCallback(async (nextToken: string | null, nextUser: AuthUser | null) => {
     setToken(nextToken)
@@ -88,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     await syncTenantFromSession(sessionCompany)
     await applySession(data.token, data.user)
+    setSessionEpoch((epoch) => epoch + 1)
   }, [applySession, syncTenantFromSession])
 
   const logout = useCallback(async () => {
@@ -103,7 +108,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     await applySession(null, null)
     await resetForLogout()
+    setSessionEpoch((epoch) => epoch + 1)
   }, [applySession, resetForLogout, token])
+
+  const tenantSessionKey = useMemo(
+    () => buildTenantSessionKey(token, user, companyCode, sessionEpoch),
+    [token, user, companyCode, sessionEpoch],
+  )
 
   const value = useMemo(
     () => ({
@@ -111,11 +122,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       token,
       isLoading,
       isAuthenticated: Boolean(user && token),
+      sessionEpoch,
+      tenantSessionKey,
       login,
       logout,
       refreshUser,
     }),
-    [user, token, isLoading, login, logout, refreshUser],
+    [user, token, isLoading, sessionEpoch, tenantSessionKey, login, logout, refreshUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

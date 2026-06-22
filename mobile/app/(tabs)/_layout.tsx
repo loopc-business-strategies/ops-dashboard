@@ -5,6 +5,7 @@ import { Platform } from 'react-native'
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PlusTabButton } from '@/src/components/PlusTabButton'
 import { MgTabsHeader } from '@/src/components/MgTabsHeader'
+import { useAuth } from '@/src/context/AuthContext'
 import { useTenantBranding } from '@/src/context/TenantContext'
 
 const TAB_PADDING_TOP = 8
@@ -20,6 +21,7 @@ export default function TabLayout() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const bootBottom = initialWindowMetrics?.insets.bottom ?? 0
+  const { tenantSessionKey } = useAuth()
   const { branding } = useTenantBranding()
 
   /** Edge-to-edge: lift tab content above system gesture / 3-button bar even when JS insets are wrong. */
@@ -40,6 +42,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      key={tenantSessionKey}
       screenOptions={{
         headerShown: true,
         header: (props) => (
