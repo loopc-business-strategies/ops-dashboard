@@ -41,6 +41,11 @@ const {
   shouldSuppressSpotMetalMtmForCustomerDashboard,
 } = require('../../services/erpAccounting/metalMarginPolicy')
 const { createMetalPricingHelpers } = require('./reportRoutesMetalPricing')
+const { resolveRequestTenantKey } = require('../../config/tenants')
+
+function reportTenantKey(req) {
+  return resolveRequestTenantKey(req)
+}
 
 function registerReportRoutes(deps) {
   const {
@@ -114,7 +119,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       minAbsolute = '0',
     } = req.query
     const cacheKey = reportCache.buildKey([
-      req.user?.tenant || req.user?.company || 'default',
+      reportTenantKey(req),
       'trial-balance',
       startDate,
       endDate,
@@ -355,7 +360,7 @@ router.get('/reports/profit-loss', protect, reportExportLimiter, async (req, res
     const includeZeroRows = parseBool(includeZero, false)
     const withComparisons = parseBool(includeComparisons, true)
     const cacheKey = reportCache.buildKey([
-      req.user?.tenant || req.user?.company || 'default',
+      reportTenantKey(req),
       'profit-loss',
       startDate,
       endDate,
@@ -420,7 +425,7 @@ router.get('/reports/balance-sheet', protect, reportExportLimiter, async (req, r
     const { endDate, includeComparisons = 'true' } = req.query
     const withComparisons = parseBool(includeComparisons, true)
     const cacheKey = reportCache.buildKey([
-      req.user?.tenant || req.user?.company || 'default',
+      reportTenantKey(req),
       'balance-sheet',
       endDate,
       includeComparisons,
@@ -526,7 +531,7 @@ router.get('/reports/day-book', protect, reportExportLimiter, async (req, res) =
 router.get('/reports/customer-outstanding', protect, reportExportLimiter, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const cacheKey = reportCache.buildKey([req.user?.tenant || req.user?.company || 'default', 'customer-outstanding'])
+    const cacheKey = reportCache.buildKey([reportTenantKey(req), 'customer-outstanding'])
     const cached = reportCache.get(cacheKey)
     if (cached) return res.json(cached)
 
@@ -589,7 +594,7 @@ router.get('/reports/customer-outstanding', protect, reportExportLimiter, async 
 router.get('/reports/vendor-outstanding', protect, reportExportLimiter, async (req, res) => {
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
-    const cacheKey = reportCache.buildKey([req.user?.tenant || req.user?.company || 'default', 'vendor-outstanding'])
+    const cacheKey = reportCache.buildKey([reportTenantKey(req), 'vendor-outstanding'])
     const cached = reportCache.get(cacheKey)
     if (cached) return res.json(cached)
 
@@ -979,7 +984,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     const periodEnd = endDate ? new Date(endDate) : new Date(today.getFullYear(), today.getMonth() + 1, 0)
     periodEnd.setHours(23, 59, 59, 999)
 
-    const cacheKey = `${req.user?.tenant || req.user?.company || 'default'}:${periodStart.toISOString()}:${periodEnd.toISOString()}`
+    const cacheKey = `${reportTenantKey(req)}:${periodStart.toISOString()}:${periodEnd.toISOString()}`
     const cached = dashboardReportCache.get(cacheKey)
     if (cached && cached.expiresAt > Date.now()) {
       return res.json(cached.payload)

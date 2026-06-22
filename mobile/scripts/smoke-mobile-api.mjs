@@ -147,7 +147,7 @@ async function smokeErpReportsMobile(token) {
     console.log('Step: GET ledger — SKIP (no accounts)')
   }
 
-  await getExpect(token, `${base}/api/erp-accounting/currencies/metal-rates`, 'GET metal-rates')
+  await getExpect(token, `${base}/api/erp-accounting/metal-rates`, 'GET metal-rates')
 }
 
 async function smokeNotificationsSocket(token) {

@@ -193,7 +193,7 @@ Deploy the backend auth update before testing against production.
 
 ## Live metal prices (Home tab)
 
-- Gold, Silver, and Platinum use the same **`/api/erp-accounting/currencies/metal-rates/live`** endpoint as the MG web dashboard (MT4-backed when the bridge feed is fresh), with Socket.IO **`/metal-rates`** updates when connected.
+- Gold, Silver, and Platinum use the same **`/api/erp-accounting/metal-rates/live`** endpoint as the web dashboard (MT4-backed when the bridge feed is fresh), with Socket.IO **`/metal-rates`** updates when connected.
 - The **Home** screen shows a live spot strip above dashboard widgets; prices poll every **15 seconds** while the app is foregrounded (60s when the socket is connected). **Pull to refresh** on Home also updates spot prices.
 - The **Margins** widget recalculates equity and margin % from live gold/silver gram prices (same logic as the web ERP dashboard).
 - **Manual QA:** Log in as MG, open the web dashboard in parallel, and confirm the three headline numbers match (allow a few seconds for poll timing).

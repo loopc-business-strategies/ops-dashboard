@@ -1,4 +1,7 @@
 import { API_URL, getTenant } from '@/src/config/tenant'
+import { METAL_RATES_LIVE_PATH, METAL_RATES_SAVED_PATH } from '@/src/api/metalRates.paths'
+
+export { METAL_RATES_LIVE_PATH, METAL_RATES_SAVED_PATH } from '@/src/api/metalRates.paths'
 
 export type MetalRatesPayload = {
   goldPrice?: number
@@ -70,9 +73,9 @@ async function metalRatesRequest<T>(path: string, token: string, tenant?: string
 }
 
 export async function fetchLiveMetalRates(token: string, tenant?: string) {
-  return metalRatesRequest<LiveMetalRatesResponse>('/api/erp-accounting/currencies/metal-rates/live', token, tenant)
+  return metalRatesRequest<LiveMetalRatesResponse>(METAL_RATES_LIVE_PATH, token, tenant)
 }
 
 export async function fetchSavedMetalRates(token: string, tenant?: string) {
-  return metalRatesRequest<SavedMetalRatesResponse>('/api/erp-accounting/currencies/metal-rates', token, tenant)
+  return metalRatesRequest<SavedMetalRatesResponse>(METAL_RATES_SAVED_PATH, token, tenant)
 }

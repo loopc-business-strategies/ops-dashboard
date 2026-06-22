@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   RefreshControl,
@@ -26,6 +26,8 @@ export default function HomeScreen() {
   const { branding } = useTenantBranding()
   const sessionReady = useTenantSessionReady()
   const tenantSessionKey = useTenantSessionKey()
+  const tenantSessionKeyRef = useRef(tenantSessionKey)
+  tenantSessionKeyRef.current = tenantSessionKey
   const { snapshot: liveSnapshot, refresh: refreshLiveMetalRates } = useLiveMetalRates()
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -42,6 +44,7 @@ export default function HomeScreen() {
 
   const load = useCallback(async (isRefresh = false) => {
     if (!token || !sessionReady) return
+    const sessionAtStart = tenantSessionKeyRef.current
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
     setError('')
@@ -51,15 +54,19 @@ export default function HomeScreen() {
         fetchLatestMessages(token, 'group', 10).catch(() => [] as ChatMessage[]),
         isRefresh ? refreshLiveMetalRates() : Promise.resolve(),
       ])
+      if (sessionAtStart !== tenantSessionKeyRef.current) return
       setDashboard(dash)
       setChatMessages(messagesRaw)
     } catch (err) {
+      if (sessionAtStart !== tenantSessionKeyRef.current) return
       setError(err instanceof Error ? err.message : 'Failed to load dashboard')
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      if (sessionAtStart === tenantSessionKeyRef.current) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
-  }, [token, sessionReady, refreshLiveMetalRates])
+  }, [token, sessionReady, tenantSessionKey, refreshLiveMetalRates])
 
   useFocusEffect(
     useCallback(() => {
