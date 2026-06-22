@@ -10,15 +10,23 @@ Web push and in-app Socket notifications are unaffected.
 |------|--------|
 | `EXPO_ACCESS_TOKEN` | Railway → `ops-dashboard` service (verify: `GET /api/ready` → `expoPushAccessTokenSet: true`) |
 | EAS project ID | `mobile/app.config.ts` → `extra.eas.projectId` (`f049f1a3-d499-416b-97af-e082bca658fa`) |
-| Android package | `com.loopc.nexa` (see `mobile/app.config.ts`) |
+| Android package | `com.loopc.mg.ops` (native [`mobile/android/app/build.gradle`](../mobile/android/app/build.gradle); matches Expo Credentials) |
+
+## Firebase display name checklist (manual)
+
+App name **Nexa** is separate from the package ID. In [Firebase Console](https://console.firebase.google.com/) → project `mg-ops-push`:
+
+1. **Project settings** → **Project name** → **Nexa**
+2. **Your apps** → Android app → **App nickname** → **Nexa**
+3. Package **`com.loopc.mg.ops`** can stay (does not change the visible app name)
 
 ## Step 1 — Firebase project
 
 1. Open [Firebase Console](https://console.firebase.google.com/).
 2. Create or select a project (display name **Nexa**; Firebase project ID may remain `mg-ops-push`).
-3. **Project settings** → edit **Project name** / Android app **nickname** to **Nexa** if the console still shows “Nexa MG”.
-4. **Add app** → **Android** (skip if already registered).
-5. **Android package name:** `com.loopc.nexa` (must match `app.config.ts`). If you still have an older Firebase app for `com.loopc.mg.ops`, add a second Android app for `com.loopc.nexa` or migrate FCM credentials to the new package.
+3. Complete the checklist above if the console still shows “Nexa MG”.
+4. **Add app** → **Android** (skip if `com.loopc.mg.ops` is already registered).
+5. **Android package name:** `com.loopc.mg.ops` (must match native `applicationId` in `build.gradle`).
 6. Download **`google-services.json`**.
 7. Place it at:
 

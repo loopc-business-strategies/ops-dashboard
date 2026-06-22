@@ -1,9 +1,3 @@
-import tenantCatalog from '../../../shared/tenant-catalog.json'
-
-export const TENANT_KEYS = Object.keys(tenantCatalog.tenants || {}) as string[]
-
-export type TenantKey = string
-
 export type MobileTenantBranding = {
   key: string
   appName: string
@@ -95,6 +89,11 @@ const mobileBrandingByKey: Record<string, MobileTenantBranding> = {
     },
   },
 }
+
+/** Keep in sync with `shared/tenant-catalog.json` tenant keys. */
+export const TENANT_KEYS = Object.keys(mobileBrandingByKey) as string[]
+
+export type TenantKey = string
 
 export function normalizeTenantKey(value: string | null | undefined): TenantKey | '' {
   const key = String(value || '').trim().toLowerCase()
