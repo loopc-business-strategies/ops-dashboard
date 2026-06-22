@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import {
   resolveModuleSubTabFromUrl,
+  shouldAcceptModuleSubTabClick,
   shouldSyncSubTabFromUrl,
 } from './useDashboardModuleSubTab'
 
@@ -107,6 +108,27 @@ describe('resolveModuleSubTabFromUrl', () => {
       allowedSubIds: HR_SUBS,
       defaultSub: 'employee_list',
     })).toBe('employee_list')
+  })
+})
+
+describe('shouldAcceptModuleSubTabClick', () => {
+  test('accepts plain primary click', () => {
+    expect(shouldAcceptModuleSubTabClick({ button: 0, defaultPrevented: false })).toBe(true)
+  })
+
+  test('accepts caller-validated click after preventDefault (ErpSubTabButton chain)', () => {
+    expect(shouldAcceptModuleSubTabClick({ button: 0, defaultPrevented: true })).toBe(true)
+  })
+
+  test('rejects modifier and non-primary clicks', () => {
+    expect(shouldAcceptModuleSubTabClick({ button: 0, ctrlKey: true, defaultPrevented: false })).toBe(false)
+    expect(shouldAcceptModuleSubTabClick({ button: 1, defaultPrevented: false })).toBe(false)
+    expect(shouldAcceptModuleSubTabClick({ button: 0, metaKey: true, defaultPrevented: true })).toBe(true)
+  })
+
+  test('accepts programmatic calls without event', () => {
+    expect(shouldAcceptModuleSubTabClick(null)).toBe(true)
+    expect(shouldAcceptModuleSubTabClick(undefined)).toBe(true)
   })
 })
 

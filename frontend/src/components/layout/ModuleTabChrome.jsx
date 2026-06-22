@@ -1,4 +1,5 @@
 import React from 'react'
+import { isPrimaryNavClick } from '../../utils/dashboardNavigation'
 
 /** Vertical rhythm between major blocks (matches ERP inner spacing). */
 export const MODULE_TAB_GAP = '1.25rem'
@@ -51,7 +52,7 @@ export function ErpSubTabButton({
       <a
         href={href}
         onClick={(event) => {
-          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
+          if (!isPrimaryNavClick(event)) return
           event.preventDefault()
           handleSubTabNavClick(event, onClick)
         }}

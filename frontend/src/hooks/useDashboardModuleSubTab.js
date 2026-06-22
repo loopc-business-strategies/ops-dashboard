@@ -28,6 +28,13 @@ export function shouldSyncSubTabFromUrl(prevTab, prevSub, nextTab, nextSub) {
   return prevTab !== nextTab || prevSub !== nextSub
 }
 
+/** True when a sub-tab click should navigate (caller may have already called preventDefault). */
+export function shouldAcceptModuleSubTabClick(event) {
+  if (!event) return true
+  if (event.defaultPrevented) return true
+  return isPrimaryNavClick(event)
+}
+
 /**
  * Sync a module's top-level sub-tab with ?sub= when ?tab= matches moduleTabId.
  */
@@ -106,8 +113,8 @@ export function useDashboardModuleSubTab(
   }, [allowedSubIds, defaultSub, moduleTabId, company, includeCompany, setSearchParams])
 
   const handleSubTabClick = useCallback((subId, event) => {
-    if (event && !isPrimaryNavClick(event)) return
-    if (event) event.preventDefault()
+    if (!shouldAcceptModuleSubTabClick(event)) return
+    if (event && !event.defaultPrevented) event.preventDefault()
     setSubTab(subId)
   }, [setSubTab])
 

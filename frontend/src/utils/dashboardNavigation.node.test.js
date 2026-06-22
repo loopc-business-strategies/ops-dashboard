@@ -113,4 +113,11 @@ describe('dashboardNavigation', () => {
     expect(enquiryDeepLinkKey({ account: '1000', view: 'statement' })).toBe('1000|statement')
     expect(enquiryDeepLinkKey({ account: '' })).toBe('')
   })
+
+  test('isPrimaryNavClick is false after preventDefault (chained handlers must not re-check blindly)', () => {
+    const event = { button: 0, defaultPrevented: false }
+    expect(isPrimaryNavClick(event)).toBe(true)
+    event.defaultPrevented = true
+    expect(isPrimaryNavClick(event)).toBe(false)
+  })
 })
