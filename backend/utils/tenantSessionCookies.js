@@ -60,6 +60,17 @@ function readSessionToken(req, fallbackTenant) {
   return null
 }
 
+/** Cookie session first, then Authorization Bearer (mobile). Shared by protect + bindTenantContext. */
+function readRequestAuthToken(req, fallbackTenant) {
+  const cookieToken = readSessionToken(req, fallbackTenant)
+  if (cookieToken) return cookieToken
+  const auth = String(req?.headers?.authorization || '')
+  if (auth.startsWith('Bearer ')) {
+    return auth.split(' ')[1]
+  }
+  return null
+}
+
 function readCsrfToken(req, tenant) {
   const portalTenant = normalizeTenant(tenant) || resolvePortalTenant(req)
   if (!portalTenant) {
@@ -142,6 +153,7 @@ module.exports = {
   csrfCookieName,
   resolvePortalTenant,
   readSessionToken,
+  readRequestAuthToken,
   readCsrfToken,
   hasSessionCookie,
   buildSessionCookieOptions,

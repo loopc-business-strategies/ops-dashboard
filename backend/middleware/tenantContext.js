@@ -6,12 +6,12 @@ const { runWithTenantConnection } = require('../db/tenantModelProxy')
 const {
   clearLegacySessionCookies,
   clearTenantSessionCookies,
-  readSessionToken,
+  readRequestAuthToken,
   resolvePortalTenant,
 } = require('../utils/tenantSessionCookies')
 
 function getToken(req) {
-  return readSessionToken(req)
+  return readRequestAuthToken(req)
 }
 
 async function bindTenantContext(req, res, next) {

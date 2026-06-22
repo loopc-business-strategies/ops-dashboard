@@ -9,7 +9,7 @@
 const jwt  = require('jsonwebtoken')
 const User = require('../models/User')
 const { normalizeTenant, resolveTenantFromHost } = require('../config/tenants')
-const { readSessionToken } = require('../utils/tenantSessionCookies')
+const { readRequestAuthToken } = require('../utils/tenantSessionCookies')
 
 // -----------------------------------------------
 // protect — verifies the JWT token on every request
@@ -24,13 +24,7 @@ const { readSessionToken } = require('../utils/tenantSessionCookies')
 // -----------------------------------------------
 const protect = async (req, res, next) => {
   try {
-    let token
-
-    token = readSessionToken(req)
-
-    if (!token && req.headers.authorization?.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1]
-    }
+    let token = readRequestAuthToken(req)
 
     if (!token) {
       return res.status(401).json({ success: false, message: 'Please log in to access this.' })
