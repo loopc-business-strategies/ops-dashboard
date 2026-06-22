@@ -1,4 +1,11 @@
 const nodeCrypto = require('crypto')
+const {
+  csrfCookieName,
+  hasSessionCookie,
+  readCsrfToken,
+  resolvePortalTenant,
+  csrfCookieOptions,
+} = require('../utils/tenantSessionCookies')
 
 const CSRF_COOKIE_NAME = 'csrfToken'
 const CSRF_HEADER_NAME = 'x-csrf-token'
@@ -11,24 +18,25 @@ const shouldBypassPath = (path = '') => {
   return p === '/auth/login' || p === '/auth/setup' || p === '/health' || p === '/ready'
 }
 
-const csrfCookieOptions = {
-  httpOnly: false,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-  maxAge: Number(process.env.COOKIE_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000),
-  path: '/',
-}
-
 function generateCsrfToken() {
   return nodeCrypto.randomBytes(32).toString('hex')
 }
 
-function setCsrfCookie(res, token = generateCsrfToken()) {
-  res.cookie(CSRF_COOKIE_NAME, token, csrfCookieOptions)
-  return token
+function setCsrfCookie(res, token = generateCsrfToken(), tenant) {
+  const value = token || generateCsrfToken()
+  const key = tenant ? csrfCookieName(tenant) : CSRF_COOKIE_NAME
+  res.cookie(key, value, {
+    ...csrfCookieOptions,
+    maxAge: Number(process.env.COOKIE_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000),
+  })
+  return value
 }
 
-function clearCsrfCookie(res) {
+function clearCsrfCookie(res, tenant) {
+  if (tenant) {
+    res.clearCookie(csrfCookieName(tenant), { ...csrfCookieOptions, maxAge: undefined })
+    return
+  }
   res.clearCookie(CSRF_COOKIE_NAME, { ...csrfCookieOptions, maxAge: undefined })
 }
 
@@ -43,10 +51,10 @@ function enforceCsrfProtection(req, res, next) {
   // API clients using Authorization Bearer are not subject to cookie-forging CSRF the same way.
   if (hasBearerCredential(req)) return next()
 
-  const hasSessionCookie = Boolean(req.cookies?.sessionToken)
-  if (!hasSessionCookie) return next()
+  const portalTenant = resolvePortalTenant(req)
+  if (!hasSessionCookie(req, portalTenant)) return next()
 
-  const cookieToken = String(req.cookies?.[CSRF_COOKIE_NAME] || '')
+  const cookieToken = readCsrfToken(req, portalTenant)
   const headerToken = String(req.headers[CSRF_HEADER_NAME] || req.headers['x-xsrf-token'] || '')
 
   if (!cookieToken || !headerToken || cookieToken !== headerToken) {

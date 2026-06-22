@@ -11,6 +11,7 @@
 const fs = require('fs')
 const path = require('path')
 const jwt = require('jsonwebtoken')
+const { readSessionTokenFromCookieMap } = require('../utils/tenantSessionCookies')
 
 // Ensure logs directory exists
 const logsDir = path.join(__dirname, '../logs')
@@ -33,7 +34,10 @@ function resolveUserFromRequest(req) {
   }
   // Otherwise try to decode the session cookie passively
   try {
-    const token = req.cookies?.sessionToken
+    const token = readSessionTokenFromCookieMap(req.cookies, {
+      hostname: req.hostname,
+      headerTenant: req.headers['x-tenant'] || req.headers['x-company'],
+    })
     if (token && process.env.JWT_SECRET) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET)
       return { userId: String(decoded.id || 'decoded'), userRole: 'session' }

@@ -14,21 +14,25 @@ const buildNamespaceUrl = (namespace) => {
   return base ? `${base}${namespace}` : namespace
 }
 
-const createSocket = (namespace, token) => io(buildNamespaceUrl(namespace), {
-  transports: ['websocket', 'polling'],
-  withCredentials: true,
-  auth: {
-    token: token || 'browser-session',
-    userId: 'erp-client',
-  },
-})
+const createSocket = (namespace, token, tenant) => {
+  const tenantKey = String(tenant || '').trim()
+  return io(buildNamespaceUrl(namespace), {
+    transports: ['websocket', 'polling'],
+    withCredentials: true,
+    extraHeaders: tenantKey ? { 'x-tenant': tenantKey, 'x-company': tenantKey } : undefined,
+    auth: {
+      token: token || 'browser-session',
+      userId: 'erp-client',
+    },
+  })
+}
 
 export const startERPRealtimeFeeds = ({ token, tenant, onLedgerUpdate, onTransactionUpdate }) => {
   const tenantKey = String(tenant || '').trim()
   if (!tenantKey) return () => {}
 
-  const ledgerSocket = createSocket('/ledger', token)
-  const transactionSocket = createSocket('/transactions', token)
+  const ledgerSocket = createSocket('/ledger', token, tenantKey)
+  const transactionSocket = createSocket('/transactions', token, tenantKey)
 
   ledgerSocket.on('connect', () => {
     ledgerSocket.emit('subscribe:tenant', tenantKey)
@@ -62,7 +66,7 @@ export const startMetalRatesRealtime = ({ token, tenant, onRatesUpdate }) => {
   const tenantKey = String(tenant || '').trim()
   if (!tenantKey || typeof onRatesUpdate !== 'function') return () => {}
 
-  const socket = createSocket('/metal-rates', token)
+  const socket = createSocket('/metal-rates', token, tenantKey)
 
   socket.on('connect', () => {
     socket.emit('subscribe:tenant', tenantKey)
@@ -105,10 +109,10 @@ export const startProjectsSse = ({ onReminderDue }) => {
 /** @deprecated Use {@link startProjectsSse}; kept for external/legacy imports. */
 export const startTaskBoardSse = startProjectsSse
 
-export const startUserNotifications = ({ token, onNotification }) => {
+export const startUserNotifications = ({ token, tenant, onNotification }) => {
   if (typeof onNotification !== 'function') return () => {}
 
-  const notificationSocket = createSocket('/notifications', token)
+  const notificationSocket = createSocket('/notifications', token, tenant)
   notificationSocket.on('notification', onNotification)
 
   return () => {

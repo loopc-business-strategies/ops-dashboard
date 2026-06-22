@@ -87,4 +87,52 @@ describe('Tenant host/header/session consistency', () => {
     expect(res.body.success).toBe(true)
     expect(res.body.user.company).toBe('mg')
   })
+
+  test('keeps MG and CG sessions in the same browser cookie jar', async () => {
+    const mgUser = await createTenantUser('mg')
+    const cgUser = await createTenantUser('cg')
+    const agent = request.agent(app)
+
+    const mgLogin = await agent
+      .post('/api/auth/login')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .send({ company: 'mg', name: mgUser.name, password: 'password123' })
+    expect(mgLogin.status).toBe(200)
+
+    const cgLogin = await agent
+      .post('/api/auth/login')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'cg')
+      .send({ company: 'cg', name: cgUser.name, password: 'password123' })
+    expect(cgLogin.status).toBe(200)
+
+    const mgMe = await agent
+      .get('/api/auth/me')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+    expect(mgMe.status).toBe(200)
+    expect(mgMe.body.user.company).toBe('mg')
+
+    const cgMe = await agent
+      .get('/api/auth/me')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'cg')
+    expect(cgMe.status).toBe(200)
+    expect(cgMe.body.user.company).toBe('cg')
+  })
+
+  test('legacy sessionToken still works when JWT tenant matches portal', async () => {
+    const mgUser = await createTenantUser('mg')
+    const token = tokenFor(mgUser, 'mg')
+
+    const res = await request(app)
+      .get('/api/auth/me')
+      .set('Host', 'api.loopcstrategies.com')
+      .set('x-tenant', 'mg')
+      .set('Cookie', `sessionToken=${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.user.company).toBe('mg')
+  })
 })

@@ -27,6 +27,11 @@ const { normalizeTenant, getDefaultTenant, resolveTenantFromHost } = require('..
 const { getTenantKeys } = require('../config/tenantRegistry')
 const { setCsrfCookie, clearCsrfCookie, generateCsrfToken } = require('../middleware/csrf')
 const {
+  clearTenantSessionCookies,
+  readCsrfToken,
+  setTenantSessionCookies,
+} = require('../utils/tenantSessionCookies')
+const {
   loadAdminSettings,
   validatePasswordPolicy,
   resolveSessionMaxAgeMs,
@@ -49,17 +54,6 @@ function resolveRequestTenant(req, requestedCompany) {
 const createToken = (id, company, expiresIn = process.env.JWT_EXPIRES_IN || '7d') =>
   jwt.sign({ id, company }, process.env.JWT_SECRET, { expiresIn })
 
-const clearSessionCookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-  path: '/',
-}
-const buildSessionCookieOptions = (maxAgeMs) => ({
-  ...clearSessionCookieOptions,
-  maxAge: maxAgeMs,
-})
-
 // Helper: send user data + token as response
 const isMobileClientRequest = (req) => {
   const client = String(req?.headers?.['x-client'] || req?.headers?.['X-Client'] || '').trim().toLowerCase()
@@ -78,9 +72,8 @@ const sendToken = async (user, status, res, company, req = null) => {
   // it and then mutating /api/* hits CSRF (session cookie without x-csrf-token from the app).
   let csrfToken = null
   if (!mobile) {
-    res.cookie('sessionToken', token, buildSessionCookieOptions(maxAgeMs))
     csrfToken = generateCsrfToken()
-    setCsrfCookie(res, csrfToken)
+    setTenantSessionCookies(res, tenant, { token, csrfToken, maxAgeMs })
     res.setHeader('X-CSRF-Token', csrfToken)
   }
   user.password = undefined // never send password
@@ -297,15 +290,13 @@ router.get('/me', protect, (req, res) => {
   const mobile = isMobileClientRequest(req)
   let csrfToken = null
   if (!mobile) {
-    // Reuse the existing cookie token when present so parallel /me calls (e.g. React Strict Mode)
-    // or a slow first response cannot rotate the cookie out from under the axios default header.
-    const existing = String(req.cookies?.csrfToken || '').trim()
+    const existing = readCsrfToken(req, req.tenant)
     if (existing) {
       csrfToken = existing
       res.setHeader('X-CSRF-Token', csrfToken)
     } else {
       csrfToken = generateCsrfToken()
-      setCsrfCookie(res, csrfToken)
+      setCsrfCookie(res, csrfToken, req.tenant)
       res.setHeader('X-CSRF-Token', csrfToken)
     }
   }
@@ -461,8 +452,8 @@ router.delete('/me/web-push-subscription', protect, validateBody(webPushDeleteSc
 })
 
 router.post('/logout', protect, (req, res) => {
-  res.clearCookie('sessionToken', clearSessionCookieOptions)
-  clearCsrfCookie(res)
+  clearTenantSessionCookies(res, req.tenant)
+  clearCsrfCookie(res, req.tenant)
   res.json({ success: true, message: 'Logged out.' })
 })
 
@@ -478,7 +469,7 @@ router.post('/refresh', protect, async (req, res) => {
     const TenantUser = await User.getTenantModel(req.tenant)
     const user = await TenantUser.findById(req.user._id).select('-password')
     if (!user || !user.isActive) {
-      res.clearCookie('sessionToken', clearSessionCookieOptions)
+      clearTenantSessionCookies(res, req.tenant)
       return res.status(401).json({ success: false, message: 'Session revoked.' })
     }
     const settings = await loadAdminSettings(req.tenant)
@@ -490,9 +481,8 @@ router.post('/refresh', protect, async (req, res) => {
     // cannot read the cookie and will keep sending a stale x-csrf-token from memory.
     let csrfToken = null
     if (!mobile) {
-      res.cookie('sessionToken', token, buildSessionCookieOptions(maxAgeMs))
       csrfToken = generateCsrfToken()
-      setCsrfCookie(res, csrfToken)
+      setTenantSessionCookies(res, req.tenant, { token, csrfToken, maxAgeMs })
       res.setHeader('X-CSRF-Token', csrfToken)
     }
     res.json({

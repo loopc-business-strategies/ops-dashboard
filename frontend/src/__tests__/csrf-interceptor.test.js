@@ -55,6 +55,15 @@ describe('csrf interceptor utility', () => {
     vi.unstubAllGlobals()
   })
 
+  it('reads tenant-scoped csrf cookie when x-tenant is set', () => {
+    document.cookie = 'csrfToken_mg=mg-token-456'
+    const axiosInstance = {
+      defaults: { headers: { common: { 'x-tenant': 'mg' } } },
+    }
+    const postConfig = applyCsrfHeader({ method: 'post', headers: {} }, document, axiosInstance)
+    expect(postConfig.headers['x-csrf-token']).toBe('mg-token-456')
+  })
+
   it('installs request interceptor that applies csrf header', () => {
     document.cookie = 'csrfToken=token-via-install'
 

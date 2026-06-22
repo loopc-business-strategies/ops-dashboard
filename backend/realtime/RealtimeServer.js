@@ -9,6 +9,7 @@ const User = require('../models/User')
 const { normalizeTenant, resolveTenantFromHost } = require('../config/tenants')
 const { sendExpoPushToUser } = require('../services/expoPushNotifications')
 const { sendWebPushToUser } = require('../services/webPushNotifications')
+const { readSessionTokenFromCookieMap } = require('../utils/tenantSessionCookies')
 
 function resolveSocketTenantSubscription(socket, requestedTenant) {
   const authenticatedTenant = normalizeTenant(socket?.tenant)
@@ -52,7 +53,9 @@ function getSocketToken(socket) {
   }
 
   const cookies = parseCookies(socket.handshake?.headers?.cookie)
-  return cookies.sessionToken || ''
+  const headerTenant = normalizeTenant(socket.handshake?.headers?.['x-tenant'] || socket.handshake?.headers?.['x-company'])
+  const host = getSocketHostname(socket)
+  return readSessionTokenFromCookieMap(cookies, { hostname: host, headerTenant }) || ''
 }
 
 function getSocketHostname(socket) {

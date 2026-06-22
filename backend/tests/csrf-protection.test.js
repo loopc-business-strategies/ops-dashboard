@@ -37,6 +37,12 @@ const readCookieValue = (setCookieHeaders = [], key) => {
   return ''
 }
 
+const readTenantCookieValue = (setCookieHeaders = [], tenant, baseName) => {
+  const named = readCookieValue(setCookieHeaders, `${baseName}_${tenant}`)
+  if (named) return named
+  return readCookieValue(setCookieHeaders, baseName)
+}
+
 beforeAll(async () => {
   process.env.NODE_ENV = 'test'
   process.env.JWT_SECRET = 'test-secret'
@@ -80,7 +86,7 @@ describe('CSRF protection for cookie-auth mutating routes', () => {
 
     expect(login.status).toBe(200)
 
-    const csrfToken = readCookieValue(login.headers['set-cookie'] || [], 'csrfToken')
+    const csrfToken = readTenantCookieValue(login.headers['set-cookie'] || [], 'loopc', 'csrfToken')
     expect(csrfToken).toBeTruthy()
 
     const blocked = await agent.post('/api/auth/refresh').send({})
@@ -105,7 +111,7 @@ describe('CSRF protection for cookie-auth mutating routes', () => {
       .send({ company: 'loopc', name: user.name, password: 'password123' })
 
     expect(login.status).toBe(200)
-    const csrfBefore = readCookieValue(login.headers['set-cookie'] || [], 'csrfToken')
+    const csrfBefore = readTenantCookieValue(login.headers['set-cookie'] || [], 'loopc', 'csrfToken')
     expect(csrfBefore).toBeTruthy()
 
     const refresh = await agent
@@ -117,7 +123,7 @@ describe('CSRF protection for cookie-auth mutating routes', () => {
     expect(refresh.body.csrfToken).toBeTruthy()
     expect(refresh.body.csrfToken).not.toBe(csrfBefore)
 
-    const csrfAfter = readCookieValue(refresh.headers['set-cookie'] || [], 'csrfToken')
+    const csrfAfter = readTenantCookieValue(refresh.headers['set-cookie'] || [], 'loopc', 'csrfToken')
     expect(csrfAfter).toBe(refresh.body.csrfToken)
   })
 
@@ -131,7 +137,7 @@ describe('CSRF protection for cookie-auth mutating routes', () => {
 
     expect(login.status).toBe(200)
 
-    const csrfToken = readCookieValue(login.headers['set-cookie'] || [], 'csrfToken')
+    const csrfToken = readTenantCookieValue(login.headers['set-cookie'] || [], 'loopc', 'csrfToken')
     expect(csrfToken).toBeTruthy()
 
     const allowed = await agent
@@ -164,7 +170,7 @@ describe('CSRF protection for cookie-auth mutating routes', () => {
     expect(login.body.token).toBeTruthy()
     const setCookie = login.headers['set-cookie'] || []
     const joined = Array.isArray(setCookie) ? setCookie.join(';') : String(setCookie)
-    expect(joined).not.toMatch(/sessionToken=/)
+    expect(joined).not.toMatch(/sessionToken(?:_|=)/)
   })
 
   test('mobile refresh returns bearer token without session cookie', async () => {
@@ -192,7 +198,7 @@ describe('CSRF protection for cookie-auth mutating routes', () => {
     expect(refresh.body.expiresIn).toBeTruthy()
     const setCookie = refresh.headers['set-cookie'] || []
     const joined = Array.isArray(setCookie) ? setCookie.join(';') : String(setCookie)
-    expect(joined).not.toMatch(/sessionToken=/)
+    expect(joined).not.toMatch(/sessionToken(?:_|=)/)
   })
 
   test('GET /api/auth/me reuses existing csrf cookie instead of rotating each request', async () => {
@@ -204,7 +210,7 @@ describe('CSRF protection for cookie-auth mutating routes', () => {
       .send({ company: 'loopc', name: user.name, password: 'password123' })
 
     expect(login.status).toBe(200)
-    const csrfAfterLogin = readCookieValue(login.headers['set-cookie'] || [], 'csrfToken')
+    const csrfAfterLogin = readTenantCookieValue(login.headers['set-cookie'] || [], 'loopc', 'csrfToken')
     expect(csrfAfterLogin).toBeTruthy()
 
     const me1 = await agent.get('/api/auth/me').send()
@@ -225,7 +231,7 @@ describe('CSRF protection for cookie-auth mutating routes', () => {
       .send({ company: 'loopc', name: user.name, password: 'password123' })
 
     expect(login.status).toBe(200)
-    const sessionJwt = readCookieValue(login.headers['set-cookie'] || [], 'sessionToken')
+    const sessionJwt = readTenantCookieValue(login.headers['set-cookie'] || [], 'loopc', 'sessionToken')
     expect(sessionJwt).toBeTruthy()
 
     const allowed = await agent

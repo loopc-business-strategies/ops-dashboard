@@ -147,13 +147,18 @@ CLIENT_URL=https://mg.yourdomain.com,https://cg.yourdomain.com,https://loopc.you
 
 **Location:** Vercel Dashboard → Your Project → Settings → Environment Variables
 
-### Required Variables
+### API base URL (multi-portal sessions)
+
+**Recommended for MG / CG / LoopC on separate subdomains:** leave `VITE_API_URL` and `VITE_API_BASE_URL` **unset** on Vercel. The app defaults to same-origin `/api`, and [`vercel.json`](vercel.json) rewrites `/api/*` to Railway. Each portal subdomain (`mg.`, `cg.`, `loopc.`) keeps its own session cookies.
+
+If you set an absolute API URL (e.g. `https://api.loopcstrategies.com`), the backend uses **per-tenant cookies** (`sessionToken_mg`, `sessionToken_cg`, …) so multiple portals can stay signed in in the same browser. Without that backend support, the last login overwrites the shared `sessionToken` cookie.
 
 ```
-VITE_API_URL=https://api.yourdomain.com
+# Optional — only if you need a dedicated API origin instead of /api rewrite:
+# VITE_API_URL=https://api.yourdomain.com
 ```
 
-**Note:** Set this AFTER Railway custom domain is live.
+**Note:** Set a dedicated API URL only AFTER Railway custom domain is live.
 
 ### Optional: Operations projects (stale badge)
 

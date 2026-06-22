@@ -9,6 +9,7 @@
 const jwt  = require('jsonwebtoken')
 const User = require('../models/User')
 const { normalizeTenant, resolveTenantFromHost } = require('../config/tenants')
+const { readSessionToken } = require('../utils/tenantSessionCookies')
 
 // -----------------------------------------------
 // protect — verifies the JWT token on every request
@@ -25,9 +26,7 @@ const protect = async (req, res, next) => {
   try {
     let token
 
-    if (req.cookies?.sessionToken) {
-      token = req.cookies.sessionToken
-    }
+    token = readSessionToken(req)
 
     if (!token && req.headers.authorization?.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1]

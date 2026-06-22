@@ -3,13 +3,15 @@ const { normalizeTenant, resolveTenantFromHost } = require('../config/tenants')
 const { connectTenant } = require('../db/tenantConnections')
 const { registerAllOnConnection } = require('../db/tenantModelRegistry')
 const { runWithTenantConnection } = require('../db/tenantModelProxy')
+const {
+  clearLegacySessionCookies,
+  clearTenantSessionCookies,
+  readSessionToken,
+  resolvePortalTenant,
+} = require('../utils/tenantSessionCookies')
 
 function getToken(req) {
-  if (req.cookies?.sessionToken) return req.cookies.sessionToken
-  if (req.headers.authorization?.startsWith('Bearer')) {
-    return req.headers.authorization.split(' ')[1]
-  }
-  return null
+  return readSessionToken(req)
 }
 
 async function bindTenantContext(req, res, next) {
@@ -31,12 +33,7 @@ async function bindTenantContext(req, res, next) {
       const path = String(req.path || '')
       const isAuthTenantSwitchRoute = path === '/auth/login' || path === '/auth/setup'
       if (isAuthTenantSwitchRoute) {
-        res.clearCookie('sessionToken', {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-          path: '/',
-        })
+        clearTenantSessionCookies(res, resolvePortalTenant(req, hostTenant))
         return next()
       }
       return res.status(401).json({ success: false, message: 'Session tenant does not match this company portal.' })
@@ -49,12 +46,8 @@ async function bindTenantContext(req, res, next) {
   } catch (err) {
     const jwtErrorNames = new Set(['TokenExpiredError', 'JsonWebTokenError', 'NotBeforeError'])
     if (jwtErrorNames.has(String(err?.name || ''))) {
-      res.clearCookie('sessionToken', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        path: '/',
-      })
+      clearTenantSessionCookies(res, resolvePortalTenant(req))
+      clearLegacySessionCookies(res)
       return next()
     }
 

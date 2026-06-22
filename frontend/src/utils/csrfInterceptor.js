@@ -47,6 +47,22 @@ const shouldReadDocumentCsrfCookie = (config, axiosInstance, cookieSource) => {
   return reqHost === pageHost
 }
 
+const readTenantHeader = (axiosInstance) => {
+  const common = axiosInstance?.defaults?.headers?.common
+  if (!common) return ''
+  if (typeof common.get === 'function') {
+    const v = common.get('x-tenant') || common.get('x-company')
+    if (v != null && String(v).trim()) return String(v).trim().toLowerCase()
+  }
+  const raw = common['x-tenant'] || common['x-company']
+  return raw == null ? '' : String(raw).trim().toLowerCase()
+}
+
+const resolveCsrfCookieName = (axiosInstance) => {
+  const tenant = readTenantHeader(axiosInstance)
+  return tenant ? `csrfToken_${tenant}` : 'csrfToken'
+}
+
 const readCommonCsrf = (axiosInstance) => {
   const common = axiosInstance?.defaults?.headers?.common
   if (!common) return ''
@@ -77,7 +93,11 @@ const applyCsrfHeader = (config, cookieSource = document, axiosInstance = null) 
 
   let csrfToken = ''
   if (shouldReadDocumentCsrfCookie(config, axiosInstance, cookieSource)) {
-    csrfToken = getCookie('csrfToken', cookieSource).trim()
+    const cookieName = resolveCsrfCookieName(axiosInstance)
+    csrfToken = getCookie(cookieName, cookieSource).trim()
+    if (!csrfToken && cookieName !== 'csrfToken') {
+      csrfToken = getCookie('csrfToken', cookieSource).trim()
+    }
   }
   if (!csrfToken) csrfToken = readCommonCsrf(axiosInstance)
   if (!csrfToken) return config
