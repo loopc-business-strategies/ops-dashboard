@@ -24,6 +24,8 @@ describe('dashboardNavigation', () => {
     expect(buildDashboardHref({ tabId: 'hr', sub: 'labour_law' })).toBe('/dashboard?tab=hr&sub=labour_law')
     expect(buildDashboardHref({ tabId: 'overview', company: 'mg', includeCompany: true }))
       .toBe('/dashboard?tab=overview&company=mg')
+    expect(buildDashboardHref({ tabId: 'admin', sub: 'permissions' })).toBe('/dashboard?tab=admin&sub=permissions')
+    expect(buildDashboardHref({ tabId: 'admin', sub: 'settings' })).toBe('/dashboard?tab=admin&sub=settings')
   })
 
   test('parseDashboardUrl resolves ERP and module sub tabs', () => {
@@ -36,6 +38,11 @@ describe('dashboardNavigation', () => {
       activeTab: 'hr',
       erpSubTab: 'dashboard',
       moduleSubTab: 'labour_law',
+    })
+    expect(parseDashboardUrl('?tab=admin&sub=settings', superAdmin)).toEqual({
+      activeTab: 'admin',
+      erpSubTab: 'dashboard',
+      moduleSubTab: 'settings',
     })
     expect(parseDashboardUrl('', superAdmin).activeTab).toBe('overview')
   })

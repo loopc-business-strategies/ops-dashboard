@@ -4,24 +4,66 @@ import { buildDashboardHref, isPrimaryNavClick } from '../utils/dashboardNavigat
 import { isLocalTenantHost } from '../config/tenantBranding'
 
 /**
+ * Resolve module sub-tab from URL. Returns `undefined` when the module is active
+ * but ?tab= does not match — caller should skip URL→state sync (avoids resetting clicks).
+ */
+export function resolveModuleSubTabFromUrl({
+  tabParam,
+  subFromUrl,
+  moduleTabId,
+  allowedSubIds,
+  defaultSub,
+  isModuleActive = false,
+}) {
+  if (tabParam === moduleTabId) {
+    if (subFromUrl && allowedSubIds.includes(subFromUrl)) return subFromUrl
+    return defaultSub
+  }
+  if (isModuleActive) return undefined
+  return defaultSub
+}
+
+/**
  * Sync a module's top-level sub-tab with ?sub= when ?tab= matches moduleTabId.
  */
-export function useDashboardModuleSubTab(moduleTabId, allowedSubIds, defaultSub, company) {
+export function useDashboardModuleSubTab(
+  moduleTabId,
+  allowedSubIds,
+  defaultSub,
+  company,
+  { isModuleActive = false } = {},
+) {
   const [searchParams] = useSearchParams()
   const includeCompany = typeof window !== 'undefined' && isLocalTenantHost(window.location.hostname)
 
   const tabParam = searchParams.get('tab')
   const subFromUrl = searchParams.get('sub')
 
-  const resolvedFromUrl = useMemo(() => {
-    if (tabParam !== moduleTabId) return defaultSub
-    if (subFromUrl && allowedSubIds.includes(subFromUrl)) return subFromUrl
-    return defaultSub
-  }, [tabParam, subFromUrl, moduleTabId, allowedSubIds, defaultSub])
+  const resolvedFromUrl = useMemo(
+    () => resolveModuleSubTabFromUrl({
+      tabParam,
+      subFromUrl,
+      moduleTabId,
+      allowedSubIds,
+      defaultSub,
+      isModuleActive,
+    }),
+    [tabParam, subFromUrl, moduleTabId, allowedSubIds, defaultSub, isModuleActive],
+  )
 
-  const [subTab, setSubTabInternal] = useState(resolvedFromUrl)
+  const [subTab, setSubTabInternal] = useState(() => (
+    resolveModuleSubTabFromUrl({
+      tabParam,
+      subFromUrl,
+      moduleTabId,
+      allowedSubIds,
+      defaultSub,
+      isModuleActive,
+    }) ?? defaultSub
+  ))
 
   useEffect(() => {
+    if (resolvedFromUrl === undefined) return
     setSubTabInternal(resolvedFromUrl)
   }, [resolvedFromUrl])
 

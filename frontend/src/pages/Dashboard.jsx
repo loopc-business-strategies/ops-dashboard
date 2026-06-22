@@ -9,6 +9,7 @@ import { useLanguage, LANGUAGES } from '../context/LanguageContext'
 import { getTenantBranding, isLocalTenantHost } from '../config/tenantBranding'
 import {
   buildDashboardHref,
+  buildDashboardTabParam,
   dashboardSearchFromState,
   isPrimaryNavClick,
   parseDashboardUrl,
@@ -293,7 +294,7 @@ function renderTab(tabId, navigateToTab, buildTabHref, setChatUnread, erpSubTab,
       return <MasterSettingsTab />
 
     case 'admin':
-      return <AdminTab />
+      return <AdminTab isModuleActive />
 
     case 'hr':
       return <HRTab />
@@ -719,6 +720,22 @@ function Dashboard() {
     setActiveTab((prev) => (prev === parsed.activeTab ? prev : parsed.activeTab))
     setErpSubTab((prev) => (prev === parsed.erpSubTab ? prev : parsed.erpSubTab))
   }, [searchParams, user])
+
+  // Keep ?tab= aligned with activeTab so module sub-tabs (?sub=) are not reset
+  useEffect(() => {
+    const tabInUrl = searchParams.get('tab')
+    const expectedTab = activeTab === 'erp'
+      ? buildDashboardTabParam({ tabId: 'erp', erpSub: erpSubTab })
+      : activeTab
+    if (!expectedTab || tabInUrl === expectedTab) return
+
+    writeDashboardUrl({
+      tabId: activeTab,
+      erpSub: activeTab === 'erp' ? erpSubTab : undefined,
+      sub: activeTab === 'erp' ? null : searchParams.get('sub'),
+      replace: true,
+    })
+  }, [activeTab, erpSubTab, searchParams, writeDashboardUrl])
 
   const handleShellMouseMove = (e) => {
     if (!isDesktop) return

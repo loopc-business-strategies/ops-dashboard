@@ -725,9 +725,23 @@ function PermissionGroupCard({ title, desc, rows, checkedFor, onToggle, twoCol =
   )
 }
 
-function PermissionsTab({ users, token, initialUserId, onRefresh }) {
+function userIdKey(value) {
+  return String(value ?? '')
+}
+
+function AdminPanelSpinner() {
+  return (
+    <div style={{ display: 'grid', placeItems: 'center', padding: '4rem 0' }}>
+      <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid #E2E8F0', borderTopColor: ADMIN.primary, animation: 'spin 0.8s linear infinite' }} />
+      <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
+    </div>
+  )
+}
+
+function PermissionsTab({ users, token, initialUserId, onRefresh, usersLoading }) {
   const selectableUsers = useMemo(() => users.filter((u) => u.role !== 'super_admin'), [users])
-  const [selectedUserId, setSelectedUserId] = useState(initialUserId || selectableUsers[0]?._id || null)
+  const initialKey = userIdKey(initialUserId || selectableUsers[0]?._id)
+  const [selectedUserId, setSelectedUserId] = useState(initialKey || null)
   const [userQuery, setUserQuery] = useState('')
   const [erpModuleQuery, setErpModuleQuery] = useState('')
   const [erpSectionOpen, setErpSectionOpen] = useState(true)
@@ -736,11 +750,11 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
   const [toast, setToast] = useState('')
 
   useEffect(() => {
-    if (initialUserId) setSelectedUserId(initialUserId)
+    if (initialUserId) setSelectedUserId(userIdKey(initialUserId))
   }, [initialUserId])
 
   useEffect(() => {
-    const u = users.find((x) => x._id === selectedUserId)
+    const u = users.find((x) => userIdKey(x._id) === selectedUserId)
     setPerms(u?.modulePermissions || {})
   }, [selectedUserId, users])
 
@@ -750,7 +764,7 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
     return selectableUsers.filter((u) => [u.name, u.fullName].some((v) => String(v || '').toLowerCase().includes(q)))
   }, [selectableUsers, userQuery])
 
-  const selectedUser = selectableUsers.find((u) => u._id === selectedUserId)
+  const selectedUser = selectableUsers.find((u) => userIdKey(u._id) === selectedUserId)
   const erpSubs = perms.erp?.subs || {}
   const erpAllEnabled = !!perms.erp?.on && Object.keys(erpSubs).length === 0
 
@@ -811,6 +825,9 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
   return (
     <div>
       <Toast message={toast} />
+      {usersLoading ? (
+        <AdminPanelSpinner />
+      ) : (
       <div style={{
         display: 'flex',
         border: `1px solid ${ADMIN.border}`,
@@ -831,14 +848,19 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
             </div>
           </div>
           <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+            {filteredSidebarUsers.length === 0 ? (
+              <div style={{ padding: '1rem 0.75rem', fontSize: '0.8rem', color: ADMIN.inkSoft, lineHeight: 1.5 }}>
+                No users available for permission editing. Create a non–Super Admin user on the Users tab first.
+              </div>
+            ) : null}
             {filteredSidebarUsers.map((u) => {
               const rc = ROLE_COLOR[u.role] || ROLE_COLOR.department_user
-              const selected = selectedUserId === u._id
+              const selected = selectedUserId === userIdKey(u._id)
               return (
                 <button
                   type="button"
-                  key={u._id}
-                  onClick={() => setSelectedUserId(u._id)}
+                  key={userIdKey(u._id)}
+                  onClick={() => setSelectedUserId(userIdKey(u._id))}
                   style={{
                     width: '100%',
                     display: 'flex',
@@ -946,6 +968,7 @@ function PermissionsTab({ users, token, initialUserId, onRefresh }) {
           )}
         </div>
       </div>
+      )}
     </div>
   )
 }
@@ -1185,46 +1208,54 @@ function TenantsTab() {
   )
 }
 
-function AdminTab() {
+function AdminTab({ isModuleActive = false }) {
   const { token, company, user } = useAuth()
   const { t } = useLanguage()
-  const isPlatformAdmin = company === 'loopc' && user?.role === 'super_admin'
-  const adminSubIds = useMemo(
-    () => (isPlatformAdmin ? ['users', 'permissions', 'tenants', 'settings'] : ['users', 'permissions', 'settings']),
-    [isPlatformAdmin],
+  const isPlatformAdmin = Boolean(
+    user
+    && user.role === 'super_admin'
+    && (company === 'loopc' || user.company === 'loopc'),
   )
+  const adminSubIds = useMemo(() => {
+    if (!user) return ['users', 'permissions', 'settings']
+    return isPlatformAdmin
+      ? ['users', 'permissions', 'tenants', 'settings']
+      : ['users', 'permissions', 'settings']
+  }, [isPlatformAdmin, user])
   const { subTab, setSubTab, buildSubHref, handleSubTabClick } = useDashboardModuleSubTab(
     'admin',
     adminSubIds,
     'users',
     company,
+    { isModuleActive },
   )
   const [selectedPermUserId, setSelectedPermUserId] = useState(null)
   const [users, setUsers] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [usersLoading, setUsersLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
-  const mountedRef = useRef(true)
-
-  useEffect(() => {
-    mountedRef.current = true
-    return () => { mountedRef.current = false }
-  }, [])
+  const usersRequestRef = useRef(0)
 
   const loadUsers = useCallback(async () => {
+    const requestId = usersRequestRef.current + 1
+    usersRequestRef.current = requestId
+    setUsersLoading(true)
+    setLoadError('')
     try {
-      setLoading(true)
-      setLoadError('')
       const data = await authAPI.getUsers(token)
-      if (mountedRef.current) setUsers(data.users || [])
+      if (usersRequestRef.current !== requestId) return
+      setUsers(data.users || [])
     } catch (e) {
+      if (usersRequestRef.current !== requestId) return
       console.error('Failed to load users', e)
-      if (mountedRef.current) setLoadError(e?.response?.data?.message || 'Failed to load users')
+      setLoadError(e?.response?.data?.message || 'Failed to load users')
     } finally {
-      if (mountedRef.current) setLoading(false)
+      if (usersRequestRef.current === requestId) setUsersLoading(false)
     }
   }, [token])
 
   useEffect(() => { loadUsers() }, [loadUsers])
+
+  const needsUsers = subTab === 'users' || subTab === 'permissions'
 
   const tabs = [
     { id: 'users', label: 'Users', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> },
@@ -1251,25 +1282,22 @@ function AdminTab() {
         <button type="button" title="Admin modules" style={{ width: 36, height: 36, borderRadius: 8, border: `1px solid ${ADMIN.border}`, background: '#fff', color: ADMIN.inkSoft, cursor: 'pointer' }}>▦</button>
       </div>
 
-      {loadError && (
+      {loadError && needsUsers && (
         <div style={{ marginBottom: '0.75rem', padding: '0.65rem 0.85rem', borderRadius: 8, background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FECACA', fontSize: '0.88rem' }}>
           {loadError}
         </div>
       )}
 
-      {loading ? (
-        <div style={{ display: 'grid', placeItems: 'center', padding: '4rem 0' }}>
-          <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid #E2E8F0', borderTopColor: ADMIN.primary, animation: 'spin 0.8s linear infinite' }} />
-          <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
-        </div>
-      ) : (
-        <>
-          {subTab === 'users' && <UsersTab users={users} token={token} onRefresh={loadUsers} onOpenPermissions={(id) => { setSelectedPermUserId(id); setSubTab('permissions') }} />}
-          {subTab === 'permissions' && <PermissionsTab users={users} token={token} initialUserId={selectedPermUserId} onRefresh={loadUsers} />}
-          {subTab === 'tenants' && isPlatformAdmin && <TenantsTab />}
-          {subTab === 'settings' && <SettingsTab />}
-        </>
+      {subTab === 'users' && (
+        usersLoading ? <AdminPanelSpinner /> : (
+          <UsersTab users={users} token={token} onRefresh={loadUsers} onOpenPermissions={(id) => { setSelectedPermUserId(id); setSubTab('permissions') }} />
+        )
       )}
+      {subTab === 'permissions' && (
+        <PermissionsTab users={users} token={token} initialUserId={selectedPermUserId} onRefresh={loadUsers} usersLoading={usersLoading} />
+      )}
+      {subTab === 'tenants' && isPlatformAdmin && <TenantsTab />}
+      {subTab === 'settings' && <SettingsTab />}
     </div>
   )
 }
