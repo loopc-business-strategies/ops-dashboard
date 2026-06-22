@@ -1,15 +1,127 @@
+const defaultToMoney = (value) => Number(Number(value || 0).toFixed(2))
+
+const toStartOfDay = (value) => {
+  const date = new Date(value)
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+const toEndOfDay = (value) => {
+  const date = new Date(value)
+  date.setHours(23, 59, 59, 999)
+  return date
+}
+
+/** P&L date filter — endDate is inclusive through end of calendar day (matches ledger drilldown). */
+function buildProfitLossDateQuery(startDate, endDate) {
+  const date = {}
+  if (startDate) date.$gte = toStartOfDay(startDate)
+  if (endDate) date.$lte = toEndOfDay(endDate)
+  return Object.keys(date).length ? date : null
+}
+
+function ensurePnlBreakdownRow(map, key, accountById) {
+  if (map.has(key)) return
+  const account = accountById.get(key)
+  map.set(key, {
+    accountId: key,
+    accountCode: account?.accountCode || '',
+    accountName: account?.accountName || '',
+    amount: 0,
+  })
+}
+
+/**
+ * Net period P&L rollup: expense = debits − credits; income = credits − debits.
+ * Totals and breakdown rows use max(net, 0) per account (audit-script parity).
+ */
+function summarizeProfitLossEntriesFromLedgerRows(
+  entries,
+  { incomeById, expenseById, incomeIds, expenseIds },
+  includeZero = false,
+  toMoney = defaultToMoney,
+) {
+  const incomeNetMap = includeZero
+    ? new Map([...incomeById.entries()].map(([key, account]) => [key, {
+      accountId: key,
+      accountCode: account.accountCode,
+      accountName: account.accountName,
+      amount: 0,
+    }]))
+    : new Map()
+  const expenseNetMap = includeZero
+    ? new Map([...expenseById.entries()].map(([key, account]) => [key, {
+      accountId: key,
+      accountCode: account.accountCode,
+      accountName: account.accountName,
+      amount: 0,
+    }]))
+    : new Map()
+
+  entries.forEach((entry) => {
+    const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
+    const creditKey = String(entry.creditAccountId || '')
+    const debitKey = String(entry.debitAccountId || '')
+
+    if (incomeIds.has(creditKey)) {
+      if (!includeZero) ensurePnlBreakdownRow(incomeNetMap, creditKey, incomeById)
+      incomeNetMap.get(creditKey).amount += amount
+    }
+    if (incomeIds.has(debitKey)) {
+      if (!includeZero) ensurePnlBreakdownRow(incomeNetMap, debitKey, incomeById)
+      incomeNetMap.get(debitKey).amount -= amount
+    }
+    if (expenseIds.has(debitKey)) {
+      if (!includeZero) ensurePnlBreakdownRow(expenseNetMap, debitKey, expenseById)
+      expenseNetMap.get(debitKey).amount += amount
+    }
+    if (expenseIds.has(creditKey)) {
+      if (!includeZero) ensurePnlBreakdownRow(expenseNetMap, creditKey, expenseById)
+      expenseNetMap.get(creditKey).amount -= amount
+    }
+  })
+
+  let totalIncome = 0
+  let totalExpense = 0
+  const incomeBreakdown = []
+  const expenseBreakdown = []
+
+  incomeNetMap.forEach((row) => {
+    const clamped = Math.max(Number(row.amount || 0), 0)
+    if (!includeZero && clamped < 0.005) return
+    totalIncome += clamped
+    incomeBreakdown.push({ ...row, amount: toMoney(clamped) })
+  })
+
+  expenseNetMap.forEach((row) => {
+    const clamped = Math.max(Number(row.amount || 0), 0)
+    if (!includeZero && clamped < 0.005) return
+    totalExpense += clamped
+    expenseBreakdown.push({ ...row, amount: toMoney(clamped) })
+  })
+
+  incomeBreakdown.sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))
+  expenseBreakdown.sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))
+
+  return {
+    totalIncome: toMoney(totalIncome),
+    totalExpense: toMoney(totalExpense),
+    netProfit: toMoney(totalIncome - totalExpense),
+    incomeBreakdown,
+    expenseBreakdown,
+    topIncome: incomeBreakdown.slice(0, 10),
+    topExpenses: expenseBreakdown.slice(0, 10),
+    grossMarginPct: totalIncome > 0 ? toMoney(((totalIncome - totalExpense) / totalIncome) * 100) : 0,
+  }
+}
+
 function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
   const parseBool = (value, fallback = false) => {
     if (value === undefined || value === null || value === '') return fallback
     return ['1', 'true', 'yes', 'y'].includes(String(value).toLowerCase())
   }
 
-  const buildDateQuery = (startDate, endDate) => {
-    const date = {}
-    if (startDate) date.$gte = new Date(startDate)
-    if (endDate) date.$lte = new Date(endDate)
-    return Object.keys(date).length ? date : null
-  }
+  const buildDateQuery = buildProfitLossDateQuery
 
   const buildPreviousPeriod = (startDate, endDate) => {
     if (!startDate || !endDate) return null
@@ -47,76 +159,8 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
     return pnlAccountCache
   }
 
-  const summarizeProfitLossEntries = (entries, { incomeById, expenseById, incomeIds, expenseIds }, includeZero = false) => {
-    let totalIncome = 0
-    let totalExpense = 0
-    const incomeBreakdownMap = includeZero ? new Map(
-      [...incomeById.entries()].map(([key, account]) => [key, {
-        accountId: key,
-        accountCode: account.accountCode,
-        accountName: account.accountName,
-        amount: 0,
-      }]),
-    ) : new Map()
-    const expenseBreakdownMap = includeZero ? new Map(
-      [...expenseById.entries()].map(([key, account]) => [key, {
-        accountId: key,
-        accountCode: account.accountCode,
-        accountName: account.accountName,
-        amount: 0,
-      }]),
-    ) : new Map()
-
-    entries.forEach((entry) => {
-      const amount = Number(entry.amount || 0) * Number(entry.exchangeRate || 1)
-      const creditKey = String(entry.creditAccountId || '')
-      const debitKey = String(entry.debitAccountId || '')
-      if (incomeIds.has(creditKey)) {
-        totalIncome += amount
-        if (!incomeBreakdownMap.has(creditKey)) {
-          const account = incomeById.get(creditKey)
-          incomeBreakdownMap.set(creditKey, {
-            accountId: creditKey,
-            accountCode: account?.accountCode || '',
-            accountName: account?.accountName || '',
-            amount: 0,
-          })
-        }
-        incomeBreakdownMap.get(creditKey).amount += amount
-      }
-      if (expenseIds.has(debitKey)) {
-        totalExpense += amount
-        if (!expenseBreakdownMap.has(debitKey)) {
-          const account = expenseById.get(debitKey)
-          expenseBreakdownMap.set(debitKey, {
-            accountId: debitKey,
-            accountCode: account?.accountCode || '',
-            accountName: account?.accountName || '',
-            amount: 0,
-          })
-        }
-        expenseBreakdownMap.get(debitKey).amount += amount
-      }
-    })
-
-    const incomeBreakdown = Array.from(incomeBreakdownMap.values())
-      .map((row) => ({ ...row, amount: toMoney(row.amount) }))
-      .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))
-    const expenseBreakdown = Array.from(expenseBreakdownMap.values())
-      .map((row) => ({ ...row, amount: toMoney(row.amount) }))
-      .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))
-
-    return {
-      totalIncome: toMoney(totalIncome),
-      totalExpense: toMoney(totalExpense),
-      netProfit: toMoney(totalIncome - totalExpense),
-      incomeBreakdown,
-      expenseBreakdown,
-      topIncome: incomeBreakdown.slice(0, 10),
-      topExpenses: expenseBreakdown.slice(0, 10),
-      grossMarginPct: totalIncome > 0 ? toMoney(((totalIncome - totalExpense) / totalIncome) * 100) : 0,
-    }
-  }
+  const summarizeProfitLossEntries = (entries, pnlAccounts, includeZero = false) =>
+    summarizeProfitLossEntriesFromLedgerRows(entries, pnlAccounts, includeZero, toMoney)
 
   const fetchProfitLossEntries = async (startDate, endDate) => {
     const query = { isDeleted: { $ne: true } }
@@ -404,4 +448,8 @@ function createReportSummaryService({ Ledger, ChartOfAccount, toMoney }) {
 
 module.exports = {
   createReportSummaryService,
+  summarizeProfitLossEntriesFromLedgerRows,
+  buildProfitLossDateQuery,
+  toEndOfDay,
+  toStartOfDay,
 }
