@@ -281,7 +281,8 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
   try {
     if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { date, debitAccountId, creditAccountId, amount, description, referenceType, referenceId,
-      txRefNo, chequeNo, bankRemarks, paymentType, currency: bodyCurrency, exchangeRate: bodyExchangeRate } = req.body
+      txRefNo, chequeNo, bankRemarks, paymentType, currency: bodyCurrency, exchangeRate: bodyExchangeRate,
+      notes } = req.body
     if (!debitAccountId || !creditAccountId || !amount) return res.status(400).json({ success: false, message: 'Required fields missing' })
     // Validation: debit account cannot equal credit account
     if (debitAccountId === creditAccountId) return res.status(400).json({ success: false, message: 'Debit and Credit accounts must be different' })
@@ -341,6 +342,7 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
       creditAccountId,
       amount: posting.amount,
       description,
+      notes: String(notes || '').trim(),
       referenceType,
       referenceId,
       currency: posting.currency,

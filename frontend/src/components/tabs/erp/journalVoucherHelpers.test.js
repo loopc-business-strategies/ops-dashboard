@@ -290,11 +290,12 @@ describe('journal voucher helpers', () => {
       creditAccountId: crAcc,
     }]
     const out = reconstructJvEditLines(entries, entries[0], ctx)
+    expect(out.narration).toBe('header note')
     expect(out.lines[0].description).toBe('line detail here')
     expect(out.lines[1].description).toBe('line detail here')
   })
 
-  test('reconstructJvEditLines restores two-segment lineDesc when header notes empty', () => {
+  test('reconstructJvEditLines restores two-segment text in header when notes empty (legacy)', () => {
     const ctx = {
       baseCurrencyCode: 'USD',
       convertJvAmount: (amount) => Number(amount),
@@ -316,8 +317,65 @@ describe('journal voucher helpers', () => {
       creditAccountId: crAcc,
     }]
     const out = reconstructJvEditLines(entries, entries[0], ctx)
-    expect(out.lines[0].description).toBe('row line text')
-    expect(out.lines[1].description).toBe('row line text')
+    expect(out.narration).toBe('row line text')
+    expect(out.lines[0].description).toBe('')
+    expect(out.lines[1].description).toBe('')
+  })
+
+  test('reconstructJvEditLines restores legacy narration from description when notes missing', () => {
+    const ctx = {
+      baseCurrencyCode: 'USD',
+      convertJvAmount: (amount) => Number(amount),
+      inferJvAccountCurrency: () => 'USD',
+      inferLegacyJvBatchDisplayFc: () => null,
+    }
+    const drAcc = { _id: 'd1', accountCode: '6200', accountName: 'Payroll' }
+    const crAcc = { _id: 'c1', accountCode: '110011', accountName: 'Bank' }
+    const entries = [{
+      _id: 'x1',
+      referenceType: 'journal',
+      date: '2026-06-04',
+      createdAt: '2026-06-04T12:00:00.000Z',
+      description: 'Jv/2026/0001 — OFFICE RENT',
+      notes: '',
+      amount: 100,
+      currency: 'USD',
+      debitAccountId: drAcc,
+      creditAccountId: crAcc,
+    }]
+    const out = reconstructJvEditLines(entries, entries[0], ctx)
+    expect(out.narration).toBe('OFFICE RENT')
+    expect(out.lines[0].description).toBe('')
+    expect(out.lines[1].description).toBe('')
+  })
+
+  test('reconstructJvEditLines restores bank_jv narration from notes or description', () => {
+    const ctx = {
+      baseCurrencyCode: 'USD',
+      convertJvAmount: (amount) => Number(amount),
+      inferJvAccountCurrency: () => 'USD',
+      inferLegacyJvBatchDisplayFc: () => null,
+    }
+    const drAcc = { _id: 'd1', accountCode: '101001', accountName: 'Bank USD' }
+    const crAcc = { _id: 'c1', accountCode: '5190', accountName: 'FX' }
+    const entries = [{
+      _id: 'b1',
+      referenceType: 'bank_jv',
+      date: '2026-06-04',
+      createdAt: '2026-06-04T12:00:00.000Z',
+      description: 'BnkJV/2026/0004 — fx transfer',
+      notes: '',
+      amount: 100,
+      currency: 'USD',
+      debitAccountId: drAcc,
+      creditAccountId: crAcc,
+    }]
+    const out = reconstructJvEditLines(entries, entries[0], ctx)
+    expect(out.entryMode).toBe('bank_jv')
+    expect(out.narration).toBe('fx transfer')
+    expect(out.headerDocNo).toBe('BnkJV/2026/0004')
+    expect(out.lines[0].description).toBe('')
+    expect(out.lines[1].description).toBe('')
   })
 
   test('reconstructJvEditLines leaves row description empty when second segment is header notes only', () => {
@@ -342,6 +400,7 @@ describe('journal voucher helpers', () => {
       creditAccountId: crAcc,
     }]
     const out = reconstructJvEditLines(entries, entries[0], ctx)
+    expect(out.narration).toBe('OFFICE RENT')
     expect(out.lines[0].description).toBe('')
     expect(out.lines[1].description).toBe('')
   })

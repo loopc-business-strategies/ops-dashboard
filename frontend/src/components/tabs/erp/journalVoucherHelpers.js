@@ -524,6 +524,20 @@ function extractJvPostingLineDescription(description = '', batchHeaderNotes = ''
 }
 
 /**
+ * Header narration for JV edit modal — mirrors groupJvLedgerEntries list display.
+ */
+function resolveJvHeaderNarrationFromBatch(sorted = [], entry = null) {
+  const batchNotes = String(sorted[0]?.notes || '').trim()
+  if (batchNotes) return batchNotes
+
+  const representative = sorted[0] || entry
+  const rawDesc = String(representative?.description || '')
+  const parts = rawDesc.includes(' — ') ? rawDesc.split(' — ') : []
+  if (parts.length >= 3) return parts[1].trim()
+  return extractLedgerJvDetailFromDescription(rawDesc)
+}
+
+/**
  * Merge consecutive JV edit lines that post the same side (debit-only or credit-only) to the
  * same account — typical when several ledger rows share one cash/bank line on edit.
  */
@@ -598,6 +612,13 @@ function reconstructJvEditLines(editableEntries, entry, {
   ))
   const showAsBatchCur = allEntriesSameCur && firstEntryCur !== normCur(baseCurrencyCode)
   const batchNotes = String(sorted[0]?.notes || '').trim()
+  const narration = resolveJvHeaderNarrationFromBatch(sorted, entry)
+  const representativeDesc = String((sorted[0] || entry)?.description || '')
+  const descParts = representativeDesc.includes(' — ') ? representativeDesc.split(' — ') : []
+  const dedupeLineDescFromHeader = !batchNotes
+    && descParts.length === 2
+    && narration
+    && narration === extractJvPostingLineDescription(representativeDesc, '')
 
   let id = 1
   const lines = []
@@ -605,7 +626,8 @@ function reconstructJvEditLines(editableEntries, entry, {
     const entryCur = normCur(e.currency || baseCurrencyCode)
     const drId = e.debitAccountId?._id
     const crId = e.creditAccountId?._id
-    const lineDesc = extractJvPostingLineDescription(e.description, batchNotes)
+    let lineDesc = extractJvPostingLineDescription(e.description, batchNotes || narration)
+    if (dedupeLineDescFromHeader && lineDesc === narration) lineDesc = ''
     if (drId && e.debitAccountId) {
       const displayDebit = showAsBatchCur
         ? Number(e.amount || 0)
@@ -643,7 +665,6 @@ function reconstructJvEditLines(editableEntries, entry, {
   const docNo = docNoHead
   const hasDocPrefix = /^(jv|bnkjv)[/-]/i.test(String(docNo || ''))
   const entryMode = String(entry?.referenceType || '').toLowerCase() === 'bank_jv' ? 'bank_jv' : 'journal'
-  const narration = sorted[0]?.notes || ''
   const entryIdStr = String(entry?._id || '')
   const headerDocNo = (docNo && hasDocPrefix) ? docNo : `${resolveJvModeMeta(entryMode).prefix}-EDIT-${entryIdStr.slice(-6)}`
   const legacyBatchFc = inferLegacyJvBatchDisplayFc(sorted, baseCurrencyCode)
@@ -842,6 +863,7 @@ export {
   extractLedgerJvDocNoFromDescription,
   extractLedgerJvDetailFromDescription,
   extractJvPostingLineDescription,
+  resolveJvHeaderNarrationFromBatch,
   inferLegacyJvBatchDisplayFc,
   inferLegacyJvRowDisplayFc,
   groupJvLedgerEntries,
