@@ -6,43 +6,43 @@ const { EAS_PROJECT_ID } = require('./easProject.cjs')
 /** Keep in sync with `version`. Bare workflow requires a string `runtimeVersion`, not `{ policy: ... }`. */
 const APP_VERSION = '1.0.0'
 
+const PORTAL_HOSTS = ['mg.loopcstrategies.com', 'cg.loopcstrategies.com', 'loopc.loopcstrategies.com']
+
 const config: ExpoConfig = {
   name: APP_NAME,
-  slug: 'nexa-mg',
+  slug: 'nexa',
   version: APP_VERSION,
   orientation: 'portrait',
   icon: './assets/images/icon.png',
-  scheme: 'mgops',
+  scheme: 'nexaops',
   userInterfaceStyle: 'light',
   ios: {
     supportsTablet: true,
-    bundleIdentifier: 'com.loopc.mg.ops',
-    associatedDomains: ['applinks:mg.loopcstrategies.com'],
+    bundleIdentifier: 'com.loopc.nexa',
+    associatedDomains: PORTAL_HOSTS.map((host) => `applinks:${host}`),
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
     },
   },
   android: {
-    package: 'com.loopc.mg.ops',
+    package: 'com.loopc.nexa',
     adaptiveIcon: {
       backgroundColor: '#005B96',
       foregroundImage: './assets/images/android-icon-foreground.png',
       backgroundImage: './assets/images/android-icon-background.png',
     },
-    intentFilters: [
-      {
-        action: 'VIEW',
-        autoVerify: true,
-        category: ['BROWSABLE', 'DEFAULT'],
-        data: [
-          {
-            scheme: 'https',
-            host: 'mg.loopcstrategies.com',
-            pathPrefix: '/dashboard',
-          },
-        ],
-      },
-    ],
+    intentFilters: PORTAL_HOSTS.map((host) => ({
+      action: 'VIEW',
+      autoVerify: true,
+      category: ['BROWSABLE', 'DEFAULT'],
+      data: [
+        {
+          scheme: 'https',
+          host,
+          pathPrefix: '/dashboard',
+        },
+      ],
+    })),
   },
   web: {
     bundler: 'metro',
@@ -73,7 +73,6 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
   },
-  /** Required for bare / prebuild (`android/` in repo). Bump when shipping incompatible native or OTA changes. */
   runtimeVersion: APP_VERSION,
   updates: {
     url: `https://u.expo.dev/${EAS_PROJECT_ID}`,

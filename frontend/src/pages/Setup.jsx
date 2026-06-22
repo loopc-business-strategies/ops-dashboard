@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import authAPI from '../api/auth'
 import { useAuth } from '../context/AuthContext'
+import { TENANT_KEYS, getTenantBranding } from '../config/tenantBranding'
 
 function Setup() {
   const navigate = useNavigate()
@@ -64,9 +65,11 @@ function Setup() {
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Company</label>
               <select value={company} onChange={e => setCompany(e.target.value)} className="input-field">
-                <option value="mg">MG</option>
-                <option value="cg">CG</option>
-                <option value="loopc">LoopC</option>
+                {TENANT_KEYS.map((key) => (
+                  <option key={key} value={key}>
+                    {getTenantBranding(key).displayName || key.toUpperCase()}
+                  </option>
+                ))}
               </select>
             </div>
             <div>

@@ -12,7 +12,7 @@ type AuthContextValue = {
   token: string | null
   isLoading: boolean
   isAuthenticated: boolean
-  login: (name: string, password: string) => Promise<void>
+  login: (name: string, password: string, companyCode: string) => Promise<void>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
 }
@@ -71,8 +71,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [token, user?.id])
 
-  const login = useCallback(async (name: string, password: string) => {
-    const data = await authApi.login(name.trim(), password)
+  const login = useCallback(async (name: string, password: string, companyCode: string) => {
+    const data = await authApi.login(name.trim(), password, companyCode.trim().toLowerCase())
     if (!data.token) {
       throw new Error('Mobile login requires API token. Deploy backend auth update or use X-Client: mobile.')
     }

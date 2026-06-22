@@ -14,7 +14,7 @@ import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
 import * as Notifications from 'expo-notifications'
 import { mgBranding } from '@/src/config/branding'
-import { TENANT } from '@/src/config/tenant'
+import { useTenantBranding } from '@/src/context/TenantContext'
 import { useAuth } from '@/src/context/AuthContext'
 import {
   fetchNotificationPreferences,
@@ -32,6 +32,7 @@ import { isSuperAdmin } from '@/src/utils/roles'
 
 export default function SettingsScreen() {
   const { user, token, logout } = useAuth()
+  const { companyCode } = useTenantBranding()
   const router = useRouter()
   const showAdmin = isSuperAdmin(user)
   const [permissionStatus, setPermissionStatus] = useState<string>('—')
@@ -166,7 +167,7 @@ export default function SettingsScreen() {
         <Text style={styles.label}>Signed in as</Text>
         <Text style={styles.name}>{user?.fullName || user?.name || 'User'}</Text>
         <Text style={styles.meta}>Role: {user?.role || '—'}</Text>
-        <Text style={styles.meta}>Tenant: {TENANT.toUpperCase()}</Text>
+        <Text style={styles.meta}>Company: {companyCode.toUpperCase()}</Text>
       </View>
 
       {showAdmin ? (

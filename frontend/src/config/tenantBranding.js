@@ -1,8 +1,20 @@
-const TENANT_KEYS = ['mg', 'cg', 'loopc']
+import tenantCatalog from '../../../shared/tenant-catalog.json'
+
+export const TENANT_KEYS = Object.keys(tenantCatalog.tenants || {})
+
+const CUSTOM_DOMAINS = {
+  ...(tenantCatalog.customDomains || {}),
+}
 
 function normalizeTenantKey(value) {
   const key = String(value || '').trim().toLowerCase()
   return TENANT_KEYS.includes(key) ? key : ''
+}
+
+function resolveTenantFromCustomDomain(hostname) {
+  const rawHost = String(hostname || '').trim().toLowerCase().replace(/:\d+$/, '')
+  if (!rawHost) return ''
+  return normalizeTenantKey(CUSTOM_DOMAINS[rawHost])
 }
 
 const defaultBranding = {
@@ -115,6 +127,10 @@ export function resolveTenantFromHostname(hostname, fallbackTenant = defaultBran
     .replace(/:\d+$/, '')
 
   if (!rawHost) return fallback
+
+  const customMatch = resolveTenantFromCustomDomain(rawHost)
+  if (customMatch) return customMatch
+
   if (normalizeTenantKey(rawHost)) return rawHost
   if (rawHost === 'localhost' || rawHost === '127.0.0.1' || rawHost === '::1') return fallback
 

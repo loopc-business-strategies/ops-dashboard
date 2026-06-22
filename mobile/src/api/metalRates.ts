@@ -1,4 +1,4 @@
-import { API_URL, TENANT } from '@/src/config/tenant'
+import { API_URL, getTenant } from '@/src/config/tenant'
 
 export type MetalRatesPayload = {
   goldPrice?: number
@@ -51,8 +51,8 @@ async function metalRatesRequest<T>(path: string, token: string): Promise<T> {
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${token}`,
-        'x-tenant': TENANT,
-        'x-company': TENANT,
+        'x-tenant': getTenant(),
+        'x-company': getTenant(),
         'X-Client': 'mobile',
       },
     })

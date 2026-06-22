@@ -9,7 +9,7 @@ import React, {
 import { AppState, type AppStateStatus } from 'react-native'
 import { fetchLiveMetalRates, fetchSavedMetalRates } from '@/src/api/metalRates'
 import { useAuth } from '@/src/context/AuthContext'
-import { TENANT } from '@/src/config/tenant'
+import { getTenant } from '@/src/config/tenant'
 import { startMetalRatesRealtime } from '@/src/realtime/metalRatesSocket'
 import {
   LIVE_METAL_POLL_MS,
@@ -177,7 +177,7 @@ function useLiveMetalRatesState(token: string | null, enabled: boolean) {
 
     const stop = startMetalRatesRealtime({
       token,
-      tenant: TENANT,
+      tenant: getTenant(),
       onConnect: () => {
         socketConnectedRef.current = true
         schedulePoll()

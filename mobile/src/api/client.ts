@@ -1,4 +1,4 @@
-import { API_URL, TENANT } from '@/src/config/tenant'
+import { API_URL, getTenant } from '@/src/config/tenant'
 
 type RequestOptions = {
   method?: string
@@ -31,11 +31,12 @@ function buildUrl(path: string, params?: RequestOptions['params']) {
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', token = authToken, body, params } = options
+  const tenant = getTenant()
   const headers: Record<string, string> = {
     Accept: 'application/json',
     'Content-Type': 'application/json',
-    'x-tenant': TENANT,
-    'x-company': TENANT,
+    'x-tenant': tenant,
+    'x-company': tenant,
     'X-Client': 'mobile',
   }
   if (token) headers.Authorization = `Bearer ${token}`
@@ -61,8 +62,8 @@ export async function apiUploadRequest<T>(
 ): Promise<T> {
   const headers: Record<string, string> = {
     Accept: 'application/json',
-    'x-tenant': TENANT,
-    'x-company': TENANT,
+    'x-tenant': getTenant(),
+    'x-company': getTenant(),
     'X-Client': 'mobile',
   }
   if (token) headers.Authorization = `Bearer ${token}`

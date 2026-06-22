@@ -5,7 +5,7 @@ import { Platform } from 'react-native'
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PlusTabButton } from '@/src/components/PlusTabButton'
 import { MgTabsHeader } from '@/src/components/MgTabsHeader'
-import { mgBranding } from '@/src/config/branding'
+import { useTenantBranding } from '@/src/context/TenantContext'
 
 const TAB_PADDING_TOP = 8
 /** Minimum row for icons + labels (avoids clipping). */
@@ -20,6 +20,7 @@ export default function TabLayout() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const bootBottom = initialWindowMetrics?.insets.bottom ?? 0
+  const { branding } = useTenantBranding()
 
   /** Edge-to-edge: lift tab content above system gesture / 3-button bar even when JS insets are wrong. */
   const tabBarStyle = useMemo(() => {
@@ -29,13 +30,13 @@ export default function TabLayout() {
         : Math.max(insets.bottom, bootBottom, ANDROID_TAB_BAR_BOTTOM_MIN)
     const height = TAB_PADDING_TOP + TAB_INNER_HEIGHT + paddingBottom
     return {
-      backgroundColor: mgBranding.colors.tabBar,
+      backgroundColor: branding.colors.tabBar,
       borderTopColor: '#E5E7EB',
       height,
       paddingTop: TAB_PADDING_TOP,
       paddingBottom,
     }
-  }, [insets.bottom, bootBottom])
+  }, [insets.bottom, bootBottom, branding.colors.tabBar])
 
   return (
     <Tabs
@@ -45,11 +46,11 @@ export default function TabLayout() {
           <MgTabsHeader options={props.options} route={props.route} />
         ),
         headerShadowVisible: false,
-        headerStyle: { backgroundColor: mgBranding.colors.primary },
+        headerStyle: { backgroundColor: branding.colors.primary },
         headerTintColor: '#FFFFFF',
         headerTitleStyle: { fontWeight: '700' },
-        tabBarActiveTintColor: mgBranding.colors.primary,
-        tabBarInactiveTintColor: mgBranding.colors.tabInactive,
+        tabBarActiveTintColor: branding.colors.primary,
+        tabBarInactiveTintColor: branding.colors.tabInactive,
         tabBarStyle,
       }}
     >

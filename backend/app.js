@@ -51,6 +51,8 @@ if (sentryEnabled) {
 }
 
 const authRoutes = require('./routes/auth')
+const platformRoutes = require('./routes/platformRoutes')
+const adminTenantRoutes = require('./routes/adminTenantRoutes')
 const employeeRoutes = require('./routes/employees')
 const taskRoutes = require('./routes/tasks')
 const taskTemplateRoutes = require('./routes/taskTemplates')
@@ -293,6 +295,8 @@ function createApp() {
   app.use('/api', bindTenantContext)
 
   app.use('/api/auth', authRoutes)
+  app.use('/api/platform', platformRoutes)
+  app.use('/api/admin/tenants', adminTenantRoutes)
   app.use('/api/hr/employees', employeeRoutes)
   app.use('/api/projects', taskRoutes)
   app.use('/api/tasks', taskRoutes) // legacy URL (e.g. stored attachment paths)

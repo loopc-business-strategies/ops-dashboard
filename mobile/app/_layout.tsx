@@ -3,10 +3,10 @@ import { ActivityIndicator, View } from 'react-native'
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { AuthProvider, useAuth } from '@/src/context/AuthContext'
+import { TenantProvider, useTenantBranding } from '@/src/context/TenantContext'
 import { ChatProvider } from '@/src/context/ChatContext'
 import { NotificationsProvider } from '@/src/context/NotificationsContext'
 import { LiveMetalRatesProvider } from '@/src/context/LiveMetalRatesContext'
-import { mgBranding } from '@/src/config/branding'
 import { initMobileSentry } from '@/src/lib/sentryInit'
 
 import { useDeepLinkNavigation } from '@/src/navigation/useDeepLinkNavigation'
@@ -22,6 +22,7 @@ export { ErrorBoundary } from 'expo-router'
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
+  const { branding } = useTenantBranding()
   const segments = useSegments()
   const router = useRouter()
 
@@ -46,8 +47,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: mgBranding.colors.background }}>
-        <ActivityIndicator size="large" color={mgBranding.colors.primary} />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: branding.colors.background }}>
+        <ActivityIndicator size="large" color={branding.colors.primary} />
       </View>
     )
   }
@@ -58,6 +59,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 export default function RootLayout() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <TenantProvider>
       <AuthProvider>
         <AuthGate>
           <ChatProvider>
@@ -84,6 +86,7 @@ export default function RootLayout() {
           </ChatProvider>
         </AuthGate>
       </AuthProvider>
+      </TenantProvider>
     </SafeAreaProvider>
   )
 }

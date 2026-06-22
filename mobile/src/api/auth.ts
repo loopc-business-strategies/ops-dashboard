@@ -1,5 +1,5 @@
 import { apiRequest } from '@/src/api/client'
-import { TENANT } from '@/src/config/tenant'
+import { getTenant } from '@/src/config/tenant'
 
 import type { ModulePermissions } from '@/src/constants/admin'
 
@@ -27,11 +27,12 @@ type MeResponse = {
   user: AuthUser
 }
 
-export async function login(name: string, password: string) {
+export async function login(name: string, password: string, company?: string) {
+  const tenant = company || getTenant()
   return apiRequest<LoginResponse>('/api/auth/login', {
     method: 'POST',
     token: null,
-    body: { name, password, company: TENANT },
+    body: { name, password, company: tenant },
   })
 }
 

@@ -34,5 +34,11 @@
     "hostname": "example.com",
     "fallback": "loopc",
     "expected": "loopc"
+  },
+  {
+    "name": "enterprise custom domain maps to tenant",
+    "hostname": "erp.enterprise-demo.com",
+    "fallback": "loopc",
+    "expected": "mg"
   }
 ]

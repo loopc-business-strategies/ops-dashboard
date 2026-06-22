@@ -1,5 +1,5 @@
 {
-  "name": "nexa-mg",
+  "name": "nexa",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "packageManager": "npm@10.8.2",
@@ -52,8 +52,8 @@
     "build:preview:ios-simulator": "npx eas-cli build --platform ios --profile preview-simulator --non-interactive",
     "build:production:android": "npx eas-cli build --platform android --profile production --non-interactive",
     "build:production:ios": "npx eas-cli build --platform ios --profile production --non-interactive",
-    "update:preview": "npx eas-cli update --channel preview --environment preview --message \"Nexa MG preview update\" --non-interactive",
-    "update:production": "npx eas-cli update --channel production --environment production --message \"Nexa MG production update\" --non-interactive",
+    "update:preview": "npx eas-cli update --channel preview --environment preview --message \"Nexa preview update\" --non-interactive",
+    "update:production": "npx eas-cli update --channel production --environment production --message \"Nexa production update\" --non-interactive",
     "submit:android": "npx eas-cli submit --platform android --profile production --latest --non-interactive",
     "submit:ios": "npx eas-cli submit --platform ios --profile production --latest --non-interactive"
   },

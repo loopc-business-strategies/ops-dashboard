@@ -1,6 +1,6 @@
 import { Platform } from 'react-native'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
-import { API_URL, TENANT } from '@/src/config/tenant'
+import { API_URL, getTenant } from '@/src/config/tenant'
 
 const trimApiBase = (value: string) =>
   String(value || '')
@@ -98,8 +98,8 @@ function startNativeChatSse(token: string, onMessageCreated: () => void): () => 
   const headers: SseHeaders = {
     Accept: 'text/event-stream',
     Authorization: `Bearer ${token}`,
-    'x-tenant': TENANT,
-    'x-company': TENANT,
+    'x-tenant': getTenant(),
+    'x-company': getTenant(),
     'X-Client': 'mobile',
   }
 
@@ -146,8 +146,8 @@ export function startChatMessageEvents(
       headers: {
         Accept: 'text/event-stream',
         Authorization: `Bearer ${token}`,
-        'x-tenant': TENANT,
-        'x-company': TENANT,
+        'x-tenant': getTenant(),
+        'x-company': getTenant(),
         'X-Client': 'mobile',
       },
       onmessage(ev) {

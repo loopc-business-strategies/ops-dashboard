@@ -1,2 +1,2 @@
-/** Keep in sync with `src/config/branding.ts` → `mgBranding.appName`. */
-module.exports = { APP_NAME: 'Nexa MG' }
+/** Keep in sync with mobile branding appName. */
+module.exports = { APP_NAME: 'Nexa' }

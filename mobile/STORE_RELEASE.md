@@ -1,4 +1,4 @@
-# Nexa MG Mobile — App Store & Play Store
+# Nexa Mobile — App Store & Play Store
 
 Default **no-EAS** workflow (local Metro, local Gradle, no `eas update` billing): **[../docs/MOBILE-NO-EAS.md](../docs/MOBILE-NO-EAS.md)**.
 
@@ -55,7 +55,7 @@ npm run mobile:build:android:preview
 npm run mobile:build:ios:preview
 ```
 
-Download the build from the URL EAS prints, or from https://expo.dev/accounts/YOUR_ACCOUNT/projects/nexa-mg/builds
+Download the build from the URL EAS prints, or from https://expo.dev/accounts/YOUR_ACCOUNT/projects/nexa/builds
 
 ### Step 2 — Store production builds
 
@@ -76,8 +76,8 @@ EAS manages signing credentials on first run (follow prompts, or use `eas creden
 ### Step 3 — Submit to stores
 
 1. Create app listings:
-   - **Google Play:** app name `Nexa MG`, package `com.loopc.mg.ops`
-   - **App Store Connect:** bundle ID `com.loopc.mg.ops`
+   - **Google Play:** app name `Nexa`, package `com.loopc.nexa`
+   - **App Store Connect:** bundle ID `com.loopc.nexa`
 
 2. Update `mobile/eas.json` → `submit.production.ios` with your Apple ID, ASC app ID, and team ID.
 
@@ -116,11 +116,11 @@ EXPO_TOKEN=your_token npm run build:production:android
 
 | | Value |
 |--|--------|
-| Name | Nexa MG |
-| Android package | `com.loopc.mg.ops` |
-| iOS bundle ID | `com.loopc.mg.ops` |
+| Name | Nexa |
+| Android package | `com.loopc.nexa` |
+| iOS bundle ID | `com.loopc.nexa` |
 | API | `https://api.loopcstrategies.com` |
-| Tenant | `mg` |
+| Login | Company code + username + password |
 
 ## Troubleshooting
 

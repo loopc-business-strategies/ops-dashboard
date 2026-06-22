@@ -24,6 +24,7 @@ const User    = require('../models/User')
 const { protect, restrictTo } = require('../middleware/auth')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
 const { normalizeTenant, getDefaultTenant, resolveTenantFromHost } = require('../config/tenants')
+const { getTenantKeys } = require('../config/tenantRegistry')
 const { setCsrfCookie, clearCsrfCookie, generateCsrfToken } = require('../middleware/csrf')
 const {
   loadAdminSettings,
@@ -118,14 +119,14 @@ const validatePasswordForTenant = async (tenant, password) => {
 }
 
 const setupSchema = Joi.object({
-  company: Joi.string().trim().valid('mg', 'cg', 'loopc').optional(),
+  company: Joi.string().trim().valid(...getTenantKeys()).optional(),
   name: Joi.string().trim().min(2).max(80).required(),
   password: Joi.string().min(6).max(128).required(),
   setupToken: Joi.string().trim().max(256).optional(),
 })
 
 const loginSchema = Joi.object({
-  company: Joi.string().trim().valid('mg', 'cg', 'loopc').optional(),
+  company: Joi.string().trim().valid(...getTenantKeys()).optional(),
   name: Joi.string().trim().min(2).max(80).required(),
   password: Joi.string().min(1).max(128).required(),
 })

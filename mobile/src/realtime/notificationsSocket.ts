@@ -1,6 +1,6 @@
 import { Platform } from 'react-native'
 import { io, type Socket } from 'socket.io-client'
-import { API_URL, TENANT } from '@/src/config/tenant'
+import { API_URL, getTenant } from '@/src/config/tenant'
 
 const trimApiSuffix = (value: string) =>
   String(value || '')
@@ -30,8 +30,8 @@ export function createNotificationsSocket(token: string): NotificationSocket {
     reconnectionDelay: 1500,
     withCredentials: false,
     extraHeaders: {
-      'x-tenant': TENANT,
-      'x-company': TENANT,
+      'x-tenant': getTenant(),
+      'x-company': getTenant(),
       'X-Client': 'mobile',
     },
     auth: {

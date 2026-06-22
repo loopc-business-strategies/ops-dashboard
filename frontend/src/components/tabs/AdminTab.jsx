@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import authAPI from '../../api/auth'
+import platformAPI from '../../api/platform'
 import departmentStateAPI from '../../api/department-state'
 import { useLanguage } from '../../context/LanguageContext'
 import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
@@ -1070,10 +1071,128 @@ function SettingsTab() {
   )
 }
 
+function TenantsTab() {
+  const [catalog, setCatalog] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    platformAPI.getTenantCatalog()
+      .then((data) => {
+        if (active) setCatalog(data)
+      })
+      .catch((err) => {
+        if (active) setError(err?.response?.data?.message || 'Failed to load tenant catalog')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => { active = false }
+  }, [])
+
+  if (loading) {
+    return (
+      <div style={{ display: 'grid', placeItems: 'center', padding: '4rem 0' }}>
+        <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid #E2E8F0', borderTopColor: ADMIN.primary, animation: 'spin 0.8s linear infinite' }} />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '1rem', borderRadius: 10, background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FECACA' }}>
+        {error}
+      </div>
+    )
+  }
+
+  const tenants = catalog?.tenants || []
+  const customDomains = catalog?.customDomains || {}
+  const checklist = catalog?.onboardingChecklist || []
+
+  return (
+    <div style={{ display: 'grid', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+        <MetricCard label="Registered tenants" value={tenants.length} tone="blue" icon="🏢" />
+        <MetricCard label="Custom domains" value={Object.keys(customDomains).length} tone="purple" icon="🌐" />
+      </div>
+
+      <section style={{ background: '#fff', border: `1px solid ${ADMIN.border}`, borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ padding: '0.85rem 1rem', borderBottom: `1px solid ${ADMIN.border}`, fontWeight: 700, color: ADMIN.ink }}>
+          Tenant registry
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <thead>
+              <tr style={{ background: '#F8FAFC', textAlign: 'left' }}>
+                <th style={{ padding: '0.65rem 1rem', color: ADMIN.inkSoft }}>Code</th>
+                <th style={{ padding: '0.65rem 1rem', color: ADMIN.inkSoft }}>Name</th>
+                <th style={{ padding: '0.65rem 1rem', color: ADMIN.inkSoft }}>Portal</th>
+                <th style={{ padding: '0.65rem 1rem', color: ADMIN.inkSoft }}>Mobile code</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tenants.map((row) => (
+                <tr key={row.key} style={{ borderTop: `1px solid ${ADMIN.border}` }}>
+                  <td style={{ padding: '0.65rem 1rem', fontFamily: 'monospace' }}>{row.key}</td>
+                  <td style={{ padding: '0.65rem 1rem' }}>{row.displayName}</td>
+                  <td style={{ padding: '0.65rem 1rem' }}>
+                    <a href={`https://${row.portalHost}`} target="_blank" rel="noreferrer" style={{ color: ADMIN.primary }}>
+                      {row.portalHost}
+                    </a>
+                  </td>
+                  <td style={{ padding: '0.65rem 1rem', fontFamily: 'monospace' }}>{row.key}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {Object.keys(customDomains).length > 0 ? (
+        <section style={{ background: '#fff', border: `1px solid ${ADMIN.border}`, borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ padding: '0.85rem 1rem', borderBottom: `1px solid ${ADMIN.border}`, fontWeight: 700, color: ADMIN.ink }}>
+            Enterprise custom domains
+          </div>
+          <div style={{ padding: '0.75rem 1rem', display: 'grid', gap: '0.5rem' }}>
+            {Object.entries(customDomains).map(([host, tenantKey]) => (
+              <div key={host} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.875rem' }}>
+                <code style={{ background: '#F1F5F9', padding: '0.15rem 0.4rem', borderRadius: 4 }}>{host}</code>
+                <span style={{ color: ADMIN.inkSoft }}>→</span>
+                <code style={{ background: '#F1F5F9', padding: '0.15rem 0.4rem', borderRadius: 4 }}>{tenantKey}</code>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section style={{ background: '#fff', border: `1px solid ${ADMIN.border}`, borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ padding: '0.85rem 1rem', borderBottom: `1px solid ${ADMIN.border}`, fontWeight: 700, color: ADMIN.ink }}>
+          New customer onboarding
+        </div>
+        <ol style={{ margin: 0, padding: '0.85rem 1.25rem 1rem 2rem', color: ADMIN.ink, fontSize: '0.875rem', lineHeight: 1.6 }}>
+          {checklist.map((step) => (
+            <li key={step} style={{ marginBottom: '0.35rem' }}>{step}</li>
+          ))}
+        </ol>
+        <div style={{ padding: '0 1rem 1rem', fontSize: '0.8rem', color: ADMIN.inkSoft }}>
+          Full runbook: <code>docs/NEXA-CUSTOMER-ONBOARDING.md</code>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function AdminTab() {
-  const { token, company } = useAuth()
+  const { token, company, user } = useAuth()
   const { t } = useLanguage()
-  const adminSubIds = useMemo(() => ['users', 'permissions', 'settings'], [])
+  const isPlatformAdmin = company === 'loopc' && user?.role === 'super_admin'
+  const adminSubIds = useMemo(
+    () => (isPlatformAdmin ? ['users', 'permissions', 'tenants', 'settings'] : ['users', 'permissions', 'settings']),
+    [isPlatformAdmin],
+  )
   const { subTab, setSubTab, buildSubHref, handleSubTabClick } = useDashboardModuleSubTab(
     'admin',
     adminSubIds,
@@ -1110,6 +1229,7 @@ function AdminTab() {
   const tabs = [
     { id: 'users', label: 'Users', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> },
     { id: 'permissions', label: 'Permissions', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> },
+    ...(isPlatformAdmin ? [{ id: 'tenants', label: 'Tenants', icon: <span style={{ fontSize: '0.9rem' }}>🏢</span> }] : []),
     { id: 'settings', label: t('settings') || 'Settings', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> },
   ]
 
@@ -1146,6 +1266,7 @@ function AdminTab() {
         <>
           {subTab === 'users' && <UsersTab users={users} token={token} onRefresh={loadUsers} onOpenPermissions={(id) => { setSelectedPermUserId(id); setSubTab('permissions') }} />}
           {subTab === 'permissions' && <PermissionsTab users={users} token={token} initialUserId={selectedPermUserId} onRefresh={loadUsers} />}
+          {subTab === 'tenants' && isPlatformAdmin && <TenantsTab />}
           {subTab === 'settings' && <SettingsTab />}
         </>
       )}

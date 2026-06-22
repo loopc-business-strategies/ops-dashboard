@@ -1,6 +1,6 @@
-# Nexa MG Mobile
+# Nexa Mobile
 
-Read-only MG companion app (iOS / Android) for the ops-dashboard platform.
+Multi-tenant companion app (iOS / Android) for the Nexa ops-dashboard platform. One app — customers log in with **company code + username + password**.
 
 **Which path should I use?** Dev + **Expo Go** for everyday coding; **local APK/AAB** when someone needs an installable build; **EAS Update (OTA)** only if you intentionally use Expo cloud. See the decision table in **[../docs/MOBILE-NO-EAS.md](../docs/MOBILE-NO-EAS.md#which-path-should-i-use)**.
 

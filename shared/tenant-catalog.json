@@ -1,0 +1,29 @@
+{
+  "tenants": {
+    "mg": {
+      "key": "mg",
+      "displayName": "MG",
+      "companyName": "MODERN GOLD JEWELRY MANUFACTURING",
+      "tagline": "Metal Group Operations",
+      "portalHost": "mg.loopcstrategies.com",
+      "envVar": "MONGO_URI_MG"
+    },
+    "cg": {
+      "key": "cg",
+      "displayName": "CG",
+      "tagline": "CG Enterprise Suite",
+      "portalHost": "cg.loopcstrategies.com",
+      "envVar": "MONGO_URI_CG"
+    },
+    "loopc": {
+      "key": "loopc",
+      "displayName": "LoopC",
+      "tagline": "Loop C Business Platform",
+      "portalHost": "loopc.loopcstrategies.com",
+      "envVar": "MONGO_URI_LOOPC"
+    }
+  },
+  "customDomains": {
+    "erp.enterprise-demo.com": "mg"
+  }
+}
