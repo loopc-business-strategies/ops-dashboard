@@ -40,4 +40,11 @@ writeFileSync(outputPath, `${JSON.stringify({
   builtAt: new Date().toISOString(),
 }, null, 2)}\n`)
 
+const catalogSource = join(root, 'shared', 'tenant-catalog.json')
+const catalogTarget = join(root, 'backend', 'config', 'tenant-catalog.json')
+if (existsSync(catalogSource)) {
+  writeFileSync(catalogTarget, readFileSync(catalogSource, 'utf8'))
+  console.log('Copied shared tenant catalog into backend/config for production runtime')
+}
+
 console.log(`Wrote backend build metadata for ${shortCommit}`)

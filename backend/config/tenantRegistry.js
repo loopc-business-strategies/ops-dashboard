@@ -1,18 +1,63 @@
 const fs = require('fs')
 const path = require('path')
 
-const CATALOG_PATH = path.join(__dirname, '../../shared/tenant-catalog.json')
+const CATALOG_PATHS = [
+  path.join(__dirname, '../../shared/tenant-catalog.json'),
+  path.join(__dirname, 'tenant-catalog.json'),
+]
+
+const BUILTIN_CATALOG = {
+  tenants: {
+    mg: {
+      key: 'mg',
+      displayName: 'MG',
+      tagline: 'Metal Group Operations',
+      portalHost: 'mg.loopcstrategies.com',
+      envVar: 'MONGO_URI_MG',
+    },
+    cg: {
+      key: 'cg',
+      displayName: 'CG',
+      tagline: 'CG Enterprise Suite',
+      portalHost: 'cg.loopcstrategies.com',
+      envVar: 'MONGO_URI_CG',
+    },
+    loopc: {
+      key: 'loopc',
+      displayName: 'LoopC',
+      tagline: 'Loop C Business Platform',
+      portalHost: 'loopc.loopcstrategies.com',
+      envVar: 'MONGO_URI_LOOPC',
+    },
+  },
+  customDomains: {
+    'erp.enterprise-demo.com': 'mg',
+  },
+}
 
 function readBaseCatalog() {
-  try {
-    const raw = fs.readFileSync(CATALOG_PATH, 'utf8')
-    const parsed = JSON.parse(raw)
-    return {
-      tenants: parsed.tenants || {},
-      customDomains: parsed.customDomains || {},
+  for (const catalogPath of CATALOG_PATHS) {
+    try {
+      const raw = fs.readFileSync(catalogPath, 'utf8')
+      const parsed = JSON.parse(raw)
+      const tenants = parsed.tenants || {}
+      if (Object.keys(tenants).length) {
+        return {
+          tenants,
+          customDomains: parsed.customDomains || {},
+          source: catalogPath,
+        }
+      }
+    } catch {
+      // try next path
     }
-  } catch {
-    return { tenants: {}, customDomains: {} }
+  }
+
+  console.warn('[tenantRegistry] Using built-in tenant catalog fallback')
+  return {
+    tenants: BUILTIN_CATALOG.tenants,
+    customDomains: BUILTIN_CATALOG.customDomains,
+    source: 'builtin',
   }
 }
 
