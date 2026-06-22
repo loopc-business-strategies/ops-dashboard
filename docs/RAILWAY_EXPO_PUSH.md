@@ -1,6 +1,6 @@
 # Expo push on Railway (`EXPO_ACCESS_TOKEN`)
 
-This guide wires **background push notifications** for the Nexa MG mobile app. The API uses Expo’s push service when **`EXPO_ACCESS_TOKEN`** is set; see [`backend/services/expoPushNotifications.js`](../backend/services/expoPushNotifications.js).
+This guide wires **background push notifications** for the Nexa mobile app. The API uses Expo’s push service when **`EXPO_ACCESS_TOKEN`** is set; see [`backend/services/expoPushNotifications.js`](../backend/services/expoPushNotifications.js).
 
 **In-app** notifications (Socket.IO while the app is open) and **Chat SSE** do **not** need this variable. Only **OS-level push** when the app is backgrounded does.
 

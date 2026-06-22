@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions
-REM Builds Nexa MG Android release APK: SUBST Q: for short npm cwd + junction C:\mgops-m -> repo\mobile
+REM Builds Nexa Android release APK: SUBST Q: for short npm cwd + junction C:\mgops-m -> repo\mobile
 REM so Gradle/Ninja use C:\mgops-m\android (short path on real C:, avoids errno 3 on Q: and MAX_PATH on Desktop).
 REM Run from Explorer double-click, or:  scripts\build-mobile-apk-subst-q.cmd
 REM Requires: same Admin vs non-Admin session for subst; mklink /J usually needs Administrator once.

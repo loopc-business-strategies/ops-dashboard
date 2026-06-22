@@ -2,6 +2,8 @@
 
 Multi-tenant companion app (iOS / Android) for the Nexa ops-dashboard platform. One app — customers log in with **company code + username + password**.
 
+**Display name:** The app is branded **Nexa** (`mobile/appName.cjs` → `app.config.ts` → Android `strings.xml`). Push notification titles use the same name via `backend/config/mobileApp.js`. If Firebase or Expo still show “Nexa MG”, rename the **project display name** and Android **app nickname** in [Firebase Console](https://console.firebase.google.com/) and optionally on [expo.dev](https://expo.dev); internal IDs (`mg-ops-push`, slug `nexa-mg`) can stay. **Reinstall** a new APK/AAB so the home-screen label updates on device.
+
 **Which path should I use?** Dev + **Expo Go** for everyday coding; **local APK/AAB** when someone needs an installable build; **EAS Update (OTA)** only if you intentionally use Expo cloud. See the decision table in **[../docs/MOBILE-NO-EAS.md](../docs/MOBILE-NO-EAS.md#which-path-should-i-use)**.
 
 ## Tabs

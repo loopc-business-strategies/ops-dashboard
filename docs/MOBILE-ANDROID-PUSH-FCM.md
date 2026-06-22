@@ -1,4 +1,4 @@
-# Android push (FCM) for Nexa MG mobile
+# Android push (FCM) for Nexa mobile
 
 Local **release APK/AAB** builds need **Firebase Cloud Messaging (FCM)** wired into the native Android project. Without it, the app may still obtain an Expo push token, but **OS notifications will not arrive** when the app is in the background.
 
@@ -10,16 +10,17 @@ Web push and in-app Socket notifications are unaffected.
 |------|--------|
 | `EXPO_ACCESS_TOKEN` | Railway → `ops-dashboard` service (verify: `GET /api/ready` → `expoPushAccessTokenSet: true`) |
 | EAS project ID | `mobile/app.config.ts` → `extra.eas.projectId` (`f049f1a3-d499-416b-97af-e082bca658fa`) |
-| Android package | `com.loopc.mg.ops` |
+| Android package | `com.loopc.nexa` (see `mobile/app.config.ts`) |
 
 ## Step 1 — Firebase project
 
 1. Open [Firebase Console](https://console.firebase.google.com/).
-2. Create or select a project (e.g. **Nexa MG**; Firebase project ID may remain `mg-ops-push`).
-3. **Add app** → **Android**.
-4. **Android package name:** `com.loopc.mg.ops` (must match `app.config.ts`).
-5. Download **`google-services.json`**.
-6. Place it at:
+2. Create or select a project (display name **Nexa**; Firebase project ID may remain `mg-ops-push`).
+3. **Project settings** → edit **Project name** / Android app **nickname** to **Nexa** if the console still shows “Nexa MG”.
+4. **Add app** → **Android** (skip if already registered).
+5. **Android package name:** `com.loopc.nexa` (must match `app.config.ts`). If you still have an older Firebase app for `com.loopc.mg.ops`, add a second Android app for `com.loopc.nexa` or migrate FCM credentials to the new package.
+6. Download **`google-services.json`**.
+7. Place it at:
 
    ```
    mobile/android/app/google-services.json
@@ -32,7 +33,7 @@ Web push and in-app Socket notifications are unaffected.
 
 Expo’s push service delivers to Android via FCM credentials stored on your Expo account.
 
-1. Sign in at [expo.dev](https://expo.dev) → project **nexa-mg** (Nexa MG; project ID above).
+1. Sign in at [expo.dev](https://expo.dev) → project **nexa-mg** (display name **Nexa**; slug unchanged; project ID above). Optionally rename the project display name under Expo project settings.
 2. Open **Project settings** → **Credentials** → **Android** → **Push Notifications**.
 3. Upload **FCM V1 service account key** (Firebase → Project settings → Service accounts → Generate new private key JSON), **or** follow Expo’s wizard for **FCM legacy** if prompted.
 4. The Expo account must match the one used for `EXPO_ACCESS_TOKEN` on Railway.
@@ -65,7 +66,7 @@ Install the new APK on the device (uninstall old build if package signature chan
 
 ## Step 4 — Test on device
 
-1. Open **Nexa MG** → log in → **Allow notifications**.
+1. Open **Nexa** → log in → **Allow notifications**.
 2. **Settings** tab → **Register for push** (should say “Push registered with server.”).
 3. Background the app (home button).
 4. Trigger an event (chat message, voucher approval, etc.).

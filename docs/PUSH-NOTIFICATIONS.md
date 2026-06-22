@@ -1,10 +1,10 @@
-# Push notifications (Nexa MG)
+# Push notifications (Nexa)
 
 Two channels reach users outside the open app:
 
 ## 1. Mobile (Expo / iOS + Android)
 
-1. **App:** After login, the Nexa MG mobile app registers an Expo push token and `POST`s it to `/api/auth/me/push-token` (see `mobile/src/services/expoPushRegistration.ts`).
+1. **App:** After login, the Nexa mobile app registers an Expo push token and `POST`s it to `/api/auth/me/push-token` (see `mobile/src/services/expoPushRegistration.ts`).
 2. **Server:** When an event calls `RealtimeServer.sendUserNotification(..., tenantKey)` with a real tenant (`mg`, `cg`, or `loopc`), the backend sends Socket.IO **and** (if configured) Expo push via `expo-server-sdk`.
 3. **Railway / backend env:** Set **`EXPO_ACCESS_TOKEN`** (Expo account → Access tokens). Without it, mobile OS notifications are skipped; in-app Socket notifications still work. The variable name must be exactly **`EXPO_ACCESS_TOKEN`** (not the token’s friendly label from Expo). After deploy, verify with **`GET /api/ready`** — response includes **`checks.integrations.expoPushAccessTokenSet: true`** (boolean only; never exposes the token).
 4. **Android release APK (local Gradle):** You also need **Firebase `google-services.json`** and **FCM credentials on the Expo project**. See **[`docs/MOBILE-ANDROID-PUSH-FCM.md`](./MOBILE-ANDROID-PUSH-FCM.md)** — without this, background push on sideloaded APKs will not work even when the API is configured.

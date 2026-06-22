@@ -1,4 +1,4 @@
-# Nexa MG mobile — local Android builds (no EAS)
+# Nexa mobile — local Android builds (no EAS)
 
 Use this path when you want **Play-ready AAB** or **sideload APK** from your own machine or CI **without Expo Application Services (EAS)**. The app stays an **Expo SDK** project; only the **cloud build / submit** step is skipped.
 
