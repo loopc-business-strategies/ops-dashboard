@@ -109,7 +109,7 @@ function useLiveMetalRatesState(
     if (!appActiveRef.current) return
 
     try {
-      const live = await fetchLiveMetalRates(token)
+      const live = await fetchLiveMetalRates(token, companyCode)
       const liveRates = live?.rates
       const g = Number(liveRates?.goldPrice) || 0
       const s = Number(liveRates?.silverPrice) || 0
@@ -121,7 +121,7 @@ function useLiveMetalRatesState(
         return
       }
 
-      const saved = await fetchSavedMetalRates(token)
+      const saved = await fetchSavedMetalRates(token, companyCode)
       if (saved?.success && saved.rates) {
         const sg = Number(saved.rates.goldPrice) || 0
         const ss = Number(saved.rates.silverPrice) || 0
@@ -139,7 +139,7 @@ function useLiveMetalRatesState(
       }
       setError(parsed)
     }
-  }, [applyRates, enabled, sessionReady, token])
+  }, [applyRates, companyCode, enabled, sessionReady, token])
 
   const schedulePoll = useCallback(() => {
     if (pollTimerRef.current) {

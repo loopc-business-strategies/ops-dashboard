@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   FlatList,
   Modal,
@@ -11,7 +11,7 @@ import {
 import { SymbolView } from 'expo-symbols'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { mgBranding } from '@/src/config/branding'
+import { useTenantBranding } from '@/src/context/TenantContext'
 import { useChat } from '@/src/context/ChatContext'
 import { useNotifications, type AppNotificationItem } from '@/src/context/NotificationsContext'
 import { navigateDeepLink } from '@/src/navigation/deepLinkRouter'
@@ -52,6 +52,103 @@ function formatRelativeTime(d: Date): string {
 export function MgTabsHeader({ options, route }: TabHeaderProps) {
   const insets = useSafeAreaInsets()
   const router = useRouter()
+  const { branding } = useTenantBranding()
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        wrap: { backgroundColor: branding.colors.primary },
+        titleRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingBottom: 10,
+          paddingHorizontal: 8,
+          backgroundColor: branding.colors.primary,
+        },
+        sideSlot: {
+          width: 48,
+          minHeight: 40,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        sideSlotRight: {
+          width: 'auto',
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: 2,
+          paddingRight: 4,
+        },
+        titleCenter: {
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        titleText: {
+          color: '#FFFFFF',
+          fontWeight: '700',
+          fontSize: 17,
+        },
+        headerIconWrap: {
+          width: 40,
+          height: 40,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        bellPressed: { opacity: 0.75 },
+        badge: {
+          position: 'absolute',
+          top: 2,
+          right: 4,
+          minWidth: 18,
+          height: 18,
+          borderRadius: 9,
+          backgroundColor: '#EF4444',
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: 4,
+        },
+        badgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+        modalBackdrop: {
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.45)',
+          justifyContent: 'flex-end',
+        },
+        modalCard: {
+          backgroundColor: '#FFFFFF',
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+          maxHeight: '72%',
+          paddingTop: 12,
+        },
+        modalHeader: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: 16,
+          paddingBottom: 8,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: '#E5E7EB',
+        },
+        modalTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
+        modalHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+        markAll: { fontSize: 14, fontWeight: '600', color: branding.colors.primary },
+        close: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
+        empty: { padding: 24, textAlign: 'center', color: '#6B7280', fontSize: 15 },
+        list: { flexGrow: 0 },
+        listContent: { paddingBottom: 8 },
+        notifRow: {
+          paddingVertical: 12,
+          paddingHorizontal: 16,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: '#E5E7EB',
+        },
+        notifRowUnread: { backgroundColor: '#F0FDF4' },
+        notifTitle: { fontSize: 15, fontWeight: '700', color: '#111827', marginBottom: 4 },
+        notifMsg: { fontSize: 14, color: '#374151', lineHeight: 20 },
+        notifTime: { marginTop: 6, fontSize: 12, color: '#9CA3AF' },
+      }),
+    [branding],
+  )
   const title = resolveTitle(route.name, options.title)
   const { unreadCount: chatUnreadCount } = useChat()
   const { items, unreadCount, markRead, markAllRead } = useNotifications()
@@ -174,144 +271,3 @@ export function MgTabsHeader({ options, route }: TabHeaderProps) {
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  wrap: {
-    backgroundColor: mgBranding.colors.primary,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingBottom: 10,
-    paddingHorizontal: 8,
-    backgroundColor: mgBranding.colors.primary,
-  },
-  sideSlot: {
-    width: 48,
-    minHeight: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sideSlotRight: {
-    width: 'auto',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 2,
-    paddingRight: 4,
-  },
-  titleCenter: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  titleText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 17,
-  },
-  headerIconWrap: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bellPressed: {
-    opacity: 0.75,
-  },
-  badge: {
-    position: 'absolute',
-    top: 2,
-    right: 4,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#EF4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: '72%',
-    paddingTop: 12,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  modalHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  markAll: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: mgBranding.colors.primary,
-  },
-  close: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  empty: {
-    padding: 24,
-    textAlign: 'center',
-    color: '#6B7280',
-    fontSize: 15,
-  },
-  list: {
-    flexGrow: 0,
-  },
-  listContent: {
-    paddingBottom: 8,
-  },
-  notifRow: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
-  },
-  notifRowUnread: {
-    backgroundColor: '#F0FDF4',
-  },
-  notifTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  notifMsg: {
-    fontSize: 14,
-    color: '#374151',
-    lineHeight: 20,
-  },
-  notifTime: {
-    marginTop: 6,
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-})

@@ -19,7 +19,8 @@ export type NotificationSocket = Socket
  * Connect to Socket.IO `/notifications` with JWT (mirrors web `startUserNotifications`).
  * Sends tenant headers when supported (native may ignore `extraHeaders` on some transports).
  */
-export function createNotificationsSocket(token: string): NotificationSocket {
+export function createNotificationsSocket(token: string, tenant: string): NotificationSocket {
+  const tenantKey = tenant || getTenant()
   // RN: prefer polling first — some Android networks/OEMs block or mishandle WSS before TLS is stable.
   const transports =
     Platform.OS === 'web' ? (['websocket', 'polling'] as const) : (['polling', 'websocket'] as const)
@@ -30,8 +31,8 @@ export function createNotificationsSocket(token: string): NotificationSocket {
     reconnectionDelay: 1500,
     withCredentials: false,
     extraHeaders: {
-      'x-tenant': getTenant(),
-      'x-company': getTenant(),
+      'x-tenant': tenantKey,
+      'x-company': tenantKey,
       'X-Client': 'mobile',
     },
     auth: {
@@ -42,9 +43,10 @@ export function createNotificationsSocket(token: string): NotificationSocket {
 
 export function startUserNotificationsSocket(
   token: string,
+  tenant: string,
   onNotification: (payload: NotificationPayload) => void,
 ): () => void {
-  const socket = createNotificationsSocket(token)
+  const socket = createNotificationsSocket(token, tenant)
   socket.on('notification', onNotification)
   return () => {
     socket.off('notification', onNotification)

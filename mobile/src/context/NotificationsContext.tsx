@@ -72,7 +72,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       return undefined
     }
 
-    const stop = startUserNotificationsSocket(token, (payload: NotificationPayload) => {
+    const stop = startUserNotificationsSocket(token, companyCode, (payload: NotificationPayload) => {
       appendPayload(payload)
     })
 

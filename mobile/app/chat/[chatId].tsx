@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
@@ -18,22 +18,38 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as DocumentPicker from 'expo-document-picker'
 import { SymbolView } from 'expo-symbols'
 import { attachmentRequestUrl, getAuthToken } from '@/src/api/client'
-import { mgBranding } from '@/src/config/branding'
 import { useChat } from '@/src/context/ChatContext'
 import { useAuth } from '@/src/context/AuthContext'
+import { useTenantBranding } from '@/src/context/TenantContext'
+import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import type { ChatAttachment } from '@/src/types/chat'
 import { formatAttachmentSize } from '@/src/utils/chat'
 import { fmtTime } from '@/src/utils/format'
 
-function AttachmentBubble({ attachment, mine }: { attachment: ChatAttachment; mine: boolean }) {
+function AttachmentBubble({
+  attachment,
+  mine,
+  styles,
+}: {
+  attachment: ChatAttachment
+  mine: boolean
+  styles: ReturnType<typeof createChatDetailStyles>
+}) {
   const token = getAuthToken()
+  const { companyCode } = useTenantBranding()
   const url = attachment.fileName ? attachmentRequestUrl(attachment.fileName) : ''
   const label = attachment.originalName || attachment.fileName || 'Attachment'
+  const authHeaders = {
+    Authorization: `Bearer ${token}`,
+    'x-tenant': companyCode,
+    'x-company': companyCode,
+    'X-Client': 'mobile',
+  }
 
   if (attachment.kind === 'image' && url && token) {
     return (
       <Image
-        source={{ uri: url, headers: { Authorization: `Bearer ${token}` } }}
+        source={{ uri: url, headers: authHeaders }}
         style={styles.imageAttachment}
         resizeMode="cover"
       />
@@ -61,6 +77,8 @@ function AttachmentBubble({ attachment, mine }: { attachment: ChatAttachment; mi
 
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets()
+  const { branding } = useTenantBranding()
+  const styles = useMemo(() => createChatDetailStyles(branding), [branding])
   const { chatId: rawChatId } = useLocalSearchParams<{ chatId: string }>()
   const chatId = decodeURIComponent(String(rawChatId || ''))
   const { user } = useAuth()
@@ -173,6 +191,7 @@ export default function ConversationScreen() {
                       key={`${item.id}-${attachment.fileName}`}
                       attachment={attachment}
                       mine={mine}
+                      styles={styles}
                     />
                   ))}
                   <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMine]}>
@@ -197,14 +216,14 @@ export default function ConversationScreen() {
           >
             <SymbolView
               name={{ ios: 'paperclip', android: 'attach_file', web: 'attach_file' }}
-              tintColor={mgBranding.colors.primary}
+              tintColor={branding.colors.primary}
               size={22}
             />
           </Pressable>
           <TextInput
             style={styles.input}
             placeholder="Message… Use @name to mention"
-            placeholderTextColor={mgBranding.colors.muted}
+            placeholderTextColor={branding.colors.muted}
             value={text}
             onChangeText={setText}
             onFocus={() => requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }))}
@@ -229,19 +248,20 @@ export default function ConversationScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: mgBranding.colors.background },
+function createChatDetailStyles(b: MobileTenantBranding) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: b.colors.background },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { padding: 16, paddingBottom: 8, flexGrow: 1 },
   bubbleRow: { marginBottom: 10, flexDirection: 'row' },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubbleRowOther: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '82%', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
-  bubbleMine: { backgroundColor: mgBranding.colors.primary, borderBottomRightRadius: 4 },
+  bubbleMine: { backgroundColor: b.colors.primary, borderBottomRightRadius: 4 },
   bubbleOther: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#E5E7EB', borderBottomLeftRadius: 4 },
-  bubbleText: { color: mgBranding.colors.text, fontSize: 15, lineHeight: 21 },
+  bubbleText: { color: b.colors.text, fontSize: 15, lineHeight: 21 },
   bubbleTextMine: { color: '#fff' },
-  bubbleTime: { marginTop: 4, fontSize: 10, color: mgBranding.colors.muted, textAlign: 'right' },
+  bubbleTime: { marginTop: 4, fontSize: 10, color: b.colors.muted, textAlign: 'right' },
   bubbleTimeMine: { color: 'rgba(255,255,255,0.75)' },
   imageAttachment: { width: 220, height: 160, borderRadius: 12, marginTop: 4 },
   fileAttachment: {
@@ -251,9 +271,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15,23,42,0.06)',
   },
   fileAttachmentMine: { backgroundColor: 'rgba(255,255,255,0.16)' },
-  fileAttachmentLabel: { color: mgBranding.colors.text, fontWeight: '700', fontSize: 13 },
+  fileAttachmentLabel: { color: b.colors.text, fontWeight: '700', fontSize: 13 },
   fileAttachmentLabelMine: { color: '#fff' },
-  fileAttachmentMeta: { marginTop: 4, fontSize: 11, color: mgBranding.colors.muted },
+  fileAttachmentMeta: { marginTop: 4, fontSize: 11, color: b.colors.muted },
   compose: {
     flexDirection: 'row',
     gap: 8,
@@ -283,11 +303,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 15,
-    color: mgBranding.colors.text,
+    color: b.colors.text,
     backgroundColor: '#FAFAFA',
   },
   sendBtn: {
-    backgroundColor: mgBranding.colors.primary,
+    backgroundColor: b.colors.primary,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -296,6 +316,7 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: { opacity: 0.5 },
   sendText: { color: '#fff', fontWeight: '800', fontSize: 14 },
-  empty: { textAlign: 'center', color: mgBranding.colors.muted, marginTop: 40 },
-  error: { color: mgBranding.colors.danger, paddingHorizontal: 16, paddingBottom: 4, fontSize: 13 },
-})
+  empty: { textAlign: 'center', color: b.colors.muted, marginTop: 40 },
+  error: { color: b.colors.danger, paddingHorizontal: 16, paddingBottom: 4, fontSize: 13 },
+  })
+}

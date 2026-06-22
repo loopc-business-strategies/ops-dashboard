@@ -96,4 +96,19 @@ describe('tenant config (Nexa mobile API / tenant)', () => {
     await expect(bootstrapTenantFromStorage()).resolves.toBe('loopc')
     expect(getTenant()).toBe('loopc')
   })
+
+  it('syncTenantFromJwt updates active tenant from JWT company', async () => {
+    const { syncTenantFromJwt, getTenant } = await import('./tenant')
+    expect(syncTenantFromJwt(jwtWithCompany('cg'))).toBe('cg')
+    expect(getTenant()).toBe('cg')
+  })
+
+  it('resetTenantSession clears stored company code and resets default tenant', async () => {
+    secureStore.companyCode = 'cg'
+    const { setTenant, resetTenantSession, getTenant } = await import('./tenant')
+    setTenant('cg')
+    await expect(resetTenantSession()).resolves.toBe('mg')
+    expect(getTenant()).toBe('mg')
+    expect(secureStore.companyCode).toBeNull()
+  })
 })

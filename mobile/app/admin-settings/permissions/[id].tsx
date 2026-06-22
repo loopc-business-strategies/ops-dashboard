@@ -4,12 +4,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { PermissionEditor } from '@/src/components/admin/PermissionEditor'
 import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
+import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { fetchUsers, getUserId, updateUserPermissions } from '@/src/api/users'
 import type { ModulePermissions } from '@/src/constants/admin'
 
 export default function PermissionsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { token } = useAuth()
+  const sessionReady = useTenantSessionReady()
   const router = useRouter()
   const [userName, setUserName] = useState('')
   const [perms, setPerms] = useState<ModulePermissions>({})
@@ -18,7 +20,7 @@ export default function PermissionsScreen() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!token || !id) return
+    if (!token || !id || !sessionReady) return
     fetchUsers(token)
       .then((users) => {
         const user = users.find((u) => getUserId(u) === id)
@@ -29,10 +31,10 @@ export default function PermissionsScreen() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load permissions'))
       .finally(() => setLoading(false))
-  }, [token, id])
+  }, [token, id, sessionReady])
 
   const onSave = async () => {
-    if (!token || !id) return
+    if (!token || !id || !sessionReady) return
     setSaving(true)
     setError('')
     try {

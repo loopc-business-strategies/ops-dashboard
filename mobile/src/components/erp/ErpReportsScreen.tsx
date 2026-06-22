@@ -10,9 +10,9 @@ import {
   TextInput,
   View,
 } from 'react-native'
-import { mgBranding } from '@/src/config/branding'
-import { useAuth } from '@/src/context/AuthContext'
 import { useTenantBranding } from '@/src/context/TenantContext'
+import type { MobileTenantBranding } from '@/src/config/tenantBranding'
+import { useAuth } from '@/src/context/AuthContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import {
   fetchAccountsForLedger,
@@ -72,9 +72,10 @@ export default function ErpReportsScreen({
   initialView?: string
 } = {}) {
   const { token, user } = useAuth()
-  const { companyCode } = useTenantBranding()
+  const { companyCode, branding } = useTenantBranding()
   const sessionReady = useTenantSessionReady()
   const allowed = canAccessErpReports(user)
+  const styles = useMemo(() => createErpStyles(branding), [branding])
 
   const [reportView, setReportView] = useState<ErpReportViewId>('summary')
   const [period, setPeriod] = useState<ReportPeriod>('ytd')
@@ -303,7 +304,7 @@ export default function ErpReportsScreen({
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Account Summary — {initialAccountCode}</Text>
           {enquiryLoading ? (
-            <ActivityIndicator color={mgBranding.colors.primary} style={{ marginTop: 8 }} />
+            <ActivityIndicator color={branding.colors.primary} style={{ marginTop: 8 }} />
           ) : enquiryAccount ? (
             <>
               <Text style={styles.rowName}>{String(enquiryAccount.accountName || 'Account')}</Text>
@@ -376,7 +377,7 @@ export default function ErpReportsScreen({
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading && !refreshing ? (
         <View style={styles.loader}>
-          <ActivityIndicator color={mgBranding.colors.primary} />
+          <ActivityIndicator color={branding.colors.primary} />
         </View>
       ) : null}
 
@@ -608,13 +609,14 @@ export default function ErpReportsScreen({
   )
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: mgBranding.colors.background },
+function createErpStyles(b: MobileTenantBranding) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: b.colors.background },
   content: { padding: 16, paddingBottom: 48 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  title: { fontSize: 20, fontWeight: '800', color: mgBranding.colors.text },
-  lead: { marginTop: 6, fontSize: 14, color: mgBranding.colors.muted, lineHeight: 20 },
-  section: { marginTop: 16, marginBottom: 8, fontSize: 13, fontWeight: '700', color: mgBranding.colors.text },
+  title: { fontSize: 20, fontWeight: '800', color: b.colors.text },
+  lead: { marginTop: 6, fontSize: 14, color: b.colors.muted, lineHeight: 20 },
+  section: { marginTop: 16, marginBottom: 8, fontSize: 13, fontWeight: '700', color: b.colors.text },
   chipRow: { flexGrow: 0 },
   chip: {
     paddingHorizontal: 12,
@@ -625,8 +627,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
     backgroundColor: '#fff',
   },
-  chipOn: { backgroundColor: mgBranding.colors.primary, borderColor: mgBranding.colors.primary },
-  chipText: { fontSize: 13, fontWeight: '600', color: mgBranding.colors.text },
+  chipOn: { backgroundColor: b.colors.primary, borderColor: b.colors.primary },
+  chipText: { fontSize: 13, fontWeight: '600', color: b.colors.text },
   chipTextOn: { color: '#fff' },
   customDates: { gap: 8, marginTop: 8 },
   input: {
@@ -637,7 +639,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: '#fff',
     fontSize: 14,
-    color: mgBranding.colors.text,
+    color: b.colors.text,
   },
   switchRow: {
     flexDirection: 'row',
@@ -646,11 +648,11 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 8,
   },
-  switchLabel: { fontSize: 14, color: mgBranding.colors.text, flex: 1 },
+  switchLabel: { fontSize: 14, color: b.colors.text, flex: 1 },
   error: { color: '#B91C1C', marginTop: 12, fontWeight: '600' },
   loader: { marginVertical: 16 },
-  muted: { color: mgBranding.colors.muted, fontSize: 15 },
-  periodNote: { marginTop: 8, fontSize: 12, color: mgBranding.colors.muted },
+  muted: { color: b.colors.muted, fontSize: 15 },
+  periodNote: { marginTop: 8, fontSize: 12, color: b.colors.muted },
   card: {
     marginTop: 16,
     backgroundColor: '#fff',
@@ -659,12 +661,12 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     padding: 12,
   },
-  cardTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8, color: mgBranding.colors.text },
-  meta: { fontSize: 12, color: mgBranding.colors.muted, marginBottom: 8 },
+  cardTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8, color: b.colors.text },
+  meta: { fontSize: 12, color: b.colors.muted, marginBottom: 8 },
   metaSmall: { fontSize: 11, color: '#B91C1C', marginBottom: 6, fontWeight: '600' },
   trialOk: { fontSize: 13, color: '#0284C7', fontWeight: '700', marginBottom: 8 },
   trialWarn: { fontSize: 13, color: '#B91C1C', fontWeight: '700', marginBottom: 8 },
-  subhead: { marginTop: 12, marginBottom: 6, fontSize: 14, fontWeight: '700', color: mgBranding.colors.text },
+  subhead: { marginTop: 12, marginBottom: 6, fontSize: 14, fontWeight: '700', color: b.colors.text },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -674,22 +676,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   rowTrial: { alignItems: 'flex-start' },
-  rowCode: { width: 56, fontSize: 11, fontWeight: '700', color: mgBranding.colors.text },
+  rowCode: { width: 56, fontSize: 11, fontWeight: '700', color: b.colors.text },
   rowMain: { flex: 1, minWidth: 0 },
-  rowNameBlock: { fontSize: 13, color: mgBranding.colors.text },
-  rowName: { flex: 1, fontSize: 13, color: mgBranding.colors.text },
-  rowSub: { marginTop: 4, fontSize: 11, color: mgBranding.colors.muted, fontWeight: '600' },
-  rowRight: { fontSize: 12, fontWeight: '600', color: mgBranding.colors.text },
+  rowNameBlock: { fontSize: 13, color: b.colors.text },
+  rowName: { flex: 1, fontSize: 13, color: b.colors.text },
+  rowSub: { marginTop: 4, fontSize: 11, color: b.colors.muted, fontWeight: '600' },
+  rowRight: { fontSize: 12, fontWeight: '600', color: b.colors.text },
   accountPick: { maxHeight: 220, marginBottom: 8 },
   accRow: { flexDirection: 'row', paddingVertical: 8, gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F3F4F6' },
   accRowOn: { backgroundColor: '#ECFDF5' },
   btn: {
     alignSelf: 'flex-start',
-    backgroundColor: mgBranding.colors.primary,
+    backgroundColor: b.colors.primary,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 8,
     marginBottom: 12,
   },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-})
+  })
+}

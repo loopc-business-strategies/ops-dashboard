@@ -20,7 +20,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { isReady, syncTenantFromSession } = useTenantBranding()
+  const { isReady, syncTenantFromSession, resetForLogout } = useTenantBranding()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -102,7 +102,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Clear local session even if server logout fails.
     }
     await applySession(null, null)
-  }, [applySession, token])
+    await resetForLogout()
+  }, [applySession, resetForLogout, token])
 
   const value = useMemo(
     () => ({

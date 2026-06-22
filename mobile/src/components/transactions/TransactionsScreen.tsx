@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
-import { mgBranding } from '@/src/config/branding'
+import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantBranding } from '@/src/context/TenantContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
@@ -106,8 +106,9 @@ function buildApiParams(filters: FilterState) {
 
 export default function TransactionsScreen() {
   const { token, user } = useAuth()
-  const { companyCode } = useTenantBranding()
+  const { companyCode, branding } = useTenantBranding()
   const sessionReady = useTenantSessionReady()
+  const styles = useMemo(() => createTransactionStyles(branding), [branding])
   const allowed = canAccessTransactions(user)
 
   const [draftFilters, setDraftFilters] = useState<FilterState>(DEFAULT_FILTERS)
@@ -247,7 +248,7 @@ export default function TransactionsScreen() {
   if ((!sessionReady || loading) && rows.length === 0) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={mgBranding.colors.primary} />
+        <ActivityIndicator color={branding.colors.primary} />
       </View>
     )
   }
@@ -305,7 +306,7 @@ export default function TransactionsScreen() {
         <TextInput
           style={styles.input}
           placeholder="Search narration, party, voucher, currency…"
-          placeholderTextColor={mgBranding.colors.muted}
+            placeholderTextColor={branding.colors.muted}
           value={draftFilters.search}
           onChangeText={(search) => setDraftFilters((p) => ({ ...p, search }))}
         />
@@ -374,7 +375,7 @@ export default function TransactionsScreen() {
         }
         renderItem={({ item }) => {
           const status = String(item.status || '').toLowerCase()
-          const statusStyle = STATUS_COLORS[status] || { bg: '#E5E7EB', text: mgBranding.colors.text }
+          const statusStyle = STATUS_COLORS[status] || { bg: '#E5E7EB', text: branding.colors.text }
           return (
             <Pressable style={styles.card} onPress={() => setSelected(item)}>
               <View style={styles.cardTop}>
@@ -494,12 +495,13 @@ export default function TransactionsScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: mgBranding.colors.background },
+function createTransactionStyles(b: MobileTenantBranding) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: b.colors.background },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   denied: { flex: 1, padding: 24, justifyContent: 'center' },
-  deniedTitle: { fontSize: 18, fontWeight: '700', color: mgBranding.colors.text, marginBottom: 8 },
-  deniedText: { fontSize: 14, color: mgBranding.colors.muted },
+  deniedTitle: { fontSize: 18, fontWeight: '700', color: b.colors.text, marginBottom: 8 },
+  deniedText: { fontSize: 14, color: b.colors.muted },
   summaryScroll: { maxHeight: 72, flexGrow: 0 },
   summaryRow: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
   summaryChip: {
@@ -511,8 +513,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     minWidth: 72,
   },
-  summaryChipLabel: { fontSize: 10, fontWeight: '700', color: mgBranding.colors.muted, textTransform: 'uppercase' },
-  summaryChipValue: { fontSize: 16, fontWeight: '800', color: mgBranding.colors.text, marginTop: 2 },
+  summaryChipLabel: { fontSize: 10, fontWeight: '700', color: b.colors.muted, textTransform: 'uppercase' },
+  summaryChipValue: { fontSize: 16, fontWeight: '800', color: b.colors.text, marginTop: 2 },
   activeFiltersRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -520,10 +522,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 6,
   },
-  activeFiltersText: { fontSize: 12, fontWeight: '700', color: mgBranding.colors.muted },
-  activeFiltersClear: { fontSize: 12, fontWeight: '700', color: mgBranding.colors.primary },
+  activeFiltersText: { fontSize: 12, fontWeight: '700', color: b.colors.muted },
+  activeFiltersClear: { fontSize: 12, fontWeight: '700', color: b.colors.primary },
   chipsSection: { paddingHorizontal: 12, paddingBottom: 8 },
-  sectionLabel: { fontSize: 12, fontWeight: '700', color: mgBranding.colors.muted, marginBottom: 6 },
+  sectionLabel: { fontSize: 12, fontWeight: '700', color: b.colors.muted, marginBottom: 6 },
   chipsRow: { gap: 8, paddingRight: 12 },
   chip: {
     paddingHorizontal: 12,
@@ -533,8 +535,8 @@ const styles = StyleSheet.create({
     borderColor: '#D1D5DB',
     backgroundColor: '#FFFFFF',
   },
-  chipActive: { backgroundColor: mgBranding.colors.primary, borderColor: mgBranding.colors.primary },
-  chipText: { fontSize: 12, fontWeight: '700', color: mgBranding.colors.text },
+  chipActive: { backgroundColor: b.colors.primary, borderColor: b.colors.primary },
+  chipText: { fontSize: 12, fontWeight: '700', color: b.colors.text },
   chipTextActive: { color: '#FFFFFF' },
   filtersCard: {
     marginHorizontal: 12,
@@ -553,7 +555,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    color: mgBranding.colors.text,
+    color: b.colors.text,
     backgroundColor: '#FAFAFA',
   },
   dateRow: { flexDirection: 'row', gap: 8 },
@@ -564,12 +566,12 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: '#FAFAFA',
   },
-  accountPickerLabel: { fontSize: 11, fontWeight: '700', color: mgBranding.colors.muted },
-  accountPickerValue: { fontSize: 14, color: mgBranding.colors.text, marginTop: 4 },
+  accountPickerLabel: { fontSize: 11, fontWeight: '700', color: b.colors.muted },
+  accountPickerValue: { fontSize: 14, color: b.colors.text, marginTop: 4 },
   filterActions: { flexDirection: 'row', gap: 8 },
   applyBtn: {
     flex: 1,
-    backgroundColor: mgBranding.colors.primary,
+    backgroundColor: b.colors.primary,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: 'center',
@@ -583,19 +585,19 @@ const styles = StyleSheet.create({
     borderColor: '#D1D5DB',
     alignItems: 'center',
   },
-  resetBtnText: { color: mgBranding.colors.text, fontWeight: '700' },
+  resetBtnText: { color: b.colors.text, fontWeight: '700' },
   accountNote: {
     fontSize: 12,
-    color: mgBranding.colors.muted,
+    color: b.colors.muted,
     paddingHorizontal: 16,
     marginBottom: 6,
   },
-  error: { color: mgBranding.colors.danger, paddingHorizontal: 16, marginBottom: 8 },
+  error: { color: b.colors.danger, paddingHorizontal: 16, marginBottom: 8 },
   listContent: { paddingHorizontal: 12, paddingBottom: 24 },
-  empty: { textAlign: 'center', color: mgBranding.colors.muted, padding: 24 },
+  empty: { textAlign: 'center', color: b.colors.muted, padding: 24 },
   cappedNote: {
     textAlign: 'center',
-    color: mgBranding.colors.muted,
+    color: b.colors.muted,
     padding: 16,
     fontSize: 12,
   },
@@ -608,13 +610,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  cardDate: { fontSize: 12, color: mgBranding.colors.muted, fontWeight: '600' },
+  cardDate: { fontSize: 12, color: b.colors.muted, fontWeight: '600' },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   statusText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
-  cardType: { fontSize: 14, fontWeight: '800', color: mgBranding.colors.text },
-  cardParty: { fontSize: 13, color: mgBranding.colors.text, marginTop: 2 },
-  cardAmount: { fontSize: 15, fontWeight: '700', color: mgBranding.colors.primary, marginTop: 4 },
-  cardDesc: { fontSize: 12, color: mgBranding.colors.muted, marginTop: 4 },
+  cardType: { fontSize: 14, fontWeight: '800', color: b.colors.text },
+  cardParty: { fontSize: 13, color: b.colors.text, marginTop: 2 },
+  cardAmount: { fontSize: 15, fontWeight: '700', color: b.colors.primary, marginTop: 4 },
+  cardDesc: { fontSize: 12, color: b.colors.muted, marginTop: 4 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   modalCard: {
     backgroundColor: '#FFFFFF',
@@ -623,10 +625,11 @@ const styles = StyleSheet.create({
     padding: 16,
     maxHeight: '80%',
   },
-  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12, color: mgBranding.colors.text },
+  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12, color: b.colors.text },
   accountRow: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
-  accountRowCode: { fontSize: 13, fontWeight: '700', color: mgBranding.colors.text },
-  accountRowName: { fontSize: 12, color: mgBranding.colors.muted, marginTop: 2 },
-  detailLine: { fontSize: 14, color: mgBranding.colors.text, marginBottom: 8, lineHeight: 20 },
+  accountRowCode: { fontSize: 13, fontWeight: '700', color: b.colors.text },
+  accountRowName: { fontSize: 12, color: b.colors.muted, marginTop: 2 },
+  detailLine: { fontSize: 14, color: b.colors.text, marginBottom: 8, lineHeight: 20 },
   detailLabel: { fontWeight: '700' },
-})
+  })
+}

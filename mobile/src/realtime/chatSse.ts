@@ -92,14 +92,15 @@ async function consumeSseStream(
   }
 }
 
-function startNativeChatSse(token: string, onMessageCreated: () => void): () => void {
+function startNativeChatSse(token: string, tenant: string, onMessageCreated: () => void): () => void {
   const ac = new AbortController()
   const url = buildRealtimeEventsUrl()
+  const tenantKey = tenant || getTenant()
   const headers: SseHeaders = {
     Accept: 'text/event-stream',
     Authorization: `Bearer ${token}`,
-    'x-tenant': getTenant(),
-    'x-company': getTenant(),
+    'x-tenant': tenantKey,
+    'x-company': tenantKey,
     'X-Client': 'mobile',
   }
 
@@ -135,8 +136,10 @@ function startNativeChatSse(token: string, onMessageCreated: () => void): () => 
  */
 export function startChatMessageEvents(
   token: string,
+  tenant: string,
   onMessageCreated: () => void,
 ): () => void {
+  const tenantKey = tenant || getTenant()
   if (Platform.OS === 'web') {
     const url = buildRealtimeEventsUrl()
     const ac = new AbortController()
@@ -146,8 +149,8 @@ export function startChatMessageEvents(
       headers: {
         Accept: 'text/event-stream',
         Authorization: `Bearer ${token}`,
-        'x-tenant': getTenant(),
-        'x-company': getTenant(),
+        'x-tenant': tenantKey,
+        'x-company': tenantKey,
         'X-Client': 'mobile',
       },
       onmessage(ev) {
@@ -160,5 +163,5 @@ export function startChatMessageEvents(
     return () => ac.abort()
   }
 
-  return startNativeChatSse(token, onMessageCreated)
+  return startNativeChatSse(token, tenantKey, onMessageCreated)
 }

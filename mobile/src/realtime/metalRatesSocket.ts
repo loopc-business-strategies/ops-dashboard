@@ -19,7 +19,8 @@ export type MetalRatesUpdatePayload = {
   data?: { rates?: Record<string, unknown> }
 }
 
-export function createMetalRatesSocket(token: string): MetalRatesSocket {
+export function createMetalRatesSocket(token: string, tenant: string): MetalRatesSocket {
+  const tenantKey = tenant || getTenant()
   const transports =
     Platform.OS === 'web' ? (['websocket', 'polling'] as const) : (['polling', 'websocket'] as const)
   return io(buildMetalRatesSocketUrl(), {
@@ -29,8 +30,8 @@ export function createMetalRatesSocket(token: string): MetalRatesSocket {
     reconnectionDelay: 1500,
     withCredentials: false,
     extraHeaders: {
-      'x-tenant': getTenant(),
-      'x-company': getTenant(),
+      'x-tenant': tenantKey,
+      'x-company': tenantKey,
       'X-Client': 'mobile',
     },
     auth: {
@@ -55,7 +56,7 @@ export function startMetalRatesRealtime({
   const tenantKey = String(tenant || '').trim()
   if (!tenantKey || !token) return () => {}
 
-  const socket = createMetalRatesSocket(token)
+  const socket = createMetalRatesSocket(token, tenantKey)
 
   socket.on('connect', () => {
     socket.emit('subscribe:tenant', tenantKey)

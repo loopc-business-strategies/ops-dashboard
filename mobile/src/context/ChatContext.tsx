@@ -118,7 +118,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         refresh().catch(() => undefined)
       }, 400)
     }
-    const stop = startChatMessageEvents(token, scheduleRefresh)
+    const stop = startChatMessageEvents(token, companyCode, scheduleRefresh)
     return () => {
       if (debounce) clearTimeout(debounce)
       stop()

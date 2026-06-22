@@ -10,7 +10,8 @@ import {
   View,
 } from 'react-native'
 import { router } from 'expo-router'
-import { mgBranding } from '@/src/config/branding'
+import { useTenantBranding } from '@/src/context/TenantContext'
+import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import { useAuth } from '@/src/context/AuthContext'
 import { useChat } from '@/src/context/ChatContext'
 import { previewText } from '@/src/utils/chat'
@@ -18,6 +19,8 @@ import { canCreateChatGroup } from '@/src/utils/roles'
 
 export default function ChatListScreen() {
   const { user } = useAuth()
+  const { branding } = useTenantBranding()
+  const styles = useMemo(() => createChatListStyles(branding), [branding])
   const { conversations, loading, error, refresh } = useChat()
   const [search, setSearch] = useState('')
   const [refreshing, setRefreshing] = useState(false)
@@ -49,7 +52,7 @@ export default function ChatListScreen() {
   if (loading && conversations.length === 0) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={mgBranding.colors.primary} />
+        <ActivityIndicator color={branding.colors.primary} />
       </View>
     )
   }
@@ -60,7 +63,7 @@ export default function ChatListScreen() {
         <TextInput
           style={styles.search}
           placeholder="Search chats…"
-          placeholderTextColor={mgBranding.colors.muted}
+          placeholderTextColor={b.colors.muted}
           value={search}
           onChangeText={setSearch}
         />
@@ -87,7 +90,7 @@ export default function ChatListScreen() {
             : ''
           return (
             <Pressable style={styles.row} onPress={() => openChat(item.id)}>
-              <View style={[styles.avatar, { backgroundColor: item.type === 'group' ? mgBranding.colors.primary : '#14b8a6' }]}>
+              <View style={[styles.avatar, { backgroundColor: item.type === 'group' ? branding.colors.primary : '#14b8a6' }]}>
                 <Text style={styles.avatarText}>
                   {item.type === 'group' ? item.name.slice(0, 2).toUpperCase() : item.name.slice(0, 2).toUpperCase()}
                 </Text>
@@ -121,8 +124,9 @@ export default function ChatListScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: mgBranding.colors.background },
+function createChatListStyles(b: MobileTenantBranding) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: b.colors.background },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   searchWrap: { padding: 12, paddingBottom: 0 },
   search: {
@@ -133,7 +137,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 15,
-    color: mgBranding.colors.text,
+    color: b.colors.text,
   },
   newGroupBtn: {
     marginHorizontal: 12,
@@ -143,7 +147,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: 'center',
   },
-  newGroupText: { color: mgBranding.colors.success, fontWeight: '800', fontSize: 14 },
+  newGroupText: { color: b.colors.success, fontWeight: '800', fontSize: 14 },
   list: { padding: 12, paddingBottom: 32 },
   row: {
     flexDirection: 'row',
@@ -160,20 +164,21 @@ const styles = StyleSheet.create({
   avatarText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   rowBody: { flex: 1, minWidth: 0 },
   rowTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  name: { flex: 1, fontWeight: '800', fontSize: 15, color: mgBranding.colors.text },
-  time: { fontSize: 11, color: mgBranding.colors.muted },
-  preview: { marginTop: 4, fontSize: 13, color: mgBranding.colors.muted },
-  meta: { marginTop: 2, fontSize: 11, color: mgBranding.colors.muted },
+  name: { flex: 1, fontWeight: '800', fontSize: 15, color: b.colors.text },
+  time: { fontSize: 11, color: b.colors.muted },
+  preview: { marginTop: 4, fontSize: 13, color: b.colors.muted },
+  meta: { marginTop: 2, fontSize: 11, color: b.colors.muted },
   badge: {
     minWidth: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: mgBranding.colors.danger,
+    backgroundColor: b.colors.danger,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,
   },
   badgeText: { color: '#fff', fontWeight: '800', fontSize: 11 },
-  empty: { textAlign: 'center', color: mgBranding.colors.muted, marginTop: 40 },
-  error: { color: mgBranding.colors.danger, paddingHorizontal: 12, paddingBottom: 8 },
-})
+  empty: { textAlign: 'center', color: b.colors.muted, marginTop: 40 },
+  error: { color: b.colors.danger, paddingHorizontal: 12, paddingBottom: 8 },
+  })
+}

@@ -5,6 +5,7 @@ import {
   getTenant,
   normalizeTenantKey,
   persistCompanyCode,
+  resetTenantSession,
   setTenant,
 } from '@/src/config/tenant'
 
@@ -14,6 +15,7 @@ type TenantContextValue = {
   isReady: boolean
   applyCompanyCode: (code: string) => Promise<string>
   syncTenantFromSession: (company: string) => Promise<string>
+  resetForLogout: () => Promise<string>
 }
 
 const TenantContext = createContext<TenantContextValue | null>(null)
@@ -48,6 +50,12 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     return normalized
   }, [])
 
+  const resetForLogout = useCallback(async () => {
+    const tenant = await resetTenantSession()
+    setCompanyCode(tenant)
+    return tenant
+  }, [])
+
   const branding = useMemo(() => getTenantBranding(companyCode), [companyCode])
 
   const value = useMemo(
@@ -57,8 +65,9 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       isReady,
       applyCompanyCode,
       syncTenantFromSession,
+      resetForLogout,
     }),
-    [companyCode, branding, isReady, applyCompanyCode, syncTenantFromSession],
+    [companyCode, branding, isReady, applyCompanyCode, syncTenantFromSession, resetForLogout],
   )
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>

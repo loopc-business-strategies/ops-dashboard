@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +15,8 @@ import { RoleBadge } from '@/src/components/admin/RoleBadge'
 import { DEPTS, ROLES } from '@/src/constants/admin'
 import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
+import { useTenantBranding } from '@/src/context/TenantContext'
+import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import {
   deleteUser,
   fetchUsers,
@@ -25,6 +27,8 @@ import {
 
 export default function AdminUsersScreen() {
   const { token, user: me } = useAuth()
+  const { companyCode } = useTenantBranding()
+  const sessionReady = useTenantSessionReady()
   const router = useRouter()
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,7 +38,7 @@ export default function AdminUsersScreen() {
   const [error, setError] = useState('')
 
   const load = useCallback(async (isRefresh = false) => {
-    if (!token) return
+    if (!token || !sessionReady) return
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
     setError('')
@@ -47,7 +51,13 @@ export default function AdminUsersScreen() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [token])
+  }, [token, sessionReady])
+
+  useEffect(() => {
+    setUsers([])
+    setError('')
+    setLoading(true)
+  }, [companyCode])
 
   useFocusEffect(
     useCallback(() => {

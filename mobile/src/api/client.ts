@@ -1,4 +1,4 @@
-import { API_URL, getTenant } from '@/src/config/tenant'
+import { API_URL, getTenant, syncTenantFromJwt } from '@/src/config/tenant'
 
 type RequestOptions = {
   method?: string
@@ -11,6 +11,9 @@ let authToken: string | null = null
 
 export function setAuthToken(token: string | null) {
   authToken = token
+  if (token) {
+    syncTenantFromJwt(token)
+  }
 }
 
 export function getAuthToken() {

@@ -97,4 +97,21 @@ export async function clearStoredCompanyCode(): Promise<void> {
   await SecureStore.deleteItemAsync(COMPANY_CODE_STORAGE_KEY)
 }
 
+/** Sync active tenant from JWT company claim (no signature verify). */
+export function syncTenantFromJwt(token: string | null | undefined): string | null {
+  const fromJwt = decodeTenantFromJwt(token)
+  if (fromJwt) {
+    activeTenant = fromJwt
+    return fromJwt
+  }
+  return null
+}
+
+/** Clear persisted company code and reset to build default (logout). */
+export async function resetTenantSession(): Promise<string> {
+  await clearStoredCompanyCode()
+  activeTenant = buildDefaultTenant()
+  return activeTenant
+}
+
 export { normalizeTenantKey, TENANT_KEYS }

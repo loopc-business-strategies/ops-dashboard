@@ -43,7 +43,8 @@ function buildUrl(path: string) {
   return `${API_URL.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
 }
 
-async function metalRatesRequest<T>(path: string, token: string): Promise<T> {
+async function metalRatesRequest<T>(path: string, token: string, tenant?: string): Promise<T> {
+  const tenantKey = tenant || getTenant()
   let res: Response
   try {
     res = await fetch(buildUrl(path), {
@@ -51,8 +52,8 @@ async function metalRatesRequest<T>(path: string, token: string): Promise<T> {
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${token}`,
-        'x-tenant': getTenant(),
-        'x-company': getTenant(),
+        'x-tenant': tenantKey,
+        'x-company': tenantKey,
         'X-Client': 'mobile',
       },
     })
@@ -68,10 +69,10 @@ async function metalRatesRequest<T>(path: string, token: string): Promise<T> {
   return data as T
 }
 
-export async function fetchLiveMetalRates(token: string) {
-  return metalRatesRequest<LiveMetalRatesResponse>('/api/erp-accounting/currencies/metal-rates/live', token)
+export async function fetchLiveMetalRates(token: string, tenant?: string) {
+  return metalRatesRequest<LiveMetalRatesResponse>('/api/erp-accounting/currencies/metal-rates/live', token, tenant)
 }
 
-export async function fetchSavedMetalRates(token: string) {
-  return metalRatesRequest<SavedMetalRatesResponse>('/api/erp-accounting/currencies/metal-rates', token)
+export async function fetchSavedMetalRates(token: string, tenant?: string) {
+  return metalRatesRequest<SavedMetalRatesResponse>('/api/erp-accounting/currencies/metal-rates', token, tenant)
 }

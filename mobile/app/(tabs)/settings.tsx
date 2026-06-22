@@ -16,6 +16,7 @@ import * as Notifications from 'expo-notifications'
 import { mgBranding } from '@/src/config/branding'
 import { useTenantBranding } from '@/src/context/TenantContext'
 import { useAuth } from '@/src/context/AuthContext'
+import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import {
   fetchNotificationPreferences,
   previewReportDigest,
@@ -33,6 +34,7 @@ import { isSuperAdmin } from '@/src/utils/roles'
 export default function SettingsScreen() {
   const { user, token, logout } = useAuth()
   const { companyCode } = useTenantBranding()
+  const sessionReady = useTenantSessionReady()
   const router = useRouter()
   const showAdmin = isSuperAdmin(user)
   const [permissionStatus, setPermissionStatus] = useState<string>('—')
@@ -49,7 +51,7 @@ export default function SettingsScreen() {
   }, [])
 
   const loadPrefs = useCallback(async () => {
-    if (!token) return
+    if (!token || !sessionReady) return
     setPrefsLoading(true)
     try {
       const data = await fetchNotificationPreferences(token)
@@ -59,7 +61,14 @@ export default function SettingsScreen() {
     } finally {
       setPrefsLoading(false)
     }
-  }, [token])
+  }, [token, sessionReady])
+
+  useEffect(() => {
+    setPrefs(null)
+    setDigestPreview('')
+    setPrefsStatus('')
+    setPrefsLoading(true)
+  }, [companyCode])
 
   useEffect(() => {
     void refreshPermission()
@@ -67,10 +76,10 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     void loadPrefs()
-  }, [loadPrefs])
+  }, [loadPrefs, companyCode])
 
   const persistPrefs = useCallback(async (next: NotificationPreferences) => {
-    if (!token) return
+    if (!token || !sessionReady) return
     setPrefs(next)
     setPrefsStatus('')
     try {
@@ -80,7 +89,7 @@ export default function SettingsScreen() {
     } catch (err) {
       setPrefsStatus(err instanceof Error ? err.message : 'Save failed')
     }
-  }, [token])
+  }, [token, sessionReady])
 
   const toggleTopic = (key: string) => {
     if (!prefs) return
@@ -107,7 +116,7 @@ export default function SettingsScreen() {
   }
 
   const enablePush = useCallback(async () => {
-    if (!token) return
+    if (!token || !sessionReady) return
     setPushRegistering(true)
     setPushMessage('')
     try {
@@ -119,14 +128,14 @@ export default function SettingsScreen() {
     } finally {
       setPushRegistering(false)
     }
-  }, [token, refreshPermission])
+  }, [token, sessionReady, refreshPermission])
 
   const openNotificationSettings = useCallback(() => {
     void Linking.openSettings()
   }, [])
 
   const runPreview = async () => {
-    if (!token) return
+    if (!token || !sessionReady) return
     setPrefsStatus('')
     try {
       const data = await previewReportDigest(token)
@@ -137,7 +146,7 @@ export default function SettingsScreen() {
   }
 
   const runSend = async () => {
-    if (!token) return
+    if (!token || !sessionReady) return
     setPrefsStatus('')
     try {
       const data = await sendReportDigest(token)

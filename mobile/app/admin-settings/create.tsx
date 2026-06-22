@@ -4,12 +4,14 @@ import { useRouter } from 'expo-router'
 import { UserForm } from '@/src/components/admin/UserForm'
 import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
+import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { createUser } from '@/src/api/users'
 import { EMPTY_USER_FORM, type UserFormState } from '@/src/constants/admin'
 import { formToPayload, validateUserForm } from '@/src/utils/userForm'
 
 export default function CreateUserScreen() {
   const { token } = useAuth()
+  const sessionReady = useTenantSessionReady()
   const router = useRouter()
   const [form, setForm] = useState<UserFormState>(EMPTY_USER_FORM)
   const [loading, setLoading] = useState(false)
@@ -21,7 +23,7 @@ export default function CreateUserScreen() {
       setError(validationError)
       return
     }
-    if (!token) return
+    if (!token || !sessionReady) return
     setLoading(true)
     setError('')
     try {
