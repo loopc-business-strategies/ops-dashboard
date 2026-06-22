@@ -6,13 +6,24 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
 } from 'react-native'
+import {
+  APP_NAME,
+  getLoginPreviewBranding,
+  LOGIN_NEUTRAL_COLORS,
+  normalizeTenantKey,
+} from '@/src/config/tenantBranding'
 import { useTenantBranding } from '@/src/context/TenantContext'
 import { useAuth } from '@/src/context/AuthContext'
-import { getTenantBranding, normalizeTenantKey } from '@/src/config/tenantBranding'
+import {
+  clearSavedLoginCredentials,
+  loadSavedLoginCredentials,
+  saveLoginCredentials,
+} from '@/src/services/savedLoginCredentials'
 
 export default function LoginScreen() {
   const { login } = useAuth()
@@ -20,25 +31,49 @@ export default function LoginScreen() {
   const [companyCode, setCompanyCode] = useState('')
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberCredentials, setRememberCredentials] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [prefsLoaded, setPrefsLoaded] = useState(false)
 
-  const previewBranding = useMemo(() => {
-    const key = normalizeTenantKey(companyCode)
-    return key ? getTenantBranding(key) : getTenantBranding('mg')
-  }, [companyCode])
+  const previewBranding = useMemo(() => getLoginPreviewBranding(companyCode), [companyCode])
+
+  const accent = previewBranding?.colors ?? {
+    primary: LOGIN_NEUTRAL_COLORS.primary,
+    secondary: LOGIN_NEUTRAL_COLORS.secondary,
+    text: LOGIN_NEUTRAL_COLORS.text,
+    danger: LOGIN_NEUTRAL_COLORS.danger,
+  }
+
+  useEffect(() => {
+    void loadSavedLoginCredentials()
+      .then((saved) => {
+        if (saved.remember) {
+          setRememberCredentials(true)
+          if (saved.companyCode) setCompanyCode(saved.companyCode)
+          if (saved.name) setName(saved.name)
+          if (saved.password) setPassword(saved.password)
+        }
+      })
+      .finally(() => setPrefsLoaded(true))
+  }, [])
 
   const onSubmit = async () => {
     setError('')
     const code = companyCode.trim().toLowerCase()
     if (!normalizeTenantKey(code)) {
-      setError('Enter a valid company code (e.g. mg, cg, loopc).')
+      setError('Enter a valid company code.')
       return
     }
     setLoading(true)
     try {
       await applyCompanyCode(code)
       await login(name, password, code)
+      if (rememberCredentials) {
+        await saveLoginCredentials({ companyCode: code, name, password })
+      } else {
+        await clearSavedLoginCredentials()
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
@@ -50,38 +85,44 @@ export default function LoginScreen() {
     setError('')
   }, [companyCode])
 
-  const colors = previewBranding.colors
+  if (!prefsLoaded) {
+    return (
+      <View style={[styles.root, styles.centered, { backgroundColor: accent.primary }]}>
+        <ActivityIndicator color="#fff" />
+      </View>
+    )
+  }
+
+  const badgeLabel = previewBranding?.logoText || APP_NAME
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: colors.primary }]}
+      style={[styles.root, { backgroundColor: accent.primary }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.hero}>
           <View style={styles.logoBadge}>
-            <Text style={styles.logoTextPrimary}>{previewBranding.appName}</Text>
-            <Text style={styles.logoTextSecondary}>{previewBranding.logoText}</Text>
+            <Text style={styles.logoTextPrimary}>{badgeLabel}</Text>
           </View>
-          <Text style={styles.title}>{previewBranding.appName}</Text>
-          {previewBranding.companyName ? (
-            <Text style={styles.company}>{previewBranding.companyName}</Text>
-          ) : null}
-          <Text style={styles.tagline}>{previewBranding.tagline}</Text>
+          <Text style={styles.title}>{APP_NAME}</Text>
         </View>
 
         <View style={styles.form}>
-          <Text style={[styles.label, { color: colors.text }]}>Company code</Text>
+          <Text style={[styles.label, { color: accent.text }]}>Company code</Text>
           <TextInput
             value={companyCode}
             onChangeText={setCompanyCode}
             autoCapitalize="none"
             autoCorrect={false}
-            placeholder="e.g. mg, cg, loopc"
+            autoComplete="off"
+            textContentType="none"
+            importantForAutofill="no"
+            placeholder="Company code"
             placeholderTextColor="#9CA3AF"
-            style={[styles.input, { color: colors.text }]}
+            style={[styles.input, { color: accent.text }]}
           />
-          <Text style={[styles.label, { color: colors.text }]}>Username</Text>
+          <Text style={[styles.label, { color: accent.text }]}>Username</Text>
           <TextInput
             value={name}
             onChangeText={setName}
@@ -89,20 +130,29 @@ export default function LoginScreen() {
             autoCorrect={false}
             placeholder="Enter username"
             placeholderTextColor="#9CA3AF"
-            style={[styles.input, { color: colors.text }]}
+            style={[styles.input, { color: accent.text }]}
           />
-          <Text style={[styles.label, { color: colors.text }]}>Password</Text>
+          <Text style={[styles.label, { color: accent.text }]}>Password</Text>
           <TextInput
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             placeholder="Enter password"
             placeholderTextColor="#9CA3AF"
-            style={[styles.input, { color: colors.text }]}
+            style={[styles.input, { color: accent.text }]}
           />
-          {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
+          <View style={styles.rememberRow}>
+            <Switch
+              value={rememberCredentials}
+              onValueChange={setRememberCredentials}
+              trackColor={{ false: '#D1D5DB', true: accent.secondary }}
+              thumbColor="#FFFFFF"
+            />
+            <Text style={[styles.rememberLabel, { color: accent.text }]}>Remember credentials</Text>
+          </View>
+          {error ? <Text style={[styles.error, { color: accent.danger }]}>{error}</Text> : null}
           <Pressable
-            style={[styles.button, { backgroundColor: colors.primary }, loading && { opacity: 0.7 }]}
+            style={[styles.button, { backgroundColor: accent.primary }, loading && { opacity: 0.7 }]}
             onPress={onSubmit}
             disabled={loading || !companyCode || !name || !password}
           >
@@ -120,6 +170,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  centered: { alignItems: 'center', justifyContent: 'center' },
   scroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   hero: { alignItems: 'center', marginBottom: 28 },
   logoBadge: {
@@ -132,10 +183,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   logoTextPrimary: { color: '#fff', fontSize: 22, fontWeight: '800', lineHeight: 24 },
-  logoTextSecondary: { color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: '700', marginTop: 2 },
   title: { color: '#fff', fontSize: 28, fontWeight: '800' },
-  company: { color: 'rgba(255,255,255,0.92)', fontSize: 12, textAlign: 'center', marginTop: 8, lineHeight: 18 },
-  tagline: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 8 },
   form: {
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -151,6 +199,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
   },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 8,
+  },
+  rememberLabel: { fontSize: 14, fontWeight: '600' },
   error: { fontSize: 13, marginTop: 6 },
   button: {
     marginTop: 12,

@@ -105,6 +105,20 @@ export function getTenantBranding(tenant?: string | null): MobileTenantBranding 
   return mobileBrandingByKey[key] || mobileBrandingByKey.mg
 }
 
+/** Login screen preview when user types a valid company code; null if empty/invalid. */
+export function getLoginPreviewBranding(companyCode: string): MobileTenantBranding | null {
+  const key = normalizeTenantKey(companyCode)
+  if (!key) return null
+  return mobileBrandingByKey[key] || null
+}
+
+export const LOGIN_NEUTRAL_COLORS = {
+  primary: '#374151',
+  secondary: '#6B7280',
+  text: '#111827',
+  danger: '#DC2626',
+} as const
+
 /** @deprecated Use getTenantBranding(getTenant()) — kept for gradual migration */
 export const mgBranding = getTenantBranding('mg')
 

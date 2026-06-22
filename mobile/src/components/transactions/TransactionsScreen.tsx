@@ -13,21 +13,26 @@ import {
 } from 'react-native'
 import { mgBranding } from '@/src/config/branding'
 import { useAuth } from '@/src/context/AuthContext'
-import { fetchTransactions, type TransactionRow, type TransactionSummary } from '@/src/api/transactions'
+import { useTenantBranding } from '@/src/context/TenantContext'
+import {
+  fetchAllTransactions,
+  type TransactionRow,
+  type TransactionSummary,
+} from '@/src/api/transactions'
 import { fetchAccountsForLedger, type AccountListItem } from '@/src/api/erpReports'
+import DateField from '@/src/components/common/DateField'
 import {
   TRANSACTION_STATUS_OPTIONS,
   TRANSACTION_TYPE_CHIPS,
-  type TransactionSort,
   chipToApiType,
   apiTypeToLabel,
 } from '@/src/constants/transactionTypes'
 import { canAccessTransactions } from '@/src/utils/erpSubTabPermissions'
+import { normalizeDateInput, validateDateRange } from '@/src/utils/dateInput'
 import {
   filterTransactionsByAccount,
   getTransactionDescription,
   getTransactionPartyLabel,
-  sortTransactions,
 } from '@/src/utils/transactionFilters'
 
 const EMPTY_SUMMARY: TransactionSummary = {
@@ -50,13 +55,6 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   rejected: { bg: '#FEE2E2', text: '#B91C1C' },
 }
 
-const SORT_OPTIONS: { value: TransactionSort; label: string }[] = [
-  { value: 'date_desc', label: 'Date (newest)' },
-  { value: 'date_asc', label: 'Date (oldest)' },
-  { value: 'amount_desc', label: 'Amount (high)' },
-  { value: 'amount_asc', label: 'Amount (low)' },
-]
-
 type FilterState = {
   search: string
   status: string
@@ -64,7 +62,6 @@ type FilterState = {
   startDate: string
   endDate: string
   accountCode: string
-  sort: TransactionSort
 }
 
 const DEFAULT_FILTERS: FilterState = {
@@ -74,7 +71,6 @@ const DEFAULT_FILTERS: FilterState = {
   startDate: '',
   endDate: '',
   accountCode: '',
-  sort: 'date_desc',
 }
 
 function SummaryChip({ label, value }: { label: string; value: number }) {
@@ -86,8 +82,30 @@ function SummaryChip({ label, value }: { label: string; value: number }) {
   )
 }
 
+function hasActiveFilters(filters: FilterState): boolean {
+  return Boolean(
+    filters.search.trim() ||
+      filters.status ||
+      filters.typeChip ||
+      filters.startDate.trim() ||
+      filters.endDate.trim() ||
+      filters.accountCode,
+  )
+}
+
+function buildApiParams(filters: FilterState) {
+  return {
+    search: filters.search.trim() || undefined,
+    status: filters.status || undefined,
+    type: chipToApiType(filters.typeChip),
+    startDate: normalizeDateInput(filters.startDate) || undefined,
+    endDate: normalizeDateInput(filters.endDate) || undefined,
+  }
+}
+
 export default function TransactionsScreen() {
   const { token, user } = useAuth()
+  const { companyCode, isReady } = useTenantBranding()
   const allowed = canAccessTransactions(user)
 
   const [draftFilters, setDraftFilters] = useState<FilterState>(DEFAULT_FILTERS)
@@ -95,10 +113,8 @@ export default function TransactionsScreen() {
   const [rows, setRows] = useState<TransactionRow[]>([])
   const [summary, setSummary] = useState<TransactionSummary>(EMPTY_SUMMARY)
   const [accounts, setAccounts] = useState<AccountListItem[]>([])
-  const [nextCursor, setNextCursor] = useState<string | null>(null)
-  const [hasMore, setHasMore] = useState(false)
+  const [listCapped, setListCapped] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<TransactionRow | null>(null)
@@ -106,50 +122,45 @@ export default function TransactionsScreen() {
   const [accountSearch, setAccountSearch] = useState('')
 
   const load = useCallback(
-    async (mode: 'initial' | 'refresh' | 'more' = 'initial') => {
-      if (!token || !allowed) return
-      const isMore = mode === 'more'
-      if (isMore) setLoadingMore(true)
-      else if (mode === 'refresh') setRefreshing(true)
+    async (mode: 'initial' | 'refresh' = 'initial') => {
+      if (!token || !allowed || !isReady) return
+      if (mode === 'refresh') setRefreshing(true)
       else setLoading(true)
       setError('')
 
-      try {
-        const apiType = chipToApiType(appliedFilters.typeChip)
-        const data = await fetchTransactions(token, {
-          limit: 50,
-          cursor: isMore ? nextCursor : null,
-          search: appliedFilters.search.trim() || undefined,
-          status: appliedFilters.status || undefined,
-          type: apiType,
-          startDate: appliedFilters.startDate || undefined,
-          endDate: appliedFilters.endDate || undefined,
-        })
+      const rangeCheck = validateDateRange(appliedFilters.startDate, appliedFilters.endDate)
+      if (!rangeCheck.ok) {
+        setError(rangeCheck.message)
+        setLoading(false)
+        setRefreshing(false)
+        return
+      }
 
-        const incoming = data.transactions || []
+      try {
+        const data = await fetchAllTransactions(token, buildApiParams(appliedFilters))
         setSummary(data.summary || EMPTY_SUMMARY)
-        setHasMore(Boolean(data.hasMore))
-        setNextCursor(data.nextCursor || null)
-        setRows((prev) => (isMore ? [...prev, ...incoming] : incoming))
+        setListCapped(Boolean(data.capped))
+        setRows(data.transactions || [])
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load transactions')
-        if (!isMore) setRows([])
+        setRows([])
+        setListCapped(false)
       } finally {
         setLoading(false)
-        setLoadingMore(false)
         setRefreshing(false)
       }
     },
-    [token, allowed, appliedFilters, nextCursor],
+    [token, allowed, isReady, appliedFilters],
   )
 
   useEffect(() => {
-    if (!token || !allowed) {
+    if (!token || !allowed || !isReady) {
+      if (!isReady) return
       setLoading(false)
       return
     }
     void load('initial')
-  }, [token, allowed, appliedFilters])
+  }, [token, allowed, isReady, companyCode, appliedFilters, load])
 
   useEffect(() => {
     if (!token || !allowed) return
@@ -158,10 +169,10 @@ export default function TransactionsScreen() {
       .catch(() => setAccounts([]))
   }, [token, allowed])
 
-  const displayRows = useMemo(() => {
-    const filtered = filterTransactionsByAccount(rows, appliedFilters.accountCode)
-    return sortTransactions(filtered, appliedFilters.sort)
-  }, [rows, appliedFilters.accountCode, appliedFilters.sort])
+  const displayRows = useMemo(
+    () => filterTransactionsByAccount(rows, appliedFilters.accountCode),
+    [rows, appliedFilters.accountCode],
+  )
 
   const filteredAccounts = useMemo(() => {
     const q = accountSearch.trim().toLowerCase()
@@ -173,10 +184,36 @@ export default function TransactionsScreen() {
     )
   }, [accounts, accountSearch])
 
-  const applyFilters = () => setAppliedFilters({ ...draftFilters })
+  const applyDraftFilters = () => {
+    const rangeCheck = validateDateRange(draftFilters.startDate, draftFilters.endDate)
+    if (!rangeCheck.ok) {
+      setError(rangeCheck.message)
+      return
+    }
+    setError('')
+    setAppliedFilters({
+      ...draftFilters,
+      startDate: normalizeDateInput(draftFilters.startDate),
+      endDate: normalizeDateInput(draftFilters.endDate),
+    })
+  }
+
   const resetFilters = () => {
     setDraftFilters(DEFAULT_FILTERS)
     setAppliedFilters(DEFAULT_FILTERS)
+    setError('')
+  }
+
+  const setTypeChip = (typeChip: string) => {
+    setDraftFilters((p) => ({ ...p, typeChip }))
+    setAppliedFilters((p) => ({ ...p, typeChip }))
+    setError('')
+  }
+
+  const setStatus = (status: string) => {
+    setDraftFilters((p) => ({ ...p, status }))
+    setAppliedFilters((p) => ({ ...p, status }))
+    setError('')
   }
 
   const selectedAccountLabel = useMemo(() => {
@@ -184,6 +221,9 @@ export default function TransactionsScreen() {
     const acc = accounts.find((a) => a.accountCode === draftFilters.accountCode)
     return acc ? `${acc.accountCode} — ${acc.accountName}` : draftFilters.accountCode
   }, [draftFilters.accountCode, accounts])
+
+  const filtersActive = hasActiveFilters(appliedFilters)
+  const accountFilterActive = Boolean(appliedFilters.accountCode)
 
   if (!allowed) {
     return (
@@ -194,7 +234,7 @@ export default function TransactionsScreen() {
     )
   }
 
-  if (loading && rows.length === 0) {
+  if ((!isReady || loading) && rows.length === 0) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={mgBranding.colors.primary} />
@@ -219,22 +259,31 @@ export default function TransactionsScreen() {
         <SummaryChip label="Rejected" value={Number(summary.rejected || 0)} />
       </ScrollView>
 
+      {filtersActive ? (
+        <View style={styles.activeFiltersRow}>
+          <Text style={styles.activeFiltersText}>Filters active</Text>
+          <Pressable onPress={resetFilters}>
+            <Text style={styles.activeFiltersClear}>Clear all</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       <View style={styles.chipsSection}>
         <Text style={styles.sectionLabel}>Transaction type</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
           <Pressable
-            style={[styles.chip, !draftFilters.typeChip && styles.chipActive]}
-            onPress={() => setDraftFilters((p) => ({ ...p, typeChip: '' }))}
+            style={[styles.chip, !appliedFilters.typeChip && styles.chipActive]}
+            onPress={() => setTypeChip('')}
           >
-            <Text style={[styles.chipText, !draftFilters.typeChip && styles.chipTextActive]}>All</Text>
+            <Text style={[styles.chipText, !appliedFilters.typeChip && styles.chipTextActive]}>All</Text>
           </Pressable>
           {TRANSACTION_TYPE_CHIPS.map(({ chip, label }) => (
             <Pressable
               key={chip}
-              style={[styles.chip, draftFilters.typeChip === chip && styles.chipActive]}
-              onPress={() => setDraftFilters((p) => ({ ...p, typeChip: chip }))}
+              style={[styles.chip, appliedFilters.typeChip === chip && styles.chipActive]}
+              onPress={() => setTypeChip(chip)}
             >
-              <Text style={[styles.chipText, draftFilters.typeChip === chip && styles.chipTextActive]}>
+              <Text style={[styles.chipText, appliedFilters.typeChip === chip && styles.chipTextActive]}>
                 {label}
               </Text>
             </Pressable>
@@ -254,29 +303,25 @@ export default function TransactionsScreen() {
           {TRANSACTION_STATUS_OPTIONS.map((opt) => (
             <Pressable
               key={opt.value || 'all'}
-              style={[styles.chip, draftFilters.status === opt.value && styles.chipActive]}
-              onPress={() => setDraftFilters((p) => ({ ...p, status: opt.value }))}
+              style={[styles.chip, appliedFilters.status === opt.value && styles.chipActive]}
+              onPress={() => setStatus(opt.value)}
             >
-              <Text style={[styles.chipText, draftFilters.status === opt.value && styles.chipTextActive]}>
+              <Text style={[styles.chipText, appliedFilters.status === opt.value && styles.chipTextActive]}>
                 {opt.label}
               </Text>
             </Pressable>
           ))}
         </ScrollView>
         <View style={styles.dateRow}>
-          <TextInput
-            style={[styles.input, styles.dateInput]}
-            placeholder="From YYYY-MM-DD"
-            placeholderTextColor={mgBranding.colors.muted}
+          <DateField
+            label="From date"
             value={draftFilters.startDate}
-            onChangeText={(startDate) => setDraftFilters((p) => ({ ...p, startDate }))}
+            onChange={(startDate) => setDraftFilters((p) => ({ ...p, startDate }))}
           />
-          <TextInput
-            style={[styles.input, styles.dateInput]}
-            placeholder="To YYYY-MM-DD"
-            placeholderTextColor={mgBranding.colors.muted}
+          <DateField
+            label="To date"
             value={draftFilters.endDate}
-            onChangeText={(endDate) => setDraftFilters((p) => ({ ...p, endDate }))}
+            onChange={(endDate) => setDraftFilters((p) => ({ ...p, endDate }))}
           />
         </View>
         <Pressable style={styles.accountPicker} onPress={() => setShowAccountPicker(true)}>
@@ -285,21 +330,8 @@ export default function TransactionsScreen() {
             {selectedAccountLabel}
           </Text>
         </Pressable>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-          {SORT_OPTIONS.map((opt) => (
-            <Pressable
-              key={opt.value}
-              style={[styles.chip, draftFilters.sort === opt.value && styles.chipActive]}
-              onPress={() => setDraftFilters((p) => ({ ...p, sort: opt.value }))}
-            >
-              <Text style={[styles.chipText, draftFilters.sort === opt.value && styles.chipTextActive]}>
-                {opt.label}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
         <View style={styles.filterActions}>
-          <Pressable style={styles.applyBtn} onPress={applyFilters}>
+          <Pressable style={styles.applyBtn} onPress={applyDraftFilters}>
             <Text style={styles.applyBtnText}>Apply filters</Text>
           </Pressable>
           <Pressable style={styles.resetBtn} onPress={resetFilters}>
@@ -307,6 +339,13 @@ export default function TransactionsScreen() {
           </Pressable>
         </View>
       </View>
+
+      {accountFilterActive ? (
+        <Text style={styles.accountNote}>
+          Showing {displayRows.length.toLocaleString()} of {rows.length.toLocaleString()} loaded entries for
+          account {appliedFilters.accountCode} (account filter is client-side).
+        </Text>
+      ) : null}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -317,18 +356,10 @@ export default function TransactionsScreen() {
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={<Text style={styles.empty}>No transactions match your filters.</Text>}
         ListFooterComponent={
-          hasMore ? (
-            <Pressable
-              style={styles.loadMore}
-              onPress={() => load('more')}
-              disabled={loadingMore}
-            >
-              {loadingMore ? (
-                <ActivityIndicator color={mgBranding.colors.primary} />
-              ) : (
-                <Text style={styles.loadMoreText}>Load more</Text>
-              )}
-            </Pressable>
+          listCapped ? (
+            <Text style={styles.cappedNote}>
+              Showing first 500 transactions. Narrow filters to see a specific subset.
+            </Text>
           ) : null
         }
         renderItem={({ item }) => {
@@ -381,7 +412,9 @@ export default function TransactionsScreen() {
                 <Pressable
                   style={styles.accountRow}
                   onPress={() => {
-                    setDraftFilters((p) => ({ ...p, accountCode: item.accountCode || '' }))
+                    const accountCode = item.accountCode || ''
+                    setDraftFilters((p) => ({ ...p, accountCode }))
+                    setAppliedFilters((p) => ({ ...p, accountCode }))
                     setShowAccountPicker(false)
                     setAccountSearch('')
                   }}
@@ -470,6 +503,15 @@ const styles = StyleSheet.create({
   },
   summaryChipLabel: { fontSize: 10, fontWeight: '700', color: mgBranding.colors.muted, textTransform: 'uppercase' },
   summaryChipValue: { fontSize: 16, fontWeight: '800', color: mgBranding.colors.text, marginTop: 2 },
+  activeFiltersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 6,
+  },
+  activeFiltersText: { fontSize: 12, fontWeight: '700', color: mgBranding.colors.muted },
+  activeFiltersClear: { fontSize: 12, fontWeight: '700', color: mgBranding.colors.primary },
   chipsSection: { paddingHorizontal: 12, paddingBottom: 8 },
   sectionLabel: { fontSize: 12, fontWeight: '700', color: mgBranding.colors.muted, marginBottom: 6 },
   chipsRow: { gap: 8, paddingRight: 12 },
@@ -505,7 +547,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAFAFA',
   },
   dateRow: { flexDirection: 'row', gap: 8 },
-  dateInput: { flex: 1 },
   accountPicker: {
     borderWidth: 1,
     borderColor: '#D1D5DB',
@@ -533,9 +574,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   resetBtnText: { color: mgBranding.colors.text, fontWeight: '700' },
+  accountNote: {
+    fontSize: 12,
+    color: mgBranding.colors.muted,
+    paddingHorizontal: 16,
+    marginBottom: 6,
+  },
   error: { color: mgBranding.colors.danger, paddingHorizontal: 16, marginBottom: 8 },
   listContent: { paddingHorizontal: 12, paddingBottom: 24 },
   empty: { textAlign: 'center', color: mgBranding.colors.muted, padding: 24 },
+  cappedNote: {
+    textAlign: 'center',
+    color: mgBranding.colors.muted,
+    padding: 16,
+    fontSize: 12,
+  },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
@@ -552,8 +605,6 @@ const styles = StyleSheet.create({
   cardParty: { fontSize: 13, color: mgBranding.colors.text, marginTop: 2 },
   cardAmount: { fontSize: 15, fontWeight: '700', color: mgBranding.colors.primary, marginTop: 4 },
   cardDesc: { fontSize: 12, color: mgBranding.colors.muted, marginTop: 4 },
-  loadMore: { padding: 16, alignItems: 'center' },
-  loadMoreText: { color: mgBranding.colors.primary, fontWeight: '700' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   modalCard: {
     backgroundColor: '#FFFFFF',

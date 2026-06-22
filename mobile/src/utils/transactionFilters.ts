@@ -1,5 +1,4 @@
 import type { TransactionRow } from '@/src/api/transactions'
-import type { TransactionSort } from '@/src/constants/transactionTypes'
 
 export function filterTransactionsByAccount(rows: TransactionRow[], accountCode: string): TransactionRow[] {
   const code = String(accountCode || '').trim().toLowerCase()
@@ -9,21 +8,6 @@ export function filterTransactionsByAccount(rows: TransactionRow[], accountCode:
     const cr = String(tx.creditAccountId?.accountCode || '').toLowerCase()
     return dr === code || cr === code
   })
-}
-
-export function sortTransactions(rows: TransactionRow[], sort: TransactionSort): TransactionRow[] {
-  const copy = [...rows]
-  copy.sort((a, b) => {
-    const aDate = new Date(a.date || a.createdAt || 0).getTime()
-    const bDate = new Date(b.date || b.createdAt || 0).getTime()
-    const aAmt = Number(a.amount || 0)
-    const bAmt = Number(b.amount || 0)
-    if (sort === 'date_asc') return aDate - bDate
-    if (sort === 'amount_desc') return bAmt - aAmt
-    if (sort === 'amount_asc') return aAmt - bAmt
-    return bDate - aDate
-  })
-  return copy
 }
 
 export function getTransactionPartyLabel(tx: TransactionRow): string {

@@ -60,6 +60,7 @@ const config: ExpoConfig = {
       },
     ],
     'expo-secure-store',
+    '@react-native-community/datetimepicker',
     '@sentry/react-native',
     [
       'expo-splash-screen',

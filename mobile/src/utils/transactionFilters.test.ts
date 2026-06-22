@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { chipToApiType, apiTypeToLabel } from '@/src/constants/transactionTypes'
-import { filterTransactionsByAccount, sortTransactions } from './transactionFilters'
+import { filterTransactionsByAccount } from './transactionFilters'
 import type { TransactionRow } from '@/src/api/transactions'
 
 const tx = (overrides: Partial<TransactionRow> = {}): TransactionRow => ({
@@ -30,15 +30,5 @@ describe('transactionFilters', () => {
     expect(filterTransactionsByAccount(rows, '2000')).toHaveLength(1)
     expect(filterTransactionsByAccount(rows, '3000')).toHaveLength(1)
     expect(filterTransactionsByAccount(rows, '')).toHaveLength(2)
-  })
-
-  it('sortTransactions orders by date and amount', () => {
-    const rows = [
-      tx({ _id: 'a', date: '2026-01-01', amount: 50 }),
-      tx({ _id: 'b', date: '2026-02-01', amount: 200 }),
-      tx({ _id: 'c', date: '2026-01-15', amount: 150 }),
-    ]
-    expect(sortTransactions(rows, 'date_desc').map((r) => r._id)).toEqual(['b', 'c', 'a'])
-    expect(sortTransactions(rows, 'amount_desc').map((r) => r._id)).toEqual(['b', 'c', 'a'])
   })
 })

@@ -51,6 +51,13 @@ export type TransactionsQuery = {
   endDate?: string
 }
 
+export type FetchAllTransactionsResult = TransactionsResponse & {
+  transactions: TransactionRow[]
+  capped?: boolean
+}
+
+const MAX_FETCH_ALL_ROWS = 500
+
 export type TransactionsResponse = {
   success?: boolean
   transactions?: TransactionRow[]
@@ -75,4 +82,35 @@ export async function fetchTransactions(token: string, params: TransactionsQuery
     token,
     params: cleanParams({ limit: 50, ...params }),
   })
+}
+
+/** Fetches all pages until hasMore is false or MAX_FETCH_ALL_ROWS is reached. */
+export async function fetchAllTransactions(
+  token: string,
+  params: Omit<TransactionsQuery, 'cursor'> = {},
+): Promise<FetchAllTransactionsResult> {
+  const all: TransactionRow[] = []
+  let cursor: string | null = null
+  let lastResponse: TransactionsResponse = {}
+  let capped = false
+
+  while (all.length < MAX_FETCH_ALL_ROWS) {
+    const data = await fetchTransactions(token, { ...params, cursor })
+    lastResponse = data
+    const batch = data.transactions || []
+    all.push(...batch)
+    if (!data.hasMore || !data.nextCursor) break
+    cursor = data.nextCursor
+    if (all.length >= MAX_FETCH_ALL_ROWS) {
+      capped = true
+      break
+    }
+  }
+
+  return {
+    ...lastResponse,
+    transactions: all,
+    hasMore: capped ? true : false,
+    capped,
+  }
 }

@@ -259,6 +259,14 @@ async function main() {
   if (!skipErp) {
     await smokeErpReportsMobile(token)
     console.log('Step: ERP reports + metal-rates (mobile JWT) — OK')
+
+    const txData = await getExpect(
+      token,
+      `${base}/api/erp-accounting/transactions?limit=50`,
+      'GET transactions',
+    )
+    const txTotal = Number(txData?.summary?.totalCount ?? txData?.total ?? 0)
+    console.log(`Step: transactions summary.totalCount — ${txTotal}`)
   }
 
   if (!skipSocket) {

@@ -20,8 +20,6 @@ export const TRANSACTION_STATUS_OPTIONS = [
   { value: 'rejected', label: 'Rejected' },
 ] as const
 
-export type TransactionSort = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
-
 export function chipToApiType(chip: string): string | undefined {
   if (!chip) return undefined
   const row = TRANSACTION_TYPE_CHIPS.find((t) => t.chip === chip)
