@@ -92,9 +92,16 @@ export default function TabLayout() {
       <Tabs.Screen
         name="chat"
         options={{
+          href: null,
           title: 'Chat',
+        }}
+      />
+      <Tabs.Screen
+        name="transactions"
+        options={{
+          title: 'Transactions',
           tabBarIcon: ({ color }) => (
-            <SymbolView name={{ ios: 'bubble.left.and.bubble.right.fill', android: 'chat', web: 'chat' }} tintColor={color} size={24} />
+            <SymbolView name={{ ios: 'arrow.left.arrow.right', android: 'swap_horiz', web: 'swap_horiz' }} tintColor={color} size={24} />
           ),
         }}
       />

@@ -1,5 +1,5 @@
 export type MobileDeepLinkTarget = {
-  screen: 'home' | 'chat' | 'erp' | 'settings'
+  screen: 'home' | 'chat' | 'erp' | 'settings' | 'transactions'
   chatId?: string
   erpSubTab?: string
   account?: string
@@ -43,6 +43,7 @@ export function parseIncomingDeepLink(rawUrl: string): MobileDeepLinkTarget | nu
   if (tabParam) {
     if (tabParam === 'chat') return { screen: 'chat' }
     if (tabParam === 'overview') return { screen: 'home' }
+    if (tabParam === 'erp-transactions' || tabParam === 'transactions') return { screen: 'transactions' }
     if (tabParam.startsWith('erp-')) {
       const erp = parseErpTab(tabParam)
       if (!erp) return null

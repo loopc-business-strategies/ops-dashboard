@@ -12,6 +12,10 @@ export function notificationPayloadToDeepLink(payload: NotificationPayload): Mob
     return { screen: 'chat', chatId: route.chatId }
   }
 
+  if (route.screen === 'transactions') {
+    return { screen: 'transactions' }
+  }
+
   return {
     screen: 'erp',
     erpSubTab: route.erpSubTab,

@@ -38,3 +38,7 @@ export function canViewErpSubTab(user: UserForErpPerm | null | undefined, subTab
 export function canAccessErpReports(user: UserForErpPerm | null | undefined): boolean {
   return canViewErpSubTab(user, 'reports')
 }
+
+export function canAccessTransactions(user: UserForErpPerm | null | undefined): boolean {
+  return canViewErpSubTab(user, 'transactions')
+}

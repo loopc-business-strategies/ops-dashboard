@@ -15,6 +15,7 @@ import { buildConversations, extractMentionParticipants, onlyMongoIds, participa
 type ChatContextValue = {
   conversations: ChatConversation[]
   participants: ChatParticipant[]
+  unreadCount: number
   loading: boolean
   error: string
   refresh: () => Promise<void>
@@ -310,10 +311,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     [token, myAuthId, user?.department],
   )
 
+  const unreadCount = useMemo(
+    () => conversations.reduce((sum, c) => sum + Number(c.unread || 0), 0),
+    [conversations],
+  )
+
   const value = useMemo(
     () => ({
       conversations,
       participants,
+      unreadCount,
       loading,
       error,
       refresh,
@@ -326,6 +333,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     [
       conversations,
       participants,
+      unreadCount,
       loading,
       error,
       refresh,

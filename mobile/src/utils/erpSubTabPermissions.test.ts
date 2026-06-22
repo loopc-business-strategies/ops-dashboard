@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canAccessErpReports, canViewErpSubTab, hasGranularModulePermissions } from './erpSubTabPermissions'
+import { canAccessErpReports, canAccessTransactions, canViewErpSubTab, hasGranularModulePermissions } from './erpSubTabPermissions'
 
 /**
  * Regression tests for MG mobile ERP tab access (must stay aligned with
@@ -70,5 +70,20 @@ describe('erpSubTabPermissions (mobile ERP Reports tab)', () => {
   it('hasGranularModulePermissions detects non-empty modulePermissions', () => {
     expect(hasGranularModulePermissions({ modulePermissions: {} })).toBe(false)
     expect(hasGranularModulePermissions({ modulePermissions: { erp: { on: true } } })).toBe(true)
+  })
+
+  it('canAccessTransactions mirrors transactions sub-tab permission', () => {
+    expect(canAccessTransactions({ role: 'super_admin' })).toBe(true)
+    expect(canAccessTransactions(null)).toBe(false)
+    expect(
+      canAccessTransactions({
+        modulePermissions: { erp: { on: true, subs: { transactions: { on: true }, reports: { on: false } } } },
+      }),
+    ).toBe(true)
+    expect(
+      canAccessTransactions({
+        modulePermissions: { erp: { on: true, subs: { transactions: { on: false }, reports: { on: true } } } },
+      }),
+    ).toBe(false)
   })
 })

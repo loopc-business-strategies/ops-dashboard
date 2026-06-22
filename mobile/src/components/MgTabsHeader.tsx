@@ -12,6 +12,7 @@ import { SymbolView } from 'expo-symbols'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { mgBranding } from '@/src/config/branding'
+import { useChat } from '@/src/context/ChatContext'
 import { useNotifications, type AppNotificationItem } from '@/src/context/NotificationsContext'
 import { navigateDeepLink } from '@/src/navigation/deepLinkRouter'
 import { resolveMobileNotificationRoute } from '@/src/notifications/resolveNotificationRoute'
@@ -28,6 +29,7 @@ function resolveTitle(routeName: string, rawTitle: string | undefined): string {
     home: 'Home',
     erp: 'ERP',
     chat: 'Chat',
+    transactions: 'Transactions',
     settings: 'Settings',
     plus: '',
     index: '',
@@ -46,11 +48,12 @@ function formatRelativeTime(d: Date): string {
   return `${days}d ago`
 }
 
-/** Custom tab header: title bar + real-time notifications bell (Socket.IO `/notifications`). */
+/** Custom tab header: title bar + chat icon + real-time notifications bell (Socket.IO `/notifications`). */
 export function MgTabsHeader({ options, route }: TabHeaderProps) {
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const title = resolveTitle(route.name, options.title)
+  const { unreadCount: chatUnreadCount } = useChat()
   const { items, unreadCount, markRead, markAllRead } = useNotifications()
   const [modalOpen, setModalOpen] = useState(false)
 
@@ -61,6 +64,10 @@ export function MgTabsHeader({ options, route }: TabHeaderProps) {
     setModalOpen(false)
     if (target.screen === 'chat') {
       router.push({ pathname: '/chat/[chatId]' as never, params: { chatId: target.chatId } })
+      return
+    }
+    if (target.screen === 'transactions') {
+      router.push('/(tabs)/transactions' as never)
       return
     }
     navigateDeepLink(router, {
@@ -92,13 +99,33 @@ export function MgTabsHeader({ options, route }: TabHeaderProps) {
         <View style={styles.titleCenter}>
           <Text style={styles.titleText}>{title || ' '}</Text>
         </View>
-        <View style={styles.sideSlot}>
+        <View style={[styles.sideSlot, styles.sideSlotRight]}>
+          <Pressable
+            accessibilityLabel={
+              chatUnreadCount > 0 ? `Chat, ${chatUnreadCount} unread` : 'Chat'
+            }
+            onPress={() => router.push('/(tabs)/chat')}
+            style={({ pressed }) => [styles.headerIconWrap, pressed && styles.bellPressed]}
+          >
+            <SymbolView
+              name={{ ios: 'bubble.left.and.bubble.right.fill', android: 'chat', web: 'chat' }}
+              tintColor="#FFFFFF"
+              size={22}
+            />
+            {chatUnreadCount > 0 ? (
+              <View style={styles.badge} pointerEvents="none">
+                <Text style={styles.badgeText}>
+                  {chatUnreadCount > 99 ? '99+' : String(chatUnreadCount)}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
           <Pressable
             accessibilityLabel={
               unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications, no unread'
             }
             onPress={() => setModalOpen(true)}
-            style={({ pressed }) => [styles.bellWrap, pressed && styles.bellPressed]}
+            style={({ pressed }) => [styles.headerIconWrap, pressed && styles.bellPressed]}
           >
             <SymbolView
               name={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }}
@@ -165,6 +192,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  sideSlotRight: {
+    width: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 2,
+    paddingRight: 4,
+  },
   titleCenter: {
     flex: 1,
     alignItems: 'center',
@@ -175,8 +210,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 17,
   },
-  bellWrap: {
-    width: 44,
+  headerIconWrap: {
+    width: 40,
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',

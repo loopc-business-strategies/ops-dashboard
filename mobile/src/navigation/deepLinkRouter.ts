@@ -23,6 +23,11 @@ export function navigateDeepLink(router: ReturnType<typeof useRouter>, target: M
     return
   }
 
+  if (target.screen === 'transactions') {
+    router.push('/(tabs)/transactions' as never)
+    return
+  }
+
   if (target.screen === 'settings') {
     router.push('/(tabs)/settings')
     return
