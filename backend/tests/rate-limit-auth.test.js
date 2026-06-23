@@ -42,6 +42,19 @@ describe('rate limiting', () => {
     await request(app).get('/api/erp-accounting/reports/market-prices').set('x-tenant', 'mg').expect(401)
   })
 
+  test('erp accounting reference GETs are excluded from the global API rate limiter', async () => {
+    process.env.NODE_ENV = 'production'
+    process.env.RATE_LIMIT_MAX = '1'
+    process.env.JWT_SECRET = 'test-secret'
+
+    const app = createApp()
+
+    await request(app).get('/api/auth/me').set('x-tenant', 'mg').expect(401)
+    await request(app).get('/api/erp-accounting/vendors').set('x-tenant', 'mg').expect(401)
+    await request(app).get('/api/erp-accounting/currencies').set('x-tenant', 'mg').expect(401)
+    await request(app).get('/api/messages/latest').set('x-tenant', 'mg').expect(401)
+  })
+
   test('global limiter keys requests by tenant and IP', async () => {
     process.env.NODE_ENV = 'production'
     process.env.RATE_LIMIT_MAX = '1'

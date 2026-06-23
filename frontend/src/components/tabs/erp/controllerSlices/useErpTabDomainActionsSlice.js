@@ -236,6 +236,7 @@ export function useErpTabDomainActionsSlice(scope) {
   })
   const {
     loadVendors,
+    loadVendorsQuick,
     loadVendorDetails,
     loadVendorPaymentCalendar,
     loadVendorComplianceSummary,
@@ -434,6 +435,7 @@ export function useErpTabDomainActionsSlice(scope) {
     setError,
     showNotification,
     loadVendors,
+    loadVendorsQuick,
     loadVendorDetails,
     loadVendorPaymentCalendar,
     loadVendorComplianceSummary,
@@ -541,6 +543,7 @@ export function useErpTabDomainActionsSlice(scope) {
     loadAccounts,
     loadCustomers,
     loadVendors,
+    loadVendorsQuick,
     loadVendorDetails,
     loadVendorPaymentCalendar,
     loadVendorComplianceSummary,

@@ -33,6 +33,7 @@ export function useErpTabRouter({
   loadAccounts,
   loadCustomers,
   loadVendors,
+  loadVendorsQuick,
   loadVendorDetails,
   loadVendorPaymentCalendar,
   loadVendorComplianceSummary,
@@ -46,6 +47,8 @@ export function useErpTabRouter({
   loadMappings,
 }) {
   const subTabFetchedAtRef = useRef({})
+  /** One-shot per tab visit — avoids re-fetch storms when `.length` deps change mid-bootstrap. */
+  const erpTabBootstrapRef = useRef({ vouchers: false, 'direct-deals': false, 'fixing-register': false })
 
   const shouldRefreshSubTab = (key, { force = false } = {}) => {
     if (force) return true
@@ -231,26 +234,47 @@ export function useErpTabRouter({
   }, [token, showEnquiryModal, currencies.length])
 
   useEffect(() => {
-    if (activeTab !== 'vouchers' || !token) return
+    if (activeTab !== 'vouchers' && erpTabBootstrapRef.current.vouchers) {
+      erpTabBootstrapRef.current.vouchers = false
+    }
+    if (activeTab !== 'direct-deals' && erpTabBootstrapRef.current['direct-deals']) {
+      erpTabBootstrapRef.current['direct-deals'] = false
+    }
+    if (activeTab !== 'fixing-register' && erpTabBootstrapRef.current['fixing-register']) {
+      erpTabBootstrapRef.current['fixing-register'] = false
+    }
+  }, [activeTab])
+
+  useEffect(() => {
+    if (activeTab !== 'vouchers' || !token || erpTabBootstrapRef.current.vouchers) return
+    erpTabBootstrapRef.current.vouchers = true
     // Party Account combobox needs chart of accounts; currencies for FX headers.
-    if (!currencies.length) loadCurrencies()
-    if (!accounts.length) loadAccounts()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const tasks = []
+    if (!currencies.length) tasks.push(loadCurrencies())
+    if (!accounts.length) tasks.push(loadAccounts())
+    if (tasks.length) void Promise.all(tasks).catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot bootstrap per vouchers visit
   }, [activeTab, token])
 
   useEffect(() => {
-    if (activeTab !== 'direct-deals' || !token) return
-    if (!customers.length) loadCustomers({ limit: 200 })
-    if (!currencies.length) loadCurrencies()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, token, customers.length, currencies.length])
+    if (activeTab !== 'direct-deals' || !token || erpTabBootstrapRef.current['direct-deals']) return
+    erpTabBootstrapRef.current['direct-deals'] = true
+    const tasks = []
+    if (!customers.length) tasks.push(loadCustomers({ limit: 200 }))
+    if (!currencies.length) tasks.push(loadCurrencies())
+    if (tasks.length) void Promise.all(tasks).catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot bootstrap per direct-deals visit
+  }, [activeTab, token])
 
   useEffect(() => {
-    if (activeTab !== 'fixing-register' || !token) return
-    if (!customers.length) loadCustomers({ limit: 200 })
-    if (!inventoryProducts.length) loadInventory()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, token, customers.length, inventoryProducts.length])
+    if (activeTab !== 'fixing-register' || !token || erpTabBootstrapRef.current['fixing-register']) return
+    erpTabBootstrapRef.current['fixing-register'] = true
+    const tasks = []
+    if (!customers.length) tasks.push(loadCustomers({ limit: 200 }))
+    if (!inventoryProducts.length) tasks.push(loadInventory())
+    if (tasks.length) void Promise.all(tasks).catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot bootstrap per fixing-register visit
+  }, [activeTab, token])
 
   useEffect(() => {
     if (!fixingRegisterStockTypeOptions.length) return

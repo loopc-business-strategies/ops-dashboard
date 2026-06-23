@@ -87,6 +87,18 @@ export function useErpVendors({
     if (seq === loadSeqRef.current) setLoading(false)
   }, [token, canLoadParties, setLoading, setVendors, setVendorSummary, setVendorPermissions, setError])
 
+  const loadVendorsQuick = useCallback(async (filters = {}) => {
+    if (!canLoadParties) return
+    try {
+      const data = await erpAccountingAPI.getVendors(token, { ...filters, page: 1, limit: 500 })
+      setVendors(data.vendors || [])
+      if (data.permissions) setVendorPermissions(data.permissions)
+      setError('')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load vendors')
+    }
+  }, [token, canLoadParties, setVendors, setVendorPermissions, setError])
+
   const loadVendorDetails = useCallback(async (id) => {
     if (!id) {
       setSelectedVendorDetails(null)
@@ -138,6 +150,7 @@ export function useErpVendors({
 
   return {
     loadVendors,
+    loadVendorsQuick,
     loadVendorDetails,
     loadVendorPaymentCalendar,
     loadVendorComplianceSummary,

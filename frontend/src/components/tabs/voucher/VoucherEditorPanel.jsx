@@ -387,7 +387,7 @@ export default function VoucherEditorPanel({
                 <TbBtn tip="Print/Preview — prints or previews the current invoice" label="Print/Preview" onClick={() => (onPrintPreview ? onPrintPreview() : window.print())} />
                 <TbBtn tip="Search/Find — search by voucher number, party, or date" label="Search/Find" onClick={handleSearchFind} />
                 <TbBtn tip="Barcode — scan or view an item barcode linked to stock" label="Barcode" onClick={handleBarcodeAction} />
-                <TbBtn tip="Refresh Parties — reload customer and vendor list" label="↺ Parties" onClick={refreshParties} />
+                <TbBtn tip="Refresh Parties — reload customer and vendor list" label="↺ Parties" onClick={() => refreshParties({ force: true })} />
                 <Sep />
                 <TbBtn tip="Exit — closes the voucher form and returns to the main menu" label="Exit" icon="■" onClick={handleExitVoucherForm} style={{ color: '#b00020' }} />
                 <div style={{ flex: 1 }} />

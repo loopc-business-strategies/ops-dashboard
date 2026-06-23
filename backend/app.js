@@ -181,6 +181,14 @@ function createApp() {
     if (hardwareIngestPaths.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) {
       return true
     }
+    // ERP dashboard tabs load many reference GETs on open; counting them toward the
+    // global limit causes 429 "Too many requests" during normal voucher/ledger use.
+    if (req.method === 'GET' && (
+      path.startsWith('/api/erp-accounting/')
+      || path === '/api/messages/latest'
+    )) {
+      return true
+    }
     return rateLimitExcludedPrefixes.some(
       (prefix) => path === prefix || path.startsWith(`${prefix}/`),
     )

@@ -60,8 +60,7 @@ export async function ensureWebPushSubscription() {
     const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
     await reg.update()
 
-    const permission = await Notification.requestPermission()
-    if (permission !== 'granted') return { ok: false, reason: 'permission-denied' }
+    if (Notification.permission !== 'granted') return { ok: false, reason: 'permission-denied' }
 
     let sub = await reg.pushManager.getSubscription()
     if (!sub) {

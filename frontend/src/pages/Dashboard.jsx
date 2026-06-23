@@ -587,7 +587,10 @@ function Dashboard() {
 
   const showMetalTickers = TENANT_KEYS.includes(branding.key)
   const metalRatesEnabled = Boolean(token && showMetalTickers)
-  const navItems = getNavItems(perms, t, chatUnread, branding)
+  const navItems = useMemo(
+    () => getNavItems(perms, t, chatUnread, branding),
+    [perms, t, chatUnread, branding],
+  )
   const departmentsComingSoon = Boolean(branding?.featureFlags?.departmentsComingSoon)
   const tabRenderOptions = useMemo(
     () => ({
