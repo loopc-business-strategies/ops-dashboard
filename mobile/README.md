@@ -177,7 +177,20 @@ Scan the QR code with Expo Go, or press `a` for Android emulator.
 
 After an **EAS** preview build with `expo-updates`, `npm run mobile:update:preview` can ship JS-only changes without rebuilding the APK. For a **no-EAS** workflow, ship a **new local APK/AAB** instead; see **[../docs/MOBILE-NO-EAS.md](../docs/MOBILE-NO-EAS.md)**.
 
-## iOS: device vs Simulator (EAS)
+## iOS: Windows + iPhone (no Mac, no Expo credits)
+
+**Recommended when EAS has zero credits.** GitHub Actions builds on `macos-latest`; you install via **TestFlight**.
+
+Full setup (certificates from Windows, GitHub secrets, run workflow):
+
+**[../docs/MOBILE-IOS-GITHUB-BUILD.md](../docs/MOBILE-IOS-GITHUB-BUILD.md)**
+
+1. Create App Store Connect app (`com.loopc.nexa`) + distribution cert + provisioning profile + API key  
+2. Add GitHub Actions secrets (see doc table)  
+3. GitHub → **Actions** → **Mobile iOS (GitHub macOS)** → **Run workflow**  
+4. Install **TestFlight** on iPhone → open invite → install Nexa  
+
+## iOS: device vs Simulator (EAS — needs Expo credits)
 
 | Install target | Command | Notes |
 |----------------|---------|--------|

@@ -13,6 +13,7 @@
     "dev:mobile": "npm --prefix mobile run start",
     "mobile:build:android:local:bundle": "npm --prefix mobile run build:local:android:bundle",
     "mobile:build:android:local:apk": "npm --prefix mobile run build:local:android:apk",
+    "mobile:ios:github": "echo Run GitHub Actions workflow Mobile iOS (GitHub macOS) — see docs/MOBILE-IOS-GITHUB-BUILD.md",
     "mobile:prebuild:android": "npm --prefix mobile run prebuild:android",
     "mobile:build:android:preview": "npm --prefix mobile run build:preview:android",
     "mobile:build:ios:preview": "npm --prefix mobile run build:preview:ios",
