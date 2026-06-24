@@ -6,22 +6,19 @@ const { notifyUsers, notifyErpUsers } = require('../services/notificationDispatc
 const { buildReportDigestText } = require('../services/reportDigestService')
 const { mergeNotificationPreferences } = require('../services/notificationPreferences')
 const { MOBILE_APP_NAME } = require('../config/mobileApp')
+const { setOnce } = require('../utils/sharedCoordination')
 
 const HOURLY_MS = 60 * 60 * 1000
-const _DAILY_MS = 24 * 60 * 60 * 1000
-
-const sentDailyKeys = new Set()
+const DAILY_MS = 24 * 60 * 60 * 1000
 
 function dayKey(tenant, category) {
   const d = new Date()
   return `${tenant}:${category}:${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
 }
 
-function markSentOnce(key) {
-  if (sentDailyKeys.has(key)) return false
-  sentDailyKeys.add(key)
-  if (sentDailyKeys.size > 5000) sentDailyKeys.clear()
-  return true
+async function markSentOnce(key) {
+  const sharedKey = `notification-digest:${key}`
+  return setOnce(sharedKey, DAILY_MS + HOURLY_MS)
 }
 
 async function sweepTaskDueOverdue(tenantKey) {
@@ -40,7 +37,7 @@ async function sweepTaskDueOverdue(tenantKey) {
 
   for (const task of dueToday) {
     const key = dayKey(tenantKey, `task_due:${task._id}`)
-    if (!markSentOnce(key)) continue
+    if (!(await markSentOnce(key))) continue
     const recipients = [
       task.assignedToId,
       ...(task.assignedToIds || []),
@@ -61,7 +58,7 @@ async function sweepTaskDueOverdue(tenantKey) {
 
   for (const task of overdue) {
     const key = dayKey(tenantKey, `task_overdue:${task._id}`)
-    if (!markSentOnce(key)) continue
+    if (!(await markSentOnce(key))) continue
     const recipients = [
       task.assignedToId,
       ...(task.assignedToIds || []),
@@ -92,7 +89,7 @@ async function sweepVendorDueOverdue(tenantKey) {
     if (!type) continue
 
     const key = dayKey(tenantKey, `${type}:${vendor._id}`)
-    if (!markSentOnce(key)) continue
+    if (!(await markSentOnce(key))) continue
     await notifyErpUsers(tenantKey, type, {
       vendorName: vendor.name,
       dueDate: vendor.paymentDueDate,
@@ -133,7 +130,7 @@ async function sweepScheduledReportDigests(tenantKey) {
     if (!nowLocal || nowLocal !== want) continue
 
     const key = dayKey(tenantKey, `report_digest:${user._id}`)
-    if (!markSentOnce(key)) continue
+    if (!(await markSentOnce(key))) continue
 
     const text = await buildReportDigestText(tenantKey, prefs)
     await notifyUsers(tenantKey, [String(user._id)], 'report_digest', {

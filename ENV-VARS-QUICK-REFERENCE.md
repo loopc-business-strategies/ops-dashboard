@@ -20,6 +20,14 @@ SERVER_BASE_URL=https://api.loopcstrategies.com
 
 `SERVER_BASE_URL` — absolute base for ERP attachment download URLs (no trailing slash). Warned in production if missing.
 
+### Shared coordination (recommended for multi-instance Railway)
+
+```
+REDIS_URL=<railway-redis-private-url>
+```
+
+When set, report caches, report rate limits, notification digest dedupe, and realtime SSE fan-out use Redis instead of process-local memory. Without `REDIS_URL`, the backend falls back to local in-process coordination for single-instance deployments.
+
 ### CORS (frontend origins)
 
 ```

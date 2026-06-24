@@ -5,12 +5,11 @@ const metalSpotCache = {
   expiresAt: 0,
 }
 
-/** Short-lived cache for dashboard report responses (per tenant + period). */
-const dashboardReportCache = new Map()
 const DASHBOARD_CACHE_TTL_MS = 120000
 
 const { createReportResponseCache } = require('../../utils/reportResponseCache')
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit')
+const { createSharedRateLimitStore } = require('../../utils/sharedRateLimitStore')
 const reportCache = createReportResponseCache(60000)
 
 const {
@@ -102,6 +101,7 @@ function registerReportRoutes(deps) {
     max: Number(process.env.ERP_REPORT_RATE_LIMIT_MAX || 30),
     standardHeaders: true,
     legacyHeaders: false,
+    store: createSharedRateLimitStore('erp-report-export'),
     skip: () => !isProduction,
     keyGenerator: (req) => {
       const tenant = reportTenantKey(req)
@@ -134,7 +134,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       sortDir,
       minAbsolute,
     ])
-    const cached = reportCache.get(cacheKey)
+    const cached = await reportCache.getShared(cacheKey)
     if (cached) return res.json(cached)
     const query = { isDeleted: { $ne: true } }
     const dateQuery = buildDateQuery(startDate, endDate)
@@ -285,7 +285,7 @@ router.get('/reports/trial-balance', protect, reportExportLimiter, async (req, r
       rowCount: trialBalance.length,
       generatedAt: new Date(),
     }
-    reportCache.set(cacheKey, payload)
+    await reportCache.setShared(cacheKey, payload)
     res.json(payload)
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
@@ -304,7 +304,7 @@ router.get('/reports/ledger', protect, reportExportLimiter, async (req, res) => 
       startDate,
       endDate,
     ])
-    const cached = reportCache.get(cacheKey)
+    const cached = await reportCache.getShared(cacheKey)
     if (cached) return res.json(cached)
 
     const query = {
@@ -362,7 +362,7 @@ router.get('/reports/ledger', protect, reportExportLimiter, async (req, res) => 
     })
 
     const payload = { success: true, report }
-    reportCache.set(cacheKey, payload)
+    await reportCache.setShared(cacheKey, payload)
     res.json(payload)
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
@@ -384,7 +384,7 @@ router.get('/reports/profit-loss', protect, reportExportLimiter, async (req, res
       includeZero,
       includeComparisons,
     ])
-    const cached = reportCache.get(cacheKey)
+    const cached = await reportCache.getShared(cacheKey)
     if (cached) return res.json(cached)
 
     const comparisonAnchor = endDate ? new Date(endDate) : new Date()
@@ -428,7 +428,7 @@ router.get('/reports/profit-loss', protect, reportExportLimiter, async (req, res
       quarterlyComparison: comparisonData.quarterlyComparison,
       generatedAt: new Date(),
     }
-    reportCache.set(cacheKey, payload)
+    await reportCache.setShared(cacheKey, payload)
     res.json(payload)
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
@@ -446,7 +446,7 @@ router.get('/reports/balance-sheet', protect, reportExportLimiter, async (req, r
       endDate,
       includeComparisons,
     ])
-    const cached = reportCache.get(cacheKey)
+    const cached = await reportCache.getShared(cacheKey)
     if (cached) return res.json(cached)
 
     const anchorDate = endDate ? new Date(endDate) : new Date()
@@ -475,7 +475,7 @@ router.get('/reports/balance-sheet', protect, reportExportLimiter, async (req, r
       quarterlyComparison: comparisonData.quarterlyComparison,
       generatedAt: new Date(),
     }
-    reportCache.set(cacheKey, payload)
+    await reportCache.setShared(cacheKey, payload)
     res.json(payload)
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
@@ -494,7 +494,7 @@ router.get('/reports/day-book', protect, reportExportLimiter, async (req, res) =
       referenceType,
       minAmount,
     ])
-    const cached = reportCache.get(cacheKey)
+    const cached = await reportCache.getShared(cacheKey)
     if (cached) return res.json(cached)
 
     const query = {
@@ -550,7 +550,7 @@ router.get('/reports/day-book', protect, reportExportLimiter, async (req, res) =
       summaryByType,
       generatedAt: new Date(),
     }
-    reportCache.set(cacheKey, payload)
+    await reportCache.setShared(cacheKey, payload)
     res.json(payload)
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
@@ -561,7 +561,7 @@ router.get('/reports/customer-outstanding', protect, reportExportLimiter, async 
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const cacheKey = reportCache.buildKey([reportTenantKey(req), 'customer-outstanding'])
-    const cached = reportCache.get(cacheKey)
+    const cached = await reportCache.getShared(cacheKey)
     if (cached) return res.json(cached)
 
     const customers = await Customer.find({ isActive: true }).populate('ledgerAccountId', 'accountCode accountName').lean()
@@ -613,7 +613,7 @@ router.get('/reports/customer-outstanding', protect, reportExportLimiter, async 
       },
       generatedAt: new Date(),
     }
-    reportCache.set(cacheKey, payload)
+    await reportCache.setShared(cacheKey, payload)
     res.json(payload)
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
@@ -624,7 +624,7 @@ router.get('/reports/vendor-outstanding', protect, reportExportLimiter, async (r
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const cacheKey = reportCache.buildKey([reportTenantKey(req), 'vendor-outstanding'])
-    const cached = reportCache.get(cacheKey)
+    const cached = await reportCache.getShared(cacheKey)
     if (cached) return res.json(cached)
 
     const vendors = await Vendor.find({ isActive: true, deletedAt: null }).populate('ledgerAccountId', 'accountCode accountName').lean()
@@ -661,7 +661,7 @@ router.get('/reports/vendor-outstanding', protect, reportExportLimiter, async (r
       },
       generatedAt: new Date(),
     }
-    reportCache.set(cacheKey, payload)
+    await reportCache.setShared(cacheKey, payload)
     res.json(payload)
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
@@ -1013,10 +1013,15 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
     const periodEnd = endDate ? new Date(endDate) : new Date(today.getFullYear(), today.getMonth() + 1, 0)
     periodEnd.setHours(23, 59, 59, 999)
 
-    const cacheKey = `${reportTenantKey(req)}:${periodStart.toISOString()}:${periodEnd.toISOString()}`
-    const cached = dashboardReportCache.get(cacheKey)
-    if (cached && cached.expiresAt > Date.now()) {
-      return res.json(cached.payload)
+    const cacheKey = reportCache.buildKey([
+      reportTenantKey(req),
+      'dashboard-report',
+      periodStart.toISOString(),
+      periodEnd.toISOString(),
+    ])
+    const cached = await reportCache.getShared(cacheKey)
+    if (cached) {
+      return res.json(cached)
     }
 
     const sixMonthsStart = new Date(today.getFullYear(), today.getMonth() - 5, 1)
@@ -1661,10 +1666,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       generatedAt: new Date(),
     }
 
-    dashboardReportCache.set(cacheKey, {
-      payload: dashboardPayload,
-      expiresAt: Date.now() + DASHBOARD_CACHE_TTL_MS,
-    })
+    await reportCache.setShared(cacheKey, dashboardPayload, DASHBOARD_CACHE_TTL_MS)
     res.json(dashboardPayload)
   } catch (err) {
     console.error('[reports] error:', err)
