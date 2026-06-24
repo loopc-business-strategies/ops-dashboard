@@ -365,17 +365,12 @@ function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { t, isRTL, switchLanguage, langMeta } = useLanguage()
 
-  const initialUrl = useMemo(
-    () => parseDashboardUrl(typeof window !== 'undefined' ? window.location.search : '', null),
-    [],
-  )
-
-  const [activeTab,    setActiveTab]    = useState(initialUrl.activeTab)
+  const [activeTab,    setActiveTab]    = useState(() => parseDashboardUrl(searchParams.toString(), null).activeTab)
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
   const [adminOpen,    setAdminOpen]    = useState(true)
   const [deptOpen,     setDeptOpen]     = useState(true)
   const [erpOpen,      setErpOpen]      = useState(true)
-  const [erpSubTab,    setErpSubTab]    = useState(initialUrl.erpSubTab)
+  const [erpSubTab,    setErpSubTab]    = useState(() => parseDashboardUrl(searchParams.toString(), null).erpSubTab)
   const [chatUnread,   setChatUnread]   = useState(0)
   const [langMenuOpen, setLangMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
@@ -433,6 +428,8 @@ function Dashboard() {
       includeCompany,
       preserveFrom: searchParams,
     })
+    const nextQuery = params.toString()
+    if (searchParams.toString() === nextQuery) return
     setSearchParams(params, { replace })
   }, [activeTab, erpSubTab, searchParams, tenantForHref, includeCompany, setSearchParams])
 

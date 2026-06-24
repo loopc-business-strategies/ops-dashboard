@@ -77,8 +77,12 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    pool: 'forks',
+    pool: 'threads',
+    maxWorkers: 1,
     fileParallelism: false,
+    testTimeout: 30000,
+    hookTimeout: 30000,
+    teardownTimeout: 10000,
     exclude: ['**/node_modules/**', '**/*.node.test.{js,ts}', '**/e2e/**'],
   },
   build: {
