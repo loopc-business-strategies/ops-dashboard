@@ -67,6 +67,10 @@ jobs:
           SMOKE_REQUIRE_AUTH: 'true'
         run: npm run smoke:prod
 
+      - name: Install mobile dependencies for API smoke
+        working-directory: mobile
+        run: npm ci
+
       - name: Run mobile API smoke (JWT + X-Client mobile)
         env:
           MOBILE_SMOKE_API_URL: ${{ vars.SMOKE_API_BASE || 'https://api.loopcstrategies.com' }}

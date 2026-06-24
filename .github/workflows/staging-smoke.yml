@@ -59,6 +59,10 @@ jobs:
           SMOKE_AUTH_PASSWORD_LOOPC: ${{ secrets.STAGING_SMOKE_AUTH_PASSWORD_LOOPC }}
         run: npm run smoke:staging
 
+      - name: Install mobile dependencies for API smoke
+        working-directory: mobile
+        run: npm ci
+
       - name: Run staging mobile API smoke
         env:
           STAGING_SMOKE_API_BASE: ${{ vars.STAGING_SMOKE_API_BASE || 'https://ops-dashboard-staging-e6c6.up.railway.app' }}
