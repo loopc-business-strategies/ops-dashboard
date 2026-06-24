@@ -1,5 +1,7 @@
 # Nexa Mobile — App Store & Play Store
 
+**Release checklist (recommended):** [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) and [store/STORE_METADATA.md](./store/STORE_METADATA.md).
+
 Default **no-EAS** workflow (local Metro, local Gradle, no `eas update` billing): **[../docs/MOBILE-NO-EAS.md](../docs/MOBILE-NO-EAS.md)**.
 
 ## Android without EAS (recommended first)

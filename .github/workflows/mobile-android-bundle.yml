@@ -15,6 +15,11 @@ jobs:
     permissions:
       contents: read
 
+    env:
+      EXPO_PUBLIC_API_URL: https://api.loopcstrategies.com
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD: "true"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,6 +50,33 @@ jobs:
       - name: Install mobile dependencies
         working-directory: mobile
         run: npm ci
+
+      - name: Release readiness checks
+        working-directory: mobile
+        run: npm run check:release
+
+      - name: Configure Play upload signing
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          KEYSTORE_PATH="mobile/android/app/release-upload.keystore"
+          echo -n "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          {
+            echo "storeFile=app/release-upload.keystore"
+            echo "storePassword=${ANDROID_KEYSTORE_PASSWORD}"
+            echo "keyAlias=${ANDROID_KEY_ALIAS}"
+            echo "keyPassword=${ANDROID_KEYSTORE_PASSWORD}"
+          } > mobile/android/keystore.properties
+          echo "Release signing configured from GitHub secrets."
+
+      - name: Note when using debug signing
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 == '' }}
+        run: |
+          echo "ANDROID_KEYSTORE_BASE64 not set — release AAB will use debug signing (internal QA only)."
+          echo "For Play upload, add ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS secrets."
 
       - name: Make Gradle wrapper executable
         working-directory: mobile/android

@@ -38,6 +38,7 @@
   },
   "scripts": {
     "check": "npm run typecheck && npm run test",
+    "check:release": "node ./scripts/check-release-readiness.mjs",
     "smoke:api": "node ./scripts/smoke-mobile-api.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

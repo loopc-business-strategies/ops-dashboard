@@ -3,7 +3,8 @@
 Use this when you have **Windows**, an **iPhone**, an **Apple Developer account**, and **zero Expo EAS credits**. GitHub’s **macOS runners** compile the app; you install via **TestFlight**.
 
 Workflow file: [`.github/workflows/mobile-ios-testflight.yml`](../.github/workflows/mobile-ios-testflight.yml)  
-Build script: [`mobile/scripts/gha-ios-build.sh`](../mobile/scripts/gha-ios-build.sh)
+Build script: [`mobile/scripts/gha-ios-build.sh`](../mobile/scripts/gha-ios-build.sh)  
+Release checklist: [`mobile/RELEASE_CHECKLIST.md`](../mobile/RELEASE_CHECKLIST.md)
 
 ---
 
@@ -107,6 +108,14 @@ Repo → **Settings** → **Secrets and variables** → **Actions** → **New re
 | `APP_STORE_CONNECT_API_KEY_ID` | Key ID from step 4 |
 | `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID |
 | `APP_STORE_CONNECT_API_KEY` | Full contents of the `.p8` file |
+
+Optional Android CI signing (Play upload AAB from **Mobile Android bundle** workflow):
+
+| Secret | Value |
+|--------|--------|
+| `ANDROID_KEYSTORE_BASE64` | Base64 of upload `.jks` / `.keystore` |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
+| `ANDROID_KEY_ALIAS` | Key alias |
 
 Optional: set repository variable `IOS_UPLOAD_TESTFLIGHT` = `true` when all three API secrets are configured.
 

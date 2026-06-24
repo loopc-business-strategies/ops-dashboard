@@ -235,6 +235,10 @@ jobs:
         working-directory: mobile
         run: npm test
 
+      - name: Release readiness checks
+        working-directory: mobile
+        run: npm run check:release
+
   frontend-build:
     name: Frontend Build
     runs-on: ubuntu-latest

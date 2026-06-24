@@ -66,6 +66,23 @@ jobs:
           SMOKE_AUTH_PASSWORD_LOOPC: ${{ secrets.SMOKE_AUTH_PASSWORD_LOOPC }}
           SMOKE_REQUIRE_AUTH: 'true'
         run: npm run smoke:prod
+
+      - name: Run mobile API smoke (JWT + X-Client mobile)
+        env:
+          MOBILE_SMOKE_API_URL: ${{ vars.SMOKE_API_BASE || 'https://api.loopcstrategies.com' }}
+          MOBILE_SMOKE_COMPANY: mg
+          SMOKE_AUTH_NAME_MG: ${{ secrets.SMOKE_AUTH_NAME_MG }}
+          SMOKE_AUTH_PASSWORD_MG: ${{ secrets.SMOKE_AUTH_PASSWORD_MG }}
+          SMOKE_AUTH_NAME: ${{ secrets.SMOKE_AUTH_NAME }}
+          SMOKE_AUTH_PASSWORD: ${{ secrets.SMOKE_AUTH_PASSWORD }}
+        run: |
+          export MOBILE_SMOKE_LOGIN_NAME="${SMOKE_AUTH_NAME_MG:-$SMOKE_AUTH_NAME}"
+          export MOBILE_SMOKE_LOGIN_PASSWORD="${SMOKE_AUTH_PASSWORD_MG:-$SMOKE_AUTH_PASSWORD}"
+          if [ -z "$MOBILE_SMOKE_LOGIN_NAME" ] || [ -z "$MOBILE_SMOKE_LOGIN_PASSWORD" ]; then
+            echo "Skipping mobile API smoke — set SMOKE_AUTH_NAME_MG or SMOKE_AUTH_NAME secrets."
+            exit 0
+          fi
+          npm run smoke:mobile:api
       - name: Notify Slack on smoke failure
         if: failure()
         env:
