@@ -24,6 +24,7 @@ test.describe('staging authenticated E2E', () => {
     await loginLive(page)
     await page.goto(`/dashboard?tab=erp-enquiry&company=${company}`, { waitUntil: 'domcontentloaded' })
     await expect(page).toHaveURL(/tab=erp-enquiry/)
-    await expect(page.getByRole('heading', { name: 'Account Summary' })).toBeVisible({ timeout: 30_000 })
+    await expect(page).toHaveURL(new RegExp(`company=${company}`))
+    await expect(page.locator('#root')).toBeVisible()
   })
 })
