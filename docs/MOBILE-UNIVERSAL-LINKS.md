@@ -7,7 +7,7 @@ HTTPS links on **mg.loopcstrategies.com** can open the MG mobile app when config
 | URL | Mobile destination |
 |-----|-------------------|
 | `https://mg.loopcstrategies.com/dashboard?tab=erp-enquiry&account=CODE` | ERP tab + account summary |
-| `mgops://dashboard?tab=erp-enquiry&account=CODE` | Same (custom scheme) |
+| `nexaops://dashboard?tab=erp-enquiry&account=CODE` | Same (custom scheme; legacy `mgops://` is still accepted during migration) |
 
 Parsing: `mobile/src/navigation/dashboardDeepLink.ts`  
 Routing: `mobile/src/navigation/useDeepLinkNavigation.ts`

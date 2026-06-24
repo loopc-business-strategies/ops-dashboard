@@ -21,7 +21,7 @@ function parseErpTab(tabParam: string): Pick<MobileDeepLinkTarget, 'erpSubTab' |
 }
 
 /**
- * Parse mgops:// or https:// tenant URLs into mobile navigation targets.
+ * Parse nexaops://, legacy mgops://, or https:// tenant URLs into mobile navigation targets.
  * Web parity: /dashboard?tab=erp-enquiry&account=CODE&view=statement
  */
 export function parseIncomingDeepLink(rawUrl: string): MobileDeepLinkTarget | null {
@@ -71,7 +71,7 @@ export function parseIncomingDeepLink(rawUrl: string): MobileDeepLinkTarget | nu
   }
   if (host === 'dashboard' || path === 'dashboard' || path.includes('dashboard')) {
     if (tabParam) {
-      return parseIncomingDeepLink(`mgops://local?${params.toString()}`)
+      return parseIncomingDeepLink(`nexaops://local?${params.toString()}`)
     }
     return { screen: 'home' }
   }
@@ -79,7 +79,7 @@ export function parseIncomingDeepLink(rawUrl: string): MobileDeepLinkTarget | nu
   return null
 }
 
-export function buildMgopsDashboardHref({
+export function buildNexaDashboardHref({
   tab = 'erp-enquiry',
   account,
   view,
@@ -92,5 +92,8 @@ export function buildMgopsDashboardHref({
   params.set('tab', tab)
   if (account) params.set('account', account)
   if (view === 'statement') params.set('view', 'statement')
-  return `mgops://dashboard?${params.toString()}`
+  return `nexaops://dashboard?${params.toString()}`
 }
+
+/** @deprecated Use buildNexaDashboardHref. Kept for callers during the scheme migration. */
+export const buildMgopsDashboardHref = buildNexaDashboardHref

@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableExtensions
-REM Builds Nexa Android release APK: SUBST Q: for short npm cwd + junction C:\mgops-m -> repo\mobile
-REM so Gradle/Ninja use C:\mgops-m\android (short path on real C:, avoids errno 3 on Q: and MAX_PATH on Desktop).
+REM Builds Nexa Android release APK: SUBST Q: for short npm cwd + junction C:\nexa-m -> repo\mobile
+REM so Gradle/Ninja use C:\nexa-m\android (short path on real C:, avoids errno 3 on Q: and MAX_PATH on Desktop).
 REM Run from Explorer double-click, or:  scripts\build-mobile-apk-subst-q.cmd
 REM Requires: same Admin vs non-Admin session for subst; mklink /J usually needs Administrator once.
-REM Do not use C:\mgops-m for anything else while this script runs (it is removed at the end).
+REM Do not use C:\nexa-m for anything else while this script runs (it is removed at the end).
 
 pushd "%~dp0.." || exit /b 1
 set "REPO=%CD%"
@@ -39,7 +39,7 @@ if not exist "mobile\android\gradlew.bat" (
 echo OK: Q:\mobile\android exists
 dir "mobile\android\gradlew.bat"
 
-set "MOBILE_JUNC=C:\mgops-m"
+set "MOBILE_JUNC=C:\nexa-m"
 set "MOBILE_JUNC_CREATED="
 if exist "%MOBILE_JUNC%" (
   echo Removing stale junction %MOBILE_JUNC% ...

@@ -32,7 +32,7 @@ Include **`https://app.loopcstrategies.com`** if that host is used ([vercel.json
 ### Push notifications (mobile + web)
 
 ```
-EXPO_ACCESS_TOKEN=<expo-access-token-for-nexa-mg>
+EXPO_ACCESS_TOKEN=<expo-access-token-for-nexa>
 WEB_PUSH_PUBLIC_KEY=<vapid-public-key>
 WEB_PUSH_PRIVATE_KEY=<vapid-private-key>
 WEB_PUSH_SUBJECT=mailto:support@yourdomain.com

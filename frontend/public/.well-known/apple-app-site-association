@@ -3,7 +3,7 @@
     "apps": [],
     "details": [
       {
-        "appIDs": ["TEAMID.com.loopc.mg.ops"],
+        "appIDs": ["TEAMID.com.loopc.nexa"],
         "components": [
           {
             "/": "/dashboard",

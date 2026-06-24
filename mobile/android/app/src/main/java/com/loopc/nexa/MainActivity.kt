@@ -1,4 +1,4 @@
-package com.loopc.mg.ops
+package com.loopc.nexa
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

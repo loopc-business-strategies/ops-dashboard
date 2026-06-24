@@ -13,7 +13,7 @@ import process from 'node:process'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // Windows SUBST (Q:\) is great for npm cwd but Gradle's JVM often errno 3 on Q:\ paths.
 // Using the real Desktop path fixes errno 3 but Ninja hits MAX_PATH. build-mobile-apk-subst-q.cmd
-// creates a short junction (e.g. C:\mgops-m -> ...\mobile) and sets OPS_MOBILE_JUNCTION_ROOT
+// creates a short junction (e.g. C:\nexa-m -> ...\mobile) and sets OPS_MOBILE_JUNCTION_ROOT
 // so Gradle + native codegen see short paths on a normal drive letter.
 const mobileJunction = process.env.OPS_MOBILE_JUNCTION_ROOT
 const repoRoot = process.env.OPS_DASHBOARD_REPO_ROOT

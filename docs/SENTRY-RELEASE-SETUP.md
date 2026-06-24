@@ -36,7 +36,7 @@ In [expo.dev](https://expo.dev) → your project → **Environment variables** (
 |----------|---------|--------|
 | `EXPO_PUBLIC_SENTRY_DSN` | *(from Sentry RN project)* | Required for native client reporting |
 | `EXPO_PUBLIC_SENTRY_ENVIRONMENT` | `production` | Optional |
-| `EXPO_PUBLIC_SENTRY_RELEASE` | `nexa-mg@<eas-build-id>` | Optional; helps match Issues to a binary |
+| `EXPO_PUBLIC_SENTRY_RELEASE` | `nexa@<eas-build-id>` | Optional; helps match Issues to a binary |
 | `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | `0` | Optional; default `0` |
 
 Changing these for **native** builds requires a **new EAS build** (not only OTA) when values must appear in the compiled bundle.

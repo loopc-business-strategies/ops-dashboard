@@ -24,7 +24,7 @@ CI cannot substitute for voucher print / JV FX validation on live tenants.
 - [ ] Re-clicking **Account Summary** in the sidebar while viewing an account does **not** strip `account` / `view` from the URL.
 - [ ] Overview KPI / department links update the URL (`?tab=…`) and support open in new tab.
 - [ ] Account autocomplete dropdown entries open in new tab with the correct account code in the URL.
-- [ ] **Mobile (MG):** `mgops://dashboard?tab=erp-enquiry&account=…` opens ERP with account summary card; notification tap on account balance opens enquiry with account code.
+- [ ] **Mobile (MG):** `nexaops://dashboard?tab=erp-enquiry&account=…` opens ERP with account summary card; notification tap on account balance opens enquiry with account code. Legacy `mgops://` links should still open during migration.
 
 ## Account enquiry
 

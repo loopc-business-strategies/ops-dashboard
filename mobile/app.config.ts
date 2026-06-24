@@ -10,7 +10,7 @@ const PORTAL_HOSTS = ['mg.loopcstrategies.com', 'cg.loopcstrategies.com', 'loopc
 
 const config: ExpoConfig = {
   name: APP_NAME,
-  slug: 'nexa-mg',
+  slug: 'nexa',
   version: APP_VERSION,
   orientation: 'portrait',
   icon: './assets/images/icon.png',

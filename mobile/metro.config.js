@@ -1,4 +1,4 @@
-// When the repo is built via SUBST (Q:\) + junction (C:\mgops-m), Metro may resolve
+// When the repo is built via SUBST (Q:\) + junction (C:\nexa-m), Metro may resolve
 // dependencies to the canonical path under Desktop. Those paths must be watched or
 // bundling fails with "Failed to get the SHA-1" (see scripts/build-mobile-apk-subst-q.cmd).
 const fs = require('fs')

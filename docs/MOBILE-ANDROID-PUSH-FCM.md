@@ -10,7 +10,7 @@ Web push and in-app Socket notifications are unaffected.
 |------|--------|
 | `EXPO_ACCESS_TOKEN` | Railway → `ops-dashboard` service (verify: `GET /api/ready` → `expoPushAccessTokenSet: true`) |
 | EAS project ID | `mobile/app.config.ts` → `extra.eas.projectId` (`f049f1a3-d499-416b-97af-e082bca658fa`) |
-| Android package | `com.loopc.mg.ops` (native [`mobile/android/app/build.gradle`](../mobile/android/app/build.gradle); matches Expo Credentials) |
+| Android package | `com.loopc.nexa` (native [`mobile/android/app/build.gradle`](../mobile/android/app/build.gradle); matches Expo Credentials) |
 
 ## Firebase display name checklist (manual)
 
@@ -18,15 +18,15 @@ App name **Nexa** is separate from the package ID. In [Firebase Console](https:/
 
 1. **Project settings** → **Project name** → **Nexa**
 2. **Your apps** → Android app → **App nickname** → **Nexa**
-3. Package **`com.loopc.mg.ops`** can stay (does not change the visible app name)
+3. Package should be **`com.loopc.nexa`** for new Android release builds
 
 ## Step 1 — Firebase project
 
 1. Open [Firebase Console](https://console.firebase.google.com/).
 2. Create or select a project (display name **Nexa**; Firebase project ID may remain `mg-ops-push`).
 3. Complete the checklist above if the console still shows “Nexa MG”.
-4. **Add app** → **Android** (skip if `com.loopc.mg.ops` is already registered).
-5. **Android package name:** `com.loopc.mg.ops` (must match native `applicationId` in `build.gradle`).
+4. **Add app** → **Android** (skip if `com.loopc.nexa` is already registered).
+5. **Android package name:** `com.loopc.nexa` (must match native `applicationId` in `build.gradle`).
 6. Download **`google-services.json`**.
 7. Place it at:
 
@@ -41,7 +41,7 @@ App name **Nexa** is separate from the package ID. In [Firebase Console](https:/
 
 Expo’s push service delivers to Android via FCM credentials stored on your Expo account.
 
-1. Sign in at [expo.dev](https://expo.dev) → project **nexa-mg** (display name **Nexa**; slug unchanged; project ID above). Optionally rename the project display name under Expo project settings.
+1. Sign in at [expo.dev](https://expo.dev) → project **Nexa** (project ID above).
 2. Open **Project settings** → **Credentials** → **Android** → **Push Notifications**.
 3. Upload **FCM V1 service account key** (Firebase → Project settings → Service accounts → Generate new private key JSON), **or** follow Expo’s wizard for **FCM legacy** if prompted.
 4. The Expo account must match the one used for `EXPO_ACCESS_TOKEN` on Railway.

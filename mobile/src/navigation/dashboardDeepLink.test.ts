@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { buildMgopsDashboardHref, parseIncomingDeepLink } from './dashboardDeepLink'
+import { buildMgopsDashboardHref, buildNexaDashboardHref, parseIncomingDeepLink } from './dashboardDeepLink'
 
 describe('dashboardDeepLink', () => {
-  it('parses web-parity enquiry URL', () => {
+  it('parses nexaops web-parity enquiry URL', () => {
+    expect(parseIncomingDeepLink('nexaops://dashboard?tab=erp-enquiry&account=1000&view=statement')).toEqual({
+      screen: 'erp',
+      erpSubTab: 'enquiry',
+      account: '1000',
+      view: 'statement',
+    })
+  })
+
+  it('keeps parsing legacy mgops links during migration', () => {
     expect(parseIncomingDeepLink('mgops://dashboard?tab=erp-enquiry&account=1000&view=statement')).toEqual({
       screen: 'erp',
       erpSubTab: 'enquiry',
@@ -25,13 +34,18 @@ describe('dashboardDeepLink', () => {
   })
 
   it('parses transactions tab deep link', () => {
-    expect(parseIncomingDeepLink('mgops://dashboard?tab=erp-transactions')).toEqual({
+    expect(parseIncomingDeepLink('nexaops://dashboard?tab=erp-transactions')).toEqual({
       screen: 'transactions',
     })
   })
 
-  it('builds mgops enquiry href', () => {
+  it('builds nexaops enquiry href', () => {
+    expect(buildNexaDashboardHref({ account: '1000', view: 'statement' }))
+      .toBe('nexaops://dashboard?tab=erp-enquiry&account=1000&view=statement')
+  })
+
+  it('keeps legacy helper export as alias to new nexaops href', () => {
     expect(buildMgopsDashboardHref({ account: '1000', view: 'statement' }))
-      .toBe('mgops://dashboard?tab=erp-enquiry&account=1000&view=statement')
+      .toBe('nexaops://dashboard?tab=erp-enquiry&account=1000&view=statement')
   })
 })

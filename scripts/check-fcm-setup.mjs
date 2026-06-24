@@ -14,7 +14,7 @@ if (fs.existsSync(target)) {
 }
 
 console.error('✗ google-services.json missing — background push on release APK will not work.')
-console.error('  Copy from Firebase Console → Android app com.loopc.mg.ops')
+console.error('  Copy from Firebase Console → Android app com.loopc.nexa')
 console.error(`  Example structure: ${path.relative(root, example)}`)
 console.error('  See docs/MOBILE-ANDROID-PUSH-FCM.md')
 process.exit(1)

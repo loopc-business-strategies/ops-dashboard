@@ -1,4 +1,4 @@
-package com.loopc.mg.ops
+package com.loopc.nexa
 
 import android.app.Application
 import android.content.res.Configuration
