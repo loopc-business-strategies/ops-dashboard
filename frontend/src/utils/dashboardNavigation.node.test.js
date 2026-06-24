@@ -47,6 +47,14 @@ describe('dashboardNavigation', () => {
     expect(parseDashboardUrl('', superAdmin).activeTab).toBe('overview')
   })
 
+  test('parseDashboardUrl preserves ERP sub-tab before user session is loaded', () => {
+    expect(parseDashboardUrl('?tab=erp-enquiry&account=1000&view=statement', null)).toEqual({
+      activeTab: 'erp',
+      erpSubTab: 'enquiry',
+      moduleSubTab: null,
+    })
+  })
+
   test('dashboardSearchFromState omits sub for ERP tabs', () => {
     const params = dashboardSearchFromState({
       activeTab: 'erp',

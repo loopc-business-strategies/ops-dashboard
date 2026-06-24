@@ -1,4 +1,4 @@
-import { resolveAllowedErpSubTab } from './erpSubTabPermissions'
+import { ERP_SUB_TABS, resolveAllowedErpSubTab } from './erpSubTabPermissions'
 
 export const DASHBOARD_PATH = '/dashboard'
 
@@ -128,9 +128,12 @@ export function parseDashboardUrl(search, user) {
 
   if (tabParam.startsWith('erp-')) {
     const requested = tabParam.replace(/^erp-/, '')
+    const erpSubTab = user
+      ? resolveAllowedErpSubTab(user, requested, 'dashboard')
+      : (ERP_SUB_TABS.includes(requested) ? requested : 'dashboard')
     return {
       activeTab: 'erp',
-      erpSubTab: resolveAllowedErpSubTab(user, requested, 'dashboard'),
+      erpSubTab,
       moduleSubTab: null,
     }
   }
