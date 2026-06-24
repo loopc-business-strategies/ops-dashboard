@@ -22,5 +22,5 @@ export async function loginLive(page, config = getLiveAuthConfig()) {
   await page.getByPlaceholder('Enter your username').fill(name)
   await page.getByPlaceholder('Enter your password').fill(password)
   await page.getByRole('button', { name: /sign in/i }).click()
-  await page.waitForURL(/\/dashboard/, { timeout: 30_000 })
+  await page.waitForURL(/\/dashboard/, { timeout: 30_000, waitUntil: 'commit' })
 }
