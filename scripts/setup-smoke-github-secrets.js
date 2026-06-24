@@ -5,12 +5,14 @@
  * in GitHub Actions secrets for post-deploy smoke tests.
  *
  * Requires:
- *   - backend/.env with MONGO_URI_MG, MONGO_URI_CG, MONGO_URI_LOOPC
+ *   - MONGO_URI_MG, MONGO_URI_CG, MONGO_URI_LOOPC (backend/.env or workflow env)
  *   - gh authenticated (GH_TOKEN or gh auth login) with repo admin access
  *
  * Usage:
  *   node scripts/setup-smoke-github-secrets.js
+ *   node scripts/setup-smoke-github-secrets.js --staging
  *   node scripts/setup-smoke-github-secrets.js --verify-only
+ *   node scripts/setup-smoke-github-secrets.js --staging --users-only --skip-verify
  */
 
 const { spawnSync } = require('node:child_process')
@@ -19,6 +21,7 @@ const path = require('node:path')
 
 const rootDir = path.resolve(__dirname, '..')
 const backendDir = path.join(rootDir, 'backend')
+const isStaging = process.argv.includes('--staging')
 
 require(path.join(backendDir, 'node_modules', 'dotenv')).config({
   path: path.join(backendDir, '.env'),
@@ -26,8 +29,21 @@ require(path.join(backendDir, 'node_modules', 'dotenv')).config({
 
 const TENANTS = ['mg', 'cg', 'loopc']
 const REPO = process.env.GITHUB_REPOSITORY || 'loopc-business-strategies/ops-dashboard'
-const SMOKE_USER_NAME = String(process.env.SMOKE_AUTH_NAME || 'ops-smoke-probe').trim()
-const API_BASE = (process.env.SMOKE_API_BASE || 'https://api.loopcstrategies.com').replace(/\/$/, '')
+const SECRET_PREFIX = isStaging ? 'STAGING_SMOKE_' : 'SMOKE_'
+const DEFAULT_USER_NAME = isStaging ? 'ops-staging-smoke-probe' : 'ops-smoke-probe'
+const DEFAULT_API_BASE = isStaging
+  ? 'https://ops-dashboard-staging-e6c6.up.railway.app'
+  : 'https://api.loopcstrategies.com'
+const SMOKE_USER_NAME = String(
+  process.env.SMOKE_AUTH_NAME
+  || process.env[`${SECRET_PREFIX}AUTH_NAME`]
+  || DEFAULT_USER_NAME,
+).trim()
+const API_BASE = (
+  process.env.SMOKE_API_BASE
+  || process.env.STAGING_SMOKE_API_BASE
+  || DEFAULT_API_BASE
+).replace(/\/$/, '')
 const verifyOnly = process.argv.includes('--verify-only')
 
 const { connectTenant, closeAllTenantConnections } = require(path.join(backendDir, 'db', 'tenantConnections'))
@@ -68,7 +84,9 @@ async function upsertSmokeUser(tenant, password) {
       role: 'management',
       department: 'management',
       isActive: true,
-      notes: 'Automated post-deploy smoke probe (read-only ERP access).',
+      notes: isStaging
+        ? 'Automated staging smoke probe (read-only ERP access).'
+        : 'Automated post-deploy smoke probe (read-only ERP access).',
     })
     return { tenant, action: 'created', id: String(user._id) }
   }
@@ -94,7 +112,7 @@ async function fetchWithTimeout(url, options = {}) {
   }
 }
 
-async function verifyProductionLogin(tenant, password) {
+async function verifySmokeLogin(tenant, password) {
   const response = await fetchWithTimeout(`${API_BASE}/api/auth/login`, {
     method: 'POST',
     headers: {
@@ -134,19 +152,24 @@ async function verifyProductionLogin(tenant, password) {
 }
 
 function setGithubSecrets(password) {
-  runGh(['secret', 'set', 'SMOKE_AUTH_NAME', '-R', REPO], `${SMOKE_USER_NAME}\n`)
-  runGh(['secret', 'set', 'SMOKE_AUTH_PASSWORD', '-R', REPO], `${password}\n`)
+  runGh(['secret', 'set', `${SECRET_PREFIX}AUTH_NAME`, '-R', REPO], `${SMOKE_USER_NAME}\n`)
+  runGh(['secret', 'set', `${SECRET_PREFIX}AUTH_PASSWORD`, '-R', REPO], `${password}\n`)
 
   for (const tenant of TENANTS) {
-    runGh(['secret', 'set', `SMOKE_AUTH_NAME_${tenant.toUpperCase()}`, '-R', REPO], `${SMOKE_USER_NAME}\n`)
-    runGh(['secret', 'set', `SMOKE_AUTH_PASSWORD_${tenant.toUpperCase()}`, '-R', REPO], `${password}\n`)
+    runGh(['secret', 'set', `${SECRET_PREFIX}AUTH_NAME_${tenant.toUpperCase()}`, '-R', REPO], `${SMOKE_USER_NAME}\n`)
+    runGh(['secret', 'set', `${SECRET_PREFIX}AUTH_PASSWORD_${tenant.toUpperCase()}`, '-R', REPO], `${password}\n`)
+  }
+
+  if (isStaging) {
+    runGh(['variable', 'set', 'STAGING_SMOKE_REQUIRE_AUTH', '-R', REPO], 'true\n')
   }
 }
 
 async function main() {
   const usersOnly = process.argv.includes('--users-only')
   const secretsOnly = process.argv.includes('--secrets-only')
-  const skipProductionVerify = process.argv.includes('--skip-production-verify')
+  const skipVerify = process.argv.includes('--skip-verify')
+    || process.argv.includes('--skip-production-verify')
 
   if (!usersOnly && !process.env.GH_TOKEN && spawnSync('gh', ['auth', 'status'], { encoding: 'utf8', shell: true }).status !== 0) {
     throw new Error('GitHub CLI is not authenticated. Run gh auth login or set GH_TOKEN.')
@@ -159,21 +182,25 @@ async function main() {
     }
   }
 
+  const passwordSecretName = `${SECRET_PREFIX}AUTH_PASSWORD`
+
   if (!usersOnly) {
     const existingSecrets = runGh(['secret', 'list', '-R', REPO])
-    const hasSharedPassword = /\bSMOKE_AUTH_PASSWORD\b/m.test(existingSecrets)
+    const hasSharedPassword = new RegExp(`\\b${passwordSecretName}\\b`, 'm').test(existingSecrets)
 
     if (verifyOnly) {
       if (!hasSharedPassword) {
-        throw new Error('SMOKE_AUTH_PASSWORD secret is not configured yet.')
+        throw new Error(`${passwordSecretName} secret is not configured yet.`)
       }
-      console.log('GitHub smoke secrets are present.')
+      console.log(`${isStaging ? 'Staging' : 'Production'} smoke secrets are present.`)
       return
     }
 
     if (secretsOnly || !hasSharedPassword) {
-      const password = process.env.SMOKE_AUTH_PASSWORD?.trim() || generatePassword()
-      console.log(`Setting GitHub secrets on ${REPO}...`)
+      const password = process.env.SMOKE_AUTH_PASSWORD?.trim()
+        || process.env[`${SECRET_PREFIX}AUTH_PASSWORD`]?.trim()
+        || generatePassword()
+      console.log(`Setting GitHub secrets on ${REPO} (${isStaging ? 'staging' : 'production'})...`)
       setGithubSecrets(password)
       console.log('GitHub smoke auth secrets configured.')
       if (secretsOnly) return
@@ -181,26 +208,30 @@ async function main() {
     }
   }
 
-  const password = String(process.env.SMOKE_AUTH_PASSWORD || '').trim()
+  const password = String(
+    process.env.SMOKE_AUTH_PASSWORD
+    || process.env[`${SECRET_PREFIX}AUTH_PASSWORD`]
+    || '',
+  ).trim()
   if (!password) {
-    throw new Error('SMOKE_AUTH_PASSWORD is required to provision tenant users.')
+    throw new Error(`${passwordSecretName} is required to provision tenant users.`)
   }
 
-  console.log(`Provisioning smoke user "${SMOKE_USER_NAME}" in mg/cg/loopc...`)
+  console.log(`Provisioning ${isStaging ? 'staging' : 'production'} smoke user "${SMOKE_USER_NAME}" in mg/cg/loopc...`)
   for (const tenant of TENANTS) {
     const result = await upsertSmokeUser(tenant, password)
     console.log(`  ${result.tenant.toUpperCase()}: ${result.action} (${result.id})`)
   }
 
-  if (skipProductionVerify) {
-    console.log('Skipping production login/ERP verification (--skip-production-verify).')
+  if (skipVerify) {
+    console.log('Skipping login/ERP verification (--skip-verify).')
     console.log('Smoke credential provisioning complete.')
     return
   }
 
-  console.log(`Verifying production login + ERP read against ${API_BASE}...`)
+  console.log(`Verifying login + ERP read against ${API_BASE}...`)
   for (const tenant of TENANTS) {
-    const detail = await verifyProductionLogin(tenant, password)
+    const detail = await verifySmokeLogin(tenant, password)
     console.log(`  ${detail}`)
   }
 

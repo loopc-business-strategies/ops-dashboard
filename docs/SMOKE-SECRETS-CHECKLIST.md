@@ -52,6 +52,7 @@ Use separate staging variables/secrets for [`.github/workflows/staging-smoke.yml
 | `STAGING_SMOKE_BASE_DOMAIN` / `STAGING_SMOKE_VERCEL_HOSTS` | Staging frontend hosts |
 | `STAGING_SMOKE_SKIP_FRONTEND` | Set `true` for API-only checks before staging Vercel is connected |
 | `STAGING_SMOKE_VERCEL_BYPASS` | Vercel Protection Bypass for Automation secret (required when frontend smoke targets `*.vercel.app`) |
+| `STAGING_MONGO_URI_MG` / `STAGING_MONGO_URI_CG` / `STAGING_MONGO_URI_LOOPC` | Staging DB URIs for [provision-staging-smoke-credentials.yml](../.github/workflows/provision-staging-smoke-credentials.yml) |
 | `STAGING_SMOKE_AUTH_NAME*` / `STAGING_SMOKE_AUTH_PASSWORD*` | Staging-only smoke users |
 
 Local staging run:
