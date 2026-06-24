@@ -48,6 +48,7 @@
     "smoke:erp-acceptance": "node scripts/erp-acceptance-automated.mjs",
     "check:fcm": "node scripts/check-fcm-setup.mjs",
     "smoke:prod": "node scripts/production-smoke.js",
+    "smoke:staging": "node scripts/staging-smoke.js",
     "smoke:erp-fix:prod": "node scripts/verify-erp-fix-production.mjs",
     "smoke:setup-secrets": "node scripts/setup-smoke-github-secrets.js",
     "load:smoke": "node scripts/http-load-smoke.mjs",

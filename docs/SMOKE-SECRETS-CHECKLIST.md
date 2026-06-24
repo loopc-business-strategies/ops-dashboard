@@ -42,4 +42,26 @@ npm run smoke:tenants
 npm run smoke:prod
 ```
 
+## Staging smoke
+
+Use separate staging variables/secrets for [`.github/workflows/staging-smoke.yml`](../.github/workflows/staging-smoke.yml):
+
+| Variable / secret | Purpose |
+|-------------------|---------|
+| `STAGING_SMOKE_API_BASE` | Required staging API origin |
+| `STAGING_SMOKE_BASE_DOMAIN` / `STAGING_SMOKE_VERCEL_HOSTS` | Staging frontend hosts |
+| `STAGING_SMOKE_AUTH_NAME*` / `STAGING_SMOKE_AUTH_PASSWORD*` | Staging-only smoke users |
+
+Local staging run:
+
+```powershell
+$env:SMOKE_API_BASE = "https://api-staging.loopcstrategies.com"
+$env:SMOKE_BASE_DOMAIN = "staging.loopcstrategies.com"
+$env:SMOKE_AUTH_NAME_MG = "<staging-mg-user>"
+$env:SMOKE_AUTH_PASSWORD_MG = "<staging-mg-password>"
+npm run smoke:staging
+```
+
+The staging smoke command blocks production `loopcstrategies.com` targets by default to avoid accidentally validating staging against production.
+
 See also [`ENV-VARS-QUICK-REFERENCE.md`](../ENV-VARS-QUICK-REFERENCE.md).

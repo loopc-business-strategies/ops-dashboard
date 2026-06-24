@@ -1,0 +1,58 @@
+name: Staging Smoke
+
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+    inputs:
+      wait_seconds:
+        description: Seconds to wait before running smoke checks
+        required: false
+        default: '60'
+
+concurrency:
+  group: staging-smoke-${{ github.ref_name || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  staging-smoke:
+    name: Smoke staging mg/cg/loopc
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SMOKE_BASE_DOMAIN: ${{ vars.STAGING_SMOKE_BASE_DOMAIN }}
+      SMOKE_API_BASE: ${{ vars.STAGING_SMOKE_API_BASE }}
+      SMOKE_VERCEL_HOSTS: ${{ vars.STAGING_SMOKE_VERCEL_HOSTS }}
+      SMOKE_RAILWAY_READINESS_URL: ${{ vars.STAGING_SMOKE_RAILWAY_READINESS_URL }}
+      SMOKE_WAIT_SECONDS: ${{ vars.STAGING_SMOKE_WAIT_SECONDS || '60' }}
+      SMOKE_REQUIRE_AUTH: ${{ vars.STAGING_SMOKE_REQUIRE_AUTH || 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Wait for staging deploy propagation
+        run: |
+          WAIT_SECONDS="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.wait_seconds || env.SMOKE_WAIT_SECONDS }}"
+          echo "Waiting ${WAIT_SECONDS}s for staging deploy propagation..."
+          sleep "${WAIT_SECONDS}"
+
+      - name: Run staging smoke
+        env:
+          SMOKE_AUTH_NAME: ${{ secrets.STAGING_SMOKE_AUTH_NAME }}
+          SMOKE_AUTH_PASSWORD: ${{ secrets.STAGING_SMOKE_AUTH_PASSWORD }}
+          SMOKE_AUTH_TOKEN: ${{ secrets.STAGING_SMOKE_AUTH_TOKEN }}
+          SMOKE_SESSION_COOKIE: ${{ secrets.STAGING_SMOKE_SESSION_COOKIE }}
+          SMOKE_AUTH_NAME_MG: ${{ secrets.STAGING_SMOKE_AUTH_NAME_MG }}
+          SMOKE_AUTH_PASSWORD_MG: ${{ secrets.STAGING_SMOKE_AUTH_PASSWORD_MG }}
+          SMOKE_AUTH_NAME_CG: ${{ secrets.STAGING_SMOKE_AUTH_NAME_CG }}
+          SMOKE_AUTH_PASSWORD_CG: ${{ secrets.STAGING_SMOKE_AUTH_PASSWORD_CG }}
+          SMOKE_AUTH_NAME_LOOPC: ${{ secrets.STAGING_SMOKE_AUTH_NAME_LOOPC }}
+          SMOKE_AUTH_PASSWORD_LOOPC: ${{ secrets.STAGING_SMOKE_AUTH_PASSWORD_LOOPC }}
+        run: npm run smoke:staging

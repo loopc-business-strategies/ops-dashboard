@@ -49,14 +49,54 @@ Goal: a **second** full stack that mirrors production **URLs and secrets shape**
 
 - **Naming:** Prefix staging secrets in your password manager (`STAGING_RAILWAY_JWT`, etc.).
 - **Rotation:** Rotate staging JWT and DB passwords on a looser schedule than prod; still never commit `.env`.
-- **CI:** GitHub Actions can target staging smoke (`SMOKE_API_BASE` pointing at staging) on a schedule or on `push` to `staging`.
+- **CI:** [`.github/workflows/staging-smoke.yml`](../.github/workflows/staging-smoke.yml) runs `npm run smoke:staging` on `push` to `staging` or manual dispatch.
 
-## 6. Smoke checklist after provisioning staging
+## 6. GitHub Actions staging smoke
+
+Configure these under **Settings → Secrets and variables → Actions** before enabling the workflow:
+
+### Repository variables
+
+| Variable | Purpose |
+|----------|---------|
+| `STAGING_SMOKE_API_BASE` | Required staging API origin, e.g. `https://api-staging.loopcstrategies.com` |
+| `STAGING_SMOKE_BASE_DOMAIN` | Staging tenant domain suffix, e.g. `staging.loopcstrategies.com` |
+| `STAGING_SMOKE_VERCEL_HOSTS` | Optional comma-separated explicit frontend hosts when staging tenants are not simple subdomains |
+| `STAGING_SMOKE_RAILWAY_READINESS_URL` | Optional explicit readiness URL; defaults to `${STAGING_SMOKE_API_BASE}/api/ready` |
+| `STAGING_SMOKE_WAIT_SECONDS` | Optional deploy propagation delay; default `60` |
+| `STAGING_SMOKE_REQUIRE_AUTH` | Default `true`; set `false` only until staging smoke users exist |
+
+### Repository secrets
+
+Use staging-only users/tokens. Do not reuse production smoke users if write tests are later added.
+
+| Secret | Purpose |
+|--------|---------|
+| `STAGING_SMOKE_AUTH_NAME` / `STAGING_SMOKE_AUTH_PASSWORD` | Shared staging login for authenticated ERP probe |
+| `STAGING_SMOKE_AUTH_NAME_MG` / `STAGING_SMOKE_AUTH_PASSWORD_MG` | Per-tenant MG override |
+| `STAGING_SMOKE_AUTH_NAME_CG` / `STAGING_SMOKE_AUTH_PASSWORD_CG` | Per-tenant CG override |
+| `STAGING_SMOKE_AUTH_NAME_LOOPC` / `STAGING_SMOKE_AUTH_PASSWORD_LOOPC` | Per-tenant LoopC override |
+| `STAGING_SMOKE_AUTH_TOKEN` | Bearer token alternative |
+| `STAGING_SMOKE_SESSION_COOKIE` | Session cookie alternative |
+
+Local reproduction:
+
+```powershell
+$env:SMOKE_API_BASE = "https://api-staging.loopcstrategies.com"
+$env:SMOKE_BASE_DOMAIN = "staging.loopcstrategies.com"
+$env:SMOKE_AUTH_NAME_MG = "<staging-mg-user>"
+$env:SMOKE_AUTH_PASSWORD_MG = "<staging-mg-password>"
+npm run smoke:staging
+```
+
+`npm run smoke:staging` refuses to run against production `loopcstrategies.com` targets unless `STAGING_SMOKE_ALLOW_PRODUCTION_TARGETS=true` is set intentionally.
+
+## 7. Smoke checklist after provisioning staging
 
 - [ ] `/api/health` and `/api/ready` on staging URL  
 - [ ] Login from staging web → session + CSRF happy path  
 - [ ] Mobile preview build or dev client → login + one API call  
-- [ ] Post-deploy smoke script (optional) with staging credentials
+- [ ] `npm run smoke:staging` with staging credentials
 
 ## See also
 

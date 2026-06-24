@@ -308,6 +308,34 @@ Names match the workflow `env` block and `scripts/production-smoke.js`:
 
 ---
 
+## GitHub Actions — Staging smoke (`staging-smoke.yml`)
+
+Use these only after provisioning separate staging Railway/Vercel/Mongo resources. `npm run smoke:staging` refuses to target production `loopcstrategies.com` hosts by default.
+
+### Repository variables
+
+| Variable | Purpose |
+|----------|---------|
+| `STAGING_SMOKE_API_BASE` | Required staging API origin, e.g. `https://api-staging.loopcstrategies.com` |
+| `STAGING_SMOKE_BASE_DOMAIN` | Staging tenant host suffix |
+| `STAGING_SMOKE_VERCEL_HOSTS` | Optional explicit staging frontend hosts, comma-separated |
+| `STAGING_SMOKE_RAILWAY_READINESS_URL` | Optional explicit readiness URL |
+| `STAGING_SMOKE_WAIT_SECONDS` | Optional deploy propagation delay |
+| `STAGING_SMOKE_REQUIRE_AUTH` | Default `true`; set `false` temporarily until staging users exist |
+
+### Repository secrets
+
+| Secret | Purpose |
+|--------|---------|
+| `STAGING_SMOKE_AUTH_NAME` / `STAGING_SMOKE_AUTH_PASSWORD` | Shared staging login |
+| `STAGING_SMOKE_AUTH_NAME_MG` / `STAGING_SMOKE_AUTH_PASSWORD_MG` | Per-tenant MG staging login |
+| `STAGING_SMOKE_AUTH_NAME_CG` / `STAGING_SMOKE_AUTH_PASSWORD_CG` | Per-tenant CG staging login |
+| `STAGING_SMOKE_AUTH_NAME_LOOPC` / `STAGING_SMOKE_AUTH_PASSWORD_LOOPC` | Per-tenant LoopC staging login |
+| `STAGING_SMOKE_AUTH_TOKEN` | Bearer token alternative |
+| `STAGING_SMOKE_SESSION_COOKIE` | Session cookie alternative |
+
+---
+
 ## DNS Records to Create
 
 **Location:** Your Domain Registrar (GoDaddy, Namecheap, Cloudflare, etc.)

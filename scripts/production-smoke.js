@@ -7,6 +7,7 @@ const VERCEL_HOSTS = (process.env.SMOKE_VERCEL_HOSTS || TENANTS.map((tenant) => 
   .split(',')
   .map((host) => host.trim())
   .filter(Boolean)
+const SMOKE_ENV_LABEL = process.env.SMOKE_ENV_LABEL || 'Production'
 const RAILWAY_READINESS_URL = process.env.SMOKE_RAILWAY_READINESS_URL || process.env.SMOKE_RAILWAY_HEALTH_URL || `${API_BASE}/api/ready`
 const SMOKE_AUTH_TOKEN = String(process.env.SMOKE_AUTH_TOKEN || '').trim()
 const SMOKE_SESSION_COOKIE = String(process.env.SMOKE_SESSION_COOKIE || '').trim()
@@ -208,7 +209,7 @@ async function verifyCsrfAuthShape(tenant) {
 }
 
 async function run() {
-  console.log('Production smoke report')
+  console.log(`${SMOKE_ENV_LABEL} smoke report`)
   console.log(`API: ${API_BASE}`)
   console.log(`Railway readiness: ${RAILWAY_READINESS_URL}`)
   console.log(`Vercel hosts: ${VERCEL_HOSTS.join(', ')}`)
@@ -236,11 +237,11 @@ async function run() {
 
   const failures = results.filter((result) => !result.ok)
   if (failures.length) {
-    console.error(`Production smoke failed: ${failures.length}/${results.length} checks failed.`)
+    console.error(`${SMOKE_ENV_LABEL} smoke failed: ${failures.length}/${results.length} checks failed.`)
     process.exit(1)
   }
 
-  console.log(`Production smoke passed: ${results.length}/${results.length} checks OK.`)
+  console.log(`${SMOKE_ENV_LABEL} smoke passed: ${results.length}/${results.length} checks OK.`)
 }
 
 run().catch((error) => {
