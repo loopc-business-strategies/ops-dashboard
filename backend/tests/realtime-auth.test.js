@@ -37,9 +37,23 @@ describe('realtime socket authentication', () => {
     else process.env.JWT_SECRET = originalJwtSecret
   })
 
-  test('extracts session token from cookie when browser-session marker is used', () => {
-    const token = 'signed-token'
-    const socket = buildSocket({ cookie: `csrfToken=abc; sessionToken=${encodeURIComponent(token)}` })
+  test('extracts tenant session cookie when browser-session marker is used', () => {
+    const token = jwt.sign({ id: userId, company: 'loopc' }, process.env.JWT_SECRET)
+    const socket = buildSocket({
+      cookie: `csrfToken=abc; sessionToken_loopc=${encodeURIComponent(token)}`,
+      tenant: 'loopc',
+    })
+
+    expect(getSocketToken(socket)).toBe(token)
+  })
+
+  test('extracts legacy session cookie when JWT tenant matches portal', () => {
+    const token = jwt.sign({ id: userId, company: 'loopc' }, process.env.JWT_SECRET)
+    const socket = buildSocket({
+      cookie: `csrfToken=abc; sessionToken=${encodeURIComponent(token)}`,
+      tenant: 'loopc',
+      host: 'loopc.loopcstrategies.com',
+    })
 
     expect(getSocketToken(socket)).toBe(token)
   })

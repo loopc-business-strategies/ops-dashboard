@@ -1,4 +1,4 @@
-import { OPS_BADGE_MAP, OPS_C as C, OPS_INPUT_STYLE as IS, OPS_TD as TD, OPS_TH as TH } from './operationsTabTokens'
+import { OPS_BADGE_MAP, OPS_C as C, OPS_INPUT_STYLE as IS } from './operationsTabTokens'
 
 export { OPS_C as C, OPS_TD as TD, OPS_TH as TH, OPS_INPUT_STYLE as IS } from './operationsTabTokens'
 export { OPS_B as B } from './operationsTabTokens'

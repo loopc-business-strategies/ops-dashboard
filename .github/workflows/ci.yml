@@ -271,6 +271,8 @@ jobs:
   frontend-e2e:
     name: Frontend E2E (Playwright)
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-jammy
     timeout-minutes: 25
     concurrency:
       group: frontend-e2e-${{ github.ref }}
@@ -293,16 +295,6 @@ jobs:
 
       - name: Sync ERP access policy
         run: npm run sync:erp-access
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
-
-      - name: Install Playwright Chromium
-        working-directory: frontend
-        run: npx playwright install --with-deps chromium
 
       - name: Run Playwright smoke tests
         working-directory: frontend
