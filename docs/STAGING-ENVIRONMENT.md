@@ -134,10 +134,29 @@ npm run smoke:staging
 
 ## 7. Smoke checklist after provisioning staging
 
-- [ ] `/api/health` and `/api/ready` on staging URL  
+- [x] `/api/health` and `/api/ready` on staging URL  
 - [ ] Login from staging web → session + CSRF happy path  
 - [ ] Mobile preview build or dev client → login + one API call  
-- [ ] `npm run smoke:staging` with staging credentials
+- [x] `npm run smoke:staging` with staging credentials
+
+## 8. Authenticated E2E (Playwright on staging preview)
+
+Workflow: [`.github/workflows/staging-e2e.yml`](../.github/workflows/staging-e2e.yml) runs on `push` to `staging` (or manual dispatch).
+
+Uses existing staging secrets (`STAGING_SMOKE_AUTH_*`, `STAGING_SMOKE_VERCEL_BYPASS`) and variables (`STAGING_SMOKE_VERCEL_HOSTS`).
+
+Local run against the Vercel preview:
+
+```powershell
+$env:PLAYWRIGHT_BASE_URL = "https://ops-dashboard-git-staging-beulah-4360s-projects.vercel.app"
+$env:PLAYWRIGHT_VERCEL_BYPASS = "<from STAGING_SMOKE_VERCEL_BYPASS secret>"
+$env:E2E_AUTH_NAME = "ops-staging-smoke-probe"
+$env:E2E_AUTH_PASSWORD = "<from STAGING_SMOKE_AUTH_PASSWORD secret>"
+$env:E2E_AUTH_COMPANY = "loopc"
+npm run test:e2e:staging
+```
+
+CI still runs mocked/local Playwright via [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) `frontend-e2e` on every push.
 
 ## See also
 

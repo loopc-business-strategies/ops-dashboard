@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test": "node ./scripts/run-vitest.mjs",
     "test:unit": "node ./scripts/run-vitest.mjs --config vitest.unit.config.js",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:staging": "playwright test e2e/staging-auth.spec.js"
   },
   "dependencies": {
     "@sentry/react": "^10.58.0",

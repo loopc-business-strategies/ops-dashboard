@@ -53,6 +53,7 @@
     "smoke:setup-secrets": "node scripts/setup-smoke-github-secrets.js",
     "load:smoke": "node scripts/http-load-smoke.mjs",
     "test:e2e": "npm --prefix frontend run test:e2e",
+    "test:e2e:staging": "npm --prefix frontend run test:e2e:staging",
     "test:backend": "npm run check:tracked-paths && npm run check:destructive-guards && npm run check:risk-guardrails && npm run check:vercel-rewrites && npm run sync:erp-access && npm --prefix backend test",
     "test:frontend": "npm run check:tracked-paths && npm run check:destructive-guards && npm run check:risk-guardrails && npm run check:vercel-rewrites && npm run sync:erp-access && npm --prefix frontend test && npm --prefix frontend run test:unit",
     "build:backend": "npm run sync:erp-access && cd backend && npm install --omit=dev",
