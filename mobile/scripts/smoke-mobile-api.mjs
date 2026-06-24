@@ -16,6 +16,7 @@
  *
  * Optional skip flags (set to 1):
  *   SMOKE_MOBILE_SKIP_ERP, SMOKE_MOBILE_SKIP_SOCKET, SMOKE_MOBILE_SKIP_PUSH
+ *   SMOKE_MOBILE_ERP_FULL — full report suite (needs finance/super_admin); default is lite probe
  *
  * Usage:  npm run smoke:api --prefix mobile
  *         npm run smoke:mobile:api   (from repo root)
@@ -47,6 +48,7 @@ const password = String(
 ).trim()
 
 const skipErp = String(process.env.SMOKE_MOBILE_SKIP_ERP || '').trim() === '1'
+const erpFull = String(process.env.SMOKE_MOBILE_ERP_FULL || '').trim() === '1'
 const skipSocket = String(process.env.SMOKE_MOBILE_SKIP_SOCKET || '').trim() === '1'
 const skipPush = String(process.env.SMOKE_MOBILE_SKIP_PUSH || '').trim() === '1'
 
@@ -150,6 +152,19 @@ async function smokeErpReportsMobile(token) {
   await getExpect(token, `${base}/api/erp-accounting/metal-rates`, 'GET metal-rates')
 }
 
+/** Smoke-probe users (management role) can read transactions but not full report suite. */
+async function smokeErpLite(token) {
+  const txData = await getExpect(
+    token,
+    `${base}/api/erp-accounting/transactions?limit=50`,
+    'GET transactions',
+  )
+  const txTotal = Number(txData?.summary?.totalCount ?? txData?.total ?? 0)
+  console.log(`Step: transactions summary.totalCount — ${txTotal}`)
+
+  await getExpect(token, `${base}/api/erp-accounting/metal-rates`, 'GET metal-rates')
+}
+
 async function smokeNotificationsSocket(token) {
   const { io } = await import('socket.io-client')
   const origin = trimApiSuffix(base)
@@ -220,6 +235,8 @@ async function main() {
   console.log(`Mobile API smoke -> ${base}`)
   console.log(`Tenant/user: ${company}/${name}`)
   if (skipErp) console.log('Note: SMOKE_MOBILE_SKIP_ERP=1 — skipping ERP report GETs')
+  else if (erpFull) console.log('Note: SMOKE_MOBILE_ERP_FULL=1 — full ERP report suite')
+  else console.log('Note: lite ERP probe (transactions + metal-rates); set SMOKE_MOBILE_ERP_FULL=1 for full reports')
   if (skipSocket) console.log('Note: SMOKE_MOBILE_SKIP_SOCKET=1 — skipping Socket.IO')
   if (skipPush) console.log('Note: SMOKE_MOBILE_SKIP_PUSH=1 — skipping push-token POST/DELETE')
 
@@ -257,16 +274,21 @@ async function main() {
   console.log('Step: messages/groups — OK')
 
   if (!skipErp) {
-    await smokeErpReportsMobile(token)
-    console.log('Step: ERP reports + metal-rates (mobile JWT) — OK')
+    if (erpFull) {
+      await smokeErpReportsMobile(token)
+      console.log('Step: ERP reports + metal-rates (mobile JWT) — OK')
 
-    const txData = await getExpect(
-      token,
-      `${base}/api/erp-accounting/transactions?limit=50`,
-      'GET transactions',
-    )
-    const txTotal = Number(txData?.summary?.totalCount ?? txData?.total ?? 0)
-    console.log(`Step: transactions summary.totalCount — ${txTotal}`)
+      const txData = await getExpect(
+        token,
+        `${base}/api/erp-accounting/transactions?limit=50`,
+        'GET transactions',
+      )
+      const txTotal = Number(txData?.summary?.totalCount ?? txData?.total ?? 0)
+      console.log(`Step: transactions summary.totalCount — ${txTotal}`)
+    } else {
+      await smokeErpLite(token)
+      console.log('Step: ERP lite (transactions + metal-rates) — OK')
+    }
   }
 
   if (!skipSocket) {
