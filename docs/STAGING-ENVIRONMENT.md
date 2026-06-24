@@ -67,6 +67,36 @@ Configure these under **Settings → Secrets and variables → Actions** before 
 | `STAGING_SMOKE_REQUIRE_AUTH` | Default `false`; set `true` after staging smoke users exist |
 | `STAGING_SMOKE_SKIP_FRONTEND` | Default `true`; set `false` after adding `STAGING_SMOKE_VERCEL_HOSTS` |
 
+### Vercel preview Deployment Protection (401 on `*.vercel.app`)
+
+Staging frontend smoke hits the Vercel **preview** URL (`STAGING_SMOKE_VERCEL_HOSTS`). If Vercel Authentication / Deployment Protection is enabled for Preview deployments, `/login` returns **401** until you either:
+
+**Option A — Protection Bypass for Automation (recommended for CI)**
+
+1. Vercel → **ops-dashboard** project → **Settings** → **Deployment Protection**
+2. Under **Protection Bypass for Automation**, click **Create** (label e.g. `GitHub staging smoke`)
+3. Copy the generated secret
+4. GitHub → repo **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+5. Name: `STAGING_SMOKE_VERCEL_BYPASS`, value: the secret from step 3
+6. Keep `STAGING_SMOKE_SKIP_FRONTEND=false` — smoke sends `x-vercel-protection-bypass` automatically
+
+Local reproduction:
+
+```powershell
+$env:SMOKE_API_BASE = "https://ops-dashboard-staging-e6c6.up.railway.app"
+$env:SMOKE_VERCEL_HOSTS = "ops-dashboard-git-staging-beulah-4360s-projects.vercel.app"
+$env:SMOKE_SKIP_FRONTEND = "false"
+$env:SMOKE_REQUIRE_AUTH = "false"
+$env:SMOKE_VERCEL_PROTECTION_BYPASS = "<vercel-bypass-secret>"
+npm run smoke:staging
+```
+
+**Option B — Disable preview protection (public staging preview)**
+
+1. Same **Deployment Protection** page
+2. Under **Vercel Authentication**, set Preview deployments to **None** (or add the preview host under **Deployment Protection Exceptions**)
+3. No bypass secret required; anyone with the preview URL can open the app
+
 ### Repository secrets
 
 Use staging-only users/tokens. Do not reuse production smoke users if write tests are later added.
@@ -79,6 +109,7 @@ Use staging-only users/tokens. Do not reuse production smoke users if write test
 | `STAGING_SMOKE_AUTH_NAME_LOOPC` / `STAGING_SMOKE_AUTH_PASSWORD_LOOPC` | Per-tenant LoopC override |
 | `STAGING_SMOKE_AUTH_TOKEN` | Bearer token alternative |
 | `STAGING_SMOKE_SESSION_COOKIE` | Session cookie alternative |
+| `STAGING_SMOKE_VERCEL_BYPASS` | Vercel Protection Bypass for Automation secret when `STAGING_SMOKE_SKIP_FRONTEND=false` |
 
 Local reproduction:
 

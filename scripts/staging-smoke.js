@@ -12,6 +12,16 @@ function splitCsv(value) {
     .filter(Boolean)
 }
 
+function isVercelPreviewHost(host) {
+  return /\.vercel\.app$/i.test(String(host || '').trim())
+}
+
+function getVercelProtectionBypass() {
+  return String(
+    process.env.SMOKE_VERCEL_PROTECTION_BYPASS || process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '',
+  ).trim()
+}
+
 function assertStagingTargets() {
   const apiBase = String(process.env.SMOKE_API_BASE || '').trim().replace(/\/$/, '')
   const baseDomain = String(process.env.SMOKE_BASE_DOMAIN || '').trim()
@@ -39,6 +49,14 @@ function assertStagingTargets() {
 
   if (!skipFrontend && !baseDomain && !vercelHosts.length) {
     throw new Error('Set SMOKE_BASE_DOMAIN or SMOKE_VERCEL_HOSTS for staging frontend checks.')
+  }
+
+  if (!skipFrontend && vercelHosts.some(isVercelPreviewHost) && !getVercelProtectionBypass()) {
+    throw new Error(
+      'Staging frontend smoke targets a *.vercel.app preview host but SMOKE_VERCEL_PROTECTION_BYPASS is not set. '
+      + 'In Vercel: Project → Settings → Deployment Protection → Protection Bypass for Automation → Create, '
+      + 'then add the secret to GitHub as STAGING_SMOKE_VERCEL_BYPASS (or export SMOKE_VERCEL_PROTECTION_BYPASS locally).',
+    )
   }
 }
 

@@ -14,8 +14,20 @@ const SMOKE_AUTH_TOKEN = String(process.env.SMOKE_AUTH_TOKEN || '').trim()
 const SMOKE_SESSION_COOKIE = String(process.env.SMOKE_SESSION_COOKIE || '').trim()
 const SMOKE_AUTH_NAME = String(process.env.SMOKE_AUTH_NAME || '').trim()
 const SMOKE_AUTH_PASSWORD = String(process.env.SMOKE_AUTH_PASSWORD || '').trim()
+const SMOKE_VERCEL_PROTECTION_BYPASS = String(
+  process.env.SMOKE_VERCEL_PROTECTION_BYPASS || process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '',
+).trim()
 const smokeAuthExplicit = String(process.env.SMOKE_REQUIRE_AUTH || '').trim().toLowerCase()
 const SMOKE_REQUIRE_AUTH = smokeAuthExplicit !== 'false'
+
+function vercelProtectionHeaders() {
+  if (!SMOKE_VERCEL_PROTECTION_BYPASS) return {}
+  return { 'x-vercel-protection-bypass': SMOKE_VERCEL_PROTECTION_BYPASS }
+}
+
+function isVercelPreviewHost(host) {
+  return /\.vercel\.app$/i.test(String(host || '').trim())
+}
 
 function assertSmokeAuthConfigured() {
   if (!SMOKE_REQUIRE_AUTH) return
@@ -57,10 +69,17 @@ async function check(name, fn) {
 
 async function verifyPortalHost(host) {
   const url = `https://${host}/login`
-  const response = await fetchWithTimeout(url)
+  const response = await fetchWithTimeout(url, { headers: vercelProtectionHeaders() })
   const body = await response.text()
   const hasAppShell = /id="root"/i.test(body) || /<title>\s*Ops Dashboard\s*<\/title>/i.test(body)
   if (!response.ok || !hasAppShell) {
+    if (response.status === 401 && isVercelPreviewHost(host) && !SMOKE_VERCEL_PROTECTION_BYPASS) {
+      throw new Error(
+        `${url} returned 401 — Vercel Deployment Protection is enabled for preview deployments. `
+        + 'Create a Protection Bypass for Automation secret in Vercel (Project → Settings → Deployment Protection) '
+        + 'and set SMOKE_VERCEL_PROTECTION_BYPASS, or disable preview protection for this project.',
+      )
+    }
     throw new Error(`${url} returned ${response.status} without app shell`)
   }
   return `${response.status} ${url}`
@@ -214,6 +233,9 @@ async function run() {
   console.log(`API: ${API_BASE}`)
   console.log(`Railway readiness: ${RAILWAY_READINESS_URL}`)
   console.log(`Vercel hosts: ${SMOKE_SKIP_FRONTEND ? 'skipped' : VERCEL_HOSTS.join(', ')}`)
+  if (!SMOKE_SKIP_FRONTEND && VERCEL_HOSTS.some(isVercelPreviewHost)) {
+    console.log(`Vercel preview bypass: ${SMOKE_VERCEL_PROTECTION_BYPASS ? 'configured' : 'missing'}`)
+  }
   console.log(`ERP auth required: ${SMOKE_REQUIRE_AUTH ? 'yes' : 'no'}`)
 
   assertSmokeAuthConfigured()

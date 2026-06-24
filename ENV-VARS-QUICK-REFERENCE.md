@@ -328,6 +328,7 @@ Use these only after provisioning separate staging Railway/Vercel/Mongo resource
 
 | Secret | Purpose |
 |--------|---------|
+| `STAGING_SMOKE_VERCEL_BYPASS` | Vercel Protection Bypass for Automation secret for preview frontend smoke |
 | `STAGING_SMOKE_AUTH_NAME` / `STAGING_SMOKE_AUTH_PASSWORD` | Shared staging login |
 | `STAGING_SMOKE_AUTH_NAME_MG` / `STAGING_SMOKE_AUTH_PASSWORD_MG` | Per-tenant MG staging login |
 | `STAGING_SMOKE_AUTH_NAME_CG` / `STAGING_SMOKE_AUTH_PASSWORD_CG` | Per-tenant CG staging login |

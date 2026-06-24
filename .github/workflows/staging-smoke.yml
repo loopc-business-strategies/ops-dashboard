@@ -46,6 +46,7 @@ jobs:
 
       - name: Run staging smoke
         env:
+          SMOKE_VERCEL_PROTECTION_BYPASS: ${{ secrets.STAGING_SMOKE_VERCEL_BYPASS }}
           SMOKE_AUTH_NAME: ${{ secrets.STAGING_SMOKE_AUTH_NAME }}
           SMOKE_AUTH_PASSWORD: ${{ secrets.STAGING_SMOKE_AUTH_PASSWORD }}
           SMOKE_AUTH_TOKEN: ${{ secrets.STAGING_SMOKE_AUTH_TOKEN }}
