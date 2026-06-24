@@ -73,6 +73,9 @@ import { useErpCustomers } from './erp/useErpCustomers'
 import { useErpMappings } from './erp/useErpMappings'
 import { useErpCurrencies } from './erp/useErpCurrencies'
 import { useErpCustomerMargin, useErpSupplierMargin, useErpMarginContextMenuDismissal } from './erp/useErpMarginTabs'
+import { useErpReportsController } from './erp/useErpReportsController'
+import { useErpTransactionWorkflow } from './erp/useErpTransactionWorkflow'
+import { useErpVoucherSource } from './erp/useErpVoucherSource'
 
 import { trialBalanceRowsForView } from './erp/trialBalanceReportRows'
 import { startERPRealtimeFeeds } from '../../utils/realtimeSocket'
@@ -116,8 +119,6 @@ import { exchangeRateFromUnitsPerBase, resolveCurrencyRowByCode } from './erp/er
 import StatementExportOptionsModal from './erp/StatementExportOptionsModal'
 
 const JV_MODAL_DEFAULT_SIZE = Object.freeze({ width: 980, height: 640 })
-const REPORT_REQUEST_DEBOUNCE_MS = 250
-const REPORT_RATE_LIMIT_COOLDOWN_MS = 60_000
 
 const ChartOfAccountsTree = lazy(() => import('./ChartOfAccountsTree'))
 const DirectDealsTab = lazy(() => import('./DirectDealsTab'))
@@ -229,7 +230,6 @@ function ERPTab({
   )
   const [transactionsLoading, setTransactionsLoading] = useState(false)
   const [_ledgerLoading, setLedgerLoading] = useState(false)
-  const [reportsLoading, setReportsLoading] = useState(false)
   const [_accountsLoading, setAccountsLoading] = useState(false)
   const [_customersLoading, setCustomersLoading] = useState(false)
   const [_mappingsLoading, setMappingsLoading] = useState(false)
@@ -359,40 +359,6 @@ function ERPTab({
   const [stockMovements, setStockMovements] = useState([])
   const [stockMovementsLoading, setStockMovementsLoading] = useState(false)
   const [stockMovementsFilter, setStockMovementsFilter] = useState('')
-  const [reports, setReports] = useState({
-    trialBalance: null,
-    profitLoss: null,
-    balanceSheet: null,
-    dayBook: null,
-    customerOutstanding: null,
-    vendorOutstanding: null,
-    forex: null,
-  })
-  const [reportView, setReportView] = useState('summary')
-  const [reportFilters, setReportFilters] = useState({
-    period: 'ytd',
-    startDate: '',
-    endDate: '',
-    accountType: '',
-    includeZeroAccounts: false,
-    sortBy: 'accountCode',
-    sortDir: 'asc',
-    comparePrevious: true,
-    referenceType: '',
-    minAmount: '',
-    search: '',
-  })
-  const [selectedReportAccountId, setSelectedReportAccountId] = useState('')
-  const [selectedReportAccountCode, setSelectedReportAccountCode] = useState('')
-  const [ledgerReportRows, setLedgerReportRows] = useState([])
-  const reportRequestRef = useRef({ key: '', promise: null })
-  const ledgerRequestRef = useRef({ key: '', promise: null })
-  const reportEffectTimerRef = useRef(null)
-  const reportCooldownUntilRef = useRef(0)
-  const reportLoadSeqRef = useRef(0)
-  const ledgerLoadSeqRef = useRef(0)
-  const [voucherSource, setVoucherSource] = useState(null)
-  const [voucherSourceLoading, setVoucherSourceLoading] = useState(false)
   const [selectedTransactionId, setSelectedTransactionId] = useState('')
   const [brandingProfiles, setBrandingProfiles] = useState(DEFAULT_BRANDING_PROFILES)
   const [selectedBrandingKey, setSelectedBrandingKey] = useState(DEFAULT_BRANDING.key)
@@ -403,10 +369,6 @@ function ERPTab({
   const [transactionSummary, setTransactionSummary] = useState({ totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
   const [ledgerMeta, setLedgerMeta] = useState({ cursor: null, nextCursor: null, hasMore: false, cursorHistory: [] })
   const [transactionMeta, setTransactionMeta] = useState({ page: 1, limit: 25, total: 0, cursor: null, nextCursor: null, hasMore: false, cursorHistory: [] })
-  const [selectedTransactionIds, setSelectedTransactionIds] = useState([])
-  const [transactionWorkflowNote, setTransactionWorkflowNote] = useState('')
-  const [transactionCommentDraft, setTransactionCommentDraft] = useState('')
-  const [transactionAttachmentInputKey, setTransactionAttachmentInputKey] = useState(0)
   const [vendorForm, setVendorForm] = useState({
     vendorCode: '',
     name: '',
@@ -843,7 +805,6 @@ function ERPTab({
   } = useAccountEnquiryModalDrag(showEnquiryModal)
 
   const transactionPageCount = Math.max(1, Math.ceil(Number(transactionMeta.total || 0) / Number(transactionMeta.limit || 25)))
-  const allVisibleTransactionsSelected = Boolean(transactions.length) && transactions.every((tx) => selectedTransactionIds.includes(tx._id))
   const {
     fixingRegPanelOffset,
     fixingRegPanelDrag,
@@ -1134,6 +1095,41 @@ function ERPTab({
       setError(e.response?.data?.message || 'Failed to load report branding')
     }
   }
+  const {
+    reports,
+    reportsLoading,
+    reportView,
+    setReportView,
+    reportFilters,
+    setReportFilters,
+    selectedReportAccountId,
+    setSelectedReportAccountId,
+    selectedReportAccountCode,
+    setSelectedReportAccountCode,
+    ledgerReportRows,
+    handleTrialAccountDrilldown,
+    handleReportAccountDrilldown,
+  } = useErpReportsController({
+    token,
+    activeTab,
+    canAccessERP,
+    canAccessReports,
+    accounts,
+    loadAccounts,
+    loadReportBranding,
+    setError,
+    api: erpAccountingAPI,
+  })
+  const {
+    voucherSource,
+    setVoucherSource,
+    voucherSourceLoading,
+    handleOpenVoucherSource,
+  } = useErpVoucherSource({
+    token,
+    setError,
+    api: erpAccountingAPI,
+  })
   const loadAllVendors = async (baseFilters = {}) => {
     const pageSize = 100
     let page = 1
@@ -1265,17 +1261,40 @@ function ERPTab({
     showNotification,
     erpAccountingAPI,
   })
-  const toggleTransactionSelection = (id) => {
-    setSelectedTransactionIds((prev) => prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id])
-  }
-  const toggleVisibleTransactionSelection = () => {
-    setSelectedTransactionIds((prev) => {
-      if (allVisibleTransactionsSelected) {
-        return prev.filter((id) => !transactions.some((tx) => tx._id === id))
-      }
-      return Array.from(new Set([...prev, ...transactions.map((tx) => tx._id)]))
-    })
-  }
+  const {
+    selectedTransactionIds,
+    setSelectedTransactionIds,
+    transactionWorkflowNote,
+    setTransactionWorkflowNote,
+    transactionCommentDraft,
+    setTransactionCommentDraft,
+    transactionAttachmentInputKey,
+    allVisibleTransactionsSelected,
+    toggleTransactionSelection,
+    toggleVisibleTransactionSelection,
+    handleDeleteTransaction,
+    handleTransactionAction,
+    handleAddTransactionComment,
+    handleSendTransactionChat,
+    handleUploadTransactionAttachment,
+    handleDeleteTransactionAttachment,
+    handleBulkTransactionAction,
+  } = useErpTransactionWorkflow({
+    token,
+    transactions,
+    setTransactions,
+    selectedTransactionId,
+    setSelectedTransactionId,
+    editingTransactionId,
+    resetTransactionComposer,
+    transactionForm,
+    loadTransactions,
+    loadDashboard,
+    setError,
+    setSaving,
+    showNotification,
+    api: erpAccountingAPI,
+  })
   const loadVendors = async (filters = vendorFilters) => {
     if (!canLoadParties) return
     setVendorsLoading(true)
@@ -1357,353 +1376,6 @@ function ERPTab({
       setStockMovements([])
     } finally {
       setStockMovementsLoading(false)
-    }
-  }
-  const buildReportDateRange = () => {
-    const now = new Date()
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-    const startOfYear = new Date(now.getFullYear(), 0, 1)
-    let startDate = ''
-    let endDate = ''
-    if (reportFilters.period === 'today') {
-      startDate = now.toISOString().slice(0, 10)
-      endDate = startDate
-    } else if (reportFilters.period === 'month') {
-      startDate = startOfMonth.toISOString().slice(0, 10)
-      endDate = endOfMonth.toISOString().slice(0, 10)
-    } else if (reportFilters.period === 'ytd') {
-      startDate = startOfYear.toISOString().slice(0, 10)
-      endDate = now.toISOString().slice(0, 10)
-    } else if (reportFilters.period === 'custom') {
-      startDate = reportFilters.startDate || ''
-      endDate = reportFilters.endDate || ''
-    }
-    return {
-      startDate,
-      endDate,
-      commonRange: {
-        ...(startDate ? { startDate } : {}),
-        ...(endDate ? { endDate } : {}),
-      },
-    }
-  }
-  const loadReports = async (targetView = reportView) => {
-    if (!canAccessReports || targetView === 'ledger') return null
-    if (Date.now() < reportCooldownUntilRef.current) {
-      setError('Too many report requests. Please wait and try again.')
-      return null
-    }
-
-    const { endDate, commonRange } = buildReportDateRange()
-    const requestKey = JSON.stringify({
-      targetView,
-      commonRange,
-      accountType: reportFilters.accountType,
-      includeZeroAccounts: reportFilters.includeZeroAccounts,
-      sortBy: reportFilters.sortBy,
-      sortDir: reportFilters.sortDir,
-      comparePrevious: reportFilters.comparePrevious,
-      referenceType: reportFilters.referenceType,
-      minAmount: reportFilters.minAmount,
-    })
-    if (reportRequestRef.current.key === requestKey && reportRequestRef.current.promise) {
-      return reportRequestRef.current.promise
-    }
-
-    setReportsLoading(true)
-    const seq = reportLoadSeqRef.current + 1
-    reportLoadSeqRef.current = seq
-    const promise = (async () => {
-      try {
-        const updates = {}
-
-        if (targetView === 'summary' || targetView === 'trial') {
-          const includeZero = targetView === 'summary' ? false : reportFilters.includeZeroAccounts
-          updates.trialBalance = await erpAccountingAPI.getTrialBalance(token, {
-            ...commonRange,
-            ...(reportFilters.accountType ? { accountType: reportFilters.accountType } : {}),
-            includeZero,
-            sortBy: reportFilters.sortBy,
-            sortDir: reportFilters.sortDir,
-          })
-        }
-        if (targetView === 'pnl') {
-          updates.profitLoss = await erpAccountingAPI.getProfitLossReport(token, {
-            ...commonRange,
-            includeZero: reportFilters.includeZeroAccounts,
-            comparePrevious: reportFilters.comparePrevious,
-          })
-        }
-        if (targetView === 'balanceSheet') {
-          updates.balanceSheet = await erpAccountingAPI.getBalanceSheetReport(token, {
-            ...(endDate ? { endDate } : {}),
-          })
-        }
-        if (targetView === 'dayBook') {
-          updates.dayBook = await erpAccountingAPI.getDayBookReport(token, {
-            ...commonRange,
-            ...(reportFilters.referenceType ? { referenceType: reportFilters.referenceType } : {}),
-            ...(reportFilters.minAmount ? { minAmount: reportFilters.minAmount } : {}),
-          })
-        }
-        if (targetView === 'outstanding') {
-          const [custOut, venOut] = await Promise.all([
-            erpAccountingAPI.getCustomerOutstandingReport(token),
-            erpAccountingAPI.getVendorOutstandingReport(token),
-          ])
-          updates.customerOutstanding = custOut
-          updates.vendorOutstanding = venOut
-        }
-        if (targetView === 'forex') {
-          updates.forex = await erpAccountingAPI.getForexGainLossReport(token, commonRange)
-        }
-
-        if (seq === reportLoadSeqRef.current) {
-          setReports((prev) => ({ ...prev, ...updates }))
-          setError('')
-        }
-      } catch (e) {
-        if (Number(e?.response?.status) === 429) {
-          reportCooldownUntilRef.current = Date.now() + REPORT_RATE_LIMIT_COOLDOWN_MS
-        }
-        if (seq === reportLoadSeqRef.current) {
-          setError(e?.response?.data?.message || 'Failed to load reports')
-        }
-      } finally {
-        if (reportRequestRef.current.key === requestKey) {
-          reportRequestRef.current = { key: '', promise: null }
-        }
-        if (seq === reportLoadSeqRef.current) {
-          setReportsLoading(false)
-        }
-      }
-      return null
-    })()
-    reportRequestRef.current = { key: requestKey, promise }
-    return promise
-  }
-  const loadLedgerReport = async (accountId) => {
-    if (!accountId) {
-      setLedgerReportRows([])
-      return null
-    }
-    if (Date.now() < reportCooldownUntilRef.current) {
-      setError('Too many report requests. Please wait and try again.')
-      return null
-    }
-
-    const now = new Date()
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-    let startDate = ''
-    let endDate = ''
-    if (reportFilters.period === 'today') {
-      startDate = now.toISOString().slice(0, 10)
-      endDate = startDate
-    } else if (reportFilters.period === 'month') {
-      startDate = startOfMonth.toISOString().slice(0, 10)
-      endDate = endOfMonth.toISOString().slice(0, 10)
-    } else if (reportFilters.period === 'ytd') {
-      startDate = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)
-      endDate = now.toISOString().slice(0, 10)
-    } else if (reportFilters.period === 'custom') {
-      startDate = reportFilters.startDate || ''
-      endDate = reportFilters.endDate || ''
-    }
-
-    const requestKey = JSON.stringify({ accountId, startDate, endDate })
-    if (ledgerRequestRef.current.key === requestKey && ledgerRequestRef.current.promise) {
-      return ledgerRequestRef.current.promise
-    }
-
-    setReportsLoading(true)
-    const seq = ledgerLoadSeqRef.current + 1
-    ledgerLoadSeqRef.current = seq
-    const promise = (async () => {
-      try {
-        const data = await erpAccountingAPI.getLedgerReport(token, {
-          accountId,
-          ...(startDate ? { startDate } : {}),
-          ...(endDate ? { endDate } : {}),
-        })
-        if (seq === ledgerLoadSeqRef.current) {
-          setLedgerReportRows(data.report || [])
-          setError('')
-        }
-      } catch (e) {
-        if (Number(e?.response?.status) === 429) {
-          reportCooldownUntilRef.current = Date.now() + REPORT_RATE_LIMIT_COOLDOWN_MS
-        }
-        if (seq === ledgerLoadSeqRef.current) {
-          setError(e?.response?.data?.message || 'Failed to load ledger report')
-        }
-      } finally {
-        if (ledgerRequestRef.current.key === requestKey) {
-          ledgerRequestRef.current = { key: '', promise: null }
-        }
-        if (seq === ledgerLoadSeqRef.current) {
-          setReportsLoading(false)
-        }
-      }
-      return null
-    })()
-    ledgerRequestRef.current = { key: requestKey, promise }
-    return promise
-  }
-  const handleDeleteTransaction = async (id) => {
-    if (typeof window !== 'undefined' && !window.confirm('Delete this transaction?')) return
-    try {
-      setSaving(true)
-      await erpAccountingAPI.deleteTransaction(token, id)
-      if (selectedTransactionId === id) setSelectedTransactionId('')
-      if (editingTransactionId === id) resetTransactionComposer()
-      setSelectedTransactionIds((prev) => prev.filter((item) => item !== id))
-      await loadTransactions()
-      showNotification('✅ Transaction deleted')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to delete transaction')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleTransactionAction = async (action, id) => {
-    try {
-      setSaving(true)
-      if ((action === 'return' || action === 'reject') && !transactionWorkflowNote.trim()) {
-        setError(action === 'return' ? 'Return reason is required' : 'Rejection reason is required')
-        setSaving(false)
-        return
-      }
-      const payload = {
-        comment: transactionWorkflowNote,
-        ...(transactionForm.debitAccountId ? { debitAccountId: transactionForm.debitAccountId } : {}),
-        ...(transactionForm.creditAccountId ? { creditAccountId: transactionForm.creditAccountId } : {}),
-      }
-      if (action === 'submit') await erpAccountingAPI.submitTransaction(token, id, payload)
-      if (action === 'approve') await erpAccountingAPI.approveTransaction(token, id, payload)
-      if (action === 'return') await erpAccountingAPI.returnTransaction(token, id, payload)
-      if (action === 'reject') await erpAccountingAPI.rejectTransaction(token, id, payload)
-      if (action === 'post') await erpAccountingAPI.postTransaction(token, id, payload)
-      await Promise.all([loadTransactions(), loadDashboard()])
-      setTransactionWorkflowNote('')
-      showNotification(`✅ Transaction ${action === 'submit' ? 'submitted' : action === 'approve' ? 'approved' : action === 'return' ? 'returned for edit' : action === 'reject' ? 'rejected' : 'posted'}`)
-    } catch (e) {
-      setError(e.response?.data?.message || `Failed to ${action} transaction`)
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleAddTransactionComment = async () => {
-    if (!selectedTransactionId) {
-      setError('Select a transaction first')
-      return
-    }
-    if (!transactionCommentDraft.trim()) {
-      setError('Enter a comment first')
-      return
-    }
-    try {
-      setSaving(true)
-      await erpAccountingAPI.addTransactionComment(token, selectedTransactionId, { message: transactionCommentDraft })
-      await loadTransactions()
-      setTransactionCommentDraft('')
-      showNotification('✅ Transaction comment added')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to add transaction comment')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleSendTransactionChat = async (transactionId, message, mentionedNames = []) => {
-    if (!transactionId) {
-      setError('Select a transaction first')
-      return false
-    }
-    if (!String(message || '').trim()) {
-      setError('Enter a message first')
-      return false
-    }
-    try {
-      setSaving(true)
-      const data = await erpAccountingAPI.addTransactionComment(token, transactionId, {
-        message,
-        mentionedNames,
-      })
-      if (data.transaction) {
-        setTransactions((prev) => prev.map((tx) => (tx._id === transactionId ? data.transaction : tx)))
-      }
-      const deliveredCount = Array.isArray(data.deliveredTo) ? data.deliveredTo.length : 0
-      showNotification(deliveredCount ? `Transaction chat sent to ${deliveredCount} user${deliveredCount === 1 ? '' : 's'}` : 'Transaction note saved; no mentioned user matched')
-      return true
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to send transaction chat')
-      return false
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleUploadTransactionAttachment = async (file, transactionId = selectedTransactionId) => {
-    if (!transactionId) {
-      setError('Select a transaction first')
-      return
-    }
-    if (!file) return
-    try {
-      setSaving(true)
-      setSelectedTransactionId(transactionId)
-      await erpAccountingAPI.uploadTransactionAttachment(token, transactionId, file)
-      await loadTransactions()
-      setTransactionAttachmentInputKey((prev) => prev + 1)
-      showNotification('✅ Attachment uploaded')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to upload attachment')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleDeleteTransactionAttachment = async (attachmentId) => {
-    if (!selectedTransactionId || !attachmentId) return
-    try {
-      setSaving(true)
-      await erpAccountingAPI.deleteTransactionAttachment(token, selectedTransactionId, attachmentId)
-      await loadTransactions()
-      showNotification('✅ Attachment deleted')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to delete attachment')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleBulkTransactionAction = async (action) => {
-    if (!selectedTransactionIds.length) {
-      setError('Select at least one transaction')
-      return
-    }
-    try {
-      setSaving(true)
-      const response = await erpAccountingAPI.bulkTransactionAction(token, {
-        ids: selectedTransactionIds,
-        action,
-        comment: transactionWorkflowNote,
-        mappingOverride: {
-          ...(transactionForm.debitAccountId ? { debitAccountId: transactionForm.debitAccountId } : {}),
-          ...(transactionForm.creditAccountId ? { creditAccountId: transactionForm.creditAccountId } : {}),
-        },
-      })
-      await Promise.all([loadTransactions(), loadDashboard()])
-      setTransactionWorkflowNote('')
-      setSelectedTransactionIds([])
-      if (!response.failureCount) {
-        const label = action === 'submit' ? 'submitted' : action === 'approve' ? 'approved' : 'posted'
-        showNotification(`✅ ${response.successCount} transactions ${label}`)
-      } else {
-        setError(`${response.successCount} succeeded, ${response.failureCount} failed`)
-      }
-    } catch (e) {
-      setError(e.response?.data?.message || `Failed to ${action} selected transactions`)
-    } finally {
-      setSaving(false)
     }
   }
   const handleCreateVendor = async (e) => {
@@ -2368,7 +2040,7 @@ function ERPTab({
     if (selectedTransactionId && !transactions.some((tx) => tx._id === selectedTransactionId)) {
       setSelectedTransactionId('')
     }
-  }, [transactions, selectedTransactionId])
+  }, [transactions, selectedTransactionId, setSelectedTransactionIds])
   useEffect(() => {
     let cancelled = false
     const updatePreviewLogo = async () => {
@@ -2470,47 +2142,6 @@ function ERPTab({
     ledgerFilters.referenceType,
     ledgerFilters.accountId,
     ledgerVoucherTab,
-  ])
-  useEffect(() => {
-    if (!canAccessERP || !token || activeTab !== 'reports') return undefined
-    loadReportBranding()
-    if (!accounts.length) loadAccounts()
-    if (reportEffectTimerRef.current) {
-      window.clearTimeout(reportEffectTimerRef.current)
-    }
-    reportEffectTimerRef.current = window.setTimeout(() => {
-      if (reportView === 'ledger') {
-        if (selectedReportAccountId) {
-          loadLedgerReport(selectedReportAccountId)
-        } else {
-          setLedgerReportRows([])
-        }
-        return
-      }
-      loadReports(reportView)
-    }, REPORT_REQUEST_DEBOUNCE_MS)
-    return () => {
-      if (reportEffectTimerRef.current) {
-        window.clearTimeout(reportEffectTimerRef.current)
-        reportEffectTimerRef.current = null
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    activeTab,
-    token,
-    reportView,
-    reportFilters.period,
-    reportFilters.startDate,
-    reportFilters.endDate,
-    reportFilters.accountType,
-    reportFilters.includeZeroAccounts,
-    reportFilters.sortBy,
-    reportFilters.sortDir,
-    reportFilters.comparePrevious,
-    reportFilters.referenceType,
-    reportFilters.minAmount,
-    selectedReportAccountId,
   ])
   useEffect(() => {
     if (!canAccessERP || !token || activeTab !== 'mappings') return
@@ -3307,32 +2938,6 @@ function ERPTab({
     const stamp = new Date().toISOString().slice(0, 10)
     doc.save(`${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${stamp}.pdf`)
     showNotification('✅ PDF exported')
-  }
-  const handleTrialAccountDrilldown = (accountCode) => {
-    const match = accounts.find((acc) => acc.accountCode === accountCode)
-    if (!match?._id) return
-    setSelectedReportAccountId(match._id)
-    setSelectedReportAccountCode(match.accountCode)
-    setReportView('ledger')
-  }
-  const handleReportAccountDrilldown = (accountId, accountCode) => {
-    if (!accountId) return
-    setSelectedReportAccountId(String(accountId))
-    setSelectedReportAccountCode(accountCode || '')
-    setReportView('ledger')
-  }
-  const handleOpenVoucherSource = async (ledgerId) => {
-    if (!ledgerId) return
-    try {
-      setVoucherSourceLoading(true)
-      const data = await erpAccountingAPI.getTransactionSourceByLedger(token, ledgerId)
-      setVoucherSource(data)
-      setError('')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load voucher source')
-    } finally {
-      setVoucherSourceLoading(false)
-    }
   }
   const handleJumpToTransaction = async (transactionId) => {
     if (!transactionId) return
