@@ -1,4 +1,8 @@
 # Multi-Company Deployment Checklist
+
+> **Ongoing deploys:** use **[docs/DEPLOY.md](docs/DEPLOY.md)** (push `main` → CI → Vercel/Railway → post-deploy smoke).  
+> This document is for **first-time** Vercel + Railway + MongoDB Atlas + DNS setup.
+
 ## Vercel + Railway + MongoDB Atlas for mg, cg, loopc subdomains
 
 ---
@@ -106,7 +110,7 @@ This repo’s [`vercel.json`](vercel.json) expects the Vercel project **Root Dir
 If **Root Directory** is set to **`frontend`**, `frontend/dist` in `vercel.json` would resolve incorrectly (`frontend/frontend/dist`). **Change Root Directory to empty** and redeploy.
 
 - [ ] **Vercel → Project → Settings → General → Root Directory:** **empty** (repository root) — clear any **Install / Build / Output Directory** overrides so [`vercel.json`](vercel.json) is used
-- [ ] **Production Git branch:** `main` (matches [DEPLOYMENT.md](DEPLOYMENT.md))
+- [ ] **Production Git branch:** `main` (see [docs/DEPLOY.md](docs/DEPLOY.md))
 - [ ] **Git:** GitHub repo `loopc-business-strategies/ops-dashboard` connected so pushes deploy without the CLI
 
 ### 3.1 Connect GitHub Repository
@@ -439,19 +443,9 @@ Scripts:
 
 ## Step 8: Optional Enhancements
 
-### Add Staging Environment (Recommended)
+### Add Staging Environment
 
-1. Create staging Vercel deployment:
-   - [ ] `staging.yourdomain.com` (optional)
-   - [ ] `staging-mg.yourdomain.com`
-   - [ ] `staging-cg.yourdomain.com`
-   - [ ] `staging-loopc.yourdomain.com`
-
-2. Create staging Railway deployment with:
-   - [ ] `MONGO_URI_MG_STAGING`, etc.
-   - [ ] Same setup as production
-
-3. Test new features on staging before production
+See **[docs/STAGING-ENVIRONMENT.md](docs/STAGING-ENVIRONMENT.md)** — Railway staging environment, Vercel preview env vars, staging smoke/E2E workflows.
 
 ### Add Monitoring
 

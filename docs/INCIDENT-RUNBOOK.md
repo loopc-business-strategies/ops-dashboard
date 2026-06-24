@@ -36,6 +36,7 @@ Use this when **the app is down**, **auth/chat/API fails**, or **deploys look wr
 ## 5. Related docs
 
 - [DEPLOYMENT-CHECKLIST.md](../DEPLOYMENT-CHECKLIST.md) — full provisioning
-- [docs/OBSERVABILITY-AND-DEPLOYS.md](./OBSERVABILITY-AND-DEPLOYS.md) — health, metrics, deploy notes
+- [docs/DEPLOY.md](./DEPLOY.md) — deploy flow, CI, smoke
+- [docs/OBSERVABILITY-AND-DEPLOYS.md](./OBSERVABILITY-AND-DEPLOYS.md) — health, logs
 - [docs/STAGING-ENVIRONMENT.md](./STAGING-ENVIRONMENT.md) — staging parity (catch issues before prod)
 - [ENV-VARS-QUICK-REFERENCE.md](../ENV-VARS-QUICK-REFERENCE.md) — variable names

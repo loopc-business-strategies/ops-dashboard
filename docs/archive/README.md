@@ -5,7 +5,9 @@ Markdown files in this folder are **historical snapshots** (phase reports, one-o
 **Current sources of truth**
 
 - Root `README.md` — how to run and test the app.
-- `DEPLOYMENT.md` and `docs/OBSERVABILITY-AND-DEPLOYS.md` — deploys and operations.
+- **`docs/DEPLOY.md`** — deploys, CI, smoke, rollback.
+- `DEPLOYMENT-CHECKLIST.md` — first-time production setup only.
+- `docs/OBSERVABILITY-AND-DEPLOYS.md` — health and logs.
 - `ENV-VARS-QUICK-REFERENCE.md` — configuration.
 - `PROJECT-ENDPOINT-MATRIX.md` — API surface (verify against code when in doubt).
 

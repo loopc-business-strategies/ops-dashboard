@@ -1,5 +1,7 @@
 # Staging environment (Railway + Vercel parity)
 
+Production deploy flow: [DEPLOY.md](./DEPLOY.md).
+
 Goal: a **second** full stack that mirrors production **URLs and secrets shape** so you catch CORS, CSRF, cookies, EAS `EXPO_PUBLIC_*`, and DB migrations before merging to `main`.
 
 ## 1. Recommended layout

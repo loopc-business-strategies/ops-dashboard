@@ -50,4 +50,5 @@ Complete once per quarter (or after any cluster migration):
 ## Related docs
 
 - [`DEPLOYMENT-CHECKLIST.md`](../DEPLOYMENT-CHECKLIST.md)
-- [`docs/OBSERVABILITY-AND-DEPLOYS.md`](OBSERVABILITY-AND-DEPLOYS.md)
+- [`docs/DEPLOY.md`](DEPLOY.md) — production deploy and rollback
+- [`docs/OBSERVABILITY-AND-DEPLOYS.md`](OBSERVABILITY-AND-DEPLOYS.md) — health endpoints

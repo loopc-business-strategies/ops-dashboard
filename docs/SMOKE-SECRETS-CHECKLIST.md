@@ -1,5 +1,7 @@
 # Post-deploy smoke secrets checklist
 
+Deploy workflow overview: [DEPLOY.md](./DEPLOY.md).
+
 Use this after pushing to `main` when validating [`.github/workflows/post-deploy-tenant-smoke.yml`](../.github/workflows/post-deploy-tenant-smoke.yml).
 
 ## GitHub repository secrets

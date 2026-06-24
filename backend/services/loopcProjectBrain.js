@@ -162,7 +162,7 @@ const CODE_FIX_RECIPES = [
       'backend/app.js',
       'backend/services/readiness.js',
       'railway.json',
-      'DEPLOYMENT.md',
+      'docs/DEPLOY.md',
     ],
     envVars: ['JWT_SECRET', 'MONGO_URI_MG', 'MONGO_URI_CG', 'MONGO_URI_LOOPC', 'SERVER_BASE_URL'],
     userFixes: [
