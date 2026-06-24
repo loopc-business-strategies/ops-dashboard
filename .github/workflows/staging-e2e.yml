@@ -54,7 +54,6 @@ jobs:
         working-directory: frontend
         env:
           PLAYWRIGHT_BASE_URL: ${{ vars.STAGING_E2E_BASE_URL || format('https://{0}', vars.STAGING_SMOKE_VERCEL_HOSTS) }}
-          PLAYWRIGHT_VERCEL_BYPASS: ${{ secrets.STAGING_SMOKE_VERCEL_BYPASS }}
           E2E_AUTH_NAME: ${{ secrets.STAGING_SMOKE_AUTH_NAME }}
           E2E_AUTH_PASSWORD: ${{ secrets.STAGING_SMOKE_AUTH_PASSWORD }}
           E2E_AUTH_COMPANY: ${{ vars.STAGING_E2E_AUTH_COMPANY || 'loopc' }}

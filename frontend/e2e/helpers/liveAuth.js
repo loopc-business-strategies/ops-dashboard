@@ -11,6 +11,35 @@ export function hasLiveAuthConfig() {
   return Boolean(name && password)
 }
 
+export function getVercelBypass() {
+  return String(
+    process.env.PLAYWRIGHT_VERCEL_BYPASS
+    || process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+    || process.env.STAGING_SMOKE_VERCEL_BYPASS
+    || '',
+  ).trim()
+}
+
+export async function applyVercelBypassRoute(page) {
+  const bypass = getVercelBypass()
+  if (!bypass) return
+
+  await page.route('**/*', async (route) => {
+    const requestUrl = route.request().url()
+    if (!/\.vercel\.app/i.test(requestUrl)) {
+      await route.continue()
+      return
+    }
+
+    const headers = {
+      ...route.request().headers(),
+      'x-vercel-protection-bypass': bypass,
+      'x-vercel-set-bypass-cookie': 'true',
+    }
+    await route.continue({ headers })
+  })
+}
+
 export async function loginLive(page, config = getLiveAuthConfig()) {
   const { name, password, company } = config
   if (!name || !password) {
@@ -18,6 +47,7 @@ export async function loginLive(page, config = getLiveAuthConfig()) {
   }
 
   await page.setViewportSize({ width: 1280, height: 720 })
+  await applyVercelBypassRoute(page)
   await page.goto(`/login?company=${company}`, { waitUntil: 'domcontentloaded' })
 
   const loginResponsePromise = page.waitForResponse(
