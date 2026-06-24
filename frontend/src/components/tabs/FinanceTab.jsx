@@ -11,6 +11,7 @@ import erpAccountingAPI from '../../api/erp-accounting'
 import { Modal } from '../ui-components'
 import { ErpSubTabButton, ModulePageHeading, ModuleSubTabRow, ModuleTabColumn } from '../layout/ModuleTabChrome'
 import { BudgetModal, ExpenseModal, InvoiceModal, PayrollModal } from './finance/FinanceModals'
+import { financeInputStyle as iStyle } from './finance/financeTabTokens'
 
 // ─── Design tokens ────────────────────────────────────────────
 const C = {
@@ -30,6 +31,10 @@ const B = {
   ghost: { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'transparent', color:'#475569', border:`1px solid rgba(var(--purple-rgb),0.15)`, whiteSpace:'nowrap', fontFamily:'inherit' },
   succ:  { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, fontSize:12, fontWeight:700, cursor:'pointer', background:'rgba(0,200,150,0.15)', color:'#065f46', border:'1px solid rgba(0,200,150,0.3)', whiteSpace:'nowrap', fontFamily:'inherit' },
   sm:    { padding:'5px 11px', fontSize:11 },
+}
+
+function ML({ children }) {
+  return <span style={{ display:'block', fontSize:11, fontWeight:700, color:C.t3, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:5 }}>{children}</span>
 }
 
 // ─── Sub-tabs ─────────────────────────────────────────────────
