@@ -16,7 +16,8 @@ Do these **in order** before running the workflow:
 - [ ] **2. Distribution certificate** — Create `.p12` (OpenSSL on Windows — section below)
 - [ ] **3. Provisioning profile** — App Store profile named **`Nexa App Store`** for `com.loopc.nexa`
 - [ ] **4. App Store Connect API key** — Download `.p8`, note Key ID + Issuer ID
-- [ ] **5. GitHub secrets** — Add all 8 secrets from the table below (repo Settings → Secrets → Actions)
+- [ ] **5. GitHub secrets** — Add all 8 secrets from the table below (repo Settings → Secrets → Actions)  
+  Verify: `npm run check:mobile-release-secrets` (from repo root; needs `gh auth login`)
 - [ ] **6. Push / merge** this repo so the workflow file is on `main`
 - [ ] **7. Run workflow** — GitHub → Actions → **Mobile iOS (GitHub macOS)** → Run workflow (~20–40 min)
 - [ ] **8. iPhone** — Install **TestFlight** → accept invite → install Nexa → test MG / CG / LoopC login

@@ -137,9 +137,18 @@ npm run smoke:staging
 ## 7. Smoke checklist after provisioning staging
 
 - [x] `/api/health` and `/api/ready` on staging URL  
-- [ ] Login from staging web → session + CSRF happy path  
-- [ ] Mobile preview build or dev client → login + one API call  
+- [x] Login from staging web → session + CSRF happy path (CI: **Staging E2E** Playwright)  
+- [x] Mobile JWT API smoke on staging Railway (CI: **Staging Smoke** → `smoke:mobile:staging`)  
 - [x] `npm run smoke:staging` with staging credentials
+
+Local mobile staging smoke:
+
+```powershell
+$env:STAGING_SMOKE_API_BASE = "https://ops-dashboard-staging-e6c6.up.railway.app"
+$env:STAGING_SMOKE_AUTH_NAME = "ops-staging-smoke-probe"
+$env:STAGING_SMOKE_AUTH_PASSWORD = "<from secret>"
+npm run smoke:mobile:staging
+```
 
 ## 8. Authenticated E2E (Playwright on staging preview)
 

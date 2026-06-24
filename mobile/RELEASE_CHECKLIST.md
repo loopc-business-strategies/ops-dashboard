@@ -10,12 +10,15 @@ Use this before every **App Store / Play Store** submission or **TestFlight** dr
 | Release identity (`com.loopc.nexa`, scheme `nexaops`, version sync) | `npm run check:release` in mobile |
 | Production API + web smoke | **Post-Deploy Tenant Smoke** on `main` |
 | Mobile JWT API smoke (login, chat, ERP, socket) | **Post-Deploy Tenant Smoke** → `smoke:mobile:api` |
+| Mobile JWT API smoke on staging | **Staging Smoke** on `staging` → `smoke:mobile:staging` |
 
 Local:
 
 ```bash
 cd mobile && npm run check:release
 npm run smoke:mobile:api   # needs MOBILE_SMOKE_LOGIN_NAME / MOBILE_SMOKE_LOGIN_PASSWORD
+npm run smoke:mobile:staging   # staging API — STAGING_SMOKE_AUTH_* or MOBILE_SMOKE_*
+npm run check:mobile-release-secrets   # gh: which iOS/Android store secrets exist
 ```
 
 ## Pre-release (both platforms)
@@ -32,7 +35,8 @@ Workflow: [`.github/workflows/mobile-ios-testflight.yml`](../../.github/workflow
 Guide: [docs/MOBILE-IOS-GITHUB-BUILD.md](../../docs/MOBILE-IOS-GITHUB-BUILD.md)
 
 - [ ] App Store Connect app exists — bundle ID `com.loopc.nexa`, name **Nexa**
-- [ ] GitHub secrets: `APPLE_TEAM_ID`, `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`, `BUILD_PROVISION_PROFILE_BASE64`, `KEYCHAIN_PASSWORD`, App Store Connect API key trio
+- [ ] GitHub secrets: `APPLE_TEAM_ID`, `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`, `BUILD_PROVISION_PROFILE_BASE64`, `KEYCHAIN_PASSWORD`, App Store Connect API key trio  
+  Run `npm run check:mobile-release-secrets` from repo root to see which are missing.
 - [ ] Provisioning profile name **`Nexa App Store`** (matches `scripts/ios-export-options.plist`)
 - [ ] Actions → **Mobile iOS (GitHub macOS)** → Run workflow (~20–40 min)
 - [ ] TestFlight: internal testers, then MG / CG / LoopC login on device

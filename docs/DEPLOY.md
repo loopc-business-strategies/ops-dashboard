@@ -71,7 +71,7 @@ Details: [STAGING-ENVIRONMENT.md](./STAGING-ENVIRONMENT.md).
 |----------|------|---------|
 | **CI** | Every push / PR | Lint, ERP policy parity, backend/frontend/mobile tests, frontend build, Playwright (local preview) |
 | **Post-Deploy Tenant Smoke** | After CI on `main` | Production smoke + optional auth ERP + mobile API smoke |
-| **Staging Smoke** | Push `staging` | Staging Railway + Vercel preview |
+| **Staging Smoke** | Push `staging` | Staging Railway + Vercel preview + mobile JWT API smoke |
 | **Staging E2E** | Push `staging` | Authenticated Playwright on staging preview |
 | **Provision smoke credentials** | Manual | Create `ops-smoke-probe` + GitHub secrets |
 | **Provision staging smoke credentials** | Manual | Staging smoke users + secrets |

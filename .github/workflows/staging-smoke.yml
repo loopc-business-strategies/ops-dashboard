@@ -58,3 +58,20 @@ jobs:
           SMOKE_AUTH_NAME_LOOPC: ${{ secrets.STAGING_SMOKE_AUTH_NAME_LOOPC }}
           SMOKE_AUTH_PASSWORD_LOOPC: ${{ secrets.STAGING_SMOKE_AUTH_PASSWORD_LOOPC }}
         run: npm run smoke:staging
+
+      - name: Run staging mobile API smoke
+        env:
+          STAGING_SMOKE_API_BASE: ${{ vars.STAGING_SMOKE_API_BASE || 'https://ops-dashboard-staging-e6c6.up.railway.app' }}
+          MOBILE_SMOKE_COMPANY: loopc
+          STAGING_SMOKE_AUTH_NAME: ${{ secrets.STAGING_SMOKE_AUTH_NAME }}
+          STAGING_SMOKE_AUTH_PASSWORD: ${{ secrets.STAGING_SMOKE_AUTH_PASSWORD }}
+          STAGING_SMOKE_AUTH_NAME_LOOPC: ${{ secrets.STAGING_SMOKE_AUTH_NAME_LOOPC }}
+          STAGING_SMOKE_AUTH_PASSWORD_LOOPC: ${{ secrets.STAGING_SMOKE_AUTH_PASSWORD_LOOPC }}
+        run: |
+          export MOBILE_SMOKE_LOGIN_NAME="${STAGING_SMOKE_AUTH_NAME_LOOPC:-$STAGING_SMOKE_AUTH_NAME}"
+          export MOBILE_SMOKE_LOGIN_PASSWORD="${STAGING_SMOKE_AUTH_PASSWORD_LOOPC:-$STAGING_SMOKE_AUTH_PASSWORD}"
+          if [ -z "$MOBILE_SMOKE_LOGIN_NAME" ] || [ -z "$MOBILE_SMOKE_LOGIN_PASSWORD" ]; then
+            echo "Skipping staging mobile API smoke — set STAGING_SMOKE_AUTH_NAME and STAGING_SMOKE_AUTH_PASSWORD."
+            exit 0
+          fi
+          npm run smoke:mobile:staging

@@ -57,6 +57,8 @@ Use separate staging variables/secrets for [`.github/workflows/staging-smoke.yml
 | `STAGING_MONGO_URI_MG` / `STAGING_MONGO_URI_CG` / `STAGING_MONGO_URI_LOOPC` | Staging DB URIs for [provision-staging-smoke-credentials.yml](../.github/workflows/provision-staging-smoke-credentials.yml) |
 | `STAGING_SMOKE_AUTH_NAME*` / `STAGING_SMOKE_AUTH_PASSWORD*` | Staging-only smoke users |
 
+**Staging Smoke** also runs `npm run smoke:mobile:staging` (mobile JWT routes against staging API) when `STAGING_SMOKE_AUTH_*` are set.
+
 Local staging run:
 
 ```powershell
@@ -68,5 +70,16 @@ npm run smoke:staging
 ```
 
 The staging smoke command blocks production `loopcstrategies.com` targets by default to avoid accidentally validating staging against production.
+
+Local mobile staging smoke:
+
+```powershell
+$env:STAGING_SMOKE_API_BASE = "https://ops-dashboard-staging-e6c6.up.railway.app"
+$env:STAGING_SMOKE_AUTH_NAME = "<staging-user>"
+$env:STAGING_SMOKE_AUTH_PASSWORD = "<staging-password>"
+npm run smoke:mobile:staging
+```
+
+Audit GitHub secrets for store releases (names only): `npm run check:mobile-release-secrets` (requires `gh auth login`).
 
 See also [`ENV-VARS-QUICK-REFERENCE.md`](../ENV-VARS-QUICK-REFERENCE.md).
