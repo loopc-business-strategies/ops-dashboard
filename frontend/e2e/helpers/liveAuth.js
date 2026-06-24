@@ -19,8 +19,22 @@ export async function loginLive(page, config = getLiveAuthConfig()) {
 
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.goto(`/login?company=${company}`, { waitUntil: 'domcontentloaded' })
+
+  const loginResponsePromise = page.waitForResponse(
+    (response) => response.url().includes('/api/auth/login') && response.request().method() === 'POST',
+    { timeout: 45_000 },
+  )
+
   await page.getByPlaceholder('Enter your username').fill(name)
   await page.getByPlaceholder('Enter your password').fill(password)
   await page.getByRole('button', { name: /sign in/i }).click()
-  await page.waitForURL(/\/dashboard/, { timeout: 30_000, waitUntil: 'commit' })
+
+  const loginResponse = await loginResponsePromise
+  const loginBody = await loginResponse.json().catch(() => ({}))
+  if (!loginResponse.ok() || loginBody.success !== true) {
+    const message = loginBody.message || `HTTP ${loginResponse.status()}`
+    throw new Error(`Live login failed: ${message}`)
+  }
+
+  await page.waitForURL(/\/dashboard/, { timeout: 15_000, waitUntil: 'commit' })
 }
