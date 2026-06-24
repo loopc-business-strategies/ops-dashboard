@@ -43,7 +43,11 @@ export default function HomeScreen() {
   }, [tenantSessionKey])
 
   const load = useCallback(async (isRefresh = false) => {
-    if (!token || !sessionReady) return
+    if (!token || !sessionReady) {
+      setLoading(false)
+      setRefreshing(false)
+      return
+    }
     const sessionAtStart = tenantSessionKeyRef.current
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
@@ -77,7 +81,15 @@ export default function HomeScreen() {
   const { goldPriceUSD, silverPriceUSD } = resolveEffectiveSpotPrices({ liveSnapshot })
   const liveRecalcEnabled = goldPriceUSD > 0 || silverPriceUSD > 0
 
-  if (!sessionReady || loading) {
+  if (!sessionReady) {
+    return (
+      <View style={styles.center}>
+        <Text style={[styles.emptyState, { color: branding.colors.muted }]}>Preparing your company session…</Text>
+      </View>
+    )
+  }
+
+  if (loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={branding.colors.primary} />
@@ -122,6 +134,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { padding: 16, paddingBottom: 32 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  emptyState: { fontSize: 14, fontWeight: '700', textAlign: 'center', paddingHorizontal: 24 },
   section: {
     fontSize: 13,
     fontWeight: '800',

@@ -662,9 +662,11 @@ function Dashboard() {
 
   useEffect(() => {
     if (!user) return undefined
+    const tenant = user?.company || user?.tenant?.key || user?.tenant?.name
 
     return startUserNotifications({
       token,
+      tenant,
       onNotification: (payload) => {
         const { title, msg, dotColor } = mapRealtimeNotificationPayload(payload)
         const chatTargetId = resolveChatTargetIdFromSocketPayload(payload)
@@ -691,7 +693,9 @@ function Dashboard() {
 
   useEffect(() => {
     if (!token || !user) return undefined
+    const tenant = user?.company || user?.tenant?.key || user?.tenant?.name
     return startProjectsSse({
+      tenant,
       onReminderDue: (data) => {
         const title = data?.title || 'Task'
         setNotifications((prev) => [
@@ -735,7 +739,7 @@ function Dashboard() {
       sub: activeTab === 'erp' ? null : searchParams.get('sub'),
       replace: true,
     })
-  }, [activeTab, erpSubTab, writeDashboardUrl])
+  }, [activeTab, erpSubTab, searchParams, writeDashboardUrl])
 
   const handleShellMouseMove = (e) => {
     if (!isDesktop) return

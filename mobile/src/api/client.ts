@@ -7,6 +7,7 @@ type RequestOptions = {
   params?: Record<string, string | number | boolean | undefined>
 }
 
+const REQUEST_TIMEOUT_MS = 20000
 let authToken: string | null = null
 
 export function setAuthToken(token: string | null) {
@@ -32,6 +33,21 @@ function buildUrl(path: string, params?: RequestOptions['params']) {
   return qs ? `${base}?${qs}` : base
 }
 
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('Request timed out. Please check your connection and try again.')
+    }
+    throw err
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', token = authToken, body, params } = options
   const tenant = getTenant()
@@ -44,7 +60,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
   if (token) headers.Authorization = `Bearer ${token}`
 
-  const res = await fetch(buildUrl(path, params), {
+  const res = await fetchWithTimeout(buildUrl(path, params), {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -71,7 +87,7 @@ export async function apiUploadRequest<T>(
   }
   if (token) headers.Authorization = `Bearer ${token}`
 
-  const res = await fetch(buildUrl(path), {
+  const res = await fetchWithTimeout(buildUrl(path), {
     method: 'POST',
     headers,
     body: formData,

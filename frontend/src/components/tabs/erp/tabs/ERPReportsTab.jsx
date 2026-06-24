@@ -27,7 +27,6 @@ export default function ERPReportsTab({
   setSelectedReportAccountId,
   accounts,
   setSelectedReportAccountCode,
-  loadLedgerReport,
   selectedReportAccountCode,
   ledgerReportRows,
   loading,
@@ -462,7 +461,6 @@ export default function ERPReportsTab({
                     const account = activeAccounts.find((acc) => acc._id === e.target.value)
                     setSelectedReportAccountId(e.target.value)
                     setSelectedReportAccountCode(account?.accountCode || '')
-                    loadLedgerReport(e.target.value)
                   }}
                   style={{ ...modalInputStyle, marginBottom: 0 }}
                 >

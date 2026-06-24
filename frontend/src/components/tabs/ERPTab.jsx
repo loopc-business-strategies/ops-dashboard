@@ -116,6 +116,8 @@ import { exchangeRateFromUnitsPerBase, resolveCurrencyRowByCode } from './erp/er
 import StatementExportOptionsModal from './erp/StatementExportOptionsModal'
 
 const JV_MODAL_DEFAULT_SIZE = Object.freeze({ width: 980, height: 640 })
+const REPORT_REQUEST_DEBOUNCE_MS = 250
+const REPORT_RATE_LIMIT_COOLDOWN_MS = 60_000
 
 const ChartOfAccountsTree = lazy(() => import('./ChartOfAccountsTree'))
 const DirectDealsTab = lazy(() => import('./DirectDealsTab'))
@@ -383,6 +385,12 @@ function ERPTab({
   const [selectedReportAccountId, setSelectedReportAccountId] = useState('')
   const [selectedReportAccountCode, setSelectedReportAccountCode] = useState('')
   const [ledgerReportRows, setLedgerReportRows] = useState([])
+  const reportRequestRef = useRef({ key: '', promise: null })
+  const ledgerRequestRef = useRef({ key: '', promise: null })
+  const reportEffectTimerRef = useRef(null)
+  const reportCooldownUntilRef = useRef(0)
+  const reportLoadSeqRef = useRef(0)
+  const ledgerLoadSeqRef = useRef(0)
   const [voucherSource, setVoucherSource] = useState(null)
   const [voucherSourceLoading, setVoucherSourceLoading] = useState(false)
   const [selectedTransactionId, setSelectedTransactionId] = useState('')
@@ -1381,93 +1389,167 @@ function ERPTab({
     }
   }
   const loadReports = async (targetView = reportView) => {
-    if (!canAccessReports) return
-    setReportsLoading(true)
-    try {
-      const { endDate, commonRange } = buildReportDateRange()
-      const updates = {}
-
-      if (targetView === 'summary' || targetView === 'trial') {
-        const includeZero = targetView === 'summary' ? false : reportFilters.includeZeroAccounts
-        updates.trialBalance = await erpAccountingAPI.getTrialBalance(token, {
-          ...commonRange,
-          ...(reportFilters.accountType ? { accountType: reportFilters.accountType } : {}),
-          includeZero,
-          sortBy: reportFilters.sortBy,
-          sortDir: reportFilters.sortDir,
-        })
-      }
-      if (targetView === 'pnl') {
-        updates.profitLoss = await erpAccountingAPI.getProfitLossReport(token, {
-          ...commonRange,
-          includeZero: reportFilters.includeZeroAccounts,
-          comparePrevious: reportFilters.comparePrevious,
-        })
-      }
-      if (targetView === 'balanceSheet') {
-        updates.balanceSheet = await erpAccountingAPI.getBalanceSheetReport(token, {
-          ...(endDate ? { endDate } : {}),
-        })
-      }
-      if (targetView === 'dayBook') {
-        updates.dayBook = await erpAccountingAPI.getDayBookReport(token, {
-          ...commonRange,
-          ...(reportFilters.referenceType ? { referenceType: reportFilters.referenceType } : {}),
-          ...(reportFilters.minAmount ? { minAmount: reportFilters.minAmount } : {}),
-        })
-      }
-      if (targetView === 'outstanding') {
-        const [custOut, venOut] = await Promise.all([
-          erpAccountingAPI.getCustomerOutstandingReport(token),
-          erpAccountingAPI.getVendorOutstandingReport(token),
-        ])
-        updates.customerOutstanding = custOut
-        updates.vendorOutstanding = venOut
-      }
-      if (targetView === 'forex') {
-        updates.forex = await erpAccountingAPI.getForexGainLossReport(token, commonRange)
-      }
-
-      setReports((prev) => ({ ...prev, ...updates }))
-      setError('')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load reports')
+    if (!canAccessReports || targetView === 'ledger') return null
+    if (Date.now() < reportCooldownUntilRef.current) {
+      setError('Too many report requests. Please wait and try again.')
+      return null
     }
-    setReportsLoading(false)
+
+    const { endDate, commonRange } = buildReportDateRange()
+    const requestKey = JSON.stringify({
+      targetView,
+      commonRange,
+      accountType: reportFilters.accountType,
+      includeZeroAccounts: reportFilters.includeZeroAccounts,
+      sortBy: reportFilters.sortBy,
+      sortDir: reportFilters.sortDir,
+      comparePrevious: reportFilters.comparePrevious,
+      referenceType: reportFilters.referenceType,
+      minAmount: reportFilters.minAmount,
+    })
+    if (reportRequestRef.current.key === requestKey && reportRequestRef.current.promise) {
+      return reportRequestRef.current.promise
+    }
+
+    setReportsLoading(true)
+    const seq = reportLoadSeqRef.current + 1
+    reportLoadSeqRef.current = seq
+    const promise = (async () => {
+      try {
+        const updates = {}
+
+        if (targetView === 'summary' || targetView === 'trial') {
+          const includeZero = targetView === 'summary' ? false : reportFilters.includeZeroAccounts
+          updates.trialBalance = await erpAccountingAPI.getTrialBalance(token, {
+            ...commonRange,
+            ...(reportFilters.accountType ? { accountType: reportFilters.accountType } : {}),
+            includeZero,
+            sortBy: reportFilters.sortBy,
+            sortDir: reportFilters.sortDir,
+          })
+        }
+        if (targetView === 'pnl') {
+          updates.profitLoss = await erpAccountingAPI.getProfitLossReport(token, {
+            ...commonRange,
+            includeZero: reportFilters.includeZeroAccounts,
+            comparePrevious: reportFilters.comparePrevious,
+          })
+        }
+        if (targetView === 'balanceSheet') {
+          updates.balanceSheet = await erpAccountingAPI.getBalanceSheetReport(token, {
+            ...(endDate ? { endDate } : {}),
+          })
+        }
+        if (targetView === 'dayBook') {
+          updates.dayBook = await erpAccountingAPI.getDayBookReport(token, {
+            ...commonRange,
+            ...(reportFilters.referenceType ? { referenceType: reportFilters.referenceType } : {}),
+            ...(reportFilters.minAmount ? { minAmount: reportFilters.minAmount } : {}),
+          })
+        }
+        if (targetView === 'outstanding') {
+          const [custOut, venOut] = await Promise.all([
+            erpAccountingAPI.getCustomerOutstandingReport(token),
+            erpAccountingAPI.getVendorOutstandingReport(token),
+          ])
+          updates.customerOutstanding = custOut
+          updates.vendorOutstanding = venOut
+        }
+        if (targetView === 'forex') {
+          updates.forex = await erpAccountingAPI.getForexGainLossReport(token, commonRange)
+        }
+
+        if (seq === reportLoadSeqRef.current) {
+          setReports((prev) => ({ ...prev, ...updates }))
+          setError('')
+        }
+      } catch (e) {
+        if (Number(e?.response?.status) === 429) {
+          reportCooldownUntilRef.current = Date.now() + REPORT_RATE_LIMIT_COOLDOWN_MS
+        }
+        if (seq === reportLoadSeqRef.current) {
+          setError(e?.response?.data?.message || 'Failed to load reports')
+        }
+      } finally {
+        if (reportRequestRef.current.key === requestKey) {
+          reportRequestRef.current = { key: '', promise: null }
+        }
+        if (seq === reportLoadSeqRef.current) {
+          setReportsLoading(false)
+        }
+      }
+      return null
+    })()
+    reportRequestRef.current = { key: requestKey, promise }
+    return promise
   }
   const loadLedgerReport = async (accountId) => {
     if (!accountId) {
       setLedgerReportRows([])
-      return
+      return null
     }
-    try {
-      const now = new Date()
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-      let startDate = ''
-      let endDate = ''
-      if (reportFilters.period === 'today') {
-        startDate = now.toISOString().slice(0, 10)
-        endDate = startDate
-      } else if (reportFilters.period === 'month') {
-        startDate = startOfMonth.toISOString().slice(0, 10)
-        endDate = endOfMonth.toISOString().slice(0, 10)
-      } else if (reportFilters.period === 'ytd') {
-        startDate = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)
-        endDate = now.toISOString().slice(0, 10)
-      } else if (reportFilters.period === 'custom') {
-        startDate = reportFilters.startDate || ''
-        endDate = reportFilters.endDate || ''
+    if (Date.now() < reportCooldownUntilRef.current) {
+      setError('Too many report requests. Please wait and try again.')
+      return null
+    }
+
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    let startDate = ''
+    let endDate = ''
+    if (reportFilters.period === 'today') {
+      startDate = now.toISOString().slice(0, 10)
+      endDate = startDate
+    } else if (reportFilters.period === 'month') {
+      startDate = startOfMonth.toISOString().slice(0, 10)
+      endDate = endOfMonth.toISOString().slice(0, 10)
+    } else if (reportFilters.period === 'ytd') {
+      startDate = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)
+      endDate = now.toISOString().slice(0, 10)
+    } else if (reportFilters.period === 'custom') {
+      startDate = reportFilters.startDate || ''
+      endDate = reportFilters.endDate || ''
+    }
+
+    const requestKey = JSON.stringify({ accountId, startDate, endDate })
+    if (ledgerRequestRef.current.key === requestKey && ledgerRequestRef.current.promise) {
+      return ledgerRequestRef.current.promise
+    }
+
+    setReportsLoading(true)
+    const seq = ledgerLoadSeqRef.current + 1
+    ledgerLoadSeqRef.current = seq
+    const promise = (async () => {
+      try {
+        const data = await erpAccountingAPI.getLedgerReport(token, {
+          accountId,
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {}),
+        })
+        if (seq === ledgerLoadSeqRef.current) {
+          setLedgerReportRows(data.report || [])
+          setError('')
+        }
+      } catch (e) {
+        if (Number(e?.response?.status) === 429) {
+          reportCooldownUntilRef.current = Date.now() + REPORT_RATE_LIMIT_COOLDOWN_MS
+        }
+        if (seq === ledgerLoadSeqRef.current) {
+          setError(e?.response?.data?.message || 'Failed to load ledger report')
+        }
+      } finally {
+        if (ledgerRequestRef.current.key === requestKey) {
+          ledgerRequestRef.current = { key: '', promise: null }
+        }
+        if (seq === ledgerLoadSeqRef.current) {
+          setReportsLoading(false)
+        }
       }
-      const data = await erpAccountingAPI.getLedgerReport(token, {
-        accountId,
-        ...(startDate ? { startDate } : {}),
-        ...(endDate ? { endDate } : {}),
-      })
-      setLedgerReportRows(data.report || [])
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to load ledger report')
-    }
+      return null
+    })()
+    ledgerRequestRef.current = { key: requestKey, promise }
+    return promise
   }
   const handleDeleteTransaction = async (id) => {
     if (typeof window !== 'undefined' && !window.confirm('Delete this transaction?')) return
@@ -2390,11 +2472,29 @@ function ERPTab({
     ledgerVoucherTab,
   ])
   useEffect(() => {
-    if (!canAccessERP || !token || activeTab !== 'reports') return
+    if (!canAccessERP || !token || activeTab !== 'reports') return undefined
     loadReportBranding()
-    loadReports(reportView)
     if (!accounts.length) loadAccounts()
-    if (selectedReportAccountId) loadLedgerReport(selectedReportAccountId)
+    if (reportEffectTimerRef.current) {
+      window.clearTimeout(reportEffectTimerRef.current)
+    }
+    reportEffectTimerRef.current = window.setTimeout(() => {
+      if (reportView === 'ledger') {
+        if (selectedReportAccountId) {
+          loadLedgerReport(selectedReportAccountId)
+        } else {
+          setLedgerReportRows([])
+        }
+        return
+      }
+      loadReports(reportView)
+    }, REPORT_REQUEST_DEBOUNCE_MS)
+    return () => {
+      if (reportEffectTimerRef.current) {
+        window.clearTimeout(reportEffectTimerRef.current)
+        reportEffectTimerRef.current = null
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeTab,
@@ -3208,20 +3308,18 @@ function ERPTab({
     doc.save(`${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${stamp}.pdf`)
     showNotification('✅ PDF exported')
   }
-  const handleTrialAccountDrilldown = async (accountCode) => {
+  const handleTrialAccountDrilldown = (accountCode) => {
     const match = accounts.find((acc) => acc.accountCode === accountCode)
     if (!match?._id) return
     setSelectedReportAccountId(match._id)
     setSelectedReportAccountCode(match.accountCode)
     setReportView('ledger')
-    await loadLedgerReport(match._id)
   }
-  const handleReportAccountDrilldown = async (accountId, accountCode) => {
+  const handleReportAccountDrilldown = (accountId, accountCode) => {
     if (!accountId) return
     setSelectedReportAccountId(String(accountId))
     setSelectedReportAccountCode(accountCode || '')
     setReportView('ledger')
-    await loadLedgerReport(String(accountId))
   }
   const handleOpenVoucherSource = async (ledgerId) => {
     if (!ledgerId) return
@@ -3972,7 +4070,6 @@ function ERPTab({
         setSelectedReportAccountId={setSelectedReportAccountId}
         accounts={accounts}
         setSelectedReportAccountCode={setSelectedReportAccountCode}
-        loadLedgerReport={loadLedgerReport}
         selectedReportAccountCode={selectedReportAccountCode}
         ledgerReportRows={ledgerReportRows}
         loading={reportsLoading}

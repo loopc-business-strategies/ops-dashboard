@@ -172,7 +172,10 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
 
     let closed = false
     const source = new window.EventSource(
-      reportsApi.getMarketPricesStreamUrl(TOPBAR_MARKET_PARAMS),
+      reportsApi.getMarketPricesStreamUrl({
+        ...TOPBAR_MARKET_PARAMS,
+        ...(tenant ? { tenant, company: tenant } : {}),
+      }),
       { withCredentials: true },
     )
 
@@ -206,7 +209,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
       streamConnectedRef.current = false
       source.close()
     }
-  }, [applyRates, enabled, schedulePoll, token])
+  }, [applyRates, enabled, schedulePoll, tenant, token])
 
   const value = { snapshot, error, reload: load }
   return (

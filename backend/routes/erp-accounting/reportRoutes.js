@@ -10,7 +10,7 @@ const dashboardReportCache = new Map()
 const DASHBOARD_CACHE_TTL_MS = 120000
 
 const { createReportResponseCache } = require('../../utils/reportResponseCache')
-const rateLimit = require('express-rate-limit')
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit')
 const reportCache = createReportResponseCache(60000)
 
 const {
@@ -103,6 +103,11 @@ function registerReportRoutes(deps) {
     standardHeaders: true,
     legacyHeaders: false,
     skip: () => !isProduction,
+    keyGenerator: (req) => {
+      const tenant = reportTenantKey(req)
+      const userKey = String(req.user?._id || req.user?.id || req.user?.email || '').trim().toLowerCase()
+      return `${tenant}:${userKey || ipKeyGenerator(req)}`
+    },
     message: { success: false, message: 'Too many report requests. Please wait and try again.' },
   })
 
@@ -292,6 +297,15 @@ router.get('/reports/ledger', protect, reportExportLimiter, async (req, res) => 
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { accountId, startDate, endDate } = req.query
     if (!accountId) return res.status(400).json({ success: false, message: 'Account ID required' })
+    const cacheKey = reportCache.buildKey([
+      reportTenantKey(req),
+      'ledger',
+      accountId,
+      startDate,
+      endDate,
+    ])
+    const cached = reportCache.get(cacheKey)
+    if (cached) return res.json(cached)
 
     const query = {
       isDeleted: { $ne: true },
@@ -347,7 +361,9 @@ router.get('/reports/ledger', protect, reportExportLimiter, async (req, res) => 
       }
     })
 
-    res.json({ success: true, report })
+    const payload = { success: true, report }
+    reportCache.set(cacheKey, payload)
+    res.json(payload)
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }
@@ -470,6 +486,17 @@ router.get('/reports/day-book', protect, reportExportLimiter, async (req, res) =
   try {
     if (!canAccessReports(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
     const { startDate, endDate, referenceType, minAmount = '0' } = req.query
+    const cacheKey = reportCache.buildKey([
+      reportTenantKey(req),
+      'day-book',
+      startDate,
+      endDate,
+      referenceType,
+      minAmount,
+    ])
+    const cached = reportCache.get(cacheKey)
+    if (cached) return res.json(cached)
+
     const query = {
       isDeleted: { $ne: true },
       amount: { $gt: 0 },
@@ -511,7 +538,7 @@ router.get('/reports/day-book', protect, reportExportLimiter, async (req, res) =
       return acc
     }, {})
 
-    res.json({
+    const payload = {
       success: true,
       period: { startDate: startDate || null, endDate: endDate || null },
       entries,
@@ -522,7 +549,9 @@ router.get('/reports/day-book', protect, reportExportLimiter, async (req, res) =
       },
       summaryByType,
       generatedAt: new Date(),
-    })
+    }
+    reportCache.set(cacheKey, payload)
+    res.json(payload)
   } catch {
     res.status(500).json({ success: false, message: 'Server error' })
   }

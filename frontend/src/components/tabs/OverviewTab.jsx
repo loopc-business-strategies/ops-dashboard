@@ -9,29 +9,7 @@ import attendanceAPI from '../../api/attendance'
 import messagesAPI from '../../api/messages'
 import { ModuleTabColumn } from '../layout/ModuleTabChrome'
 import { isPrimaryNavClick } from '../../utils/dashboardNavigation'
-
-const resolveApiOrigin = () => {
-  const configured = String(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-  if (!configured || typeof window === 'undefined') return configured
-
-  try {
-    const parsed = new URL(configured)
-    const currentHost = String(window.location.hostname || '').toLowerCase()
-    const targetHost = String(parsed.hostname || '').toLowerCase()
-    const isLoopbackHost = targetHost === 'localhost' || targetHost === '127.0.0.1' || targetHost === '::1'
-    if (currentHost.endsWith('.localhost') && isLoopbackHost) {
-      parsed.hostname = currentHost
-      return parsed.toString().replace(/\/$/, '')
-    }
-  } catch {
-    return configured
-  }
-
-  return configured
-}
-
-const API_ORIGIN = resolveApiOrigin()
-const REALTIME_URL = `${API_ORIGIN}/api/realtime/events`
+import { buildRealtimeEventsUrl } from '../../utils/realtimeSocket'
 
 const overviewConfig = {
   super_admin: 'executive_dashboard',
@@ -547,9 +525,11 @@ function OverviewTab({ onNavigate, buildTabHref }) {
   }, [token])
 
   useEffect(() => {
-    if (!token) return
+    if (!token) return undefined
 
-    const source = new EventSource(REALTIME_URL, { withCredentials: true })
+    const realtimeUrl = buildRealtimeEventsUrl(user?.company || user?.tenant?.key || user?.tenant?.name)
+    if (!realtimeUrl) return undefined
+    const source = new EventSource(realtimeUrl, { withCredentials: true })
     const onTaskEvent = () => { loadTasks() }
     const onMessageEvent = () => { loadAttendanceAndMessages() }
 
@@ -570,7 +550,7 @@ function OverviewTab({ onNavigate, buildTabHref }) {
       source.close()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token])
+  }, [token, user?.company, user?.tenant])
 
   const scopedTasks = useMemo(() => {
     const activeTasks = tasks.filter((t) => !t.archivedAt)

@@ -3,8 +3,10 @@ import { installCsrfInterceptor } from '../utils/csrfInterceptor'
 import { setLastApiError } from '../utils/lastApiError'
 
 const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 20000)
 
 axios.defaults.withCredentials = true
+axios.defaults.timeout = Number.isFinite(API_TIMEOUT_MS) && API_TIMEOUT_MS > 0 ? API_TIMEOUT_MS : 20000
 installCsrfInterceptor(axios)
 
 const applyCsrfTokenFromResponse = (response) => {

@@ -136,7 +136,11 @@ export default function TransactionsScreen() {
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh' = 'initial') => {
-      if (!token || !allowed || !sessionReady) return
+      if (!token || !allowed || !sessionReady) {
+        setLoading(false)
+        setRefreshing(false)
+        return
+      }
       if (mode === 'refresh') setRefreshing(true)
       else setLoading(true)
       setError('')
@@ -168,7 +172,6 @@ export default function TransactionsScreen() {
 
   useEffect(() => {
     if (!token || !allowed || !sessionReady) {
-      if (!sessionReady) return
       setLoading(false)
       return
     }
@@ -255,7 +258,15 @@ export default function TransactionsScreen() {
     )
   }
 
-  if (!sessionReady || loading) {
+  if (!sessionReady) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.deniedText}>Preparing your company session…</Text>
+      </View>
+    )
+  }
+
+  if (loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={branding.colors.primary} />

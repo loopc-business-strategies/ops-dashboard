@@ -53,7 +53,10 @@ export default function SettingsScreen() {
   }, [])
 
   const loadPrefs = useCallback(async () => {
-    if (!token || !sessionReady) return
+    if (!token || !sessionReady) {
+      setPrefsLoading(false)
+      return
+    }
     setPrefsLoading(true)
     try {
       const data = await fetchNotificationPreferences(token)
@@ -211,7 +214,9 @@ export default function SettingsScreen() {
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Notification topics</Text>
-        {prefsLoading || !prefs ? (
+        {!sessionReady ? (
+          <Text style={styles.meta}>Preparing your company session…</Text>
+        ) : prefsLoading || !prefs ? (
           <Text style={styles.meta}>Loading…</Text>
         ) : (
           TOPIC_GROUPS.map((group) => (

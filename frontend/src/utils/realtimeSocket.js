@@ -14,6 +14,27 @@ const buildNamespaceUrl = (namespace) => {
   return base ? `${base}${namespace}` : namespace
 }
 
+const appendTenantQuery = (url, tenant) => {
+  const tenantKey = String(tenant || '').trim().toLowerCase()
+  if (!tenantKey) return url
+  try {
+    const parsed = new URL(url, typeof window !== 'undefined' ? window.location.origin : undefined)
+    parsed.searchParams.set('tenant', tenantKey)
+    parsed.searchParams.set('company', tenantKey)
+    return parsed.toString()
+  } catch {
+    const separator = String(url || '').includes('?') ? '&' : '?'
+    const encoded = encodeURIComponent(tenantKey)
+    return `${url}${separator}tenant=${encoded}&company=${encoded}`
+  }
+}
+
+export const buildRealtimeEventsUrl = (tenant) => {
+  const base = resolveRealtimeBaseUrl()
+  if (!base) return ''
+  return appendTenantQuery(`${base.replace(/\/$/, '')}/api/realtime/events`, tenant)
+}
+
 const createSocket = (namespace, token, tenant) => {
   const tenantKey = String(tenant || '').trim()
   return io(buildNamespaceUrl(namespace), {
@@ -80,13 +101,12 @@ export const startMetalRatesRealtime = ({ token, tenant, onRatesUpdate }) => {
   }
 }
 
-export const startProjectsSse = ({ onReminderDue }) => {
+export const startProjectsSse = ({ tenant, onReminderDue }) => {
   if (typeof onReminderDue !== 'function') return () => {}
 
-  const base = resolveRealtimeBaseUrl()
-  if (!base) return () => {}
+  const url = buildRealtimeEventsUrl(tenant)
+  if (!url) return () => {}
 
-  const url = `${base.replace(/\/$/, '')}/api/realtime/events`
   const source = new EventSource(url, { withCredentials: true })
 
   const onReminder = (ev) => {

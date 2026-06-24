@@ -30,7 +30,8 @@ function csrfCookieName(tenant) {
 
 function resolvePortalTenant(req, fallbackTenant) {
   const headerTenant = normalizeTenant(req?.headers?.['x-tenant'] || req?.headers?.['x-company'])
-  const fallback = normalizeTenant(fallbackTenant) || headerTenant
+  const queryTenant = normalizeTenant(req?.query?.tenant || req?.query?.company)
+  const fallback = normalizeTenant(fallbackTenant) || headerTenant || queryTenant
   return resolveTenantFromHost(req?.hostname, fallback)
 }
 

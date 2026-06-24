@@ -38,9 +38,11 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid tenant in session. Please log in again.' })
     }
 
-    // Prefer hostname subdomain; fall back to x-tenant header (for single API-domain proxy setups)
-    const headerTenant = normalizeTenant(req.headers['x-tenant'] || req.headers['x-company'])
-    const hostTenant = resolveTenantFromHost(req.hostname, headerTenant || tenant)
+    // Prefer hostname subdomain; fall back to tenant hints for single API-domain/SSE setups.
+    const requestTenant = normalizeTenant(
+      req.headers['x-tenant'] || req.headers['x-company'] || req.query?.tenant || req.query?.company,
+    )
+    const hostTenant = resolveTenantFromHost(req.hostname, requestTenant || tenant)
     if (hostTenant !== tenant) {
       return res.status(401).json({ success: false, message: 'Session tenant does not match this company portal.' })
     }

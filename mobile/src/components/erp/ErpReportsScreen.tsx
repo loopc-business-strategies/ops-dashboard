@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Pressable,
@@ -55,6 +55,8 @@ const REPORT_VIEWS: { id: ErpReportViewId; label: string }[] = [
 ]
 
 const TRIAL_UI_CAP = 250
+const REPORT_REFRESH_DEBOUNCE_MS = 250
+const REPORT_RATE_LIMIT_COOLDOWN_MS = 60_000
 
 function num(v: unknown) {
   const n = Number(v ?? 0)
@@ -63,6 +65,11 @@ function num(v: unknown) {
 
 function fmt(v: unknown) {
   return num(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function isRateLimitError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '')
+  return /too many report requests|request failed \(429\)/i.test(message)
 }
 
 export default function ErpReportsScreen({
@@ -103,6 +110,10 @@ export default function ErpReportsScreen({
   const [ledgerRows, setLedgerRows] = useState<unknown[]>([])
   const [enquiryAccount, setEnquiryAccount] = useState<Record<string, unknown> | null>(null)
   const [enquiryLoading, setEnquiryLoading] = useState(false)
+  const refreshRef = useRef<{ key: string; promise: Promise<void> | null }>({ key: '', promise: null })
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const refreshSeqRef = useRef(0)
+  const rateLimitCooldownUntilRef = useRef(0)
 
   const dateCtx = useMemo(
     () => buildReportDateRange(period, customStart.trim(), customEnd.trim()),
@@ -110,69 +121,105 @@ export default function ErpReportsScreen({
   )
 
   const refresh = useCallback(async () => {
-    if (!token || !allowed || !sessionReady) return
+    if (!token || !allowed || !sessionReady) {
+      setLoading(false)
+      return
+    }
+    if (Date.now() < rateLimitCooldownUntilRef.current) {
+      setError('Too many report requests. Please wait and try again.')
+      setLoading(false)
+      return
+    }
+    const requestKey = JSON.stringify({
+      reportView,
+      range: dateCtx.commonRange,
+      endDate: dateCtx.endDate,
+      includeZeroTrial,
+      selectedAccountId,
+    })
+    if (refreshRef.current.key === requestKey && refreshRef.current.promise) {
+      return refreshRef.current.promise
+    }
+
     setLoading(true)
     setError('')
     const { commonRange, endDate } = dateCtx
-    try {
-      if (reportView === 'summary' || reportView === 'trial') {
-        const includeZero = reportView === 'summary' ? false : includeZeroTrial
-        const data = await getTrialBalanceReport(token, {
-          ...commonRange,
-          includeZero,
-          sortBy: 'accountCode',
-          sortDir: 'asc',
-        })
-        setTrialBalance(data)
-      }
-      if (reportView === 'pnl') {
-        const data = await getProfitLossReport(token, {
-          ...commonRange,
-          includeZero: false,
-          comparePrevious: true,
-        })
-        setProfitLoss(data)
-      }
-      if (reportView === 'balanceSheet') {
-        const data = await getBalanceSheetReport(token, {
-          ...(endDate ? { endDate } : {}),
-        })
-        setBalanceSheet(data)
-      }
-      if (reportView === 'dayBook') {
-        const data = await getDayBookReport(token, { ...commonRange })
-        setDayBook(data)
-      }
-      if (reportView === 'outstanding') {
-        const [cust, ven] = await Promise.all([
-          getCustomerOutstandingReport(token),
-          getVendorOutstandingReport(token),
-        ])
-        setCustomerOutstanding(cust)
-        setVendorOutstanding(ven)
-      }
-      if (reportView === 'forex') {
-        const data = await getForexGainLossReport(token, { ...commonRange })
-        setForex(data)
-      }
-      if (reportView === 'ledger') {
-        const accRes = await fetchAccountsForLedger(token)
-        setAccounts(accRes.accounts || [])
-        if (selectedAccountId) {
-          const led = await getLedgerReport(token, {
-            accountId: selectedAccountId,
+    const seq = refreshSeqRef.current + 1
+    refreshSeqRef.current = seq
+    const promise = (async () => {
+      try {
+        if (reportView === 'summary' || reportView === 'trial') {
+          const includeZero = reportView === 'summary' ? false : includeZeroTrial
+          const data = await getTrialBalanceReport(token, {
             ...commonRange,
+            includeZero,
+            sortBy: 'accountCode',
+            sortDir: 'asc',
           })
-          setLedgerRows((led as { report?: unknown[] })?.report || [])
-        } else {
-          setLedgerRows([])
+          if (seq === refreshSeqRef.current) setTrialBalance(data)
+        }
+        if (reportView === 'pnl') {
+          const data = await getProfitLossReport(token, {
+            ...commonRange,
+            includeZero: false,
+            comparePrevious: true,
+          })
+          if (seq === refreshSeqRef.current) setProfitLoss(data)
+        }
+        if (reportView === 'balanceSheet') {
+          const data = await getBalanceSheetReport(token, {
+            ...(endDate ? { endDate } : {}),
+          })
+          if (seq === refreshSeqRef.current) setBalanceSheet(data)
+        }
+        if (reportView === 'dayBook') {
+          const data = await getDayBookReport(token, { ...commonRange })
+          if (seq === refreshSeqRef.current) setDayBook(data)
+        }
+        if (reportView === 'outstanding') {
+          const [cust, ven] = await Promise.all([
+            getCustomerOutstandingReport(token),
+            getVendorOutstandingReport(token),
+          ])
+          if (seq === refreshSeqRef.current) {
+            setCustomerOutstanding(cust)
+            setVendorOutstanding(ven)
+          }
+        }
+        if (reportView === 'forex') {
+          const data = await getForexGainLossReport(token, { ...commonRange })
+          if (seq === refreshSeqRef.current) setForex(data)
+        }
+        if (reportView === 'ledger') {
+          const accRes = await fetchAccountsForLedger(token)
+          if (seq === refreshSeqRef.current) setAccounts(accRes.accounts || [])
+          if (selectedAccountId) {
+            const led = await getLedgerReport(token, {
+              accountId: selectedAccountId,
+              ...commonRange,
+            })
+            if (seq === refreshSeqRef.current) setLedgerRows((led as { report?: unknown[] })?.report || [])
+          } else if (seq === refreshSeqRef.current) {
+            setLedgerRows([])
+          }
+        }
+        if (seq === refreshSeqRef.current) setError('')
+      } catch (e) {
+        if (isRateLimitError(e)) {
+          rateLimitCooldownUntilRef.current = Date.now() + REPORT_RATE_LIMIT_COOLDOWN_MS
+        }
+        if (seq === refreshSeqRef.current) setError(e instanceof Error ? e.message : 'Failed to load report')
+      } finally {
+        if (refreshRef.current.key === requestKey) {
+          refreshRef.current = { key: '', promise: null }
+        }
+        if (seq === refreshSeqRef.current) {
+          setLoading(false)
         }
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load report')
-    } finally {
-      setLoading(false)
-    }
+    })()
+    refreshRef.current = { key: requestKey, promise }
+    return promise
   }, [token, allowed, sessionReady, dateCtx, includeZeroTrial, selectedAccountId, reportView])
 
   useEffect(() => {
@@ -191,8 +238,20 @@ export default function ErpReportsScreen({
   }, [tenantSessionKey])
 
   useEffect(() => {
-    if (!token || !allowed || !sessionReady) return
-    void refresh()
+    if (!token || !allowed || !sessionReady) {
+      setLoading(false)
+      return undefined
+    }
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+    refreshTimerRef.current = setTimeout(() => {
+      void refresh()
+    }, REPORT_REFRESH_DEBOUNCE_MS)
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = null
+      }
+    }
   }, [token, allowed, sessionReady, tenantSessionKey, refresh])
 
   const onRefresh = useCallback(async () => {
@@ -251,17 +310,8 @@ export default function ErpReportsScreen({
     const match = accounts.find((a) => String(a.accountCode || '').trim() === code)
     if (!match) return undefined
     setSelectedAccountId(match._id)
-    if (initialView !== 'statement' && reportView !== 'ledger') return undefined
-    let cancelled = false
-    void getLedgerReport(token, { accountId: match._id, ...dateCtx.commonRange })
-      .then((led) => {
-        if (!cancelled) setLedgerRows((led as { report?: unknown[] })?.report || [])
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [initialAccountCode, initialView, accounts, token, dateCtx.commonRange, reportView])
+    return undefined
+  }, [initialAccountCode, accounts])
 
   const trialRowsRaw = (trialBalance as { trialBalance?: TrialBalanceRow[] } | null)?.trialBalance || []
   const trialRows = trialBalanceRowsForView(reportView, trialRowsRaw)
@@ -293,7 +343,15 @@ export default function ErpReportsScreen({
     )
   }
 
-  if (!sessionReady || (loading && !refreshing)) {
+  if (!sessionReady) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.muted}>Preparing your company session…</Text>
+      </View>
+    )
+  }
+
+  if (loading && !refreshing) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={branding.colors.primary} />

@@ -75,7 +75,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState('')
 
   const refresh = useCallback(async () => {
-    if (!token || !myAuthId || !sessionReady) return
+    if (!token || !myAuthId || !sessionReady) {
+      setLoading(false)
+      return
+    }
     setError('')
     try {
       const [messagesRaw, participantsRaw, groupsRaw] = await Promise.all([
@@ -118,6 +121,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }, 20000)
     return () => clearInterval(interval)
   }, [token, sessionReady, companyCode, refresh])
+
+  useEffect(() => {
+    if (token && !sessionReady) setLoading(false)
+  }, [token, sessionReady])
 
   useEffect(() => {
     if (!token || !myAuthId || !sessionReady) return undefined

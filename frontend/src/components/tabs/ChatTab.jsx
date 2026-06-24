@@ -6,29 +6,7 @@ import { useAuth }        from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import messagesAPI from '../../api/messages'
-
-const resolveApiOrigin = () => {
-  const configured = String(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-  if (!configured || typeof window === 'undefined') return configured
-
-  try {
-    const parsed = new URL(configured)
-    const currentHost = String(window.location.hostname || '').toLowerCase()
-    const targetHost = String(parsed.hostname || '').toLowerCase()
-    const isLoopbackHost = targetHost === 'localhost' || targetHost === '127.0.0.1' || targetHost === '::1'
-    if (currentHost.endsWith('.localhost') && isLoopbackHost) {
-      parsed.hostname = currentHost
-      return parsed.toString().replace(/\/$/, '')
-    }
-  } catch {
-    return configured
-  }
-
-  return configured
-}
-
-const API_ORIGIN = resolveApiOrigin()
-const REALTIME_URL = `${API_ORIGIN}/api/realtime/events`
+import { buildRealtimeEventsUrl } from '../../utils/realtimeSocket'
 
 /** Demo chats / roster only when explicitly enabled in local dev (never in production builds). */
 const USE_SEED_DATA =
@@ -670,10 +648,12 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
   }
 
   useEffect(() => {
-    if (!token) return
+    if (!token) return undefined
     loadLatestFromApi(false)
 
-    const source = new EventSource(REALTIME_URL, { withCredentials: true })
+    const realtimeUrl = buildRealtimeEventsUrl(user?.company || user?.tenant?.key || user?.tenant?.name)
+    if (!realtimeUrl) return undefined
+    const source = new EventSource(realtimeUrl, { withCredentials: true })
     const onMessageCreated = () => { loadLatestFromApi(true) }
 
     source.addEventListener('message.created', onMessageCreated)
@@ -686,7 +666,7 @@ function ChatTab({ onUnreadChange, onBack, openChatId = null, onOpenChatIdConsum
       window.clearInterval(fallbackId)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token])
+  }, [token, user?.company, user?.tenant])
 
   const canCreateGroup = perms.isSuperAdmin || perms.isDepartmentHead
   const activeChat     = chats.find(c => c.id === activeChatId)
