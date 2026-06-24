@@ -363,23 +363,29 @@ router.post('/me/push-token', protect, validateBody(expoPushTokenSchema), async 
       return res.status(400).json({ success: false, message: 'Invalid Expo push token format.' })
     }
     const TenantUser = await User.getTenantModel(req.tenant)
-    const user = await TenantUser.findById(req.user._id)
-    if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
-
-    const existing = Array.isArray(user.expoPushTokens)
-      ? user.expoPushTokens.map((e) => ({ token: String(e.token || ''), updatedAt: e.updatedAt || new Date() }))
-      : []
     const isMobileClient = String(req.headers['x-client'] || '').toLowerCase() === 'mobile'
-    // After Expo project migration, replace stale tokens from the old experience (one active device per register).
-    const deduped = isMobileClient
-      ? [{ token, updatedAt: new Date() }]
-      : (() => {
-        const next = existing.filter((e) => e.token && e.token !== token)
-        next.unshift({ token, updatedAt: new Date() })
-        return next
-      })()
-    user.expoPushTokens = deduped.slice(0, 8)
-    await user.save({ validateBeforeSave: false })
+    const now = new Date()
+
+    if (isMobileClient) {
+      // Mobile keeps one active Expo token per user after the Expo/Firebase app identity migration.
+      const result = await TenantUser.updateOne(
+        { _id: req.user._id },
+        { $set: { expoPushTokens: [{ token, updatedAt: now }] } },
+      )
+      if (!result.matchedCount) return res.status(404).json({ success: false, message: 'User not found.' })
+      return res.json({ success: true })
+    }
+
+    const user = await TenantUser.findById(req.user._id).select('expoPushTokens').lean()
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
+    const existing = Array.isArray(user.expoPushTokens)
+      ? user.expoPushTokens.map((e) => ({ token: String(e.token || ''), updatedAt: e.updatedAt || now }))
+      : []
+    const deduped = [{ token, updatedAt: now }, ...existing.filter((e) => e.token && e.token !== token)].slice(0, 8)
+    await TenantUser.updateOne(
+      { _id: req.user._id },
+      { $set: { expoPushTokens: deduped } },
+    )
     res.json({ success: true })
   } catch (err) {
     console.error('Push token registration error:', err)
@@ -394,10 +400,11 @@ router.delete('/me/push-token', protect, validateBody(expoPushTokenSchema), asyn
   try {
     const token = String(req.body.token).trim()
     const TenantUser = await User.getTenantModel(req.tenant)
-    const user = await TenantUser.findById(req.user._id)
-    if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
-    user.expoPushTokens = (user.expoPushTokens || []).filter((e) => String(e?.token || '') !== token)
-    await user.save({ validateBeforeSave: false })
+    const result = await TenantUser.updateOne(
+      { _id: req.user._id },
+      { $pull: { expoPushTokens: { token } } },
+    )
+    if (!result.matchedCount) return res.status(404).json({ success: false, message: 'User not found.' })
     res.json({ success: true })
   } catch (err) {
     console.error('Push token delete error:', err)
