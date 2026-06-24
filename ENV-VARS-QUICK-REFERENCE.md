@@ -316,12 +316,13 @@ Use these only after provisioning separate staging Railway/Vercel/Mongo resource
 
 | Variable | Purpose |
 |----------|---------|
-| `STAGING_SMOKE_API_BASE` | Required staging API origin, e.g. `https://api-staging.loopcstrategies.com` |
+| `STAGING_SMOKE_API_BASE` | Staging API origin; defaults to `https://ops-dashboard-staging-e6c6.up.railway.app` |
 | `STAGING_SMOKE_BASE_DOMAIN` | Staging tenant host suffix |
 | `STAGING_SMOKE_VERCEL_HOSTS` | Optional explicit staging frontend hosts, comma-separated |
 | `STAGING_SMOKE_RAILWAY_READINESS_URL` | Optional explicit readiness URL |
 | `STAGING_SMOKE_WAIT_SECONDS` | Optional deploy propagation delay |
-| `STAGING_SMOKE_REQUIRE_AUTH` | Default `true`; set `false` temporarily until staging users exist |
+| `STAGING_SMOKE_REQUIRE_AUTH` | Default `false`; set `true` after staging smoke users exist |
+| `STAGING_SMOKE_SKIP_FRONTEND` | Default `true`; set `false` after adding staging frontend hosts |
 
 ### Repository secrets
 

@@ -17,6 +17,7 @@ function assertStagingTargets() {
   const baseDomain = String(process.env.SMOKE_BASE_DOMAIN || '').trim()
   const vercelHosts = splitCsv(process.env.SMOKE_VERCEL_HOSTS)
   const allowProductionTargets = String(process.env.STAGING_SMOKE_ALLOW_PRODUCTION_TARGETS || '').toLowerCase() === 'true'
+  const skipFrontend = String(process.env.SMOKE_SKIP_FRONTEND || '').toLowerCase() === 'true'
 
   if (!apiBase) {
     throw new Error('SMOKE_API_BASE is required for staging smoke, e.g. https://api-staging.example.com')
@@ -36,7 +37,7 @@ function assertStagingTargets() {
     )
   }
 
-  if (!baseDomain && !vercelHosts.length) {
+  if (!skipFrontend && !baseDomain && !vercelHosts.length) {
     throw new Error('Set SMOKE_BASE_DOMAIN or SMOKE_VERCEL_HOSTS for staging frontend checks.')
   }
 }

@@ -7,6 +7,7 @@ const VERCEL_HOSTS = (process.env.SMOKE_VERCEL_HOSTS || TENANTS.map((tenant) => 
   .split(',')
   .map((host) => host.trim())
   .filter(Boolean)
+const SMOKE_SKIP_FRONTEND = String(process.env.SMOKE_SKIP_FRONTEND || '').trim().toLowerCase() === 'true'
 const SMOKE_ENV_LABEL = process.env.SMOKE_ENV_LABEL || 'Production'
 const RAILWAY_READINESS_URL = process.env.SMOKE_RAILWAY_READINESS_URL || process.env.SMOKE_RAILWAY_HEALTH_URL || `${API_BASE}/api/ready`
 const SMOKE_AUTH_TOKEN = String(process.env.SMOKE_AUTH_TOKEN || '').trim()
@@ -212,20 +213,24 @@ async function run() {
   console.log(`${SMOKE_ENV_LABEL} smoke report`)
   console.log(`API: ${API_BASE}`)
   console.log(`Railway readiness: ${RAILWAY_READINESS_URL}`)
-  console.log(`Vercel hosts: ${VERCEL_HOSTS.join(', ')}`)
+  console.log(`Vercel hosts: ${SMOKE_SKIP_FRONTEND ? 'skipped' : VERCEL_HOSTS.join(', ')}`)
   console.log(`ERP auth required: ${SMOKE_REQUIRE_AUTH ? 'yes' : 'no'}`)
 
   assertSmokeAuthConfigured()
 
   const checks = []
-  for (const host of VERCEL_HOSTS) {
-    checks.push(check(`vercel:${host}`, () => verifyPortalHost(host)))
+  if (!SMOKE_SKIP_FRONTEND) {
+    for (const host of VERCEL_HOSTS) {
+      checks.push(check(`vercel:${host}`, () => verifyPortalHost(host)))
+    }
   }
   for (const tenant of TENANTS) {
     checks.push(check(`railway:${tenant}:ready`, () => verifyRailwayReadiness(tenant)))
     checks.push(check(`railway:${tenant}:auth-routing`, () => verifyTenantAuthPath(tenant)))
     checks.push(check(`railway:${tenant}:csrf-auth-shape`, () => verifyCsrfAuthShape(tenant)))
-    checks.push(check(`railway:${tenant}:erp-readonly`, () => verifyTenantReadOnlyErpPath(tenant)))
+    if (SMOKE_REQUIRE_AUTH) {
+      checks.push(check(`railway:${tenant}:erp-readonly`, () => verifyTenantReadOnlyErpPath(tenant)))
+    }
   }
 
   const results = await Promise.all(checks)

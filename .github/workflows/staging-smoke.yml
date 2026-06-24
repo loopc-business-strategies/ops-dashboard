@@ -22,11 +22,12 @@ jobs:
     timeout-minutes: 15
     env:
       SMOKE_BASE_DOMAIN: ${{ vars.STAGING_SMOKE_BASE_DOMAIN }}
-      SMOKE_API_BASE: ${{ vars.STAGING_SMOKE_API_BASE }}
+      SMOKE_API_BASE: ${{ vars.STAGING_SMOKE_API_BASE || 'https://ops-dashboard-staging-e6c6.up.railway.app' }}
       SMOKE_VERCEL_HOSTS: ${{ vars.STAGING_SMOKE_VERCEL_HOSTS }}
       SMOKE_RAILWAY_READINESS_URL: ${{ vars.STAGING_SMOKE_RAILWAY_READINESS_URL }}
       SMOKE_WAIT_SECONDS: ${{ vars.STAGING_SMOKE_WAIT_SECONDS || '60' }}
-      SMOKE_REQUIRE_AUTH: ${{ vars.STAGING_SMOKE_REQUIRE_AUTH || 'true' }}
+      SMOKE_REQUIRE_AUTH: ${{ vars.STAGING_SMOKE_REQUIRE_AUTH || 'false' }}
+      SMOKE_SKIP_FRONTEND: ${{ vars.STAGING_SMOKE_SKIP_FRONTEND || 'true' }}
 
     steps:
       - name: Checkout

@@ -59,12 +59,13 @@ Configure these under **Settings → Secrets and variables → Actions** before 
 
 | Variable | Purpose |
 |----------|---------|
-| `STAGING_SMOKE_API_BASE` | Required staging API origin, e.g. `https://api-staging.loopcstrategies.com` |
+| `STAGING_SMOKE_API_BASE` | Staging API origin. Defaults to current Railway staging URL: `https://ops-dashboard-staging-e6c6.up.railway.app` |
 | `STAGING_SMOKE_BASE_DOMAIN` | Staging tenant domain suffix, e.g. `staging.loopcstrategies.com` |
 | `STAGING_SMOKE_VERCEL_HOSTS` | Optional comma-separated explicit frontend hosts when staging tenants are not simple subdomains |
 | `STAGING_SMOKE_RAILWAY_READINESS_URL` | Optional explicit readiness URL; defaults to `${STAGING_SMOKE_API_BASE}/api/ready` |
 | `STAGING_SMOKE_WAIT_SECONDS` | Optional deploy propagation delay; default `60` |
-| `STAGING_SMOKE_REQUIRE_AUTH` | Default `true`; set `false` only until staging smoke users exist |
+| `STAGING_SMOKE_REQUIRE_AUTH` | Default `false`; set `true` after staging smoke users exist |
+| `STAGING_SMOKE_SKIP_FRONTEND` | Default `true`; set `false` after adding `STAGING_SMOKE_VERCEL_HOSTS` |
 
 ### Repository secrets
 
@@ -86,6 +87,15 @@ $env:SMOKE_API_BASE = "https://api-staging.loopcstrategies.com"
 $env:SMOKE_BASE_DOMAIN = "staging.loopcstrategies.com"
 $env:SMOKE_AUTH_NAME_MG = "<staging-mg-user>"
 $env:SMOKE_AUTH_PASSWORD_MG = "<staging-mg-password>"
+npm run smoke:staging
+```
+
+API-only check before the staging frontend exists:
+
+```powershell
+$env:SMOKE_API_BASE = "https://api-staging.loopcstrategies.com"
+$env:SMOKE_SKIP_FRONTEND = "true"
+$env:SMOKE_REQUIRE_AUTH = "false"
 npm run smoke:staging
 ```
 
