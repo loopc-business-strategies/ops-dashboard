@@ -3,6 +3,7 @@ export const LIVE_METAL_POLL_MS = MT4_LIVE_POLL_MS
 export const LIVE_METAL_POLL_STREAM_MS = 60_000
 export const LIVE_METAL_RATE_LIMIT_BACKOFF_MS = 90_000
 export const MT4_BRIDGE_SOURCE = 'mt4-bridge'
+export const TOPBAR_MARKET_PARAMS = { currency: 'USD', unit: 'toz' }
 
 export function resolveLiveMetalPollIntervalMs(isMarketStreamConnected: boolean, source = '') {
   if (isMt4BridgeRates({ source })) return MT4_LIVE_POLL_MS
@@ -149,6 +150,21 @@ export function formatLiveMetalUnit(unit?: string) {
   const normalized = normalizeMarketUnit(unit)
   if (normalized === 'TOZ') return 'OZ'
   return normalized
+}
+
+export function marketPricesToRates(payload: Record<string, unknown> | null | undefined) {
+  const metals = payload?.metals as Record<string, unknown> | undefined
+  if (!payload?.success || !metals || typeof metals !== 'object') return null
+  if (String(payload.feedStatus || '').toLowerCase() === 'fallback') return null
+  return {
+    goldPrice: Number(metals.gold) || 0,
+    silverPrice: Number(metals.silver) || 0,
+    platinumPrice: Number(metals.platinum) || 0,
+    priceCurrency: String(payload.currency || 'USD').trim().toUpperCase() || 'USD',
+    priceUnit: normalizeMarketUnit(String(payload.unit || '')),
+    source: String(payload.source || payload.feedStatus || 'market-prices').trim(),
+    updatedAt: (payload.updatedAt || payload.generatedAt || payload.streamAt || null) as string | null,
+  }
 }
 
 export function formatLiveMetalSourceLabel(source = '') {

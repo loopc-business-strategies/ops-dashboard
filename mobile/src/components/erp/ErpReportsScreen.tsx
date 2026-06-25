@@ -27,7 +27,10 @@ import {
   getTrialBalanceReport,
   getVendorOutstandingReport,
   type AccountListItem,
+  type AccountEnquiryPayload,
 } from '@/src/api/erpReports'
+import { LiveMetalPricesBar } from '@/src/components/dashboard/LiveMetalPricesBar'
+import { AccountEnquirySummaryCard } from '@/src/components/erp/AccountEnquirySummaryCard'
 import { fmtSigned } from '@/src/utils/format'
 import { buildReportDateRange, type ReportPeriod } from '@/src/utils/reportDateRange'
 import { trialBalanceRowsForView, type TrialBalanceRow } from '@/src/utils/trialBalanceReportRows'
@@ -108,7 +111,7 @@ export default function ErpReportsScreen({
   const [accountQuery, setAccountQuery] = useState('')
   const [selectedAccountId, setSelectedAccountId] = useState('')
   const [ledgerRows, setLedgerRows] = useState<unknown[]>([])
-  const [enquiryAccount, setEnquiryAccount] = useState<Record<string, unknown> | null>(null)
+  const [enquiryData, setEnquiryData] = useState<AccountEnquiryPayload | null>(null)
   const [enquiryLoading, setEnquiryLoading] = useState(false)
   const refreshRef = useRef<{ key: string; promise: Promise<void> | null }>({ key: '', promise: null })
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -232,7 +235,7 @@ export default function ErpReportsScreen({
     setForex(null)
     setAccounts([])
     setLedgerRows([])
-    setEnquiryAccount(null)
+    setEnquiryData(null)
     setError('')
     setLoading(false)
   }, [tenantSessionKey])
@@ -291,10 +294,10 @@ export default function ErpReportsScreen({
     void getAccountEnquiry(token, code)
       .then((res) => {
         if (cancelled) return
-        setEnquiryAccount((res?.account as Record<string, unknown>) || null)
+        setEnquiryData(res || null)
       })
       .catch(() => {
-        if (!cancelled) setEnquiryAccount(null)
+        if (!cancelled) setEnquiryData(null)
       })
       .finally(() => {
         if (!cancelled) setEnquiryLoading(false)
@@ -368,25 +371,15 @@ export default function ErpReportsScreen({
       <Text style={styles.title}>ERP Reports</Text>
       <Text style={styles.lead}>Same report types as the web dashboard. Pull down to refresh.</Text>
 
+      <LiveMetalPricesBar />
+
       {initialAccountCode ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Account Summary — {initialAccountCode}</Text>
-          {enquiryLoading ? (
-            <ActivityIndicator color={branding.colors.primary} style={{ marginTop: 8 }} />
-          ) : enquiryAccount ? (
-            <>
-              <Text style={styles.rowName}>{String(enquiryAccount.accountName || 'Account')}</Text>
-              <Text style={styles.rowRight}>
-                Balance: {fmt(enquiryAccount.closingBalance ?? enquiryAccount.balance)}
-              </Text>
-              {initialView === 'statement' ? (
-                <Text style={styles.muted}>Ledger statement lines loaded below when available.</Text>
-              ) : null}
-            </>
-          ) : (
-            <Text style={styles.muted}>Could not load account summary. Try ledger drilldown.</Text>
-          )}
-        </View>
+        <AccountEnquirySummaryCard
+          accountCode={initialAccountCode}
+          enquiry={enquiryData}
+          loading={enquiryLoading}
+          branding={branding}
+        />
       ) : null}
 
       <Text style={styles.section}>Period</Text>

@@ -12,6 +12,25 @@ export function shouldSuppressSpotMetalMtmForSupplierDashboard() {
   return true
 }
 
+export function shouldSuppressSpotMetalMtmForAccountEnquiry(account?: {
+  accountType?: string
+  accountName?: string
+  description?: string
+} | null) {
+  if (!account || typeof account !== 'object') return false
+  const accountTypeLower = String(account.accountType || '').trim().toLowerCase()
+  if (accountTypeLower !== 'liability') return false
+  const acctName = String(account.accountName || '')
+  const acctDesc = String(account.description || '')
+  const combined = `${acctName} ${acctDesc}`.toLowerCase()
+  return Boolean(
+    /\(creditor\)/i.test(acctName)
+      || /\bcreditor\b/i.test(acctName)
+      || /\bvendor\b/i.test(acctDesc)
+      || /payable account for vendor/i.test(combined),
+  )
+}
+
 export function computeMarginMetricsRaw({
   totalFunds,
   goldPosition,

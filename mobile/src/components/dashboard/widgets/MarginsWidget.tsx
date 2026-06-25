@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import type { DashboardPayload } from '@/src/api/dashboard'
 import { mgBranding } from '@/src/config/branding'
+import { useErpLiveMetalSpotPrices } from '@/src/hooks/useErpLiveMetalSpotPrices'
 import { fmtPosition, fmtSigned } from '@/src/utils/format'
 import { mapMarginRow } from '@/src/utils/marginWidgetHelpers'
 import { widgetStyles } from '@/src/components/dashboard/widgetStyles'
@@ -17,11 +18,15 @@ type Props = {
 
 export function MarginsWidget({
   dashboard,
-  goldPriceUSD = 0,
-  silverPriceUSD = 0,
-  liveRecalcEnabled = false,
+  goldPriceUSD: goldPriceProp,
+  silverPriceUSD: silverPriceProp,
+  liveRecalcEnabled: liveRecalcProp,
 }: Props) {
   const [tab, setTab] = useState<'customers' | 'suppliers'>('customers')
+  const liveSpot = useErpLiveMetalSpotPrices()
+  const goldPriceUSD = goldPriceProp ?? liveSpot.goldPriceUSD
+  const silverPriceUSD = silverPriceProp ?? liveSpot.silverPriceUSD
+  const liveRecalcEnabled = liveRecalcProp ?? liveSpot.liveRecalcEnabled
   const recalcOptions = { goldPriceUSD, silverPriceUSD, liveRecalcEnabled }
   const customers = (dashboard?.customerMargins || []).map((r) =>
     mapMarginRow(r, 'customerName', { ...recalcOptions, favorableCredit: true }),

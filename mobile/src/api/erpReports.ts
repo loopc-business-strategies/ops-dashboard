@@ -77,8 +77,65 @@ export async function fetchAccountsForLedger(token: string) {
   })
 }
 
+export type AccountEnquiryMetals = {
+  goldPrice?: number
+  silverPrice?: number
+  priceCurrency?: string
+  updatedAt?: string
+  goldBalance?: number
+  silverBalance?: number
+  suppressMetalSpotMtm?: boolean
+  bookedUnfixedRevaluation?: { total?: number }
+}
+
+export type AccountEnquiryBalances = {
+  debitTotal?: number
+  creditTotal?: number
+  netBalance?: number
+  netDirection?: string
+  absoluteNetBalance?: number
+  rateCurrencyBalance?: number
+  rateCurrency?: string
+}
+
+export type AccountEnquiryStatementEntry = {
+  _id?: string
+  date?: string
+  description?: string
+  signedAmount?: number
+  metalFixStatus?: string
+  metalSignedWeight?: number
+  metalCode?: string
+  isMetalTrade?: boolean
+}
+
+export type AccountEnquiryPayload = {
+  success?: boolean
+  account?: {
+    _id?: string
+    accountCode?: string
+    accountName?: string
+    accountType?: string
+    currency?: string
+    description?: string
+  }
+  balances?: AccountEnquiryBalances
+  metals?: AccountEnquiryMetals
+  statement?: {
+    limitValue?: number
+    entryCount?: number
+    entries?: AccountEnquiryStatementEntry[]
+  }
+  positions?: Array<{
+    type?: string
+    balance?: number
+    price?: number
+    currentValue?: number
+  }>
+}
+
 export async function getAccountEnquiry(token: string, accountCode: string) {
-  return apiRequest<{ success?: boolean; account?: Record<string, unknown> }>(`${ACCOUNTS_BASE}/enquiry`, {
+  return apiRequest<AccountEnquiryPayload>(`${ACCOUNTS_BASE}/enquiry`, {
     token,
     params: { accountCode, statementLimit: 60, refresh: '1' },
   })

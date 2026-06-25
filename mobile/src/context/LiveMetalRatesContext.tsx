@@ -14,12 +14,14 @@ import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import { startMetalRatesEvents } from '@/src/realtime/metalRatesSse'
 import { startMetalRatesRealtime } from '@/src/realtime/metalRatesSocket'
+import { startMarketPricesStream } from '@/src/realtime/marketPricesStream'
 import {
   LIVE_METAL_RATE_LIMIT_BACKOFF_MS,
   type LiveMetalSnapshot,
   type MetalRatesError,
   buildMetalRatesFromApiPayload,
   isMt4BridgeRates,
+  marketPricesToRates,
   metalErrorFromException,
   normalizeMarketUnit,
   resolveLiveMetalPollIntervalMs,
@@ -62,6 +64,7 @@ function useLiveMetalRatesState(
   const lastSnapshotRef = useRef<{ gold: number; silver: number; platinum: number } | null>(null)
   const sourceRef = useRef('')
   const socketConnectedRef = useRef(false)
+  const streamConnectedRef = useRef(false)
   const pollPausedUntilRef = useRef(0)
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollIntervalMsRef = useRef<number | null>(null)
@@ -156,7 +159,7 @@ function useLiveMetalRatesState(
   const schedulePollRef = useRef(() => {})
 
   const schedulePoll = useCallback(() => {
-    const intervalMs = resolveLiveMetalPollIntervalMs(socketConnectedRef.current, sourceRef.current)
+    const intervalMs = resolveLiveMetalPollIntervalMs(streamConnectedRef.current, sourceRef.current)
     const needsReset = pollIntervalMsRef.current !== intervalMs || !pollTimerRef.current
     pollIntervalMsRef.current = intervalMs
 
@@ -239,6 +242,34 @@ function useLiveMetalRatesState(
       stop()
     }
   }, [applyRates, companyCode, enabled, load, schedulePoll, sessionReady, token])
+
+  useEffect(() => {
+    if (!enabled || !token || !sessionReady) return undefined
+
+    const stopMarket = startMarketPricesStream(
+      token,
+      companyCode,
+      (payload) => {
+        const rates = marketPricesToRates(payload)
+        if (rates) applyRates(normalizeInboundRates(rates as Record<string, unknown>))
+      },
+      () => {
+        streamConnectedRef.current = true
+        schedulePoll()
+      },
+      () => {
+        if (streamConnectedRef.current) {
+          streamConnectedRef.current = false
+          schedulePoll()
+        }
+      },
+    )
+
+    return () => {
+      streamConnectedRef.current = false
+      stopMarket()
+    }
+  }, [applyRates, companyCode, enabled, schedulePoll, sessionReady, token])
 
   return { snapshot, error, refresh: load }
 }

@@ -17,9 +17,9 @@ import { useTenantBranding } from '@/src/context/TenantContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
 import { useLiveMetalRates } from '@/src/hooks/useLiveMetalRates'
+import { useErpLiveMetalSpotPrices } from '@/src/hooks/useErpLiveMetalSpotPrices'
 import { fetchDashboard, type DashboardPayload } from '@/src/api/dashboard'
 import { fetchLatestMessages, type ChatMessage } from '@/src/api/messages'
-import { resolveEffectiveSpotPrices } from '@/src/utils/liveMetalRates'
 
 export default function HomeScreen() {
   const { token } = useAuth()
@@ -28,7 +28,7 @@ export default function HomeScreen() {
   const tenantSessionKey = useTenantSessionKey()
   const tenantSessionKeyRef = useRef(tenantSessionKey)
   tenantSessionKeyRef.current = tenantSessionKey
-  const { snapshot: liveSnapshot, refresh: refreshLiveMetalRates } = useLiveMetalRates()
+  const { refresh: refreshLiveMetalRates } = useLiveMetalRates()
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,21 +78,12 @@ export default function HomeScreen() {
     }, [load]),
   )
 
-  const { goldPriceUSD, silverPriceUSD } = resolveEffectiveSpotPrices({ liveSnapshot })
-  const liveRecalcEnabled = goldPriceUSD > 0 || silverPriceUSD > 0
+  const { goldPriceUSD, silverPriceUSD, liveRecalcEnabled } = useErpLiveMetalSpotPrices()
 
   if (!sessionReady) {
     return (
       <View style={styles.center}>
         <Text style={[styles.emptyState, { color: branding.colors.muted }]}>Preparing your company session…</Text>
-      </View>
-    )
-  }
-
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={branding.colors.primary} />
       </View>
     )
   }
@@ -103,29 +94,39 @@ export default function HomeScreen() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
     >
-      {error ? <Text style={[styles.error, { color: branding.colors.danger }]}>{error}</Text> : null}
-
       <LiveMetalPricesBar />
 
-      <Text style={[styles.section, { color: branding.colors.muted }]}>My Dashboard</Text>
-      {ERP_DASH_WIDGETS.map((widget) => (
-        <DashboardWidgetCard
-          key={widget.id}
-          icon={widget.icon}
-          title={widget.label}
-          footerLabel={widget.id === 'chat' ? 'Open full chat →' : undefined}
-          onFooterPress={widget.id === 'chat' ? () => router.push('/(tabs)/chat' as never) : undefined}
-        >
-          {renderDashboardWidget({
-            id: widget.id,
-            dashboard,
-            chatMessages,
-            goldPriceUSD,
-            silverPriceUSD,
-            liveRecalcEnabled,
-          })}
-        </DashboardWidgetCard>
-      ))}
+      {loading && !refreshing ? (
+        <View style={styles.centerInline}>
+          <ActivityIndicator color={branding.colors.primary} />
+        </View>
+      ) : null}
+
+      {error ? <Text style={[styles.error, { color: branding.colors.danger }]}>{error}</Text> : null}
+
+      {!loading || refreshing ? (
+        <>
+          <Text style={[styles.section, { color: branding.colors.muted }]}>My Dashboard</Text>
+          {ERP_DASH_WIDGETS.map((widget) => (
+            <DashboardWidgetCard
+              key={widget.id}
+              icon={widget.icon}
+              title={widget.label}
+              footerLabel={widget.id === 'chat' ? 'Open full chat →' : undefined}
+              onFooterPress={widget.id === 'chat' ? () => router.push('/(tabs)/chat' as never) : undefined}
+            >
+              {renderDashboardWidget({
+                id: widget.id,
+                dashboard,
+                chatMessages,
+                goldPriceUSD,
+                silverPriceUSD,
+                liveRecalcEnabled,
+              })}
+            </DashboardWidgetCard>
+          ))}
+        </>
+      ) : null}
     </ScrollView>
   )
 }
@@ -134,6 +135,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { padding: 16, paddingBottom: 32 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  centerInline: { alignItems: 'center', justifyContent: 'center', paddingVertical: 24 },
   emptyState: { fontSize: 14, fontWeight: '700', textAlign: 'center', paddingHorizontal: 24 },
   section: {
     fontSize: 13,
