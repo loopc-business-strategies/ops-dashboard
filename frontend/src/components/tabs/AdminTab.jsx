@@ -976,6 +976,7 @@ function PermissionsTab({ users, token, initialUserId, onRefresh, usersLoading }
 
 function SettingsTab() {
   const { token } = useAuth()
+  const { t } = useLanguage()
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [toast, setToast] = useState('')
   const [loading, setLoading] = useState(true)
@@ -1309,4 +1310,5 @@ function AdminTab() {
   )
 }
 
+export { SettingsTab }
 export default AdminTab
