@@ -550,11 +550,22 @@ function ERPTab({
   })
   const [liveMetalFetchError, setLiveMetalFetchError] = useState(null)
   const erpLiveMetalSnapshot = useMemo(() => ({
-    gold: Number(metalRates.goldPrice || 0),
-    silver: Number(metalRates.silverPrice || 0),
-    unit: 'G',
-    updatedAt: metalRates.updatedAt,
-  }), [metalRates.goldPrice, metalRates.silverPrice, metalRates.updatedAt])
+    gold: Number(liveMetalSnapshot.gold || 0),
+    silver: Number(liveMetalSnapshot.silver || 0),
+    platinum: Number(liveMetalSnapshot.platinum || 0),
+    unit: liveMetalSnapshot.unit || 'TOZ',
+    currency: liveMetalSnapshot.currency || 'USD',
+    source: liveMetalSnapshot.source || '',
+    updatedAt: liveMetalSnapshot.updatedAt,
+  }), [
+    liveMetalSnapshot.gold,
+    liveMetalSnapshot.silver,
+    liveMetalSnapshot.platinum,
+    liveMetalSnapshot.unit,
+    liveMetalSnapshot.currency,
+    liveMetalSnapshot.source,
+    liveMetalSnapshot.updatedAt,
+  ])
   useEffect(() => {
     if (!liveMetalContextError) {
       setLiveMetalFetchError(null)

@@ -203,7 +203,10 @@ export function useAccountEnquiryStatement({
     fallbackSilver: metalRates.silverPrice,
   }), [
     needsLiveMetalForRender,
-    erpLiveMetalSnapshot,
+    erpLiveMetalSnapshot.gold,
+    erpLiveMetalSnapshot.silver,
+    erpLiveMetalSnapshot.unit,
+    erpLiveMetalSnapshot.updatedAt,
     enquiryComputationEnabled,
     accountEnquiryData?.metals?.goldPrice,
     accountEnquiryData?.metals?.silverPrice,
@@ -356,10 +359,10 @@ export function useAccountEnquiryStatement({
     + statementUnfixedVoucherRevaluationByMetal.other
 
   const useVoucherRevaluation = !enquirySuppressMetalSpotMtm
-    && !(enquiryLiveRecalcEnabled && accountEnquiryData)
+    && !enquiryLiveRecalcEnabled
     && Math.abs(statementUnfixedVoucherRevaluation) > 0.000001
 
-  const enquiryUseLiveSpotMtm = enquiryLiveRecalcEnabled && !enquirySuppressMetalSpotMtm && Boolean(accountEnquiryData)
+  const enquiryUseLiveSpotMtm = enquiryLiveRecalcEnabled && Boolean(accountEnquiryData)
   const xauSpotValue = xauBalance * goldPriceUSD
   const xagSpotValue = xagBalance * silverPriceUSD
 
@@ -477,8 +480,12 @@ export function useAccountEnquiryStatement({
     })
     : null
 
-  const modalRevaluationDisplay = enquiryLiveMetrics ? enquiryLiveMetrics.revaluation : modalRevaluation
-  const modalMarginAmtDisplay = enquiryLiveMetrics ? enquiryLiveMetrics.margin : modalMarginAmt
+  const modalRevaluationDisplay = enquiryLiveMetrics
+    ? enquiryLiveMetrics.revaluation
+    : modalRevaluation
+  const modalMarginAmtDisplay = enquiryLiveMetrics
+    ? enquiryLiveMetrics.margin
+    : modalMarginAmt
 
   const modalDisplayMetrics = calculateAccountSummaryMetrics({
     totalFunds: modalTotalFundsDisplay,

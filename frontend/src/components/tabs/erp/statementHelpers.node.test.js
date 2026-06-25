@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest'
+import { computeMarginMetricsRaw } from './metalMarginPolicy'
 import {
   accumulateUnfixedVoucherRevaluationByMetal,
   buildStatementCurrencyOptions,
@@ -110,6 +111,37 @@ describe('statement helpers', () => {
     expect(metrics.excess).toBe(-112022.75)
     expect(metrics.marginPercent).toBe(0)
     expect(resolveExposureDirection(metrics.netEquity)).toBe('Credit')
+  })
+
+  test('live enquiry margin metrics move when spot price changes', () => {
+    const funds = 1000
+    const goldGrams = 50
+    const low = computeMarginMetricsRaw({
+      totalFunds: funds,
+      goldPosition: goldGrams,
+      goldPrice: 128.4,
+      fundsMode: 'asIs',
+    })
+    const high = computeMarginMetricsRaw({
+      totalFunds: funds,
+      goldPosition: goldGrams,
+      goldPrice: 129.2,
+      fundsMode: 'asIs',
+    })
+    expect(high.revaluation).toBeGreaterThan(low.revaluation)
+    const lowSummary = calculateAccountSummaryMetrics({
+      totalFunds: funds,
+      revaluation: low.revaluation,
+      marginAmount: low.margin,
+    })
+    const highSummary = calculateAccountSummaryMetrics({
+      totalFunds: funds,
+      revaluation: high.revaluation,
+      marginAmount: high.margin,
+    })
+    expect(highSummary.netEquity).toBeGreaterThan(lowSummary.netEquity)
+    expect(highSummary.excess).toBeGreaterThan(lowSummary.excess)
+    expect(highSummary.marginPercent).toBeLessThan(lowSummary.marginPercent)
   })
 
   test('uses full booked voucher amount for creditor-style revaluation', () => {
