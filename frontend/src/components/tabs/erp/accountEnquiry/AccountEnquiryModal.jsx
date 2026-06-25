@@ -39,6 +39,8 @@ export default function AccountEnquiryModal({
   modalExcessDisplay,
   modalMarginPctDisplay,
   enquirySuppressMetalSpotMtm,
+  enquiryLiveRecalcEnabled = false,
+  hasMetalExposure = false,
   excessCurrency,
   setExcessCurrency,
   baseCurrencyCode,
@@ -285,6 +287,11 @@ export default function AccountEnquiryModal({
                     </div>
                     {/* RIGHT COLUMN - Financial Metrics */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem', background: '#F9FAFB', borderRadius: '0.6rem', border: '1px solid #E5E7EB' }}>
+                      {enquiryLiveRecalcEnabled && hasMetalExposure && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.15rem' }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#059669', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Live MTM</span>
+                        </div>
+                      )}
                       {/* Total Funds */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem', borderBottom: '1px solid #E5E7EB' }}>
                         <span style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600' }}>Total Funds</span>
@@ -342,10 +349,22 @@ export default function AccountEnquiryModal({
                         {enquirySuppressMetalSpotMtm && (
                           <span>
                             {' '}
-                            For creditor/vendor payables, Total Funds uses the ledger payable balance; revaluation uses live spot on the net unfixed metal position (grams).
+                            For creditor/vendor payables, Total Funds uses the ledger payable balance; revaluation uses booked unfixed metal when posted, otherwise live spot on gram position.
                           </span>
                         )}
-                        {!enquirySuppressMetalSpotMtm && (
+                        {!enquirySuppressMetalSpotMtm && enquiryLiveRecalcEnabled && hasMetalExposure && (
+                          <span>
+                            {' '}
+                            Revaluation, Net Equity, Margin, and Excess update with live spot when the account has metal exposure (grams). Total Funds stays on the ledger balance.
+                          </span>
+                        )}
+                        {!enquirySuppressMetalSpotMtm && enquiryLiveRecalcEnabled && !hasMetalExposure && (
+                          <span>
+                            {' '}
+                            Cash-only account: Total Funds stays on the ledger balance; Revaluation and margin rows stay at 0 while Position Price still updates with live spot.
+                          </span>
+                        )}
+                        {!enquirySuppressMetalSpotMtm && !enquiryLiveRecalcEnabled && (
                           <span>
                             {' '}
                             Revaluation and equity update with live spot when the account has metal exposure (grams). Cash-only accounts show Revaluation 0 while Price still moves.

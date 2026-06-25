@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { resolveEffectiveSpotPrices } from '../../../../utils/liveMetalRates'
 import { erpTabNeedsLiveMetalRates } from '../erpTabUtils'
+import { useErpLiveMetalSpotPrices } from '../useErpLiveMetalSpotPrices'
 import {
   accumulateUnfixedVoucherRevaluationByMetal,
   buildStatementCurrencyOptions,
@@ -12,7 +13,12 @@ import {
   resolveStatementMetalCode,
   isMetalStatementEntry,
 } from '../statementHelpers'
-import { shouldSuppressSpotMetalMtmForAccountEnquiry, computeMarginMetricsRaw } from '../metalMarginPolicy'
+import { shouldSuppressSpotMetalMtmForAccountEnquiry } from '../metalMarginPolicy'
+import {
+  buildAccountEnquiryLiveMetrics,
+  hasAccountEnquiryMetalExposure,
+  resolveAccountEnquiryBookedRevaluation,
+} from './buildAccountEnquiryLiveMetrics'
 
 function resolveFixStatus(entry) {
   const explicit = String(entry?.metalFixStatus || '').trim().toLowerCase()
@@ -184,7 +190,6 @@ export function useAccountEnquiryStatement({
   accountEnquiryData,
   statementFilters,
   statementMetalCommodityEnabled,
-  erpLiveMetalSnapshot,
   metalRates,
   erpBaseCurrencyCode,
   currencies,
@@ -194,16 +199,17 @@ export function useAccountEnquiryStatement({
   const enquiryComputationEnabled = activeTab === 'enquiry' || showEnquiryModal
   const rawStatementEntries = enquiryComputationEnabled ? (accountEnquiryData?.statement?.entries || []) : []
   const needsLiveMetalForRender = enquiryComputationEnabled || erpTabNeedsLiveMetalRates(activeTab)
+  const { snapshot: liveMetalSnapshot } = useErpLiveMetalSpotPrices()
 
   const effectiveSpotPrices = useMemo(() => resolveEffectiveSpotPrices({
-    liveSnapshot: needsLiveMetalForRender ? erpLiveMetalSnapshot : null,
+    liveSnapshot: needsLiveMetalForRender ? liveMetalSnapshot : null,
     enquiryGold: enquiryComputationEnabled ? accountEnquiryData?.metals?.goldPrice : 0,
     enquirySilver: enquiryComputationEnabled ? accountEnquiryData?.metals?.silverPrice : 0,
     fallbackGold: metalRates.goldPrice,
     fallbackSilver: metalRates.silverPrice,
   }), [
     needsLiveMetalForRender,
-    erpLiveMetalSnapshot,
+    liveMetalSnapshot,
     enquiryComputationEnabled,
     accountEnquiryData?.metals?.goldPrice,
     accountEnquiryData?.metals?.silverPrice,
@@ -466,26 +472,43 @@ export function useAccountEnquiryStatement({
 
   const modalTotalFundsDisplay = isCashOnHandEnquiry ? visibleStatementNetBalance : modalTotalFunds
 
-  const enquiryLiveMetrics = enquiryUseLiveSpotMtm
-    ? computeMarginMetricsRaw({
-      totalFunds: modalTotalFundsDisplay,
-      goldPosition: xauBalance,
-      silverPosition: xagBalance,
-      goldPrice: goldPriceUSD,
-      silverPrice: silverPriceUSD,
-      fundsMode: 'asIs',
-    })
-    : null
+  const hasMetalExposure = hasAccountEnquiryMetalExposure(xauBalance, xagBalance)
+  const bookedRevaluationTotal = resolveAccountEnquiryBookedRevaluation(
+    accountEnquiryData?.metals,
+    enquirySuppressMetalSpotMtm ? statementUnfixedVoucherRevaluation : null,
+  )
 
-  const modalRevaluationDisplay = enquiryLiveMetrics
+  const enquiryLiveMetrics = buildAccountEnquiryLiveMetrics({
+    totalFunds: modalTotalFundsDisplay,
+    goldPosition: xauBalance,
+    silverPosition: xagBalance,
+    goldPriceUSD,
+    silverPriceUSD,
+    suppressMetalSpotMtm: enquirySuppressMetalSpotMtm,
+    bookedRevaluation: bookedRevaluationTotal,
+    liveRecalcEnabled: enquiryUseLiveSpotMtm,
+  })
+
+  const rawRevaluationDisplay = enquiryLiveMetrics
     ? enquiryLiveMetrics.revaluation
     : modalRevaluation
-  const modalMarginAmtDisplay = enquiryLiveMetrics
+  const rawMarginAmtDisplay = enquiryLiveMetrics
     ? enquiryLiveMetrics.margin
     : modalMarginAmt
 
+  const revaluationIsSpotDerived = Boolean(enquiryLiveMetrics)
+    || enquirySuppressMetalSpotMtm
+    || !useVoucherRevaluation
+
+  const modalRevaluationDisplay = revaluationIsSpotDerived
+    ? convertMetalSpotDisplayAmount(rawRevaluationDisplay)
+    : convertStatementDisplayAmount(rawRevaluationDisplay)
+  const modalMarginAmtDisplay = revaluationIsSpotDerived
+    ? convertMetalSpotDisplayAmount(rawMarginAmtDisplay)
+    : convertStatementDisplayAmount(rawMarginAmtDisplay)
+
   const modalDisplayMetrics = calculateAccountSummaryMetrics({
-    totalFunds: modalTotalFundsDisplay,
+    totalFunds: convertStatementDisplayAmount(modalTotalFundsDisplay),
     revaluation: modalRevaluationDisplay,
     marginAmount: modalMarginAmtDisplay,
   })
@@ -560,12 +583,14 @@ export function useAccountEnquiryStatement({
     fixedMetalSummary,
     unfixedMetalSummary,
     unknownFixMetalEntries,
-    modalTotalFundsDisplay,
+    modalTotalFundsDisplay: convertStatementDisplayAmount(modalTotalFundsDisplay),
     modalRevaluationDisplay,
     modalNetEquityDisplay,
     modalMarginAmtDisplay,
     modalExcessDisplay,
     modalMarginPctDisplay,
     enquirySuppressMetalSpotMtm,
+    enquiryLiveRecalcEnabled,
+    hasMetalExposure,
   }
 }

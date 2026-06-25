@@ -750,13 +750,14 @@ function ERPTab({
     modalExcessDisplay,
     modalMarginPctDisplay,
     enquirySuppressMetalSpotMtm,
+    enquiryLiveRecalcEnabled,
+    hasMetalExposure,
   } = useAccountEnquiryStatement({
     activeTab,
     showEnquiryModal,
     accountEnquiryData,
     statementFilters,
     statementMetalCommodityEnabled,
-    erpLiveMetalSnapshot,
     metalRates,
     erpBaseCurrencyCode,
     currencies,
@@ -4242,6 +4243,8 @@ function ERPTab({
         modalExcessDisplay={modalExcessDisplay}
         modalMarginPctDisplay={modalMarginPctDisplay}
         enquirySuppressMetalSpotMtm={enquirySuppressMetalSpotMtm}
+        enquiryLiveRecalcEnabled={enquiryLiveRecalcEnabled}
+        hasMetalExposure={hasMetalExposure}
         excessCurrency={excessCurrency}
         setExcessCurrency={setExcessCurrency}
         baseCurrencyCode={baseCurrencyCode}
