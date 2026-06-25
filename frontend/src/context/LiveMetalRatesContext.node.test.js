@@ -38,6 +38,7 @@ vi.mock('../api/erp-accounting/reports', () => ({
 
 vi.mock('../utils/realtimeSocket', () => ({
   startMetalRatesRealtime: () => () => {},
+  buildRealtimeEventsUrl: () => '',
 }))
 
 /** When EventSource is missing, LiveMetalRatesProvider calls schedulePoll twice on mount. */
