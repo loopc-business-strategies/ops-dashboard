@@ -11,6 +11,7 @@ import {
   marketPricesToRates,
   metalErrorFromException,
   normalizeMarketUnit,
+  resolveLiveMetalPollIntervalMs,
 } from '../utils/liveMetalRates'
 
 const LiveMetalRatesContext = createContext(null)
@@ -127,7 +128,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     }
     if (!enabled) return
 
-    const intervalMs = streamConnectedRef.current ? LIVE_METAL_POLL_STREAM_MS : LIVE_METAL_POLL_MS
+    const intervalMs = resolveLiveMetalPollIntervalMs(streamConnectedRef.current, sourceRef.current)
     void load()
     pollTimerRef.current = window.setInterval(() => {
       void load()

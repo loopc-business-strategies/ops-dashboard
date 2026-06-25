@@ -153,7 +153,13 @@ export function useErpCustomerMargin({
   }
 }
 
-export function useErpSupplierMargin({ activeTab, vendors }) {
+export function useErpSupplierMargin({
+  activeTab,
+  vendors,
+  goldPriceUSD = 0,
+  silverPriceUSD = 0,
+  liveRecalcEnabled = false,
+}) {
   const [supplierMarginSearch, setSupplierMarginSearch] = useState('')
   const [supplierMarginCompactView, setSupplierMarginCompactView] = useState(true)
   const [supplierMarginSort, setSupplierMarginSort] = useState('margin-desc')
@@ -167,6 +173,37 @@ export function useErpSupplierMargin({ activeTab, vendors }) {
         const outstanding = -Math.abs(Number(vendor?.outstanding ?? vendor?.outstandingBalance ?? 0))
         const goldPosition = Number(vendor?.goldPosition || 0)
         const silverPosition = Number(vendor?.silverPosition || 0)
+
+        if (liveRecalcEnabled) {
+          const goldPrice = Number(goldPriceUSD || 0)
+          const silverPrice = Number(silverPriceUSD || 0)
+          const metrics = computeMarginMetricsRaw({
+            totalFunds: outstanding,
+            goldPosition,
+            silverPosition,
+            goldPrice,
+            silverPrice,
+            fundsMode: 'asIs',
+          })
+          const excess = metrics.excess < 0 ? Math.abs(metrics.excess) : metrics.excess
+          const equity = metrics.equity < 0 ? Math.abs(metrics.equity) : metrics.equity
+          return {
+            id: vendor?._id,
+            supplierName: String(vendor?.name || '-'),
+            balanceAbs: Math.abs(excess),
+            equity,
+            rawOutstanding: outstanding,
+            goldPosition,
+            silverPosition,
+            marginAmount: metrics.margin,
+            excess,
+            status: metrics.status,
+            marginPercent: metrics.marginPercent,
+            accountCode: String(vendor?.ledgerAccountId?.accountCode || ''),
+            description: String(vendor?.ledgerAccountId?.accountName || `${String(vendor?.name || '').trim()} supplier`),
+          }
+        }
+
         const fallbackRevaluation = 0
         const fallbackMargin = 0
         const fallbackMetrics = calculateAccountSummaryMetrics({
@@ -197,7 +234,7 @@ export function useErpSupplierMargin({ activeTab, vendors }) {
       })
       .filter((row) => (!query ? true : row.supplierName.toLowerCase().includes(query)))
     return sortMarginRows(rows, supplierMarginSort, 'supplierName')
-  }, [activeTab, vendors, supplierMarginSearch, supplierMarginSort])
+  }, [activeTab, vendors, supplierMarginSearch, supplierMarginSort, goldPriceUSD, silverPriceUSD, liveRecalcEnabled])
 
   const handleSupplierMarginRowContextMenu = useCallback((event, row) => {
     event.preventDefault()

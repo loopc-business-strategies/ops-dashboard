@@ -75,7 +75,7 @@ export default function TopbarMetalTickers() {
                   marginTop: '0.12rem',
                   fontSize: '0.65rem',
                   fontWeight: 600,
-                  color: error ? '#fbbf24' : move ? (move.up ? '#4ade80' : '#f87171') : 'rgba(255,255,255,0.45)',
+                  color: move ? (move.up ? '#4ade80' : '#f87171') : error ? '#fbbf24' : 'rgba(255,255,255,0.45)',
                   whiteSpace: 'nowrap',
                 }}
               >

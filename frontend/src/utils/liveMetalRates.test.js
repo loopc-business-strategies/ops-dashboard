@@ -4,11 +4,14 @@ import {
   fmtMoveRow,
   fmtSpot,
   isMt4BridgeRates,
+  LIVE_METAL_POLL_MS,
+  LIVE_METAL_POLL_STREAM_MS,
   metalStatusSubline,
   MT4_BRIDGE_SOURCE,
   resolveEffectiveSpotPrices,
   resolveInventoryValuationUnitCost,
   resolveLiveMetalKey,
+  resolveLiveMetalPollIntervalMs,
   resolveLiveVoucherMetalRate,
 } from '../utils/liveMetalRates'
 
@@ -65,6 +68,12 @@ describe('liveMetalRates helpers', () => {
     }
     expect(resolveLiveVoucherMetalRate('XAU', 'Gold', liveRates, 'OZ')).toBe(4500)
     expect(resolveLiveVoucherMetalRate('XAU', 'Gold', liveRates, 'GRAM')).toBeCloseTo(4500 / 31.1034768, 4)
+  })
+
+  test('resolveLiveMetalPollIntervalMs keeps MT4 on fast poll', () => {
+    expect(resolveLiveMetalPollIntervalMs(true, 'mt4-bridge')).toBe(LIVE_METAL_POLL_MS)
+    expect(resolveLiveMetalPollIntervalMs(true, 'metals.dev')).toBe(LIVE_METAL_POLL_STREAM_MS)
+    expect(resolveLiveMetalPollIntervalMs(false, '')).toBe(LIVE_METAL_POLL_MS)
   })
 
   test('detects MT4 bridge source and status subline', () => {

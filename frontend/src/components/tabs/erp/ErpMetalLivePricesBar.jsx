@@ -102,7 +102,7 @@ export default function ErpMetalLivePricesBar() {
                     marginTop: '0.1rem',
                     fontSize: '0.65rem',
                     fontWeight: 600,
-                    color: error ? '#D97706' : move ? (move.up ? '#059669' : '#DC2626') : '#94A3B8',
+                    color: move ? (move.up ? '#059669' : '#DC2626') : error ? '#D97706' : '#94A3B8',
                     whiteSpace: 'nowrap',
                   }}
                 >

@@ -1,60 +1,33 @@
 import { useEffect } from 'react'
-import { startMetalRatesRealtime } from '../../../utils/realtimeSocket'
-import { erpTabNeedsLiveMetalRates } from './erpTabUtils'
+import { liveRatesToMetalRatesState } from '../../../utils/liveMetalRates'
 
 /**
- * Subscribes to live metal rates without coupling socket wiring to ERPTab render body.
- * Updates parent metal state only on tabs that display rates; enquiry patches via callback.
+ * Keeps Account Summary enquiry metals in sync with the shared live snapshot.
  */
-export function useErpMetalRatesRealtime({
-  token,
-  tenant,
-  canAccessERP,
+export function useErpEnquiryMetalRatesSync({
+  snapshot,
   activeTabRef,
   showEnquiryModalRef,
   accountEnquiryDataRef,
-  metalRatesRef,
-  onMetalRatesForTabs,
   onEnquiryMetalRatesPatch,
 }) {
   useEffect(() => {
-    if (!token || !canAccessERP) return undefined
-
-    let stopMetalRatesRealtime = () => {}
-    const timer = window.setTimeout(() => {
-      stopMetalRatesRealtime = startMetalRatesRealtime({
-        token,
-        tenant,
-        onRatesUpdate: (payload) => {
-          const rates = payload?.rates || payload?.data?.rates
-          if (!rates) return
-          metalRatesRef.current = rates
-          const tab = activeTabRef.current
-          const enquiryModalOpen = Boolean(showEnquiryModalRef?.current)
-          if (erpTabNeedsLiveMetalRates(tab) || enquiryModalOpen) {
-            onMetalRatesForTabs(rates)
-          }
-          const enquiryActive = tab === 'enquiry' || enquiryModalOpen
-          if (enquiryActive && accountEnquiryDataRef.current?.account?.accountCode) {
-            onEnquiryMetalRatesPatch(rates)
-          }
-        },
-      })
-    }, 300)
-
-    return () => {
-      window.clearTimeout(timer)
-      stopMetalRatesRealtime()
-    }
+    const tab = activeTabRef.current
+    const enquiryModalOpen = Boolean(showEnquiryModalRef?.current)
+    const enquiryActive = tab === 'enquiry' || enquiryModalOpen
+    if (!enquiryActive || !accountEnquiryDataRef.current?.account?.accountCode) return
+    const synced = liveRatesToMetalRatesState(snapshot)
+    if (synced) onEnquiryMetalRatesPatch(synced)
   }, [
-    token,
-    tenant,
-    canAccessERP,
+    snapshot,
     activeTabRef,
     showEnquiryModalRef,
     accountEnquiryDataRef,
-    metalRatesRef,
-    onMetalRatesForTabs,
     onEnquiryMetalRatesPatch,
   ])
+}
+
+/** @deprecated Use useErpEnquiryMetalRatesSync — socket + poll live in LiveMetalRatesProvider. */
+export function useErpMetalRatesRealtime() {
+  return undefined
 }

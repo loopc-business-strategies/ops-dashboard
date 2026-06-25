@@ -60,7 +60,6 @@ import {
   decodeInventoryCategoryMeta,
   decodeInventoryCategoryPairs,
   encodeInventoryCategoryMeta,
-  erpTabNeedsLiveMetalRates,
   formatVatPercent,
   getTransactionActionLabels,
   getTransactionTypeLabels,
@@ -69,7 +68,8 @@ import {
   titleCaseWords,
 } from './erp/erpTabUtils'
 import ERPDashboardTab from './erp/tabs/ERPDashboardTab'
-import { useErpMetalRatesRealtime } from './erp/useErpMetalRatesRealtime'
+import { useErpEnquiryMetalRatesSync } from './erp/useErpMetalRatesRealtime'
+import useLiveMetalRates from '../../hooks/useLiveMetalRates'
 import { useErpCustomers } from './erp/useErpCustomers'
 import { useErpMappings } from './erp/useErpMappings'
 import { useErpCurrencies } from './erp/useErpCurrencies'
@@ -322,9 +322,20 @@ function ERPTab({
   const [statementMetalCommodityEnabled, setStatementMetalCommodityEnabled] = useState(false)
   const [showStatementAuditIds, setShowStatementAuditIds] = useState(false)
   const [statementAuditPreferenceReady, setStatementAuditPreferenceReady] = useState(false)
-  const [metalRates, setMetalRates] = useState({ goldPrice: 285, silverPrice: 3.5, priceCurrency: 'USD', updatedAt: null })
-  const metalRatesRef = useRef(metalRates)
-  metalRatesRef.current = metalRates
+  const DEFAULT_METAL_RATES = { goldPrice: 285, silverPrice: 3.5, priceCurrency: 'USD', updatedAt: null }
+  const { snapshot: liveMetalSnapshot, error: liveMetalContextError } = useLiveMetalRates()
+  const metalRates = useMemo(() => {
+    const synced = liveRatesToMetalRatesState(liveMetalSnapshot)
+    return synced || DEFAULT_METAL_RATES
+  }, [
+    liveMetalSnapshot.gold,
+    liveMetalSnapshot.silver,
+    liveMetalSnapshot.platinum,
+    liveMetalSnapshot.unit,
+    liveMetalSnapshot.currency,
+    liveMetalSnapshot.updatedAt,
+    liveMetalSnapshot.source,
+  ])
   const [enquiryHistory, setEnquiryHistory] = useState([])
   const [showEnquiryModal, setShowEnquiryModal] = useState(false)
   const showEnquiryModalRef = useRef(false)
@@ -537,18 +548,11 @@ function ERPTab({
       }
     })
   }, [])
-  const onMetalRatesForTabs = useCallback((rates) => {
-    startTransition(() => setMetalRates(rates))
-  }, [])
-  useErpMetalRatesRealtime({
-    token,
-    tenant: user?.tenant || user?.company,
-    canAccessERP,
+  useErpEnquiryMetalRatesSync({
+    snapshot: liveMetalSnapshot,
     activeTabRef,
     showEnquiryModalRef,
     accountEnquiryDataRef,
-    metalRatesRef,
-    onMetalRatesForTabs,
     onEnquiryMetalRatesPatch: patchAccountEnquiryMetalRates,
   })
   const [liveMetalFetchError, setLiveMetalFetchError] = useState(null)
@@ -559,35 +563,12 @@ function ERPTab({
     updatedAt: metalRates.updatedAt,
   }), [metalRates.goldPrice, metalRates.silverPrice, metalRates.updatedAt])
   useEffect(() => {
-    if (!token || !canAccessERP) return undefined
-    let cancelled = false
-    erpAccountingAPI.getLiveMetalRates(token)
-      .then((data) => {
-        if (cancelled) return
-        const rates = data?.rates || data?.data?.rates || data
-        const synced = liveRatesToMetalRatesState({
-          gold: Number(rates?.sourceGoldPrice || rates?.goldPrice || 0),
-          silver: Number(rates?.sourceSilverPrice || rates?.silverPrice || 0),
-          unit: rates?.sourceUnit || rates?.priceUnit || 'TOZ',
-          updatedAt: rates?.updatedAt || null,
-        })
-        if (synced) {
-          metalRatesRef.current = synced
-          if (erpTabNeedsLiveMetalRates(activeTabRef.current)) {
-            setMetalRates(synced)
-          }
-        }
-        setLiveMetalFetchError(null)
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setLiveMetalFetchError(err?.response?.data?.message || 'Live metal rates unavailable')
-        }
-      })
-    return () => {
-      cancelled = true
+    if (!liveMetalContextError) {
+      setLiveMetalFetchError(null)
+      return
     }
-  }, [token, canAccessERP])
+    setLiveMetalFetchError(liveMetalContextError?.message || 'Live metal rates unavailable')
+  }, [liveMetalContextError])
   const selectedUsdConversionCurrency = resolveCurrencyRowByCode(currencies, usdConversion.targetCode, erpBaseCurrencyCode)
   const selectedUsdConversionRate = Number(selectedUsdConversionCurrency?.exchangeRate || 0)
   const usdAmountValue = Number(usdConversion.usdAmount || 0)
@@ -791,7 +772,8 @@ function ERPTab({
     customers,
     goldPriceUSD,
     silverPriceUSD,
-    liveRecalcEnabled: activeTab === 'customer-margin' && (goldPriceUSD > 0 || silverPriceUSD > 0),
+    liveRecalcEnabled: (activeTab === 'customer-margin' || activeTab === 'supplier-margin')
+      && (goldPriceUSD > 0 || silverPriceUSD > 0),
   })
   const {
     supplierMarginSearch,
@@ -804,7 +786,13 @@ function ERPTab({
     setSupplierMarginContextMenu,
     supplierMarginRows,
     handleSupplierMarginRowContextMenu,
-  } = useErpSupplierMargin({ activeTab, vendors })
+  } = useErpSupplierMargin({
+    activeTab,
+    vendors,
+    goldPriceUSD,
+    silverPriceUSD,
+    liveRecalcEnabled: activeTab === 'supplier-margin' && (goldPriceUSD > 0 || silverPriceUSD > 0),
+  })
   useErpMarginContextMenuDismissal({
     customerMarginContextMenu,
     setCustomerMarginContextMenu,
@@ -2083,11 +2071,6 @@ function ERPTab({
   }, [activeTab])
   useEffect(() => {
     activeTabRef.current = activeTab
-  }, [activeTab])
-  useEffect(() => {
-    if (erpTabNeedsLiveMetalRates(activeTab)) {
-      setMetalRates(metalRatesRef.current)
-    }
   }, [activeTab])
   useEffect(() => {
     accountEnquiryDataRef.current = accountEnquiryData
