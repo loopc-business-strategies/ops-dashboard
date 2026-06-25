@@ -330,6 +330,7 @@ function ERPTab({
     goldPriceUSD: erpGoldPriceUSD,
     silverPriceUSD: erpSilverPriceUSD,
     liveRecalcEnabled: erpLiveRecalcEnabled,
+    liveMetalTick: erpLiveMetalTick,
   } = useErpLiveMetalSpotPrices()
   const metalRates = useMemo(() => {
     const synced = liveRatesToMetalRatesState(liveMetalSnapshot)
@@ -780,7 +781,8 @@ function ERPTab({
     customers,
     goldPriceUSD: erpGoldPriceUSD,
     silverPriceUSD: erpSilverPriceUSD,
-    liveRecalcEnabled: activeTab === 'customer-margin' && erpLiveRecalcEnabled,
+    liveRecalcEnabled: activeTab === 'customer-margin',
+    liveMetalTick: erpLiveMetalTick,
   })
   const {
     supplierMarginSearch,
@@ -798,7 +800,8 @@ function ERPTab({
     vendors,
     goldPriceUSD: erpGoldPriceUSD,
     silverPriceUSD: erpSilverPriceUSD,
-    liveRecalcEnabled: activeTab === 'supplier-margin' && erpLiveRecalcEnabled,
+    liveRecalcEnabled: activeTab === 'supplier-margin',
+    liveMetalTick: erpLiveMetalTick,
   })
   useErpMarginContextMenuDismissal({
     customerMarginContextMenu,
@@ -3351,7 +3354,7 @@ function ERPTab({
         dashChatMessages={dashChatMessages}
         setActiveTab={setActiveTabGuarded}
         onNavigateMain={onNavigateMain}
-        dashboardLiveRecalcEnabled={activeTab === 'dashboard' && erpLiveRecalcEnabled}
+        dashboardLiveRecalcEnabled={activeTab === 'dashboard'}
       />
       )}
       {/* CHART OF ACCOUNTS TAB */}

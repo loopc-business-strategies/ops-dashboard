@@ -39,12 +39,22 @@ function sortMarginRows(rows, sortKey, nameKey) {
   return rows
 }
 
+function hasLiveSpotPrices(goldPriceUSD, silverPriceUSD) {
+  return Number(goldPriceUSD || 0) > 0 || Number(silverPriceUSD || 0) > 0
+}
+
+function pickLiveSpotPrice(livePrice, fallbackPrice = 0) {
+  const live = Number(livePrice || 0)
+  return live > 0 ? live : Number(fallbackPrice || 0)
+}
+
 export function useErpCustomerMargin({
   activeTab,
   customers,
   goldPriceUSD,
   silverPriceUSD,
   liveRecalcEnabled = false,
+  liveMetalTick = null,
 }) {
   const [customerMarginSearch, setCustomerMarginSearch] = useState('')
   const [customerMarginCompactView, setCustomerMarginCompactView] = useState(true)
@@ -62,7 +72,8 @@ export function useErpCustomerMargin({
         const accountType = customer?.ledgerAccountId?.accountType
         const suppressMetalSpotMtm = shouldSuppressSpotMetalMtmForCustomerDashboard(accountType)
 
-        if (liveRecalcEnabled) {
+        const useLiveSpotMtm = liveRecalcEnabled && hasLiveSpotPrices(goldPriceUSD, silverPriceUSD)
+        if (useLiveSpotMtm) {
           const goldPrice = Number(goldPriceUSD || 0)
           const silverPrice = Number(silverPriceUSD || 0)
           const metrics = computeMarginMetricsRaw({
@@ -93,8 +104,8 @@ export function useErpCustomerMargin({
           }
         }
 
-        const goldPrice = Number(customer?.metalRates?.goldPrice || goldPriceUSD || 0)
-        const silverPrice = Number(customer?.metalRates?.silverPrice || silverPriceUSD || 0)
+        const goldPrice = pickLiveSpotPrice(goldPriceUSD, customer?.metalRates?.goldPrice)
+        const silverPrice = pickLiveSpotPrice(silverPriceUSD, customer?.metalRates?.silverPrice)
         const customerFunds = outstanding < 0 ? Math.abs(outstanding) : outstanding
         const isLiabilityCustomerLedger = suppressMetalSpotMtm
         const fallbackRevaluation = isLiabilityCustomerLedger
@@ -106,12 +117,13 @@ export function useErpCustomerMargin({
           revaluation: fallbackRevaluation,
           marginAmount: fallbackMargin,
         })
-        const marginAmount = Number(customer?.marginAmount ?? fallbackMargin)
-        const rawExcess = Number(customer?.marginExcess ?? fallbackMetrics.excess)
-        const rawEquity = Number(customer?.marginEquity ?? fallbackMetrics.netEquity)
+        const preferLiveFallback = hasLiveSpotPrices(goldPriceUSD, silverPriceUSD)
+        const marginAmount = preferLiveFallback ? fallbackMargin : Number(customer?.marginAmount ?? fallbackMargin)
+        const rawExcess = preferLiveFallback ? fallbackMetrics.excess : Number(customer?.marginExcess ?? fallbackMetrics.excess)
+        const rawEquity = preferLiveFallback ? fallbackMetrics.netEquity : Number(customer?.marginEquity ?? fallbackMetrics.netEquity)
         const excess = rawExcess < 0 ? Math.abs(rawExcess) : rawExcess
         const equity = rawEquity < 0 ? Math.abs(rawEquity) : rawEquity
-        const marginPercent = Number(customer?.marginPercent ?? fallbackMetrics.marginPercent)
+        const marginPercent = preferLiveFallback ? fallbackMetrics.marginPercent : Number(customer?.marginPercent ?? fallbackMetrics.marginPercent)
         const status = String(customer?.marginStatus || (equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL')).toUpperCase()
         return {
           id: customer?._id,
@@ -131,7 +143,7 @@ export function useErpCustomerMargin({
       })
       .filter((row) => (!query ? true : row.customerName.toLowerCase().includes(query)))
     return sortMarginRows(rows, customerMarginSort, 'customerName')
-  }, [activeTab, customers, customerMarginSearch, customerMarginSort, goldPriceUSD, silverPriceUSD, liveRecalcEnabled])
+  }, [activeTab, customers, customerMarginSearch, customerMarginSort, goldPriceUSD, silverPriceUSD, liveRecalcEnabled, liveMetalTick])
 
   const handleCustomerMarginRowContextMenu = useCallback((event, row) => {
     event.preventDefault()
@@ -159,6 +171,7 @@ export function useErpSupplierMargin({
   goldPriceUSD = 0,
   silverPriceUSD = 0,
   liveRecalcEnabled = false,
+  liveMetalTick = null,
 }) {
   const [supplierMarginSearch, setSupplierMarginSearch] = useState('')
   const [supplierMarginCompactView, setSupplierMarginCompactView] = useState(true)
@@ -174,7 +187,8 @@ export function useErpSupplierMargin({
         const goldPosition = Number(vendor?.goldPosition || 0)
         const silverPosition = Number(vendor?.silverPosition || 0)
 
-        if (liveRecalcEnabled) {
+        const useLiveSpotMtm = liveRecalcEnabled && hasLiveSpotPrices(goldPriceUSD, silverPriceUSD)
+        if (useLiveSpotMtm) {
           const goldPrice = Number(goldPriceUSD || 0)
           const silverPrice = Number(silverPriceUSD || 0)
           const metrics = computeMarginMetricsRaw({
@@ -204,8 +218,8 @@ export function useErpSupplierMargin({
           }
         }
 
-        const goldPrice = Number(goldPriceUSD || 0)
-        const silverPrice = Number(silverPriceUSD || 0)
+        const goldPrice = pickLiveSpotPrice(goldPriceUSD)
+        const silverPrice = pickLiveSpotPrice(silverPriceUSD)
         const fallbackRevaluation = (goldPosition * goldPrice) + (silverPosition * silverPrice)
         const fallbackMargin = Math.abs(fallbackRevaluation) * 0.02
         const fallbackMetrics = calculateAccountSummaryMetrics({
@@ -213,10 +227,11 @@ export function useErpSupplierMargin({
           revaluation: fallbackRevaluation,
           marginAmount: fallbackMargin,
         })
-        const marginAmount = Number(vendor?.marginAmount ?? fallbackMargin)
-        const excess = Number(vendor?.marginExcess ?? fallbackMetrics.excess)
-        const equity = Number(vendor?.marginEquity ?? fallbackMetrics.netEquity)
-        const marginPercent = Number(vendor?.marginPercent ?? fallbackMetrics.marginPercent)
+        const preferLiveFallback = hasLiveSpotPrices(goldPriceUSD, silverPriceUSD)
+        const marginAmount = preferLiveFallback ? fallbackMargin : Number(vendor?.marginAmount ?? fallbackMargin)
+        const excess = preferLiveFallback ? fallbackMetrics.excess : Number(vendor?.marginExcess ?? fallbackMetrics.excess)
+        const equity = preferLiveFallback ? fallbackMetrics.netEquity : Number(vendor?.marginEquity ?? fallbackMetrics.netEquity)
+        const marginPercent = preferLiveFallback ? fallbackMetrics.marginPercent : Number(vendor?.marginPercent ?? fallbackMetrics.marginPercent)
         const status = String(vendor?.marginStatus || (equity > 0 ? 'POSITIVE' : equity < 0 ? 'NEGATIVE' : 'NEUTRAL')).toUpperCase()
         return {
           id: vendor?._id,
@@ -236,7 +251,7 @@ export function useErpSupplierMargin({
       })
       .filter((row) => (!query ? true : row.supplierName.toLowerCase().includes(query)))
     return sortMarginRows(rows, supplierMarginSort, 'supplierName')
-  }, [activeTab, vendors, supplierMarginSearch, supplierMarginSort, goldPriceUSD, silverPriceUSD, liveRecalcEnabled])
+  }, [activeTab, vendors, supplierMarginSearch, supplierMarginSort, goldPriceUSD, silverPriceUSD, liveRecalcEnabled, liveMetalTick])
 
   const handleSupplierMarginRowContextMenu = useCallback((event, row) => {
     event.preventDefault()

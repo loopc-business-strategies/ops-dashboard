@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { computeMarginMetricsRaw } from './metalMarginPolicy'
 import { useErpLiveMetalSpotPrices } from './useErpLiveMetalSpotPrices'
+import ErpMetalLivePricesBar from './ErpMetalLivePricesBar'
 
 function fmtMoney(val, currency = '') {
   const n = Number(val || 0)
@@ -144,6 +145,7 @@ function MarginsWidget({
 
   return (
     <div>
+      <ErpMetalLivePricesBar />
       <div style={{ display: 'flex', background: '#F9FAFB', borderBottom: '1px solid #F0FDF4' }}>
         <div style={tabSt(tab === 'customers')} onClick={() => setTab('customers')}>Customer Margins</div>
         <div style={tabSt(tab === 'suppliers')} onClick={() => setTab('suppliers')}>Supplier Margins</div>
@@ -689,7 +691,7 @@ function FixingPositionSummaryWidget({ dashboard, onNavigate }) {
 }
 
 
-const MarginsWidgetMemo = React.memo(MarginsWidget)
+const MarginsWidgetMemo = MarginsWidget
 const APARWidgetMemo = React.memo(APARWidget)
 const ExpensesWidgetMemo = React.memo(ExpensesWidget)
 const FixingPositionSummaryWidgetMemo = React.memo(FixingPositionSummaryWidget)

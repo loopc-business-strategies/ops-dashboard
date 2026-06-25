@@ -7,6 +7,12 @@ import { resolveEffectiveSpotPrices } from '../../../utils/liveMetalRates'
  */
 export function useErpLiveMetalSpotPrices() {
   const { snapshot } = useLiveMetalRates()
+  const gold = snapshot?.gold
+  const silver = snapshot?.silver
+  const platinum = snapshot?.platinum
+  const unit = snapshot?.unit
+  const updatedAt = snapshot?.updatedAt
+  const currency = snapshot?.currency
 
   return useMemo(() => {
     const { goldPriceUSD, silverPriceUSD } = resolveEffectiveSpotPrices({ liveSnapshot: snapshot })
@@ -15,6 +21,7 @@ export function useErpLiveMetalSpotPrices() {
       goldPriceUSD,
       silverPriceUSD,
       liveRecalcEnabled: goldPriceUSD > 0 || silverPriceUSD > 0,
+      liveMetalTick: updatedAt || `${gold}-${silver}`,
     }
-  }, [snapshot])
+  }, [snapshot, gold, silver, platinum, unit, updatedAt, currency])
 }
