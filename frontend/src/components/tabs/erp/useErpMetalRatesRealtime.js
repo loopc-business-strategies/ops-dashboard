@@ -19,6 +19,7 @@ export function useErpEnquiryMetalRatesSync({
     const synced = liveRatesToMetalRatesState(snapshot)
     if (synced) onEnquiryMetalRatesPatch(synced)
   }, [
+    snapshot,
     snapshot?.gold,
     snapshot?.silver,
     snapshot?.platinum,

@@ -203,10 +203,7 @@ export function useAccountEnquiryStatement({
     fallbackSilver: metalRates.silverPrice,
   }), [
     needsLiveMetalForRender,
-    erpLiveMetalSnapshot.gold,
-    erpLiveMetalSnapshot.silver,
-    erpLiveMetalSnapshot.unit,
-    erpLiveMetalSnapshot.updatedAt,
+    erpLiveMetalSnapshot,
     enquiryComputationEnabled,
     accountEnquiryData?.metals?.goldPrice,
     accountEnquiryData?.metals?.silverPrice,
