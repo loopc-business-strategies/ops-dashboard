@@ -1038,7 +1038,7 @@ function ERPTab({
       const nextCurrency = prev.currency || baseCurrencyCode
       return prev.currency === nextCurrency ? prev : { ...prev, currency: nextCurrency }
     })
-  }, [baseCurrencyCode])
+  }, [baseCurrencyCode, setJvHeader])
   const filteredGroupedSummaryAccounts = groupedSummaryAccounts
     .map((group) => {
       const lookup = String(accountEnquiryCode || '').trim().toLowerCase()

@@ -19,6 +19,9 @@ cd mobile && npm run check:release
 npm run smoke:mobile:api   # needs MOBILE_SMOKE_LOGIN_NAME / MOBILE_SMOKE_LOGIN_PASSWORD
 npm run smoke:mobile:staging   # staging API — STAGING_SMOKE_AUTH_* or MOBILE_SMOKE_*
 npm run check:mobile-release-secrets   # gh: which iOS/Android store secrets exist
+npm run setup:mobile-github-secrets -- --print-instructions   # where to add secrets + gh push helper
+npm run verify:mg-jv-live:smoke   # prod API JV route probe (no MG password)
+npm run verify:mg-jv-live   # full MG JV audit (needs MG_ADMIN_PASSWORD)
 ```
 
 ## Pre-release (both platforms)
