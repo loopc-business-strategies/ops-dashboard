@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /**
- * Prints the quarterly MongoDB backup verification checklist for operators.
- * Does not access Atlas or Railway — use as a runbook reminder.
+ * Prints MongoDB backup checklist and records drill completion in docs/ops-log/mongodb-backup-drill.log
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -9,6 +8,8 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const docPath = path.join(root, 'docs', 'MONGODB-BACKUPS-AND-DATA-SAFETY.md')
+const logDir = path.join(root, 'docs', 'ops-log')
+const logPath = path.join(logDir, 'mongodb-backup-drill.log')
 
 console.log('MongoDB backup verification checklist\n')
 console.log('Source: docs/MONGODB-BACKUPS-AND-DATA-SAFETY.md\n')
@@ -27,4 +28,21 @@ for (const key of ['MONGO_URI_MG', 'MONGO_URI_CG', 'MONGO_URI_LOOPC']) {
   console.log(`  ${key}: ${set ? 'set locally' : 'not set in this shell'}`)
 }
 
-console.log('\nComplete each checkbox in Atlas/provider dashboard, then record date in your ops log.')
+if (fs.existsSync(logPath)) {
+  const lines = fs.readFileSync(logPath, 'utf8').trim().split(/\r?\n/).filter(Boolean)
+  console.log(`\nLast recorded drills (${lines.length} entries):`)
+  for (const line of lines.slice(-3)) console.log(`  ${line}`)
+} else {
+  console.log('\nNo drill recorded yet. After completing Atlas restore test, run:')
+  console.log('  npm run verify:backup-checklist -- --record "2026-06-25: restored MG snapshot to staging cluster"')
+}
+
+const recordIdx = process.argv.indexOf('--record')
+if (recordIdx >= 0 && process.argv[recordIdx + 1]) {
+  const entry = `${new Date().toISOString().slice(0, 10)} — ${process.argv[recordIdx + 1]}`
+  fs.mkdirSync(logDir, { recursive: true })
+  fs.appendFileSync(logPath, `${entry}\n`)
+  console.log(`\nRecorded: ${entry}`)
+}
+
+console.log('\nComplete each checkbox in Atlas, then record the drill date in your ops log.')

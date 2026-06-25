@@ -1,10 +1,16 @@
+require('./_requireGuard')
+
 const { createMakeRequest, assertLoginConfigured, loginPayloadForApi } = require('./_opsMiscEnv')
 
 const makeRequest = createMakeRequest()
+const APPLY = process.argv.includes('--apply')
 
 ;(async () => {
   try {
     console.log('\n=== Deep MG Cleanup (Authenticated) ===\n')
+    if (!APPLY) {
+      console.log('Dry-run only. Pass --apply --reason="..." --confirm=... to delete data.\n')
+    }
 
     // Step 1: Login with correct field
     assertLoginConfigured()
@@ -45,6 +51,12 @@ const makeRequest = createMakeRequest()
     const ledger = ledRes.data.entries || []
     const jvs = ledger.filter(e => ['journal', 'bank_jv'].includes(String(e.referenceType || '').toLowerCase()))
     console.log(`Found ${ledger.length} total ledger entries (${jvs.length} are JVs)\n`)
+
+    if (!APPLY) {
+      console.log(`Would delete ${transactions.length} transactions and ${ledger.length} ledger entries.`)
+      console.log('No changes made (dry-run).')
+      return
+    }
 
     // Step 4: Delete all transactions
     console.log('[4/5] Deleting all transactions...')

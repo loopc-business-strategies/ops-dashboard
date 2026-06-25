@@ -1,81 +1,67 @@
 # Critical fixes checklist
 
-Ordered production-safety and maintainability work. Update status as items complete.
+Ordered production-safety and maintainability work.
 
-**Last reviewed:** 2026-06-24 · **HEAD:** see `git log -1`
+**Last reviewed:** 2026-06-25 · **HEAD:** see `git log -1`
 
 ---
 
-## P0 — Production safety (do first)
+## P0 — Production safety
 
-| # | Item | Owner | Done when | Status |
-|---|------|-------|-----------|--------|
-| 1 | **Live metal fan-out on all tenants** | Ops + backend | Railway on `37f2ed5+`; logs show `fanout: ['cg','loopc','mg']`; `npm run verify:live-metal-movement:all` passes; mg/cg/loopc top bars show ▲/▼ movement | Code + HTTP integration test — verify prod |
-| 2 | **Redis for multi-instance API** | Ops | `REDIS_URL` set on Railway prod (and staging if >1 replica); `/api/ready` `warnings` empty when set; see [DEPLOY.md](./DEPLOY.md#production-redis-redis_url) | Startup/readiness warnings shipped — set on Railway |
-| 3 | **Mongo backup verification** | Ops | Atlas backups enabled; `npm run verify:backup-checklist`; restore drill in [MONGODB-BACKUPS-AND-DATA-SAFETY.md](./MONGODB-BACKUPS-AND-DATA-SAFETY.md) | Runbook script added — periodic drill |
-
-### Verify commands (P0)
-
-```bash
-# After deploy — requires smoke credentials in backend/.env or env
-npm run verify:live-metal-movement:all
-
-# Local guardrails (no credentials)
-npm run verify:critical-health
-
-# Quarterly backup drill reminder
-npm run verify:backup-checklist
-```
+| # | Item | Status |
+|---|------|--------|
+| 1 | **Live metal fan-out all tenants** | **Done** — code, HTTP test, prod `verify:live-metal-movement:all` 3/3 |
+| 2 | **Redis multi-instance** | **Done** — prod `redisConfigured: true`, readiness warnings shipped |
+| 3 | **Mongo backup verification** | **Done (code)** — `npm run verify:backup-checklist`; record drills with `--record` |
 
 ---
 
 ## P1 — Data integrity & ERP boundaries
 
-| # | Item | Owner | Done when | Status |
-|---|------|-------|-----------|--------|
-| 4 | **ERP API discipline** | All devs | Every ERP PR answers [ERP-API-PR-CHECKLIST.md](./ERP-API-PR-CHECKLIST.md); financial work only on `/api/erp-accounting` | Ongoing |
-| 5 | **Dual ERP deprecation plan** | Tech lead | [ERP-DUAL-API-DEPRECATION.md](./ERP-DUAL-API-DEPRECATION.md); no new financial features on `/api/erp` | Documented |
-| 6 | **Destructive script audit** | Ops | All `backend/scripts/destructive/*.js` use `_destructive-guard.js`; [destructive/README.md](../backend/scripts/destructive/README.md) | Guards pass in CI |
+| # | Item | Status |
+|---|------|--------|
+| 4 | **ERP API discipline** | **Ongoing** — PR checklist + `check:erp-legacy-imports` in CI |
+| 5 | **Dual ERP deprecation** | **Done** — plan + [ERP-DUAL-API-AUDIT.md](./ERP-DUAL-API-AUDIT.md) Phase 1 |
+| 6 | **Destructive script audit** | **Done** — 81 guarded scripts (destructive + root live + ops-misc cleanup + void API) |
 
 ---
 
-## P2 — Maintainability before large ERP features
+## P2 — Maintainability
 
-| # | Item | Owner | Done when | Status |
-|---|------|-------|-----------|--------|
-| 7 | **ERPTab.jsx headroom** | Frontend | File stays **under 6,000 lines** before major ERP features; `DEFAULT_METAL_RATES` in `erpTabConstants.js`; see [ERP-REFACTOR-BACKLOG.md](./ERP-REFACTOR-BACKLOG.md) | ~4,280 lines; incremental extraction |
-| 8 | **erp-accountingContext.js** | Backend | New routes only in `backend/routes/erp-accounting/*`; context stays under 2,400 lines | ~665 lines today |
-| 9 | **E2E money paths** | QA / dev | JV save E2E green in CI; staging auth E2E green when secrets set | JV E2E exists |
+| # | Item | Status |
+|---|------|--------|
+| 7 | **ERPTab.jsx headroom** | **On track** — ~4,282 lines; `DEFAULT_METAL_RATES` extracted |
+| 8 | **erp-accountingContext.js** | **Done** — ~665 lines; routes in `erp-accounting/*` |
+| 9 | **E2E money paths** | **Partial** — JV E2E stubbed; staging live auth E2E in `staging-e2e.yml` (needs secrets) |
+| 10 | **VoucherTab guardrail** | **Done** — `voucherTabConstants.js` extraction; CI budget 3,500 lines |
 
 ---
 
 ## P3 — Observability & parity
 
-| # | Item | Owner | Done when | Status |
-|---|------|-------|-----------|--------|
-| 10 | **Sentry in production** | Ops | `SENTRY_DSN` on Railway + Vercel; `/api/ready` reports `sentryConfigured`; release = git SHA | Readiness check shipped — set DSN |
-| 11 | **Margin widget parity** | Frontend + mobile | Dashboard widgets use `suppressMetalSpotMtm` from API rows; tests cover supplier + liability customer (web + mobile) | Done |
-| 12 | **Dependabot majors** | Dev | Quarterly review Express / Mongoose / Expo SDK | Scheduled |
+| # | Item | Status |
+|---|------|--------|
+| 11 | **Sentry production** | **Railway done** — set `VITE_SENTRY_DSN` on Vercel per [ENV-VARS-QUICK-REFERENCE.md](../ENV-VARS-QUICK-REFERENCE.md) |
+| 12 | **Margin widget parity** | **Done** — web + mobile tests |
+| 13 | **Mobile ERP scope** | **Done** — [MOBILE-ERP-SCOPE.md](./MOBILE-ERP-SCOPE.md) |
+| 14 | **Dependabot majors** | **Done (process)** — [DEPENDABOT-MAJOR-REVIEW.md](./DEPENDABOT-MAJOR-REVIEW.md) quarterly |
 
 ---
 
-## Recently completed
+## Verify commands
 
-| Commit | Fix |
-|--------|-----|
-| `37f2ed5` | MT4 bridge fan-out → mg, cg, loopc |
-| `d83a6f1` | Admin Settings `useLanguage` crash |
-| `de0da4e` | Web idle session logout |
-| `bebf054` / `0641e43` | Mobile + web Account Summary live MTM |
-| `d8cb569` | docs/archive banners |
+```bash
+npm run verify:critical-health
+npm run verify:live-metal-movement:all
+npm run verify:backup-checklist
+npm run smoke:tenants
+```
 
 ---
 
 ## Related docs
 
-- [DEPLOY.md](./DEPLOY.md) — deploy, Redis, rollback
-- [ERP-API-GUIDE.md](./ERP-API-GUIDE.md) — which API to use
-- [ERP-DUAL-API-DEPRECATION.md](./ERP-DUAL-API-DEPRECATION.md) — legacy `/api/erp` plan
-- [ERP-REFACTOR-BACKLOG.md](./ERP-REFACTOR-BACKLOG.md) — line budgets
-- [MT4_METAL_PRICE_BRIDGE.md](./MT4_METAL_PRICE_BRIDGE.md) — live prices ops
-- [INCIDENT-RUNBOOK.md](./INCIDENT-RUNBOOK.md) — outage triage
+- [DEPLOY.md](./DEPLOY.md)
+- [ERP-DUAL-API-AUDIT.md](./ERP-DUAL-API-AUDIT.md)
+- [MOBILE-ERP-SCOPE.md](./MOBILE-ERP-SCOPE.md)
+- [MONGODB-BACKUPS-AND-DATA-SAFETY.md](./MONGODB-BACKUPS-AND-DATA-SAFETY.md)

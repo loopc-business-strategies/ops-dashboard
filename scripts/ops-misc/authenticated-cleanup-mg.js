@@ -1,10 +1,16 @@
+require('./_requireGuard')
+
 const { createMakeRequest, assertLoginConfigured, loginPayloadForApi } = require('./_opsMiscEnv')
 
 const makeRequest = createMakeRequest()
+const APPLY = process.argv.includes('--apply')
 
 ;(async () => {
   try {
     console.log('\n=== Authenticated MG Comprehensive Cleanup ===\n')
+    if (!APPLY) {
+      console.log('Dry-run only. Pass --apply --reason="..." --confirm=... to delete data.\n')
+    }
 
     // Step 1: Login
     assertLoginConfigured()
@@ -38,6 +44,12 @@ const makeRequest = createMakeRequest()
     }
     const transactions = txRes.data.transactions || []
     console.log(`✓ Found ${transactions.length} transactions\n`)
+
+    if (!APPLY) {
+      console.log(`Would delete ${ledger.length} ledger entries and ${transactions.length} transactions.`)
+      console.log('No changes made (dry-run).')
+      return
+    }
 
     // Step 4: Delete all ledger entries
     console.log('[4/6] Deleting ledger entries...')

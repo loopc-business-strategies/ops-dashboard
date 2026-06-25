@@ -21,14 +21,26 @@ const mutatingScriptFiles = [
   'backend/scripts/set-fx-mapping-to-cash-all-tenants.js',
   'backend/scripts/setup-cg-requested-parties-and-bank.js',
   'backend/scripts/update-uzs-rate.js',
+  'backend/scripts/void-transaction-via-api.js',
+  'scripts/renumber-mg-jv-docno-live.js',
+  'scripts/renumber-mg-bank-jv-docno-live.js',
+  'scripts/ops-misc/deep-mongo-cleanup-mg.js',
+  'scripts/ops-misc/deep-cleanup-mg.js',
+  'scripts/ops-misc/deep-cleanup-mg-fixed.js',
+  'scripts/ops-misc/authenticated-cleanup-mg.js',
 ]
 
-function hasGuardInFirstLines(filePath, importText) {
-  return fs.readFileSync(filePath, 'utf8')
-    .split(/\r?\n/)
-    .slice(0, 5)
-    .join('\n')
-    .includes(importText)
+const guardPatterns = [
+  "require('./_destructive-guard')",
+  "require('./destructive/_destructive-guard')",
+  "require('../backend/scripts/destructive/_destructive-guard')",
+  "require('../../backend/scripts/destructive/_destructive-guard')",
+  "require('./_requireGuard')",
+]
+
+function hasGuardInFirstLines(filePath) {
+  const head = fs.readFileSync(filePath, 'utf8').split(/\r?\n/).slice(0, 8).join('\n')
+  return guardPatterns.some((pattern) => head.includes(pattern))
 }
 
 if (!fs.existsSync(destructiveDir)) {
@@ -45,7 +57,7 @@ const violations = []
 
 for (const file of scripts) {
   const fullPath = path.join(destructiveDir, file)
-  if (!hasGuardInFirstLines(fullPath, "require('./_destructive-guard')")) {
+  if (!hasGuardInFirstLines(fullPath)) {
     violations.push(path.relative(process.cwd(), fullPath))
   }
 }
@@ -56,13 +68,13 @@ for (const file of mutatingScriptFiles) {
     violations.push(`${file} (listed mutating script missing)`)
     continue
   }
-  if (!hasGuardInFirstLines(fullPath, "require('./destructive/_destructive-guard')")) {
+  if (!hasGuardInFirstLines(fullPath)) {
     violations.push(file)
   }
 }
 
 if (violations.length) {
-  console.error('Mutating scripts must import backend/scripts/destructive/_destructive-guard.js in the first five lines:')
+  console.error('Mutating scripts must import destructive guard in the first eight lines:')
   for (const file of violations) console.error(`- ${file}`)
   process.exit(1)
 }

@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+require('./destructive/_destructive-guard')({
+  scriptName: 'void-transaction-via-api.js',
+  allowDryRunNoApply: true,
+  defaultTenant: 'loopc',
+  tenantEnvFallbacks: ['VOID_TENANT', 'SMOKE_LOGIN_COMPANY', 'DEFAULT_TENANT'],
+})
 /**
  * Void a posted ERP transaction via the same route as the UI:
  *   POST /api/erp-accounting/transactions/:id/void

@@ -19,7 +19,7 @@
     "smoke:erp": "node scripts/smoke-erp-api.js",
     "void:transaction:api": "node scripts/void-transaction-via-api.js",
     "test": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest",
-    "test:fast": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest tests/permissions.test.js",
+    "test:fast": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest tests/permissions.test.js tests/readiness-and-setup-security.test.js tests/metal-rates-bridge-route.test.js tests/metalRateBridgeFanout.test.js tests/metalMarginPolicy.test.js",
     "test:erp-accounting": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest tests/erpAccounting",
     "test:pagination": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest tests/pagination-edge-cases.test.js",
     "test:integration": "npm run test:integration:tenant-routing && npm run test:integration:tenant-isolation && npm run test:integration:erp",

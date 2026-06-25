@@ -1,10 +1,18 @@
+if (!process.argv.some((arg) => arg.startsWith('--tenant='))) process.argv.push('--tenant=mg')
+require('../backend/scripts/destructive/_destructive-guard')({
+  scriptName: 'renumber-mg-bank-jv-docno-live.js',
+  allowDryRunNoApply: true,
+  defaultTenant: 'mg',
+})
+
 /**
  * Renumber MG bank_jv vouchers into chronological order (one doc no per voucher).
  *
  * Usage:
- *   MG_ADMIN_PASSWORD=... node scripts/renumber-mg-bank-jv-docno-live.js
- *   MG_ADMIN_PASSWORD=... node scripts/renumber-mg-bank-jv-docno-live.js --apply
+ *   MG_ADMIN_PASSWORD=... node scripts/renumber-mg-bank-jv-docno-live.js --tenant=mg
+ *   MG_ADMIN_PASSWORD=... node scripts/renumber-mg-bank-jv-docno-live.js --tenant=mg --apply --reason="..." --confirm=...
  */
+
 const API = (process.env.API_BASE || 'https://api.loopcstrategies.com').replace(/\/$/, '')
 const TENANT = 'mg'
 const APPLY = process.argv.includes('--apply')

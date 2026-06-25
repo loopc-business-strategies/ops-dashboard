@@ -34,6 +34,9 @@ jobs:
       - name: Check destructive script guards
         run: npm run check:destructive-guards
 
+      - name: Check ERP legacy API imports
+        run: npm run check:erp-legacy-imports
+
       - name: Check risk guardrails
         run: npm run check:risk-guardrails
 

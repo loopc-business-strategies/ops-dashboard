@@ -12,6 +12,22 @@ function readArgValue(name) {
   return ''
 }
 
+function resolveTenant(options = {}) {
+  const fromArg = String(readArgValue('--tenant') || readArgValue('-t') || '').trim().toLowerCase()
+  if (fromArg) return fromArg
+
+  const envKeys = [
+    ...(options.tenantEnvFallbacks || []),
+    'DESTRUCTIVE_SCRIPT_TENANT',
+  ]
+  for (const key of envKeys) {
+    const value = String(process.env[key] || '').trim().toLowerCase()
+    if (value) return value
+  }
+
+  return String(options.defaultTenant || '').trim().toLowerCase()
+}
+
 function hasFlag(name) {
   return process.argv.includes(name)
 }
@@ -29,7 +45,7 @@ function isProductionLike() {
 
 function requireDestructiveScriptGuard(options = {}) {
   const scriptName = options.scriptName || path.basename(process.argv[1] || 'destructive-script')
-  const tenant = String(readArgValue('--tenant') || readArgValue('-t') || '').trim().toLowerCase()
+  const tenant = resolveTenant(options)
   const isApplyMode = hasFlag('--apply')
 
   if (!tenant || !VALID_TENANTS.has(tenant)) {

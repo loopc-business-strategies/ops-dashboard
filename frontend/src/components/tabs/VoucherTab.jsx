@@ -19,8 +19,7 @@ import {
   filterActiveVendors,
   filterPartyAccounts,
 } from './erp/accountDropdownHelpers'
-
-const VOUCHER_TAB_TYPES = ['payment', 'receipt', 'purchase', 'sale', 'metal_receipt', 'metal_payment']
+import { VOUCHER_TAB_TYPES } from './voucher/voucherTabConstants'
 
 export default function VoucherTab({
   token,

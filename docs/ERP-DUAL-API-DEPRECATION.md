@@ -24,7 +24,7 @@ See [ERP-API-GUIDE.md](./ERP-API-GUIDE.md) for the split between APIs.
 | Phase | When | Action |
 |-------|------|--------|
 | **Now** | Immediate | Freeze new financial endpoints on `/api/erp`; PR checklist enforced |
-| **Phase 1** | Next 2 quarters | Audit `frontend/src/api/erp.js` callers; document each route still needed |
+| **Phase 1** | **Complete** | [ERP-DUAL-API-AUDIT.md](./ERP-DUAL-API-AUDIT.md); CI `check:erp-legacy-imports` |
 | **Phase 2** | After audit | Read-only shim on legacy vendor/supplier writes with redirect message to accounting API |
 | **Phase 3** | TBD | Remove unused `/api/erp` routes; keep production/procurement subset only |
 

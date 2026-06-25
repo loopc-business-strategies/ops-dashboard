@@ -7,6 +7,11 @@ const budgets = [
     message: 'ERPTab is already a high-risk component. Extract helpers/hooks instead of adding more bulk.',
   },
   {
+    file: 'frontend/src/components/tabs/VoucherTab.jsx',
+    maxLines: 3500,
+    message: 'VoucherTab is high-risk. Extract panels/hooks instead of growing the shell.',
+  },
+  {
     file: 'backend/routes/erp-accountingContext.js',
     maxLines: 2400,
     message: 'ERP accounting route context is high-risk. Put new route slices or services in focused modules.',

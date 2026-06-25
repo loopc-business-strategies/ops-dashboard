@@ -4,7 +4,13 @@
 
 These Node scripts were consolidated from the **repository root** so the top level stays focused on the workspace (`package.json`, `frontend/`, `backend/`, etc.).
 
-They are **not** part of the production app, CI guardrails, or `npm run` workflows unless documented elsewhere. Review each file before running: many hit live APIs or contain tenant-specific assumptions.
+They are **not** part of the production app unless documented elsewhere. **Destructive cleanup scripts** (`deep-*.js`, `authenticated-cleanup-mg.js`, `deep-mongo-cleanup-mg.js`) now require the same guard as `backend/scripts/destructive/`:
+
+- `--tenant=mg` (default)
+- `--apply` to mutate
+- `--reason="..."` (10+ chars) and `--confirm=<token>` for apply in production-like envs
+
+Default is **dry-run** (counts only).
 
 ## Environment (HTTPS helpers)
 
