@@ -73,6 +73,7 @@ describe('liveMetalRates helpers', () => {
   test('resolveLiveMetalPollIntervalMs keeps MT4 on fast poll', () => {
     expect(resolveLiveMetalPollIntervalMs(true, 'mt4-bridge')).toBe(LIVE_METAL_POLL_MS)
     expect(resolveLiveMetalPollIntervalMs(true, 'metals.dev')).toBe(LIVE_METAL_POLL_STREAM_MS)
+    expect(resolveLiveMetalPollIntervalMs(true, '')).toBe(LIVE_METAL_POLL_MS)
     expect(resolveLiveMetalPollIntervalMs(false, '')).toBe(LIVE_METAL_POLL_MS)
   })
 

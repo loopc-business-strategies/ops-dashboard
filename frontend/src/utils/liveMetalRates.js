@@ -1,4 +1,4 @@
-export const MT4_LIVE_POLL_MS = 15_000
+export const MT4_LIVE_POLL_MS = 2_000
 /** Poll interval when market SSE stream is connected (fallback only). */
 export const LIVE_METAL_POLL_STREAM_MS = 60_000
 /** Pause polling after a 429 response. */
@@ -12,10 +12,12 @@ export function isMt4BridgeRates(rates = {}) {
   return String(rates?.source || '').trim().toLowerCase() === MT4_BRIDGE_SOURCE
 }
 
-/** Keep MT4 bridge on the fast poll; only slow down when market SSE is the active feed. */
+/** Keep MT4 on fast poll; only slow poll when market SSE is the active non-MT4 feed. */
 export function resolveLiveMetalPollIntervalMs(isMarketStreamConnected, source = '') {
   if (isMt4BridgeRates({ source })) return MT4_LIVE_POLL_MS
-  if (isMarketStreamConnected) return LIVE_METAL_POLL_STREAM_MS
+  if (isMarketStreamConnected && source && !isMt4BridgeRates({ source })) {
+    return LIVE_METAL_POLL_STREAM_MS
+  }
   return MT4_LIVE_POLL_MS
 }
 

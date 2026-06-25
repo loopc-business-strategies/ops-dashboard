@@ -34,6 +34,6 @@ The top bar, ERP live strip, inventory live badge, and mobile Home bar show **mo
 
 - First successful price tick: subline shows currency/unit and feed label (e.g. `USD/OZ · MT4`) — no prior snapshot yet.
 - Second tick onward: subline shows arrow, absolute change, and percent (e.g. `▲ 1.25 (+0.03%)`). A flat feed correctly shows `▲ 0.00 (+0.00%)`.
-- Movement requires **two client updates** (poll, socket, or bridge POST). Poll interval is **15s** when the market SSE stream is offline (`MT4_LIVE_POLL_MS`).
+- Movement requires **two client updates** (poll, socket, or bridge POST). Poll interval is **2s** for MT4 (`MT4_LIVE_POLL_MS`); Socket.IO and `/api/realtime/events` SSE also push `metal-rates:update` on each bridge tick (~1s).
 
 Production probe: `npm run verify:live-metal-movement` (authenticated multi-sample poll of `GET /metal-rates/live`).

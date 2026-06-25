@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { currenciesApi } from '../api/erp-accounting/currencies'
 import { reportsApi } from '../api/erp-accounting/reports'
-import { startMetalRatesRealtime } from '../utils/realtimeSocket'
+import { startMetalRatesRealtime, buildRealtimeEventsUrl } from '../utils/realtimeSocket'
 import {
   LIVE_METAL_RATE_LIMIT_BACKOFF_MS,
   TOPBAR_MARKET_PARAMS,
@@ -35,6 +35,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
   const streamConnectedRef = useRef(false)
   const pollPausedUntilRef = useRef(0)
   const pollTimerRef = useRef(null)
+  const pollIntervalMsRef = useRef(null)
 
   const applyRates = useCallback((rates, options = {}) => {
     if (!rates) return
@@ -71,6 +72,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
       }
     }
     lastSnapshotRef.current = { gold: next.gold, silver: next.silver, platinum: next.platinum }
+    const prevSource = sourceRef.current
     sourceRef.current = next.source
     setError(null)
     setStreamWarning(null)
@@ -81,6 +83,9 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
         ? { gold: prevSnapshot.gold, silver: prevSnapshot.silver, platinum: prevSnapshot.platinum }
         : null,
     })
+    if (prevSource !== next.source) {
+      schedulePollRef.current()
+    }
   }, [])
 
   const load = useCallback(async () => {
@@ -119,19 +124,28 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     }
   }, [applyRates, enabled, token])
 
+  const schedulePollRef = useRef(() => {})
+
   const schedulePoll = useCallback(() => {
+    const intervalMs = resolveLiveMetalPollIntervalMs(streamConnectedRef.current, sourceRef.current)
+    const needsReset = pollIntervalMsRef.current !== intervalMs || !pollTimerRef.current
+    pollIntervalMsRef.current = intervalMs
+
+    if (!needsReset) return
+
     if (pollTimerRef.current) {
       window.clearInterval(pollTimerRef.current)
       pollTimerRef.current = null
     }
     if (!enabled) return
 
-    const intervalMs = resolveLiveMetalPollIntervalMs(streamConnectedRef.current, sourceRef.current)
     void load()
     pollTimerRef.current = window.setInterval(() => {
       void load()
     }, intervalMs)
   }, [enabled, load])
+
+  schedulePollRef.current = schedulePoll
 
   useEffect(() => {
     schedulePoll()
@@ -140,8 +154,40 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
         window.clearInterval(pollTimerRef.current)
         pollTimerRef.current = null
       }
+      pollIntervalMsRef.current = null
     }
   }, [schedulePoll])
+
+  useEffect(() => {
+    if (!enabled || !token || typeof window === 'undefined' || typeof window.EventSource !== 'function') {
+      return undefined
+    }
+
+    const url = buildRealtimeEventsUrl(tenant)
+    if (!url) return undefined
+
+    let closed = false
+    const source = new window.EventSource(url, { withCredentials: true })
+
+    const onMetalRatesUpdate = (event) => {
+      if (closed) return
+      try {
+        const data = JSON.parse(event.data || '{}')
+        const rates = data.rates || data
+        if (rates && typeof rates === 'object') applyRates(rates)
+      } catch {
+        // Ignore malformed realtime events.
+      }
+    }
+
+    source.addEventListener('metal-rates:update', onMetalRatesUpdate)
+
+    return () => {
+      closed = true
+      source.removeEventListener('metal-rates:update', onMetalRatesUpdate)
+      source.close()
+    }
+  }, [applyRates, enabled, tenant, token])
 
   useEffect(() => {
     if (!enabled || typeof document === 'undefined') return undefined
