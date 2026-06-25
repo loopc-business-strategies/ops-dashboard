@@ -42,6 +42,7 @@ const buildJvDocNo = (ledger = [], mode = 'journal', now = new Date()) => {
   const { prefix, referenceType } = resolveJvModeMeta(mode)
   const year = now.getFullYear()
   const maxExisting = (ledger || []).reduce((max, entry) => {
+    if (!isManualJvLedgerEntry(entry)) return max
     if (String(entry?.referenceType || '').toLowerCase() !== String(referenceType || '').toLowerCase()) return max
     const head = jvDescriptionHead(entry?.description)
 
@@ -139,6 +140,19 @@ const inferLegacyJvRowDisplayFc = (entry, baseCurrencyCode = 'USD') =>
   inferLegacyJvBatchDisplayFc(entry ? [entry] : [], baseCurrencyCode)
 
 const isValidMongoObjectId = (value = '') => /^[a-fA-F0-9]{24}$/.test(String(value || '').trim())
+
+/** System FX gain/loss postings tied to transactions — not manual journal vouchers. */
+const SYSTEM_FX_ADJUSTMENT_DESC_RE = /Exchange (gain|loss) adjustment for transaction /i
+
+const isSystemFxAdjustmentLedgerEntry = (entry) =>
+  SYSTEM_FX_ADJUSTMENT_DESC_RE.test(String(entry?.description || ''))
+
+const isManualJvLedgerEntry = (entry) => {
+  const refType = String(entry?.referenceType || '').toLowerCase()
+  if (refType !== 'journal' && refType !== 'bank_jv') return false
+  if (refType === 'journal' && isSystemFxAdjustmentLedgerEntry(entry)) return false
+  return true
+}
 
 /** Stable key for grouping multi-line journal / bank_jv ledger postings into one voucher row. */
 const jvLedgerGroupKey = (entry) => {
@@ -866,6 +880,8 @@ export {
   resolveJvHeaderNarrationFromBatch,
   inferLegacyJvBatchDisplayFc,
   inferLegacyJvRowDisplayFc,
+  isManualJvLedgerEntry,
+  isSystemFxAdjustmentLedgerEntry,
   groupJvLedgerEntries,
   jvLedgerGroupKey,
   sumJvLedgerBaseAmount,

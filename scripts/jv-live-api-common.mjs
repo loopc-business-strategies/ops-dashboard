@@ -19,6 +19,18 @@ try {
 
 export const TENANTS = ['mg', 'cg', 'loopc']
 export const AUTO_TEST_MARKER = 'AUTO TEST OPS-'
+const SYSTEM_FX_ADJUSTMENT_DESC_RE = /Exchange (gain|loss) adjustment for transaction /i
+
+export function isSystemFxAdjustmentLedgerEntry(entry) {
+  return SYSTEM_FX_ADJUSTMENT_DESC_RE.test(String(entry?.description || ''))
+}
+
+export function isManualJvLedgerEntrySync(entry) {
+  const refType = String(entry?.referenceType || '').toLowerCase()
+  if (refType !== 'journal' && refType !== 'bank_jv') return false
+  if (refType === 'journal' && isSystemFxAdjustmentLedgerEntry(entry)) return false
+  return true
+}
 
 export function getApiBase() {
   return (process.env.API_BASE || 'https://api.loopcstrategies.com').replace(/\/$/, '')
@@ -148,9 +160,15 @@ export async function fetchAllJournalJv(tenant, session) {
   return all
 }
 
+export async function filterManualJournalJvEntries(entries) {
+  return (entries || []).filter((entry) => isManualJvLedgerEntrySync(entry))
+}
+
 export async function auditJournalJv(tenant, entries) {
   const { groupJvLedgerEntries } = await loadJvHelpers()
-  const grouped = groupJvLedgerEntries(entries)
+  const manualEntries = await filterManualJournalJvEntries(entries)
+  const fxSkipped = entries.length - manualEntries.length
+  const grouped = groupJvLedgerEntries(manualEntries)
 
   const docNoCounts = new Map()
   for (const g of grouped) {
@@ -160,6 +178,9 @@ export async function auditJournalJv(tenant, entries) {
 
   console.log(`\n=== ${tenant.toUpperCase()} normal JV audit ===`)
   console.log(`Ledger lines: ${entries.length}`)
+  if (fxSkipped > 0) {
+    console.log(`Excluded system FX adjustment lines (not manual JV): ${fxSkipped}`)
+  }
   console.log(`Grouped vouchers: ${grouped.length}`)
   console.log(`Duplicate doc numbers: ${dupDocs.length}`)
 

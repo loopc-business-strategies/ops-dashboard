@@ -450,7 +450,7 @@ function createTransactionAccountResolutionService({
             creditAccountId: accounts.creditAccountId,
             amount: diffInBase,
             description: `Exchange ${isGain ? 'gain' : 'loss'} adjustment for transaction ${transaction._id}`,
-            referenceType: 'journal',
+            referenceType: 'expense',
             referenceId: transaction._id,
             createdBy: user._id,
             updatedBy: user._id,

@@ -164,9 +164,8 @@ function createFxRevaluationService(deps) {
 
   const getFxJournalEntriesForTransaction = async (txId, session = null) => withSession(Ledger.find({
     referenceId: txId,
-    referenceType: 'journal',
     isDeleted: { $ne: true },
-    description: /Exchange (gain|loss) adjustment/i,
+    description: /Exchange (gain|loss) adjustment for transaction /i,
   })
     .sort({ createdAt: 1, _id: 1 })
     .populate('debitAccountId', 'accountCode accountName')

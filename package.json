@@ -32,6 +32,8 @@
     "verify:jv-live:smoke": "node scripts/run-jv-live-verify.mjs --smoke-only",
     "test:jv-live-roundtrip": "node scripts/jv-live-roundtrip.mjs --tenant all",
     "test:jv-live-roundtrip:apply": "node scripts/jv-live-roundtrip.mjs --tenant all --apply",
+    "migrate:fx-journal-to-expense": "node scripts/migrate-fx-adjustment-journal-to-expense.mjs --tenant all",
+    "migrate:fx-journal-to-expense:apply": "node scripts/migrate-fx-adjustment-journal-to-expense.mjs --tenant all --apply",
     "mobile:update:preview": "npm --prefix mobile run update:preview",
     "mobile:update:production": "npm --prefix mobile run update:production",
     "lint": "npm run check:tracked-paths && npm run check:destructive-guards && npm run check:risk-guardrails && npm run check:vercel-rewrites && npm run lint:eslint:ci && npm run lint:eslint:hooks-order && npm run lint:eslint:finance-ops && npm run lint:eslint:extended-tabs && npm run lint:eslint:erp-shell-tabs && npm run lint:eslint:backend && npm run lint:eslint:repo",

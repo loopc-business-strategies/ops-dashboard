@@ -2,6 +2,7 @@ import JournalVoucherModal from './JournalVoucherModal'
 import {
   groupJvLedgerEntries,
   inferLegacyJvBatchDisplayFc,
+  isManualJvLedgerEntry,
   normalizeJvCurrencyCode,
 } from '../journalVoucherHelpers'
 import { filterActiveAccounts } from '../accountDropdownHelpers'
@@ -66,7 +67,10 @@ export default function ERPLedgerTab({
 }) {
   const activeAccounts = filterActiveAccounts(accounts)
   const visibleJvLedgerEntries = activeTab === 'ledger'
-    ? ledger.filter((entry) => String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab)
+    ? ledger.filter((entry) => (
+      String(entry.referenceType || '').toLowerCase() === ledgerVoucherTab
+      && isManualJvLedgerEntry(entry)
+    ))
     : []
   const groupedJvVouchers = groupJvLedgerEntries(visibleJvLedgerEntries, { baseCurrencyCode })
 

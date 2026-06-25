@@ -9,6 +9,8 @@ import {
   normalizeJvCurrencyCode,
   resolveJvModeMeta,
   groupJvLedgerEntries,
+  isManualJvLedgerEntry,
+  isSystemFxAdjustmentLedgerEntry,
   validateJvLines,
   reconstructJvEditLines,
   extractJvPostingLineDescription,
@@ -43,6 +45,40 @@ describe('journal voucher helpers', () => {
 
     expect(buildJvDocNo(ledger, 'journal', new Date('2026-05-18T00:00:00.000Z'))).toBe('Jv/2026/0004')
     expect(buildJvDocNo(ledger, 'bank_jv', new Date('2026-05-18T00:00:00.000Z'))).toBe('BnkJV/2026/0010')
+  })
+
+  test('excludes system FX adjustment rows from manual JV numbering and grouping', () => {
+    const fxRow = {
+      referenceType: 'journal',
+      description: 'Exchange loss adjustment for transaction 507f1f77bcf86cd799439011',
+      referenceId: '507f1f77bcf86cd799439011',
+      amount: 12,
+      exchangeRate: 1,
+      debitAccountId: { accountCode: '5190' },
+      creditAccountId: { accountCode: '1100' },
+    }
+    expect(isSystemFxAdjustmentLedgerEntry(fxRow)).toBe(true)
+    expect(isManualJvLedgerEntry(fxRow)).toBe(false)
+
+    const ledger = [
+      { referenceType: 'journal', description: 'Jv/2026/0002 — opening entry' },
+      fxRow,
+    ]
+    expect(buildJvDocNo(ledger, 'journal', new Date('2026-05-18T00:00:00.000Z'))).toBe('Jv/2026/0003')
+
+    const grouped = groupJvLedgerEntries([fxRow], { baseCurrencyCode: 'USD' })
+    expect(grouped).toHaveLength(1)
+    expect(grouped[0].voucherNo).toBe('—')
+
+    const manualOnly = [fxRow, {
+      referenceType: 'journal',
+      description: 'Jv/2026/0001 — real jv',
+      amount: 50,
+      exchangeRate: 1,
+      debitAccountId: { accountCode: '1100' },
+      creditAccountId: { accountCode: '2100' },
+    }]
+    expect(groupJvLedgerEntries(manualOnly.filter(isManualJvLedgerEntry), { baseCurrencyCode: 'USD' })).toHaveLength(1)
   })
 
   test('creates a header with document number, date, narration, and currency', () => {
