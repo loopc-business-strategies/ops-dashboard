@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
@@ -134,6 +134,8 @@ const ERPSettingsTab = lazy(() => import('./erp/tabs/ERPSettingsTab'))
 const ERPCurrenciesTab = lazy(() => import('./erp/tabs/ERPCurrenciesTab'))
 
 const VoucherTab = lazy(() => import('./VoucherTab'))
+
+const DEFAULT_METAL_RATES = { goldPrice: 285, silverPrice: 3.5, priceCurrency: 'USD', updatedAt: null }
 
 function ErpSubTabFallback() {
   return (
@@ -322,20 +324,11 @@ function ERPTab({
   const [statementMetalCommodityEnabled, setStatementMetalCommodityEnabled] = useState(false)
   const [showStatementAuditIds, setShowStatementAuditIds] = useState(false)
   const [statementAuditPreferenceReady, setStatementAuditPreferenceReady] = useState(false)
-  const DEFAULT_METAL_RATES = { goldPrice: 285, silverPrice: 3.5, priceCurrency: 'USD', updatedAt: null }
   const { snapshot: liveMetalSnapshot, error: liveMetalContextError } = useLiveMetalRates()
   const metalRates = useMemo(() => {
     const synced = liveRatesToMetalRatesState(liveMetalSnapshot)
     return synced || DEFAULT_METAL_RATES
-  }, [
-    liveMetalSnapshot.gold,
-    liveMetalSnapshot.silver,
-    liveMetalSnapshot.platinum,
-    liveMetalSnapshot.unit,
-    liveMetalSnapshot.currency,
-    liveMetalSnapshot.updatedAt,
-    liveMetalSnapshot.source,
-  ])
+  }, [liveMetalSnapshot])
   const [enquiryHistory, setEnquiryHistory] = useState([])
   const [showEnquiryModal, setShowEnquiryModal] = useState(false)
   const showEnquiryModalRef = useRef(false)
