@@ -38,6 +38,14 @@ const tokenFor = (user) => jwt.sign({ id: user._id.toString(), company: TEST_TEN
 
 const authHeader = (user) => ({ Authorization: `Bearer ${tokenFor(user)}` })
 
+const FX_ADJUSTMENT_LEDGER_DESC_RE = /Exchange (gain|loss) adjustment for transaction /i
+
+const fxAdjustmentLedgerQuery = (referenceId) => ({
+  referenceId,
+  isDeleted: { $ne: true },
+  description: FX_ADJUSTMENT_LEDGER_DESC_RE,
+})
+
 const createUser = async (overrides = {}) => {
   const now = Date.now().toString(36)
   return User.create({
@@ -1542,24 +1550,18 @@ describe('ERP accounting transactions workflow', () => {
     const receiptTxId = await createAndPost('receipt')
     const paymentTxId = await createAndPost('payment')
 
-    const receiptJournal = await queryInTenant(() => Ledger.findOne({
-      referenceId: receiptTxId,
-      referenceType: 'journal',
-      isDeleted: { $ne: true },
-    }))
+    const receiptJournal = await queryInTenant(() => Ledger.findOne(fxAdjustmentLedgerQuery(receiptTxId)))
     expect(receiptJournal).toBeTruthy()
+    expect(receiptJournal.referenceType).toBe('expense')
     expect(Number(receiptJournal.amount)).toBeCloseTo(16.67, 2)
 
     const receiptDebitAccount = await queryInTenant(() => ChartOfAccount.findById(receiptJournal.debitAccountId))
     expect(receiptDebitAccount).toBeTruthy()
     expect(receiptDebitAccount.accountType).toBe('Expense')
 
-    const paymentJournal = await queryInTenant(() => Ledger.findOne({
-      referenceId: paymentTxId,
-      referenceType: 'journal',
-      isDeleted: { $ne: true },
-    }))
+    const paymentJournal = await queryInTenant(() => Ledger.findOne(fxAdjustmentLedgerQuery(paymentTxId)))
     expect(paymentJournal).toBeTruthy()
+    expect(paymentJournal.referenceType).toBe('expense')
     expect(Number(paymentJournal.amount)).toBeCloseTo(16.67, 2)
 
     const paymentCreditAccount = await queryInTenant(() => ChartOfAccount.findById(paymentJournal.creditAccountId))
@@ -1637,18 +1639,10 @@ describe('ERP accounting transactions workflow', () => {
     const receiptTxId = await createAndPost('receipt')
     const paymentTxId = await createAndPost('payment')
 
-    const receiptJournal = await queryInTenant(() => Ledger.findOne({
-      referenceId: receiptTxId,
-      referenceType: 'journal',
-      isDeleted: { $ne: true },
-    }))
+    const receiptJournal = await queryInTenant(() => Ledger.findOne(fxAdjustmentLedgerQuery(receiptTxId)))
     expect(receiptJournal).toBeFalsy()
 
-    const paymentJournal = await queryInTenant(() => Ledger.findOne({
-      referenceId: paymentTxId,
-      referenceType: 'journal',
-      isDeleted: { $ne: true },
-    }))
+    const paymentJournal = await queryInTenant(() => Ledger.findOne(fxAdjustmentLedgerQuery(paymentTxId)))
     expect(paymentJournal).toBeFalsy()
   })
 
@@ -1745,11 +1739,7 @@ describe('ERP accounting transactions workflow', () => {
     const expectedBaseUsd = fcInr * usdPerInr
     expect(Number(mainLedger.amount)).toBeCloseTo(expectedBaseUsd, 2)
 
-    const fxJournal = await queryInTenant(() => Ledger.findOne({
-      referenceId: txId,
-      referenceType: 'journal',
-      isDeleted: { $ne: true },
-    }))
+    const fxJournal = await queryInTenant(() => Ledger.findOne(fxAdjustmentLedgerQuery(txId)))
     expect(fxJournal).toBeFalsy()
   })
 
@@ -1826,11 +1816,9 @@ describe('ERP accounting transactions workflow', () => {
       : initialPostRes
     expect(postRes.status).toBe(200)
 
-    const paymentJournal = await queryInTenant(() => Ledger.findOne({
-      referenceId: createRes.body.transaction._id,
-      referenceType: 'journal',
-      isDeleted: { $ne: true },
-    }))
+    const paymentJournal = await queryInTenant(() => Ledger.findOne(
+      fxAdjustmentLedgerQuery(createRes.body.transaction._id),
+    ))
     expect(paymentJournal).toBeFalsy()
   })
 
@@ -2215,13 +2203,12 @@ describe('ERP accounting transactions workflow', () => {
       .send({ comment: 'Post FX line item transaction' })
     expect(postRes.status).toBe(200)
 
-    const fxJournal = await queryInTenant(() => Ledger.findOne({
-      referenceId: createRes.body.transaction._id,
-      referenceType: 'journal',
-      isDeleted: { $ne: true },
-    }))
+    const fxJournal = await queryInTenant(() => Ledger.findOne(
+      fxAdjustmentLedgerQuery(createRes.body.transaction._id),
+    ))
 
     expect(fxJournal).toBeTruthy()
+    expect(fxJournal.referenceType).toBe('expense')
     expect(Number(fxJournal.amount)).toBeCloseTo(16.67, 2)
 
     const fxDebitAccount = await queryInTenant(() => ChartOfAccount.findById(fxJournal.debitAccountId))
