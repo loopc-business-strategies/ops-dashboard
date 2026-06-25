@@ -42,6 +42,7 @@ $env:SMOKE_AUTH_NAME = "<user>"
 $env:SMOKE_AUTH_PASSWORD = "<password>"
 npm run smoke:tenants
 npm run smoke:prod
+npm run test:jv-live-roundtrip   # dry-run JV create/cleanup on prod (needs SMOKE_AUTH_* or *_ADMIN_PASSWORD)
 ```
 
 ## Staging smoke
