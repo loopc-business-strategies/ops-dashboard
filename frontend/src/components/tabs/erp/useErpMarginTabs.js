@@ -76,13 +76,17 @@ export function useErpCustomerMargin({
         if (useLiveSpotMtm) {
           const goldPrice = Number(goldPriceUSD || 0)
           const silverPrice = Number(silverPriceUSD || 0)
+          const frozenReval = Number(customer?.marginRevaluation ?? 0)
+          const frozenEquity = Number(customer?.marginEquity ?? outstanding)
+          const totalFunds = frozenEquity - frozenReval
           const metrics = computeMarginMetricsRaw({
-            totalFunds: outstanding,
+            totalFunds,
             goldPosition,
             silverPosition,
             goldPrice,
             silverPrice,
             suppressMetalSpotMtm,
+            revaluationOverride: suppressMetalSpotMtm ? frozenReval : null,
             fundsMode: 'customerAbsIfNegative',
           })
           const excess = metrics.excess < 0 ? Math.abs(metrics.excess) : metrics.excess

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose')
 const { TENANT_KEYS, getTenantUri } = require('../config/tenants')
 const { connectTenant } = require('../db/tenantConnections')
+const { getBackendBuildMeta } = require('./buildMeta')
 
 let primaryMongoReady = false
 
@@ -48,14 +49,20 @@ async function getReadinessStatus() {
     String(process.env.WEB_PUSH_PUBLIC_KEY || '').trim()
       && String(process.env.WEB_PUSH_PRIVATE_KEY || '').trim(),
   )
+  const redisConfigured = Boolean(String(process.env.REDIS_URL || '').trim())
+  const build = getBackendBuildMeta()
 
   return {
     success: ready,
     ready,
+    commit: build.commit,
+    build,
+    backend: build,
     checks: {
       jwtSecret,
       mongoConnected,
       tenants,
+      redisConfigured,
       integrations: {
         /** Expo server push: `expo-server-sdk` uses `EXPO_ACCESS_TOKEN` (never the secret value here). */
         expoPushAccessTokenSet,

@@ -228,6 +228,37 @@ async function verifyCsrfAuthShape(tenant) {
   return `${response.status} csrf/auth bypass shape`
 }
 
+async function verifyTenantMetalRatesLive(tenant) {
+  let smokeSession = null
+  if (!SMOKE_AUTH_TOKEN && !SMOKE_SESSION_COOKIE) {
+    smokeSession = await loginForSmoke(tenant)
+  }
+  if (!SMOKE_AUTH_TOKEN && !SMOKE_SESSION_COOKIE && !smokeSession) {
+    throw new Error(`metal-rates live probe requires credentials for ${tenant}`)
+  }
+
+  const headers = {
+    'x-tenant': tenant,
+    'x-company': tenant,
+  }
+  if (SMOKE_AUTH_TOKEN) headers.authorization = `Bearer ${SMOKE_AUTH_TOKEN}`
+  if (SMOKE_SESSION_COOKIE || smokeSession?.cookie) headers.cookie = SMOKE_SESSION_COOKIE || smokeSession.cookie
+  if (smokeSession?.csrfToken) headers['x-csrf-token'] = smokeSession.csrfToken
+
+  const response = await fetchWithTimeout(`${API_BASE}/api/erp-accounting/metal-rates/live`, { headers })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok || body.success !== true) {
+    throw new Error(`metal-rates/live returned ${response.status}: ${body.message || 'unexpected response'}`)
+  }
+  const rates = body.rates || {}
+  const gold = Number(rates.goldPrice || rates.sourceGoldPrice || 0)
+  const silver = Number(rates.silverPrice || rates.sourceSilverPrice || 0)
+  if (gold <= 0 || silver <= 0) {
+    throw new Error(`metal-rates/live returned non-positive prices (gold=${gold}, silver=${silver})`)
+  }
+  return `${response.status} live=${Boolean(body.live)} gold=${gold.toFixed(2)}`
+}
+
 async function run() {
   console.log(`${SMOKE_ENV_LABEL} smoke report`)
   console.log(`API: ${API_BASE}`)
@@ -252,6 +283,7 @@ async function run() {
     checks.push(check(`railway:${tenant}:csrf-auth-shape`, () => verifyCsrfAuthShape(tenant)))
     if (SMOKE_REQUIRE_AUTH) {
       checks.push(check(`railway:${tenant}:erp-readonly`, () => verifyTenantReadOnlyErpPath(tenant)))
+      checks.push(check(`railway:${tenant}:metal-rates-live`, () => verifyTenantMetalRatesLive(tenant)))
     }
   }
 

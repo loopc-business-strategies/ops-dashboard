@@ -1,43 +1,62 @@
 import { describe, expect, test } from 'vitest'
 import {
   computeMarginMetricsRaw,
+  shouldSuppressSpotMetalMtmForCustomerDashboard,
   shouldSuppressSpotMetalMtmForSupplierDashboard,
 } from './metalMarginPolicy'
 
-function buildCustomerRow(customer, goldPriceUSD, silverPriceUSD, liveRecalcEnabled) {
+function buildCustomerLiveMetrics(customer, goldPriceUSD, silverPriceUSD) {
   const outstanding = Number(customer?.outstandingBalance || 0)
   const goldPosition = Number(customer?.goldPosition || 0)
   const silverPosition = Number(customer?.silverPosition || 0)
-  if (!liveRecalcEnabled) return null
-  const metrics = computeMarginMetricsRaw({
-    totalFunds: outstanding,
+  const accountType = customer?.ledgerAccountId?.accountType
+  const suppressMetalSpotMtm = shouldSuppressSpotMetalMtmForCustomerDashboard(accountType)
+  const frozenReval = Number(customer?.marginRevaluation ?? 0)
+  const frozenEquity = Number(customer?.marginEquity ?? outstanding)
+  const totalFunds = frozenEquity - frozenReval
+  return computeMarginMetricsRaw({
+    totalFunds,
     goldPosition,
     silverPosition,
     goldPrice: goldPriceUSD,
     silverPrice: silverPriceUSD,
+    suppressMetalSpotMtm,
+    revaluationOverride: suppressMetalSpotMtm ? frozenReval : null,
     fundsMode: 'customerAbsIfNegative',
   })
-  return metrics
 }
 
 describe('useErpMarginTabs live recalc', () => {
   test('margin metrics increase when live gold price rises', () => {
     const customer = {
-      _id: 'c1',
-      name: 'Test Customer',
       outstandingBalance: 1000,
+      marginEquity: 1200,
+      marginRevaluation: 200,
       goldPosition: 50,
       silverPosition: 0,
       ledgerAccountId: { accountType: 'asset', accountCode: '2001' },
     }
-    const low = buildCustomerRow(customer, 128.4, 1.85, true)
-    const high = buildCustomerRow(customer, 129.2, 1.85, true)
-    expect(low).not.toBeNull()
-    expect(high).not.toBeNull()
-    if (!low || !high) throw new Error('expected metrics')
+    const low = buildCustomerLiveMetrics(customer, 128.4, 1.85)
+    const high = buildCustomerLiveMetrics(customer, 129.2, 1.85)
     expect(high.revaluation).toBeGreaterThan(low.revaluation)
     expect(high.equity).toBeGreaterThan(low.equity)
     expect(high.marginPercent).toBeLessThan(low.marginPercent)
+  })
+
+  test('liability customer live path uses frozen revaluation override', () => {
+    const customer = {
+      outstandingBalance: 50,
+      marginEquity: 50,
+      marginRevaluation: 0,
+      goldPosition: 10,
+      silverPosition: 0,
+      ledgerAccountId: { accountType: 'liability', accountCode: '2100' },
+    }
+    const low = buildCustomerLiveMetrics(customer, 50, 1)
+    const high = buildCustomerLiveMetrics(customer, 200, 1)
+    expect(low.equity).toBe(50)
+    expect(high.equity).toBe(50)
+    expect(high.revaluation).toBe(0)
   })
 
   test('supplier live path suppresses spot MTM with frozen revaluation', () => {

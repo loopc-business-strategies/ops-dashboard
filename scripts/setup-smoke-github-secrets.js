@@ -12,7 +12,7 @@
  *   node scripts/setup-smoke-github-secrets.js
  *   node scripts/setup-smoke-github-secrets.js --staging
  *   node scripts/setup-smoke-github-secrets.js --verify-only
- *   node scripts/setup-smoke-github-secrets.js --staging --users-only --skip-verify
+ *   node scripts/setup-smoke-github-secrets.js --reactivate-only
  */
 
 const { spawnSync } = require('node:child_process')
@@ -68,6 +68,20 @@ function runGh(args, input) {
   }
 
   return result.stdout.trim()
+}
+
+async function reactivateSmokeUser(tenant) {
+  await connectTenant(tenant)
+  const TenantUser = await User.getTenantModel(tenant)
+  const user = await TenantUser.findOne({ name: SMOKE_USER_NAME })
+  if (!user) {
+    return { tenant, action: 'missing', id: null }
+  }
+  user.isActive = true
+  user.role = 'management'
+  user.department = 'management'
+  await user.save()
+  return { tenant, action: 'reactivated', id: String(user._id) }
 }
 
 async function upsertSmokeUser(tenant, password) {
@@ -167,12 +181,54 @@ function setGithubSecrets(password) {
 
 async function main() {
   const usersOnly = process.argv.includes('--users-only')
+  const reactivateOnly = process.argv.includes('--reactivate-only')
   const secretsOnly = process.argv.includes('--secrets-only')
   const skipVerify = process.argv.includes('--skip-verify')
     || process.argv.includes('--skip-production-verify')
 
-  if (!usersOnly && !process.env.GH_TOKEN && spawnSync('gh', ['auth', 'status'], { encoding: 'utf8', shell: true }).status !== 0) {
+  if (!usersOnly && !reactivateOnly && !process.env.GH_TOKEN && spawnSync('gh', ['auth', 'status'], { encoding: 'utf8', shell: true }).status !== 0) {
     throw new Error('GitHub CLI is not authenticated. Run gh auth login or set GH_TOKEN.')
+  }
+
+  if (reactivateOnly) {
+    for (const tenant of TENANTS) {
+      const envVar = `MONGO_URI_${tenant.toUpperCase()}`
+      if (!String(process.env[envVar] || '').trim()) {
+        throw new Error(`Missing ${envVar} in backend/.env or workflow env`)
+      }
+    }
+
+    console.log(`Reactivating ${isStaging ? 'staging' : 'production'} smoke user "${SMOKE_USER_NAME}" in mg/cg/loopc (no password change)...`)
+    for (const tenant of TENANTS) {
+      const result = await reactivateSmokeUser(tenant)
+      console.log(`  ${result.tenant.toUpperCase()}: ${result.action}${result.id ? ` (${result.id})` : ''}`)
+      if (result.action === 'missing') {
+        throw new Error(`Smoke user "${SMOKE_USER_NAME}" not found in ${tenant.toUpperCase()}. Run full provisioning first.`)
+      }
+    }
+    if (skipVerify) {
+      console.log('Skipping login/ERP verification (--skip-verify).')
+      console.log('Smoke user reactivation complete.')
+      return
+    }
+    const password = String(
+      process.env.SMOKE_AUTH_PASSWORD
+      || process.env[`${SECRET_PREFIX}AUTH_PASSWORD`]
+      || '',
+    ).trim()
+    if (!password) {
+      throw new Error(
+        `${SECRET_PREFIX}AUTH_PASSWORD is required to verify login after reactivation. `
+        + 'Set env or run with --skip-verify.',
+      )
+    }
+    console.log(`Verifying login + ERP read against ${API_BASE}...`)
+    for (const tenant of TENANTS) {
+      const detail = await verifySmokeLogin(tenant, password)
+      console.log(`  ${detail}`)
+    }
+    console.log('Smoke user reactivation complete.')
+    return
   }
 
   for (const tenant of TENANTS) {

@@ -29,7 +29,12 @@ const readGitHead = (fallback = '') => {
   }
 }
 
-const commit = readGitHead(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GITHUB_SHA || 'unknown')
+const commit = String(
+  process.env.RAILWAY_GIT_COMMIT_SHA
+  || process.env.GITHUB_SHA
+  || process.env.GIT_COMMIT_SHA
+  || '',
+).trim() || readGitHead('unknown')
 const shortCommit = commit && commit !== 'unknown' ? commit.slice(0, 7) : 'unknown'
 
 mkdirSync(dirname(outputPath), { recursive: true })
