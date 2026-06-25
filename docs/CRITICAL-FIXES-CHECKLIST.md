@@ -12,7 +12,7 @@ Ordered production-safety and maintainability work.
 |---|------|--------|
 | 1 | **Live metal fan-out all tenants** | **Done** — code, HTTP test, prod `verify:live-metal-movement:all` 3/3 |
 | 2 | **Redis multi-instance** | **Done** — prod `redisConfigured: true`, readiness warnings shipped |
-| 3 | **Mongo backup verification** | **Done (code)** — `npm run verify:backup-checklist`; record drills with `--record` |
+| 3 | **Mongo backup verification** | **Drill recorded** — `npm run verify:mongo-backup-drill`; full Atlas snapshot restore still quarterly in Atlas dashboard |
 
 ---
 
@@ -41,7 +41,7 @@ Ordered production-safety and maintainability work.
 
 | # | Item | Status |
 |---|------|--------|
-| 11 | **Sentry production** | **Railway done** — set `VITE_SENTRY_DSN` on Vercel per [ENV-VARS-QUICK-REFERENCE.md](../ENV-VARS-QUICK-REFERENCE.md) |
+| 11 | **Sentry production** | **Done** — Railway + Vercel `VITE_SENTRY_DSN`; bundle includes `ingest.sentry.io` |
 | 12 | **Margin widget parity** | **Done** — web + mobile tests |
 | 13 | **Mobile ERP scope** | **Done** — [MOBILE-ERP-SCOPE.md](./MOBILE-ERP-SCOPE.md) |
 | 14 | **Dependabot majors** | **Done (process)** — [DEPENDABOT-MAJOR-REVIEW.md](./DEPENDABOT-MAJOR-REVIEW.md) quarterly |
