@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { computeMarginMetricsRaw } from './metalMarginPolicy'
+import { useErpLiveMetalSpotPrices } from './useErpLiveMetalSpotPrices'
 
 function fmtMoney(val, currency = '') {
   const n = Number(val || 0)
@@ -34,10 +35,12 @@ function fmtCompactCurrency(value) {
 function MarginsWidget({
   dashboard,
   onNavigate,
-  goldPriceUSD = 0,
-  silverPriceUSD = 0,
   liveRecalcEnabled = false,
 }) {
+  const liveSpot = useErpLiveMetalSpotPrices()
+  const goldPriceUSD = liveSpot.goldPriceUSD
+  const silverPriceUSD = liveSpot.silverPriceUSD
+  const marginLiveRecalc = liveRecalcEnabled && liveSpot.liveRecalcEnabled
   const [tab, setTab] = useState('customers')
   const [showModal, setShowModal] = useState(false)
   const [modalSearch, setModalSearch] = useState('')
@@ -59,7 +62,7 @@ function MarginsWidget({
     let rawExcess = Number(row?.marginExcess ?? (rawNet - marginAmount))
     let marginPercent = row?.marginPercent
 
-    if (liveRecalcEnabled && (goldPriceUSD > 0 || silverPriceUSD > 0)) {
+    if (marginLiveRecalc && (goldPriceUSD > 0 || silverPriceUSD > 0)) {
       const frozenEquity = Number(row?.equity ?? row?.netCashFlow ?? 0)
       const frozenReval = Number(row?.marginRevaluation ?? 0)
       const totalFunds = frozenEquity - frozenReval
@@ -692,11 +695,7 @@ const ExpensesWidgetMemo = React.memo(ExpensesWidget)
 const FixingPositionSummaryWidgetMemo = React.memo(FixingPositionSummaryWidget)
 
 function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = null, onNavigateMain = null, options = {}) {
-  const {
-    goldPriceUSD = 0,
-    silverPriceUSD = 0,
-    liveRecalcEnabled = false,
-  } = options
+  const { liveRecalcEnabled = false } = options
   const bdr = '1px solid #F0FDF4'
   const muted = '#6B7280'
   const ink = '#111827'
@@ -726,7 +725,7 @@ function renderERP_DashWidget(id, dashboard, chatMessages = [], onNavigate = nul
 
   switch (id) {
     case 'margins':
-      return <div style={widgetContainerStyle}><MarginsWidgetMemo dashboard={dashboard} onNavigate={onNavigate} goldPriceUSD={goldPriceUSD} silverPriceUSD={silverPriceUSD} liveRecalcEnabled={liveRecalcEnabled} /></div>
+      return <div style={widgetContainerStyle}><MarginsWidgetMemo dashboard={dashboard} onNavigate={onNavigate} liveRecalcEnabled={liveRecalcEnabled} /></div>
 
     case 'bank': {
       const bankRows = dashboard?.bankBalances || []

@@ -12,10 +12,9 @@ import { useAuth } from '@/src/context/AuthContext'
 import { useTenantBranding } from '@/src/context/TenantContext'
 import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
+import { startMetalRatesEvents } from '@/src/realtime/metalRatesSse'
 import { startMetalRatesRealtime } from '@/src/realtime/metalRatesSocket'
 import {
-  LIVE_METAL_POLL_MS,
-  LIVE_METAL_POLL_STREAM_MS,
   LIVE_METAL_RATE_LIMIT_BACKOFF_MS,
   type LiveMetalSnapshot,
   type MetalRatesError,
@@ -23,6 +22,7 @@ import {
   isMt4BridgeRates,
   metalErrorFromException,
   normalizeMarketUnit,
+  resolveLiveMetalPollIntervalMs,
 } from '@/src/utils/liveMetalRates'
 
 const EMPTY_SNAPSHOT: LiveMetalSnapshot = {
@@ -45,6 +45,11 @@ type LiveMetalRatesContextValue = {
 
 const LiveMetalRatesContext = createContext<LiveMetalRatesContextValue | null>(null)
 
+function normalizeInboundRates(rates: Record<string, unknown> | null | undefined) {
+  if (!rates || typeof rates !== 'object') return null
+  return buildMetalRatesFromApiPayload(rates)
+}
+
 function useLiveMetalRatesState(
   token: string | null,
   enabled: boolean,
@@ -59,6 +64,7 @@ function useLiveMetalRatesState(
   const socketConnectedRef = useRef(false)
   const pollPausedUntilRef = useRef(0)
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollIntervalMsRef = useRef<number | null>(null)
   const appActiveRef = useRef(true)
 
   const applyRates = useCallback((rates: Record<string, unknown> | null | undefined, options: { allowNonMt4Override?: boolean } = {}) => {
@@ -93,6 +99,7 @@ function useLiveMetalRatesState(
       }
     }
     lastSnapshotRef.current = { gold: next.gold, silver: next.silver, platinum: next.platinum }
+    const prevSource = sourceRef.current
     sourceRef.current = next.source
     setError(null)
     setSnapshot({
@@ -103,6 +110,9 @@ function useLiveMetalRatesState(
           ? { gold: prevSnapshot.gold, silver: prevSnapshot.silver, platinum: prevSnapshot.platinum }
           : null,
     })
+    if (prevSource !== next.source) {
+      schedulePollRef.current()
+    }
   }, [])
 
   const load = useCallback(async () => {
@@ -117,7 +127,7 @@ function useLiveMetalRatesState(
       const s = Number(liveRates?.silverPrice) || 0
       const p = Number(liveRates?.platinumPrice) || 0
       if (live?.success && live?.live && liveRates && g > 0 && s > 0 && p > 0) {
-        applyRates(buildMetalRatesFromApiPayload(liveRates as Record<string, unknown>), {
+        applyRates(normalizeInboundRates(liveRates as Record<string, unknown>), {
           allowNonMt4Override: live.feedType === 'market',
         })
         return
@@ -128,7 +138,7 @@ function useLiveMetalRatesState(
         const sg = Number(saved.rates.goldPrice) || 0
         const ss = Number(saved.rates.silverPrice) || 0
         if (sg > 0 && ss > 0) {
-          applyRates(buildMetalRatesFromApiPayload(saved.rates as Record<string, unknown>))
+          applyRates(normalizeInboundRates(saved.rates as Record<string, unknown>))
           if (!live?.live) {
             setError(live?.message ? { message: 'bridge offline' } : null)
           }
@@ -143,19 +153,28 @@ function useLiveMetalRatesState(
     }
   }, [applyRates, companyCode, enabled, sessionReady, token])
 
+  const schedulePollRef = useRef(() => {})
+
   const schedulePoll = useCallback(() => {
+    const intervalMs = resolveLiveMetalPollIntervalMs(socketConnectedRef.current, sourceRef.current)
+    const needsReset = pollIntervalMsRef.current !== intervalMs || !pollTimerRef.current
+    pollIntervalMsRef.current = intervalMs
+
+    if (!needsReset) return
+
     if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current)
       pollTimerRef.current = null
     }
     if (!enabled) return
 
-    const intervalMs = socketConnectedRef.current ? LIVE_METAL_POLL_STREAM_MS : LIVE_METAL_POLL_MS
     void load()
     pollTimerRef.current = setInterval(() => {
       void load()
     }, intervalMs)
   }, [enabled, load])
+
+  schedulePollRef.current = schedulePoll
 
   useEffect(() => {
     schedulePoll()
@@ -164,6 +183,7 @@ function useLiveMetalRatesState(
         clearInterval(pollTimerRef.current)
         pollTimerRef.current = null
       }
+      pollIntervalMsRef.current = null
     }
   }, [schedulePoll])
 
@@ -190,28 +210,35 @@ function useLiveMetalRatesState(
   useEffect(() => {
     if (!enabled || !token || !sessionReady) return undefined
 
+    const stopSse = startMetalRatesEvents(token, companyCode, (data) => {
+      const rates = (data.rates as Record<string, unknown>) || data
+      applyRates(normalizeInboundRates(rates))
+    })
+
     const stop = startMetalRatesRealtime({
       token,
       tenant: companyCode,
       onConnect: () => {
         socketConnectedRef.current = true
         schedulePoll()
+        void load()
       },
       onDisconnect: () => {
         socketConnectedRef.current = false
         schedulePoll()
       },
       onRatesUpdate: (payload) => {
-        const rates = payload?.rates || payload?.data?.rates
-        if (rates) applyRates(buildMetalRatesFromApiPayload(rates))
+        const raw = payload?.rates || payload?.data?.rates
+        applyRates(normalizeInboundRates(raw))
       },
     })
 
     return () => {
       socketConnectedRef.current = false
+      stopSse()
       stop()
     }
-  }, [applyRates, companyCode, enabled, schedulePoll, sessionReady, token])
+  }, [applyRates, companyCode, enabled, load, schedulePoll, sessionReady, token])
 
   return { snapshot, error, refresh: load }
 }

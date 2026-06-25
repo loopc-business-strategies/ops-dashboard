@@ -1,4 +1,4 @@
-export const MT4_LIVE_POLL_MS = 2_000
+export const MT4_LIVE_POLL_MS = 1_000
 /** Poll interval when market SSE stream is connected (fallback only). */
 export const LIVE_METAL_POLL_STREAM_MS = 60_000
 /** Pause polling after a 429 response. */

@@ -345,6 +345,12 @@ export default function AccountEnquiryModal({
                             For creditor/vendor payables, Total Funds uses the ledger payable balance; revaluation uses live spot on the net unfixed metal position (grams).
                           </span>
                         )}
+                        {!enquirySuppressMetalSpotMtm && (
+                          <span>
+                            {' '}
+                            Revaluation and equity update with live spot when the account has metal exposure (grams). Cash-only accounts show Revaluation 0 while Price still moves.
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>

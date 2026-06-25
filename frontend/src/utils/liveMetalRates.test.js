@@ -75,6 +75,7 @@ describe('liveMetalRates helpers', () => {
     expect(resolveLiveMetalPollIntervalMs(true, 'metals.dev')).toBe(LIVE_METAL_POLL_STREAM_MS)
     expect(resolveLiveMetalPollIntervalMs(true, '')).toBe(LIVE_METAL_POLL_MS)
     expect(resolveLiveMetalPollIntervalMs(false, '')).toBe(LIVE_METAL_POLL_MS)
+    expect(LIVE_METAL_POLL_MS).toBe(1000)
   })
 
   test('detects MT4 bridge source and status subline', () => {

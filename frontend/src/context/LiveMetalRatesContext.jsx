@@ -5,12 +5,18 @@ import { startMetalRatesRealtime, buildRealtimeEventsUrl } from '../utils/realti
 import {
   LIVE_METAL_RATE_LIMIT_BACKOFF_MS,
   TOPBAR_MARKET_PARAMS,
+  buildMetalRatesFromApiPayload,
   isMt4BridgeRates,
   marketPricesToRates,
   metalErrorFromException,
   normalizeMarketUnit,
   resolveLiveMetalPollIntervalMs,
 } from '../utils/liveMetalRates'
+
+function normalizeInboundRates(rates) {
+  if (!rates || typeof rates !== 'object') return null
+  return buildMetalRatesFromApiPayload(rates)
+}
 
 const LiveMetalRatesContext = createContext(null)
 
@@ -100,7 +106,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
       const s = Number(liveRates?.silverPrice) || 0
       const p = Number(liveRates?.platinumPrice) || 0
       if (live?.success && live?.live && liveRates && g > 0 && s > 0 && p > 0) {
-        applyRates(liveRates, { allowNonMt4Override: live.feedType === 'market' })
+        applyRates(normalizeInboundRates(liveRates), { allowNonMt4Override: live.feedType === 'market' })
         return
       }
 
@@ -109,7 +115,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
         const sg = Number(saved.rates.goldPrice) || 0
         const ss = Number(saved.rates.silverPrice) || 0
         if (sg > 0 && ss > 0) {
-          applyRates(saved.rates)
+          applyRates(normalizeInboundRates(saved.rates))
           if (!live?.live) {
             setError(live?.message ? { message: 'bridge offline' } : null)
           }
@@ -174,7 +180,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
       try {
         const data = JSON.parse(event.data || '{}')
         const rates = data.rates || data
-        if (rates && typeof rates === 'object') applyRates(rates)
+        applyRates(normalizeInboundRates(rates))
       } catch {
         // Ignore malformed realtime events.
       }
@@ -206,9 +212,13 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     return startMetalRatesRealtime({
       token,
       tenant,
-      onRatesUpdate: (payload) => applyRates(payload?.rates || payload?.data?.rates),
+      onConnect: () => void load(),
+      onRatesUpdate: (payload) => {
+        const raw = payload?.rates || payload?.data?.rates
+        applyRates(normalizeInboundRates(raw))
+      },
     })
-  }, [applyRates, enabled, tenant, token])
+  }, [applyRates, enabled, load, tenant, token])
 
   useEffect(() => {
     if (!enabled || !token || typeof window === 'undefined' || typeof window.EventSource !== 'function') {

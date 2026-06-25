@@ -69,6 +69,7 @@ import {
 } from './erp/erpTabUtils'
 import ERPDashboardTab from './erp/tabs/ERPDashboardTab'
 import { useErpEnquiryMetalRatesSync } from './erp/useErpMetalRatesRealtime'
+import { useErpLiveMetalSpotPrices } from './erp/useErpLiveMetalSpotPrices'
 import useLiveMetalRates from '../../hooks/useLiveMetalRates'
 import { useErpCustomers } from './erp/useErpCustomers'
 import { useErpMappings } from './erp/useErpMappings'
@@ -325,6 +326,11 @@ function ERPTab({
   const [showStatementAuditIds, setShowStatementAuditIds] = useState(false)
   const [statementAuditPreferenceReady, setStatementAuditPreferenceReady] = useState(false)
   const { snapshot: liveMetalSnapshot, error: liveMetalContextError } = useLiveMetalRates()
+  const {
+    goldPriceUSD: erpGoldPriceUSD,
+    silverPriceUSD: erpSilverPriceUSD,
+    liveRecalcEnabled: erpLiveRecalcEnabled,
+  } = useErpLiveMetalSpotPrices()
   const metalRates = useMemo(() => {
     const synced = liveRatesToMetalRatesState(liveMetalSnapshot)
     return synced || DEFAULT_METAL_RATES
@@ -713,8 +719,6 @@ function ERPTab({
   const availableTransactionTypes = getAvailableTransactionTypes(user, user?.company || user?.tenant?.key || user?.tenant?.name)
   const selectedTransaction = transactions.find((tx) => tx._id === selectedTransactionId) || null
   const {
-    goldPriceUSD,
-    silverPriceUSD,
     rawStatementEntries,
     baseCurrencyCode,
     statementSelectedMetalCode,
@@ -774,10 +778,9 @@ function ERPTab({
   } = useErpCustomerMargin({
     activeTab,
     customers,
-    goldPriceUSD,
-    silverPriceUSD,
-    liveRecalcEnabled: (activeTab === 'customer-margin' || activeTab === 'supplier-margin')
-      && (goldPriceUSD > 0 || silverPriceUSD > 0),
+    goldPriceUSD: erpGoldPriceUSD,
+    silverPriceUSD: erpSilverPriceUSD,
+    liveRecalcEnabled: activeTab === 'customer-margin' && erpLiveRecalcEnabled,
   })
   const {
     supplierMarginSearch,
@@ -793,9 +796,9 @@ function ERPTab({
   } = useErpSupplierMargin({
     activeTab,
     vendors,
-    goldPriceUSD,
-    silverPriceUSD,
-    liveRecalcEnabled: activeTab === 'supplier-margin' && (goldPriceUSD > 0 || silverPriceUSD > 0),
+    goldPriceUSD: erpGoldPriceUSD,
+    silverPriceUSD: erpSilverPriceUSD,
+    liveRecalcEnabled: activeTab === 'supplier-margin' && erpLiveRecalcEnabled,
   })
   useErpMarginContextMenuDismissal({
     customerMarginContextMenu,
@@ -3348,9 +3351,7 @@ function ERPTab({
         dashChatMessages={dashChatMessages}
         setActiveTab={setActiveTabGuarded}
         onNavigateMain={onNavigateMain}
-        goldPriceUSD={goldPriceUSD}
-        silverPriceUSD={silverPriceUSD}
-        dashboardLiveRecalcEnabled={activeTab === 'dashboard' && (goldPriceUSD > 0 || silverPriceUSD > 0)}
+        dashboardLiveRecalcEnabled={activeTab === 'dashboard' && erpLiveRecalcEnabled}
       />
       )}
       {/* CHART OF ACCOUNTS TAB */}

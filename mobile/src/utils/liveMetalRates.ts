@@ -1,8 +1,16 @@
-export const MT4_LIVE_POLL_MS = 15_000
+export const MT4_LIVE_POLL_MS = 1_000
 export const LIVE_METAL_POLL_MS = MT4_LIVE_POLL_MS
 export const LIVE_METAL_POLL_STREAM_MS = 60_000
 export const LIVE_METAL_RATE_LIMIT_BACKOFF_MS = 90_000
 export const MT4_BRIDGE_SOURCE = 'mt4-bridge'
+
+export function resolveLiveMetalPollIntervalMs(isMarketStreamConnected: boolean, source = '') {
+  if (isMt4BridgeRates({ source })) return MT4_LIVE_POLL_MS
+  if (isMarketStreamConnected && source && !isMt4BridgeRates({ source })) {
+    return LIVE_METAL_POLL_STREAM_MS
+  }
+  return MT4_LIVE_POLL_MS
+}
 
 export const GRAMS_PER_TOZ = 31.1034768
 export const GRAMS_PER_KG = 1000

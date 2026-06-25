@@ -34,6 +34,19 @@ The top bar, ERP live strip, inventory live badge, and mobile Home bar show **mo
 
 - First successful price tick: subline shows currency/unit and feed label (e.g. `USD/OZ · MT4`) — no prior snapshot yet.
 - Second tick onward: subline shows arrow, absolute change, and percent (e.g. `▲ 1.25 (+0.03%)`). A flat feed correctly shows `▲ 0.00 (+0.00%)`.
-- Movement requires **two client updates** (poll, socket, or bridge POST). Poll interval is **2s** for MT4 (`MT4_LIVE_POLL_MS`); Socket.IO and `/api/realtime/events` SSE also push `metal-rates:update` on each bridge tick (~1s).
+- Movement requires **two client updates** (poll, socket, or bridge POST). Poll interval is **1s** for MT4 (`MT4_LIVE_POLL_MS`); Socket.IO `/metal-rates` and `/api/realtime/events` SSE also push `metal-rates:update` on each bridge tick (~1s).
+
+## Live consumers (web + mobile)
+
+| Surface | Updates with live spot |
+|---------|------------------------|
+| Top bar metal tickers | Price + ▲/▼ movement row |
+| ERP live prices strip | Same |
+| ERP Dashboard margins widget | Margin %, equity, excess (rows with metal position) |
+| Customer / Supplier Margin tabs | Same |
+| Account Summary modal | Revaluation, Net Equity, Excess, Margin % when **metal balance (grams) ≠ 0** |
+| Mobile Home live bar + margins widget | Same as dashboard |
+
+**Cash-only accounts** (zero XAU/XAG balance): Total Funds stays fixed; **Revaluation stays 0** while the **Price** column still updates — expected.
 
 Production probe: `npm run verify:live-metal-movement` (authenticated multi-sample poll of `GET /metal-rates/live`).

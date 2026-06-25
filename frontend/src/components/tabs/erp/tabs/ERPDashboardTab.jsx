@@ -23,8 +23,6 @@ export default function ERPDashboardTab({
   dashChatMessages,
   setActiveTab,
   onNavigateMain,
-  goldPriceUSD = 0,
-  silverPriceUSD = 0,
   dashboardLiveRecalcEnabled = false,
 }) {
   return (
@@ -102,8 +100,6 @@ export default function ERPDashboardTab({
                 const isHovered = dashHoveredWid === wid
                 const edgeToEdge = wid === 'margins' || wid === 'apar' || wid === 'fixing'
                 const widgetOptions = {
-                  goldPriceUSD,
-                  silverPriceUSD,
                   liveRecalcEnabled: dashboardLiveRecalcEnabled,
                 }
                 return (

@@ -204,8 +204,10 @@ export function useErpSupplierMargin({
           }
         }
 
-        const fallbackRevaluation = 0
-        const fallbackMargin = 0
+        const goldPrice = Number(goldPriceUSD || 0)
+        const silverPrice = Number(silverPriceUSD || 0)
+        const fallbackRevaluation = (goldPosition * goldPrice) + (silverPosition * silverPrice)
+        const fallbackMargin = Math.abs(fallbackRevaluation) * 0.02
         const fallbackMetrics = calculateAccountSummaryMetrics({
           totalFunds: outstanding,
           revaluation: fallbackRevaluation,

@@ -4,8 +4,11 @@ import {
   fmtMoveRow,
   fmtSpot,
   isMt4BridgeRates,
+  LIVE_METAL_POLL_MS,
+  LIVE_METAL_POLL_STREAM_MS,
   MT4_BRIDGE_SOURCE,
   resolveEffectiveSpotPrices,
+  resolveLiveMetalPollIntervalMs,
 } from '@/src/utils/liveMetalRates'
 
 describe('liveMetalRates helpers', () => {
@@ -48,5 +51,12 @@ describe('liveMetalRates helpers', () => {
   test('detects MT4 bridge source', () => {
     expect(isMt4BridgeRates({ source: MT4_BRIDGE_SOURCE })).toBe(true)
     expect(isMt4BridgeRates({ source: 'metals.dev' })).toBe(false)
+  })
+
+  test('resolveLiveMetalPollIntervalMs keeps MT4 on fast poll', () => {
+    expect(resolveLiveMetalPollIntervalMs(true, 'mt4-bridge')).toBe(LIVE_METAL_POLL_MS)
+    expect(resolveLiveMetalPollIntervalMs(true, 'metals.dev')).toBe(LIVE_METAL_POLL_STREAM_MS)
+    expect(resolveLiveMetalPollIntervalMs(true, '')).toBe(LIVE_METAL_POLL_MS)
+    expect(LIVE_METAL_POLL_MS).toBe(1000)
   })
 })
