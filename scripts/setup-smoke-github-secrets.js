@@ -46,6 +46,35 @@ const API_BASE = (
 ).replace(/\/$/, '')
 const verifyOnly = process.argv.includes('--verify-only')
 
+function escapeRegex(str) {
+  return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function smokeAuthNameForTenant(tenant) {
+  const key = String(tenant || '').trim().toUpperCase()
+  return String(
+    process.env[`SMOKE_AUTH_NAME_${key}`]
+    || process.env[`${SECRET_PREFIX}AUTH_NAME_${key}`]
+    || SMOKE_USER_NAME,
+  ).trim()
+}
+
+function smokePasswordForTenant(tenant, fallbackPassword = '') {
+  const key = String(tenant || '').trim().toUpperCase()
+  return String(
+    process.env[`SMOKE_AUTH_PASSWORD_${key}`]
+    || process.env[`${SECRET_PREFIX}AUTH_PASSWORD_${key}`]
+    || fallbackPassword,
+  ).trim()
+}
+
+async function findSmokeUser(TenantUser, userName) {
+  const safe = escapeRegex(userName)
+  return TenantUser.findOne({
+    name: { $regex: new RegExp(`^${safe}$`, 'i') },
+  })
+}
+
 const { connectTenant, closeAllTenantConnections } = require(path.join(backendDir, 'db', 'tenantConnections'))
 const User = require(path.join(backendDir, 'models', 'User'))
 
@@ -71,11 +100,12 @@ function runGh(args, input) {
 }
 
 async function reactivateSmokeUser(tenant) {
+  const userName = smokeAuthNameForTenant(tenant)
   await connectTenant(tenant)
   const TenantUser = await User.getTenantModel(tenant)
-  const user = await TenantUser.findOne({ name: SMOKE_USER_NAME })
+  const user = await findSmokeUser(TenantUser, userName)
   if (!user) {
-    return { tenant, action: 'missing', id: null }
+    return { tenant, userName, action: 'missing', id: null }
   }
   user.isActive = true
   user.isDeleted = false
@@ -86,18 +116,19 @@ async function reactivateSmokeUser(tenant) {
   user.role = 'management'
   user.department = 'management'
   await user.save()
-  return { tenant, action: 'reactivated', id: String(user._id) }
+  return { tenant, userName, action: 'reactivated', id: String(user._id) }
 }
 
 async function upsertSmokeUser(tenant, password) {
+  const userName = smokeAuthNameForTenant(tenant)
   await connectTenant(tenant)
   const TenantUser = await User.getTenantModel(tenant)
-  const email = `${SMOKE_USER_NAME}.${tenant}@system.local`
+  const email = `${userName}.${tenant}@system.local`
 
-  let user = await TenantUser.findOne({ name: SMOKE_USER_NAME })
+  let user = await findSmokeUser(TenantUser, userName)
   if (!user) {
     user = await TenantUser.create({
-      name: SMOKE_USER_NAME,
+      name: userName,
       email,
       password,
       role: 'management',
@@ -107,7 +138,7 @@ async function upsertSmokeUser(tenant, password) {
         ? 'Automated staging smoke probe (read-only ERP access).'
         : 'Automated post-deploy smoke probe (read-only ERP access).',
     })
-    return { tenant, action: 'created', id: String(user._id) }
+    return { tenant, userName, action: 'created', id: String(user._id) }
   }
 
   user.password = password
@@ -121,7 +152,7 @@ async function upsertSmokeUser(tenant, password) {
   user.deletionReason = ''
   if (!user.email) user.email = email
   await user.save()
-  return { tenant, action: 'updated', id: String(user._id) }
+  return { tenant, userName, action: 'updated', id: String(user._id) }
 }
 
 const timeoutMs = Number(process.env.SMOKE_TIMEOUT_MS || 20000)
@@ -136,7 +167,7 @@ async function fetchWithTimeout(url, options = {}) {
   }
 }
 
-async function verifySmokeLogin(tenant, password) {
+async function verifySmokeLogin(tenant, password, userName = smokeAuthNameForTenant(tenant)) {
   const response = await fetchWithTimeout(`${API_BASE}/api/auth/login`, {
     method: 'POST',
     headers: {
@@ -146,7 +177,7 @@ async function verifySmokeLogin(tenant, password) {
     },
     body: JSON.stringify({
       company: tenant,
-      name: SMOKE_USER_NAME,
+      name: userName,
       password,
     }),
   })
@@ -208,12 +239,12 @@ async function main() {
       }
     }
 
-    console.log(`Reactivating ${isStaging ? 'staging' : 'production'} smoke user "${SMOKE_USER_NAME}" in mg/cg/loopc (no password change)...`)
+    console.log(`Reactivating ${isStaging ? 'staging' : 'production'} smoke users in mg/cg/loopc (no password change)...`)
     for (const tenant of TENANTS) {
       const result = await reactivateSmokeUser(tenant)
-      console.log(`  ${result.tenant.toUpperCase()}: ${result.action}${result.id ? ` (${result.id})` : ''}`)
+      console.log(`  ${result.tenant.toUpperCase()} (${result.userName}): ${result.action}${result.id ? ` (${result.id})` : ''}`)
       if (result.action === 'missing') {
-        throw new Error(`Smoke user "${SMOKE_USER_NAME}" not found in ${tenant.toUpperCase()}. Run full provisioning first.`)
+        throw new Error(`Smoke user "${result.userName}" not found in ${tenant.toUpperCase()}. Run full provisioning first.`)
       }
     }
     if (skipVerify) {
@@ -234,7 +265,8 @@ async function main() {
     }
     console.log(`Verifying login + ERP read against ${API_BASE}...`)
     for (const tenant of TENANTS) {
-      const detail = await verifySmokeLogin(tenant, password)
+      const tenantPassword = smokePasswordForTenant(tenant, password)
+      const detail = await verifySmokeLogin(tenant, tenantPassword)
       console.log(`  ${detail}`)
     }
     console.log('Smoke user reactivation complete.')
@@ -283,10 +315,11 @@ async function main() {
     throw new Error(`${passwordSecretName} is required to provision tenant users.`)
   }
 
-  console.log(`Provisioning ${isStaging ? 'staging' : 'production'} smoke user "${SMOKE_USER_NAME}" in mg/cg/loopc...`)
+  console.log(`Provisioning ${isStaging ? 'staging' : 'production'} smoke users in mg/cg/loopc...`)
   for (const tenant of TENANTS) {
-    const result = await upsertSmokeUser(tenant, password)
-    console.log(`  ${result.tenant.toUpperCase()}: ${result.action} (${result.id})`)
+    const tenantPassword = smokePasswordForTenant(tenant, password)
+    const result = await upsertSmokeUser(tenant, tenantPassword)
+    console.log(`  ${result.tenant.toUpperCase()} (${result.userName}): ${result.action} (${result.id})`)
   }
 
   if (skipVerify) {
@@ -297,7 +330,8 @@ async function main() {
 
   console.log(`Verifying login + ERP read against ${API_BASE}...`)
   for (const tenant of TENANTS) {
-    const detail = await verifySmokeLogin(tenant, password)
+    const tenantPassword = smokePasswordForTenant(tenant, password)
+    const detail = await verifySmokeLogin(tenant, tenantPassword)
     console.log(`  ${detail}`)
   }
 

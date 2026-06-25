@@ -264,7 +264,8 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
     const safeName = escapeRegex(name.trim())
     const TenantUser = await User.getTenantModel(tenant)
     const user = await TenantUser.findOne({
-      name: { $regex: new RegExp(`^${safeName}$`, 'i') }
+      name: { $regex: new RegExp(`^${safeName}$`, 'i') },
+      isDeleted: { $ne: true },
     }).select('+password')
 
     if (!user || !(await user.comparePassword(password)))
