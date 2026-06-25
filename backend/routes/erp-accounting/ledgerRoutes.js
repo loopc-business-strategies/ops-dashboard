@@ -1,9 +1,11 @@
 const { resolveRequestTenantKey } = require('../../config/tenants')
+const mongoose = require('mongoose')
 const { requireDestructiveAdminGuard } = require('../../middleware/destructiveAction')
 const { runJvLedgerFxBackfillOnNativeDb } = require('../../services/jvLedgerFxBackfill')
 const { notifyErpUsers } = require('../../services/notificationDispatch')
 const { Joi, validateBodyStrict, validateParams } = require('../../middleware/validate')
 const { escapeRegex } = require('../../utils/escapeRegex')
+const { runInTransaction, writeOpts } = require('../../utils/mongoTransaction')
 
 const objectId = Joi.string().hex().length(24)
 const idParamSchema = Joi.object({ id: objectId.required() })
@@ -30,6 +32,7 @@ function registerLedgerRoutes(deps) {
     canCloseLedgerPeriod,
     bankSlipUpload,
     ledgerEntrySchema,
+    journalVoucherBatchSchema,
     Ledger,
     Transaction,
     Currency,
@@ -59,31 +62,58 @@ const jvDescriptionHead = (description = '') => {
 
 const isValidObjectId = (value = '') => /^[a-fA-F0-9]{24}$/.test(String(value || '').trim())
 
-async function assertJvDocNoNotDuplicate(TenantLedger, { referenceType, description, referenceId }) {
+async function assertJvDocNoNotDuplicate(TenantLedger, { referenceType, description, referenceId, excludeEntryIds = [] }) {
   const refType = String(referenceType || 'journal').toLowerCase()
   if (!['journal', 'bank_jv'].includes(refType)) return null
   const head = jvDescriptionHead(description)
   if (!/^(jv|bnkjv)\/\d{4}\/\d+$/i.test(head)) return null
+
+  const excludeSet = new Set((excludeEntryIds || []).map((id) => String(id || '').trim()).filter(Boolean))
 
   const matches = await TenantLedger.find({
     isDeleted: { $ne: true },
     referenceType: refType,
     description: new RegExp(`^${escapeRegex(head)}(\\s|$|—|-)`, 'i'),
   })
-    .select('referenceId')
+    .select('referenceId _id')
     .lean()
 
   const batchId = String(referenceId || '').trim()
-  const duplicate = (matches || []).some((row) => {
+  const conflicting = (matches || []).filter((row) => {
+    if (excludeSet.has(String(row?._id || ''))) return false
     const rowBatch = String(row?.referenceId || '').trim()
     if (!batchId || !isValidObjectId(batchId)) return true
     if (!rowBatch || !isValidObjectId(rowBatch)) return true
     return rowBatch !== batchId
   })
 
-  if (duplicate) {
-    const err = new Error(`DUPLICATE_JV_DOCNO:${head}`)
-    throw err
+  if (!conflicting.length) return null
+
+  const legacyOnly = conflicting.every((row) => {
+    const rowBatch = String(row?.referenceId || '').trim()
+    return !rowBatch || !isValidObjectId(rowBatch)
+  })
+
+  const errType = legacyOnly ? 'DUPLICATE_JV_DOCNO_LEGACY' : 'DUPLICATE_JV_DOCNO'
+  const err = new Error(`${errType}:${head}`)
+  throw err
+}
+
+function respondJvDocNoDuplicate(res, err) {
+  const msg = String(err?.message || '')
+  if (msg.startsWith('DUPLICATE_JV_DOCNO_LEGACY:')) {
+    const docNo = msg.split(':')[1] || 'this voucher number'
+    return res.status(409).json({
+      success: false,
+      message: `Voucher number ${docNo} already exists (legacy entry). Use the next number or edit the existing voucher.`,
+    })
+  }
+  if (msg.startsWith('DUPLICATE_JV_DOCNO:')) {
+    const docNo = msg.split(':')[1] || 'this voucher number'
+    return res.status(409).json({
+      success: false,
+      message: `Voucher number ${docNo} already exists. Use the next available number.`,
+    })
   }
   return null
 }
@@ -310,13 +340,8 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
     try {
       await assertJvDocNoNotDuplicate(TenantLedger, { referenceType, description, referenceId })
     } catch (e) {
-      if (String(e.message || '').startsWith('DUPLICATE_JV_DOCNO:')) {
-        const docNo = String(e.message).split(':')[1] || 'this voucher number'
-        return res.status(409).json({
-          success: false,
-          message: `Voucher number ${docNo} already exists. Use the next available number.`,
-        })
-      }
+      const dupRes = respondJvDocNoDuplicate(res, e)
+      if (dupRes) return dupRes
       throw e
     }
 
@@ -336,7 +361,7 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
       attachmentName = req.file.originalname || req.file.filename
     }
 
-    const entry = await Ledger.create({
+    const entry = await TenantLedger.create({
       date: new Date(date),
       debitAccountId,
       creditAccountId,
@@ -391,7 +416,187 @@ router.post('/ledger', protect, bankSlipUpload.single('attachment'), validateBod
     res.status(201).json({ success: true, entry })
   } catch (err) {
     console.error('[ledger] error:', err)
+    if (err.name === 'CastError') {
+      return res.status(400).json({ success: false, message: 'Invalid account or reference id' })
+    }
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ success: false, message: err.message })
+    }
     res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+})
+
+router.post('/ledger/journal-voucher', protect, validateBody(journalVoucherBatchSchema), async (req, res) => {
+  try {
+    if (!canCreateTransaction(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
+
+    const mode = String(req.body.mode || 'journal').toLowerCase() === 'bank_jv' ? 'bank_jv' : 'journal'
+    const referenceType = mode
+    if (!canCreateTransactionFor(req.user, referenceType)) {
+      return res.status(403).json({ success: false, message: `Your department cannot post ${referenceType} transactions` })
+    }
+
+    const postings = req.body.postings || []
+    const replaceEntryIds = Array.isArray(req.body.replaceEntryIds)
+      ? req.body.replaceEntryIds.map((id) => String(id || '').trim()).filter(Boolean)
+      : []
+
+    for (const row of postings) {
+      if (String(row.debitAccountId) === String(row.creditAccountId)) {
+        return res.status(400).json({ success: false, message: 'Debit and Credit accounts must be different' })
+      }
+    }
+
+    const TenantLedger = await Ledger.getTenantModel(req.tenant)
+    const tenantKey = String(resolveRequestTenantKey(req) || 'default')
+
+    if (replaceEntryIds.length) {
+      for (const id of replaceEntryIds) {
+        const existing = await TenantLedger.findById(id)
+        if (!existing) return res.status(404).json({ success: false, message: `Ledger entry ${id} not found` })
+        if (!canEditLedgerEntry(req.user, existing)) {
+          return res.status(403).json({ success: false, message: 'Can only replace your own journal voucher lines' })
+        }
+        const refType = String(existing.referenceType || '').toLowerCase()
+        if (refType !== 'journal' && refType !== 'bank_jv') {
+          return res.status(400).json({ success: false, message: 'Only journal or bank JV lines can be replaced via batch save' })
+        }
+      }
+    }
+
+    const referenceId = new mongoose.Types.ObjectId()
+    const firstDescription = String(postings[0]?.description || '').trim()
+    if (!firstDescription) {
+      return res.status(400).json({ success: false, message: 'Posting description is required' })
+    }
+
+    try {
+      await assertJvDocNoNotDuplicate(TenantLedger, {
+        referenceType,
+        description: firstDescription,
+        referenceId: String(referenceId),
+        excludeEntryIds: replaceEntryIds,
+      })
+    } catch (e) {
+      const dupRes = respondJvDocNoDuplicate(res, e)
+      if (dupRes) return dupRes
+      throw e
+    }
+
+    const resolvedPostings = []
+    for (const row of postings) {
+      try {
+        const posting = await resolveLedgerPostingFx(
+          Currency,
+          BASE_CURRENCY_CODE,
+          row.currency,
+          row.exchangeRate,
+          row.amount,
+        )
+        resolvedPostings.push({ row, posting })
+      } catch (e) {
+        const msg = String(e.message || '')
+        if (msg === 'INVALID_AMOUNT') return res.status(400).json({ success: false, message: 'Invalid amount' })
+        if (msg.startsWith('MISSING_FX')) {
+          const cur = msg.split(':')[1] || ''
+          return res.status(400).json({
+            success: false,
+            message: `Missing or invalid exchange rate for ${cur}. Add the currency in Currencies (active, exchangeRate > 0).`,
+          })
+        }
+        throw e
+      }
+    }
+
+    const createdEntries = await runInTransaction(async (session) => {
+      if (replaceEntryIds.length) {
+        await TenantLedger.updateMany(
+          { _id: { $in: replaceEntryIds } },
+          { $set: { isDeleted: true, deletedAt: new Date(), updatedBy: req.user._id } },
+          writeOpts(session),
+        )
+      }
+
+      const entries = []
+      for (const { row, posting } of resolvedPostings) {
+        let autoTxNo = ''
+        if (mode === 'bank_jv') {
+          const today = new Date()
+          const yyyymmdd = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`
+          autoTxNo = `BJV-${yyyymmdd}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`
+        }
+
+        const [entry] = await TenantLedger.create([{
+          date: new Date(row.date),
+          debitAccountId: row.debitAccountId,
+          creditAccountId: row.creditAccountId,
+          amount: posting.amount,
+          description: row.description,
+          notes: String(row.notes || '').trim(),
+          referenceType,
+          referenceId,
+          currency: posting.currency,
+          exchangeRate: posting.exchangeRate,
+          createdBy: req.user._id,
+          department: req.user.department,
+          ...(mode === 'bank_jv' && {
+            autoTxNo,
+            txRefNo: '',
+            chequeNo: '',
+            bankRemarks: '',
+            paymentType: 'bank',
+            bankReconciled: false,
+            attachmentUrl: '',
+            attachmentName: '',
+          }),
+        }], writeOpts(session))
+
+        entries.push(entry)
+      }
+      return entries
+    })
+
+    for (const entry of createdEntries) {
+      emitRealtime(req, (realtimeServer) => {
+        realtimeServer.broadcastLedgerEntry(String(entry.debitAccountId), entry)
+        realtimeServer.broadcastLedgerEntry(String(entry.creditAccountId), entry)
+        if (typeof realtimeServer.broadcastLedgerUpdate === 'function') {
+          realtimeServer.broadcastLedgerUpdate(tenantKey, {
+            action: 'created',
+            entryId: String(entry._id),
+            referenceType: entry.referenceType,
+            amount: Number(entry.amount || 0),
+          })
+        }
+      })
+    }
+
+    const vocNo = jvDescriptionHead(firstDescription)
+    const label = mode === 'bank_jv' ? 'Bank JV' : 'JV'
+    const totalAmount = createdEntries.reduce((sum, e) => sum + Number(e.amount || 0), 0)
+    void notifyErpUsers(tenantKey, 'jv_posted', {
+      vocNo,
+      amount: totalAmount,
+      description: firstDescription,
+      accountCodes: createdEntries.flatMap((e) => [String(e.debitAccountId), String(e.creditAccountId)]),
+      message: `${label} ${vocNo || 'posted'}: ${totalAmount}`,
+    }).catch((err) => console.warn('[notify] jv_posted', err?.message || err))
+
+    return res.status(201).json({
+      success: true,
+      referenceId: String(referenceId),
+      entries: createdEntries,
+      count: createdEntries.length,
+    })
+  } catch (err) {
+    console.error('[ledger/journal-voucher] error:', err)
+    if (err.name === 'CastError') {
+      return res.status(400).json({ success: false, message: 'Invalid account or reference id' })
+    }
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ success: false, message: err.message })
+    }
+    return res.status(500).json({ success: false, message: 'Internal server error' })
   }
 })
 

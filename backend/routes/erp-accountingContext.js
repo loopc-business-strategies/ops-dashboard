@@ -47,6 +47,7 @@ const {
   transactionPatchSchema,
   transactionCreateSchema,
   ledgerEntrySchema,
+  journalVoucherBatchSchema,
   _hardDeleteSchema,
 } = require('./erp-accounting/schemas')
 const {
@@ -447,6 +448,7 @@ function registerErpAccountingRoutes(router) {
     canCloseLedgerPeriod,
     bankSlipUpload,
     ledgerEntrySchema,
+    journalVoucherBatchSchema,
     Ledger,
     Transaction,
     Currency,

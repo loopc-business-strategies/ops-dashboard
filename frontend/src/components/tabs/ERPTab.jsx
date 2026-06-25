@@ -2348,6 +2348,7 @@ function ERPTab({
     handlePrintJvVoucher,
     getJvAccountById: _getJvAccountById,
     isExchangeLine: _isExchangeLine,
+    jvError,
   } = useJournalVoucher({
     jvMode,
     setJvMode,
@@ -3497,6 +3498,7 @@ function ERPTab({
         handlePrintJvVoucher={handlePrintJvVoucher}
         handleSaveMultiLineJV={handleSaveMultiLineJV}
         saving={saving}
+        jvError={jvError}
         beginJvModalResize={beginJvModalResize}
         ledgerFilters={ledgerFilters}
         setLedgerFilters={setLedgerFilters}

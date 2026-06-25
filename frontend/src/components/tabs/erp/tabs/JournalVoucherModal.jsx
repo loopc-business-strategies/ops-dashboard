@@ -31,6 +31,7 @@ export default function JournalVoucherModal({
   handlePrintJvVoucher,
   handleSaveMultiLineJV,
   saving,
+  jvError,
   beginJvModalResize,
   jvReadOnly,
 }) {
@@ -71,8 +72,13 @@ export default function JournalVoucherModal({
             X Close
           </button>
         </div>
-        <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderTop: 'none', borderBottomLeftRadius: '0.6rem', borderBottomRightRadius: '0.6rem', marginBottom: 0, overflow: 'hidden auto', flex: 1, minHeight: 0 }}>
-          <div style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%)', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderTop: 'none', borderBottomLeftRadius: '0.6rem', borderBottomRightRadius: '0.6rem', marginBottom: 0, overflow: 'hidden auto', flex: 1, minHeight: 0 }}>
+            {jvError ? (
+              <div style={{ background: C.danger, color: '#FFFFFF', padding: '0.65rem 0.9rem', fontSize: '0.85rem', fontWeight: 600 }}>
+                {jvError}
+              </div>
+            ) : null}
+            <div style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5A8E 100%)', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ color: '#fff', fontWeight: '800', fontSize: '0.95rem', letterSpacing: '0.04em' }}>
               📒 {jvReadOnly ? `VIEW ${jvModeMeta.badge}` : jvEditEntryIds.length > 0 ? `EDIT ${jvModeMeta.badge}` : jvModeMeta.badge}
             </span>

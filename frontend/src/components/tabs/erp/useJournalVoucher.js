@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   allocateJvLedgerEntries,
   applyBankJvExchangeBalancing,
@@ -22,6 +22,43 @@ import { accountLookupText, resolveAccountIdFromInput } from './erpTabUtils'
 export function useJournalVoucher(props) {
   const propsRef = useRef(props)
   propsRef.current = props
+  const [jvError, setJvError] = useState('')
+  const saveInFlightRef = useRef(false)
+
+  const extractJvSaveError = (e) =>
+    e?.response?.data?.message || e?.message || 'Failed to save Journal Voucher'
+
+  const refreshJvDocNo = async (mode) => {
+    const p = propsRef.current
+    const refType = resolveJvModeMeta(mode ?? p.jvMode).referenceType
+    try {
+      if (p.token) {
+        const data = await p.erpAccountingAPI.getNextJvDocNo(p.token, refType)
+        if (data?.success && data.docNo) return data.docNo
+      }
+    } catch (_) { /* keep current */ }
+    return p.jvHeader.docNo
+  }
+
+  const toBatchPostings = (payloads) => payloads.map((payload) => ({
+    date: payload.date,
+    description: payload.description,
+    notes: payload.notes,
+    currency: payload.currency,
+    exchangeRate: payload.exchangeRate,
+    debitAccountId: payload.debitAccountId,
+    creditAccountId: payload.creditAccountId,
+    amount: payload.amount,
+  }))
+
+  const postJournalVoucherBatch = async (postings, replaceEntryIds) => {
+    const p = propsRef.current
+    return p.erpAccountingAPI.createJournalVoucherBatch(p.token, {
+      mode: p.jvMode,
+      postings,
+      ...(replaceEntryIds?.length ? { replaceEntryIds } : {}),
+    })
+  }
 
   const bankBalanceCtx = () => {
     const p = propsRef.current
@@ -225,6 +262,7 @@ export function useJournalVoucher(props) {
       }
     } catch (e) {
       p.setError(e.response?.data?.message || (readOnly ? 'Failed to load JV lines' : 'Failed to load JV lines for editing'))
+      setJvError(e.response?.data?.message || (readOnly ? 'Failed to load JV lines' : 'Failed to load JV lines for editing'))
       return false
     }
     const editableEntries = filterJvEditableEntries(docMatchedEntries, entry, entryMode)
@@ -262,12 +300,14 @@ export function useJournalVoucher(props) {
   const closeJvModal = useCallback(() => {
     const p = propsRef.current
     p.setShowLedgerForm(false)
+    setJvError('')
     void resetJvForm(p.ledgerVoucherTab)
     resetJvModalChrome()
   }, [resetJvForm, resetJvModalChrome])
 
   const openJvModal = useCallback(async (mode) => {
     const p = propsRef.current
+    setJvError('')
     await resetJvForm(mode ?? p.ledgerVoucherTab)
     resetJvModalChrome()
     p.setShowLedgerForm(true)
@@ -338,18 +378,26 @@ export function useJournalVoucher(props) {
 
   const handleSaveMultiLineJV = useCallback(async () => {
     const p = propsRef.current
+    if (saveInFlightRef.current) return
+
     const validation = getJvValidation(p.jvLines)
     if (validation.hasLineIssues) {
       const firstLineIssue = Object.values(validation.lineIssuesById)[0]
-      p.setError(firstLineIssue || 'Please fix JV row errors before saving')
+      const msg = firstLineIssue || 'Please fix JV row errors before saving'
+      setJvError(msg)
+      p.setError(msg)
       return
     }
     if (!validation.activeLines.length) {
-      p.setError('Add at least one debit row and one credit row')
+      const msg = 'Add at least one debit row and one credit row'
+      setJvError(msg)
+      p.setError(msg)
       return
     }
     if (!validation.isBalanced) {
-      p.setError('Debit and Credit totals are not balanced')
+      const msg = 'Debit and Credit totals are not balanced'
+      setJvError(msg)
+      p.setError(msg)
       return
     }
     const allocation = allocateJvLedgerEntries(validation.activeLines, {
@@ -357,14 +405,26 @@ export function useJournalVoucher(props) {
       useRawJvLineAmountsForSave: validation.useRawJvLineAmountsForSave,
     })
     if (allocation.error) {
+      setJvError(allocation.error)
       p.setError(allocation.error)
       return
     }
     const entries = allocation.entries
+    const isEdit = p.jvEditEntryIds.length > 0
+
+    let headerForSave = { ...p.jvHeader }
+    if (!isEdit) {
+      const freshDocNo = await refreshJvDocNo()
+      if (freshDocNo) {
+        headerForSave = { ...headerForSave, docNo: freshDocNo }
+        p.setJvHeader((prev) => ({ ...prev, docNo: freshDocNo }))
+      }
+    }
+
     const jvGroupId = makeJvGroupObjectId()
     const built = buildJvPostingPayloads({
       entries,
-      jvHeader: p.jvHeader,
+      jvHeader: headerForSave,
       baseCurrencyCode: p.baseCurrencyCode,
       currencies: p.currencies,
       jvMode: p.jvMode,
@@ -373,28 +433,62 @@ export function useJournalVoucher(props) {
       strictUseDocCurrency: Boolean(validation.useDocCurrency),
     })
     if (built.error) {
+      setJvError(built.error)
       p.setError(built.error)
       return
     }
+
+    saveInFlightRef.current = true
     p.setSaving(true)
+    setJvError('')
+    p.setError('')
+
+    const replaceEntryIds = isEdit ? [...p.jvEditEntryIds] : []
+    const runSave = async (postings) => postJournalVoucherBatch(postings, replaceEntryIds)
+
     try {
-      if (p.jvEditEntryIds.length > 0) {
-        await Promise.all(p.jvEditEntryIds.map((id) => p.erpAccountingAPI.deleteLedgerEntry(p.token, id)))
+      let batchResult
+      try {
+        batchResult = await runSave(toBatchPostings(built.payloads))
+      } catch (e) {
+        if (e?.response?.status === 409 && !isEdit) {
+          const bumpedDocNo = await refreshJvDocNo()
+          const retryHeader = { ...headerForSave, docNo: bumpedDocNo || headerForSave.docNo }
+          p.setJvHeader((prev) => ({ ...prev, docNo: retryHeader.docNo }))
+          const rebuilt = buildJvPostingPayloads({
+            entries,
+            jvHeader: retryHeader,
+            baseCurrencyCode: p.baseCurrencyCode,
+            currencies: p.currencies,
+            jvMode: p.jvMode,
+            jvGroupId: makeJvGroupObjectId(),
+            normalizeJvCurrencyCode,
+            strictUseDocCurrency: Boolean(validation.useDocCurrency),
+          })
+          if (rebuilt.error) throw e
+          batchResult = await runSave(toBatchPostings(rebuilt.payloads))
+        } else {
+          throw e
+        }
       }
-      await Promise.all(built.payloads.map((payload) => p.erpAccountingAPI.createLedgerEntry(p.token, payload)))
+
       const isBankJV = p.jvMode === 'bank_jv'
-      const isEdit = p.jvEditEntryIds.length > 0
       const voucherLabel = isBankJV ? 'Bank JV' : 'Journal Voucher'
-      p.closeJvModal()
+      const n = Number(batchResult?.count || built.payloads.length)
+      closeJvModal()
       await Promise.all([p.loadLedger(), p.loadDashboard()])
-      const n = built.payloads.length
-      p.showNotification(isEdit ? `✅ ${voucherLabel} updated — ${n} entr${n === 1 ? 'y' : 'ies'} reposted` : `✅ ${voucherLabel} saved — ${n} entr${n === 1 ? 'y' : 'ies'} posted`)
+      p.showNotification(isEdit
+        ? `✅ ${voucherLabel} updated — ${n} entr${n === 1 ? 'y' : 'ies'} reposted`
+        : `✅ ${voucherLabel} saved — ${n} entr${n === 1 ? 'y' : 'ies'} posted`)
     } catch (e) {
-      p.setError(e.response?.data?.message || 'Failed to save Journal Voucher')
+      const msg = extractJvSaveError(e)
+      setJvError(msg)
+      p.setError(msg)
     } finally {
+      saveInFlightRef.current = false
       p.setSaving(false)
     }
-  }, [getJvValidation])
+  }, [getJvValidation, closeJvModal])
 
   const handlePrintJvVoucher = useCallback(async () => {
     const p = propsRef.current
@@ -418,6 +512,8 @@ export function useJournalVoucher(props) {
   }, [getJvValidation])
 
   return {
+    jvError,
+    setJvError,
     updateJvLine,
     resolveJvLineAccount,
     getJvValidation,

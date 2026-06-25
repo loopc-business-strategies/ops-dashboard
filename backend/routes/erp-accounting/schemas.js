@@ -200,6 +200,23 @@ const ledgerEntrySchema = Joi.object({
   notes:         Joi.string().trim().allow('').max(1000).optional(),
 }).unknown(true)
 
+const journalVoucherPostingSchema = Joi.object({
+  date: Joi.string().required(),
+  description: Joi.string().trim().max(1000).required(),
+  notes: Joi.string().trim().allow('').max(1000).optional(),
+  currency: Joi.string().trim().allow('').max(10).optional(),
+  exchangeRate: Joi.number().positive().optional(),
+  debitAccountId: Joi.string().hex().length(24).required(),
+  creditAccountId: Joi.string().hex().length(24).required(),
+  amount: Joi.number().positive().required(),
+})
+
+const journalVoucherBatchSchema = Joi.object({
+  mode: Joi.string().valid('journal', 'bank_jv').default('journal'),
+  replaceEntryIds: Joi.array().items(Joi.string().hex().length(24)).optional(),
+  postings: Joi.array().items(journalVoucherPostingSchema).min(1).required(),
+})
+
 const hardDeleteSchema = Joi.object({
   code: Joi.string().trim().min(1).max(20).required(),
 })
@@ -224,5 +241,6 @@ module.exports = {
   transactionPatchSchema,
   transactionCreateSchema,
   ledgerEntrySchema,
+  journalVoucherBatchSchema,
   hardDeleteSchema,
 }

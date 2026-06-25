@@ -42,6 +42,7 @@ export default function ERPLedgerTab({
   handlePrintJvVoucher,
   handleSaveMultiLineJV,
   saving,
+  jvError,
   beginJvModalResize,
   ledgerFilters,
   setLedgerFilters,
@@ -191,6 +192,7 @@ export default function ERPLedgerTab({
               handlePrintJvVoucher={handlePrintJvVoucher}
               handleSaveMultiLineJV={handleSaveMultiLineJV}
               saving={saving}
+              jvError={jvError}
               beginJvModalResize={beginJvModalResize}
               jvReadOnly={jvReadOnly}
             />
