@@ -48,7 +48,7 @@ export function LiveMetalPricesBar() {
         {METALS.map(({ key, label, swatch, sym, symColor }) => {
           const price = snapshot[key]
           const move =
-            snapshot.deltas && snapshot.prevSnapshot && !error
+            snapshot.deltas && snapshot.prevSnapshot
               ? fmtMoveRow(snapshot.deltas[key], snapshot.prevSnapshot[key])
               : null
 

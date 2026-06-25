@@ -53,7 +53,7 @@ export default function ErpMetalLivePricesBar() {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
         {METALS.map(({ key, label, swatch, sym }) => {
           const price = snapshot[key]
-          const move = snapshot.deltas && snapshot.prevSnapshot && !error
+          const move = snapshot.deltas && snapshot.prevSnapshot
             ? fmtMoveRow(snapshot.deltas[key], snapshot.prevSnapshot[key])
             : null
 

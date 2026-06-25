@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import React from 'react'
 import { currenciesApi } from '../api/erp-accounting/currencies'
-import { LIVE_METAL_POLL_MS } from '../utils/liveMetalRates'
+import { LIVE_METAL_POLL_MS, fmtMoveRow } from '../utils/liveMetalRates'
 import { LiveMetalRatesProvider, useLiveMetalRates } from './LiveMetalRatesContext.jsx'
 
 const defaultMt4LiveResponse = {
@@ -62,6 +62,21 @@ function HarnessWithReload({ testId = 'gold' }) {
     'div',
     null,
     React.createElement('div', { 'data-testid': testId }, snapshot.gold),
+    React.createElement('button', { type: 'button', 'data-testid': 'reload-live', onClick: () => void reload() }, 'reload'),
+  )
+}
+
+function HarnessWithDeltas() {
+  const { snapshot, error, reload } = useLiveMetalRates()
+  const goldMove = snapshot.deltas && snapshot.prevSnapshot
+    ? fmtMoveRow(snapshot.deltas.gold, snapshot.prevSnapshot.gold)
+    : null
+  return React.createElement(
+    'div',
+    null,
+    React.createElement('div', { 'data-testid': 'gold-delta' }, snapshot.deltas?.gold ?? 'none'),
+    React.createElement('div', { 'data-testid': 'gold-move' }, goldMove ? goldMove.rest : 'none'),
+    React.createElement('div', { 'data-testid': 'error-msg' }, error?.message || ''),
     React.createElement('button', { type: 'button', 'data-testid': 'reload-live', onClick: () => void reload() }, 'reload'),
   )
 }
@@ -210,5 +225,110 @@ describe('LiveMetalRatesProvider', () => {
       expect(currenciesApi.getLiveMetalRates.mock.calls.length).toBeGreaterThanOrEqual(2)
     })
     expect(gold.textContent).toBe('100')
+  })
+
+  test('second live poll computes gold delta and fmtMoveRow output', async () => {
+    let call = 0
+    vi.mocked(currenciesApi.getLiveMetalRates).mockImplementation(async () => {
+      call += 1
+      const goldSource = call === 1 ? 3100 : 3101.25
+      return {
+        success: true,
+        live: true,
+        rates: {
+          goldPrice: 100,
+          silverPrice: 2,
+          platinumPrice: 50,
+          sourceGoldPrice: goldSource,
+          sourceSilverPrice: 62,
+          sourcePlatinumPrice: 1550,
+          sourceUnit: 'TOZ',
+          priceCurrency: 'USD',
+          source: 'mt4-bridge',
+        },
+      }
+    })
+
+    render(
+      React.createElement(
+        LiveMetalRatesProvider,
+        { token: 'test-token', tenant: 'mg', enabled: true },
+        React.createElement(HarnessWithDeltas, null),
+      ),
+    )
+
+    await screen.findByTestId('gold-delta')
+    expect(screen.getByTestId('gold-delta').textContent).toBe('none')
+
+    fireEvent.click(screen.getByTestId('reload-live'))
+    await waitFor(() => expect(screen.getByTestId('gold-delta').textContent).toBe('1.25'))
+    expect(screen.getByTestId('gold-move').textContent).toContain('+0.04%')
+  })
+
+  test('zero delta between polls still formats movement row', async () => {
+    vi.mocked(currenciesApi.getLiveMetalRates).mockImplementation(async () => ({
+      ...defaultMt4LiveResponse,
+    }))
+
+    render(
+      React.createElement(
+        LiveMetalRatesProvider,
+        { token: 'test-token', tenant: 'mg', enabled: true },
+        React.createElement(HarnessWithDeltas, null),
+      ),
+    )
+
+    await screen.findByTestId('gold-delta')
+    fireEvent.click(screen.getByTestId('reload-live'))
+    await waitFor(() => expect(screen.getByTestId('gold-delta').textContent).toBe('0'))
+    expect(screen.getByTestId('gold-move').textContent).toContain('+0.00%')
+  })
+
+  test('market stream error does not block delta when MT4 poll succeeds', async () => {
+    class ErroringEventSource {
+      constructor() {
+        setTimeout(() => {
+          if (this.onerror) this.onerror()
+        }, 0)
+      }
+
+      close() {}
+    }
+
+    vi.stubGlobal('EventSource', ErroringEventSource)
+
+    let call = 0
+    vi.mocked(currenciesApi.getLiveMetalRates).mockImplementation(async () => {
+      call += 1
+      return {
+        success: true,
+        live: true,
+        rates: {
+          goldPrice: 100,
+          silverPrice: 2,
+          platinumPrice: 50,
+          sourceGoldPrice: call === 1 ? 3100 : 3105,
+          sourceSilverPrice: 62,
+          sourcePlatinumPrice: 1550,
+          sourceUnit: 'TOZ',
+          priceCurrency: 'USD',
+          source: 'mt4-bridge',
+        },
+      }
+    })
+
+    render(
+      React.createElement(
+        LiveMetalRatesProvider,
+        { token: 'test-token', tenant: 'mg', enabled: true },
+        React.createElement(HarnessWithDeltas, null),
+      ),
+    )
+
+    await screen.findByTestId('gold-delta')
+    fireEvent.click(screen.getByTestId('reload-live'))
+    await waitFor(() => expect(screen.getByTestId('gold-delta').textContent).toBe('5'))
+    expect(screen.getByTestId('error-msg').textContent).toBe('')
+    expect(screen.getByTestId('gold-move').textContent).toContain('5.00')
   })
 })

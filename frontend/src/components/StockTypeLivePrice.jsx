@@ -14,7 +14,7 @@ export default function StockTypeLivePrice({
   if (!metalKey || !snapshot) return null
 
   const price = Number(snapshot[metalKey] || 0)
-  const move = snapshot.deltas && snapshot.prevSnapshot && !error
+  const move = snapshot.deltas && snapshot.prevSnapshot
     ? fmtMoveRow(snapshot.deltas[metalKey], snapshot.prevSnapshot[metalKey])
     : null
   const unitLabel = formatLiveMetalUnit(snapshot.unit || 'TOZ')

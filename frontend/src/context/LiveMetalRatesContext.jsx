@@ -30,6 +30,7 @@ const EMPTY_SNAPSHOT = {
 export function LiveMetalRatesProvider({ token, tenant, enabled = true, children }) {
   const [snapshot, setSnapshot] = useState(EMPTY_SNAPSHOT)
   const [error, setError] = useState(null)
+  const [streamWarning, setStreamWarning] = useState(null)
   const lastSnapshotRef = useRef(null)
   const sourceRef = useRef('')
   const streamConnectedRef = useRef(false)
@@ -73,6 +74,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     lastSnapshotRef.current = { gold: next.gold, silver: next.silver, platinum: next.platinum }
     sourceRef.current = next.source
     setError(null)
+    setStreamWarning(null)
     setSnapshot({
       ...next,
       deltas,
@@ -201,7 +203,12 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
         streamConnectedRef.current = false
         schedulePoll()
       }
-      setError((prev) => prev || { message: 'market stream offline' })
+      setStreamWarning({ message: 'market stream offline' })
+      const hasPrices = lastSnapshotRef.current
+        && (lastSnapshotRef.current.gold > 0 || lastSnapshotRef.current.silver > 0 || lastSnapshotRef.current.platinum > 0)
+      if (!hasPrices) {
+        setError((prev) => prev || { message: 'market stream offline' })
+      }
     }
 
     return () => {
@@ -211,7 +218,7 @@ export function LiveMetalRatesProvider({ token, tenant, enabled = true, children
     }
   }, [applyRates, enabled, schedulePoll, tenant, token])
 
-  const value = { snapshot, error, reload: load }
+  const value = { snapshot, error, streamWarning, reload: load }
   return (
     <LiveMetalRatesContext.Provider value={value}>
       {children}

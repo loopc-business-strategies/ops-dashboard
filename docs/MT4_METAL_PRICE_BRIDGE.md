@@ -27,3 +27,13 @@ If the string does not match Market Watch (wrong suffix, typo, or greyed-out sym
 - Socket namespace **`/metal-rates`** broadcasts **`metal-rates:update`** when the bridge accepts a payload.
 
 Implementation pointers: [`backend/routes/erp-accounting/currencyRoutes.js`](../backend/routes/erp-accounting/currencyRoutes.js), [`backend/services/erpAccounting/metalRateBridgeService.js`](../backend/services/erpAccounting/metalRateBridgeService.js), [`frontend/src/context/LiveMetalRatesContext.jsx`](../frontend/src/context/LiveMetalRatesContext.jsx).
+
+## UI price movement row (▲/▼ under each metal)
+
+The top bar, ERP live strip, inventory live badge, and mobile Home bar show **movement since the previous client snapshot** (not since market open):
+
+- First successful price tick: subline shows currency/unit and feed label (e.g. `USD/OZ · MT4`) — no prior snapshot yet.
+- Second tick onward: subline shows arrow, absolute change, and percent (e.g. `▲ 1.25 (+0.03%)`). A flat feed correctly shows `▲ 0.00 (+0.00%)`.
+- Movement requires **two client updates** (poll, socket, or bridge POST). Poll interval is **15s** when the market SSE stream is offline (`MT4_LIVE_POLL_MS`).
+
+Production probe: `npm run verify:live-metal-movement` (authenticated multi-sample poll of `GET /metal-rates/live`).

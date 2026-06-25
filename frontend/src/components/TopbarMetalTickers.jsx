@@ -35,7 +35,7 @@ export default function TopbarMetalTickers() {
     <div className="flex items-center justify-end gap-2 min-w-0 flex-wrap" style={{ rowGap: 6 }}>
       {METALS.map(({ key, label, swatch, sym, labelColor }) => {
         const price = snapshot[key]
-        const move = snapshot.deltas && snapshot.prevSnapshot && !error
+        const move = snapshot.deltas && snapshot.prevSnapshot
           ? fmtMoveRow(snapshot.deltas[key], snapshot.prevSnapshot[key])
           : null
 
