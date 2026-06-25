@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import axios from '../../api/client'
 import { useLanguage } from '../../context/LanguageContext'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
-import { getTenantBranding, isVoucherTypeEnabled } from '../../config/tenantBranding'
+import { getTenantBranding } from '../../config/tenantBranding'
 import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
 import { buildMetalRatesFromApiPayload, marketPricesToRates, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
 import { BASE, cfg, fmt, today, S, btn, tabBtn, emptyLine, normalizeMongoIdField, emptyHeader, coerceVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
@@ -12,14 +12,13 @@ import { useVoucherPrintModel } from './voucher/useVoucherPrintModel'
 import VoucherPrintPanel from './voucher/VoucherPrintPanel'
 import VoucherEditorPanel from './voucher/VoucherEditorPanel'
 import { useVoucherPendingOpen } from './voucher/useVoucherPendingOpen'
-import { deriveErpAccessPolicy, canCreateTransactionFor } from './erp/accessPolicy'
 import {
   filterActiveAccounts,
   filterActiveCustomers,
   filterActiveVendors,
   filterPartyAccounts,
 } from './erp/accountDropdownHelpers'
-import { VOUCHER_TAB_TYPES } from './voucher/voucherTabConstants'
+import { useVoucherTabAccess } from './voucher/useVoucherTabAccess'
 
 export default function VoucherTab({
   token,
@@ -35,24 +34,23 @@ export default function VoucherTab({
 }) {
   const showAccountDetailsTab = false
   const { t } = useLanguage()
-  const erpAccess = deriveErpAccessPolicy(user || {})
-  const isSuperAdmin = erpAccess.isSuperAdmin
-  const isFinance = erpAccess.isFinance
-  const isManagementOnly = erpAccess.isManagementRole
-  const canManageWorkflow = erpAccess.canManageTransactionWorkflow
-
-  const tenantBranding = getTenantBranding(user?.company || user?.tenant?.key || user?.tenant?.name)
-  const tenantKey = tenantBranding?.key || ''
-  const enabledVoucherTypes = VOUCHER_TAB_TYPES.filter((type) => isVoucherTypeEnabled(tenantKey, type))
-
-  const canView = erpAccess.canAccessVouchers || erpAccess.canAccessTransactions
-  const canCreatePayment = isVoucherTypeEnabled(tenantKey, 'payment') && canCreateTransactionFor(user || {}, 'payment')
-  const canCreateReceipt = isVoucherTypeEnabled(tenantKey, 'receipt') && canCreateTransactionFor(user || {}, 'receipt')
-  const canCreatePurchase = isVoucherTypeEnabled(tenantKey, 'purchase') && canCreateTransactionFor(user || {}, 'purchase')
-  const canCreateSale = isVoucherTypeEnabled(tenantKey, 'sale') && canCreateTransactionFor(user || {}, 'sale')
-  const canCreateMetalReceipt = isVoucherTypeEnabled(tenantKey, 'metal_receipt') && canCreateTransactionFor(user || {}, 'metal_receipt')
-  const canCreateMetalPayment = isVoucherTypeEnabled(tenantKey, 'metal_payment') && canCreateTransactionFor(user || {}, 'metal_payment')
-  const isReadOnly = isManagementOnly && !erpAccess.canCreateTransaction
+  const {
+    erpAccess,
+    tenantKey,
+    enabledVoucherTypes,
+    isSuperAdmin,
+    isFinance,
+    isManagementOnly,
+    canManageWorkflow,
+    canView,
+    canCreatePayment,
+    canCreateReceipt,
+    canCreatePurchase,
+    canCreateSale,
+    canCreateMetalReceipt,
+    canCreateMetalPayment,
+    isReadOnly,
+  } = useVoucherTabAccess(user)
 
   // ─── top-level state ────────────────────────────────────────────────────────
   const [voucherType, setVoucherType] = useState(() => enabledVoucherTypes[0] || 'payment')

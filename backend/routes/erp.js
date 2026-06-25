@@ -11,6 +11,7 @@ const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams, validateQuery } = require('../middleware/validate')
 const { escapeRegex } = require('../utils/escapeRegex')
 const { softDeleteById } = require('../utils/softDelete')
+const { withLegacySupplierDeprecation } = require('../utils/legacyErpDeprecation')
 const {
   isSuperAdmin,
   _isDeptHead,
@@ -449,6 +450,7 @@ router.get('/procurement/suppliers', protect, async (req, res) => {
       limit,
       suppliers,
       permissions: { canEdit: canManageSuppliers(req.user) },
+      deprecation: require('../utils/legacyErpDeprecation').legacySupplierDeprecation('list'),
     })
   } catch {
     res.status(500).json({ success: false, message: 'Failed to load suppliers.' })
@@ -474,7 +476,7 @@ router.post('/procurement/suppliers', protect, validateBody(supplierCreateSchema
       paymentTerms: req.body.paymentTerms,
     })
 
-    res.status(201).json({ success: true, supplier })
+    return withLegacySupplierDeprecation(res, { success: true, supplier }, 'create', 201)
   } catch {
     res.status(500).json({ success: false, message: 'Failed to create supplier.' })
   }
@@ -491,7 +493,7 @@ router.put('/procurement/suppliers/:id', protect, validateParams(idParam), valid
       return res.status(404).json({ success: false, message: 'Supplier not found.' })
     }
 
-    res.json({ success: true, supplier })
+    return withLegacySupplierDeprecation(res, { success: true, supplier }, 'update')
   } catch {
     res.status(500).json({ success: false, message: 'Failed to update supplier.' })
   }
@@ -509,7 +511,7 @@ router.delete('/procurement/suppliers/:id', protect, validateParams(idParam), as
     }
 
     await softDeleteById(Supplier, req.params.id, req)
-    res.json({ success: true, message: 'Supplier deleted.' })
+    return withLegacySupplierDeprecation(res, { success: true, message: 'Supplier deleted.' }, 'delete')
   } catch {
     res.status(500).json({ success: false, message: 'Failed to delete supplier.' })
   }
