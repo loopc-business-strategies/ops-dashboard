@@ -1,5 +1,7 @@
 const TROY_OUNCE_GRAMS = 31.1034768
 
+const { getTenantKeys, normalizeTenantKey } = require('../../config/tenantRegistry')
+
 const METAL_KEYS = ['gold', 'silver', 'platinum']
 
 function toPositiveNumber(value) {
@@ -88,9 +90,72 @@ function getBridgeTokenFromRequest(req) {
   return auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : ''
 }
 
+/**
+ * Resolve which tenant DBs receive a single MT4 bridge POST.
+ * METAL_RATES_BRIDGE_FANOUT_TENANTS: unset|all → all catalog tenants;
+ * comma list → those keys (source tenant always included); single key → one tenant only.
+ */
+function resolveBridgeFanoutTenants(sourceTenant, env = process.env) {
+  const source = normalizeTenantKey(sourceTenant)
+  if (!source) return []
+
+  const catalogKeys = getTenantKeys()
+  const raw = String(env.METAL_RATES_BRIDGE_FANOUT_TENANTS ?? 'all').trim().toLowerCase()
+
+  let targets
+  if (!raw || raw === 'all') {
+    targets = [...catalogKeys]
+  } else if (!raw.includes(',')) {
+    const single = normalizeTenantKey(raw)
+    targets = single ? [single] : [source]
+  } else {
+    targets = [...new Set(
+      raw.split(',')
+        .map((part) => normalizeTenantKey(part))
+        .filter(Boolean),
+    )]
+    if (!targets.includes(source)) targets.push(source)
+  }
+
+  return targets.sort()
+}
+
+async function upsertBridgeRatesForTenant({ MetalRateModel, normalized, symbols }) {
+  const latest = await MetalRateModel.findOne({}).sort({ updatedAt: -1 })
+  const oldGold = Number(latest?.goldPrice || 0)
+  const rate = await MetalRateModel.findOneAndUpdate(
+    { source: normalized.source },
+    {
+      $set: {
+        goldPrice: normalized.goldPrice,
+        silverPrice: normalized.silverPrice,
+        platinumPrice: normalized.platinumPrice,
+        priceCurrency: normalized.priceCurrency,
+        priceUnit: normalized.priceUnit,
+        source: normalized.source,
+        sourcePayload: {
+          sourceUnit: normalized.sourceUnit,
+          sourcePrices: normalized.sourcePrices,
+          symbols: symbols || undefined,
+          receivedAt: new Date(),
+        },
+      },
+    },
+    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
+  )
+
+  return {
+    rate,
+    rates: buildMetalRatesResponse(rate),
+    oldGold,
+  }
+}
+
 module.exports = {
   TROY_OUNCE_GRAMS,
   normalizeBridgeMetalRates,
   buildMetalRatesResponse,
   getBridgeTokenFromRequest,
+  resolveBridgeFanoutTenants,
+  upsertBridgeRatesForTenant,
 }

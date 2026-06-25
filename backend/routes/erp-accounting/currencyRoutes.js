@@ -5,6 +5,8 @@ const {
   normalizeBridgeMetalRates,
   buildMetalRatesResponse,
   getBridgeTokenFromRequest,
+  resolveBridgeFanoutTenants,
+  upsertBridgeRatesForTenant,
 } = require('../../services/erpAccounting/metalRateBridgeService')
 const { createMetalPricingHelpers } = require('./reportRoutesMetalPricing')
 const { notifyErpUsers } = require('../../services/notificationDispatch')
@@ -473,55 +475,55 @@ function registerCurrencyRoutes(deps) {
         return res.status(400).json({ success: false, message: 'Valid tenant is required.' })
       }
 
-      const TenantMetalRate = await MetalRate.getTenantModel(tenant)
-      const latest = await TenantMetalRate.findOne({}).sort({ updatedAt: -1 })
-      const oldGold = Number(latest?.goldPrice || 0)
-      const normalized = normalizeBridgeMetalRates(req.body, latest || DEFAULT_METAL_RATES)
-      const rate = await TenantMetalRate.findOneAndUpdate(
-        { source: normalized.source },
-        {
-          $set: {
-            goldPrice: normalized.goldPrice,
-            silverPrice: normalized.silverPrice,
-            platinumPrice: normalized.platinumPrice,
-            priceCurrency: normalized.priceCurrency,
-            priceUnit: normalized.priceUnit,
-            source: normalized.source,
-            sourcePayload: {
-              sourceUnit: normalized.sourceUnit,
-              sourcePrices: normalized.sourcePrices,
-              symbols: req.body.symbols || undefined,
-              receivedAt: new Date(),
-            },
-          },
-        },
-        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-      )
+      const sourceTenantMetalRate = await MetalRate.getTenantModel(tenant)
+      const sourceLatest = await sourceTenantMetalRate.findOne({}).sort({ updatedAt: -1 })
+      const normalized = normalizeBridgeMetalRates(req.body, sourceLatest || DEFAULT_METAL_RATES)
+      const fanoutTargets = resolveBridgeFanoutTenants(tenant)
+      const symbols = req.body.symbols || undefined
+      const realtimeServer = req.app.get('realtimeServer')
+      let primaryRates = null
 
-      const rates = buildMetalRatesResponse(rate)
-      req.app.get('realtimeServer')?.broadcastMetalRatesUpdate?.(tenant, { rates })
-      publishRealtimeEvent({ type: 'metal-rates:update', tenant, data: { rates } })
-      console.info('[metal-rates bridge] accepted live metal rates', {
-        tenant,
-        source: normalized.source,
-        symbols: req.body.symbols || {},
-        updatedAt: rate.updatedAt,
-      })
+      for (const targetTenant of fanoutTargets) {
+        const TenantMetalRate = await MetalRate.getTenantModel(targetTenant)
+        const { rates, oldGold, rate } = await upsertBridgeRatesForTenant({
+          MetalRateModel: TenantMetalRate,
+          normalized,
+          symbols,
+        })
 
-      const newGold = Number(rate.goldPrice || 0)
-      if (oldGold > 0 && newGold > 0) {
-        const changePct = ((newGold - oldGold) / oldGold) * 100
-        const threshold = Number(process.env.GOLD_ALERT_PCT || 0.5)
-        if (Math.abs(changePct) >= threshold) {
-          void notifyErpUsers(tenant, 'gold_price_alert', {
-            price: newGold,
-            changePct,
-            message: `Gold moved ${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}% to ${newGold.toFixed(2)}`,
-          }).catch((err) => console.warn('[notify] gold_price_alert', err?.message || err))
+        if (targetTenant === tenant) primaryRates = rates
+
+        realtimeServer?.broadcastMetalRatesUpdate?.(targetTenant, { rates })
+        publishRealtimeEvent({ type: 'metal-rates:update', tenant: targetTenant, data: { rates } })
+
+        const newGold = Number(rate.goldPrice || 0)
+        if (oldGold > 0 && newGold > 0) {
+          const changePct = ((newGold - oldGold) / oldGold) * 100
+          const threshold = Number(process.env.GOLD_ALERT_PCT || 0.5)
+          if (Math.abs(changePct) >= threshold) {
+            void notifyErpUsers(targetTenant, 'gold_price_alert', {
+              price: newGold,
+              changePct,
+              message: `Gold moved ${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}% to ${newGold.toFixed(2)}`,
+            }).catch((err) => console.warn('[notify] gold_price_alert', err?.message || err))
+          }
         }
       }
 
-      res.json({ success: true, tenant, rates })
+      console.info('[metal-rates bridge] accepted live metal rates', {
+        tenant,
+        fanout: fanoutTargets,
+        source: normalized.source,
+        symbols: symbols || {},
+        updatedAt: primaryRates?.updatedAt || null,
+      })
+
+      res.json({
+        success: true,
+        tenant,
+        fanout: fanoutTargets,
+        rates: primaryRates || buildMetalRatesResponse(sourceLatest),
+      })
     } catch (err) {
       const message = err?.message || 'Invalid metal rates payload'
       console.warn('[metal-rates bridge] rejected POST: invalid payload', {

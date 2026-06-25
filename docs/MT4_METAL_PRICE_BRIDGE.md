@@ -8,8 +8,8 @@ The dashboard top bar reads **live** spots from your backend. Real-time **Equiti
 2. **Expert on a chart** — Attach **Equiti MetaPriceBridge** (or your bridge EA) to an open chart and confirm the **smiley** (active EA). If the EA only appears under Navigator but is not on a chart, nothing is sent.
 3. **Market Watch** — Add and keep subscribed the symbols the EA reads. This repo’s EA defaults are **XAUUSD.pr**, **XAGUSD.pr**, **XPTUSD.pr** (Equiti-style); other brokers may use **XAUUSD**, **XAGUSD**, **XPTUSD** or suffixed names—inputs must match Market Watch exactly.
 4. **Bridge URL and auth** — EA must call your deployed API, e.g. `POST /api/erp-accounting/metal-rates/bridge`, with the shared secret **`METAL_RATES_BRIDGE_TOKEN`** (same value as in Railway / server env). Wrong or missing token → requests rejected (see logs).
-5. **Tenant** — Bridge requests must identify the tenant (e.g. header **`x-tenant: mg`** or body field per your integration). Wrong tenant → data stored for the wrong DB or rejected.
-6. **Logs** — On Railway (or your host), search for `[metal-rates bridge]` and confirm **accepted** vs **rejected** / `invalid bridge token` / tenant validation errors. Check MT4 **Experts** and **Journal** for HTTP or JSON errors.
+5. **Tenant** — Bridge requests must identify a tenant (e.g. **`Tenant=mg`** in the EA or header **`x-tenant: mg`**). The server **fans out** each accepted POST to all portal tenants (**mg**, **cg**, **loopc**) by default (`METAL_RATES_BRIDGE_FANOUT_TENANTS=all`), so CG and LoopC get the same live ticks without separate MT4 instances. Set `METAL_RATES_BRIDGE_FANOUT_TENANTS=mg` on Railway to limit fan-out to one tenant.
+6. **Logs** — On Railway (or your host), search for `[metal-rates bridge]` and confirm **accepted** vs **rejected** / `invalid bridge token` / tenant validation errors. Accepted logs include a `fanout` array. Check MT4 **Experts** and **Journal** for HTTP or JSON errors.
 
 ### Equiti: `XAUUSD` or `XAUUSD.pr`?
 
@@ -24,6 +24,7 @@ If the string does not match Market Watch (wrong suffix, typo, or greyed-out sym
 ## Backend behavior (reference)
 
 - **`GET /api/erp-accounting/metal-rates/live`** (authenticated) returns the latest **`mt4-bridge`** row if it is **fresh** (default max age **`MT4_LIVE_STALE_MS`**, 30 seconds if unset). If the feed is stale or missing, the API can return **`feedType: 'market'`** and server-side market spot prices so the UI is not stuck on ancient numbers.
+- **`POST /api/erp-accounting/metal-rates/bridge`** upserts the same normalized tick into each fan-out tenant DB and emits **`metal-rates:update`** per tenant.
 - Socket namespace **`/metal-rates`** broadcasts **`metal-rates:update`** when the bridge accepts a payload.
 
 Implementation pointers: [`backend/routes/erp-accounting/currencyRoutes.js`](../backend/routes/erp-accounting/currencyRoutes.js), [`backend/services/erpAccounting/metalRateBridgeService.js`](../backend/services/erpAccounting/metalRateBridgeService.js), [`frontend/src/context/LiveMetalRatesContext.jsx`](../frontend/src/context/LiveMetalRatesContext.jsx).

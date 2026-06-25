@@ -9,10 +9,10 @@ The bridge is an MT4 Expert Advisor (`EquitiMetalPriceBridge.mq4`). Keep MT4 log
 ```text
 Equiti MT4 account 3140019
   -> MT4 EA reads Market Watch bid/ask ticks
-  -> POST /api/erp-accounting/metal-rates/bridge
-  -> backend saves latest tenant metal rates
-  -> Socket.IO broadcasts metal-rates:update
-  -> React tenant top bar changes in real time
+  -> POST /api/erp-accounting/metal-rates/bridge (Tenant=mg is fine)
+  -> backend saves latest metal rates for mg + cg + loopc (fan-out)
+  -> Socket.IO broadcasts metal-rates:update per tenant
+  -> React tenant top bar changes in real time on all portals
 ```
 
 ## Backend setup
@@ -39,6 +39,7 @@ Railway env var (already required on production API):
 
 ```text
 METAL_RATES_BRIDGE_TOKEN=<long random secret shared with MT4 EA>
+# Optional: METAL_RATES_BRIDGE_FANOUT_TENANTS=all (default — replicate each tick to mg, cg, loopc)
 ```
 
 Print MG-ready EA inputs from Railway (includes token + saves `mg-production.local.set`):
@@ -75,7 +76,7 @@ For production (MG / CG / Loopc), add:
 https://api.loopcstrategies.com
 ```
 
-For production MG, set inputs:
+For production MG (feeds all portals when fan-out is enabled), set inputs:
 
 ```text
 BridgeUrl=https://api.loopcstrategies.com/api/erp-accounting/metal-rates/bridge
@@ -115,7 +116,7 @@ See also [`docs/MT4_METAL_PRICE_BRIDGE.md`](../../docs/MT4_METAL_PRICE_BRIDGE.md
 
 ## Expected result
 
-The selected tenant top bar should update every second. The top bar displays MT4's original **USD/TOZ** tick values, while the backend also stores converted USD/gram values for ERP calculations.
+The selected tenant top bar should update every second on **mg**, **cg**, and **loopc** when fan-out is enabled (default). The top bar displays MT4's original **USD/TOZ** tick values, while the backend also stores converted USD/gram values for ERP calculations.
 
 ## Troubleshooting
 
@@ -123,4 +124,4 @@ The selected tenant top bar should update every second. The top bar displays MT4
 - `503 Metal rates bridge is not configured`: backend `.env` is missing `METAL_RATES_BRIDGE_TOKEN`, or backend was not restarted.
 - `WebRequest failed 4014`: MT4 WebRequest URL is not allowed in **Tools > Options > Expert Advisors**.
 - `missing tick`: symbol is not visible or the symbol name is wrong.
-- Top bar still says `waiting MT4`: the EA is not posting successfully, the EA `Tenant` input does not match your logged-in company, or your browser is logged into a different tenant.
+- Top bar still says `waiting MT4`: the EA is not posting successfully, or your browser tenant has no fresh `mt4-bridge` row (check Railway logs for `fanout: ['cg','loopc','mg']`).

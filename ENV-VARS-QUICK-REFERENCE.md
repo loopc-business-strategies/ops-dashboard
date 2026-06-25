@@ -209,11 +209,14 @@ EXPO_PUBLIC_SENTRY_ENVIRONMENT=production
 
 ### Optional: MT4 live metal top bar
 
-The **MG ERP top bar** can show live Gold, Silver, and Platinum prices from your connected MT4 terminal. Run the local Expert Advisor in `tools/mt4-price-bridge` and set the same bridge token in MT4 and the backend.
+The **mg / cg / loopc** ERP top bars can show live Gold, Silver, and Platinum prices from your connected MT4 terminal. Run the local Expert Advisor in `tools/mt4-price-bridge` and set the same bridge token in MT4 and the backend.
 
 ```
 METAL_RATES_BRIDGE_TOKEN=<long random secret shared with MT4 EA>
+# METAL_RATES_BRIDGE_FANOUT_TENANTS=all
 ```
+
+When `METAL_RATES_BRIDGE_FANOUT_TENANTS` is unset or `all` (default), each MT4 bridge POST is replicated to **mg**, **cg**, and **loopc** tenant databases so all portals share the same live tick. Set to a single key (e.g. `mg`) to disable fan-out.
 
 The bridge posts to:
 
