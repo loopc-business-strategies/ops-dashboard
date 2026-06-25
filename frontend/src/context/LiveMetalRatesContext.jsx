@@ -3,8 +3,6 @@ import { currenciesApi } from '../api/erp-accounting/currencies'
 import { reportsApi } from '../api/erp-accounting/reports'
 import { startMetalRatesRealtime } from '../utils/realtimeSocket'
 import {
-  LIVE_METAL_POLL_MS,
-  LIVE_METAL_POLL_STREAM_MS,
   LIVE_METAL_RATE_LIMIT_BACKOFF_MS,
   TOPBAR_MARKET_PARAMS,
   isMt4BridgeRates,
