@@ -329,8 +329,6 @@ function ERPTab({
   const {
     goldPriceUSD: erpGoldPriceUSD,
     silverPriceUSD: erpSilverPriceUSD,
-    liveRecalcEnabled: erpLiveRecalcEnabled,
-    liveMetalTick: erpLiveMetalTick,
   } = useErpLiveMetalSpotPrices()
   const metalRates = useMemo(() => {
     const synced = liveRatesToMetalRatesState(liveMetalSnapshot)
@@ -782,7 +780,6 @@ function ERPTab({
     goldPriceUSD: erpGoldPriceUSD,
     silverPriceUSD: erpSilverPriceUSD,
     liveRecalcEnabled: activeTab === 'customer-margin',
-    liveMetalTick: erpLiveMetalTick,
   })
   const {
     supplierMarginSearch,
@@ -801,7 +798,6 @@ function ERPTab({
     goldPriceUSD: erpGoldPriceUSD,
     silverPriceUSD: erpSilverPriceUSD,
     liveRecalcEnabled: activeTab === 'supplier-margin',
-    liveMetalTick: erpLiveMetalTick,
   })
   useErpMarginContextMenuDismissal({
     customerMarginContextMenu,

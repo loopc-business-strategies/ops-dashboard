@@ -54,7 +54,6 @@ export function useErpCustomerMargin({
   goldPriceUSD,
   silverPriceUSD,
   liveRecalcEnabled = false,
-  liveMetalTick = null,
 }) {
   const [customerMarginSearch, setCustomerMarginSearch] = useState('')
   const [customerMarginCompactView, setCustomerMarginCompactView] = useState(true)
@@ -143,7 +142,7 @@ export function useErpCustomerMargin({
       })
       .filter((row) => (!query ? true : row.customerName.toLowerCase().includes(query)))
     return sortMarginRows(rows, customerMarginSort, 'customerName')
-  }, [activeTab, customers, customerMarginSearch, customerMarginSort, goldPriceUSD, silverPriceUSD, liveRecalcEnabled, liveMetalTick])
+  }, [activeTab, customers, customerMarginSearch, customerMarginSort, goldPriceUSD, silverPriceUSD, liveRecalcEnabled])
 
   const handleCustomerMarginRowContextMenu = useCallback((event, row) => {
     event.preventDefault()
@@ -171,7 +170,6 @@ export function useErpSupplierMargin({
   goldPriceUSD = 0,
   silverPriceUSD = 0,
   liveRecalcEnabled = false,
-  liveMetalTick = null,
 }) {
   const [supplierMarginSearch, setSupplierMarginSearch] = useState('')
   const [supplierMarginCompactView, setSupplierMarginCompactView] = useState(true)
@@ -251,7 +249,7 @@ export function useErpSupplierMargin({
       })
       .filter((row) => (!query ? true : row.supplierName.toLowerCase().includes(query)))
     return sortMarginRows(rows, supplierMarginSort, 'supplierName')
-  }, [activeTab, vendors, supplierMarginSearch, supplierMarginSort, goldPriceUSD, silverPriceUSD, liveRecalcEnabled, liveMetalTick])
+  }, [activeTab, vendors, supplierMarginSearch, supplierMarginSort, goldPriceUSD, silverPriceUSD, liveRecalcEnabled])
 
   const handleSupplierMarginRowContextMenu = useCallback((event, row) => {
     event.preventDefault()
