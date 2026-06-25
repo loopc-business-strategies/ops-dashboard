@@ -29,7 +29,8 @@ import { useErpDashUiState } from './erp/useErpDashUiState'
 import { useErpDashWidgetData } from './erp/useErpDashWidgetData'
 import { useFixingRegisterPanelDrag } from './erp/useFixingRegisterPanelDrag'
 import { useFixingRegisterState } from './erp/useFixingRegisterState'
-import { useJvModalDragResize } from './erp/useJvModalDragResize'
+import { useJvFormState } from './erp/useJvFormState'
+import { useJvModalChrome } from './erp/useJvModalChrome'
 import { useFixingRegisterStockTypeOptions } from './erp/useFixingRegisterStockTypeOptions'
 import { ERP_TAB_COLORS as C, TRANSACTION_STATUS_STYLES, ERP_EMPTY_CARD_STYLE, ERP_MODAL_BACKDROP_STYLE, ERP_MODAL_CARD_STYLE, ERP_MODAL_INPUT_STYLE } from './erp/erpTabPresentation'
 import { useTransactionComposer } from './erp/useTransactionComposer'
@@ -98,8 +99,6 @@ import {
   JV_MODE_META,
   buildJvDocNo as buildNextJvDocNo,
   convertJvAmountBetweenCurrencies,
-  createJvHeader as createNextJvHeader,
-  emptyJvLine,
   extractLedgerJvDocNoFromDescription,
   normalizeJvCurrencyCode,
   resolveJvModeMeta,
@@ -117,8 +116,6 @@ import { resolveDocumentBranding } from './erp/documentBranding'
 import { loadExcel, loadPdfTools } from './erp/lazyExportLibs'
 import { exchangeRateFromUnitsPerBase, resolveCurrencyRowByCode } from './erp/erpCurrencyRowHelpers'
 import StatementExportOptionsModal from './erp/StatementExportOptionsModal'
-
-const JV_MODAL_DEFAULT_SIZE = Object.freeze({ width: 980, height: 640 })
 
 const ChartOfAccountsTree = lazy(() => import('./ChartOfAccountsTree'))
 const DirectDealsTab = lazy(() => import('./DirectDealsTab'))
@@ -212,6 +209,37 @@ function ERPTab({
     handleFixingRegProceed,
   } = useFixingRegisterState({ token })
   const [ledger, setLedger] = useState([])
+  const {
+    jvLines,
+    setJvLines,
+    jvHeader,
+    setJvHeader,
+    nextJvLineId,
+    setNextJvLineId,
+    jvMode,
+    setJvMode,
+    ledgerVoucherTab,
+    setLedgerVoucherTab,
+    jvEditEntryIds,
+    setJvEditEntryIds,
+    jvReadOnly,
+    setJvReadOnly,
+    showLedgerForm,
+    setShowLedgerForm,
+  } = useJvFormState()
+  const {
+    jvModalOffset,
+    setJvModalOffset,
+    jvModalDrag,
+    setJvModalDrag,
+    jvModalSize,
+    setJvModalSize,
+    jvModalResize,
+    setJvModalResize,
+    beginJvModalDrag,
+    beginJvModalResize,
+    jvModalDefaultSize,
+  } = useJvModalChrome(showLedgerForm)
   const [mappings, setMappings] = useState([])
   const [currencies, setCurrencies] = useState([])
   const erpBaseCurrencyCode = useMemo(
@@ -242,14 +270,6 @@ function ERPTab({
   const [exportOptionsOpen, setExportOptionsOpen] = useState(false)
   // ─── Multi-line Journal Voucher state ─────────────────────────────────────
   const buildJvDocNo = (mode = 'journal') => buildNextJvDocNo(ledger, mode)
-  const createJvHeader = (currencyCode = 'USD', mode = 'journal') => createNextJvHeader(ledger, currencyCode, mode)
-  const [jvLines, setJvLines] = useState([emptyJvLine(1), emptyJvLine(2)])
-  const [jvHeader, setJvHeader] = useState(() => createJvHeader('USD', 'journal'))
-  const [nextJvLineId, setNextJvLineId] = useState(3)
-  const [jvMode, setJvMode] = useState('journal')
-  const [ledgerVoucherTab, setLedgerVoucherTab] = useState('journal')
-  const [jvEditEntryIds, setJvEditEntryIds] = useState([]) // IDs of entries being edited (empty = new JV)
-  const [jvReadOnly, setJvReadOnly] = useState(false)
   const [currencyForm, setCurrencyForm] = useState({
     code: '',
     name: '',
@@ -275,11 +295,6 @@ function ERPTab({
     notes: '',
   })
   const [showCustomerForm, setShowCustomerForm] = useState(false)
-  const [showLedgerForm, setShowLedgerForm] = useState(false)
-  const [jvModalOffset, setJvModalOffset] = useState({ x: 0, y: 0 })
-  const [jvModalDrag, setJvModalDrag] = useState({ active: false, pointerX: 0, pointerY: 0, startX: 0, startY: 0 })
-  const [jvModalSize, setJvModalSize] = useState(JV_MODAL_DEFAULT_SIZE)
-  const [jvModalResize, setJvModalResize] = useState({ active: false, pointerX: 0, pointerY: 0, startW: JV_MODAL_DEFAULT_SIZE.width, startH: JV_MODAL_DEFAULT_SIZE.height })
   const [showCurrencyForm, setShowCurrencyForm] = useState(false)
   const [showMappingForm, setShowMappingForm] = useState(false)
   const [ledgerFilters, setLedgerFilters] = useState({ startDate: '', endDate: '', department: '', referenceType: '', accountId: '' })
@@ -810,18 +825,6 @@ function ERPTab({
     fixingRegPanelDrag,
     beginFixingRegPanelDrag,
   } = useFixingRegisterPanelDrag(activeTab)
-  const { beginJvModalDrag, beginJvModalResize } = useJvModalDragResize({
-    showLedgerForm,
-    jvModalDrag,
-    setJvModalDrag,
-    jvModalOffset,
-    setJvModalOffset,
-    jvModalResize,
-    setJvModalResize,
-    jvModalSize,
-    setJvModalSize,
-    jvModalDefaultSize: JV_MODAL_DEFAULT_SIZE,
-  })
   useEffect(() => {
     try {
       const raw = localStorage.getItem(ENQUIRY_DETAILS_PANEL_STORAGE_KEY)
@@ -2380,7 +2383,7 @@ function ERPTab({
     openPrintWindow,
     defaultCompanyName: DEFAULT_BRANDING.companyName,
     user,
-    JV_MODAL_DEFAULT_SIZE,
+    JV_MODAL_DEFAULT_SIZE: jvModalDefaultSize,
     setJvModalOffset,
     setJvModalDrag,
     setJvModalResize,

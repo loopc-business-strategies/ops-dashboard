@@ -1,5 +1,7 @@
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 
+export const JV_MODAL_DEFAULT_SIZE = Object.freeze({ width: 980, height: 640 })
+
 export const LEDGER_REFERENCE_TYPES = ['journal', 'expense', 'invoice', 'payment', 'purchase', 'vendor_payment', 'inventory', 'payroll', 'bank_jv']
 export const LEDGER_DEPARTMENTS = ['finance', 'sales', 'production', 'hr', 'operations', 'management']
 export const ENQUIRY_HISTORY_STORAGE_KEY = 'erp-account-enquiry-history'

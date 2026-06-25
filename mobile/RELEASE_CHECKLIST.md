@@ -29,6 +29,26 @@ npm run check:mobile-release-secrets   # gh: which iOS/Android store secrets exi
 - [ ] Confirm `EXPO_PUBLIC_API_URL` / production API is `https://api.loopcstrategies.com` for release builds.
 - [ ] Review [store/STORE_METADATA.md](./store/STORE_METADATA.md) — listing text, privacy URL, screenshots.
 
+## GitHub store secrets audit (2026-06-25)
+
+Run from repo root: `npm run check:mobile-release-secrets` (requires `gh auth login`).
+
+| Secret | Status |
+|--------|--------|
+| `APPLE_TEAM_ID` | missing |
+| `BUILD_CERTIFICATE_BASE64` | missing |
+| `P12_PASSWORD` | missing |
+| `BUILD_PROVISION_PROFILE_BASE64` | missing |
+| `KEYCHAIN_PASSWORD` | missing |
+| `APP_STORE_CONNECT_API_KEY_ID` | missing |
+| `APP_STORE_CONNECT_ISSUER_ID` | missing |
+| `APP_STORE_CONNECT_API_KEY` | missing |
+| `ANDROID_KEYSTORE_BASE64` | missing |
+| `ANDROID_KEYSTORE_PASSWORD` | missing |
+| `ANDROID_KEY_ALIAS` | missing |
+
+iOS signing is **not** ready for **Mobile iOS (GitHub macOS)** until the five iOS signing secrets are added per [docs/MOBILE-IOS-GITHUB-BUILD.md](../../docs/MOBILE-IOS-GITHUB-BUILD.md). Android CI still uses debug signing until the three Android keystore secrets are set.
+
 ## iOS — GitHub macOS (no EAS)
 
 Workflow: [`.github/workflows/mobile-ios-testflight.yml`](../../.github/workflows/mobile-ios-testflight.yml)  
