@@ -1,3 +1,7 @@
+> **ARCHIVED — do not use for current operations.**  
+> This is a historical snapshot and may not match the codebase.  
+> Canonical docs: [docs/DEPLOY.md](../DEPLOY.md) · [README.md](../../README.md)
+
 # Production Hardening Complete ✅
 
 **Date:** May 12, 2026  

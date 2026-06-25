@@ -18,7 +18,7 @@ Multi-tenant operations and ERP platform for mg, cg, and loopc companies.
 | [docs/TESTING.md](docs/TESTING.md) | Local and CI test commands |
 | [docs/MONGODB-BACKUPS-AND-DATA-SAFETY.md](docs/MONGODB-BACKUPS-AND-DATA-SAFETY.md) | Backups |
 | [docs/MOBILE-NO-EAS.md](docs/MOBILE-NO-EAS.md) | Mobile dev without EAS |
-| [docs/archive/README.md](docs/archive/README.md) | Historical docs (may be stale) |
+| [docs/archive/README.md](docs/archive/README.md) | Historical snapshots only (archived) — do not use for deploy or ops |
 
 **Windows-only development:** see `docs/WINDOWS-DEV.md` (Jest, Mongo memory server / VC++ redist, Node version). **CI uses Node 24** (`.github/workflows/ci.yml`). At the repo root, **`.nvmrc`** pins **24** for `nvm use`, `fnm use`, or Volta so local runs match CI when debugging “passes in CI, fails locally.”
 

@@ -1,3 +1,7 @@
+> **ARCHIVED — do not use for current operations.**  
+> This is a historical snapshot and may not match the codebase.  
+> Canonical docs: [docs/DEPLOY.md](../DEPLOY.md) · [README.md](../../README.md)
+
 # MG Tenant - Final Verification Report
 **Date:** May 10, 2026  
 **Time:** 04:15 UTC  

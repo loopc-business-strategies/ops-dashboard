@@ -131,4 +131,4 @@ Not tied to `main` push. Use [mobile/RELEASE_CHECKLIST.md](../mobile/RELEASE_CHE
 | First-time production setup (DNS, Mongo, CORS) | [DEPLOYMENT-CHECKLIST.md](../DEPLOYMENT-CHECKLIST.md) |
 | Local dev / Windows | [WINDOWS-DEV.md](./WINDOWS-DEV.md), [TESTING.md](./TESTING.md) |
 | Customer onboarding | [NEXA-CUSTOMER-ONBOARDING.md](./NEXA-CUSTOMER-ONBOARDING.md) |
-| Historical / stale reports | [archive/README.md](./archive/README.md) |
+| Historical snapshots only (archived — not for deploy/ops) | [archive/README.md](./archive/README.md) |

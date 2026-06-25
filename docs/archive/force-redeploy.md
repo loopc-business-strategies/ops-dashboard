@@ -1,3 +1,7 @@
+> **ARCHIVED — do not use for current operations.**  
+> This is a historical snapshot and may not match the codebase.  
+> Canonical docs: [docs/DEPLOY.md](../DEPLOY.md) · [README.md](../../README.md)
+
 # Force Complete Browser Cache Clear
 
 The database is CLEAN (0 entries confirmed via API), but your browser is showing CACHED data.

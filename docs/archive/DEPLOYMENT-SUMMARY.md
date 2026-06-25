@@ -1,3 +1,7 @@
+> **ARCHIVED — do not use for current operations.**  
+> This is a historical snapshot and may not match the codebase.  
+> Canonical docs: [docs/DEPLOY.md](../DEPLOY.md) · [README.md](../../README.md)
+
 # MG Tenant Cleanup & Deployment Summary
 **Date:** May 10, 2026
 **Tenant:** MG (mg.loopcstrategies.com)
