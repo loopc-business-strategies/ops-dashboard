@@ -7,6 +7,7 @@ const PERSISTENT_SESSION_MAX_AGE_MS = Number(
 const DEFAULT_ADMIN_SETTINGS = {
   passwordPolicy: 'strong',
   sessionTimeoutMinutes: '0',
+  idleTimeoutMinutes: '30',
 }
 
 async function loadAdminSettings(tenant) {
@@ -69,12 +70,40 @@ function resolveJwtExpiresIn(maxAgeMs) {
   return `${seconds}s`
 }
 
+const DEFAULT_IDLE_TIMEOUT_MINUTES = 30
+const IDLE_WARNING_MINUTES = 5
+
+function resolveIdleTimeoutMinutes(settings = DEFAULT_ADMIN_SETTINGS) {
+  const minutes = Number.parseInt(String(settings?.idleTimeoutMinutes ?? ''), 10)
+  if (minutes === 0) return 0
+  if (Number.isFinite(minutes) && minutes >= 5 && minutes <= 1440) return minutes
+  return DEFAULT_IDLE_TIMEOUT_MINUTES
+}
+
+function resolveIdleTimeoutMs(settings = DEFAULT_ADMIN_SETTINGS) {
+  const minutes = resolveIdleTimeoutMinutes(settings)
+  if (minutes === 0) return null
+  return minutes * 60 * 1000
+}
+
+function buildWebSessionPolicy(settings = DEFAULT_ADMIN_SETTINGS) {
+  return {
+    idleTimeoutMinutes: resolveIdleTimeoutMinutes(settings),
+    idleWarningMinutes: IDLE_WARNING_MINUTES,
+  }
+}
+
 module.exports = {
   DEFAULT_ADMIN_SETTINGS,
   PERSISTENT_SESSION_MAX_AGE_MS,
+  DEFAULT_IDLE_TIMEOUT_MINUTES,
+  IDLE_WARNING_MINUTES,
   loadAdminSettings,
   validatePasswordPolicy,
   isPersistentSessionForced,
   resolveSessionMaxAgeMs,
   resolveJwtExpiresIn,
+  resolveIdleTimeoutMinutes,
+  resolveIdleTimeoutMs,
+  buildWebSessionPolicy,
 }

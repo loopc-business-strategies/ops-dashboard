@@ -10,8 +10,14 @@ import axios from '../api/client'
 import authAPI from '../api/auth'
 import { resolveTenantFromHostname, resolveTenantFromSearch } from '../config/tenantBranding'
 import { ensureWebPushSubscription, teardownWebPush } from '../utils/webPushRegister'
+import WebIdleSessionGuard from '../components/WebIdleSessionGuard'
 
 const AuthContext = createContext(null)
+
+const DEFAULT_SESSION_POLICY = {
+  idleTimeoutMinutes: 30,
+  idleWarningMinutes: 5,
+}
 
 export function AuthProvider({ children }) {
   const hostTenant = resolveTenantFromHostname(window.location.hostname, localStorage.getItem('tenantCompany') || 'loopc')
@@ -21,6 +27,7 @@ export function AuthProvider({ children }) {
   const [token,     setToken]     = useState(null)
   const [company,   setCompany]   = useState(resolvedTenant)
   const [isLoading, setIsLoading] = useState(true) // checking saved session
+  const [sessionPolicy, setSessionPolicy] = useState(DEFAULT_SESSION_POLICY)
 
   // Always tell the backend which tenant this frontend belongs to
   axios.defaults.headers.common['x-tenant'] = resolvedTenant
@@ -40,6 +47,7 @@ export function AuthProvider({ children }) {
         if (status === 401 && isSessionProbe) {
           setUser(null)
           setToken(null)
+          setSessionPolicy(DEFAULT_SESSION_POLICY)
           setCompany(resolvedTenant)
           if (window.location.pathname !== '/login') {
             window.location.replace('/login')
@@ -80,6 +88,7 @@ export function AuthProvider({ children }) {
         )
         setUser(data.user)
         setCompany(nextTenant)
+        setSessionPolicy(data.sessionPolicy || DEFAULT_SESSION_POLICY)
         localStorage.setItem('tenantCompany', nextTenant)
         axios.defaults.headers.common['x-tenant'] = nextTenant
         axios.defaults.headers.common['x-company'] = nextTenant
@@ -93,6 +102,7 @@ export function AuthProvider({ children }) {
         if (!mounted) return
         setUser(null)
         setToken(null)
+        setSessionPolicy(DEFAULT_SESSION_POLICY)
         setCompany(resolvedTenant)
       } finally {
         if (mounted) setIsLoading(false)
@@ -124,6 +134,7 @@ export function AuthProvider({ children }) {
     )
     setUser(data.user)
     setCompany(nextTenant)
+    setSessionPolicy(data.sessionPolicy || DEFAULT_SESSION_POLICY)
     localStorage.setItem('tenantCompany', nextTenant)
     axios.defaults.headers.common['x-tenant'] = nextTenant
     axios.defaults.headers.common['x-company'] = nextTenant
@@ -144,18 +155,20 @@ export function AuthProvider({ children }) {
     }
     setToken(null)
     setUser(null)
+    setSessionPolicy(DEFAULT_SESSION_POLICY)
     delete axios.defaults.headers.common['x-tenant']
     delete axios.defaults.headers.common['x-company']
   }
 
   return (
     <AuthContext.Provider value={{
-      user, token, company, isLoading,
+      user, token, company, isLoading, sessionPolicy,
       isAuthenticated: !!user,
       setCompany,
       login, logout,
     }}>
       {children}
+      {user && !isLoading ? <WebIdleSessionGuard /> : null}
     </AuthContext.Provider>
   )
 }

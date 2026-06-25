@@ -4,6 +4,15 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import axios from 'axios'
 import { AuthProvider, useAuth } from './AuthContext'
 
+vi.mock('../components/WebIdleSessionGuard', () => ({
+  default: () => null,
+}))
+
+vi.mock('../utils/webPushRegister', () => ({
+  ensureWebPushSubscription: vi.fn(),
+  teardownWebPush: vi.fn(),
+}))
+
 vi.mock('axios', () => ({
   default: {
     defaults: { headers: { common: {} } },
@@ -17,13 +26,14 @@ vi.mock('axios', () => ({
 }))
 
 function AuthProbe() {
-  const { user, company, isAuthenticated, isLoading, login } = useAuth()
+  const { user, company, isAuthenticated, isLoading, sessionPolicy, login } = useAuth()
   return (
     <div>
       <p data-testid="loading">{String(isLoading)}</p>
       <p data-testid="auth">{String(isAuthenticated)}</p>
       <p data-testid="company">{company}</p>
       <p data-testid="user">{user?.name || ''}</p>
+      <p data-testid="idle-timeout">{String(sessionPolicy?.idleTimeoutMinutes ?? '')}</p>
       <button type="button" onClick={() => login('Admin', 'secret123', 'mg')}>Login</button>
     </div>
   )
@@ -44,6 +54,7 @@ describe('AuthProvider session integration', () => {
     axios.get.mockResolvedValueOnce({
       data: {
         user: { id: 'u1', name: 'Casey', role: 'super_admin', company: 'loopc' },
+        sessionPolicy: { idleTimeoutMinutes: 45, idleWarningMinutes: 5 },
       },
     })
 
@@ -60,6 +71,7 @@ describe('AuthProvider session integration', () => {
     expect(screen.getByTestId('company').textContent).toBe('cg')
     expect(axios.defaults.headers.common['x-tenant']).toBe('cg')
     expect(axios.defaults.headers.common['x-company']).toBe('cg')
+    expect(screen.getByTestId('idle-timeout').textContent).toBe('45')
   })
 
   test('login stores authenticated user and selected tenant headers', async () => {
@@ -67,6 +79,7 @@ describe('AuthProvider session integration', () => {
     axios.post.mockResolvedValueOnce({
       data: {
         user: { id: 'u2', name: 'Admin', role: 'super_admin', company: 'mg' },
+        sessionPolicy: { idleTimeoutMinutes: 30, idleWarningMinutes: 5 },
       },
     })
 
@@ -84,5 +97,6 @@ describe('AuthProvider session integration', () => {
     expect(screen.getByTestId('company').textContent).toBe('mg')
     expect(axios.post).toHaveBeenCalledWith('/api/auth/login', { name: 'Admin', password: 'secret123', company: 'mg' }, { withCredentials: true })
     expect(axios.defaults.headers.common['x-tenant']).toBe('mg')
+    expect(screen.getByTestId('idle-timeout').textContent).toBe('30')
   })
 })

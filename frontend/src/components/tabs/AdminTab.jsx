@@ -99,6 +99,7 @@ const DEFAULT_SETTINGS = {
   timezone: '(UTC+05:30) Asia/Kolkata',
   passwordPolicy: 'strong',
   sessionTimeoutMinutes: '0',
+  idleTimeoutMinutes: '30',
   maxLoginAttempts: '5',
   twoFactorAuth: true,
   smtpHost: 'smtp.company.com',
@@ -1050,7 +1051,14 @@ function SettingsTab() {
               <FieldLabel>Session Timeout (Minutes)</FieldLabel>
               <AdminInput value={settings.sessionTimeoutMinutes} onChange={(e) => setSettings((s) => ({ ...s, sessionTimeoutMinutes: e.target.value }))} placeholder="0" />
               <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.25rem' }}>
-                Use <strong>0</strong> to stay signed in until logout. Use 5–1440 for auto logout after N minutes.
+                Use <strong>0</strong> to stay signed in until logout. Use 5–1440 for maximum session length from login (cookie expiry).
+              </div>
+            </div>
+            <div>
+              <FieldLabel>{t('webIdleTimeout')}</FieldLabel>
+              <AdminInput value={settings.idleTimeoutMinutes} onChange={(e) => setSettings((s) => ({ ...s, idleTimeoutMinutes: e.target.value }))} placeholder="30" />
+              <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.25rem' }}>
+                {t('webIdleTimeoutHelp')}
               </div>
             </div>
             <div><FieldLabel>Max Login Attempts</FieldLabel><AdminInput value={settings.maxLoginAttempts} onChange={(e) => setSettings((s) => ({ ...s, maxLoginAttempts: e.target.value }))} /></div>

@@ -21,6 +21,7 @@ function MgLoginShell({
   password,
   setPassword,
   error,
+  idleNotice,
   setError,
   loading,
   showPass,
@@ -93,6 +94,26 @@ function MgLoginShell({
         }}
       >
         <form onSubmit={handleSubmit} style={{ position: 'absolute', inset: 0 }}>
+          {idleNotice && (
+            <div
+              style={{
+                position: 'absolute',
+                left: sx(968),
+                top: sy(278),
+                width: sx(455),
+                minHeight: sy(30),
+                border: '1px solid rgba(234, 179, 8, 0.55)',
+                background: 'rgba(120, 53, 15, 0.72)',
+                color: '#FDE68A',
+                borderRadius: 8,
+                padding: '8px 12px',
+                fontSize: 13,
+                zIndex: 4,
+              }}
+            >
+              {idleNotice}
+            </div>
+          )}
           {error && (
             <div
               style={{
@@ -339,9 +360,17 @@ function Login() {
   const [name,     setName]     = useState('')
   const [password, setPassword] = useState('')
   const [error,    setError]    = useState('')
+  const [idleNotice, setIdleNotice] = useState('')
   const [loading,  setLoading]  = useState(false)
   const [showPass, setShowPass] = useState(false)
   const branding = getTenantBranding(company)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('reason') === 'idle') {
+      setIdleNotice(t('loginIdleMessage'))
+    }
+  }, [t])
 
   useEffect(() => {
     const root = document.documentElement
@@ -399,6 +428,7 @@ function Login() {
         password={password}
         setPassword={setPassword}
         error={error}
+        idleNotice={idleNotice}
         setError={setError}
         loading={loading}
         showPass={showPass}
@@ -526,6 +556,11 @@ function Login() {
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ display: 'grid', rowGap: 16 }}>
+                  {idleNotice && (
+                    <div className="flex items-center gap-2 rounded-[12px] border border-[#f0d58a] bg-[#fffbeb] px-3 py-3">
+                      <p className="text-[12px] text-[#92400e]">{idleNotice}</p>
+                    </div>
+                  )}
                   {error && (
                     <div className="flex items-center gap-2 rounded-[12px] border border-[#f0c9c9] bg-[#fff5f5] px-3 py-3">
                       <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

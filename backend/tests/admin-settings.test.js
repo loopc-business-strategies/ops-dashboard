@@ -2,6 +2,9 @@ const {
   validatePasswordPolicy,
   resolveSessionMaxAgeMs,
   resolveJwtExpiresIn,
+  resolveIdleTimeoutMinutes,
+  resolveIdleTimeoutMs,
+  buildWebSessionPolicy,
   PERSISTENT_SESSION_MAX_AGE_MS,
 } = require('../services/adminSettings')
 
@@ -23,5 +26,17 @@ describe('admin settings helpers', () => {
     expect(resolveSessionMaxAgeMs({ sessionTimeoutMinutes: '0' })).toBe(PERSISTENT_SESSION_MAX_AGE_MS)
     expect(resolveSessionMaxAgeMs({ sessionTimeoutMinutes: '2' })).toBe(PERSISTENT_SESSION_MAX_AGE_MS)
     expect(resolveJwtExpiresIn(30 * 60 * 1000)).toBe('1800s')
+  })
+
+  test('web idle timeout resolves from admin settings within bounds', () => {
+    expect(resolveIdleTimeoutMinutes({ idleTimeoutMinutes: '0' })).toBe(0)
+    expect(resolveIdleTimeoutMinutes({ idleTimeoutMinutes: '45' })).toBe(45)
+    expect(resolveIdleTimeoutMinutes({ idleTimeoutMinutes: '2' })).toBe(30)
+    expect(resolveIdleTimeoutMs({ idleTimeoutMinutes: '0' })).toBeNull()
+    expect(resolveIdleTimeoutMs({ idleTimeoutMinutes: '30' })).toBe(30 * 60 * 1000)
+    expect(buildWebSessionPolicy({ idleTimeoutMinutes: '60' })).toEqual({
+      idleTimeoutMinutes: 60,
+      idleWarningMinutes: 5,
+    })
   })
 })

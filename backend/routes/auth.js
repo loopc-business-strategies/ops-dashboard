@@ -36,6 +36,7 @@ const {
   validatePasswordPolicy,
   resolveSessionMaxAgeMs,
   resolveJwtExpiresIn,
+  buildWebSessionPolicy,
 } = require('../services/adminSettings')
 const { isLikelyExpoPushToken } = require('../services/expoPushNotifications')
 const { mergeNotificationPreferences } = require('../services/notificationPreferences')
@@ -99,6 +100,7 @@ const sendToken = async (user, status, res, company, req = null) => {
     },
   }
   if (!mobile && csrfToken) payload.csrfToken = csrfToken
+  if (!mobile) payload.sessionPolicy = buildWebSessionPolicy(settings)
   if (mobile) {
     payload.token = token
     payload.expiresIn = expiresIn
@@ -290,7 +292,7 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
 // ==========================================
 // GET /api/auth/me — get my profile
 // ==========================================
-router.get('/me', protect, (req, res) => {
+router.get('/me', protect, async (req, res) => {
   const mobile = isMobileClientRequest(req)
   let csrfToken = null
   if (!mobile) {
@@ -304,9 +306,11 @@ router.get('/me', protect, (req, res) => {
       res.setHeader('X-CSRF-Token', csrfToken)
     }
   }
+  const settings = await loadAdminSettings(req.tenant)
   res.json({
     success: true,
     ...(csrfToken ? { csrfToken } : {}),
+    ...(!mobile ? { sessionPolicy: buildWebSessionPolicy(settings) } : {}),
     user: {
       id:             req.user._id,
       name:           req.user.name,
