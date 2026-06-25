@@ -78,6 +78,11 @@ async function reactivateSmokeUser(tenant) {
     return { tenant, action: 'missing', id: null }
   }
   user.isActive = true
+  user.isDeleted = false
+  user.deletedAt = null
+  user.deletedBy = null
+  user.deletedByName = ''
+  user.deletionReason = ''
   user.role = 'management'
   user.department = 'management'
   await user.save()
@@ -109,6 +114,11 @@ async function upsertSmokeUser(tenant, password) {
   user.role = 'management'
   user.department = 'management'
   user.isActive = true
+  user.isDeleted = false
+  user.deletedAt = null
+  user.deletedBy = null
+  user.deletedByName = ''
+  user.deletionReason = ''
   if (!user.email) user.email = email
   await user.save()
   return { tenant, action: 'updated', id: String(user._id) }

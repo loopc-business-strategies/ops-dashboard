@@ -270,6 +270,9 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
     if (!user || !(await user.comparePassword(password)))
       return res.status(401).json({ success: false, message: 'Invalid credentials.' })
 
+    if (user.isDeleted)
+      return res.status(401).json({ success: false, message: 'User no longer exists.' })
+
     if (!user.isActive)
       return res.status(401).json({ success: false, message: 'Account deactivated. Contact your admin.' })
 
