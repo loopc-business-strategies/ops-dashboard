@@ -1352,6 +1352,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
           marginAmount: marginMetrics.margin,
           marginExcess: marginMetrics.excess,
           marginRevaluation: marginMetrics.revaluation,
+          suppressMetalSpotMtm: shouldSuppressSpotMetalMtmForCustomerDashboard(customer.ledgerAccountId?.accountType),
         }
       }
 
@@ -1373,6 +1374,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
         marginAmount: marginMetrics.margin,
         marginExcess: marginMetrics.excess,
         marginRevaluation: marginMetrics.revaluation,
+        suppressMetalSpotMtm: shouldSuppressSpotMetalMtmForCustomerDashboard(customer.ledgerAccountId?.accountType),
       }
     })
 
@@ -1460,6 +1462,7 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
         marginAmount: marginMetrics.margin,
         marginExcess: marginMetrics.excess,
         marginRevaluation: marginMetrics.revaluation,
+        suppressMetalSpotMtm: true,
       }
     })
 

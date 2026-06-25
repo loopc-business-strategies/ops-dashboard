@@ -14,6 +14,7 @@ export type MarginRow = {
   goldPosition?: number
   silverPosition?: number
   marginRevaluation?: number
+  suppressMetalSpotMtm?: boolean
 }
 
 export type FixingPosition = {

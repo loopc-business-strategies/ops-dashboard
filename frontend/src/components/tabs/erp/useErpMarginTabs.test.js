@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'vitest'
-import { computeMarginMetricsRaw } from './metalMarginPolicy'
+import {
+  computeMarginMetricsRaw,
+  shouldSuppressSpotMetalMtmForSupplierDashboard,
+} from './metalMarginPolicy'
 
 function buildCustomerRow(customer, goldPriceUSD, silverPriceUSD, liveRecalcEnabled) {
   const outstanding = Number(customer?.outstandingBalance || 0)
@@ -35,6 +38,35 @@ describe('useErpMarginTabs live recalc', () => {
     expect(high.revaluation).toBeGreaterThan(low.revaluation)
     expect(high.equity).toBeGreaterThan(low.equity)
     expect(high.marginPercent).toBeLessThan(low.marginPercent)
+  })
+
+  test('supplier live path suppresses spot MTM with frozen revaluation', () => {
+    const outstanding = -100
+    const goldPosition = 50
+    const frozenReval = -12.5
+    const low = computeMarginMetricsRaw({
+      totalFunds: outstanding,
+      goldPosition,
+      silverPosition: 0,
+      goldPrice: 50,
+      silverPrice: 1,
+      suppressMetalSpotMtm: shouldSuppressSpotMetalMtmForSupplierDashboard(),
+      revaluationOverride: frozenReval,
+      fundsMode: 'asIs',
+    })
+    const high = computeMarginMetricsRaw({
+      totalFunds: outstanding,
+      goldPosition,
+      silverPosition: 0,
+      goldPrice: 200,
+      silverPrice: 1,
+      suppressMetalSpotMtm: shouldSuppressSpotMetalMtmForSupplierDashboard(),
+      revaluationOverride: frozenReval,
+      fundsMode: 'asIs',
+    })
+    expect(low.equity).toBe(-112.5)
+    expect(high.equity).toBe(-112.5)
+    expect(high.revaluation).toBe(frozenReval)
   })
 
   test('supplier spot MTM uses live prices in fallback path', () => {

@@ -70,6 +70,7 @@ In Railway dashboard, go to **Variables** and add:
 | `BACKEND_BUILD_TIME` | (recommended: Railway deployment timestamp) | `2026-05-09T12:00:00Z` |
 | `RAILWAY_DEPLOYMENT_TIMESTAMP` | (optional fallback for build badge) | `2026-05-09T12:00:00Z` |
 | `METALS_DEV_API_KEY` | *(Optional)* External spot feed for **server-side** market price routes / reports | Only if you use metals.dev-backed endpoints. The ERP home dashboard no longer includes a live spot widget. See `ENV-VARS-QUICK-REFERENCE.md`. |
+| `REDIS_URL` | *(Recommended for production)* Railway Redis **private** URL | `redis://default:...@redis.railway.internal:6379` — report caches, rate limits, notification dedupe, and SSE fan-out. Without it, single-instance in-memory fallback only. See [docs/DEPLOY.md](docs/DEPLOY.md#production-redis-redis_url). |
 
 ### 2.3 Set CORS and Frontend Origins
 

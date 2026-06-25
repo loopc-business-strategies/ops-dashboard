@@ -85,6 +85,15 @@ Smoke secrets and variables: [SMOKE-SECRETS-CHECKLIST.md](./SMOKE-SECRETS-CHECKL
 - **Copy-paste names and values:** [ENV-VARS-QUICK-REFERENCE.md](../ENV-VARS-QUICK-REFERENCE.md)
 - **Version bumps:** [RELEASE-VERSIONING-POLICY.md](../RELEASE-VERSIONING-POLICY.md)
 
+### Production: Redis (`REDIS_URL`)
+
+Set **`REDIS_URL`** on Railway production (and staging if you run multiple API instances or want parity with prod). Without it, the API uses in-process memory for report caches, rate limits, notification digest dedupe, and realtime SSE fan-out — fine for a single instance, but unsafe when Railway scales horizontally or restarts split traffic across pods.
+
+1. Railway → project → **Add Redis** (or attach an existing Redis service).
+2. Copy the **private** Redis URL into the API service variables as `REDIS_URL` (see [ENV-VARS-QUICK-REFERENCE.md](../ENV-VARS-QUICK-REFERENCE.md)).
+3. Redeploy the API; confirm `/api/ready` and post-deploy smoke pass.
+4. Optional: verify Redis-backed paths in logs (cache/rate-limit init) after deploy.
+
 Do not set stale `BACKEND_BUILD_COMMIT` on Railway; build metadata comes from [`backend/build-meta.json`](../backend/build-meta.json) at deploy time.
 
 ## Vercel preview safety

@@ -17,6 +17,7 @@ export function mapMarginRow(
     goldPriceUSD?: number
     silverPriceUSD?: number
     liveRecalcEnabled?: boolean
+    suppressMetalSpotMtm?: boolean
   } = {},
 ): MappedMarginRow {
   const goldPosition = Number(row?.goldPosition || 0)
@@ -33,12 +34,15 @@ export function mapMarginRow(
     const frozenEquity = Number(row?.equity ?? row?.netCashFlow ?? 0)
     const frozenReval = Number(row?.marginRevaluation ?? 0)
     const totalFunds = frozenEquity - frozenReval
+    const suppressMetalSpotMtm = Boolean(options.suppressMetalSpotMtm ?? row?.suppressMetalSpotMtm)
     const metrics = computeMarginMetricsRaw({
       totalFunds,
       goldPosition,
       silverPosition,
       goldPrice: goldPriceUSD,
       silverPrice: silverPriceUSD,
+      suppressMetalSpotMtm,
+      revaluationOverride: suppressMetalSpotMtm ? frozenReval : null,
       fundsMode: options.favorableCredit ? 'customerAbsIfNegative' : 'asIs',
     })
     rawNet = metrics.equity

@@ -27,7 +27,7 @@ export function MarginsWidget({
     mapMarginRow(r, 'customerName', { ...recalcOptions, favorableCredit: true }),
   )
   const suppliers = (dashboard?.supplierMargins?.rows || []).map((r) =>
-    mapMarginRow(r, 'supplierName', recalcOptions),
+    mapMarginRow(r, 'supplierName', { ...recalcOptions, suppressMetalSpotMtm: true }),
   )
   const rows = tab === 'suppliers' ? suppliers : customers
 

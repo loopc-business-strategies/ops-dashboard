@@ -3,6 +3,7 @@ import {
   computeMarginMetricsRaw,
   shouldSuppressSpotMetalMtmForAccountEnquiry,
   shouldSuppressSpotMetalMtmForCustomerDashboard,
+  shouldSuppressSpotMetalMtmForSupplierDashboard,
 } from './metalMarginPolicy'
 
 describe('frontend metal margin policy', () => {
@@ -63,5 +64,21 @@ describe('frontend metal margin policy', () => {
     })
     expect(raw.funds).toBe(80)
     expect(raw.equity).toBe(80)
+  })
+
+  test('supplier dashboard always suppresses spot MTM', () => {
+    expect(shouldSuppressSpotMetalMtmForSupplierDashboard()).toBe(true)
+    const raw = computeMarginMetricsRaw({
+      totalFunds: -100,
+      goldPosition: 200,
+      silverPosition: 0,
+      goldPrice: 100,
+      silverPrice: 1,
+      suppressMetalSpotMtm: shouldSuppressSpotMetalMtmForSupplierDashboard(),
+      revaluationOverride: -8,
+      fundsMode: 'asIs',
+    })
+    expect(raw.revaluation).toBe(-8)
+    expect(raw.equity).toBe(-108)
   })
 })

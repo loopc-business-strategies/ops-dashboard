@@ -10,6 +10,11 @@ export function shouldSuppressSpotMetalMtmForCustomerDashboard(accountType) {
   return String(accountType || '').trim().toLowerCase() === 'liability'
 }
 
+/** Supplier / vendor margin: AP in currency; gram positions are informational only. */
+export function shouldSuppressSpotMetalMtmForSupplierDashboard() {
+  return true
+}
+
 /**
  * @param {{ accountType?: string, accountName?: string, description?: string } | null | undefined} account
  */

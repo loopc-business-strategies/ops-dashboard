@@ -31,4 +31,30 @@ describe('mapMarginRow live recalc', () => {
     expect(repriced.equity).toBe(1250)
     expect(repriced.marginPercent).toBeCloseTo(20000, 1)
   })
+
+  test('supplier suppression keeps equity stable when spot rises', () => {
+    const baseRow = {
+      supplierName: 'Vendor',
+      equity: -400,
+      marginRevaluation: -10,
+      goldPosition: 80,
+      silverPosition: 0,
+      marginAmount: 0.2,
+      suppressMetalSpotMtm: true,
+    }
+    const low = mapMarginRow(baseRow, 'supplierName', {
+      liveRecalcEnabled: true,
+      goldPriceUSD: 40,
+      silverPriceUSD: 1,
+      suppressMetalSpotMtm: true,
+    })
+    const high = mapMarginRow(baseRow, 'supplierName', {
+      liveRecalcEnabled: true,
+      goldPriceUSD: 120,
+      silverPriceUSD: 1,
+      suppressMetalSpotMtm: true,
+    })
+    expect(low.equity).toBe(-400)
+    expect(high.equity).toBe(-400)
+  })
 })

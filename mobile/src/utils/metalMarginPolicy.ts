@@ -3,6 +3,15 @@
  * Keep behaviour in sync with backend/tests/metalMarginPolicy.test.js
  */
 
+export function shouldSuppressSpotMetalMtmForCustomerDashboard(accountType?: string) {
+  return String(accountType || '').trim().toLowerCase() === 'liability'
+}
+
+/** Supplier / vendor margin: AP in currency; gram positions are informational only. */
+export function shouldSuppressSpotMetalMtmForSupplierDashboard() {
+  return true
+}
+
 export function computeMarginMetricsRaw({
   totalFunds,
   goldPosition,

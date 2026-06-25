@@ -3,6 +3,7 @@ import { calculateAccountSummaryMetrics } from './statementHelpers'
 import {
   computeMarginMetricsRaw,
   shouldSuppressSpotMetalMtmForCustomerDashboard,
+  shouldSuppressSpotMetalMtmForSupplierDashboard,
 } from './metalMarginPolicy'
 
 function positionMarginContextMenu(event) {
@@ -189,12 +190,15 @@ export function useErpSupplierMargin({
         if (useLiveSpotMtm) {
           const goldPrice = Number(goldPriceUSD || 0)
           const silverPrice = Number(silverPriceUSD || 0)
+          const frozenReval = Number(vendor?.marginRevaluation ?? 0)
           const metrics = computeMarginMetricsRaw({
             totalFunds: outstanding,
             goldPosition,
             silverPosition,
             goldPrice,
             silverPrice,
+            suppressMetalSpotMtm: shouldSuppressSpotMetalMtmForSupplierDashboard(),
+            revaluationOverride: frozenReval,
             fundsMode: 'asIs',
           })
           const excess = metrics.excess < 0 ? Math.abs(metrics.excess) : metrics.excess
@@ -218,14 +222,16 @@ export function useErpSupplierMargin({
 
         const goldPrice = pickLiveSpotPrice(goldPriceUSD)
         const silverPrice = pickLiveSpotPrice(silverPriceUSD)
-        const fallbackRevaluation = (goldPosition * goldPrice) + (silverPosition * silverPrice)
+        const preferLiveFallback = hasLiveSpotPrices(goldPriceUSD, silverPriceUSD)
+        const fallbackRevaluation = preferLiveFallback
+          ? Number(vendor?.marginRevaluation ?? 0)
+          : ((goldPosition * goldPrice) + (silverPosition * silverPrice))
         const fallbackMargin = Math.abs(fallbackRevaluation) * 0.02
         const fallbackMetrics = calculateAccountSummaryMetrics({
           totalFunds: outstanding,
           revaluation: fallbackRevaluation,
           marginAmount: fallbackMargin,
         })
-        const preferLiveFallback = hasLiveSpotPrices(goldPriceUSD, silverPriceUSD)
         const marginAmount = preferLiveFallback ? fallbackMargin : Number(vendor?.marginAmount ?? fallbackMargin)
         const excess = preferLiveFallback ? fallbackMetrics.excess : Number(vendor?.marginExcess ?? fallbackMetrics.excess)
         const equity = preferLiveFallback ? fallbackMetrics.netEquity : Number(vendor?.marginEquity ?? fallbackMetrics.netEquity)
