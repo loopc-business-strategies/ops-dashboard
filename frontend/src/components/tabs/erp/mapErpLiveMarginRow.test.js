@@ -54,4 +54,30 @@ describe('mapErpLiveMarginRow', () => {
     expect(high.equity).toBe(-500)
     expect(high.marginPercent).toBe(low.marginPercent)
   })
+
+  test('liability customer suppresses live spot via row flag', () => {
+    const row = {
+      customerName: 'Creditor Co',
+      equity: 800,
+      marginRevaluation: 50,
+      goldPosition: 20,
+      silverPosition: 0,
+      marginAmount: 1,
+      suppressMetalSpotMtm: true,
+    }
+    const low = mapErpLiveMarginRow(row, 'customerName', {
+      favorableCredit: true,
+      marginLiveRecalc: true,
+      goldPriceUSD: 10,
+      silverPriceUSD: 1,
+    })
+    const high = mapErpLiveMarginRow(row, 'customerName', {
+      favorableCredit: true,
+      marginLiveRecalc: true,
+      goldPriceUSD: 100,
+      silverPriceUSD: 1,
+    })
+    expect(low.equity).toBe(800)
+    expect(high.equity).toBe(800)
+  })
 })

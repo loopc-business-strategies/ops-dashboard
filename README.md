@@ -14,6 +14,8 @@ Multi-tenant operations and ERP platform for mg, cg, and loopc companies.
 | [docs/OBSERVABILITY-SENTRY.md](docs/OBSERVABILITY-SENTRY.md) | Optional Sentry |
 | [docs/OBSERVABILITY-AND-DEPLOYS.md](docs/OBSERVABILITY-AND-DEPLOYS.md) | Health, logs, ERP stability notes |
 | [docs/ERP-API-GUIDE.md](docs/ERP-API-GUIDE.md) | ERP API surface |
+| [docs/CRITICAL-FIXES-CHECKLIST.md](docs/CRITICAL-FIXES-CHECKLIST.md) | P0–P3 critical fixes tracker |
+| [docs/ERP-API-PR-CHECKLIST.md](docs/ERP-API-PR-CHECKLIST.md) | ERP pull request checklist |
 | [RELEASE-VERSIONING-POLICY.md](RELEASE-VERSIONING-POLICY.md) | Version bumps |
 | [docs/TESTING.md](docs/TESTING.md) | Local and CI test commands |
 | [docs/MONGODB-BACKUPS-AND-DATA-SAFETY.md](docs/MONGODB-BACKUPS-AND-DATA-SAFETY.md) | Backups |

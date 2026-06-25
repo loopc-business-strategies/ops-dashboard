@@ -132,3 +132,4 @@ Not tied to `main` push. Use [mobile/RELEASE_CHECKLIST.md](../mobile/RELEASE_CHE
 | Local dev / Windows | [WINDOWS-DEV.md](./WINDOWS-DEV.md), [TESTING.md](./TESTING.md) |
 | Customer onboarding | [NEXA-CUSTOMER-ONBOARDING.md](./NEXA-CUSTOMER-ONBOARDING.md) |
 | Historical snapshots only (archived — not for deploy/ops) | [archive/README.md](./archive/README.md) |
+| Critical fixes tracker (P0–P3) | [CRITICAL-FIXES-CHECKLIST.md](./CRITICAL-FIXES-CHECKLIST.md) |

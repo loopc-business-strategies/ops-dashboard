@@ -36,6 +36,7 @@
     "migrate:fx-journal-to-expense:apply": "node scripts/migrate-fx-adjustment-journal-to-expense.mjs --tenant all --apply",
     "verify:live-metal-movement": "node scripts/verify-live-metal-movement.mjs --tenant mg",
     "verify:live-metal-movement:all": "node scripts/verify-live-metal-movement.mjs --tenant all",
+    "verify:critical-health": "node scripts/verify-critical-health.mjs",
     "mobile:update:preview": "npm --prefix mobile run update:preview",
     "mobile:update:production": "npm --prefix mobile run update:production",
     "lint": "npm run check:tracked-paths && npm run check:destructive-guards && npm run check:risk-guardrails && npm run check:vercel-rewrites && npm run lint:eslint:ci && npm run lint:eslint:hooks-order && npm run lint:eslint:finance-ops && npm run lint:eslint:extended-tabs && npm run lint:eslint:erp-shell-tabs && npm run lint:eslint:backend && npm run lint:eslint:repo",
