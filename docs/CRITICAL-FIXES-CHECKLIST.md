@@ -10,9 +10,9 @@ Ordered production-safety and maintainability work. Update status as items compl
 
 | # | Item | Owner | Done when | Status |
 |---|------|-------|-----------|--------|
-| 1 | **Live metal fan-out on all tenants** | Ops + backend | Railway on `37f2ed5+`; logs show `fanout: ['cg','loopc','mg']`; `npm run verify:live-metal-movement:all` passes; mg/cg/loopc top bars show ▲/▼ movement | Code shipped — verify prod |
-| 2 | **Redis for multi-instance API** | Ops | `REDIS_URL` set on Railway prod (and staging if >1 replica); see [DEPLOY.md](./DEPLOY.md#production-redis-redis_url) | Check Railway |
-| 3 | **Mongo backup verification** | Ops | Atlas backups enabled; restore drill documented in [MONGODB-BACKUPS-AND-DATA-SAFETY.md](./MONGODB-BACKUPS-AND-DATA-SAFETY.md) | Periodic |
+| 1 | **Live metal fan-out on all tenants** | Ops + backend | Railway on `37f2ed5+`; logs show `fanout: ['cg','loopc','mg']`; `npm run verify:live-metal-movement:all` passes; mg/cg/loopc top bars show ▲/▼ movement | Code + HTTP integration test — verify prod |
+| 2 | **Redis for multi-instance API** | Ops | `REDIS_URL` set on Railway prod (and staging if >1 replica); `/api/ready` `warnings` empty when set; see [DEPLOY.md](./DEPLOY.md#production-redis-redis_url) | Startup/readiness warnings shipped — set on Railway |
+| 3 | **Mongo backup verification** | Ops | Atlas backups enabled; `npm run verify:backup-checklist`; restore drill in [MONGODB-BACKUPS-AND-DATA-SAFETY.md](./MONGODB-BACKUPS-AND-DATA-SAFETY.md) | Runbook script added — periodic drill |
 
 ### Verify commands (P0)
 
@@ -22,6 +22,9 @@ npm run verify:live-metal-movement:all
 
 # Local guardrails (no credentials)
 npm run verify:critical-health
+
+# Quarterly backup drill reminder
+npm run verify:backup-checklist
 ```
 
 ---
@@ -31,8 +34,8 @@ npm run verify:critical-health
 | # | Item | Owner | Done when | Status |
 |---|------|-------|-----------|--------|
 | 4 | **ERP API discipline** | All devs | Every ERP PR answers [ERP-API-PR-CHECKLIST.md](./ERP-API-PR-CHECKLIST.md); financial work only on `/api/erp-accounting` | Ongoing |
-| 5 | **Dual ERP deprecation plan** | Tech lead | Written timeline for legacy `/api/erp` vendor/supplier overlap; no new financial features on `/api/erp` | Planned |
-| 6 | **Destructive script audit** | Ops | All `backend/scripts/destructive/*.js` use `_destructive-guard.js`; unused scripts removed or archived | Planned |
+| 5 | **Dual ERP deprecation plan** | Tech lead | [ERP-DUAL-API-DEPRECATION.md](./ERP-DUAL-API-DEPRECATION.md); no new financial features on `/api/erp` | Documented |
+| 6 | **Destructive script audit** | Ops | All `backend/scripts/destructive/*.js` use `_destructive-guard.js`; [destructive/README.md](../backend/scripts/destructive/README.md) | Guards pass in CI |
 
 ---
 
@@ -40,7 +43,7 @@ npm run verify:critical-health
 
 | # | Item | Owner | Done when | Status |
 |---|------|-------|-----------|--------|
-| 7 | **ERPTab.jsx headroom** | Frontend | File stays **under 6,000 lines** before major ERP features; extractions per [ERP-REFACTOR-BACKLOG.md](./ERP-REFACTOR-BACKLOG.md) | ~4,282 lines today |
+| 7 | **ERPTab.jsx headroom** | Frontend | File stays **under 6,000 lines** before major ERP features; `DEFAULT_METAL_RATES` in `erpTabConstants.js`; see [ERP-REFACTOR-BACKLOG.md](./ERP-REFACTOR-BACKLOG.md) | ~4,280 lines; incremental extraction |
 | 8 | **erp-accountingContext.js** | Backend | New routes only in `backend/routes/erp-accounting/*`; context stays under 2,400 lines | ~665 lines today |
 | 9 | **E2E money paths** | QA / dev | JV save E2E green in CI; staging auth E2E green when secrets set | JV E2E exists |
 
@@ -50,8 +53,8 @@ npm run verify:critical-health
 
 | # | Item | Owner | Done when | Status |
 |---|------|-------|-----------|--------|
-| 10 | **Sentry in production** | Ops | `SENTRY_DSN` on Railway + Vercel; release = git SHA | Optional today |
-| 11 | **Margin widget parity** | Frontend + mobile | Dashboard widgets use `suppressMetalSpotMtm` from API rows; tests cover supplier + liability customer | Tests in place |
+| 10 | **Sentry in production** | Ops | `SENTRY_DSN` on Railway + Vercel; `/api/ready` reports `sentryConfigured`; release = git SHA | Readiness check shipped — set DSN |
+| 11 | **Margin widget parity** | Frontend + mobile | Dashboard widgets use `suppressMetalSpotMtm` from API rows; tests cover supplier + liability customer (web + mobile) | Done |
 | 12 | **Dependabot majors** | Dev | Quarterly review Express / Mongoose / Expo SDK | Scheduled |
 
 ---
@@ -72,6 +75,7 @@ npm run verify:critical-health
 
 - [DEPLOY.md](./DEPLOY.md) — deploy, Redis, rollback
 - [ERP-API-GUIDE.md](./ERP-API-GUIDE.md) — which API to use
+- [ERP-DUAL-API-DEPRECATION.md](./ERP-DUAL-API-DEPRECATION.md) — legacy `/api/erp` plan
 - [ERP-REFACTOR-BACKLOG.md](./ERP-REFACTOR-BACKLOG.md) — line budgets
 - [MT4_METAL_PRICE_BRIDGE.md](./MT4_METAL_PRICE_BRIDGE.md) — live prices ops
 - [INCIDENT-RUNBOOK.md](./INCIDENT-RUNBOOK.md) — outage triage

@@ -50,7 +50,17 @@ async function getReadinessStatus() {
       && String(process.env.WEB_PUSH_PRIVATE_KEY || '').trim(),
   )
   const redisConfigured = Boolean(String(process.env.REDIS_URL || '').trim())
+  const isProduction = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production'
+  const sentryConfigured = Boolean(String(process.env.SENTRY_DSN || '').trim())
   const build = getBackendBuildMeta()
+
+  const warnings = []
+  if (isProduction && !redisConfigured) {
+    warnings.push('REDIS_URL is not set — multi-instance deploys need Redis for rate limits and realtime fan-out.')
+  }
+  if (isProduction && !sentryConfigured) {
+    warnings.push('SENTRY_DSN is not set — production errors will not be reported to Sentry.')
+  }
 
   return {
     success: ready,
@@ -58,11 +68,14 @@ async function getReadinessStatus() {
     commit: build.commit,
     build,
     backend: build,
+    warnings,
     checks: {
       jwtSecret,
       mongoConnected,
       tenants,
       redisConfigured,
+      redisRecommended: isProduction,
+      sentryConfigured,
       integrations: {
         /** Expo server push: `expo-server-sdk` uses `EXPO_ACCESS_TOKEN` (never the secret value here). */
         expoPushAccessTokenSet,

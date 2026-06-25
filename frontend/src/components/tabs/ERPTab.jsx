@@ -22,6 +22,7 @@ import {
   INVENTORY_STOCK_CODE_SETTINGS_STORAGE_KEY,
   ACCOUNT_TYPE_ORDER,
   ERP_DASH_ALL_WIDGETS,
+  DEFAULT_METAL_RATES,
 } from './erpTabConstants'
 import { formatTransactionAuditEntry, formatTransactionCommentKind, getTransactionBulkSelectionLabel } from './transactionWorkflow'
 import { useERPTabStateAdapter } from './erp/useERPTabStateAdapter'
@@ -135,8 +136,6 @@ const ERPSettingsTab = lazy(() => import('./erp/tabs/ERPSettingsTab'))
 const ERPCurrenciesTab = lazy(() => import('./erp/tabs/ERPCurrenciesTab'))
 
 const VoucherTab = lazy(() => import('./VoucherTab'))
-
-const DEFAULT_METAL_RATES = { goldPrice: 285, silverPrice: 3.5, priceCurrency: 'USD', updatedAt: null }
 
 function ErpSubTabFallback() {
   return (

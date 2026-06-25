@@ -156,6 +156,9 @@ async function startServer() {
     console.log(`   Liveness:  http://localhost:${PORT}/api/health`)
     console.log(`   Readiness: http://localhost:${PORT}/api/ready`)
     console.log('✅ Realtime Socket.IO enabled')
+    if (process.env.NODE_ENV === 'production' && !String(process.env.REDIS_URL || '').trim()) {
+      console.warn('[startup] WARNING — REDIS_URL is not set. Set Redis before scaling Railway to multiple instances.')
+    }
   })
 
   // Connect to MongoDB after the HTTP server is already accepting traffic.

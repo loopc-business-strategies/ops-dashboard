@@ -39,6 +39,14 @@ export const ERP_DASH_DEFAULT = ['margins', 'fixing', 'bank', 'cashflow', 'expen
 /** Canonical number of widgets in the default ERP home layout (must match `ERP_DASH_ALL_WIDGETS`). */
 export const ERP_DASH_WIDGET_COUNT = ERP_DASH_ALL_WIDGETS.length
 
+/** Fallback metal rates when API sync has not loaded yet (ERPTab shell). */
+export const DEFAULT_METAL_RATES = Object.freeze({
+  goldPrice: 285,
+  silverPrice: 3.5,
+  priceCurrency: 'USD',
+  updatedAt: null,
+})
+
 const ERP_DASH_VALID_IDS = new Set(ERP_DASH_ALL_WIDGETS.map((widget) => widget.id))
 
 /** Keep Customer & Supplier Margins first and Net Position immediately to its right when both are enabled. */
