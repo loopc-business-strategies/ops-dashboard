@@ -53,6 +53,7 @@ Manual run: **Actions → Mongo Backup Drill → Run workflow**.
 Local:
 
 ```bash
+npm run drill:atlas-backup-plan          # full plan: direct Mongo + Atlas API/UI + optional restore
 npm run verify:atlas-backup-drill   # direct Mongo + Atlas backup/snapshot API (needs ATLAS_* keys)
 npm run verify:mongo-backup-drill    # tenant connectivity (direct Mongo or /api/ready fallback)
 npm run verify:upload-storage        # prod + staging UPLOAD_STORAGE_ROOT + volume

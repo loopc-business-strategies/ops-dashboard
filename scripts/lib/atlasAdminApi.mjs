@@ -17,9 +17,24 @@ export function getAtlasCredentials() {
   return { publicKey, privateKey, groupId }
 }
 
+/** Per-tenant Atlas project IDs (MG / CG / LoopC are separate Atlas projects). */
+export function getAtlasGroupIdForTenant(tenantKey) {
+  const upper = String(tenantKey || '').toUpperCase()
+  const perTenant = String(
+    process.env[`ATLAS_GROUP_ID_${upper}`] || process.env[`MONGODB_ATLAS_GROUP_ID_${upper}`] || '',
+  ).trim()
+  if (perTenant) return perTenant
+  return getAtlasCredentials().groupId
+}
+
 export function hasAtlasCredentials() {
-  const { publicKey, privateKey, groupId } = getAtlasCredentials()
-  return Boolean(publicKey && privateKey && groupId)
+  const { publicKey, privateKey } = getAtlasCredentials()
+  return Boolean(publicKey && privateKey)
+}
+
+export function hasAtlasGroupIdsForTenants(tenantKeys) {
+  if (!hasAtlasCredentials()) return false
+  return tenantKeys.every((key) => Boolean(getAtlasGroupIdForTenant(key)))
 }
 
 function atlasCurl(pathname, { method = 'GET', body } = {}) {
@@ -74,6 +89,28 @@ export function backupScheduleLooksHealthy(schedule) {
   const hasNextSnapshot = Boolean(schedule.nextSnapshot)
   const hasRestoreWindow = Number(schedule.restoreWindowDays) > 0
   return hasPolicies || hasNextSnapshot || hasRestoreWindow
+}
+
+export function verifyTenantBackup(groupId, clusterName) {
+  const schedule = getBackupSchedule(groupId, clusterName)
+  const scheduleOk = backupScheduleLooksHealthy(schedule)
+  const snapshots = listBackupSnapshots(groupId, clusterName)
+  const latest = latestSnapshotSummary(snapshots)
+
+  let snapshotOk = false
+  if (latest?.createdAt) {
+    const ageMs = Date.now() - new Date(latest.createdAt).getTime()
+    snapshotOk = ageMs <= 8 * 24 * 60 * 60 * 1000 && String(latest.status || '').toLowerCase() === 'completed'
+  }
+
+  return {
+    clusterName,
+    scheduleOk,
+    restoreWindowDays: schedule.restoreWindowDays ?? null,
+    nextSnapshot: schedule.nextSnapshot ?? null,
+    latestSnapshot: latest,
+    snapshotOk,
+  }
 }
 
 export function latestSnapshotSummary(snapshotsPayload) {

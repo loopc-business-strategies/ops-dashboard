@@ -9,12 +9,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import {
-  backupScheduleLooksHealthy,
-  getAtlasCredentials,
-  getBackupSchedule,
+  getAtlasGroupIdForTenant,
   hasAtlasCredentials,
-  latestSnapshotSummary,
-  listBackupSnapshots,
+  hasAtlasGroupIdsForTenants,
+  verifyTenantBackup,
 } from './lib/atlasAdminApi.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -85,36 +83,22 @@ function verifyAtlasBackups(probeResults) {
   if (!hasAtlasCredentials()) {
     return {
       skipped: true,
-      reason: 'Add ATLAS_PUBLIC_KEY, ATLAS_PRIVATE_KEY, ATLAS_GROUP_ID to backend/.env (Atlas → Organization → Access Manager → API Keys)',
+      reason: 'Add ATLAS_PUBLIC_KEY, ATLAS_PRIVATE_KEY, and ATLAS_GROUP_ID_MG/CG/LOOPC to backend/.env',
     }
   }
 
-  const { groupId } = getAtlasCredentials()
-  const rows = []
-
-  for (const probe of probeResults) {
-    const clusterName = probe.cluster
-    const schedule = getBackupSchedule(groupId, clusterName)
-    const scheduleOk = backupScheduleLooksHealthy(schedule)
-    const snapshots = listBackupSnapshots(groupId, clusterName)
-    const latest = latestSnapshotSummary(snapshots)
-
-    let snapshotOk = false
-    if (latest?.createdAt) {
-      const ageMs = Date.now() - new Date(latest.createdAt).getTime()
-      snapshotOk = ageMs <= 8 * 24 * 60 * 60 * 1000 && String(latest.status || '').toLowerCase() === 'completed'
+  if (!hasAtlasGroupIdsForTenants(probeResults.map((p) => p.tenant))) {
+    return {
+      skipped: true,
+      reason: 'Set ATLAS_GROUP_ID_MG, ATLAS_GROUP_ID_CG, ATLAS_GROUP_ID_LOOPC (one Atlas project per tenant)',
     }
-
-    rows.push({
-      tenant: probe.tenant,
-      clusterName,
-      scheduleOk,
-      restoreWindowDays: schedule.restoreWindowDays ?? null,
-      nextSnapshot: schedule.nextSnapshot ?? null,
-      latestSnapshot: latest,
-      snapshotOk,
-    })
   }
+
+  const rows = probeResults.map((probe) => {
+    const groupId = getAtlasGroupIdForTenant(probe.tenant)
+    const row = verifyTenantBackup(groupId, probe.cluster)
+    return { tenant: probe.tenant, ...row }
+  })
 
   return { skipped: false, rows }
 }

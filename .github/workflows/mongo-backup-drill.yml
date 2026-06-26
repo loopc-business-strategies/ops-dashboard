@@ -32,8 +32,10 @@ jobs:
         env:
           ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
           ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
-          ATLAS_GROUP_ID: ${{ secrets.ATLAS_GROUP_ID }}
-        run: npm run verify:atlas-backup-drill
+          ATLAS_GROUP_ID_MG: ${{ secrets.ATLAS_GROUP_ID_MG }}
+          ATLAS_GROUP_ID_CG: ${{ secrets.ATLAS_GROUP_ID_CG }}
+          ATLAS_GROUP_ID_LOOPC: ${{ secrets.ATLAS_GROUP_ID_LOOPC }}
+        run: npm run drill:atlas-backup-plan -- --strict-backup
 
       - name: Operator reminder
         run: |
