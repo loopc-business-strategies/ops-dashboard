@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      ATLAS_BACKUP_PHASE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.phase || vars.ATLAS_BACKUP_PHASE || 'deferred' }}
+      ATLAS_BACKUP_PHASE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.phase || (github.event_name == 'push' && 'deferred') || vars.ATLAS_BACKUP_PHASE || 'deferred' }}
       ATLAS_RESTORE_DRILL_SKIP: 'true'
       SMOKE_API_BASE: ${{ vars.SMOKE_API_BASE || 'https://api.loopcstrategies.com' }}
 
@@ -41,6 +41,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix backend
 
       - name: Verify upload storage (prod + staging)
         run: npm run verify:upload-storage
