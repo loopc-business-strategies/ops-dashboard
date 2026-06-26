@@ -192,6 +192,7 @@ function pushGithubVariables() {
   const variables = {
     ATLAS_BACKUP_PHASE: 'deferred',
     MONGO_BACKUP_ENABLED: 'true',
+    MONGO_BACKUP_S3_CONFIGURED: (env('BACKUP_S3_ACCESS_KEY') && env('BACKUP_S3_SECRET_KEY')) ? 'true' : 'false',
     BACKUP_S3_REGION: env('BACKUP_S3_REGION', 'auto'),
     BACKUP_S3_PREFIX: env('BACKUP_S3_PREFIX', 'ops-dashboard'),
     BACKUP_RETAIN_DAYS: env('BACKUP_RETAIN_DAYS', '7'),

@@ -43,7 +43,7 @@ jobs:
           sudo apt-get install -y mongodb-database-tools awscli
 
       - name: Run mongodump backup to R2
-        if: ${{ secrets.BACKUP_S3_BUCKET != '' }}
+        if: ${{ vars.MONGO_BACKUP_S3_CONFIGURED == 'true' }}
         env:
           MONGO_URI_MG: ${{ secrets.MONGO_URI_MG }}
           MONGO_URI_CG: ${{ secrets.MONGO_URI_CG }}
@@ -58,7 +58,7 @@ jobs:
         run: npm run backup:mongodump
 
       - name: Run mongodump backup to artifacts (interim until R2 configured)
-        if: ${{ secrets.BACKUP_S3_BUCKET == '' }}
+        if: ${{ vars.MONGO_BACKUP_S3_CONFIGURED != 'true' }}
         env:
           MONGO_URI_MG: ${{ secrets.MONGO_URI_MG }}
           MONGO_URI_CG: ${{ secrets.MONGO_URI_CG }}
@@ -67,7 +67,7 @@ jobs:
         run: npm run backup:mongodump
 
       - name: Upload backup artifacts
-        if: ${{ secrets.BACKUP_S3_BUCKET == '' }}
+        if: ${{ vars.MONGO_BACKUP_S3_CONFIGURED != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: mongo-backup-${{ github.run_id }}
