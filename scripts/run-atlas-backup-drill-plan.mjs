@@ -168,16 +168,24 @@ async function probeTenants() {
     if (!uri) continue
 
     process.stdout.write(`  ${tenant.key} (${tenant.atlasProject} / ${parseClusterName(uri)})... `)
-    const probe = await probeUri(uri, tenant.key)
-    const row = { tenant: tenant.key, atlasProject: tenant.atlasProject, cluster: parseClusterName(uri), ...probe }
-    probeResults.push(row)
-    const summary = SAMPLE_COLLECTIONS.filter((n) => row.counts[n] != null).map((n) => `${n}=${row.counts[n]}`).join(', ')
-    console.log(`OK (${summary})`)
+    try {
+      const probe = await probeUri(uri, tenant.key)
+      const row = { tenant: tenant.key, atlasProject: tenant.atlasProject, cluster: parseClusterName(uri), ...probe }
+      probeResults.push(row)
+      const summary = SAMPLE_COLLECTIONS.filter((n) => row.counts[n] != null).map((n) => `${n}=${row.counts[n]}`).join(', ')
+      console.log(`OK (${summary})`)
+    } catch (err) {
+      if (isDeferred) {
+        console.log(`unreachable (${err.message})`)
+      } else {
+        throw err
+      }
+    }
   }
 
   if (probeResults.length === TENANTS.length) return probeResults
 
-  console.log('\nDirect Mongo skipped (missing MONGO_URI_* in env). Falling back to /api/ready...\n')
+  console.log('\nDirect Mongo skipped or unreachable. Falling back to /api/ready...\n')
   const apiRows = await probeViaApi()
   for (const row of apiRows) {
     console.log(`  ${row.tenant}... OK (via ${row.via})`)
