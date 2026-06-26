@@ -1,5 +1,17 @@
 import { useMemo, useState } from 'react'
-import { FlatList, Modal, Platform, Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react-native'
+import {
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  SectionList,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native'
 import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import type { AccountListItem } from '@/src/api/erpReports'
 import {
@@ -15,6 +27,7 @@ import {
   type OperationsFilterState,
 } from '@/src/utils/operationsFeed'
 import { groupAccountsByType } from '@/src/utils/accountListGroups'
+import { useKeyboardHeight } from '@/src/hooks/useKeyboardHeight'
 import type { OperationsStyles } from '@/src/components/transactions/operationsStyles'
 
 type SheetKind = 'month' | 'account' | 'type' | null
@@ -92,6 +105,10 @@ export default function OperationsFilterBar({
 }: OperationsFilterBarProps) {
   const [sheet, setSheet] = useState<SheetKind>(null)
   const [accountSearch, setAccountSearch] = useState('')
+  const keyboardHeight = useKeyboardHeight(sheet === 'account')
+  const windowHeight = Dimensions.get('window').height
+  const accountSheetMaxHeight =
+    keyboardHeight > 0 ? windowHeight - keyboardHeight - 16 : windowHeight * 0.85
 
   const typeOptions = useMemo(
     () => filterTypeFilterOptions(TRANSACTION_TYPE_FILTER_OPTIONS, canTransactions, canLedger),
@@ -243,68 +260,88 @@ export default function OperationsFilterBar({
 
       <Modal visible={sheet === 'account'} animationType="slide" transparent onRequestClose={closeSheet}>
         <Pressable style={styles.modalBackdrop} onPress={closeSheet}>
-          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Accounts and cards</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Search accounts…"
-              placeholderTextColor={branding.colors.muted}
-              value={accountSearch}
-              onChangeText={setAccountSearch}
-            />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ flex: 1, justifyContent: 'flex-end', width: '100%' }}
+          >
             <Pressable
-              style={styles.accountRow}
-              onPress={() => {
-                const next = { ...draftFilters, accountCode: '' }
-                onChangeDraft(next)
-                onApply(next)
-                closeSheet()
-              }}
+              style={[
+                styles.modalCard,
+                styles.modalCardSheet,
+                {
+                  marginBottom: keyboardHeight,
+                  maxHeight: accountSheetMaxHeight,
+                  ...(keyboardHeight > 0 ? { height: accountSheetMaxHeight } : null),
+                },
+              ]}
+              onPress={(e) => e.stopPropagation()}
             >
-              <Text
-                style={[
-                  styles.accountRowName,
-                  !filters.accountCode ? styles.sheetOptionActive : null,
-                ]}
-                numberOfLines={2}
-              >
-                All accounts
-              </Text>
-            </Pressable>
-            <SectionList
-              sections={accountSections}
-              keyExtractor={(item) => item._id || item.accountCode || item.accountName || 'row'}
-              style={{ maxHeight: 360 }}
-              stickySectionHeadersEnabled
-              renderSectionHeader={({ section: { title } }) => (
-                <Text style={pillStyles.sectionHeader}>{title}</Text>
-              )}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={styles.accountRow}
-                  onPress={() => {
-                    const next = { ...draftFilters, accountCode: item.accountCode || '' }
-                    onChangeDraft(next)
-                    onApply(next)
-                    closeSheet()
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.accountRowName,
-                      filters.accountCode === item.accountCode ? styles.sheetOptionActive : null,
-                    ]}
-                    numberOfLines={2}
+              <Text style={styles.modalTitle}>Accounts and cards</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Search accounts…"
+                placeholderTextColor={branding.colors.muted}
+                value={accountSearch}
+                onChangeText={setAccountSearch}
+              />
+              <SectionList
+                sections={accountSections}
+                keyExtractor={(item) => item._id || item.accountCode || item.accountName || 'row'}
+                style={{ flex: 1, minHeight: 0 }}
+                stickySectionHeadersEnabled
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                ListHeaderComponent={
+                  <Pressable
+                    style={styles.accountRow}
+                    onPress={() => {
+                      const next = { ...draftFilters, accountCode: '' }
+                      onChangeDraft(next)
+                      onApply(next)
+                      closeSheet()
+                    }}
                   >
-                    {item.accountName || item.accountCode}
-                  </Text>
-                  <Text style={styles.accountRowCode} numberOfLines={1}>
-                    {item.accountCode}
-                  </Text>
-                </Pressable>
-              )}
-            />
-          </Pressable>
+                    <Text
+                      style={[
+                        styles.accountRowName,
+                        !filters.accountCode ? styles.sheetOptionActive : null,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      All accounts
+                    </Text>
+                  </Pressable>
+                }
+                renderSectionHeader={({ section: { title } }) => (
+                  <Text style={pillStyles.sectionHeader}>{title}</Text>
+                )}
+                renderItem={({ item }) => (
+                  <Pressable
+                    style={styles.accountRow}
+                    onPress={() => {
+                      const next = { ...draftFilters, accountCode: item.accountCode || '' }
+                      onChangeDraft(next)
+                      onApply(next)
+                      closeSheet()
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.accountRowName,
+                        filters.accountCode === item.accountCode ? styles.sheetOptionActive : null,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {item.accountName || item.accountCode}
+                    </Text>
+                    <Text style={styles.accountRowCode} numberOfLines={1}>
+                      {item.accountCode}
+                    </Text>
+                  </Pressable>
+                )}
+              />
+            </Pressable>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
     </>

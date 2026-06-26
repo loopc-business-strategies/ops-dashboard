@@ -47,6 +47,10 @@ export function createOperationsStyles(b: MobileTenantBranding) {
       padding: 16,
       maxHeight: '85%',
     },
+    modalCardSheet: {
+      flex: 1,
+      minHeight: 0,
+    },
     modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12, color: b.colors.text },
     input: {
       borderWidth: 1,
