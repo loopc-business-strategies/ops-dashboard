@@ -42,3 +42,11 @@ export function canAccessErpReports(user: UserForErpPerm | null | undefined): bo
 export function canAccessTransactions(user: UserForErpPerm | null | undefined): boolean {
   return canViewErpSubTab(user, 'transactions')
 }
+
+export function canAccessLedger(user: UserForErpPerm | null | undefined): boolean {
+  return canViewErpSubTab(user, 'ledger')
+}
+
+export function canAccessOperations(user: UserForErpPerm | null | undefined): boolean {
+  return canAccessTransactions(user) || canAccessLedger(user)
+}

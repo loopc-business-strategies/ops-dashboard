@@ -30,3 +30,42 @@ export function apiTypeToLabel(apiType: string): string {
   const row = TRANSACTION_TYPE_CHIPS.find((t) => t.apiType === apiType)
   return row?.label || apiType
 }
+
+export type OperationTypeOption = {
+  key: string
+  label: string
+  source: 'transaction' | 'jv'
+  apiType?: string
+  jvReferenceType?: 'journal' | 'bank_jv'
+}
+
+export const OPERATION_TYPE_OPTIONS: OperationTypeOption[] = [
+  { key: '', label: 'All transactions', source: 'transaction' },
+  ...TRANSACTION_TYPE_CHIPS.map((t) => ({
+    key: `txn_${t.apiType}`,
+    label: t.label,
+    source: 'transaction' as const,
+    apiType: t.apiType,
+  })),
+  { key: 'jv_journal', label: 'Normal JV', source: 'jv', jvReferenceType: 'journal' },
+  { key: 'jv_bank', label: 'Bank JV', source: 'jv', jvReferenceType: 'bank_jv' },
+]
+
+export function transactionCategoryKey(apiType: string): string {
+  return `txn_${String(apiType || '').toLowerCase()}`
+}
+
+export function jvCategoryKey(refType: string): string {
+  return String(refType || '').toLowerCase() === 'bank_jv' ? 'jv_bank' : 'jv_journal'
+}
+
+const OUTCOME_TXN_TYPES = new Set(['payment', 'expense', 'purchase', 'metal_payment'])
+const INCOME_TXN_TYPES = new Set(['receipt', 'sale', 'metal_receipt', 'payroll'])
+
+export function isOutcomeTransactionType(apiType: string): boolean {
+  return OUTCOME_TXN_TYPES.has(String(apiType || '').toLowerCase())
+}
+
+export function isIncomeTransactionType(apiType: string): boolean {
+  return INCOME_TXN_TYPES.has(String(apiType || '').toLowerCase())
+}

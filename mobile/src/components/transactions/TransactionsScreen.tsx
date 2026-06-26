@@ -1,113 +1,69 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  FlatList,
-  Modal,
   Pressable,
   RefreshControl,
-  ScrollView,
-  StyleSheet,
+  SectionList,
   Text,
   TextInput,
   View,
 } from 'react-native'
-import type { MobileTenantBranding } from '@/src/config/tenantBranding'
+import { fetchCurrencies, resolveBaseCurrencyCode } from '@/src/api/currencies'
+import { fetchAllJvLedgerEntries } from '@/src/api/ledger'
+import { fetchAccountsForLedger, type AccountListItem } from '@/src/api/erpReports'
+import { fetchAllTransactions, type TransactionRow } from '@/src/api/transactions'
+import CategoryDetailView from '@/src/components/transactions/CategoryDetailView'
+import FinancialAnalysisView from '@/src/components/transactions/FinancialAnalysisView'
+import OperationDetailModal from '@/src/components/transactions/OperationDetailModal'
+import OperationListItem from '@/src/components/transactions/OperationListItem'
+import OperationsFilterBar from '@/src/components/transactions/OperationsFilterBar'
+import OutcomeIncomeCards from '@/src/components/transactions/OutcomeIncomeCards'
+import { createOperationsStyles } from '@/src/components/transactions/operationsStyles'
+import { chipToApiType } from '@/src/constants/transactionTypes'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantBranding } from '@/src/context/TenantContext'
-import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
+import { useTenantSessionReady } from '@/src/hooks/useTenantSessionReady'
 import {
-  fetchAllTransactions,
-  type TransactionRow,
-  type TransactionSummary,
-} from '@/src/api/transactions'
-import { fetchAccountsForLedger, type AccountListItem } from '@/src/api/erpReports'
-import DateField from '@/src/components/common/DateField'
-import {
-  TRANSACTION_STATUS_OPTIONS,
-  TRANSACTION_TYPE_CHIPS,
-  chipToApiType,
-  apiTypeToLabel,
-} from '@/src/constants/transactionTypes'
-import { canAccessTransactions } from '@/src/utils/erpSubTabPermissions'
+  canAccessLedger,
+  canAccessOperations,
+  canAccessTransactions,
+} from '@/src/utils/erpSubTabPermissions'
+import { groupJvLedgerEntries } from '@/src/utils/jvLedgerGrouping'
 import { normalizeDateInput, validateDateRange } from '@/src/utils/dateInput'
 import {
-  filterTransactionsByAccount,
-  getTransactionDescription,
-  getTransactionPartyLabel,
-} from '@/src/utils/transactionFilters'
+  buildOperationEntries,
+  computeCategorySummaries,
+  computeOutcomeIncome,
+  currentMonthDateRange,
+  filterOperationEntries,
+  formatPeriodLabel,
+  groupEntriesByDate,
+  type OperationEntry,
+  type OperationsFilterState,
+} from '@/src/utils/operationsFeed'
 
-const EMPTY_SUMMARY: TransactionSummary = {
-  totalCount: 0,
-  totalAmount: 0,
-  draft: 0,
-  submitted: 0,
-  approved: 0,
-  posted: 0,
-  returned: 0,
-  rejected: 0,
-}
+type ViewMode = 'list' | 'analysis' | 'category'
+type AnalysisMode = 'outcome' | 'income'
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  draft: { bg: '#FEF3C7', text: '#92400E' },
-  submitted: { bg: '#DBEAFE', text: '#1D4ED8' },
-  approved: { bg: '#D1FAE5', text: '#065F46' },
-  posted: { bg: '#DCFCE7', text: '#166534' },
-  returned: { bg: '#FCE7F3', text: '#9D174D' },
-  rejected: { bg: '#FEE2E2', text: '#B91C1C' },
-}
+const DEFAULT_MONTH = currentMonthDateRange()
 
-type FilterState = {
-  search: string
-  status: string
-  typeChip: string
-  startDate: string
-  endDate: string
-  accountCode: string
-}
-
-const DEFAULT_FILTERS: FilterState = {
+const DEFAULT_FILTERS: OperationsFilterState = {
   search: '',
   status: '',
-  typeChip: '',
-  startDate: '',
-  endDate: '',
+  operationKey: '',
+  startDate: DEFAULT_MONTH.startDate,
+  endDate: DEFAULT_MONTH.endDate,
   accountCode: '',
 }
 
-function SummaryChip({
-  label,
-  value,
-  styles,
-}: {
-  label: string
-  value: number
-  styles: ReturnType<typeof createTransactionStyles>
-}) {
-  return (
-    <View style={styles.summaryChip}>
-      <Text style={styles.summaryChipLabel}>{label}</Text>
-      <Text style={styles.summaryChipValue}>{value.toLocaleString()}</Text>
-    </View>
-  )
-}
-
-function hasActiveFilters(filters: FilterState): boolean {
-  return Boolean(
-    filters.search.trim() ||
-      filters.status ||
-      filters.typeChip ||
-      filters.startDate.trim() ||
-      filters.endDate.trim() ||
-      filters.accountCode,
-  )
-}
-
-function buildApiParams(filters: FilterState) {
+function buildTxnApiParams(filters: OperationsFilterState) {
   return {
     search: filters.search.trim() || undefined,
     status: filters.status || undefined,
-    type: chipToApiType(filters.typeChip),
+    type: chipToApiType(
+      filters.operationKey.startsWith('txn_') ? filters.operationKey.replace(/^txn_/, '') : '',
+    ),
     startDate: normalizeDateInput(filters.startDate) || undefined,
     endDate: normalizeDateInput(filters.endDate) || undefined,
   }
@@ -118,21 +74,29 @@ export default function TransactionsScreen() {
   const { branding } = useTenantBranding()
   const sessionReady = useTenantSessionReady()
   const tenantSessionKey = useTenantSessionKey()
-  const styles = useMemo(() => createTransactionStyles(branding), [branding])
-  const allowed = canAccessTransactions(user)
+  const styles = useMemo(() => createOperationsStyles(branding), [branding])
 
-  const [draftFilters, setDraftFilters] = useState<FilterState>(DEFAULT_FILTERS)
-  const [appliedFilters, setAppliedFilters] = useState<FilterState>(DEFAULT_FILTERS)
-  const [rows, setRows] = useState<TransactionRow[]>([])
-  const [summary, setSummary] = useState<TransactionSummary>(EMPTY_SUMMARY)
+  const canTransactions = canAccessTransactions(user)
+  const canLedger = canAccessLedger(user)
+  const allowed = canAccessOperations(user)
+
+  const [draftFilters, setDraftFilters] = useState<OperationsFilterState>(DEFAULT_FILTERS)
+  const [appliedFilters, setAppliedFilters] = useState<OperationsFilterState>(DEFAULT_FILTERS)
+  const [transactions, setTransactions] = useState<TransactionRow[]>([])
+  const [jvRawCount, setJvRawCount] = useState(0)
+  const [groupedJvs, setGroupedJvs] = useState<ReturnType<typeof groupJvLedgerEntries>>([])
+  const [baseCurrency, setBaseCurrency] = useState('USD')
   const [accounts, setAccounts] = useState<AccountListItem[]>([])
-  const [listCapped, setListCapped] = useState(false)
+  const [txnCapped, setTxnCapped] = useState(false)
+  const [jvCapped, setJvCapped] = useState(false)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
-  const [selected, setSelected] = useState<TransactionRow | null>(null)
-  const [showAccountPicker, setShowAccountPicker] = useState(false)
-  const [accountSearch, setAccountSearch] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('outcome')
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const [selectedEntry, setSelectedEntry] = useState<OperationEntry | null>(null)
+  const [showSearch, setShowSearch] = useState(false)
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh' = 'initial') => {
@@ -153,21 +117,39 @@ export default function TransactionsScreen() {
         return
       }
 
+      const dateParams = {
+        startDate: normalizeDateInput(appliedFilters.startDate) || undefined,
+        endDate: normalizeDateInput(appliedFilters.endDate) || undefined,
+      }
+
       try {
-        const data = await fetchAllTransactions(token, buildApiParams(appliedFilters))
-        setSummary(data.summary || EMPTY_SUMMARY)
-        setListCapped(Boolean(data.capped))
-        setRows(data.transactions || [])
+        const [currencyRes, txnRes, jvRes] = await Promise.all([
+          fetchCurrencies(token).catch(() => ({ currencies: [] })),
+          canTransactions
+            ? fetchAllTransactions(token, buildTxnApiParams(appliedFilters))
+            : Promise.resolve({ transactions: [], capped: false }),
+          canLedger
+            ? fetchAllJvLedgerEntries(token, dateParams)
+            : Promise.resolve({ entries: [], capped: false }),
+        ])
+
+        const base = resolveBaseCurrencyCode(currencyRes.currencies, 'USD')
+        setBaseCurrency(base)
+        setTransactions(txnRes.transactions || [])
+        setTxnCapped(Boolean(txnRes.capped))
+        setJvRawCount((jvRes.entries || []).length)
+        setGroupedJvs(groupJvLedgerEntries(jvRes.entries || [], { baseCurrencyCode: base }))
+        setJvCapped(Boolean(jvRes.capped))
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load transactions')
-        setRows([])
-        setListCapped(false)
+        setError(err instanceof Error ? err.message : 'Failed to load operations')
+        setTransactions([])
+        setGroupedJvs([])
       } finally {
         setLoading(false)
         setRefreshing(false)
       }
     },
-    [token, allowed, sessionReady, appliedFilters],
+    [token, allowed, sessionReady, appliedFilters, canTransactions, canLedger],
   )
 
   useEffect(() => {
@@ -179,10 +161,10 @@ export default function TransactionsScreen() {
   }, [token, allowed, sessionReady, tenantSessionKey, appliedFilters, load])
 
   useEffect(() => {
-    setRows([])
-    setSummary(EMPTY_SUMMARY)
-    setListCapped(false)
+    setTransactions([])
+    setGroupedJvs([])
     setError('')
+    setViewMode('list')
     setLoading(true)
   }, [tenantSessionKey])
 
@@ -191,69 +173,64 @@ export default function TransactionsScreen() {
     void fetchAccountsForLedger(token)
       .then((data) => setAccounts(data.accounts || []))
       .catch(() => setAccounts([]))
-  }, [token, allowed, sessionReady])
+  }, [token, allowed, sessionReady, tenantSessionKey])
 
-  const displayRows = useMemo(
-    () => filterTransactionsByAccount(rows, appliedFilters.accountCode),
-    [rows, appliedFilters.accountCode],
+  const allEntries = useMemo(
+    () => buildOperationEntries(transactions, groupedJvs, baseCurrency),
+    [transactions, groupedJvs, baseCurrency],
   )
 
-  const filteredAccounts = useMemo(() => {
-    const q = accountSearch.trim().toLowerCase()
-    if (!q) return accounts
-    return accounts.filter(
-      (a) =>
-        String(a.accountCode || '').toLowerCase().includes(q) ||
-        String(a.accountName || '').toLowerCase().includes(q),
-    )
-  }, [accounts, accountSearch])
+  const displayEntries = useMemo(
+    () => filterOperationEntries(allEntries, appliedFilters),
+    [allEntries, appliedFilters],
+  )
 
-  const applyDraftFilters = () => {
-    const rangeCheck = validateDateRange(draftFilters.startDate, draftFilters.endDate)
+  const totals = useMemo(() => computeOutcomeIncome(displayEntries), [displayEntries])
+  const categories = useMemo(() => computeCategorySummaries(displayEntries), [displayEntries])
+  const sections = useMemo(() => groupEntriesByDate(displayEntries), [displayEntries])
+  const periodLabel = formatPeriodLabel(appliedFilters.startDate, appliedFilters.endDate)
+
+  const categoryEntries = useMemo(
+    () => displayEntries.filter((e) => e.categoryKey === selectedCategory),
+    [displayEntries, selectedCategory],
+  )
+
+  const categoryTotal = useMemo(
+    () => categoryEntries.reduce((s, e) => s + Math.abs(Number(e.amount || 0)), 0),
+    [categoryEntries],
+  )
+
+  const applyFilters = (override?: OperationsFilterState) => {
+    const next = override ?? draftFilters
+    const rangeCheck = validateDateRange(next.startDate, next.endDate)
     if (!rangeCheck.ok) {
       setError(rangeCheck.message)
       return
     }
     setError('')
-    setAppliedFilters({
-      ...draftFilters,
-      startDate: normalizeDateInput(draftFilters.startDate),
-      endDate: normalizeDateInput(draftFilters.endDate),
-    })
+    const normalized = {
+      ...next,
+      startDate: normalizeDateInput(next.startDate),
+      endDate: normalizeDateInput(next.endDate),
+    }
+    setDraftFilters(normalized)
+    setAppliedFilters(normalized)
   }
 
   const resetFilters = () => {
     setDraftFilters(DEFAULT_FILTERS)
     setAppliedFilters(DEFAULT_FILTERS)
     setError('')
+    setViewMode('list')
   }
-
-  const setTypeChip = (typeChip: string) => {
-    setDraftFilters((p) => ({ ...p, typeChip }))
-    setAppliedFilters((p) => ({ ...p, typeChip }))
-    setError('')
-  }
-
-  const setStatus = (status: string) => {
-    setDraftFilters((p) => ({ ...p, status }))
-    setAppliedFilters((p) => ({ ...p, status }))
-    setError('')
-  }
-
-  const selectedAccountLabel = useMemo(() => {
-    if (!draftFilters.accountCode) return 'All accounts'
-    const acc = accounts.find((a) => a.accountCode === draftFilters.accountCode)
-    return acc ? `${acc.accountCode} — ${acc.accountName}` : draftFilters.accountCode
-  }, [draftFilters.accountCode, accounts])
-
-  const filtersActive = hasActiveFilters(appliedFilters)
-  const accountFilterActive = Boolean(appliedFilters.accountCode)
 
   if (!allowed) {
     return (
-      <View style={styles.denied}>
+      <View style={styles.center}>
         <Text style={styles.deniedTitle}>Transactions unavailable</Text>
-        <Text style={styles.deniedText}>Your role does not include access to ERP transactions.</Text>
+        <Text style={styles.deniedText}>
+          Your role does not include access to ERP transactions or ledger.
+        </Text>
       </View>
     )
   }
@@ -274,383 +251,135 @@ export default function TransactionsScreen() {
     )
   }
 
+  if (viewMode === 'analysis') {
+    const total = analysisMode === 'outcome' ? totals.outcome : totals.income
+    return (
+      <View style={styles.root}>
+        <FinancialAnalysisView
+          mode={analysisMode}
+          total={total}
+          currency={baseCurrency}
+          periodLabel={periodLabel}
+          categories={categories}
+          branding={branding}
+          styles={styles}
+          onBack={() => setViewMode('list')}
+          onSelectCategory={(key) => {
+            setSelectedCategory(key)
+            setViewMode('category')
+          }}
+        />
+        <OperationDetailModal entry={selectedEntry} styles={styles} onClose={() => setSelectedEntry(null)} />
+      </View>
+    )
+  }
+
+  if (viewMode === 'category') {
+    return (
+      <View style={styles.root}>
+        <CategoryDetailView
+          categoryKey={selectedCategory}
+          entries={categoryEntries}
+          total={categoryTotal}
+          currency={baseCurrency}
+          periodLabel={periodLabel}
+          branding={branding}
+          styles={styles}
+          onBack={() => setViewMode('analysis')}
+          onSelectEntry={setSelectedEntry}
+        />
+        <OperationDetailModal entry={selectedEntry} styles={styles} onClose={() => setSelectedEntry(null)} />
+      </View>
+    )
+  }
+
   return (
     <View style={styles.root}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.summaryScroll}
-        contentContainerStyle={styles.summaryRow}
-      >
-        <SummaryChip label="Total" value={Number(summary.totalCount || 0)} styles={styles} />
-        <SummaryChip label="Draft" value={Number(summary.draft || 0)} styles={styles} />
-        <SummaryChip label="Submitted" value={Number(summary.submitted || 0)} styles={styles} />
-        <SummaryChip label="Approved" value={Number(summary.approved || 0)} styles={styles} />
-        <SummaryChip label="Posted" value={Number(summary.posted || 0)} styles={styles} />
-        <SummaryChip label="Returned" value={Number(summary.returned || 0)} styles={styles} />
-        <SummaryChip label="Rejected" value={Number(summary.rejected || 0)} styles={styles} />
-      </ScrollView>
-
-      {filtersActive ? (
-        <View style={styles.activeFiltersRow}>
-          <Text style={styles.activeFiltersText}>Filters active</Text>
-          <Pressable onPress={resetFilters}>
-            <Text style={styles.activeFiltersClear}>Clear all</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      <View style={styles.chipsSection}>
-        <Text style={styles.sectionLabel}>Transaction type</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-          <Pressable
-            style={[styles.chip, !appliedFilters.typeChip && styles.chipActive]}
-            onPress={() => setTypeChip('')}
-          >
-            <Text style={[styles.chipText, !appliedFilters.typeChip && styles.chipTextActive]}>All</Text>
-          </Pressable>
-          {TRANSACTION_TYPE_CHIPS.map(({ chip, label }) => (
-            <Pressable
-              key={chip}
-              style={[styles.chip, appliedFilters.typeChip === chip && styles.chipActive]}
-              onPress={() => setTypeChip(chip)}
-            >
-              <Text style={[styles.chipText, appliedFilters.typeChip === chip && styles.chipTextActive]}>
-                {label}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-
-      <View style={styles.filtersCard}>
-        <TextInput
-          style={styles.input}
-          placeholder="Search narration, party, voucher, currency…"
-            placeholderTextColor={branding.colors.muted}
-          value={draftFilters.search}
-          onChangeText={(search) => setDraftFilters((p) => ({ ...p, search }))}
-        />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-          {TRANSACTION_STATUS_OPTIONS.map((opt) => (
-            <Pressable
-              key={opt.value || 'all'}
-              style={[styles.chip, appliedFilters.status === opt.value && styles.chipActive]}
-              onPress={() => setStatus(opt.value)}
-            >
-              <Text style={[styles.chipText, appliedFilters.status === opt.value && styles.chipTextActive]}>
-                {opt.label}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-        <View style={styles.dateRow}>
-          <DateField
-            label="From date"
-            value={draftFilters.startDate}
-            onChange={(startDate) => setDraftFilters((p) => ({ ...p, startDate }))}
-          />
-          <DateField
-            label="To date"
-            value={draftFilters.endDate}
-            onChange={(endDate) => setDraftFilters((p) => ({ ...p, endDate }))}
-          />
-        </View>
-        <Pressable style={styles.accountPicker} onPress={() => setShowAccountPicker(true)}>
-          <Text style={styles.accountPickerLabel}>Account</Text>
-          <Text style={styles.accountPickerValue} numberOfLines={1}>
-            {selectedAccountLabel}
-          </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 12 }}>
+        <Text style={[styles.sectionTitle, { flex: 1 }]}>Transactions</Text>
+        <Pressable onPress={() => setShowSearch((v) => !v)} hitSlop={8}>
+          <Text style={{ fontSize: 18, color: branding.colors.primary }}>{showSearch ? '✕' : '⌕'}</Text>
         </Pressable>
-        <View style={styles.filterActions}>
-          <Pressable style={styles.applyBtn} onPress={applyDraftFilters}>
-            <Text style={styles.applyBtnText}>Apply filters</Text>
-          </Pressable>
-          <Pressable style={styles.resetBtn} onPress={resetFilters}>
-            <Text style={styles.resetBtnText}>Reset</Text>
-          </Pressable>
-        </View>
       </View>
 
-      {accountFilterActive ? (
-        <Text style={styles.accountNote}>
-          Showing {displayRows.length.toLocaleString()} of {rows.length.toLocaleString()} loaded entries for
-          account {appliedFilters.accountCode} (account filter is client-side).
-        </Text>
+      {!canLedger && canTransactions ? (
+        <Text style={styles.note}>Journal vouchers require ledger access.</Text>
+      ) : null}
+      {!canTransactions && canLedger ? (
+        <Text style={styles.note}>Showing ledger journal vouchers only.</Text>
       ) : null}
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <OperationsFilterBar
+        filters={appliedFilters}
+        draftFilters={draftFilters}
+        onChangeDraft={setDraftFilters}
+        onApply={applyFilters}
+        accounts={accounts}
+        canTransactions={canTransactions}
+        canLedger={canLedger}
+        branding={branding}
+        styles={styles}
+      />
 
-      <FlatList
-        data={displayRows}
-        keyExtractor={(item) => item._id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} />}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<Text style={styles.empty}>No transactions match your filters.</Text>}
-        ListFooterComponent={
-          listCapped ? (
-            <Text style={styles.cappedNote}>
-              Showing first 500 transactions. Narrow filters to see a specific subset.
-            </Text>
-          ) : null
-        }
-        renderItem={({ item }) => {
-          const status = String(item.status || '').toLowerCase()
-          const statusStyle = STATUS_COLORS[status] || { bg: '#E5E7EB', text: branding.colors.text }
-          return (
-            <Pressable style={styles.card} onPress={() => setSelected(item)}>
-              <View style={styles.cardTop}>
-                <Text style={styles.cardDate}>
-                  {item.date ? new Date(item.date).toLocaleDateString() : '—'}
-                </Text>
-                <View style={[styles.statusPill, { backgroundColor: statusStyle.bg }]}>
-                  <Text style={[styles.statusText, { color: statusStyle.text }]}>{status || '—'}</Text>
-                </View>
-              </View>
-              <Text style={styles.cardType}>{apiTypeToLabel(String(item.type || ''))}</Text>
-              <Text style={styles.cardParty} numberOfLines={1}>
-                {getTransactionPartyLabel(item)}
-              </Text>
-              <Text style={styles.cardAmount}>
-                {item.currency || 'USD'}{' '}
-                {Number(item.amount || 0).toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </Text>
-              <Text style={styles.cardDesc} numberOfLines={2}>
-                {getTransactionDescription(item)}
-              </Text>
-            </Pressable>
-          )
+      {showSearch ? (
+        <TextInput
+          style={[styles.input, { marginHorizontal: 12 }]}
+          placeholder="Search narration, party, voucher…"
+          placeholderTextColor={branding.colors.muted}
+          value={draftFilters.search}
+          onChangeText={(search) => {
+            setDraftFilters((p) => ({ ...p, search }))
+            setAppliedFilters((p) => ({ ...p, search }))
+          }}
+        />
+      ) : null}
+
+      <OutcomeIncomeCards
+        outcome={totals.outcome}
+        income={totals.income}
+        currency={baseCurrency}
+        branding={branding}
+        onPressOutcome={() => {
+          setAnalysisMode('outcome')
+          setViewMode('analysis')
+        }}
+        onPressIncome={() => {
+          setAnalysisMode('income')
+          setViewMode('analysis')
         }}
       />
 
-      <Modal visible={showAccountPicker} animationType="slide" transparent onRequestClose={() => setShowAccountPicker(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setShowAccountPicker(false)}>
-          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Filter by account</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Search accounts…"
-              value={accountSearch}
-              onChangeText={setAccountSearch}
-            />
-            <FlatList
-              data={[{ _id: '', accountCode: '', accountName: 'All accounts' }, ...filteredAccounts]}
-              keyExtractor={(item) => item._id || 'all'}
-              style={{ maxHeight: 360 }}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={styles.accountRow}
-                  onPress={() => {
-                    const accountCode = item.accountCode || ''
-                    setDraftFilters((p) => ({ ...p, accountCode }))
-                    setAppliedFilters((p) => ({ ...p, accountCode }))
-                    setShowAccountPicker(false)
-                    setAccountSearch('')
-                  }}
-                >
-                  <Text style={styles.accountRowCode}>{item.accountCode || '—'}</Text>
-                  <Text style={styles.accountRowName} numberOfLines={1}>
-                    {item.accountName || 'All accounts'}
-                  </Text>
-                </Pressable>
-              )}
-            />
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <Modal visible={Boolean(selected)} animationType="slide" transparent onRequestClose={() => setSelected(null)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setSelected(null)}>
-          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
-            {selected ? (
-              <>
-                <Text style={styles.modalTitle}>{apiTypeToLabel(String(selected.type || ''))}</Text>
-                <Text style={styles.detailLine}>
-                  <Text style={styles.detailLabel}>Status: </Text>
-                  {selected.status}
-                </Text>
-                <Text style={styles.detailLine}>
-                  <Text style={styles.detailLabel}>Date: </Text>
-                  {selected.date ? new Date(selected.date).toLocaleString() : '—'}
-                </Text>
-                <Text style={styles.detailLine}>
-                  <Text style={styles.detailLabel}>Amount: </Text>
-                  {selected.currency} {Number(selected.amount || 0).toLocaleString()}
-                </Text>
-                <Text style={styles.detailLine}>
-                  <Text style={styles.detailLabel}>Party: </Text>
-                  {getTransactionPartyLabel(selected)}
-                </Text>
-                <Text style={styles.detailLine}>
-                  <Text style={styles.detailLabel}>Description: </Text>
-                  {getTransactionDescription(selected)}
-                </Text>
-                <Text style={styles.detailLine}>
-                  <Text style={styles.detailLabel}>Debit: </Text>
-                  {selected.debitAccountId
-                    ? `${selected.debitAccountId.accountCode} — ${selected.debitAccountId.accountName}`
-                    : '—'}
-                </Text>
-                <Text style={styles.detailLine}>
-                  <Text style={styles.detailLabel}>Credit: </Text>
-                  {selected.creditAccountId
-                    ? `${selected.creditAccountId.accountCode} — ${selected.creditAccountId.accountName}`
-                    : '—'}
-                </Text>
-                <Text style={styles.detailLine}>
-                  <Text style={styles.detailLabel}>Attachments: </Text>
-                  {(selected.attachments || []).length}
-                </Text>
-                <Pressable style={styles.resetBtn} onPress={() => setSelected(null)}>
-                  <Text style={styles.resetBtnText}>Close</Text>
-                </Pressable>
-              </>
-            ) : null}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        stickySectionHeadersEnabled
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} />}
+        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={<Text style={styles.empty}>No operations match your filters.</Text>}
+        ListFooterComponent={
+          txnCapped || jvCapped ? (
+            <Text style={styles.cappedNote}>
+              Showing up to 500 transactions
+              {canLedger ? ` and ${jvRawCount} ledger lines` : ''}. Narrow the date range to see more.
+            </Text>
+          ) : null
+        }
+        renderSectionHeader={({ section }) => (
+          <Text style={styles.sectionHeader}>{section.title}</Text>
+        )}
+        renderItem={({ item }) => (
+          <OperationListItem
+            entry={item}
+            styles={styles}
+            branding={branding}
+            onPress={() => setSelectedEntry(item)}
+          />
+        )}
+      />
+
+      <OperationDetailModal entry={selectedEntry} styles={styles} onClose={() => setSelectedEntry(null)} />
     </View>
   )
-}
-
-function createTransactionStyles(b: MobileTenantBranding) {
-  return StyleSheet.create({
-  root: { flex: 1, backgroundColor: b.colors.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  denied: { flex: 1, padding: 24, justifyContent: 'center' },
-  deniedTitle: { fontSize: 18, fontWeight: '700', color: b.colors.text, marginBottom: 8 },
-  deniedText: { fontSize: 14, color: b.colors.muted },
-  summaryScroll: { maxHeight: 72, flexGrow: 0 },
-  summaryRow: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
-  summaryChip: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    minWidth: 72,
-  },
-  summaryChipLabel: { fontSize: 10, fontWeight: '700', color: b.colors.muted, textTransform: 'uppercase' },
-  summaryChipValue: { fontSize: 16, fontWeight: '800', color: b.colors.text, marginTop: 2 },
-  activeFiltersRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 6,
-  },
-  activeFiltersText: { fontSize: 12, fontWeight: '700', color: b.colors.muted },
-  activeFiltersClear: { fontSize: 12, fontWeight: '700', color: b.colors.primary },
-  chipsSection: { paddingHorizontal: 12, paddingBottom: 8 },
-  sectionLabel: { fontSize: 12, fontWeight: '700', color: b.colors.muted, marginBottom: 6 },
-  chipsRow: { gap: 8, paddingRight: 12 },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    backgroundColor: '#FFFFFF',
-  },
-  chipActive: { backgroundColor: b.colors.primary, borderColor: b.colors.primary },
-  chipText: { fontSize: 12, fontWeight: '700', color: b.colors.text },
-  chipTextActive: { color: '#FFFFFF' },
-  filtersCard: {
-    marginHorizontal: 12,
-    marginBottom: 10,
-    padding: 12,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    gap: 10,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: b.colors.text,
-    backgroundColor: '#FAFAFA',
-  },
-  dateRow: { flexDirection: 'row', gap: 8 },
-  accountPicker: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    padding: 10,
-    backgroundColor: '#FAFAFA',
-  },
-  accountPickerLabel: { fontSize: 11, fontWeight: '700', color: b.colors.muted },
-  accountPickerValue: { fontSize: 14, color: b.colors.text, marginTop: 4 },
-  filterActions: { flexDirection: 'row', gap: 8 },
-  applyBtn: {
-    flex: 1,
-    backgroundColor: b.colors.primary,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  applyBtnText: { color: '#FFFFFF', fontWeight: '700' },
-  resetBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    alignItems: 'center',
-  },
-  resetBtnText: { color: b.colors.text, fontWeight: '700' },
-  accountNote: {
-    fontSize: 12,
-    color: b.colors.muted,
-    paddingHorizontal: 16,
-    marginBottom: 6,
-  },
-  error: { color: b.colors.danger, paddingHorizontal: 16, marginBottom: 8 },
-  listContent: { paddingHorizontal: 12, paddingBottom: 24 },
-  empty: { textAlign: 'center', color: b.colors.muted, padding: 24 },
-  cappedNote: {
-    textAlign: 'center',
-    color: b.colors.muted,
-    padding: 16,
-    fontSize: 12,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 12,
-    marginBottom: 10,
-  },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  cardDate: { fontSize: 12, color: b.colors.muted, fontWeight: '600' },
-  statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  statusText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
-  cardType: { fontSize: 14, fontWeight: '800', color: b.colors.text },
-  cardParty: { fontSize: 13, color: b.colors.text, marginTop: 2 },
-  cardAmount: { fontSize: 15, fontWeight: '700', color: b.colors.primary, marginTop: 4 },
-  cardDesc: { fontSize: 12, color: b.colors.muted, marginTop: 4 },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  modalCard: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 16,
-    maxHeight: '80%',
-  },
-  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12, color: b.colors.text },
-  accountRow: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
-  accountRowCode: { fontSize: 13, fontWeight: '700', color: b.colors.text },
-  accountRowName: { fontSize: 12, color: b.colors.muted, marginTop: 2 },
-  detailLine: { fontSize: 14, color: b.colors.text, marginBottom: 8, lineHeight: 20 },
-  detailLabel: { fontWeight: '700' },
-  })
 }

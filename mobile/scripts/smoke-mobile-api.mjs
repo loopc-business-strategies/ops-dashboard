@@ -149,6 +149,13 @@ async function smokeErpReportsMobile(token) {
     console.log('Step: GET ledger — SKIP (no accounts)')
   }
 
+  const jvQs = new URLSearchParams({ referenceType: 'journal', limit: '1', startDate, endDate })
+  try {
+    await getExpect(token, `${base}/api/erp-accounting/ledger?${jvQs}`, 'GET ledger journal (operations JV)')
+  } catch (e) {
+    console.log(`Step: GET ledger journal — SKIP (${e instanceof Error ? e.message : e})`)
+  }
+
   await getExpect(token, `${base}/api/erp-accounting/metal-rates`, 'GET metal-rates')
 }
 
@@ -163,6 +170,21 @@ async function smokeErpLite(token) {
   console.log(`Step: transactions summary.totalCount — ${txTotal}`)
 
   await getExpect(token, `${base}/api/erp-accounting/metal-rates`, 'GET metal-rates')
+
+  const end = new Date()
+  const start = new Date()
+  start.setMonth(start.getMonth() - 1)
+  const jvQs = new URLSearchParams({
+    referenceType: 'journal',
+    limit: '1',
+    startDate: start.toISOString().slice(0, 10),
+    endDate: end.toISOString().slice(0, 10),
+  })
+  try {
+    await getExpect(token, `${base}/api/erp-accounting/ledger?${jvQs}`, 'GET ledger journal (operations JV)')
+  } catch (e) {
+    console.log(`Step: GET ledger journal — SKIP (${e instanceof Error ? e.message : e})`)
+  }
 }
 
 async function smokeNotificationsSocket(token) {
