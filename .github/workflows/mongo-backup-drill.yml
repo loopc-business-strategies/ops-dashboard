@@ -5,6 +5,15 @@ on:
     # 09:00 UTC on the 1st of Jan, Apr, Jul, Oct
     - cron: '0 9 1 1,4,7,10 *'
   workflow_dispatch:
+    inputs:
+      phase:
+        description: Backup verification phase (deferred = no Atlas M10+ required)
+        required: false
+        default: deferred
+        type: choice
+        options:
+          - deferred
+          - strict
 
 concurrency:
   group: mongo-backup-drill
@@ -15,6 +24,10 @@ jobs:
     name: Tenant Mongo connectivity + upload storage
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      ATLAS_BACKUP_PHASE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.phase || vars.ATLAS_BACKUP_PHASE || 'deferred' }}
+      ATLAS_RESTORE_DRILL_SKIP: 'true'
+      SMOKE_API_BASE: ${{ vars.SMOKE_API_BASE || 'https://api.loopcstrategies.com' }}
 
     steps:
       - name: Checkout
@@ -28,17 +41,27 @@ jobs:
       - name: Verify upload storage (prod + staging)
         run: npm run verify:upload-storage
 
-      - name: Atlas backup drill (direct Mongo + snapshots when ATLAS_* secrets set)
+      - name: Atlas backup drill
         env:
           ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
           ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
           ATLAS_GROUP_ID_MG: ${{ secrets.ATLAS_GROUP_ID_MG }}
           ATLAS_GROUP_ID_CG: ${{ secrets.ATLAS_GROUP_ID_CG }}
           ATLAS_GROUP_ID_LOOPC: ${{ secrets.ATLAS_GROUP_ID_LOOPC }}
-        run: npm run drill:atlas-backup-plan -- --strict-backup
+          MONGO_URI_MG: ${{ secrets.MONGO_URI_MG }}
+          MONGO_URI_CG: ${{ secrets.MONGO_URI_CG }}
+          MONGO_URI_LOOPC: ${{ secrets.MONGO_URI_LOOPC }}
+        run: |
+          if [ "${{ env.ATLAS_BACKUP_PHASE }}" = "strict" ]; then
+            npm run drill:atlas-backup-plan -- --strict-backup
+          else
+            npm run drill:atlas-backup-plan
+          fi
 
       - name: Operator reminder
         run: |
-          echo "Automated drill passed (connectivity + upload storage)."
-          echo "Quarterly Atlas snapshot restore to a non-prod cluster is still manual:"
+          echo "Phase: ${{ env.ATLAS_BACKUP_PHASE }}"
+          echo "Deferred phase passes without Atlas M10+ Cloud Backup subscription."
+          echo "When subscribed: set ATLAS_BACKUP_PHASE=strict and Atlas API secrets."
+          echo "Optional interim dumps: enable MONGO_BACKUP_ENABLED + mongo-backup-mongodump workflow."
           echo "  docs/MONGODB-BACKUPS-AND-DATA-SAFETY.md"

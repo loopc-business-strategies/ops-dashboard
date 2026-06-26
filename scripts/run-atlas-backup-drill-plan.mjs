@@ -14,7 +14,6 @@ import { spawnSync } from 'node:child_process'
 import {
   getAtlasGroupIdForTenant,
   hasAtlasCredentials,
-  hasAtlasGroupIdsForTenants,
   verifyTenantBackup,
 } from './lib/atlasAdminApi.mjs'
 
@@ -40,7 +39,9 @@ const TENANTS = [
   { key: 'loopc', uriKey: 'MONGO_URI_LOOPC', atlasProject: 'LoopC' },
 ]
 
-const strictBackup = process.argv.includes('--strict-backup')
+const backupPhase = String(process.env.ATLAS_BACKUP_PHASE || 'deferred').trim().toLowerCase()
+const strictBackup = backupPhase === 'strict' || process.argv.includes('--strict-backup')
+const isDeferred = backupPhase === 'deferred' && !process.argv.includes('--strict-backup')
 
 const SAMPLE_COLLECTIONS = ['users', 'transactions', 'ledgers']
 
@@ -137,13 +138,34 @@ function recordDrill(parts) {
   ], { stdio: 'inherit', cwd: root })
 }
 
-async function main() {
-  console.log('Atlas backup drill plan\n')
+async function probeViaApi() {
+  const api = (process.env.SMOKE_API_BASE || 'https://api.loopcstrategies.com').replace(/\/$/, '')
+  const res = await fetch(`${api}/api/ready`)
+  const body = await res.json()
+  if (!res.ok || !body.ready) throw new Error(`/api/ready not ready (${res.status})`)
 
+  const tenants = body.checks?.tenants || {}
+  return TENANTS.map(({ key }) => {
+    const row = tenants[key]
+    if (!row?.ready) throw new Error(`tenant ${key} not ready via API`)
+    return {
+      tenant: key,
+      atlasProject: TENANTS.find((t) => t.key === key)?.atlasProject || key,
+      cluster: 'Cluster0',
+      via: 'api/ready',
+      collections: 0,
+      counts: {},
+      samples: {},
+    }
+  })
+}
+
+async function probeTenants() {
   const probeResults = []
+
   for (const tenant of TENANTS) {
     const uri = String(process.env[tenant.uriKey] || '').trim()
-    if (!uri) throw new Error(`${tenant.uriKey} is not set`)
+    if (!uri) continue
 
     process.stdout.write(`  ${tenant.key} (${tenant.atlasProject} / ${parseClusterName(uri)})... `)
     const probe = await probeUri(uri, tenant.key)
@@ -151,6 +173,34 @@ async function main() {
     probeResults.push(row)
     const summary = SAMPLE_COLLECTIONS.filter((n) => row.counts[n] != null).map((n) => `${n}=${row.counts[n]}`).join(', ')
     console.log(`OK (${summary})`)
+  }
+
+  if (probeResults.length === TENANTS.length) return probeResults
+
+  console.log('\nDirect Mongo skipped (missing MONGO_URI_* in env). Falling back to /api/ready...\n')
+  const apiRows = await probeViaApi()
+  for (const row of apiRows) {
+    console.log(`  ${row.tenant}... OK (via ${row.via})`)
+  }
+  return apiRows
+}
+
+async function main() {
+  console.log(`Atlas backup drill plan (phase=${backupPhase})\n`)
+
+  const probeResults = await probeTenants()
+
+  console.log('\nSample document IDs (restore validation baseline):')
+  for (const row of probeResults) {
+    const parts = Object.entries(row.samples || {}).map(([k, v]) => `${k}._id=${v}`)
+    console.log(`  ${row.tenant}: ${parts.join(', ') || (row.via ? `via ${row.via}` : '—')}`)
+  }
+
+  if (isDeferred) {
+    console.log('\n  Phase: deferred — Atlas Cloud Backup subscription not required for this run.')
+    console.log('  Enable M10+ continuous backup in Atlas when ready, then set ATLAS_BACKUP_PHASE=strict.')
+  } else {
+    console.log('\n  Phase: strict — Atlas Cloud Backup schedule + snapshots required.')
   }
 
   console.log('\nAtlas backup policy (per project: MG, CG, LoopC):')
@@ -182,6 +232,9 @@ async function main() {
       throw new Error('Backup verification incomplete — enable Cloud Backup in Atlas or set API keys / ATLAS_UI_BACKUP_CONFIRMED')
     }
     console.log('\n  Note: Atlas API/UI backup policy not verified automatically.')
+    if (isDeferred) {
+      console.log('  Deferred phase: OK to proceed without Atlas M10+ subscription until you set ATLAS_BACKUP_PHASE=strict.')
+    }
     console.log('  Confirm in Atlas for each project (MG, CG, LoopC): DATABASE → Backup → Cluster0')
     console.log('  Then set ATLAS_GROUP_ID_* + API keys, or ATLAS_UI_BACKUP_CONFIRMED=mg,cg,loopc')
     backupAllOk = true
@@ -197,11 +250,14 @@ async function main() {
     ? 'backup=atlas-api-OK'
     : backupRows.some((r) => r.source === 'ui-confirmed')
       ? 'backup=ui-confirmed'
-      : 'backup=direct-mongo-OK; atlas-ui-verify-recommended'
+      : isDeferred
+        ? 'backup=deferred-phase; atlas-subscription-later'
+        : 'backup=direct-mongo-OK; atlas-ui-verify-recommended'
 
   const recordParts = [
     `Plan drill ${new Date().toISOString().slice(0, 10)}`,
-    probeResults.map((r) => `${r.tenant}:tx=${r.counts.transactions ?? 0}`).join('; '),
+    `phase=${backupPhase}`,
+    probeResults.map((r) => `${r.tenant}:tx=${r.counts.transactions ?? 'api'}`).join('; '),
     backupNote,
     restore.ok ? 'restore-drill=OK' : 'restore-drill=skipped',
   ]

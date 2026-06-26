@@ -18,6 +18,37 @@ Document actual restore times in your ops log after each quarterly drill.
 - **Hardware or human mistakes** (bad script, accidental `dropDatabase`) are only recoverable with a backup or point-in-time restore.
 - Task automation in this repo **does not delete** task documents: it may set `archivedAt`, `isDeleted` (soft delete), or append comments. Those rows usually remain in Mongo until you explicitly clean them or restore from backup.
 
+## Phased rollout (connect now, Atlas subscription later)
+
+| Phase | When | What runs | GitHub |
+|-------|------|-----------|--------|
+| **1 — Deferred** (now) | Before Atlas M10+ | Upload storage + Mongo connectivity via `/api/ready` | `ATLAS_BACKUP_PHASE=deferred` (default) |
+| **2 — Interim dumps** (optional) | When S3 secrets ready | Weekly `mongodump` → S3/R2 | `MONGO_BACKUP_ENABLED=true` |
+| **3 — Strict** | After Atlas Cloud Backup on all projects | Atlas API schedule + snapshot checks | `ATLAS_BACKUP_PHASE=strict` |
+
+### GitHub Actions variables
+
+| Variable | Value now | After Atlas M10+ |
+|----------|-----------|------------------|
+| `ATLAS_BACKUP_PHASE` | `deferred` | `strict` |
+| `MONGO_BACKUP_ENABLED` | `false` (or unset) | `true` when S3 secrets set |
+
+Workflows: [mongo-backup-drill.yml](../.github/workflows/mongo-backup-drill.yml) (quarterly), [mongo-backup-mongodump.yml](../.github/workflows/mongo-backup-mongodump.yml) (weekly, gated).
+
+### GitHub secrets (optional)
+
+**Phase 1 strict / API checks (later):** `ATLAS_PUBLIC_KEY`, `ATLAS_PRIVATE_KEY`, `ATLAS_GROUP_ID_MG`, `ATLAS_GROUP_ID_CG`, `ATLAS_GROUP_ID_LOOPC`
+
+**Phase 2 mongodump:** `MONGO_URI_MG`, `MONGO_URI_CG`, `MONGO_URI_LOOPC`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY`
+
+Local:
+
+```bash
+npm run drill:atlas-backup-plan                    # phase=deferred by default
+ATLAS_BACKUP_PHASE=strict npm run drill:atlas-backup-plan -- --strict-backup
+npm run backup:mongodump:dry-run                     # check env before enabling Phase 2
+```
+
 ## MongoDB Atlas (production tenants)
 
 Clusters: one per tenant (`MONGO_URI_MG`, `MONGO_URI_CG`, `MONGO_URI_LOOPC`).
@@ -28,7 +59,24 @@ Clusters: one per tenant (`MONGO_URI_MG`, `MONGO_URI_CG`, `MONGO_URI_LOOPC`).
 4. Optionally enable **Point-in-Time Recovery** if your tier supports it.
 5. Document **who can trigger a restore** (see runbook below).
 
-### Quarterly Atlas snapshot restore (manual)
+### If you see "Introducing Backups" (backups not enabled)
+
+That landing page means **Cloud Backup is off** for `Cluster0` in that project. Production data is **not** covered by Atlas snapshots until you upgrade.
+
+1. Project **MG** (then **CG**, **LoopC**) → **DATABASE** → **Backup**
+2. Click **Upgrade cluster for continuous backups** (recommended) or **Upgrade cluster for daily backups**
+3. Atlas will prompt you to change **Cluster0** tier — Cloud Backup requires **M10+** (not M0/M2/M5 free/shared tiers)
+4. After upgrade, the Backup page should show **Snapshots**, **Backup Policy**, and recent snapshot dates
+5. Set retention to at least **7 days** under **Backup Policy**
+
+Repeat for all three projects. Then run:
+
+```bash
+npm run drill:atlas-backup-plan -- --strict-backup
+```
+
+(or set `ATLAS_UI_BACKUP_CONFIRMED=mg,cg,loopc` in `backend/.env` after confirming each project)
+
 
 Automated CI only checks **connectivity** (`npm run verify:mongo-backup-drill`). A full restore still requires the Atlas dashboard once per quarter:
 
@@ -46,7 +94,8 @@ Automated CI only checks **connectivity** (`npm run verify:mongo-backup-drill`).
 
 | Workflow | Schedule | What it checks |
 |----------|----------|----------------|
-| [mongo-backup-drill.yml](../.github/workflows/mongo-backup-drill.yml) | 1st of Jan/Apr/Jul/Oct 09:00 UTC | `verify:upload-storage` + `verify:atlas-backup-drill` (or `verify:mongo-backup-drill`) |
+| [mongo-backup-drill.yml](../.github/workflows/mongo-backup-drill.yml) | 1st of Jan/Apr/Jul/Oct 09:00 UTC | `verify:upload-storage` + `drill:atlas-backup-plan` (deferred or strict) |
+| [mongo-backup-mongodump.yml](../.github/workflows/mongo-backup-mongodump.yml) | Weekly Sun 03:00 UTC | `mongodump` to S3 when `MONGO_BACKUP_ENABLED=true` |
 
 Manual run: **Actions → Mongo Backup Drill → Run workflow**.
 

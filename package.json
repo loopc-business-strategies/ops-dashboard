@@ -46,6 +46,8 @@
     "verify:mongo-backup-drill": "node scripts/verify-mongo-backup-drill.mjs",
     "verify:atlas-backup-drill": "node scripts/verify-atlas-backup-drill.mjs",
     "drill:atlas-backup-plan": "node scripts/run-atlas-backup-drill-plan.mjs",
+    "backup:mongodump": "node scripts/mongodump-tenants.mjs",
+    "backup:mongodump:dry-run": "node scripts/mongodump-tenants.mjs --dry-run",
     "verify:upload-storage": "node scripts/verify-upload-storage.mjs",
     "verify:data-safety": "npm run verify:upload-storage && npm run verify:mongo-backup-drill",
     "mobile:release:android": "node scripts/trigger-mobile-release.mjs android",

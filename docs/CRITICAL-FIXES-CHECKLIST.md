@@ -12,7 +12,7 @@ Ordered production-safety and maintainability work.
 |---|------|--------|
 | 1 | **Live metal fan-out all tenants** | **Done** — code, HTTP test, prod `verify:live-metal-movement:all` 3/3 |
 | 2 | **Redis multi-instance** | **Done** — prod `redisConfigured: true`, readiness warnings shipped |
-| 3 | **Mongo backup verification** | **Done** — quarterly GitHub workflow + `verify:data-safety`; Atlas snapshot restore manual quarterly |
+| 3 | **Mongo backup verification** | **Phase 1 connected** — workflow runs in `deferred` mode; enable Atlas M10+ Cloud Backup later → `ATLAS_BACKUP_PHASE=strict` |
 
 ---
 
