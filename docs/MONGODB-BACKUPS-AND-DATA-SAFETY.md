@@ -31,7 +31,10 @@ Document actual restore times in your ops log after each quarterly drill.
 | Variable | Value now | After Atlas M10+ |
 |----------|-----------|------------------|
 | `ATLAS_BACKUP_PHASE` | `deferred` | `strict` |
-| `MONGO_BACKUP_ENABLED` | `false` (or unset) | `true` when S3 secrets set |
+| `MONGO_BACKUP_ENABLED` | `true` | `true` |
+| `MONGO_BACKUP_S3_CONFIGURED` | `false` (unset) | `true` after R2 secrets set |
+
+Until `MONGO_BACKUP_S3_CONFIGURED=true`, the weekly mongodump workflow stores gzip archives as **GitHub Actions artifacts** (7-day retention). After R2 secrets are set, run `npm run setup:mongo-backup-rollout --github` to flip S3 mode.
 
 Workflows: [mongo-backup-drill.yml](../.github/workflows/mongo-backup-drill.yml) (quarterly), [mongo-backup-mongodump.yml](../.github/workflows/mongo-backup-mongodump.yml) (weekly, gated).
 
