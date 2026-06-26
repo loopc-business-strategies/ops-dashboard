@@ -46,13 +46,14 @@ Automated CI only checks **connectivity** (`npm run verify:mongo-backup-drill`).
 
 | Workflow | Schedule | What it checks |
 |----------|----------|----------------|
-| [mongo-backup-drill.yml](../.github/workflows/mongo-backup-drill.yml) | 1st of Jan/Apr/Jul/Oct 09:00 UTC | `verify:upload-storage` + `verify:mongo-backup-drill` |
+| [mongo-backup-drill.yml](../.github/workflows/mongo-backup-drill.yml) | 1st of Jan/Apr/Jul/Oct 09:00 UTC | `verify:upload-storage` + `verify:atlas-backup-drill` (or `verify:mongo-backup-drill`) |
 
 Manual run: **Actions → Mongo Backup Drill → Run workflow**.
 
 Local:
 
 ```bash
+npm run verify:atlas-backup-drill   # direct Mongo + Atlas backup/snapshot API (needs ATLAS_* keys)
 npm run verify:mongo-backup-drill    # tenant connectivity (direct Mongo or /api/ready fallback)
 npm run verify:upload-storage        # prod + staging UPLOAD_STORAGE_ROOT + volume
 npm run verify:data-safety           # both checks

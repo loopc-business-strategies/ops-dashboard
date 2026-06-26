@@ -4,12 +4,20 @@
  * Full Atlas snapshot restore still requires the provider dashboard.
  */
 import { createRequire } from 'node:module'
+import dns from 'node:dns'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
+
+dns.setServers(
+  (process.env.ATLAS_DNS_SERVERS || '8.8.8.8,1.1.1.1')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+)
 
 require(path.join(root, 'backend', 'node_modules', 'dotenv')).config({
   path: path.join(root, 'backend', '.env'),

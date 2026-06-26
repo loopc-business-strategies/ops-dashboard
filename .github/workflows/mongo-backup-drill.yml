@@ -28,10 +28,12 @@ jobs:
       - name: Verify upload storage (prod + staging)
         run: npm run verify:upload-storage
 
-      - name: Mongo tenant connectivity drill
+      - name: Atlas backup drill (direct Mongo + snapshots when ATLAS_* secrets set)
         env:
-          SMOKE_API_BASE: ${{ vars.SMOKE_API_BASE || 'https://api.loopcstrategies.com' }}
-        run: npm run verify:mongo-backup-drill
+          ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
+          ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
+          ATLAS_GROUP_ID: ${{ secrets.ATLAS_GROUP_ID }}
+        run: npm run verify:atlas-backup-drill
 
       - name: Operator reminder
         run: |
