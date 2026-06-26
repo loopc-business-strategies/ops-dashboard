@@ -44,6 +44,8 @@
     "verify:critical-health": "node scripts/verify-critical-health.mjs",
     "verify:backup-checklist": "node scripts/verify-backup-checklist.mjs",
     "verify:mongo-backup-drill": "node scripts/verify-mongo-backup-drill.mjs",
+    "verify:upload-storage": "node scripts/verify-upload-storage.mjs",
+    "verify:data-safety": "npm run verify:upload-storage && npm run verify:mongo-backup-drill",
     "mobile:release:android": "node scripts/trigger-mobile-release.mjs android",
     "mobile:release:ios": "node scripts/trigger-mobile-release.mjs ios",
     "mobile:update:preview": "npm --prefix mobile run update:preview",

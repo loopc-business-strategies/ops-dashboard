@@ -67,6 +67,9 @@ function main() {
   console.log('')
 
   console.log('Safe commands (no writes):')
+  console.log('  npm run verify:data-safety              # upload volume + Mongo connectivity')
+  console.log('  npm run verify:upload-storage           # Railway UPLOAD_STORAGE_ROOT on prod/staging')
+  console.log('  npm run verify:mongo-backup-drill       # tenant Mongo connectivity drill')
   console.log('  npm --prefix backend run migrate          # dry-run migrations')
   console.log('  npm run smoke:staging                     # read-only HTTP probes (when configured)')
   console.log('  npm run check:data-safety                 # this script + migration safety tests')

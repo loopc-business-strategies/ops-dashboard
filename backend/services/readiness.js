@@ -2,6 +2,7 @@ const mongoose = require('mongoose')
 const { TENANT_KEYS, getTenantUri } = require('../config/tenants')
 const { connectTenant } = require('../db/tenantConnections')
 const { getBackendBuildMeta } = require('./buildMeta')
+const { getUploadStorageStatus } = require('./uploadStorage')
 
 let primaryMongoReady = false
 
@@ -52,6 +53,7 @@ async function getReadinessStatus() {
   const redisConfigured = Boolean(String(process.env.REDIS_URL || '').trim())
   const isProduction = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production'
   const sentryConfigured = Boolean(String(process.env.SENTRY_DSN || '').trim())
+  const uploadStorage = getUploadStorageStatus()
   const build = getBackendBuildMeta()
 
   const warnings = []
@@ -60,6 +62,15 @@ async function getReadinessStatus() {
   }
   if (isProduction && !sentryConfigured) {
     warnings.push('SENTRY_DSN is not set — production errors will not be reported to Sentry.')
+  }
+  if (isProduction && uploadStorage.uploadStorageRecommended && !uploadStorage.uploadStorageRootSet) {
+    warnings.push('UPLOAD_STORAGE_ROOT is not set — uploads are ephemeral and lost on redeploy.')
+  }
+  if (isProduction && uploadStorage.uploadStorageRootSet && !uploadStorage.uploadStorageWritable) {
+    warnings.push('UPLOAD_STORAGE_ROOT is not writable — file uploads will fail.')
+  }
+  if (isProduction && uploadStorage.volumeMountPath && !uploadStorage.volumeAligned) {
+    warnings.push(`UPLOAD_STORAGE_ROOT does not match RAILWAY_VOLUME_MOUNT_PATH (${uploadStorage.volumeMountPath}).`)
   }
 
   return {
@@ -76,6 +87,10 @@ async function getReadinessStatus() {
       redisConfigured,
       redisRecommended: isProduction,
       sentryConfigured,
+      uploadStorageRootSet: uploadStorage.uploadStorageRootSet,
+      uploadStorageWritable: uploadStorage.uploadStorageWritable,
+      uploadVolumeAligned: uploadStorage.volumeAligned,
+      uploadStorageRecommended: uploadStorage.uploadStorageRecommended,
       integrations: {
         /** Expo server push: `expo-server-sdk` uses `EXPO_ACCESS_TOKEN` (never the secret value here). */
         expoPushAccessTokenSet,

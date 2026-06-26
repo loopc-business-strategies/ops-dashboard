@@ -12,6 +12,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(__dirname, '..')
 const generatedPath = path.join(rootDir, 'backend', '.env.staging.generated.local')
 
+const ENSURE_VOLUME_KEYS = {
+  UPLOAD_STORAGE_ROOT: '/app/uploads',
+  CHAT_UPLOAD_DIR: '/app/uploads/chat',
+}
+
 const APPLY_KEYS = [
   'SETUP_TOKEN',
   'CLEANUP_CONFIRM_TOKEN',
@@ -82,6 +87,15 @@ function main() {
     console.warn('Warning: staging MONGO_URI_* may not point at ops-dashboard-staging databases — verify in Railway dashboard.')
   } else {
     console.log('Verified: MONGO_URI_MG/CG/LOOPC already use ops-dashboard-staging databases (unchanged).')
+  }
+
+  for (const [key, value] of Object.entries(ENSURE_VOLUME_KEYS)) {
+    if (existing.has(key)) {
+      console.log(`  keep ${key} (already set on staging)`)
+      continue
+    }
+    runRailway(['variable', 'set', `${key}=${value}`, '-e', 'staging', '-s', 'ops-dashboard'])
+    console.log(`  set ${key}=${value}`)
   }
 
   for (const key of APPLY_KEYS) {

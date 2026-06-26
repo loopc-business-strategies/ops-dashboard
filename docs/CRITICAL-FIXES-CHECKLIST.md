@@ -12,7 +12,7 @@ Ordered production-safety and maintainability work.
 |---|------|--------|
 | 1 | **Live metal fan-out all tenants** | **Done** — code, HTTP test, prod `verify:live-metal-movement:all` 3/3 |
 | 2 | **Redis multi-instance** | **Done** — prod `redisConfigured: true`, readiness warnings shipped |
-| 3 | **Mongo backup verification** | **Drill recorded** — `npm run verify:mongo-backup-drill`; full Atlas snapshot restore still quarterly in Atlas dashboard |
+| 3 | **Mongo backup verification** | **Done** — quarterly GitHub workflow + `verify:data-safety`; Atlas snapshot restore manual quarterly |
 
 ---
 
@@ -53,7 +53,9 @@ Ordered production-safety and maintainability work.
 ```bash
 npm run verify:critical-health
 npm run verify:live-metal-movement:all
-npm run verify:backup-checklist
+npm run verify:data-safety
+npm run verify:upload-storage
+npm run verify:mongo-backup-drill
 npm run smoke:tenants
 ```
 
