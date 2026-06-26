@@ -5,6 +5,7 @@ import {
   isIncomeTransactionType,
   isOutcomeTransactionType,
   jvCategoryKey,
+  operationKeyMatchesCategory,
   transactionCategoryKey,
   type OperationTypeOption,
 } from '@/src/constants/transactionTypes'
@@ -91,6 +92,62 @@ function parseDateKey(dateStr: string): string {
   const d = new Date(dateStr)
   if (Number.isNaN(d.getTime())) return ''
   return d.toISOString().slice(0, 10)
+}
+
+export type MonthPreset = {
+  label: string
+  startDate: string
+  endDate: string
+}
+
+function isFullCalendarMonth(startDate: string, endDate: string): boolean {
+  if (!startDate || !endDate) return false
+  const start = new Date(`${startDate}T12:00:00`)
+  const end = new Date(`${endDate}T12:00:00`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false
+  if (start.getDate() !== 1) return false
+  if (start.getFullYear() !== end.getFullYear() || start.getMonth() !== end.getMonth()) return false
+  const lastDay = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate()
+  return end.getDate() === lastDay
+}
+
+export function formatMonthPillLabel(startDate: string, endDate: string): string {
+  if (!startDate && !endDate) return 'All dates'
+  if (isFullCalendarMonth(startDate, endDate)) {
+    const start = new Date(`${startDate}T12:00:00`)
+    const now = new Date()
+    const monthName = start.toLocaleDateString(undefined, { month: 'long' })
+    if (start.getFullYear() === now.getFullYear()) return monthName
+    return `${monthName} ${start.getFullYear()}`
+  }
+  return formatPeriodLabel(startDate, endDate)
+}
+
+function formatLocalDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+export function monthPresets(count = 24): MonthPreset[] {
+  const presets: MonthPreset[] = []
+  const now = new Date()
+
+  for (let i = 0; i < count; i += 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const start = new Date(d.getFullYear(), d.getMonth(), 1)
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+    const startDate = formatLocalDate(start)
+    const endDate = formatLocalDate(end)
+    presets.push({
+      label: formatMonthPillLabel(startDate, endDate),
+      startDate,
+      endDate,
+    })
+  }
+
+  return presets
 }
 
 export function formatSectionDate(dateKey: string): string {
@@ -207,7 +264,7 @@ function matchesAccount(entry: OperationEntry, accountCode: string): boolean {
 
 function matchesOperationKey(entry: OperationEntry, operationKey: string): boolean {
   if (!operationKey) return true
-  return entry.categoryKey === operationKey
+  return operationKeyMatchesCategory(operationKey, entry.categoryKey)
 }
 
 function matchesStatus(entry: OperationEntry, status: string): boolean {
@@ -308,16 +365,14 @@ export function currentMonthDateRange(): { startDate: string; endDate: string } 
   const now = new Date()
   const start = new Date(now.getFullYear(), now.getMonth(), 1)
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-  const fmt = (d: Date) => d.toISOString().slice(0, 10)
-  return { startDate: fmt(start), endDate: fmt(end) }
+  return { startDate: formatLocalDate(start), endDate: formatLocalDate(end) }
 }
 
 export function lastMonthDateRange(): { startDate: string; endDate: string } {
   const now = new Date()
   const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const end = new Date(now.getFullYear(), now.getMonth(), 0)
-  const fmt = (d: Date) => d.toISOString().slice(0, 10)
-  return { startDate: fmt(start), endDate: fmt(end) }
+  return { startDate: formatLocalDate(start), endDate: formatLocalDate(end) }
 }
 
 export function formatMoneyAmount(amount: number, currency: string, signed = false): string {

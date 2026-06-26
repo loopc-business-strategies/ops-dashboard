@@ -1,22 +1,20 @@
 import { useMemo, useState } from 'react'
-import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { FlatList, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import type { AccountListItem } from '@/src/api/erpReports'
-import DateField from '@/src/components/common/DateField'
 import {
-  OPERATION_TYPE_OPTIONS,
   TRANSACTION_STATUS_OPTIONS,
+  TRANSACTION_TYPE_FILTER_OPTIONS,
+  filterTypeFilterOptions,
 } from '@/src/constants/transactionTypes'
 import {
-  currentMonthDateRange,
-  formatPeriodLabel,
-  lastMonthDateRange,
+  formatMonthPillLabel,
+  monthPresets,
   type OperationsFilterState,
 } from '@/src/utils/operationsFeed'
-import { filterOperationOptions } from '@/src/utils/operationsFeed'
 import type { OperationsStyles } from '@/src/components/transactions/operationsStyles'
 
-type SheetKind = 'date' | 'account' | 'operation' | 'status' | null
+type SheetKind = 'month' | 'account' | 'type' | null
 
 type OperationsFilterBarProps = {
   filters: OperationsFilterState
@@ -28,6 +26,54 @@ type OperationsFilterBarProps = {
   canLedger: boolean
   branding: MobileTenantBranding
   styles: OperationsStyles
+}
+
+function truncateLabel(text: string, max = 22): string {
+  const raw = String(text || '').trim()
+  if (raw.length <= max) return raw
+  return `${raw.slice(0, max - 1)}…`
+}
+
+type FilterPillProps = {
+  label: string
+  onPress: () => void
+  pillStyles: ReturnType<typeof usePillStyles>
+  primary?: boolean
+  flex?: boolean
+}
+
+function FilterPill({ label, onPress, pillStyles, primary, flex }: FilterPillProps) {
+  return (
+    <Pressable
+      style={[
+        pillStyles.pill,
+        primary ? pillStyles.pillPrimary : null,
+        flex ? pillStyles.pillFlex : null,
+      ]}
+      onPress={onPress}
+    >
+      <View style={[pillStyles.pillInner, flex ? pillStyles.pillInnerFlex : null]}>
+        <Text
+          style={[
+            pillStyles.pillLabel,
+            primary ? pillStyles.pillLabelPrimary : null,
+            flex ? pillStyles.pillLabelFlex : null,
+          ]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          {...(Platform.OS === 'android' ? { includeFontPadding: false } : {})}
+        >
+          {label}
+        </Text>
+        <Text
+          style={[pillStyles.chevron, primary ? pillStyles.chevronPrimary : null]}
+          {...(Platform.OS === 'android' ? { includeFontPadding: false } : {})}
+        >
+          ▾
+        </Text>
+      </View>
+    </Pressable>
+  )
 }
 
 export default function OperationsFilterBar({
@@ -44,23 +90,26 @@ export default function OperationsFilterBar({
   const [sheet, setSheet] = useState<SheetKind>(null)
   const [accountSearch, setAccountSearch] = useState('')
 
-  const operationOptions = useMemo(
-    () => filterOperationOptions(OPERATION_TYPE_OPTIONS, canTransactions, canLedger),
+  const typeOptions = useMemo(
+    () => filterTypeFilterOptions(TRANSACTION_TYPE_FILTER_OPTIONS, canTransactions, canLedger),
     [canTransactions, canLedger],
   )
 
-  const operationLabel = useMemo(() => {
-    const opt = operationOptions.find((o) => o.key === filters.operationKey)
-    return opt?.label || 'All transactions'
-  }, [filters.operationKey, operationOptions])
+  const months = useMemo(() => monthPresets(24), [])
+
+  const typeLabel = useMemo(() => {
+    const opt = typeOptions.find((o) => o.key === filters.operationKey)
+    return opt?.label || 'All'
+  }, [filters.operationKey, typeOptions])
 
   const accountLabel = useMemo(() => {
     if (!filters.accountCode) return 'Accounts and cards'
     const acc = accounts.find((a) => a.accountCode === filters.accountCode)
-    return acc ? `${acc.accountCode}` : filters.accountCode
+    if (acc?.accountName) return truncateLabel(acc.accountName)
+    return filters.accountCode
   }, [filters.accountCode, accounts])
 
-  const dateLabel = formatPeriodLabel(filters.startDate, filters.endDate)
+  const monthLabel = formatMonthPillLabel(filters.startDate, filters.endDate)
 
   const filteredAccounts = useMemo(() => {
     const q = accountSearch.trim().toLowerCase()
@@ -79,8 +128,8 @@ export default function OperationsFilterBar({
     setAccountSearch('')
   }
 
-  const applyDatePreset = (range: { startDate: string; endDate: string }) => {
-    const next = { ...draftFilters, ...range }
+  const applyMonth = (startDate: string, endDate: string) => {
+    const next = { ...draftFilters, startDate, endDate }
     onChangeDraft(next)
     onApply(next)
     closeSheet()
@@ -88,82 +137,61 @@ export default function OperationsFilterBar({
 
   return (
     <>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={pillStyles.row}
-      >
-        <Pressable style={[pillStyles.pill, pillStyles.pillPrimary]} onPress={() => setSheet('date')}>
-          <Text style={[pillStyles.pillText, pillStyles.pillTextPrimary]} numberOfLines={1}>
-            {dateLabel}
-          </Text>
-          <Text style={[pillStyles.chevron, pillStyles.chevronPrimary]}>▾</Text>
-        </Pressable>
-        <Pressable style={pillStyles.pill} onPress={() => setSheet('account')}>
-          <Text style={pillStyles.pillText} numberOfLines={1}>
-            {accountLabel}
-          </Text>
-          <Text style={pillStyles.chevron}>▾</Text>
-        </Pressable>
-        <Pressable style={pillStyles.pill} onPress={() => setSheet('operation')}>
-          <Text style={pillStyles.pillText} numberOfLines={1}>
-            {operationLabel}
-          </Text>
-          <Text style={pillStyles.chevron}>▾</Text>
-        </Pressable>
-        {canTransactions ? (
-          <Pressable style={pillStyles.pill} onPress={() => setSheet('status')}>
-            <Text style={pillStyles.pillText} numberOfLines={1}>
-              {TRANSACTION_STATUS_OPTIONS.find((o) => o.value === filters.status)?.label || 'Status'}
-            </Text>
-            <Text style={pillStyles.chevron}>▾</Text>
-          </Pressable>
-        ) : null}
-      </ScrollView>
+      <View style={pillStyles.row}>
+        <FilterPill
+          label={monthLabel}
+          onPress={() => setSheet('month')}
+          pillStyles={pillStyles}
+          primary
+        />
+        <FilterPill
+          label={accountLabel}
+          onPress={() => setSheet('account')}
+          pillStyles={pillStyles}
+          flex
+        />
+        <FilterPill
+          label={typeLabel}
+          onPress={() => setSheet('type')}
+          pillStyles={pillStyles}
+        />
+      </View>
 
-      <Modal visible={sheet === 'date'} animationType="slide" transparent onRequestClose={closeSheet}>
+      <Modal visible={sheet === 'month'} animationType="slide" transparent onRequestClose={closeSheet}>
         <Pressable style={styles.modalBackdrop} onPress={closeSheet}>
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Date range</Text>
-            <Pressable style={styles.sheetOption} onPress={() => applyDatePreset(currentMonthDateRange())}>
-              <Text style={styles.sheetOptionText}>This month</Text>
-            </Pressable>
-            <Pressable style={styles.sheetOption} onPress={() => applyDatePreset(lastMonthDateRange())}>
-              <Text style={styles.sheetOptionText}>Last month</Text>
-            </Pressable>
-            <View style={{ marginTop: 8 }}>
-              <DateField
-                label="From"
-                value={draftFilters.startDate}
-                onChange={(startDate) => onChangeDraft({ ...draftFilters, startDate })}
-              />
-              <DateField
-                label="To"
-                value={draftFilters.endDate}
-                onChange={(endDate) => onChangeDraft({ ...draftFilters, endDate })}
-              />
-            </View>
-            <Pressable
-              style={[pillStyles.applyBtn, { marginTop: 12 }]}
-              onPress={() => {
-                onApply()
-                closeSheet()
+            <Text style={styles.modalTitle}>Month</Text>
+            <FlatList
+              data={months}
+              keyExtractor={(item) => `${item.startDate}-${item.endDate}`}
+              style={{ maxHeight: 420 }}
+              renderItem={({ item }) => {
+                const active =
+                  filters.startDate === item.startDate && filters.endDate === item.endDate
+                return (
+                  <Pressable
+                    style={styles.sheetOption}
+                    onPress={() => applyMonth(item.startDate, item.endDate)}
+                  >
+                    <Text style={[styles.sheetOptionText, active && styles.sheetOptionActive]}>
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                )
               }}
-            >
-              <Text style={pillStyles.applyBtnText}>Apply</Text>
-            </Pressable>
+            />
           </Pressable>
         </Pressable>
       </Modal>
 
-      <Modal visible={sheet === 'operation'} animationType="slide" transparent onRequestClose={closeSheet}>
+      <Modal visible={sheet === 'type'} animationType="slide" transparent onRequestClose={closeSheet}>
         <Pressable style={styles.modalBackdrop} onPress={closeSheet}>
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Transaction type</Text>
+            <Text style={styles.modalTitle}>Type</Text>
             <FlatList
-              data={operationOptions}
+              data={typeOptions}
               keyExtractor={(item) => item.key || 'all'}
-              style={{ maxHeight: 400 }}
+              style={{ maxHeight: canTransactions ? 280 : 360 }}
               renderItem={({ item }) => (
                 <Pressable
                   style={styles.sheetOption}
@@ -185,35 +213,32 @@ export default function OperationsFilterBar({
                 </Pressable>
               )}
             />
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      <Modal visible={sheet === 'status'} animationType="slide" transparent onRequestClose={closeSheet}>
-        <Pressable style={styles.modalBackdrop} onPress={closeSheet}>
-          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Voucher status</Text>
-            {TRANSACTION_STATUS_OPTIONS.map((opt) => (
-              <Pressable
-                key={opt.value || 'all'}
-                style={styles.sheetOption}
-                onPress={() => {
-                  const next = { ...draftFilters, status: opt.value }
-                  onChangeDraft(next)
-                  onApply(next)
-                  closeSheet()
-                }}
-              >
-                <Text
-                  style={[
-                    styles.sheetOptionText,
-                    filters.status === opt.value && styles.sheetOptionActive,
-                  ]}
-                >
-                  {opt.label}
-                </Text>
-              </Pressable>
-            ))}
+            {canTransactions ? (
+              <>
+                <Text style={pillStyles.advancedLabel}>Status</Text>
+                {TRANSACTION_STATUS_OPTIONS.map((opt) => (
+                  <Pressable
+                    key={opt.value || 'all'}
+                    style={styles.sheetOption}
+                    onPress={() => {
+                      const next = { ...draftFilters, status: opt.value }
+                      onChangeDraft(next)
+                      onApply(next)
+                      closeSheet()
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.sheetOptionText,
+                        filters.status === opt.value && styles.sheetOptionActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </>
+            ) : null}
           </Pressable>
         </Pressable>
       </Modal>
@@ -233,22 +258,29 @@ export default function OperationsFilterBar({
               data={[{ _id: '', accountCode: '', accountName: 'All accounts' }, ...filteredAccounts]}
               keyExtractor={(item) => item._id || 'all'}
               style={{ maxHeight: 360 }}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={styles.accountRow}
-                  onPress={() => {
-                    const next = { ...draftFilters, accountCode: item.accountCode || '' }
-                    onChangeDraft(next)
-                    onApply(next)
-                    closeSheet()
-                  }}
-                >
-                  <Text style={styles.accountRowCode}>{item.accountCode || '—'}</Text>
-                  <Text style={styles.accountRowName} numberOfLines={1}>
-                    {item.accountName || 'All accounts'}
-                  </Text>
-                </Pressable>
-              )}
+              renderItem={({ item }) => {
+                const isAll = !item.accountCode
+                return (
+                  <Pressable
+                    style={styles.accountRow}
+                    onPress={() => {
+                      const next = { ...draftFilters, accountCode: item.accountCode || '' }
+                      onChangeDraft(next)
+                      onApply(next)
+                      closeSheet()
+                    }}
+                  >
+                    <Text style={styles.accountRowName} numberOfLines={2}>
+                      {item.accountName || 'All accounts'}
+                    </Text>
+                    {!isAll ? (
+                      <Text style={styles.accountRowCode} numberOfLines={1}>
+                        {item.accountCode}
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                )
+              }}
             />
           </Pressable>
         </Pressable>
@@ -259,32 +291,73 @@ export default function OperationsFilterBar({
 
 function usePillStyles(b: MobileTenantBranding) {
   return StyleSheet.create({
-    row: { paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
-    pill: {
+    row: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
       flexDirection: 'row',
       alignItems: 'center',
+    },
+    pill: {
       paddingHorizontal: 14,
       paddingVertical: 10,
       borderRadius: 24,
       borderWidth: 1,
       borderColor: '#E5E7EB',
       backgroundColor: '#FFFFFF',
-      maxWidth: 200,
+      marginRight: 8,
+      flexShrink: 0,
+      minWidth: 72,
+    },
+    pillFlex: {
+      flex: 1,
+      minWidth: 0,
+      marginRight: 0,
     },
     pillPrimary: {
-      backgroundColor: `${b.colors.secondary}22`,
-      borderColor: `${b.colors.secondary}55`,
+      backgroundColor: `${b.colors.secondary}33`,
+      borderColor: `${b.colors.secondary}66`,
     },
-    pillText: { fontSize: 13, fontWeight: '600', color: b.colors.text, marginRight: 4 },
-    pillTextPrimary: { color: b.colors.primary },
-    chevron: { fontSize: 10, color: b.colors.muted },
-    chevronPrimary: { color: b.colors.primary },
-    applyBtn: {
-      backgroundColor: b.colors.primary,
-      borderRadius: 12,
-      paddingVertical: 12,
+    pillInner: {
+      flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 6,
     },
-    applyBtnText: { color: '#FFFFFF', fontWeight: '700' },
+    pillInnerFlex: {
+      flex: 1,
+      minWidth: 0,
+    },
+    pillLabel: {
+      flexShrink: 0,
+      fontSize: 13,
+      fontWeight: '600',
+      color: b.colors.text,
+    },
+    pillLabelFlex: {
+      flex: 1,
+      minWidth: 0,
+      flexShrink: 1,
+      maxWidth: undefined,
+    },
+    pillLabelPrimary: {
+      color: b.colors.primary,
+    },
+    chevron: {
+      flexShrink: 0,
+      fontSize: 12,
+      color: b.colors.muted,
+      lineHeight: 14,
+    },
+    chevronPrimary: {
+      color: b.colors.primary,
+    },
+    advancedLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: b.colors.muted,
+      marginTop: 12,
+      marginBottom: 4,
+      textTransform: 'uppercase',
+    },
   })
 }

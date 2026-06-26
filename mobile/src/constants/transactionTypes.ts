@@ -31,6 +31,59 @@ export function apiTypeToLabel(apiType: string): string {
   return row?.label || apiType
 }
 
+export type TransactionTypeFilterOption = {
+  key: string
+  label: string
+  source: 'all' | 'transaction' | 'jv'
+}
+
+/** Grouped type filters for the Transactions tab pill dropdown. */
+export const TRANSACTION_TYPE_FILTER_OPTIONS: TransactionTypeFilterOption[] = [
+  { key: '', label: 'All', source: 'all' },
+  { key: 'grp_payment', label: 'Payment', source: 'transaction' },
+  { key: 'grp_receipt', label: 'Receipt', source: 'transaction' },
+  { key: 'grp_jv', label: 'JV', source: 'jv' },
+  { key: 'grp_vouchers', label: 'Vouchers', source: 'transaction' },
+]
+
+const PAYMENT_CATEGORY_KEYS = new Set(['txn_payment', 'txn_metal_payment'])
+const RECEIPT_CATEGORY_KEYS = new Set(['txn_receipt', 'txn_metal_receipt'])
+const JV_CATEGORY_KEYS = new Set(['jv_journal', 'jv_bank'])
+
+export function operationKeyMatchesCategory(operationKey: string, categoryKey: string): boolean {
+  const key = String(operationKey || '').trim()
+  const cat = String(categoryKey || '').trim()
+  if (!key) return true
+  if (key === 'grp_payment') return PAYMENT_CATEGORY_KEYS.has(cat)
+  if (key === 'grp_receipt') return RECEIPT_CATEGORY_KEYS.has(cat)
+  if (key === 'grp_jv') return JV_CATEGORY_KEYS.has(cat)
+  if (key === 'grp_vouchers') {
+    if (!cat.startsWith('txn_')) return false
+    return !PAYMENT_CATEGORY_KEYS.has(cat) && !RECEIPT_CATEGORY_KEYS.has(cat)
+  }
+  return cat === key
+}
+
+/** Maps grouped filter key to API `type` param when a single server type applies. */
+export function operationKeyToApiType(operationKey: string): string | undefined {
+  if (operationKey === 'grp_payment') return 'payment'
+  if (operationKey === 'grp_receipt') return 'receipt'
+  if (operationKey.startsWith('txn_')) return operationKey.replace(/^txn_/, '')
+  return undefined
+}
+
+export function filterTypeFilterOptions(
+  options: TransactionTypeFilterOption[],
+  canTransactions: boolean,
+  canLedger: boolean,
+): TransactionTypeFilterOption[] {
+  return options.filter((opt) => {
+    if (!opt.key || opt.source === 'all') return true
+    if (opt.source === 'jv') return canLedger
+    return canTransactions
+  })
+}
+
 export type OperationTypeOption = {
   key: string
   label: string

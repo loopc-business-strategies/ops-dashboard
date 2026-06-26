@@ -6,8 +6,11 @@ import {
   computeCategorySummaries,
   computeOutcomeIncome,
   filterOperationEntries,
+  formatMonthPillLabel,
   groupEntriesByDate,
+  monthPresets,
 } from '@/src/utils/operationsFeed'
+import { operationKeyMatchesCategory } from '@/src/constants/transactionTypes'
 
 function tx(overrides: Partial<TransactionRow> & { _id: string }): TransactionRow {
   return {
@@ -85,7 +88,7 @@ describe('operationsFeed', () => {
     const filtered = filterOperationEntries(entries, {
       search: '',
       status: '',
-      operationKey: 'txn_payment',
+      operationKey: 'grp_payment',
       startDate: '',
       endDate: '',
       accountCode: '1111',
@@ -114,5 +117,34 @@ describe('operationsFeed', () => {
     const sections = groupEntriesByDate(entries)
     expect(sections).toHaveLength(2)
     expect(sections[0].dateKey).toBe('2026-06-20')
+  })
+
+  test('operationKeyMatchesCategory groups payment receipt jv vouchers', () => {
+    expect(operationKeyMatchesCategory('grp_payment', 'txn_payment')).toBe(true)
+    expect(operationKeyMatchesCategory('grp_payment', 'txn_receipt')).toBe(false)
+    expect(operationKeyMatchesCategory('grp_receipt', 'txn_receipt')).toBe(true)
+    expect(operationKeyMatchesCategory('grp_jv', 'jv_journal')).toBe(true)
+    expect(operationKeyMatchesCategory('grp_jv', 'txn_payment')).toBe(false)
+    expect(operationKeyMatchesCategory('grp_vouchers', 'txn_sale')).toBe(true)
+    expect(operationKeyMatchesCategory('grp_vouchers', 'txn_payment')).toBe(false)
+  })
+
+  test('formatMonthPillLabel shows month name for full month', () => {
+    expect(formatMonthPillLabel('2025-03-01', '2025-03-31')).toBe('March 2025')
+    const now = new Date()
+    const y = now.getFullYear()
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const lastDay = new Date(y, now.getMonth() + 1, 0).getDate()
+    const start = `${y}-${m}-01`
+    const end = `${y}-${m}-${String(lastDay).padStart(2, '0')}`
+    expect(formatMonthPillLabel(start, end)).toBe(
+      now.toLocaleDateString(undefined, { month: 'long' }),
+    )
+  })
+
+  test('monthPresets returns descending months', () => {
+    const presets = monthPresets(3)
+    expect(presets).toHaveLength(3)
+    expect(presets[0].startDate <= presets[1].startDate).toBe(false)
   })
 })

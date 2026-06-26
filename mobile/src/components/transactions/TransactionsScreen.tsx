@@ -19,7 +19,7 @@ import OperationListItem from '@/src/components/transactions/OperationListItem'
 import OperationsFilterBar from '@/src/components/transactions/OperationsFilterBar'
 import OutcomeIncomeCards from '@/src/components/transactions/OutcomeIncomeCards'
 import { createOperationsStyles } from '@/src/components/transactions/operationsStyles'
-import { chipToApiType } from '@/src/constants/transactionTypes'
+import { operationKeyToApiType } from '@/src/constants/transactionTypes'
 import { useAuth } from '@/src/context/AuthContext'
 import { useTenantBranding } from '@/src/context/TenantContext'
 import { useTenantSessionKey } from '@/src/hooks/useTenantSessionKey'
@@ -61,9 +61,7 @@ function buildTxnApiParams(filters: OperationsFilterState) {
   return {
     search: filters.search.trim() || undefined,
     status: filters.status || undefined,
-    type: chipToApiType(
-      filters.operationKey.startsWith('txn_') ? filters.operationKey.replace(/^txn_/, '') : '',
-    ),
+    type: operationKeyToApiType(filters.operationKey),
     startDate: normalizeDateInput(filters.startDate) || undefined,
     endDate: normalizeDateInput(filters.endDate) || undefined,
   }
