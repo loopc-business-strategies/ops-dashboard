@@ -3,7 +3,7 @@
  * Pure helpers — no React, no API calls, no side effects.
  */
 
-import { sanitizeLogoUrl } from '../../utils/safeHtml'
+import { sanitizeLogoUrl } from '../../../utils/safeHtml'
 
 export const DEFAULT_BRANDING = {
   key: 'default',
