@@ -73,7 +73,8 @@ Details: [STAGING-ENVIRONMENT.md](./STAGING-ENVIRONMENT.md).
 | **Post-Deploy Tenant Smoke** | After CI on `main` | Production smoke + optional auth ERP + mobile API smoke |
 | **Staging Smoke** | Push `staging` | Staging Railway + Vercel preview + mobile JWT API smoke |
 | **Staging E2E** | Push `staging` | Authenticated Playwright on staging preview |
-| **Mongo Backup Drill** | Quarterly (1 Jan/Apr/Jul/Oct) + manual | Upload volume + tenant Mongo connectivity — [MONGODB-BACKUPS-AND-DATA-SAFETY.md](./MONGODB-BACKUPS-AND-DATA-SAFETY.md) |
+| **Mongo Backup Drill** | Quarterly (1 Jan/Apr/Jul/Oct) + manual | Upload volume + Mongo connectivity (`ATLAS_BACKUP_PHASE=deferred` default) — [MONGODB-BACKUPS-AND-DATA-SAFETY.md](./MONGODB-BACKUPS-AND-DATA-SAFETY.md) |
+| **Mongo Backup Mongodump** | Weekly Sun + manual | Optional `mongodump` → S3 when `MONGO_BACKUP_ENABLED=true` |
 | **Provision smoke credentials** | Manual | Create `ops-smoke-probe` + GitHub secrets |
 | **Provision staging smoke credentials** | Manual | Staging smoke users + secrets |
 | **Mobile iOS (GitHub macOS)** | Manual | TestFlight IPA — [MOBILE-IOS-GITHUB-BUILD.md](./MOBILE-IOS-GITHUB-BUILD.md) |
