@@ -4,6 +4,10 @@ on:
   schedule:
     # 03:00 UTC every Sunday
     - cron: '0 3 * * 0'
+  push:
+    branches: [main]
+    paths:
+      - '.github/ops/trigger-mongo-backup-mongodump'
   workflow_dispatch:
 
 concurrency:
