@@ -31,7 +31,7 @@ const protect = async (req, res, next) => {
     }
 
     // Verify token — throws error if invalid or expired
-    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] })
     const tenant = normalizeTenant(decoded.company)
 
     if (!tenant) {

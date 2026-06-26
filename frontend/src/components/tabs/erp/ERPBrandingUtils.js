@@ -3,6 +3,8 @@
  * Pure helpers — no React, no API calls, no side effects.
  */
 
+import { sanitizeLogoUrl } from '../../utils/safeHtml'
+
 export const DEFAULT_BRANDING = {
   key: 'default',
   entityName: 'Main Entity',
@@ -98,7 +100,8 @@ export const brandingOptionLabel = (branding) => {
  * @returns {Promise<string>}
  */
 export const createLogoRenderAsset = async (logoUrl, width, height, fit = 'contain') => {
-  if (!logoUrl || typeof document === 'undefined') return ''
+  const safeUrl = sanitizeLogoUrl(logoUrl)
+  if (!safeUrl || typeof document === 'undefined') return ''
 
   const boxWidth = clampBrandingDimension(width, DEFAULT_BRANDING.logoWidth, 80, 260)
   const boxHeight = clampBrandingDimension(height, DEFAULT_BRANDING.logoHeight, 32, 120)
@@ -112,7 +115,7 @@ export const createLogoRenderAsset = async (logoUrl, width, height, fit = 'conta
         canvas.width = boxWidth
         canvas.height = boxHeight
         const ctx = canvas.getContext('2d')
-        if (!ctx) return resolve(logoUrl)
+        if (!ctx) return resolve('')
         ctx.clearRect(0, 0, boxWidth, boxHeight)
 
         if (fit === 'fill') {
@@ -130,10 +133,10 @@ export const createLogoRenderAsset = async (logoUrl, width, height, fit = 'conta
 
         resolve(canvas.toDataURL('image/png'))
       } catch {
-        resolve(logoUrl)
+        resolve('')
       }
     }
-    image.onerror = () => resolve(logoUrl)
-    image.src = logoUrl
+    image.onerror = () => resolve('')
+    image.src = safeUrl
   })
 }

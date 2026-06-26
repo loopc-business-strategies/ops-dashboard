@@ -70,6 +70,7 @@ const operationsLegalDocumentsRoutes = require('./routes/operationsLegalDocument
 const cleanupRoutes    = require('./routes/cleanupRoutes')
 const aiRoutes         = require('./routes/ai')
 const backendPackage = require('./package.json')
+const { isLocalDevEnv, isProductionEnv } = require('./utils/securityEnv')
 
 const readBackendBuildMetaFile = () => {
   try {
@@ -147,7 +148,8 @@ const backendBuildMeta = {
 function createApp() {
   const app = express()
   const REQUEST_BODY_LIMIT = process.env.REQUEST_BODY_LIMIT || '5mb'
-  const isProduction = process.env.NODE_ENV === 'production'
+  const isProduction = isProductionEnv()
+  const hardenedEnv = !isLocalDevEnv()
 
   app.set('trust proxy', 1)
 
@@ -159,7 +161,7 @@ function createApp() {
   ]
 
   const shouldSkipApiRateLimit = (req) => {
-    if (!isProduction) return true
+    if (!hardenedEnv) return true
     const path = String(req.originalUrl || req.url || '').split('?')[0]
     if (authRateLimitPaths.some(
       (prefix) => path === prefix || path.startsWith(`${prefix}/`),
@@ -190,7 +192,7 @@ function createApp() {
     max: Number(process.env.AUTH_RATE_LIMIT_MAX || 50),
     standardHeaders: true,
     legacyHeaders: false,
-    skip: () => !isProduction,
+    skip: () => !hardenedEnv,
     skipSuccessfulRequests: true,
     keyGenerator: (req) => {
       const ip = ipKeyGenerator(req)

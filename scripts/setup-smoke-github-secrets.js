@@ -17,15 +17,26 @@
 
 const { spawnSync } = require('node:child_process')
 const crypto = require('node:crypto')
+const dns = require('node:dns')
 const path = require('node:path')
+
+if (process.platform === 'win32') {
+  // Windows local DNS sometimes refuses SRV lookups Node needs for mongodb+srv URIs.
+  dns.setServers(['8.8.8.8', '1.1.1.1'])
+}
 
 const rootDir = path.resolve(__dirname, '..')
 const backendDir = path.join(rootDir, 'backend')
 const isStaging = process.argv.includes('--staging')
+const skipBackendDotenv = isStaging && ['MONGO_URI_MG', 'MONGO_URI_CG', 'MONGO_URI_LOOPC'].every(
+  (key) => String(process.env[key] || '').trim(),
+)
 
-require(path.join(backendDir, 'node_modules', 'dotenv')).config({
-  path: path.join(backendDir, '.env'),
-})
+if (!skipBackendDotenv) {
+  require(path.join(backendDir, 'node_modules', 'dotenv')).config({
+    path: path.join(backendDir, '.env'),
+  })
+}
 
 const TENANTS = ['mg', 'cg', 'loopc']
 const REPO = process.env.GITHUB_REPOSITORY || 'loopc-business-strategies/ops-dashboard'
@@ -217,6 +228,7 @@ function setGithubSecrets(password) {
 
   if (isStaging) {
     runGh(['variable', 'set', 'STAGING_SMOKE_REQUIRE_AUTH', '-R', REPO], 'true\n')
+    runGh(['variable', 'set', 'STAGING_SMOKE_REQUIRE_MOBILE_AUTH', '-R', REPO], 'true\n')
   }
 }
 
@@ -233,10 +245,20 @@ async function main() {
 
   if (reactivateOnly) {
     for (const tenant of TENANTS) {
-      const envVar = `MONGO_URI_${tenant.toUpperCase()}`
-      if (!String(process.env[envVar] || '').trim()) {
-        throw new Error(`Missing ${envVar} in backend/.env or workflow env`)
+      const envVar = isStaging
+        ? `STAGING_MONGO_URI_${tenant.toUpperCase()}`
+        : `MONGO_URI_${tenant.toUpperCase()}`
+      const uri = String(process.env[envVar] || process.env[`MONGO_URI_${tenant.toUpperCase()}`] || '').trim()
+      if (!uri) {
+        throw new Error(`Missing ${envVar} (or MONGO_URI_${tenant.toUpperCase()}) in env`)
       }
+      if (isStaging) {
+        process.env[`MONGO_URI_${tenant.toUpperCase()}`] = uri
+      }
+    }
+    if (isStaging && !process.argv.includes('--skip-staging-uri-guard')) {
+      const { assertStagingMongoTargets } = require(path.join(backendDir, 'utils', 'stagingMongoSafety.js'))
+      assertStagingMongoTargets(TENANTS)
     }
 
     console.log(`Reactivating ${isStaging ? 'staging' : 'production'} smoke users in mg/cg/loopc (no password change)...`)
@@ -274,10 +296,21 @@ async function main() {
   }
 
   for (const tenant of TENANTS) {
-    const envVar = `MONGO_URI_${tenant.toUpperCase()}`
-    if (!String(process.env[envVar] || '').trim()) {
-      throw new Error(`Missing ${envVar} in backend/.env or workflow env`)
+    const envVar = isStaging
+      ? `STAGING_MONGO_URI_${tenant.toUpperCase()}`
+      : `MONGO_URI_${tenant.toUpperCase()}`
+    const uri = String(process.env[envVar] || process.env[`MONGO_URI_${tenant.toUpperCase()}`] || '').trim()
+    if (!uri) {
+      throw new Error(`Missing ${envVar} (or MONGO_URI_${tenant.toUpperCase()}) in env`)
     }
+    if (isStaging) {
+      process.env[`MONGO_URI_${tenant.toUpperCase()}`] = uri
+    }
+  }
+
+  if (isStaging && !process.argv.includes('--skip-staging-uri-guard')) {
+    const { assertStagingMongoTargets } = require(path.join(backendDir, 'utils', 'stagingMongoSafety.js'))
+    assertStagingMongoTargets(TENANTS)
   }
 
   const passwordSecretName = `${SECRET_PREFIX}AUTH_PASSWORD`

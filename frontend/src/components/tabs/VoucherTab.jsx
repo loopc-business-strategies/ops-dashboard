@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import axios from '../../api/client'
 import { useLanguage } from '../../context/LanguageContext'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
-import { getTenantBranding } from '../../config/tenantBranding'
+import { getTenantBranding, isVoucherTypeEnabled } from '../../config/tenantBranding'
 import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
 import { buildMetalRatesFromApiPayload, marketPricesToRates, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
 import { BASE, cfg, fmt, today, S, btn, tabBtn, emptyLine, normalizeMongoIdField, emptyHeader, coerceVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
@@ -35,12 +35,12 @@ export default function VoucherTab({
   const showAccountDetailsTab = false
   const { t } = useLanguage()
   const {
-    erpAccess,
+    erpAccess: _erpAccess,
     tenantKey,
     enabledVoucherTypes,
     isSuperAdmin,
     isFinance,
-    isManagementOnly,
+    isManagementOnly: _isManagementOnly,
     canManageWorkflow,
     canView,
     canCreatePayment,

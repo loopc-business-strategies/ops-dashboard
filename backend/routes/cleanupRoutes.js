@@ -6,6 +6,7 @@
 const express = require('express')
 const { protect, restrictTo } = require('../middleware/auth')
 const { connectTenant } = require('../db/tenantConnections')
+const { isLocalDevEnv, isProductionEnv } = require('../utils/securityEnv')
 const {
   planVendorRegistryMaintenance,
   applyVendorRegistryMaintenance,
@@ -19,7 +20,7 @@ function envBool(value, defaultValue = false) {
 
 function ensureCleanupRouteEnabled(req, res, next) {
   const enabledInProduction = envBool(process.env.ENABLE_ADMIN_CLEANUP_API, false)
-  if (process.env.NODE_ENV === 'production' && !enabledInProduction) {
+  if (isProductionEnv() && !enabledInProduction) {
     return res.status(403).json({
       ok: false,
       error: 'Cleanup API is disabled in production. Set ENABLE_ADMIN_CLEANUP_API=true to allow it.',
@@ -31,10 +32,10 @@ function ensureCleanupRouteEnabled(req, res, next) {
 function requireCleanupConfirmationToken(req, res, next) {
   const expectedToken = String(process.env.CLEANUP_CONFIRM_TOKEN || '').trim()
   if (!expectedToken) {
-    if (process.env.NODE_ENV === 'production') {
+    if (!isLocalDevEnv()) {
       return res.status(403).json({
         ok: false,
-        error: 'Cleanup confirmation token is required in production.',
+        error: 'Cleanup confirmation token is required outside local development.',
       })
     }
     return next()

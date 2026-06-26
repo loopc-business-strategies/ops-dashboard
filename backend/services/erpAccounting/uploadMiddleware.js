@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const multer = require('multer')
+const { validateUploadedFiles } = require('../../utils/fileContentValidator')
 
 const DEFAULT_UPLOAD_ROOT = path.join(__dirname, '../../uploads')
 let warnedAboutEphemeralUploads = false
@@ -20,10 +21,28 @@ function resolveUploadDir(envVar, fallbackName) {
   return path.join(root, fallbackName)
 }
 
+function wrapUploadWithContentValidation(upload) {
+  const wrap = (factory) => (...args) => {
+    const handler = factory(...args)
+    return (req, res, next) => {
+      handler(req, res, (err) => {
+        if (err) return next(err)
+        validateUploadedFiles(req, res, next)
+      })
+    }
+  }
+
+  return {
+    single: wrap(upload.single.bind(upload)),
+    array: wrap(upload.array.bind(upload)),
+    fields: wrap(upload.fields.bind(upload)),
+  }
+}
+
 function createDiskUpload({ dir, prefix, maxBytes, allowedMimeTypes, typeError }) {
   fs.mkdirSync(dir, { recursive: true })
 
-  return multer({
+  return wrapUploadWithContentValidation(multer({
     storage: multer.diskStorage({
       destination: (_req, _file, cb) => cb(null, dir),
       filename: (_req, file, cb) => {
@@ -38,7 +57,7 @@ function createDiskUpload({ dir, prefix, maxBytes, allowedMimeTypes, typeError }
       if (allowedMimeTypes.includes(file.mimetype)) return cb(null, true)
       cb(new Error(typeError))
     },
-  })
+  }))
 }
 
 function createErpUploadMiddleware({ transactionAttachmentMimeTypes }) {
@@ -79,4 +98,5 @@ module.exports = {
   createDiskUpload,
   createErpUploadMiddleware,
   resolveUploadDir,
+  wrapUploadWithContentValidation,
 }

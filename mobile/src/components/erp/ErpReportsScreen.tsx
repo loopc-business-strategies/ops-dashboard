@@ -29,7 +29,6 @@ import {
   type AccountListItem,
   type AccountEnquiryPayload,
 } from '@/src/api/erpReports'
-import { LiveMetalPricesBar } from '@/src/components/dashboard/LiveMetalPricesBar'
 import { AccountEnquirySummaryCard } from '@/src/components/erp/AccountEnquirySummaryCard'
 import { fmtSigned } from '@/src/utils/format'
 import { buildReportDateRange, type ReportPeriod } from '@/src/utils/reportDateRange'
@@ -371,14 +370,13 @@ export default function ErpReportsScreen({
       <Text style={styles.title}>ERP Reports</Text>
       <Text style={styles.lead}>Same report types as the web dashboard. Pull down to refresh.</Text>
 
-      <LiveMetalPricesBar />
-
       {initialAccountCode ? (
         <AccountEnquirySummaryCard
           accountCode={initialAccountCode}
           enquiry={enquiryData}
           loading={enquiryLoading}
           branding={branding}
+          enableLiveMetal={false}
         />
       ) : null}
 

@@ -11,7 +11,14 @@ require('./_destructive-guard')({ scriptName: __filename, allowDryRunNoApply: tr
 require('dotenv').config()
 const mongoose = require('mongoose')
 
-const CONFIRM_TOKEN = 'DELETE_MG_TRANSACTIONS_AND_LEDGERS'
+function resolveConfirmToken() {
+  return String(
+    process.env.MG_DESTRUCTIVE_CONFIRM_TOKEN ||
+    process.env.DESTRUCTIVE_ADMIN_CONFIRM_TOKEN ||
+    process.env.CLEANUP_CONFIRM_TOKEN ||
+    '',
+  ).trim()
+}
 
 function hasArg(name) {
   return process.argv.includes(name)
@@ -31,6 +38,7 @@ async function main() {
   const apply = hasArg('--apply')
   const confirm = getArgValue('--confirm=')
   const allowReset = String(process.env.ALLOW_MG_DESTRUCTIVE_RESET || '').toLowerCase() === 'true'
+  const confirmToken = resolveConfirmToken()
 
   console.log('MG transaction/ledger reset guard')
   console.log(`Mode: ${apply ? 'apply requested' : 'dry-run'}`)
@@ -58,7 +66,7 @@ async function main() {
   if (!apply) {
     console.log('')
     console.log('Dry-run only. No data was changed.')
-    console.log(`To execute, set ALLOW_MG_DESTRUCTIVE_RESET=true and pass --apply --confirm=${CONFIRM_TOKEN}`)
+    console.log(`To execute, set ALLOW_MG_DESTRUCTIVE_RESET=true, MG_DESTRUCTIVE_CONFIRM_TOKEN (or DESTRUCTIVE_ADMIN_CONFIRM_TOKEN), and pass --apply --confirm=<token>`)
     return
   }
 
@@ -66,8 +74,12 @@ async function main() {
     throw new Error('Refusing apply mode. Set ALLOW_MG_DESTRUCTIVE_RESET=true to continue.')
   }
 
-  if (confirm !== CONFIRM_TOKEN) {
-    throw new Error(`Refusing apply mode. Expected --confirm=${CONFIRM_TOKEN}`)
+  if (!confirmToken) {
+    throw new Error('Refusing apply mode. Set MG_DESTRUCTIVE_CONFIRM_TOKEN or DESTRUCTIVE_ADMIN_CONFIRM_TOKEN.')
+  }
+
+  if (confirm !== confirmToken) {
+    throw new Error('Refusing apply mode. --confirm token does not match configured destructive token.')
   }
 
   const [txResult, ledgerResult] = await Promise.all([

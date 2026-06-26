@@ -102,7 +102,6 @@ jobs:
 
   backend-full-jest:
     name: Backend full Jest (all suites)
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.base_ref == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:

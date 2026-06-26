@@ -1326,7 +1326,7 @@ export default function SalesTab() {
                             <Button variant='secondary' onClick={() => { setLeadEditing(l); setLeadModal(true) }}>View</Button>
                             <Button variant='secondary' onClick={() => { setActivityEditing({ leadId: l._id, contactName: l.contactName, dealName: l.name }); setActivityModal(true) }}>Log</Button>
                           </div>
-                          <div style={{ marginTop: 6 }}><Select value={l.stage} onChange={async (e) => { try { await changeLeadStage(l._id, e.target.value, 'Stage changed from board'); await loadAll() } catch { void 0 } }} options={LEAD_STAGES} /></div>
+                          <div style={{ marginTop: 6 }}><Select value={l.stage} onChange={async (e) => { try { await changeLeadStage(l._id, e.target.value, 'Stage changed from board'); await loadAll() } catch (err) { setMsg(`Failed to update lead stage: ${err?.response?.data?.message || err?.message || 'Unknown error'}`) } }} options={LEAD_STAGES} /></div>
                         </div>
                       )
                     })}

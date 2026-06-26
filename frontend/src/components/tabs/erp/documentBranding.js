@@ -1,5 +1,6 @@
 import { getTenantBranding } from '../../../config/tenantBranding'
 import { DEFAULT_BRANDING, clampBrandingDimension } from './ERPBrandingUtils'
+import { sanitizeLogoUrl } from '../../../utils/safeHtml'
 
 const hasValue = (value) => String(value || '').trim().length > 0
 
@@ -11,7 +12,7 @@ const pick = (...values) => {
 export const resolveDocumentBranding = ({ reportBranding = {}, user = {}, tenantBranding } = {}) => {
   const tenant = user?.tenant || {}
   const fallbackTenantBranding = tenantBranding || getTenantBranding(user?.company || tenant?.key || tenant?.name)
-  const uploadedLogo = String(reportBranding?.logoUrl || '').trim()
+  const uploadedLogo = sanitizeLogoUrl(String(reportBranding?.logoUrl || '').trim())
 
   return {
     ...DEFAULT_BRANDING,

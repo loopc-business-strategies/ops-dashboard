@@ -325,6 +325,7 @@ Use these only after provisioning separate staging Railway/Vercel/Mongo resource
 | `STAGING_SMOKE_RAILWAY_READINESS_URL` | Optional explicit readiness URL |
 | `STAGING_SMOKE_WAIT_SECONDS` | Optional deploy propagation delay |
 | `STAGING_SMOKE_REQUIRE_AUTH` | Default `false`; set `true` after staging smoke users exist |
+| `STAGING_SMOKE_REQUIRE_MOBILE_AUTH` | Default `false`; set `true` to fail CI when mobile smoke credentials are missing |
 | `STAGING_SMOKE_SKIP_FRONTEND` | Default `true`; set `false` after adding staging frontend hosts |
 
 ### Repository secrets

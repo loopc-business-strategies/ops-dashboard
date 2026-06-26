@@ -637,7 +637,8 @@ router.delete('/transactions/:id', protect, async (req, res) => {
     })
 
     res.json({ success: true, message: 'Transaction deleted (soft)', transaction: tx })
-  } catch {
+  } catch (err) {
+    console.error('Transaction delete failed:', err)
     res.status(500).json({ success: false, message: 'Server error' })
   }
 })

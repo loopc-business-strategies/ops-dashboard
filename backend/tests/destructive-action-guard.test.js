@@ -40,7 +40,7 @@ function runGuard({ actionName = 'test-action', env = {}, headers = {}, body = {
 }
 
 describe('destructive action guard', () => {
-  test('blocks production when destructive API is disabled', () => {
+  test('blocks hardened environments when destructive API is disabled', () => {
     const { res, next } = runGuard({
       env: {
         NODE_ENV: 'production',
@@ -53,7 +53,7 @@ describe('destructive action guard', () => {
 
     expect(next).not.toHaveBeenCalled()
     expect(res.statusCode).toBe(403)
-    expect(res.payload.message).toMatch(/disabled in production/i)
+    expect(res.payload.message).toMatch(/disabled/i)
   })
 
   test('requires configured confirmation token', () => {

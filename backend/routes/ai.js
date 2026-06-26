@@ -6,17 +6,19 @@ const rateLimit = require('express-rate-limit')
 const { protect } = require('../middleware/auth')
 const { Joi, validateBody } = require('../middleware/validate')
 const { runAgentChat, getAiAgentConfig } = require('../services/aiAgentService')
+const { wrapUploadWithContentValidation } = require('../services/erpAccounting/uploadMiddleware')
 const { processUploadedFiles, cleanupUploadedFiles } = require('../services/loopcFileProcessor')
 
 const router = express.Router()
 
-const isProduction = process.env.NODE_ENV === 'production'
+const { isLocalDevEnv } = require('../utils/securityEnv')
+
 const aiChatLimiter = rateLimit({
   windowMs: Number(process.env.AI_CHAT_RATE_LIMIT_WINDOW_MS || 60 * 1000),
   max: Number(process.env.AI_CHAT_RATE_LIMIT_MAX || 30),
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => !isProduction,
+  skip: () => isLocalDevEnv(),
   message: { success: false, message: 'Too many AI requests. Please wait a moment.' },
 })
 
@@ -41,7 +43,7 @@ const ALLOWED_MIMES = new Set([
   'application/octet-stream',
 ])
 
-const loopcUpload = multer({
+const loopcUpload = wrapUploadWithContentValidation(multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, uploadDir),
     filename: (_req, file, cb) => {
@@ -58,7 +60,7 @@ const loopcUpload = multer({
       cb(new Error(`File type not allowed: ${mime || 'unknown'}`))
     }
   },
-})
+}))
 
 const chatSchema = Joi.object({
   message: Joi.string().trim().min(1).max(4000).required(),

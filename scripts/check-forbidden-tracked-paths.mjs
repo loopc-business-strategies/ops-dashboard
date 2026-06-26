@@ -31,6 +31,8 @@ const forbiddenPatterns = [
   { label: 'backend reports', pattern: /^backend\/reports\// },
   { label: 'backend logs', pattern: /^backend\/logs\// },
   { label: 'frontend build output', pattern: /^frontend\/dist\// },
+  { label: 'mobile android build output', pattern: /^mobile\/android\/(app\/)?build\// },
+  { label: 'mobile android gradle cache', pattern: /^mobile\/android\/\.gradle\// },
   { label: 'coverage output', pattern: /(^|\/)coverage\// },
 ]
 

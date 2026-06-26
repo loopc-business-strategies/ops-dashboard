@@ -19,12 +19,19 @@ Goal: a **second** full stack that mirrors production **URLs and secrets shape**
 1. **New service** → GitHub repo → branch `staging` (or `main` with manual deploys only from staging branch).
 2. **Variables:** Copy from production and adjust:
 
-   - `NODE_ENV=production` (still use production mode for realistic CSRF/cookie behavior) or `NODE_ENV=staging` if your code branches on it (today most paths only check `production` vs not).
+   - `NODE_ENV=production` (recommended — rate limits, setup tokens, and cleanup guards apply to all non-development environments).
+   - Staging with `NODE_ENV=staging` still enforces rate limits and confirmation tokens; only `development` and `test` skip them.
    - `JWT_SECRET` — **different** random value from prod (invalidates tokens between envs).
    - `MONGO_URI_MG` / `_CG` / `_LOOPC` — **staging** URIs.
    - `CLIENT_URL` / `CLIENT_URLS` — include **only** staging frontend origins (e.g. `https://staging.yourdomain.com`, `https://*.vercel.app` for preview if you allow it).
    - `SERVER_BASE_URL` — public **staging** API URL (for links and uploads).
    - Optional: `SENTRY_DSN` / `SENTRY_ENVIRONMENT=staging` — separate Sentry project or environment (see [OBSERVABILITY-SENTRY.md](./OBSERVABILITY-SENTRY.md)).
+   - **Security tokens** (generate unique staging values — never copy production):
+     - `SETUP_TOKEN` — required if `ENABLE_SETUP=true` for first admin bootstrap
+     - `CLEANUP_CONFIRM_TOKEN` — required for admin cleanup API
+     - `DESTRUCTIVE_ADMIN_CONFIRM_TOKEN` — required for destructive admin routes
+     - `MIGRATION_CONFIRM_TOKEN` — required only when running `migrate:apply` (after backup)
+   - Template: [backend/.env.staging.example](../backend/.env.staging.example)
 
 3. **Custom domain** (optional): `api-staging.yourdomain.com` → staging service.
 
@@ -55,7 +62,19 @@ Goal: a **second** full stack that mirrors production **URLs and secrets shape**
 
 ## 6. GitHub Actions staging smoke
 
-Configure these under **Settings → Secrets and variables → Actions** before enabling the workflow:
+Configure these under **Settings → Secrets and variables → Actions** before enabling the workflow.
+
+**Quick setup (local, no production DB writes):**
+
+```powershell
+npm run setup:staging
+gh auth login
+npm run setup:staging:github          # push STAGING_SMOKE_AUTH_* secrets
+# Add STAGING_MONGO_URI_* in GitHub manually (Atlas staging clusters)
+# Actions → Provision Staging Smoke Credentials
+```
+
+Generated tokens are saved to `backend/.env.staging.generated.local` (gitignored). Copy the Railway block from the script output into your **staging** Railway service only.
 
 ### Repository variables
 
@@ -67,6 +86,7 @@ Configure these under **Settings → Secrets and variables → Actions** before 
 | `STAGING_SMOKE_RAILWAY_READINESS_URL` | Optional explicit readiness URL; defaults to `${STAGING_SMOKE_API_BASE}/api/ready` |
 | `STAGING_SMOKE_WAIT_SECONDS` | Optional deploy propagation delay; default `60` |
 | `STAGING_SMOKE_REQUIRE_AUTH` | Default `false`; set `true` after staging smoke users exist |
+| `STAGING_SMOKE_REQUIRE_MOBILE_AUTH` | Default `false`; set `true` to fail CI when mobile smoke credentials are missing |
 | `STAGING_SMOKE_SKIP_FRONTEND` | Default `true`; set `false` after adding `STAGING_SMOKE_VERCEL_HOSTS` |
 
 ### Vercel preview Deployment Protection (401 on `*.vercel.app`)

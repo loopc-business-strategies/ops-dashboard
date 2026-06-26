@@ -10,6 +10,8 @@ frontend/dist/
 docs/ops-log/*.log
 frontend/.env.development
 .env*.local
+backend/.env.staging.local
+backend/.env.staging.generated.local
 .web-push-vapid.json
 
 # Deployment tool state
@@ -20,6 +22,9 @@ backend/logs/
 backend/uploads/
 backend/reports/
 backend/build-meta.json
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/build/
 *.log
 *.cookies/
 *.cookies

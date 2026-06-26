@@ -25,10 +25,17 @@ type Props = {
   enquiry: AccountEnquiryPayload | null
   loading: boolean
   branding: MobileTenantBranding
+  enableLiveMetal?: boolean
 }
 
-export function AccountEnquirySummaryCard({ accountCode, enquiry, loading, branding }: Props) {
-  const { goldPriceUSD, silverPriceUSD, liveRecalcEnabled } = useErpLiveMetalSpotPrices()
+export function AccountEnquirySummaryCard({
+  accountCode,
+  enquiry,
+  loading,
+  branding,
+  enableLiveMetal = true,
+}: Props) {
+  const liveSpot = useErpLiveMetalSpotPrices()
   const styles = useMemo(() => createStyles(branding), [branding])
 
   const summary = useMemo(() => {
@@ -39,6 +46,14 @@ export function AccountEnquirySummaryCard({ accountCode, enquiry, loading, brand
     const balances = enquiry.balances || {}
     const statementEntries = enquiry.statement?.entries || []
     const { gold: xauBalance, silver: xagBalance } = deriveEnquiryMetalBalances(metals, statementEntries)
+
+    const goldPriceUSD = enableLiveMetal
+      ? liveSpot.goldPriceUSD
+      : Number(metals.goldPrice ?? 0)
+    const silverPriceUSD = enableLiveMetal
+      ? liveSpot.silverPriceUSD
+      : Number(metals.silverPrice ?? 0)
+    const liveRecalcEnabled = enableLiveMetal && liveSpot.liveRecalcEnabled && Boolean(enquiry)
 
     const totalFunds = Number(balances.netBalance ?? 0)
     const enquirySuppressMetalSpotMtm = Boolean(
@@ -55,7 +70,7 @@ export function AccountEnquirySummaryCard({ accountCode, enquiry, loading, brand
       silverPriceUSD,
       suppressMetalSpotMtm: enquirySuppressMetalSpotMtm,
       bookedRevaluation,
-      liveRecalcEnabled: liveRecalcEnabled && Boolean(enquiry),
+      liveRecalcEnabled,
     })
 
     const revaluation = liveMetrics ? liveMetrics.revaluation : 0
@@ -87,8 +102,9 @@ export function AccountEnquirySummaryCard({ accountCode, enquiry, loading, brand
       hasMetalExposure,
       enquirySuppressMetalSpotMtm,
       liveRecalcEnabled,
+      enableLiveMetal,
     }
-  }, [enquiry, goldPriceUSD, silverPriceUSD, liveRecalcEnabled])
+  }, [enquiry, enableLiveMetal, liveSpot.goldPriceUSD, liveSpot.silverPriceUSD, liveSpot.liveRecalcEnabled])
 
   if (loading) {
     return (
@@ -126,13 +142,14 @@ export function AccountEnquirySummaryCard({ accountCode, enquiry, loading, brand
     hasMetalExposure,
     enquirySuppressMetalSpotMtm,
     liveRecalcEnabled: liveOn,
+    enableLiveMetal: liveMetalOn,
   } = summary
 
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>Account Summary — {accountCode}</Text>
-        {liveOn && hasMetalExposure ? (
+        {liveMetalOn && liveOn && hasMetalExposure ? (
           <Text style={styles.liveBadge}>LIVE MTM</Text>
         ) : null}
       </View>
@@ -164,13 +181,17 @@ export function AccountEnquirySummaryCard({ accountCode, enquiry, loading, brand
       />
 
       <Text style={styles.footer}>
-        {enquirySuppressMetalSpotMtm
-          ? 'Creditor/vendor: Total Funds uses ledger payable; revaluation uses booked unfixed metal when posted, otherwise live spot on gram position.'
-          : liveOn && hasMetalExposure
-            ? 'Revaluation, Net Equity, Margin, and Excess update with live spot when the account has metal exposure. Total Funds stays on the ledger balance.'
-            : liveOn && !hasMetalExposure
-              ? 'Cash-only: Total Funds stays on the ledger; Revaluation and margin rows stay at 0 while Position Price still updates with live spot.'
-              : 'Revaluation and equity update with live spot when the account has metal exposure (grams).'}
+        {!liveMetalOn
+          ? enquirySuppressMetalSpotMtm
+            ? 'Creditor/vendor: Total Funds uses ledger payable; revaluation uses booked unfixed metal when posted. Position prices use saved enquiry rates.'
+            : 'Summary uses ledger balances and saved enquiry rates. Position prices do not update with live spot on mobile ERP.'
+          : enquirySuppressMetalSpotMtm
+            ? 'Creditor/vendor: Total Funds uses ledger payable; revaluation uses booked unfixed metal when posted, otherwise live spot on gram position.'
+            : liveOn && hasMetalExposure
+              ? 'Revaluation, Net Equity, Margin, and Excess update with live spot when the account has metal exposure. Total Funds stays on the ledger balance.'
+              : liveOn && !hasMetalExposure
+                ? 'Cash-only: Total Funds stays on the ledger; Revaluation and margin rows stay at 0 while Position Price still updates with live spot.'
+                : 'Revaluation and equity update with live spot when the account has metal exposure (grams).'}
       </Text>
     </View>
   )

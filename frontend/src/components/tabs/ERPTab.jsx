@@ -114,6 +114,7 @@ import {
   createLogoRenderAsset,
   isSupportedLogoUpload,
 } from './erp/ERPBrandingUtils'
+import { escapeHtml } from '../../utils/safeHtml'
 import { resolveDocumentBranding } from './erp/documentBranding'
 import { loadExcel, loadPdfTools } from './erp/lazyExportLibs'
 import { exchangeRateFromUnitsPerBase, resolveCurrencyRowByCode } from './erp/erpCurrencyRowHelpers'
@@ -2281,7 +2282,7 @@ function ERPTab({
     w.document.write(`
       <html>
         <head>
-          <title>${title}</title>
+          <title>${escapeHtml(title)}</title>
           <style>
             body { font-family: Georgia, 'Times New Roman', serif; color: #111827; margin: 0; padding: 32px; }
             .sheet { max-width: 980px; margin: 0 auto; }

@@ -23,6 +23,16 @@ const androidDir = mobileJunction
     ? path.resolve(repoRoot, 'mobile', 'android')
     : path.resolve(__dirname, '..', 'android')
 const task = process.argv[2] || 'bundleRelease'
+const keystorePropertiesPath = path.join(androidDir, 'keystore.properties')
+const allowDebugReleaseSigning =
+  process.env.ANDROID_ALLOW_DEBUG_RELEASE_SIGNING === 'true'
+  || !fs.existsSync(keystorePropertiesPath)
+const signingGradleArg = allowDebugReleaseSigning ? ' -PallowDebugReleaseSigning=true' : ''
+if (allowDebugReleaseSigning && !fs.existsSync(keystorePropertiesPath)) {
+  console.warn(
+    'android/keystore.properties not found — using debug signing for release (internal QA only, not Play Store).',
+  )
+}
 
 const isWin = process.platform === 'win32'
 // Match eas.json: release builds succeed without Sentry org/token unless caller opts in.
@@ -70,7 +80,7 @@ if (isWin) {
     '@echo off',
     `cd /d "${winQuoteBat(dirNorm)}"`,
     'if errorlevel 1 exit /b 1',
-    `call gradlew.bat ${task}${archGradleArg}`,
+    `call gradlew.bat ${task}${archGradleArg}${signingGradleArg}`,
     'exit /b %ERRORLEVEL%',
   ].join('\r\n')
   fs.writeFileSync(batPath, batBody, 'utf8')
@@ -85,8 +95,11 @@ if (isWin) {
   }
 } else {
   const args = [task]
-  if (archGradleArg) {
+  if (archGradleArg.trim()) {
     args.push(archGradleArg.trim())
+  }
+  if (signingGradleArg.trim()) {
+    args.push(signingGradleArg.trim())
   }
   result = spawnSync('./gradlew', args, {
     cwd: androidDir,

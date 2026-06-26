@@ -10,8 +10,8 @@
 |---------|-----------------|
 | ERP reports | `ErpReportsScreen.tsx` — trial balance, P&L, BS, day book, outstanding, forex, ledger |
 | Transaction browse | `TransactionsScreen.tsx` — list, filter, status |
-| Account enquiry summary | `AccountEnquirySummaryCard.tsx` — live MTM parity with web |
-| Live metal prices | `LiveMetalPricesBar`, `LiveMetalRatesContext`, SSE stream |
+| Account enquiry summary | `AccountEnquirySummaryCard.tsx` — ledger/saved-rate summary (no live MTM on mobile ERP) |
+| Live metal prices (Home only) | `LiveMetalPricesBar` on Home tab; `LiveMetalRatesContext` SSE stream — not shown on ERP tab |
 | Margin widgets | `MarginsWidget.tsx` — `suppressMetalSpotMtm` parity |
 | Chat, settings, push | Tabs + admin settings routes |
 

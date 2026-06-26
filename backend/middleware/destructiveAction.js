@@ -1,3 +1,5 @@
+const { isLocalDevEnv, isProductionEnv } = require('../utils/securityEnv')
+
 function envBool(value, defaultValue = false) {
   if (value === undefined || value === null || value === '') return defaultValue
   return String(value).trim().toLowerCase() === 'true'
@@ -9,17 +11,17 @@ function resolveReason(req) {
 
 function requireDestructiveAdminGuard(actionName) {
   return (req, res, next) => {
-    if (process.env.NODE_ENV === 'production' && !envBool(process.env.ENABLE_DESTRUCTIVE_ADMIN_API, false)) {
+    if (!isLocalDevEnv() && !envBool(process.env.ENABLE_DESTRUCTIVE_ADMIN_API, false)) {
       return res.status(403).json({
         success: false,
-        message: 'Destructive admin API is disabled in production. Set ENABLE_DESTRUCTIVE_ADMIN_API=true to allow it.',
+        message: 'Destructive admin API is disabled. Set ENABLE_DESTRUCTIVE_ADMIN_API=true to allow it.',
       })
     }
 
     const normalizedActionName = String(actionName || '').toLowerCase()
     const isPermanentDeleteAction = /hard-delete|permanent-delete|permanent/.test(normalizedActionName)
     if (
-      process.env.NODE_ENV === 'production' &&
+      isProductionEnv() &&
       isPermanentDeleteAction &&
       !envBool(process.env.ENABLE_PERMANENT_DELETE_API, false)
     ) {

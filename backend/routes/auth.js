@@ -22,6 +22,7 @@ const express = require('express')
 const jwt     = require('jsonwebtoken')
 const User    = require('../models/User')
 const { protect, restrictTo } = require('../middleware/auth')
+const { isLocalDevEnv, isProductionEnv } = require('../utils/securityEnv')
 const { Joi, validateBody, validateParams } = require('../middleware/validate')
 const { normalizeTenant, getDefaultTenant, resolveTenantFromHost } = require('../config/tenants')
 const { getTenantKeys } = require('../config/tenantRegistry')
@@ -186,18 +187,14 @@ const updateRoleSchema = Joi.object({
 // ==========================================
 router.post('/setup', validateBody(setupSchema), async (req, res) => {
   try {
-    const isProduction = process.env.NODE_ENV === 'production'
-    const isDevelopment = process.env.NODE_ENV === 'development'
-    const isTest = process.env.NODE_ENV === 'test'
-
-    if (isProduction) {
+    if (isProductionEnv()) {
       const enabled = String(process.env.ENABLE_SETUP || '').trim().toLowerCase() === 'true'
       if (!enabled) {
         return res.status(403).json({ success: false, message: 'Setup is disabled in production.' })
       }
     }
 
-    if (!isDevelopment && !isTest) {
+    if (!isLocalDevEnv()) {
       const expectedToken = String(process.env.SETUP_TOKEN || '').trim()
       const providedToken = String(
         req.headers['x-setup-token']

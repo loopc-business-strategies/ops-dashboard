@@ -68,7 +68,7 @@ async function authenticateSocket(socket) {
   const token = getSocketToken(socket)
   if (!token) throw new Error('Authentication error')
 
-  const decoded = jwt.verify(token, process.env.JWT_SECRET)
+  const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] })
   const tenant = normalizeTenant(decoded.company)
   if (!tenant) throw new Error('Invalid tenant in session')
 
@@ -103,14 +103,16 @@ function buildSocketOrigins() {
   return origins.length ? origins : ['http://localhost:5173']
 }
 
-/** Allow browser allowlist + React Native (no Origin / Expo exp://) without disabling credentials for web. */
+/** Allow browser allowlist + React Native Expo origins in non-production only. */
 function buildSocketCorsOriginValidator() {
   const allowedList = buildSocketOrigins()
   const isProduction = process.env.NODE_ENV === 'production'
   return (origin, callback) => {
     if (!origin) return callback(null, true)
     if (allowedList.includes(origin)) return callback(null, true)
-    if (origin.startsWith('exp://') || origin.startsWith('exps://')) return callback(null, true)
+    if (!isProduction && (origin.startsWith('exp://') || origin.startsWith('exps://'))) {
+      return callback(null, true)
+    }
     if (!isProduction) {
       try {
         const url = new URL(origin)

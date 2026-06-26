@@ -28,6 +28,7 @@ jobs:
       SMOKE_WAIT_SECONDS: ${{ vars.STAGING_SMOKE_WAIT_SECONDS || '60' }}
       SMOKE_REQUIRE_AUTH: ${{ vars.STAGING_SMOKE_REQUIRE_AUTH || 'false' }}
       SMOKE_SKIP_FRONTEND: ${{ vars.STAGING_SMOKE_SKIP_FRONTEND || 'true' }}
+      STAGING_SMOKE_REQUIRE_MOBILE_AUTH: ${{ vars.STAGING_SMOKE_REQUIRE_MOBILE_AUTH || 'false' }}
 
     steps:
       - name: Checkout
@@ -65,6 +66,7 @@ jobs:
 
       - name: Run staging mobile API smoke
         env:
+          STAGING_SMOKE_REQUIRE_MOBILE_AUTH: ${{ vars.STAGING_SMOKE_REQUIRE_MOBILE_AUTH || 'false' }}
           STAGING_SMOKE_API_BASE: ${{ vars.STAGING_SMOKE_API_BASE || 'https://ops-dashboard-staging-e6c6.up.railway.app' }}
           MOBILE_SMOKE_COMPANY: loopc
           STAGING_SMOKE_AUTH_NAME: ${{ secrets.STAGING_SMOKE_AUTH_NAME }}
@@ -75,7 +77,11 @@ jobs:
           export MOBILE_SMOKE_LOGIN_NAME="${STAGING_SMOKE_AUTH_NAME_LOOPC:-$STAGING_SMOKE_AUTH_NAME}"
           export MOBILE_SMOKE_LOGIN_PASSWORD="${STAGING_SMOKE_AUTH_PASSWORD_LOOPC:-$STAGING_SMOKE_AUTH_PASSWORD}"
           if [ -z "$MOBILE_SMOKE_LOGIN_NAME" ] || [ -z "$MOBILE_SMOKE_LOGIN_PASSWORD" ]; then
-            echo "Skipping staging mobile API smoke — set STAGING_SMOKE_AUTH_NAME and STAGING_SMOKE_AUTH_PASSWORD."
+            if [ "${STAGING_SMOKE_REQUIRE_MOBILE_AUTH}" = "true" ]; then
+              echo "::error::Staging mobile API smoke requires STAGING_SMOKE_AUTH_NAME and STAGING_SMOKE_AUTH_PASSWORD."
+              exit 1
+            fi
+            echo "Skipping staging mobile API smoke (credentials not set). Set STAGING_SMOKE_REQUIRE_MOBILE_AUTH=true after provisioning secrets."
             exit 0
           fi
           npm run smoke:mobile:staging

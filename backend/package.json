@@ -19,7 +19,7 @@
     "smoke:erp": "node scripts/smoke-erp-api.js",
     "void:transaction:api": "node scripts/void-transaction-via-api.js",
     "test": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest",
-    "test:fast": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest tests/permissions.test.js tests/readiness-and-setup-security.test.js tests/metal-rates-bridge-route.test.js tests/metalRateBridgeFanout.test.js tests/metalMarginPolicy.test.js tests/legacy-erp-supplier-deprecation.test.js",
+    "test:fast": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest tests/permissions.test.js tests/readiness-and-setup-security.test.js tests/finance-attendance-routes.test.js tests/metal-rates-bridge-route.test.js tests/metalRateBridgeFanout.test.js tests/metalMarginPolicy.test.js tests/legacy-erp-supplier-deprecation.test.js",
     "test:erp-accounting": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest tests/erpAccounting",
     "test:pagination": "jest --runInBand --cacheDirectory ./node_modules/.cache/jest tests/pagination-edge-cases.test.js",
     "test:integration": "npm run test:integration:tenant-routing && npm run test:integration:tenant-isolation && npm run test:integration:erp",
@@ -30,7 +30,9 @@
     "build:loopc-index": "node scripts/build-loopc-project-index.js",
     "cleanup:safe": "node scripts/safe-cleanup-cli.js",
     "backfill:jv-ledger-fc:dry": "node scripts/backfill-jv-ledger-base-to-fc.js --dry-run",
-    "backfill:jv-ledger-fc:apply": "node scripts/backfill-jv-ledger-base-to-fc.js --apply"
+    "backfill:jv-ledger-fc:apply": "node scripts/backfill-jv-ledger-base-to-fc.js --apply",
+    "migrate": "node migrations/runner.js",
+    "migrate:apply": "node migrations/runner.js --apply"
   },
   "dependencies": {
     "@sentry/node": "^10.58.0",
