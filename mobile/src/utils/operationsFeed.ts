@@ -112,7 +112,7 @@ function isFullCalendarMonth(startDate: string, endDate: string): boolean {
 }
 
 export function formatMonthPillLabel(startDate: string, endDate: string): string {
-  if (!startDate && !endDate) return 'All dates'
+  if (!startDate && !endDate) return 'All'
   if (isFullCalendarMonth(startDate, endDate)) {
     const start = new Date(`${startDate}T12:00:00`)
     const now = new Date()
@@ -131,6 +131,7 @@ function formatLocalDate(d: Date): string {
 }
 
 export const MIN_TRANSACTION_MONTH_YEAR = 2026
+export const RECENT_MONTH_COUNT = 6
 
 export function monthPresets(count = 24, minYear = MIN_TRANSACTION_MONTH_YEAR): MonthPreset[] {
   const presets: MonthPreset[] = []
@@ -151,6 +152,23 @@ export function monthPresets(count = 24, minYear = MIN_TRANSACTION_MONTH_YEAR): 
   }
 
   return presets
+}
+
+export function allDatesMonthPreset(): MonthPreset {
+  return { label: 'All', startDate: '', endDate: '' }
+}
+
+export type MonthFilterSection = {
+  title: string
+  data: MonthPreset[]
+}
+
+export function buildMonthFilterSections(): MonthFilterSection[] {
+  const allMonths = monthPresets(24)
+  return [
+    { title: 'Recent', data: monthPresets(RECENT_MONTH_COUNT) },
+    { title: 'All', data: [allDatesMonthPreset(), ...allMonths] },
+  ]
 }
 
 export function formatSectionDate(dateKey: string): string {

@@ -22,8 +22,8 @@ import {
   operationKeyFilterLabel,
 } from '@/src/constants/transactionTypes'
 import {
+  buildMonthFilterSections,
   formatMonthPillLabel,
-  monthPresets,
   type OperationsFilterState,
 } from '@/src/utils/operationsFeed'
 import { groupAccountsByType } from '@/src/utils/accountListGroups'
@@ -115,7 +115,7 @@ export default function OperationsFilterBar({
     [canTransactions, canLedger],
   )
 
-  const months = useMemo(() => monthPresets(24), [])
+  const monthSections = useMemo(() => buildMonthFilterSections(), [])
 
   const typeLabel = useMemo(
     () => operationKeyFilterLabel(filters.operationKey, typeOptions),
@@ -123,7 +123,7 @@ export default function OperationsFilterBar({
   )
 
   const accountLabel = useMemo(() => {
-    if (!filters.accountCode) return 'Accounts and cards'
+    if (!filters.accountCode) return 'Accounts'
     const acc = accounts.find((a) => a.accountCode === filters.accountCode)
     if (acc?.accountName) return truncateLabel(acc.accountName)
     return filters.accountCode
@@ -176,13 +176,21 @@ export default function OperationsFilterBar({
         <Pressable style={styles.modalBackdrop} onPress={closeSheet}>
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Month</Text>
-            <FlatList
-              data={months}
-              keyExtractor={(item) => `${item.startDate}-${item.endDate}`}
+            <SectionList
+              sections={monthSections}
+              keyExtractor={(item) =>
+                item.startDate || item.endDate ? `${item.startDate}-${item.endDate}` : 'all-dates'
+              }
               style={{ maxHeight: 420 }}
+              stickySectionHeadersEnabled
+              renderSectionHeader={({ section: { title } }) => (
+                <Text style={pillStyles.sectionHeader}>{title}</Text>
+              )}
               renderItem={({ item }) => {
-                const active =
-                  filters.startDate === item.startDate && filters.endDate === item.endDate
+                const isAllDates = !item.startDate && !item.endDate
+                const active = isAllDates
+                  ? !filters.startDate && !filters.endDate
+                  : filters.startDate === item.startDate && filters.endDate === item.endDate
                 return (
                   <Pressable
                     style={styles.sheetOption}
@@ -276,7 +284,7 @@ export default function OperationsFilterBar({
               ]}
               onPress={(e) => e.stopPropagation()}
             >
-              <Text style={styles.modalTitle}>Accounts and cards</Text>
+              <Text style={styles.modalTitle}>Accounts</Text>
               <TextInput
                 style={styles.input}
                 placeholder="Search accounts…"

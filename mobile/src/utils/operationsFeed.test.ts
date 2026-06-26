@@ -10,6 +10,9 @@ import {
   groupEntriesByDate,
   MIN_TRANSACTION_MONTH_YEAR,
   monthPresets,
+  RECENT_MONTH_COUNT,
+  buildMonthFilterSections,
+  allDatesMonthPreset,
 } from '@/src/utils/operationsFeed'
 import { operationKeyMatchesCategory, normalizeOperationKey } from '@/src/constants/transactionTypes'
 
@@ -133,6 +136,10 @@ describe('operationsFeed', () => {
     expect(operationKeyMatchesCategory('grp_jv', 'jv_journal')).toBe(true)
   })
 
+  test('formatMonthPillLabel shows All for empty range', () => {
+    expect(formatMonthPillLabel('', '')).toBe('All')
+  })
+
   test('formatMonthPillLabel shows month name for full month', () => {
     expect(formatMonthPillLabel('2025-03-01', '2025-03-31')).toBe('March 2025')
     const now = new Date()
@@ -161,5 +168,17 @@ describe('operationsFeed', () => {
     const now = new Date()
     const expectedCount = now.getMonth() + 1
     expect(presets).toHaveLength(expectedCount)
+  })
+
+  test('buildMonthFilterSections has Recent and All sections', () => {
+    const sections = buildMonthFilterSections()
+    expect(sections).toHaveLength(2)
+    expect(sections[0].title).toBe('Recent')
+    expect(sections[1].title).toBe('All')
+    expect(sections[0].data.length).toBeLessThanOrEqual(RECENT_MONTH_COUNT)
+    expect(sections[1].data[0]).toEqual(allDatesMonthPreset())
+    expect(sections[1].data[0].label).toBe('All')
+    expect(sections[1].data[0].startDate).toBe('')
+    expect(sections[1].data[0].endDate).toBe('')
   })
 })
