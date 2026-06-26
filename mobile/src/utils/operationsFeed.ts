@@ -131,7 +131,6 @@ function formatLocalDate(d: Date): string {
 }
 
 export const MIN_TRANSACTION_MONTH_YEAR = 2026
-export const RECENT_MONTH_COUNT = 6
 
 export function monthPresets(count = 24, minYear = MIN_TRANSACTION_MONTH_YEAR): MonthPreset[] {
   const presets: MonthPreset[] = []
@@ -158,17 +157,8 @@ export function allDatesMonthPreset(): MonthPreset {
   return { label: 'All', startDate: '', endDate: '' }
 }
 
-export type MonthFilterSection = {
-  title: string
-  data: MonthPreset[]
-}
-
-export function buildMonthFilterSections(): MonthFilterSection[] {
-  const allMonths = monthPresets(24)
-  return [
-    { title: 'Recent', data: monthPresets(RECENT_MONTH_COUNT) },
-    { title: 'All', data: [allDatesMonthPreset(), ...allMonths] },
-  ]
+export function buildMonthFilterOptions(): MonthPreset[] {
+  return [allDatesMonthPreset(), ...monthPresets(24)]
 }
 
 export function formatSectionDate(dateKey: string): string {

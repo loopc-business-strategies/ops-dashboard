@@ -22,7 +22,7 @@ import {
   operationKeyFilterLabel,
 } from '@/src/constants/transactionTypes'
 import {
-  buildMonthFilterSections,
+  buildMonthFilterOptions,
   formatMonthPillLabel,
   type OperationsFilterState,
 } from '@/src/utils/operationsFeed'
@@ -115,7 +115,7 @@ export default function OperationsFilterBar({
     [canTransactions, canLedger],
   )
 
-  const monthSections = useMemo(() => buildMonthFilterSections(), [])
+  const monthOptions = useMemo(() => buildMonthFilterOptions(), [])
 
   const typeLabel = useMemo(
     () => operationKeyFilterLabel(filters.operationKey, typeOptions),
@@ -176,16 +176,12 @@ export default function OperationsFilterBar({
         <Pressable style={styles.modalBackdrop} onPress={closeSheet}>
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Month</Text>
-            <SectionList
-              sections={monthSections}
+            <FlatList
+              data={monthOptions}
               keyExtractor={(item) =>
                 item.startDate || item.endDate ? `${item.startDate}-${item.endDate}` : 'all-dates'
               }
               style={{ maxHeight: 420 }}
-              stickySectionHeadersEnabled
-              renderSectionHeader={({ section: { title } }) => (
-                <Text style={pillStyles.sectionHeader}>{title}</Text>
-              )}
               renderItem={({ item }) => {
                 const isAllDates = !item.startDate && !item.endDate
                 const active = isAllDates

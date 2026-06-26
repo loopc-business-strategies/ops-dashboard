@@ -10,8 +10,7 @@ import {
   groupEntriesByDate,
   MIN_TRANSACTION_MONTH_YEAR,
   monthPresets,
-  RECENT_MONTH_COUNT,
-  buildMonthFilterSections,
+  buildMonthFilterOptions,
   allDatesMonthPreset,
 } from '@/src/utils/operationsFeed'
 import { operationKeyMatchesCategory, normalizeOperationKey } from '@/src/constants/transactionTypes'
@@ -170,15 +169,15 @@ describe('operationsFeed', () => {
     expect(presets).toHaveLength(expectedCount)
   })
 
-  test('buildMonthFilterSections has Recent and All sections', () => {
-    const sections = buildMonthFilterSections()
-    expect(sections).toHaveLength(2)
-    expect(sections[0].title).toBe('Recent')
-    expect(sections[1].title).toBe('All')
-    expect(sections[0].data.length).toBeLessThanOrEqual(RECENT_MONTH_COUNT)
-    expect(sections[1].data[0]).toEqual(allDatesMonthPreset())
-    expect(sections[1].data[0].label).toBe('All')
-    expect(sections[1].data[0].startDate).toBe('')
-    expect(sections[1].data[0].endDate).toBe('')
+  test('buildMonthFilterOptions is All then 2026 months without duplicates', () => {
+    const options = buildMonthFilterOptions()
+    expect(options[0]).toEqual(allDatesMonthPreset())
+    expect(options[0].label).toBe('All')
+    const months = options.slice(1)
+    expect(months.every((p) => p.startDate >= '2026-01-01')).toBe(true)
+    const keys = months.map((p) => `${p.startDate}-${p.endDate}`)
+    expect(new Set(keys).size).toBe(keys.length)
+    const now = new Date()
+    expect(months).toHaveLength(now.getMonth() + 1)
   })
 })
