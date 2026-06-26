@@ -249,47 +249,7 @@ export default function TransactionsScreen() {
     )
   }
 
-  if (viewMode === 'analysis') {
-    const total = analysisMode === 'outcome' ? totals.outcome : totals.income
-    return (
-      <View style={styles.root}>
-        <FinancialAnalysisView
-          mode={analysisMode}
-          total={total}
-          currency={baseCurrency}
-          periodLabel={periodLabel}
-          categories={categories}
-          branding={branding}
-          styles={styles}
-          onBack={() => setViewMode('list')}
-          onSelectCategory={(key) => {
-            setSelectedCategory(key)
-            setViewMode('category')
-          }}
-        />
-        <OperationDetailModal entry={selectedEntry} styles={styles} onClose={() => setSelectedEntry(null)} />
-      </View>
-    )
-  }
-
-  if (viewMode === 'category') {
-    return (
-      <View style={styles.root}>
-        <CategoryDetailView
-          categoryKey={selectedCategory}
-          entries={categoryEntries}
-          total={categoryTotal}
-          currency={baseCurrency}
-          periodLabel={periodLabel}
-          branding={branding}
-          styles={styles}
-          onBack={() => setViewMode('analysis')}
-          onSelectEntry={setSelectedEntry}
-        />
-        <OperationDetailModal entry={selectedEntry} styles={styles} onClose={() => setSelectedEntry(null)} />
-      </View>
-    )
-  }
+  const analysisTotal = analysisMode === 'outcome' ? totals.outcome : totals.income
 
   return (
     <View style={styles.root}>
@@ -300,10 +260,10 @@ export default function TransactionsScreen() {
         </Pressable>
       </View>
 
-      {!canLedger && canTransactions ? (
+      {viewMode === 'list' && !canLedger && canTransactions ? (
         <Text style={styles.note}>Journal vouchers require ledger access.</Text>
       ) : null}
-      {!canTransactions && canLedger ? (
+      {viewMode === 'list' && !canTransactions && canLedger ? (
         <Text style={styles.note}>Showing ledger journal vouchers only.</Text>
       ) : null}
 
@@ -332,50 +292,89 @@ export default function TransactionsScreen() {
         />
       ) : null}
 
-      <OutcomeIncomeCards
-        outcome={totals.outcome}
-        income={totals.income}
-        currency={baseCurrency}
-        branding={branding}
-        onPressOutcome={() => {
-          setAnalysisMode('outcome')
-          setViewMode('analysis')
-        }}
-        onPressIncome={() => {
-          setAnalysisMode('income')
-          setViewMode('analysis')
-        }}
-      />
+      {viewMode === 'list' ? (
+        <OutcomeIncomeCards
+          outcome={totals.outcome}
+          income={totals.income}
+          currency={baseCurrency}
+          branding={branding}
+          onPressOutcome={() => {
+            setAnalysisMode('outcome')
+            setViewMode('analysis')
+          }}
+          onPressIncome={() => {
+            setAnalysisMode('income')
+            setViewMode('analysis')
+          }}
+        />
+      ) : null}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <SectionList
-        sections={sections}
-        keyExtractor={(item) => item.id}
-        stickySectionHeadersEnabled
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} />}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<Text style={styles.empty}>No operations match your filters.</Text>}
-        ListFooterComponent={
-          txnCapped || jvCapped ? (
-            <Text style={styles.cappedNote}>
-              Showing up to 500 transactions
-              {canLedger ? ` and ${jvRawCount} ledger lines` : ''}. Narrow the date range to see more.
-            </Text>
-          ) : null
-        }
-        renderSectionHeader={({ section }) => (
-          <Text style={styles.sectionHeader}>{section.title}</Text>
-        )}
-        renderItem={({ item }) => (
-          <OperationListItem
-            entry={item}
-            styles={styles}
-            branding={branding}
-            onPress={() => setSelectedEntry(item)}
-          />
-        )}
-      />
+      {viewMode === 'analysis' ? (
+        <View style={{ flex: 1 }}>
+          <FinancialAnalysisView
+          mode={analysisMode}
+          total={analysisTotal}
+          currency={baseCurrency}
+          periodLabel={periodLabel}
+          categories={categories}
+          branding={branding}
+          styles={styles}
+          onBack={() => setViewMode('list')}
+          onSelectCategory={(key) => {
+            setSelectedCategory(key)
+            setViewMode('category')
+          }}
+        />
+        </View>
+      ) : null}
+
+      {viewMode === 'category' ? (
+        <View style={{ flex: 1 }}>
+          <CategoryDetailView
+          categoryKey={selectedCategory}
+          entries={categoryEntries}
+          total={categoryTotal}
+          currency={baseCurrency}
+          periodLabel={periodLabel}
+          branding={branding}
+          styles={styles}
+          onBack={() => setViewMode('analysis')}
+          onSelectEntry={setSelectedEntry}
+        />
+        </View>
+      ) : null}
+
+      {viewMode === 'list' ? (
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.id}
+          stickySectionHeadersEnabled
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} />}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={<Text style={styles.empty}>No operations match your filters.</Text>}
+          ListFooterComponent={
+            txnCapped || jvCapped ? (
+              <Text style={styles.cappedNote}>
+                Showing up to 500 transactions
+                {canLedger ? ` and ${jvRawCount} ledger lines` : ''}. Narrow the date range to see more.
+              </Text>
+            ) : null
+          }
+          renderSectionHeader={({ section }) => (
+            <Text style={styles.sectionHeader}>{section.title}</Text>
+          )}
+          renderItem={({ item }) => (
+            <OperationListItem
+              entry={item}
+              styles={styles}
+              branding={branding}
+              onPress={() => setSelectedEntry(item)}
+            />
+          )}
+        />
+      ) : null}
 
       <OperationDetailModal entry={selectedEntry} styles={styles} onClose={() => setSelectedEntry(null)} />
     </View>

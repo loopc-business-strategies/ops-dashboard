@@ -8,9 +8,10 @@ import {
   filterOperationEntries,
   formatMonthPillLabel,
   groupEntriesByDate,
+  MIN_TRANSACTION_MONTH_YEAR,
   monthPresets,
 } from '@/src/utils/operationsFeed'
-import { operationKeyMatchesCategory } from '@/src/constants/transactionTypes'
+import { operationKeyMatchesCategory, normalizeOperationKey } from '@/src/constants/transactionTypes'
 
 function tx(overrides: Partial<TransactionRow> & { _id: string }): TransactionRow {
   return {
@@ -119,14 +120,17 @@ describe('operationsFeed', () => {
     expect(sections[0].dateKey).toBe('2026-06-20')
   })
 
-  test('operationKeyMatchesCategory groups payment receipt jv vouchers', () => {
+  test('operationKeyMatchesCategory groups payment receipt and jv types', () => {
     expect(operationKeyMatchesCategory('grp_payment', 'txn_payment')).toBe(true)
     expect(operationKeyMatchesCategory('grp_payment', 'txn_receipt')).toBe(false)
     expect(operationKeyMatchesCategory('grp_receipt', 'txn_receipt')).toBe(true)
+    expect(operationKeyMatchesCategory('jv_journal', 'jv_journal')).toBe(true)
+    expect(operationKeyMatchesCategory('jv_journal', 'jv_bank')).toBe(false)
+    expect(operationKeyMatchesCategory('jv_bank', 'jv_bank')).toBe(true)
+    expect(operationKeyMatchesCategory('jv_bank', 'txn_payment')).toBe(false)
+    expect(normalizeOperationKey('grp_jv')).toBe('')
+    expect(normalizeOperationKey('grp_vouchers')).toBe('')
     expect(operationKeyMatchesCategory('grp_jv', 'jv_journal')).toBe(true)
-    expect(operationKeyMatchesCategory('grp_jv', 'txn_payment')).toBe(false)
-    expect(operationKeyMatchesCategory('grp_vouchers', 'txn_sale')).toBe(true)
-    expect(operationKeyMatchesCategory('grp_vouchers', 'txn_payment')).toBe(false)
   })
 
   test('formatMonthPillLabel shows month name for full month', () => {
@@ -142,9 +146,20 @@ describe('operationsFeed', () => {
     )
   })
 
-  test('monthPresets returns descending months', () => {
+  test('monthPresets returns descending months from min year', () => {
     const presets = monthPresets(3)
     expect(presets).toHaveLength(3)
     expect(presets[0].startDate <= presets[1].startDate).toBe(false)
+    for (const preset of presets) {
+      expect(preset.startDate.slice(0, 4) >= String(MIN_TRANSACTION_MONTH_YEAR)).toBe(true)
+    }
+  })
+
+  test('monthPresets excludes months before 2026', () => {
+    const presets = monthPresets(24)
+    expect(presets.every((p) => p.startDate >= '2026-01-01')).toBe(true)
+    const now = new Date()
+    const expectedCount = now.getMonth() + 1
+    expect(presets).toHaveLength(expectedCount)
   })
 })

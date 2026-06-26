@@ -1,17 +1,20 @@
 import { useMemo, useState } from 'react'
-import { FlatList, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { FlatList, Modal, Platform, Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react-native'
 import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import type { AccountListItem } from '@/src/api/erpReports'
 import {
   TRANSACTION_STATUS_OPTIONS,
   TRANSACTION_TYPE_FILTER_OPTIONS,
   filterTypeFilterOptions,
+  normalizeOperationKey,
+  operationKeyFilterLabel,
 } from '@/src/constants/transactionTypes'
 import {
   formatMonthPillLabel,
   monthPresets,
   type OperationsFilterState,
 } from '@/src/utils/operationsFeed'
+import { groupAccountsByType } from '@/src/utils/accountListGroups'
 import type { OperationsStyles } from '@/src/components/transactions/operationsStyles'
 
 type SheetKind = 'month' | 'account' | 'type' | null
@@ -97,10 +100,10 @@ export default function OperationsFilterBar({
 
   const months = useMemo(() => monthPresets(24), [])
 
-  const typeLabel = useMemo(() => {
-    const opt = typeOptions.find((o) => o.key === filters.operationKey)
-    return opt?.label || 'All'
-  }, [filters.operationKey, typeOptions])
+  const typeLabel = useMemo(
+    () => operationKeyFilterLabel(filters.operationKey, typeOptions),
+    [filters.operationKey, typeOptions],
+  )
 
   const accountLabel = useMemo(() => {
     if (!filters.accountCode) return 'Accounts and cards'
@@ -111,15 +114,10 @@ export default function OperationsFilterBar({
 
   const monthLabel = formatMonthPillLabel(filters.startDate, filters.endDate)
 
-  const filteredAccounts = useMemo(() => {
-    const q = accountSearch.trim().toLowerCase()
-    if (!q) return accounts
-    return accounts.filter(
-      (a) =>
-        String(a.accountCode || '').toLowerCase().includes(q) ||
-        String(a.accountName || '').toLowerCase().includes(q),
-    )
-  }, [accounts, accountSearch])
+  const accountSections = useMemo(
+    () => groupAccountsByType(accounts, accountSearch),
+    [accounts, accountSearch],
+  )
 
   const pillStyles = usePillStyles(branding)
 
@@ -205,7 +203,7 @@ export default function OperationsFilterBar({
                   <Text
                     style={[
                       styles.sheetOptionText,
-                      filters.operationKey === item.key && styles.sheetOptionActive,
+                      normalizeOperationKey(filters.operationKey) === item.key && styles.sheetOptionActive,
                     ]}
                   >
                     {item.label}
@@ -254,33 +252,57 @@ export default function OperationsFilterBar({
               value={accountSearch}
               onChangeText={setAccountSearch}
             />
-            <FlatList
-              data={[{ _id: '', accountCode: '', accountName: 'All accounts' }, ...filteredAccounts]}
-              keyExtractor={(item) => item._id || 'all'}
-              style={{ maxHeight: 360 }}
-              renderItem={({ item }) => {
-                const isAll = !item.accountCode
-                return (
-                  <Pressable
-                    style={styles.accountRow}
-                    onPress={() => {
-                      const next = { ...draftFilters, accountCode: item.accountCode || '' }
-                      onChangeDraft(next)
-                      onApply(next)
-                      closeSheet()
-                    }}
-                  >
-                    <Text style={styles.accountRowName} numberOfLines={2}>
-                      {item.accountName || 'All accounts'}
-                    </Text>
-                    {!isAll ? (
-                      <Text style={styles.accountRowCode} numberOfLines={1}>
-                        {item.accountCode}
-                      </Text>
-                    ) : null}
-                  </Pressable>
-                )
+            <Pressable
+              style={styles.accountRow}
+              onPress={() => {
+                const next = { ...draftFilters, accountCode: '' }
+                onChangeDraft(next)
+                onApply(next)
+                closeSheet()
               }}
+            >
+              <Text
+                style={[
+                  styles.accountRowName,
+                  !filters.accountCode ? styles.sheetOptionActive : null,
+                ]}
+                numberOfLines={2}
+              >
+                All accounts
+              </Text>
+            </Pressable>
+            <SectionList
+              sections={accountSections}
+              keyExtractor={(item) => item._id || item.accountCode || item.accountName || 'row'}
+              style={{ maxHeight: 360 }}
+              stickySectionHeadersEnabled
+              renderSectionHeader={({ section: { title } }) => (
+                <Text style={pillStyles.sectionHeader}>{title}</Text>
+              )}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={styles.accountRow}
+                  onPress={() => {
+                    const next = { ...draftFilters, accountCode: item.accountCode || '' }
+                    onChangeDraft(next)
+                    onApply(next)
+                    closeSheet()
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.accountRowName,
+                      filters.accountCode === item.accountCode ? styles.sheetOptionActive : null,
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {item.accountName || item.accountCode}
+                  </Text>
+                  <Text style={styles.accountRowCode} numberOfLines={1}>
+                    {item.accountCode}
+                  </Text>
+                </Pressable>
+              )}
             />
           </Pressable>
         </Pressable>
@@ -358,6 +380,16 @@ function usePillStyles(b: MobileTenantBranding) {
       marginTop: 12,
       marginBottom: 4,
       textTransform: 'uppercase',
+    },
+    sectionHeader: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: b.colors.muted,
+      marginTop: 10,
+      marginBottom: 4,
+      textTransform: 'uppercase',
+      backgroundColor: '#FFFFFF',
+      paddingTop: 4,
     },
   })
 }

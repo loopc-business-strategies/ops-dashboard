@@ -42,25 +42,28 @@ export const TRANSACTION_TYPE_FILTER_OPTIONS: TransactionTypeFilterOption[] = [
   { key: '', label: 'All', source: 'all' },
   { key: 'grp_payment', label: 'Payment', source: 'transaction' },
   { key: 'grp_receipt', label: 'Receipt', source: 'transaction' },
-  { key: 'grp_jv', label: 'JV', source: 'jv' },
-  { key: 'grp_vouchers', label: 'Vouchers', source: 'transaction' },
+  { key: 'jv_journal', label: 'Normal JV', source: 'jv' },
+  { key: 'jv_bank', label: 'Bank JV', source: 'jv' },
 ]
 
 const PAYMENT_CATEGORY_KEYS = new Set(['txn_payment', 'txn_metal_payment'])
 const RECEIPT_CATEGORY_KEYS = new Set(['txn_receipt', 'txn_metal_receipt'])
-const JV_CATEGORY_KEYS = new Set(['jv_journal', 'jv_bank'])
+
+const LEGACY_OPERATION_KEYS = new Set(['grp_jv', 'grp_vouchers'])
+
+/** Maps removed grouped keys to All so persisted state does not show a blank pill. */
+export function normalizeOperationKey(operationKey: string): string {
+  const key = String(operationKey || '').trim()
+  if (LEGACY_OPERATION_KEYS.has(key)) return ''
+  return key
+}
 
 export function operationKeyMatchesCategory(operationKey: string, categoryKey: string): boolean {
-  const key = String(operationKey || '').trim()
+  const key = normalizeOperationKey(operationKey)
   const cat = String(categoryKey || '').trim()
   if (!key) return true
   if (key === 'grp_payment') return PAYMENT_CATEGORY_KEYS.has(cat)
   if (key === 'grp_receipt') return RECEIPT_CATEGORY_KEYS.has(cat)
-  if (key === 'grp_jv') return JV_CATEGORY_KEYS.has(cat)
-  if (key === 'grp_vouchers') {
-    if (!cat.startsWith('txn_')) return false
-    return !PAYMENT_CATEGORY_KEYS.has(cat) && !RECEIPT_CATEGORY_KEYS.has(cat)
-  }
   return cat === key
 }
 
@@ -82,6 +85,15 @@ export function filterTypeFilterOptions(
     if (opt.source === 'jv') return canLedger
     return canTransactions
   })
+}
+
+export function operationKeyFilterLabel(
+  operationKey: string,
+  options: TransactionTypeFilterOption[],
+): string {
+  const key = normalizeOperationKey(operationKey)
+  const opt = options.find((o) => o.key === key)
+  return opt?.label || 'All'
 }
 
 export type OperationTypeOption = {

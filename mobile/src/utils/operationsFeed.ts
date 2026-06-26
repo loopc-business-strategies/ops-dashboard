@@ -130,12 +130,15 @@ function formatLocalDate(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-export function monthPresets(count = 24): MonthPreset[] {
+export const MIN_TRANSACTION_MONTH_YEAR = 2026
+
+export function monthPresets(count = 24, minYear = MIN_TRANSACTION_MONTH_YEAR): MonthPreset[] {
   const presets: MonthPreset[] = []
   const now = new Date()
 
   for (let i = 0; i < count; i += 1) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    if (d.getFullYear() < minYear) break
     const start = new Date(d.getFullYear(), d.getMonth(), 1)
     const end = new Date(d.getFullYear(), d.getMonth() + 1, 0)
     const startDate = formatLocalDate(start)
