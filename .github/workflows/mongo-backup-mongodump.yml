@@ -42,7 +42,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y mongodb-database-tools awscli
 
-      - name: Run mongodump backup
+      - name: Run mongodump backup to R2
+        if: ${{ secrets.BACKUP_S3_BUCKET != '' }}
         env:
           MONGO_URI_MG: ${{ secrets.MONGO_URI_MG }}
           MONGO_URI_CG: ${{ secrets.MONGO_URI_CG }}
@@ -55,6 +56,24 @@ jobs:
           BACKUP_S3_PREFIX: ${{ vars.BACKUP_S3_PREFIX || 'ops-dashboard' }}
           BACKUP_RETAIN_DAYS: ${{ vars.BACKUP_RETAIN_DAYS || '7' }}
         run: npm run backup:mongodump
+
+      - name: Run mongodump backup to artifacts (interim until R2 configured)
+        if: ${{ secrets.BACKUP_S3_BUCKET == '' }}
+        env:
+          MONGO_URI_MG: ${{ secrets.MONGO_URI_MG }}
+          MONGO_URI_CG: ${{ secrets.MONGO_URI_CG }}
+          MONGO_URI_LOOPC: ${{ secrets.MONGO_URI_LOOPC }}
+          BACKUP_ARTIFACT_DIR: backup-artifacts
+        run: npm run backup:mongodump
+
+      - name: Upload backup artifacts
+        if: ${{ secrets.BACKUP_S3_BUCKET == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mongo-backup-${{ github.run_id }}
+          path: backup-artifacts/*.archive.gz
+          retention-days: 7
+          if-no-files-found: error
 
   skipped-notice:
     name: Mongodump disabled

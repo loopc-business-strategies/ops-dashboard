@@ -33,6 +33,7 @@ const TENANTS = [
 
 const dryRun = process.argv.includes('--dry-run')
 const retainDays = Number(process.env.BACKUP_RETAIN_DAYS || 7)
+const artifactDir = String(process.env.BACKUP_ARTIFACT_DIR || '').trim()
 
 function requireEnv(key) {
   const value = String(process.env[key] || '').trim()
@@ -124,7 +125,8 @@ async function main() {
   run('aws', ['--version'])
 
   const dateStamp = new Date().toISOString().slice(0, 10)
-  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ops-mongodump-'))
+  const tmpRoot = artifactDir || fs.mkdtempSync(path.join(os.tmpdir(), 'ops-mongodump-'))
+  if (artifactDir) fs.mkdirSync(artifactDir, { recursive: true })
 
   try {
     for (const { key, uriKey } of TENANTS) {
@@ -135,16 +137,19 @@ async function main() {
       const sizeMb = (fs.statSync(archivePath).size / (1024 * 1024)).toFixed(2)
       console.log(`OK (${sizeMb} MB)`)
 
-      const s3Uri = s3UriFor(key, dateStamp)
-      process.stdout.write(`  ${key} upload ${s3Uri}... `)
-      uploadToS3(archivePath, s3Uri)
-      console.log('OK')
-
-      pruneOldBackups(key)
+      if (!artifactDir) {
+        const s3Uri = s3UriFor(key, dateStamp)
+        process.stdout.write(`  ${key} upload ${s3Uri}... `)
+        uploadToS3(archivePath, s3Uri)
+        console.log('OK')
+        pruneOldBackups(key)
+      } else {
+        console.log(`  ${key} saved to ${archivePath}`)
+      }
     }
-    console.log('\nAll tenant backups uploaded.')
+    console.log(artifactDir ? '\nAll tenant backups written to artifact dir.' : '\nAll tenant backups uploaded.')
   } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true })
+    if (!artifactDir) fs.rmSync(tmpRoot, { recursive: true, force: true })
   }
 }
 

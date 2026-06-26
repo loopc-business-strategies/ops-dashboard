@@ -62,7 +62,20 @@ function env(key, fallback = '') {
 
 function ghAvailable() {
   if (env('GH_TOKEN') || env('GITHUB_TOKEN')) return true
+  if (resolveGhTokenFromGit()) return true
   return spawnSync('gh', ['auth', 'status'], { encoding: 'utf8', shell: process.platform === 'win32' }).status === 0
+}
+
+function resolveGhTokenFromGit() {
+  if (process.env.GH_TOKEN || process.env.GITHUB_TOKEN) return true
+  const result = spawnSync('git', ['credential', 'fill'], {
+    input: 'protocol=https\nhost=github.com\n\n',
+    encoding: 'utf8',
+  })
+  const match = (result.stdout || '').match(/^password=(.+)$/m)
+  if (!match) return false
+  process.env.GH_TOKEN = match[1].trim()
+  return true
 }
 
 function runGh(argv, input) {
