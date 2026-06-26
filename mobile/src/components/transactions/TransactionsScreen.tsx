@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   RefreshControl,
   SectionList,
@@ -46,6 +47,11 @@ import {
 type ViewMode = 'list' | 'analysis' | 'category'
 type AnalysisMode = 'outcome' | 'income'
 
+type ApiFilterState = Pick<
+  OperationsFilterState,
+  'startDate' | 'endDate' | 'status' | 'operationKey'
+>
+
 const DEFAULT_MONTH = currentMonthDateRange()
 
 const DEFAULT_FILTERS: OperationsFilterState = {
@@ -57,14 +63,22 @@ const DEFAULT_FILTERS: OperationsFilterState = {
   accountCode: '',
 }
 
-function buildTxnApiParams(filters: OperationsFilterState) {
+function buildTxnApiParams(filters: ApiFilterState) {
   return {
-    search: filters.search.trim() || undefined,
     status: filters.status || undefined,
     type: operationKeyToApiType(filters.operationKey),
     startDate: normalizeDateInput(filters.startDate) || undefined,
     endDate: normalizeDateInput(filters.endDate) || undefined,
   }
+}
+
+function apiFilterKeyFrom(filters: ApiFilterState): string {
+  return JSON.stringify({
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+    status: filters.status,
+    operationKey: filters.operationKey,
+  })
 }
 
 export default function TransactionsScreen() {
@@ -87,7 +101,8 @@ export default function TransactionsScreen() {
   const [accounts, setAccounts] = useState<AccountListItem[]>([])
   const [txnCapped, setTxnCapped] = useState(false)
   const [jvCapped, setJvCapped] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [dataRefreshing, setDataRefreshing] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('list')
@@ -95,76 +110,110 @@ export default function TransactionsScreen() {
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedEntry, setSelectedEntry] = useState<OperationEntry | null>(null)
   const [showSearch, setShowSearch] = useState(false)
+  const isFirstLoadRef = useRef(true)
+  const baseCurrencyRef = useRef(baseCurrency)
+  baseCurrencyRef.current = baseCurrency
+
+  const apiFilters = useMemo<ApiFilterState>(
+    () => ({
+      startDate: appliedFilters.startDate,
+      endDate: appliedFilters.endDate,
+      status: appliedFilters.status,
+      operationKey: appliedFilters.operationKey,
+    }),
+    [
+      appliedFilters.startDate,
+      appliedFilters.endDate,
+      appliedFilters.status,
+      appliedFilters.operationKey,
+    ],
+  )
+
+  const apiFilterKey = useMemo(() => apiFilterKeyFrom(apiFilters), [apiFilters])
 
   const load = useCallback(
-    async (mode: 'initial' | 'refresh' = 'initial') => {
+    async (mode: 'initial' | 'refresh' | 'filter' = 'initial') => {
       if (!token || !allowed || !sessionReady) {
-        setLoading(false)
+        setInitialLoading(false)
+        setDataRefreshing(false)
         setRefreshing(false)
         return
       }
       if (mode === 'refresh') setRefreshing(true)
-      else setLoading(true)
+      else if (mode === 'initial') setInitialLoading(true)
+      else setDataRefreshing(true)
       setError('')
 
-      const rangeCheck = validateDateRange(appliedFilters.startDate, appliedFilters.endDate)
+      const rangeCheck = validateDateRange(apiFilters.startDate, apiFilters.endDate)
       if (!rangeCheck.ok) {
         setError(rangeCheck.message)
-        setLoading(false)
+        setInitialLoading(false)
+        setDataRefreshing(false)
         setRefreshing(false)
         return
       }
 
       const dateParams = {
-        startDate: normalizeDateInput(appliedFilters.startDate) || undefined,
-        endDate: normalizeDateInput(appliedFilters.endDate) || undefined,
+        startDate: normalizeDateInput(apiFilters.startDate) || undefined,
+        endDate: normalizeDateInput(apiFilters.endDate) || undefined,
       }
 
       try {
-        const [currencyRes, txnRes, jvRes] = await Promise.all([
-          fetchCurrencies(token).catch(() => ({ currencies: [] })),
+        const [txnRes, jvRes] = await Promise.all([
           canTransactions
-            ? fetchAllTransactions(token, buildTxnApiParams(appliedFilters))
+            ? fetchAllTransactions(token, buildTxnApiParams(apiFilters))
             : Promise.resolve({ transactions: [], capped: false }),
           canLedger
             ? fetchAllJvLedgerEntries(token, dateParams)
             : Promise.resolve({ entries: [], capped: false }),
         ])
 
-        const base = resolveBaseCurrencyCode(currencyRes.currencies, 'USD')
-        setBaseCurrency(base)
         setTransactions(txnRes.transactions || [])
         setTxnCapped(Boolean(txnRes.capped))
         setJvRawCount((jvRes.entries || []).length)
-        setGroupedJvs(groupJvLedgerEntries(jvRes.entries || [], { baseCurrencyCode: base }))
+        setGroupedJvs(
+          groupJvLedgerEntries(jvRes.entries || [], { baseCurrencyCode: baseCurrencyRef.current }),
+        )
         setJvCapped(Boolean(jvRes.capped))
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load operations')
         setTransactions([])
         setGroupedJvs([])
       } finally {
-        setLoading(false)
+        setInitialLoading(false)
+        setDataRefreshing(false)
         setRefreshing(false)
       }
     },
-    [token, allowed, sessionReady, appliedFilters, canTransactions, canLedger],
+    [token, allowed, sessionReady, apiFilters, canTransactions, canLedger],
   )
-
-  useEffect(() => {
-    if (!token || !allowed || !sessionReady) {
-      setLoading(false)
-      return
-    }
-    void load('initial')
-  }, [token, allowed, sessionReady, tenantSessionKey, appliedFilters, load])
 
   useEffect(() => {
     setTransactions([])
     setGroupedJvs([])
     setError('')
     setViewMode('list')
-    setLoading(true)
+    setInitialLoading(true)
+    isFirstLoadRef.current = true
   }, [tenantSessionKey])
+
+  useEffect(() => {
+    if (!token || !sessionReady) return
+    void fetchCurrencies(token)
+      .then((res) => setBaseCurrency(resolveBaseCurrencyCode(res.currencies, 'USD')))
+      .catch(() => setBaseCurrency('USD'))
+  }, [token, sessionReady, tenantSessionKey])
+
+  useEffect(() => {
+    if (!token || !allowed || !sessionReady) {
+      setInitialLoading(false)
+      return
+    }
+    const mode = isFirstLoadRef.current ? 'initial' : 'filter'
+    void load(mode).finally(() => {
+      isFirstLoadRef.current = false
+    })
+  }, [token, allowed, sessionReady, tenantSessionKey, apiFilterKey, load])
 
   useEffect(() => {
     if (!token || !allowed || !sessionReady) return
@@ -187,6 +236,8 @@ export default function TransactionsScreen() {
   const categories = useMemo(() => computeCategorySummaries(displayEntries), [displayEntries])
   const sections = useMemo(() => groupEntriesByDate(displayEntries), [displayEntries])
   const periodLabel = formatPeriodLabel(appliedFilters.startDate, appliedFilters.endDate)
+  const loadingAllDates =
+    dataRefreshing && !appliedFilters.startDate && !appliedFilters.endDate
 
   const categoryEntries = useMemo(
     () => displayEntries.filter((e) => e.categoryKey === selectedCategory),
@@ -215,12 +266,21 @@ export default function TransactionsScreen() {
     setAppliedFilters(normalized)
   }
 
-  const resetFilters = () => {
-    setDraftFilters(DEFAULT_FILTERS)
-    setAppliedFilters(DEFAULT_FILTERS)
-    setError('')
-    setViewMode('list')
-  }
+  const handleSelectEntry = useCallback((item: OperationEntry) => {
+    setSelectedEntry(item)
+  }, [])
+
+  const renderListItem = useCallback(
+    ({ item }: { item: OperationEntry }) => (
+      <OperationListItem
+        entry={item}
+        styles={styles}
+        branding={branding}
+        onPress={() => handleSelectEntry(item)}
+      />
+    ),
+    [styles, branding, handleSelectEntry],
+  )
 
   if (!allowed) {
     return (
@@ -241,7 +301,7 @@ export default function TransactionsScreen() {
     )
   }
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={branding.colors.primary} />
@@ -292,6 +352,15 @@ export default function TransactionsScreen() {
         />
       ) : null}
 
+      {dataRefreshing ? (
+        <View style={styles.refreshBanner}>
+          <ActivityIndicator size="small" color={branding.colors.primary} />
+          <Text style={styles.refreshBannerText}>
+            {loadingAllDates ? 'Loading all 2026 transactions…' : 'Updating…'}
+          </Text>
+        </View>
+      ) : null}
+
       {viewMode === 'list' ? (
         <OutcomeIncomeCards
           outcome={totals.outcome}
@@ -314,35 +383,35 @@ export default function TransactionsScreen() {
       {viewMode === 'analysis' ? (
         <View style={{ flex: 1 }}>
           <FinancialAnalysisView
-          mode={analysisMode}
-          total={analysisTotal}
-          currency={baseCurrency}
-          periodLabel={periodLabel}
-          categories={categories}
-          branding={branding}
-          styles={styles}
-          onBack={() => setViewMode('list')}
-          onSelectCategory={(key) => {
-            setSelectedCategory(key)
-            setViewMode('category')
-          }}
-        />
+            mode={analysisMode}
+            total={analysisTotal}
+            currency={baseCurrency}
+            periodLabel={periodLabel}
+            categories={categories}
+            branding={branding}
+            styles={styles}
+            onBack={() => setViewMode('list')}
+            onSelectCategory={(key) => {
+              setSelectedCategory(key)
+              setViewMode('category')
+            }}
+          />
         </View>
       ) : null}
 
       {viewMode === 'category' ? (
         <View style={{ flex: 1 }}>
           <CategoryDetailView
-          categoryKey={selectedCategory}
-          entries={categoryEntries}
-          total={categoryTotal}
-          currency={baseCurrency}
-          periodLabel={periodLabel}
-          branding={branding}
-          styles={styles}
-          onBack={() => setViewMode('analysis')}
-          onSelectEntry={setSelectedEntry}
-        />
+            categoryKey={selectedCategory}
+            entries={categoryEntries}
+            total={categoryTotal}
+            currency={baseCurrency}
+            periodLabel={periodLabel}
+            branding={branding}
+            styles={styles}
+            onBack={() => setViewMode('analysis')}
+            onSelectEntry={setSelectedEntry}
+          />
         </View>
       ) : null}
 
@@ -351,6 +420,10 @@ export default function TransactionsScreen() {
           sections={sections}
           keyExtractor={(item) => item.id}
           stickySectionHeadersEnabled
+          initialNumToRender={12}
+          maxToRenderPerBatch={8}
+          windowSize={7}
+          removeClippedSubviews={Platform.OS === 'android'}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} />}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={<Text style={styles.empty}>No operations match your filters.</Text>}
@@ -365,14 +438,7 @@ export default function TransactionsScreen() {
           renderSectionHeader={({ section }) => (
             <Text style={styles.sectionHeader}>{section.title}</Text>
           )}
-          renderItem={({ item }) => (
-            <OperationListItem
-              entry={item}
-              styles={styles}
-              branding={branding}
-              onPress={() => setSelectedEntry(item)}
-            />
-          )}
+          renderItem={renderListItem}
         />
       ) : null}
 

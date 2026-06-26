@@ -47,9 +47,33 @@ export function createOperationsStyles(b: MobileTenantBranding) {
       padding: 16,
       maxHeight: '85%',
     },
+    modalCardCompact: {
+      backgroundColor: '#FFFFFF',
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      maxHeight: '42%',
+    },
     modalCardSheet: {
-      flex: 1,
       minHeight: 0,
+    },
+    filterSheetList: {
+      maxHeight: 260,
+    },
+    filterSheetListAccounts: {
+      maxHeight: 240,
+    },
+    refreshBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 6,
+    },
+    refreshBannerText: {
+      fontSize: 12,
+      color: b.colors.muted,
     },
     modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12, color: b.colors.text },
     input: {
@@ -64,7 +88,7 @@ export function createOperationsStyles(b: MobileTenantBranding) {
       marginBottom: 10,
     },
     sheetOption: {
-      paddingVertical: 14,
+      paddingVertical: 11,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: '#E5E7EB',
     },

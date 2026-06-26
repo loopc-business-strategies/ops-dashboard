@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import type { MobileTenantBranding } from '@/src/config/tenantBranding'
 import type { OperationEntry } from '@/src/utils/operationsFeed'
@@ -28,7 +29,7 @@ function iconGlyph(entry: OperationEntry): string {
   return '•'
 }
 
-export default function OperationListItem({ entry, styles, branding, onPress }: OperationListItemProps) {
+function OperationListItem({ entry, branding, onPress }: OperationListItemProps) {
   const color = iconColor(entry, branding)
   const signed = entry.isIncome ? entry.amount : entry.isOutcome ? -Math.abs(entry.amount) : entry.amount
   const itemStyles = useItemStyles(branding)
@@ -84,3 +85,5 @@ function useItemStyles(b: MobileTenantBranding) {
     accountRef: { fontSize: 11, color: b.colors.muted, marginTop: 2 },
   })
 }
+
+export default memo(OperationListItem)

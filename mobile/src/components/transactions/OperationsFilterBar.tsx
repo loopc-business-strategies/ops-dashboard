@@ -108,7 +108,9 @@ export default function OperationsFilterBar({
   const keyboardHeight = useKeyboardHeight(sheet === 'account')
   const windowHeight = Dimensions.get('window').height
   const accountSheetMaxHeight =
-    keyboardHeight > 0 ? windowHeight - keyboardHeight - 16 : windowHeight * 0.85
+    keyboardHeight > 0
+      ? Math.min(windowHeight - keyboardHeight - 16, windowHeight * 0.5)
+      : Math.min(windowHeight * 0.42, 340)
 
   const typeOptions = useMemo(
     () => filterTypeFilterOptions(TRANSACTION_TYPE_FILTER_OPTIONS, canTransactions, canLedger),
@@ -135,6 +137,36 @@ export default function OperationsFilterBar({
     () => groupAccountsByType(accounts, accountSearch),
     [accounts, accountSearch],
   )
+
+  type TypeSheetRow = {
+    id: string
+    label: string
+    kind: 'type' | 'status'
+    typeKey?: string
+    statusValue?: string
+  }
+
+  const typeSheetSections = useMemo(() => {
+    const typeRows: TypeSheetRow[] = typeOptions.map((o) => ({
+      id: `type:${o.key || 'all'}`,
+      label: o.label,
+      kind: 'type' as const,
+      typeKey: o.key,
+    }))
+    const sections: { title: string; data: TypeSheetRow[] }[] = [{ title: 'Type', data: typeRows }]
+    if (canTransactions) {
+      sections.push({
+        title: 'Status',
+        data: TRANSACTION_STATUS_OPTIONS.map((o) => ({
+          id: `status:${o.value || 'all'}`,
+          label: o.label,
+          kind: 'status' as const,
+          statusValue: o.value,
+        })),
+      })
+    }
+    return sections
+  }, [typeOptions, canTransactions])
 
   const pillStyles = usePillStyles(branding)
 
@@ -172,16 +204,17 @@ export default function OperationsFilterBar({
         />
       </View>
 
-      <Modal visible={sheet === 'month'} animationType="slide" transparent onRequestClose={closeSheet}>
+      <Modal visible={sheet === 'month'} animationType="fade" transparent onRequestClose={closeSheet}>
         <Pressable style={styles.modalBackdrop} onPress={closeSheet}>
-          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.modalCardCompact, styles.modalCardSheet]} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Month</Text>
             <FlatList
               data={monthOptions}
               keyExtractor={(item) =>
                 item.startDate || item.endDate ? `${item.startDate}-${item.endDate}` : 'all-dates'
               }
-              style={{ maxHeight: 420 }}
+              style={styles.filterSheetList}
+              showsVerticalScrollIndicator
               renderItem={({ item }) => {
                 const isAllDates = !item.startDate && !item.endDate
                 const active = isAllDates
@@ -203,66 +236,49 @@ export default function OperationsFilterBar({
         </Pressable>
       </Modal>
 
-      <Modal visible={sheet === 'type'} animationType="slide" transparent onRequestClose={closeSheet}>
+      <Modal visible={sheet === 'type'} animationType="fade" transparent onRequestClose={closeSheet}>
         <Pressable style={styles.modalBackdrop} onPress={closeSheet}>
-          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.modalCardCompact, styles.modalCardSheet]} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Type</Text>
-            <FlatList
-              data={typeOptions}
-              keyExtractor={(item) => item.key || 'all'}
-              style={{ maxHeight: canTransactions ? 280 : 360 }}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={styles.sheetOption}
-                  onPress={() => {
-                    const next = { ...draftFilters, operationKey: item.key }
-                    onChangeDraft(next)
-                    onApply(next)
-                    closeSheet()
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.sheetOptionText,
-                      normalizeOperationKey(filters.operationKey) === item.key && styles.sheetOptionActive,
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                </Pressable>
+            <SectionList
+              sections={typeSheetSections}
+              keyExtractor={(item) => item.id}
+              style={styles.filterSheetList}
+              showsVerticalScrollIndicator
+              stickySectionHeadersEnabled
+              renderSectionHeader={({ section: { title } }) => (
+                <Text style={pillStyles.sectionHeader}>{title}</Text>
               )}
-            />
-            {canTransactions ? (
-              <>
-                <Text style={pillStyles.advancedLabel}>Status</Text>
-                {TRANSACTION_STATUS_OPTIONS.map((opt) => (
+              renderItem={({ item }) => {
+                const active =
+                  item.kind === 'type'
+                    ? normalizeOperationKey(filters.operationKey) === item.typeKey
+                    : filters.status === item.statusValue
+                return (
                   <Pressable
-                    key={opt.value || 'all'}
                     style={styles.sheetOption}
                     onPress={() => {
-                      const next = { ...draftFilters, status: opt.value }
+                      const next =
+                        item.kind === 'type'
+                          ? { ...draftFilters, operationKey: item.typeKey || '' }
+                          : { ...draftFilters, status: item.statusValue || '' }
                       onChangeDraft(next)
                       onApply(next)
                       closeSheet()
                     }}
                   >
-                    <Text
-                      style={[
-                        styles.sheetOptionText,
-                        filters.status === opt.value && styles.sheetOptionActive,
-                      ]}
-                    >
-                      {opt.label}
+                    <Text style={[styles.sheetOptionText, active && styles.sheetOptionActive]}>
+                      {item.label}
                     </Text>
                   </Pressable>
-                ))}
-              </>
-            ) : null}
+                )
+              }}
+            />
           </Pressable>
         </Pressable>
       </Modal>
 
-      <Modal visible={sheet === 'account'} animationType="slide" transparent onRequestClose={closeSheet}>
+      <Modal visible={sheet === 'account'} animationType="fade" transparent onRequestClose={closeSheet}>
         <Pressable style={styles.modalBackdrop} onPress={closeSheet}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -270,12 +286,11 @@ export default function OperationsFilterBar({
           >
             <Pressable
               style={[
-                styles.modalCard,
+                styles.modalCardCompact,
                 styles.modalCardSheet,
                 {
                   marginBottom: keyboardHeight,
                   maxHeight: accountSheetMaxHeight,
-                  ...(keyboardHeight > 0 ? { height: accountSheetMaxHeight } : null),
                 },
               ]}
               onPress={(e) => e.stopPropagation()}
@@ -291,10 +306,11 @@ export default function OperationsFilterBar({
               <SectionList
                 sections={accountSections}
                 keyExtractor={(item) => item._id || item.accountCode || item.accountName || 'row'}
-                style={{ flex: 1, minHeight: 0 }}
+                style={styles.filterSheetListAccounts}
                 stickySectionHeadersEnabled
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
+                showsVerticalScrollIndicator
                 ListHeaderComponent={
                   <Pressable
                     style={styles.accountRow}
