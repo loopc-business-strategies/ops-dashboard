@@ -41,56 +41,59 @@ export function LiveMetalPricesBar() {
     <View style={styles.root}>
       <View style={styles.headerRow}>
         <Text style={styles.headerTitle}>LIVE SPOT PRICES</Text>
-        <Text style={styles.headerSubline}>{headerSubline}</Text>
+        <Text style={styles.headerSubline} numberOfLines={1}>
+          {headerSubline}
+        </Text>
       </View>
 
       <View style={styles.cardsRow}>
         {METALS.map(({ key, label, swatch, sym, symColor }) => {
           const price = snapshot[key]
           const move =
-            snapshot.deltas && snapshot.prevSnapshot
+            snapshot.deltas && snapshot.prevSnapshot && !error
               ? fmtMoveRow(snapshot.deltas[key], snapshot.prevSnapshot[key])
               : null
 
           return (
             <View key={key} style={styles.card}>
-              <View style={[styles.swatch, { backgroundColor: swatch }]}>
-                <Text style={[styles.swatchText, { color: symColor }]}>{sym}</Text>
-              </View>
-              <View style={styles.cardBody}>
+              <View style={styles.labelRow}>
+                <View style={[styles.swatch, { backgroundColor: swatch }]}>
+                  <Text style={[styles.swatchText, { color: symColor }]}>{sym}</Text>
+                </View>
                 <Text style={styles.metalLabel} numberOfLines={1}>
                   {label}
                 </Text>
-                <Text
-                  style={styles.spotPrice}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.9}
-                >
-                  {fmtSpot(price)}
-                </Text>
-                <Text
-                  style={[
-                    styles.moveRow,
-                    error
-                      ? styles.moveMuted
-                      : move
-                        ? move.up
-                          ? styles.moveUp
-                          : styles.moveDown
-                        : styles.moveMuted,
-                  ]}
-                >
-                  {move ? `${move.arrow} ${move.rest}` : metalStatusSubline(snapshot, price, error)}
-                </Text>
               </View>
+              <Text
+                style={styles.spotPrice}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+              >
+                {fmtSpot(price)}
+              </Text>
+              <Text
+                style={[
+                  styles.moveRow,
+                  error
+                    ? styles.moveMuted
+                    : move
+                      ? move.up
+                        ? styles.moveUp
+                        : styles.moveDown
+                      : styles.moveMuted,
+                ]}
+                numberOfLines={1}
+              >
+                {move ? `${move.arrow} ${move.rest}` : metalStatusSubline(snapshot, price, error)}
+              </Text>
             </View>
           )
         })}
       </View>
 
-      <Text style={styles.footnote}>
-        {`Prices in ${snapshot.currency || 'USD'}/${formatLiveMetalUnit(snapshot.unit || 'TOZ')}. Equity and margin columns update as spot moves.`}
+      <Text style={styles.footnote} numberOfLines={1}>
+        {`${snapshot.currency || 'USD'}/${formatLiveMetalUnit(snapshot.unit || 'TOZ')} · equity updates with spot`}
       </Text>
     </View>
   )
@@ -98,79 +101,87 @@ export function LiveMetalPricesBar() {
 
 const styles = StyleSheet.create({
   root: {
-    marginBottom: 14,
-    padding: 12,
-    borderRadius: 10,
+    marginBottom: 10,
+    padding: 8,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#BFD0E5',
     backgroundColor: '#FFFFFF',
   },
   headerRow: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 4,
-    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 6,
   },
   headerTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#1E3A8A',
-    letterSpacing: 0.4,
+    letterSpacing: 0.3,
+    flexShrink: 0,
   },
   headerSubline: {
-    fontSize: 11,
+    flex: 1,
+    flexShrink: 1,
+    fontSize: 10,
     color: mgBranding.colors.muted,
     fontWeight: '600',
+    textAlign: 'right',
   },
   cardsRow: {
-    flexDirection: 'column',
-    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 6,
   },
   card: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    width: '100%',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    borderRadius: 6,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#D1D5DB',
   },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
+  },
   swatch: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
+    flexShrink: 0,
   },
   swatchText: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '800',
   },
-  cardBody: {
+  metalLabel: {
     flex: 1,
     minWidth: 0,
-  },
-  metalLabel: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '600',
     color: '#475569',
   },
   spotPrice: {
-    marginTop: 2,
-    fontSize: 18,
+    fontSize: 13,
     fontWeight: '700',
     color: mgBranding.colors.text,
     fontVariant: ['tabular-nums'],
+    textAlign: 'right',
   },
   moveRow: {
-    marginTop: 4,
-    fontSize: 11,
+    marginTop: 2,
+    fontSize: 9,
     fontWeight: '600',
-    flexWrap: 'wrap',
+    textAlign: 'right',
   },
   moveUp: {
     color: mgBranding.colors.success,
@@ -182,8 +193,8 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   footnote: {
-    marginTop: 8,
-    fontSize: 11,
+    marginTop: 6,
+    fontSize: 10,
     color: mgBranding.colors.muted,
   },
 })

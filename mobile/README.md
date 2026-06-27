@@ -17,7 +17,7 @@ Multi-tenant companion app (iOS / Android) for the Nexa ops-dashboard platform. 
 
 ## Tabs
 
-- **Home** — ERP dashboard cards (margins, fixing, bank, cash flow, expenses, volume, AP/AR, chat preview, alerts). **Live Gold / Silver / Platinum** spot prices appear at the top of the Home tab (same `/metal-rates/live` API as the web MG dashboard, MT4-backed when the bridge feed is fresh). Customer and supplier margin equity/% recalculate as spot moves.
+- **Home** — ERP dashboard cards (margins, fixing, bank, expenses, volume, AP/AR). **Live Gold / Silver / Platinum** spot prices appear at the top of the Home tab (same `/metal-rates/live` API as the web MG dashboard, MT4-backed when the bridge feed is fresh). Customer and supplier margin equity/% recalculate as spot moves. Chat and notifications are in the **header** (not Home cards).
 - **ERP** — **ERP Reports** (trial balance, P&L, balance sheet, day book, outstanding, forex, ledger drilldown); same `/api/erp-accounting/reports/*` APIs as web. Automated checks: `npm test` in `mobile/` (permissions + path regression tests). Backend smoke: `node backend/scripts/smoke-erp-api.js` with `SMOKE_LOGIN_COMPANY=mg` (cookie session). **Mobile JWT smoke:** `npm run smoke:mobile:api` with env credentials (Bearer + `X-Client: mobile`; includes ERP GETs + chat reads + socket + push-token API).
 - **+** — quick actions placeholder (coming soon modal)
 - **Transactions** — MG transaction list (same `/api/erp-accounting/transactions` API as web ERP Transactions tab): type chips, date/status/search filters, account filter (client-side), read-only detail view.

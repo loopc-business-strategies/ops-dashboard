@@ -54,6 +54,8 @@
     "verify:upload-storage": "node scripts/verify-upload-storage.mjs",
     "verify:data-safety": "npm run verify:upload-storage && npm run verify:mongo-backup-drill",
     "mobile:release:android": "node scripts/trigger-mobile-release.mjs android",
+    "mobile:download:apk": "node scripts/download-mobile-apk.mjs",
+    "mobile:install:apk": "node scripts/install-mobile-apk.mjs",
     "mobile:release:ios": "node scripts/trigger-mobile-release.mjs ios",
     "mobile:update:preview": "npm --prefix mobile run update:preview",
     "mobile:update:production": "npm --prefix mobile run update:production",
