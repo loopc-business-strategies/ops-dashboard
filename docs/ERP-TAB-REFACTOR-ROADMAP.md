@@ -27,7 +27,17 @@
 
 - **Finance modals** — `frontend/src/components/tabs/finance/FinanceModals.jsx` + `financeTabTokens.js` extracted from `FinanceTab.jsx`.
 
-`ERPTab.jsx` is ~2320 lines after S5 export/reference/navigation wire-up (down from ~6460 on main).
+`ERPTab.jsx` is ~2070 lines after S6 tab-panel extraction (down from ~6460 on main). Sub-tab routing JSX lives in `erp/ERPTabPanels.jsx` (~960 lines).
+
+## S6 wire-up (done)
+
+- **`ERPTabPanels`** — lazy sub-tab routing (dashboard, accounts, customers, margins, fixing register, ledger/JV, mappings, enquiry, transactions, reports, vendors, inventory, settings, currencies, vouchers, direct deals) plus `ErpEditRecordModal`; lazy imports and `ErpSubTabFallback` moved out of `ERPTab.jsx`.
+- **`ErpMappingTestModal`** — presentational mapping test overlay extracted from `ERPTab.jsx`.
+
+## S7 (next)
+
+- **`ERPTabModals`** — bundle `AccountEnquiryModal`, `StatementPreviewModal`, and `StatementExportOptionsModal` prop wiring (~120 lines still in `ERPTab.jsx`).
+- **Panel prop grouping** — optional `useErpTabPanelProps` hook to shrink the ~360-line `<ERPTabPanels … />` call site in `ERPTab.jsx`.
 
 ## S5 wire-up (done)
 

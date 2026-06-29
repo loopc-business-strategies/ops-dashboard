@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
@@ -47,10 +47,6 @@ import {
 
 import { deriveErpAccessPolicy, getAvailableTransactionTypes } from './erp/accessPolicy'
 import {
-  ERPAccountsTabContainer,
-  ERPVouchersTabContainer,
-} from './erp/ERPTabContainers'
-import {
   DEFAULT_INVENTORY_STOCK_CODE_SETTINGS,
   createInventoryMappingForm,
   createInventoryProductForm,
@@ -63,7 +59,6 @@ import {
   resolveTransactionAttachmentUrl,
   titleCaseWords,
 } from './erp/erpTabUtils'
-import ERPDashboardTab from './erp/tabs/ERPDashboardTab'
 import { useErpEnquiryMetalRatesSync } from './erp/useErpMetalRatesRealtime'
 import { useErpLiveMetalSpotPrices } from './erp/useErpLiveMetalSpotPrices'
 import useLiveMetalRates from '../../hooks/useLiveMetalRates'
@@ -118,34 +113,9 @@ import { useErpTransactions } from './erp/useErpTransactions'
 import { useErpExportActions } from './erp/useErpExportActions'
 import { useErpReferenceCrud } from './erp/useErpReferenceCrud'
 import { useErpTransactionNavigation } from './erp/useErpTransactionNavigation'
-import ErpEditRecordModal from './erp/ErpEditRecordModal'
+import ERPTabPanels from './erp/ERPTabPanels'
+import ErpMappingTestModal from './erp/ErpMappingTestModal'
 import { EMPTY_VENDOR_DOCUMENT_FORM, EMPTY_VENDOR_FORM } from './erp/vendorFormDefaults'
-
-const ChartOfAccountsTree = lazy(() => import('./ChartOfAccountsTree'))
-const DirectDealsTab = lazy(() => import('./DirectDealsTab'))
-const ERPInventoryTab = lazy(() => import('./erp/tabs/ERPInventoryTab'))
-const ERPVendorsTab = lazy(() => import('./erp/tabs/ERPVendorsTab'))
-const ERPLedgerTab = lazy(() => import('./erp/tabs/ERPLedgerTab'))
-const ERPTransactionsTab = lazy(() => import('./erp/tabs/ERPTransactionsTab'))
-const ERPReportsTab = lazy(() => import('./erp/tabs/ERPReportsTab'))
-const ERPFixingRegisterTab = lazy(() => import('./erp/tabs/ERPFixingRegisterTab'))
-const ERPCustomersTab = lazy(() => import('./erp/tabs/ERPCustomersTab'))
-const ERPCustomerMarginTab = lazy(() => import('./erp/tabs/ERPCustomerMarginTab'))
-const ERPSupplierMarginTab = lazy(() => import('./erp/tabs/ERPSupplierMarginTab'))
-const ERPMappingsTab = lazy(() => import('./erp/tabs/ERPMappingsTab'))
-const ERPEnquiryTab = lazy(() => import('./erp/tabs/ERPEnquiryTab'))
-const ERPSettingsTab = lazy(() => import('./erp/tabs/ERPSettingsTab'))
-const ERPCurrenciesTab = lazy(() => import('./erp/tabs/ERPCurrenciesTab'))
-
-const VoucherTab = lazy(() => import('./VoucherTab'))
-
-function ErpSubTabFallback() {
-  return (
-    <div style={{ padding: '1rem', color: '#6B7280', fontSize: '0.875rem' }}>
-      Loading…
-    </div>
-  )
-}
 
 function ERPTab({
   focusTab,
@@ -1641,613 +1611,376 @@ function ERPTab({
       </h2> */}
       {error && <div style={{ background: C.danger, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>{error}</div>}
       {success && <div style={{ background: C.s1, color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>{success}</div>}
-      {activeTab === 'dashboard' && (
-      <ERPDashboardTab
-        activeTab={activeTab}
+      <ERPTabPanels
         C={C}
-        dashWidgets={dashWidgets}
-        setDashWidgets={setDashWidgets}
-        dashEditMode={dashEditMode}
-        setDashEditMode={setDashEditMode}
-        dashHoveredWid={dashHoveredWid}
-        setDashHoveredWid={setDashHoveredWid}
-        dashWidgetCols={dashWidgetCols}
-        setDashWidgetCols={setDashWidgetCols}
-        dashCustomizeOpen={dashCustomizeOpen}
-        setDashCustomizeOpen={setDashCustomizeOpen}
-        dashPickSelected={dashPickSelected}
-        setDashPickSelected={setDashPickSelected}
-        dashDragSrc={dashDragSrc}
+        ACCOUNT_TYPES={ACCOUNT_TYPES}
         ERP_DASH_ALL_WIDGETS={ERP_DASH_ALL_WIDGETS}
-        dashboard={dashboard}
-        dashChatMessages={dashChatMessages}
-        setActiveTab={setActiveTabGuarded}
-        onNavigateMain={onNavigateMain}
-        dashboardLiveRecalcEnabled={activeTab === 'dashboard'}
-      />
-      )}
-      {/* CHART OF ACCOUNTS TAB */}
-      {activeTab === 'accounts' && (
-      <ERPAccountsTabContainer activeTab={activeTab}>
-        <div>
-          <div style={{ marginBottom: '1.25rem' }}>
-            <h3 style={{ color: C.ink, fontSize: '1.25rem', fontWeight: '700', margin: 0 }}>Chart of Accounts</h3>
-            <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: C.inkSoft }}>
-              Hierarchical account tree — right-click any account for more options.
-            </p>
-          </div>
-          <Suspense fallback={<ErpSubTabFallback />}>
-            <ChartOfAccountsTree canManageAccounts={canManageAccounts} onOpenSummary={handleOpenAccountSummaryFromTree} />
-          </Suspense>
-        </div>
-      </ERPAccountsTabContainer>
-      )}
-      {/* LEDGER TAB */}
-      {activeTab === 'customers' && (
-        <Suspense fallback={<ErpSubTabFallback />}>
-          <ERPCustomersTab
-            C={C}
-            canManageCustomers={canManageCustomers}
-            showCustomerForm={showCustomerForm}
-            setShowCustomerForm={setShowCustomerForm}
-            customerForm={customerForm}
-            setCustomerForm={setCustomerForm}
-            handleCreateCustomer={handleCreateCustomer}
-            saving={saving}
-            customers={customers}
-            handleEditCustomer={handleEditCustomer}
-            handleDeleteCustomer={handleDeleteCustomer}
-          />
-        </Suspense>
-      )}
-      {/* CUSTOMER MARGIN TAB */}
-      {activeTab === 'customer-margin' && (
-        <Suspense fallback={<ErpSubTabFallback />}>
-          <ERPCustomerMarginTab
-            C={C}
-            setActiveTabGuarded={setActiveTabGuarded}
-            customerMarginSort={customerMarginSort}
-            setCustomerMarginSort={setCustomerMarginSort}
-            customerMarginCompactView={customerMarginCompactView}
-            setCustomerMarginCompactView={setCustomerMarginCompactView}
-            customerMarginSearch={customerMarginSearch}
-            setCustomerMarginSearch={setCustomerMarginSearch}
-            customerMarginRows={customerMarginRows}
-            handleCustomerMarginRowContextMenu={handleCustomerMarginRowContextMenu}
-            customerMarginContextMenu={customerMarginContextMenu}
-          />
-        </Suspense>
-      )}
-      {/* SUPPLIER MARGIN TAB */}
-      {activeTab === 'supplier-margin' && (
-        <Suspense fallback={<ErpSubTabFallback />}>
-          <ERPSupplierMarginTab
-            C={C}
-            setActiveTabGuarded={setActiveTabGuarded}
-            supplierMarginSort={supplierMarginSort}
-            setSupplierMarginSort={setSupplierMarginSort}
-            supplierMarginCompactView={supplierMarginCompactView}
-            setSupplierMarginCompactView={setSupplierMarginCompactView}
-            supplierMarginSearch={supplierMarginSearch}
-            setSupplierMarginSearch={setSupplierMarginSearch}
-            supplierMarginRows={supplierMarginRows}
-            handleSupplierMarginRowContextMenu={handleSupplierMarginRowContextMenu}
-            supplierMarginContextMenu={supplierMarginContextMenu}
-          />
-        </Suspense>
-      )}
-      {activeTab === 'fixing-register' && (
-        <Suspense fallback={<ErpSubTabFallback />}>
-          <ERPFixingRegisterTab
-            activeTab={activeTab}
-            C={C}
-            setActiveTab={setActiveTabGuarded}
-            fixingRegPanelOffset={fixingRegPanelOffset}
-            fixingRegPanelDrag={fixingRegPanelDrag}
-            beginFixingRegPanelDrag={beginFixingRegPanelDrag}
-            handleFixingRegProceed={handleFixingRegProceed}
-            fixingRegLoading={fixingRegLoading}
-            fixingRegFilter={fixingRegFilter}
-            setFixingRegFilter={setFixingRegFilter}
-            fixingRegisterStockTypeOptions={fixingRegisterStockTypeOptions}
-            setFixingRegShown={setFixingRegShown}
-            setFixingRegResults={setFixingRegResults}
-            setFixingRegError={setFixingRegError}
-            fixingRegError={fixingRegError}
-            fixingRegShown={fixingRegShown}
-            fixingRegOpening={fixingRegOpening}
-            fixingRegResults={fixingRegResults}
-            fixingRegFmtQty={fixingRegFmtQty}
-            fixingRegFmtRate={fixingRegFmtRate}
-            fixingRegFmtAmt={fixingRegFmtAmt}
-          />
-        </Suspense>
-      )}
-      {(activeTab === 'ledger' || showLedgerForm) && (
-        <Suspense fallback={<ErpSubTabFallback />}>
-          <ERPLedgerTab
-        activeTab={activeTab}
-        C={C}
-        canManageAccounts={canManageAccounts}
-        showLedgerForm={showLedgerForm}
-        openJvModal={openJvModal}
-        ledgerVoucherTab={ledgerVoucherTab}
-        setLedgerVoucherTab={setLedgerVoucherTab}
+        ERP_EMPTY_CARD_STYLE={ERP_EMPTY_CARD_STYLE}
+        ERP_MODAL_BACKDROP_STYLE={ERP_MODAL_BACKDROP_STYLE}
+        ERP_MODAL_CARD_STYLE={ERP_MODAL_CARD_STYLE}
+        ERP_MODAL_INPUT_STYLE={ERP_MODAL_INPUT_STYLE}
+        ITEMS_PER_PAGE={ITEMS_PER_PAGE}
         JV_MODE_META={JV_MODE_META}
-        resolveJvModeMeta={resolveJvModeMeta}
-        jvMode={jvMode}
-        getJvValidation={getJvValidation}
-        jvLines={jvLines}
-        baseCurrencyCode={baseCurrencyCode}
-        closeJvModal={closeJvModal}
-        jvModalSize={jvModalSize}
-        jvModalOffset={jvModalOffset}
-        jvModalDrag={jvModalDrag}
-        jvModalResize={jvModalResize}
-        beginJvModalDrag={beginJvModalDrag}
-        switchJvMode={switchJvMode}
-        jvEditEntryIds={jvEditEntryIds}
-        currencies={currencies}
-        jvHeader={jvHeader}
-        setJvHeader={setJvHeader}
-        bankJvComboGroups={bankJvComboGroups}
-        jvComboGroups={jvComboGroups}
-        resolveJvLineAccount={resolveJvLineAccount}
-        handleJvAccountKeyDown={handleJvAccountKeyDown}
-        updateJvLine={updateJvLine}
-        handleJvLineKeyDown={handleJvLineKeyDown}
-        removeJvLine={removeJvLine}
-        addJvLine={addJvLine}
-        handlePrintJvVoucher={handlePrintJvVoucher}
-        handleSaveMultiLineJV={handleSaveMultiLineJV}
-        saving={saving}
-        jvError={jvError}
-        beginJvModalResize={beginJvModalResize}
-        ledgerFilters={ledgerFilters}
-        setLedgerFilters={setLedgerFilters}
-        modalInputStyle={ERP_MODAL_INPUT_STYLE}
         LEDGER_DEPARTMENTS={LEDGER_DEPARTMENTS}
         LEDGER_REFERENCE_TYPES={LEDGER_REFERENCE_TYPES}
+        TRANSACTION_ACTION_LABELS={TRANSACTION_ACTION_LABELS}
+        TRANSACTION_STATUS_STYLES={TRANSACTION_STATUS_STYLES}
+        TRANSACTION_TYPE_LABELS={TRANSACTION_TYPE_LABELS}
+        accountEnquiryCode={accountEnquiryCode}
         accounts={accounts}
-        sorting={sorting}
-        setSorting={setSorting}
-        pagination={pagination}
-        setPagination={setPagination}
-        ITEMS_PER_PAGE={ITEMS_PER_PAGE}
-        ledger={ledger}
-        ledgerMeta={ledgerMeta}
-        loadLedger={loadLedger}
-        jvReadOnly={jvReadOnly}
-        handleOpenJv={handleOpenJv}
+        activeTab={activeTab}
+        addJvLine={addJvLine}
+        allVisibleTransactionsSelected={allVisibleTransactionsSelected}
+        availableTransactionTypes={availableTransactionTypes}
+        bankJvComboGroups={bankJvComboGroups}
+        baseCurrencyCode={baseCurrencyCode}
+        beginFixingRegPanelDrag={beginFixingRegPanelDrag}
+        beginJvModalDrag={beginJvModalDrag}
+        beginJvModalResize={beginJvModalResize}
+        branding={branding}
+        brandingForm={brandingForm}
+        brandingPreview={brandingPreview}
+        brandingPreviewLogo={brandingPreviewLogo}
+        brandingProfiles={brandingProfiles}
+        buildAccountEnquiryHref={buildAccountEnquiryHref}
+        canManageAccounts={canManageAccounts}
+        canManageCustomers={canManageCustomers}
+        canManageDirectDeals={canManageDirectDeals}
+        canManageVendors={canManageVendors}
+        canViewBalanceEnquiry={canViewBalanceEnquiry}
+        closeEditModal={closeEditModal}
+        closeJvModal={closeJvModal}
+        createInventoryMappingForm={createInventoryMappingForm}
+        currencies={currencies}
+        currencyForm={currencyForm}
+        customerForm={customerForm}
+        customerMarginCompactView={customerMarginCompactView}
+        customerMarginContextMenu={customerMarginContextMenu}
+        customerMarginRows={customerMarginRows}
+        customerMarginSearch={customerMarginSearch}
+        customerMarginSort={customerMarginSort}
+        customers={customers}
+        dashChatMessages={dashChatMessages}
+        dashCustomizeOpen={dashCustomizeOpen}
+        dashDragSrc={dashDragSrc}
+        dashEditMode={dashEditMode}
+        dashHoveredWid={dashHoveredWid}
+        dashPickSelected={dashPickSelected}
+        dashWidgetCols={dashWidgetCols}
+        dashWidgets={dashWidgets}
+        dashboard={dashboard}
+        decodeInventoryCategoryMeta={decodeInventoryCategoryMeta}
+        editState={editState}
+        editingInventoryProductId={editingInventoryProductId}
+        editingProductId={editingProductId}
+        editingVendorId={editingVendorId}
+        enquiryHistory={enquiryHistory}
+        enquiryLoading={enquiryLoading}
+        enquiryStatus={enquiryStatus}
+        erpBaseCurrencyCode={erpBaseCurrencyCode}
+        erpLiveMetalSnapshot={erpLiveMetalSnapshot}
+        fetchAccountEnquiryByCode={fetchAccountEnquiryByCode}
+        filteredGroupedSummaryAccounts={filteredGroupedSummaryAccounts}
+        fixingRegError={fixingRegError}
+        fixingRegFilter={fixingRegFilter}
+        fixingRegFmtAmt={fixingRegFmtAmt}
+        fixingRegFmtQty={fixingRegFmtQty}
+        fixingRegFmtRate={fixingRegFmtRate}
+        fixingRegLoading={fixingRegLoading}
+        fixingRegOpening={fixingRegOpening}
+        fixingRegPanelDrag={fixingRegPanelDrag}
+        fixingRegPanelOffset={fixingRegPanelOffset}
+        fixingRegResults={fixingRegResults}
+        fixingRegShown={fixingRegShown}
+        fixingRegisterStockTypeOptions={fixingRegisterStockTypeOptions}
+        formatDirectionalBalance={formatDirectionalBalance}
+        formatMoney={formatMoney}
+        formatMoneyAbs={formatMoneyAbs}
+        formatTransactionAuditEntry={formatTransactionAuditEntry}
+        formatTransactionCommentKind={formatTransactionCommentKind}
+        formatVatPercent={formatVatPercent}
+        getDepartmentBadgeStyle={getDepartmentBadgeStyle}
+        getJvValidation={getJvValidation}
+        getReportPeriodLabel={getReportPeriodLabel}
+        getTransactionBulkSelectionLabel={getTransactionBulkSelectionLabel}
+        handleAccountEnquiry={handleAccountEnquiry}
+        handleAddTransactionComment={handleAddTransactionComment}
+        handleAddVendorDocument={handleAddVendorDocument}
+        handleBrandingLogoFile={handleBrandingLogoFile}
+        handleBulkTransactionAction={handleBulkTransactionAction}
+        handleCreateBrandingDraft={handleCreateBrandingDraft}
+        handleCreateCurrency={handleCreateCurrency}
+        handleCreateCustomer={handleCreateCustomer}
+        handleCreateInventoryCatalogProduct={handleCreateInventoryCatalogProduct}
+        handleCreateMapping={handleCreateMapping}
+        handleCreateProduct={handleCreateProduct}
+        handleCreateTransaction={handleCreateTransaction}
+        handleCreateVendor={handleCreateVendor}
+        handleCustomerMarginRowContextMenu={handleCustomerMarginRowContextMenu}
+        handleDeleteCurrency={handleDeleteCurrency}
+        handleDeleteCustomer={handleDeleteCustomer}
+        handleDeleteInventoryCatalogProduct={handleDeleteInventoryCatalogProduct}
+        handleDeleteMapping={handleDeleteMapping}
+        handleDeleteProduct={handleDeleteProduct}
+        handleDeleteTransaction={handleDeleteTransaction}
+        handleDeleteTransactionAttachment={handleDeleteTransactionAttachment}
+        handleDeleteVendor={handleDeleteVendor}
+        handleDeleteVendorDocument={handleDeleteVendorDocument}
+        handleEditCurrency={handleEditCurrency}
+        handleEditCustomer={handleEditCustomer}
+        handleEditInventoryCatalogProduct={handleEditInventoryCatalogProduct}
         handleEditJv={handleEditJv}
         handleEditLedger={handleEditLedger}
-        handleReconcileLedger={handleReconcileLedger}
-        handleReverseLedger={handleReverseLedger}
-        isFinance={isFinance}
-        handleRepairJvFxPreview={handleRepairJvFxPreview}
-        handleRepairJvFxApply={handleRepairJvFxApply}
-          />
-        </Suspense>
-      )}
-      {/* ACCOUNT MAPPINGS TAB */}
-      {activeTab === 'mappings' && (
-        <Suspense fallback={<ErpSubTabFallback />}>
-          <ERPMappingsTab
-            C={C}
-            canManageAccounts={canManageAccounts}
-            showMappingForm={showMappingForm}
-            setShowMappingForm={setShowMappingForm}
-            mappingFilters={mappingFilters}
-            setMappingFilters={setMappingFilters}
-            LEDGER_DEPARTMENTS={LEDGER_DEPARTMENTS}
-            mappingSummary={mappingSummary}
-            getDepartmentBadgeStyle={getDepartmentBadgeStyle}
-            mappingForm={mappingForm}
-            setMappingForm={setMappingForm}
-            accounts={accounts}
-            handleCreateMapping={handleCreateMapping}
-            saving={saving}
-            mappings={mappings}
-            sorting={sorting}
-            setSorting={setSorting}
-            pagination={pagination}
-            setPagination={setPagination}
-            ITEMS_PER_PAGE={ITEMS_PER_PAGE}
-            token={token}
-            loadMappings={loadMappings}
-            showNotification={showNotification}
-            setError={setError}
-            setTestMapping={setTestMapping}
-            setShowMappingTest={setShowMappingTest}
-            handleEditMapping={handleEditMapping}
-            handleDeleteMapping={handleDeleteMapping}
-          />
-        </Suspense>
-      )}
-      {/* ACCOUNT SUMMARY TAB */}
-      {activeTab === 'enquiry' && (
-        <Suspense fallback={<ErpSubTabFallback />}>
-          <ERPEnquiryTab
-            activeTab={activeTab}
-            C={C}
-            isSuperAdmin={isSuperAdmin}
-            isFinance={isFinance}
-            canViewBalanceEnquiry={canViewBalanceEnquiry}
-            handleAccountEnquiry={handleAccountEnquiry}
-            accountEnquiryCode={accountEnquiryCode}
-            setAccountEnquiryCode={setAccountEnquiryCode}
-            setEnquiryStatus={setEnquiryStatus}
-            filteredGroupedSummaryAccounts={filteredGroupedSummaryAccounts}
-            fetchAccountEnquiryByCode={fetchAccountEnquiryByCode}
-            enquiryLoading={enquiryLoading}
-            enquiryStatus={enquiryStatus}
-            summaryAccountsLoading={summaryAccountsLoading}
-            safeSummaryAccounts={safeSummaryAccounts}
-            enquiryHistory={enquiryHistory}
-            buildAccountEnquiryHref={buildAccountEnquiryHref}
-          />
-        </Suspense>
-      )}
-      {(activeTab === 'transactions' || jumpToTransactionId) && (
-        <Suspense fallback={<ErpSubTabFallback />}>
-          <ERPTransactionsTab
-        activeTab={activeTab}
-        C={C}
-        emptyCardStyle={ERP_EMPTY_CARD_STYLE}
-        transactionSummary={transactionSummary}
-        selectedTransactionId={selectedTransactionId}
-        setSelectedTransactionId={setSelectedTransactionId}
-        transactionFilters={transactionFilters}
-        setTransactionFilters={setTransactionFilters}
-        modalInputStyle={ERP_MODAL_INPUT_STYLE}
-        availableTransactionTypes={availableTransactionTypes}
-        TRANSACTION_TYPE_LABELS={TRANSACTION_TYPE_LABELS}
-        loadTransactions={loadTransactions}
-        handleExportTransactionsCsv={handleExportTransactionsCsv}
-        handleExportTransactionsXlsx={handleExportTransactionsXlsx}
-        handleExportTransactionsPdf={handleExportTransactionsPdf}
-        getTransactionBulkSelectionLabel={getTransactionBulkSelectionLabel}
-        selectedTransactionIds={selectedTransactionIds}
-        setSelectedTransactionIds={setSelectedTransactionIds}
-        transactionWorkflowNote={transactionWorkflowNote}
-        setTransactionWorkflowNote={setTransactionWorkflowNote}
-        saving={saving}
-        handleBulkTransactionAction={handleBulkTransactionAction}
-        isSuperAdmin={isSuperAdmin}
-        isFinance={isFinance}
-        handleCreateTransaction={handleCreateTransaction}
-        isTransactionEditMode={isTransactionEditMode}
-        resetTransactionComposer={resetTransactionComposer}
-        transactionForm={transactionForm}
-        setTransactionForm={setTransactionForm}
-        currencies={currencies}
-        customers={customers}
-        vendors={vendors}
-        inventoryProducts={inventoryProducts}
-        mappings={mappings}
-        accounts={accounts}
-        selectedTransaction={selectedTransaction}
-        TRANSACTION_STATUS_STYLES={TRANSACTION_STATUS_STYLES}
-        resolveTransactionAttachmentUrl={resolveTransactionAttachmentUrl}
-        transactionAttachmentInputKey={transactionAttachmentInputKey}
-        handleUploadTransactionAttachment={handleUploadTransactionAttachment}
-        handleDeleteTransactionAttachment={handleDeleteTransactionAttachment}
-        handleTransactionAction={handleTransactionAction}
-        transactionCommentDraft={transactionCommentDraft}
-        setTransactionCommentDraft={setTransactionCommentDraft}
-        handleAddTransactionComment={handleAddTransactionComment}
-        handleSendTransactionChat={handleSendTransactionChat}
-        formatTransactionCommentKind={formatTransactionCommentKind}
-        formatTransactionAuditEntry={formatTransactionAuditEntry}
-        TRANSACTION_ACTION_LABELS={TRANSACTION_ACTION_LABELS}
-        transactions={transactions}
-        toggleVisibleTransactionSelection={toggleVisibleTransactionSelection}
-        allVisibleTransactionsSelected={allVisibleTransactionsSelected}
-        toggleTransactionSelection={toggleTransactionSelection}
-        populateTransactionForm={populateTransactionForm}
-        handleDeleteTransaction={handleDeleteTransaction}
-        transactionMeta={transactionMeta}
-        transactionPageCount={transactionPageCount}
-        loading={transactionsLoading}
-          />
-        </Suspense>
-      )}
-      {activeTab === 'reports' && (
-        <Suspense fallback={<ErpSubTabFallback />}>
-          <ERPReportsTab
-        activeTab={activeTab}
-        C={C}
-        modalInputStyle={ERP_MODAL_INPUT_STYLE}
-        reportFilters={reportFilters}
-        setReportFilters={setReportFilters}
-        ACCOUNT_TYPES={ACCOUNT_TYPES}
-        LEDGER_REFERENCE_TYPES={LEDGER_REFERENCE_TYPES}
-        handleExportReportCsv={handleExportReportCsv}
-        handleExportReportXlsx={handleExportReportXlsx}
-        handleExportReportPdf={handleExportReportPdf}
-        handlePrintCurrentReport={handlePrintCurrentReport}
-        emptyCardStyle={ERP_EMPTY_CARD_STYLE}
-        reports={reports}
-        reportView={reportView}
-        setReportView={setReportView}
-        getReportPeriodLabel={getReportPeriodLabel}
-        formatDirectionalBalance={formatDirectionalBalance}
-        handleTrialAccountDrilldown={handleTrialAccountDrilldown}
-        formatMoney={formatMoney}
-        handleReportAccountDrilldown={handleReportAccountDrilldown}
-        formatMoneyAbs={formatMoneyAbs}
-        selectedReportAccountId={selectedReportAccountId}
-        setSelectedReportAccountId={setSelectedReportAccountId}
-        accounts={accounts}
-        setSelectedReportAccountCode={setSelectedReportAccountCode}
-        selectedReportAccountCode={selectedReportAccountCode}
-        ledgerReportRows={ledgerReportRows}
-        loading={reportsLoading}
-        voucherSource={voucherSource}
-        setVoucherSource={setVoucherSource}
-        modalBackdropStyle={ERP_MODAL_BACKDROP_STYLE}
-        modalCardStyle={ERP_MODAL_CARD_STYLE}
-        voucherSourceLoading={voucherSourceLoading}
-        handleOpenVoucherSource={handleOpenVoucherSource}
-        handleJumpToTransaction={handleJumpToTransaction}
-          />
-        </Suspense>
-      )}
-      {/* VENDORS TAB */}
-      {activeTab === 'vendors' && (
-        <Suspense fallback={<ErpSubTabFallback />}>
-          <ERPVendorsTab
-        activeTab={activeTab}
-        C={C}
-        modalInputStyle={ERP_MODAL_INPUT_STYLE}
-        emptyCardStyle={ERP_EMPTY_CARD_STYLE}
-        saving={saving}
-        canManageVendors={canManageVendors}
-        vendorSummary={vendorSummary}
-        vendorPaymentCalendar={vendorPaymentCalendar}
-        vendorComplianceSummary={vendorComplianceSummary}
-        vendorOverdueQueue={vendorOverdueQueue}
-        vendorFilters={vendorFilters}
-        showVendorForm={showVendorForm}
-        editingVendorId={editingVendorId}
-        vendorForm={vendorForm}
-        vendors={vendors}
-        selectedVendorId={selectedVendorId}
-        selectedVendorDetails={selectedVendorDetails}
-        vendorPermissions={vendorPermissions}
-        vendorWorkflowReason={vendorWorkflowReason}
-        vendorDocumentForm={vendorDocumentForm}
-        handleVendorFilterSearch={handleVendorFilterSearch}
-        setEditingVendorId={setEditingVendorId}
-        setShowVendorForm={setShowVendorForm}
-        loadVendorOverdueQueue={loadVendorOverdueQueue}
-        setVendorFilters={setVendorFilters}
-        handleCreateVendor={handleCreateVendor}
-        setVendorForm={setVendorForm}
-        handleVendorSelect={handleVendorSelect}
+        handleEditMapping={handleEditMapping}
+        handleEditProduct={handleEditProduct}
         handleEditVendor={handleEditVendor}
-        handleDeleteVendor={handleDeleteVendor}
-        setVendorWorkflowReason={setVendorWorkflowReason}
-        handleVendorWorkflowStatus={handleVendorWorkflowStatus}
-        handleAddVendorDocument={handleAddVendorDocument}
+        handleExportReportCsv={handleExportReportCsv}
+        handleExportReportPdf={handleExportReportPdf}
+        handleExportReportXlsx={handleExportReportXlsx}
+        handleExportTransactionsCsv={handleExportTransactionsCsv}
+        handleExportTransactionsPdf={handleExportTransactionsPdf}
+        handleExportTransactionsXlsx={handleExportTransactionsXlsx}
+        handleFixingRegProceed={handleFixingRegProceed}
+        handleInventoryModalDragStart={handleInventoryModalDragStart}
+        handleInventoryProductModalDragStart={handleInventoryProductModalDragStart}
+        handleJumpToTransaction={handleJumpToTransaction}
+        handleJvAccountKeyDown={handleJvAccountKeyDown}
+        handleJvLineKeyDown={handleJvLineKeyDown}
+        handleOpenAccountSummaryFromTree={handleOpenAccountSummaryFromTree}
+        handleOpenJv={handleOpenJv}
+        handleOpenVoucherSource={handleOpenVoucherSource}
+        handlePrintCurrentReport={handlePrintCurrentReport}
+        handlePrintJvVoucher={handlePrintJvVoucher}
+        handleReconcileLedger={handleReconcileLedger}
+        handleRepairJvFxApply={handleRepairJvFxApply}
+        handleRepairJvFxPreview={handleRepairJvFxPreview}
+        handleReportAccountDrilldown={handleReportAccountDrilldown}
+        handleReverseLedger={handleReverseLedger}
+        handleSaveBranding={handleSaveBranding}
+        handleSaveEdit={handleSaveEdit}
+        handleSaveMultiLineJV={handleSaveMultiLineJV}
+        handleSelectBrandingProfile={handleSelectBrandingProfile}
+        handleSendTransactionChat={handleSendTransactionChat}
+        handleSupplierMarginRowContextMenu={handleSupplierMarginRowContextMenu}
+        handleSyncCurrencyMaster={handleSyncCurrencyMaster}
+        handleTransactionAction={handleTransactionAction}
+        handleTrialAccountDrilldown={handleTrialAccountDrilldown}
+        handleUploadTransactionAttachment={handleUploadTransactionAttachment}
+        handleVendorFilterSearch={handleVendorFilterSearch}
+        handleVendorSelect={handleVendorSelect}
         handleVendorTableDocumentUpload={handleVendorTableDocumentUpload}
-        setVendorDocumentForm={setVendorDocumentForm}
-        handleDeleteVendorDocument={handleDeleteVendorDocument}
-          />
-        </Suspense>
-      )}
-      {/* INVENTORY TAB */}
-      {activeTab === 'inventory' && (
-        <Suspense fallback={<ErpSubTabFallback />}>
-          <ERPInventoryTab
-        activeTab={activeTab}
-        C={C}
-        modalInputStyle={ERP_MODAL_INPUT_STYLE}
-        isSuperAdmin={isSuperAdmin}
-        isFinance={isFinance}
-        saving={saving}
-        token={token}
-        tenantKey={inventoryTenantKey}
-        liveMetalSnapshot={erpLiveMetalSnapshot}
-        liveMetalError={liveMetalFetchError}
-        loadInventory={loadInventory}
-        inventoryMappingProducts={inventoryMappingProducts}
+        handleVendorWorkflowStatus={handleVendorWorkflowStatus}
         inventoryCatalogProducts={inventoryCatalogProducts}
+        inventoryLowStockCount={inventoryLowStockCount}
+        inventoryMappingForm={inventoryMappingForm}
+        inventoryMappingProducts={inventoryMappingProducts}
+        inventoryMetalBreakdown={inventoryMetalBreakdown}
+        inventoryModalDragging={inventoryModalDragging}
+        inventoryModalOffset={inventoryModalOffset}
+        inventoryProductForm={inventoryProductForm}
+        inventoryProductModalDragging={inventoryProductModalDragging}
+        inventoryProductModalOffset={inventoryProductModalOffset}
+        inventoryProductPurityWeight={inventoryProductPurityWeight}
+        inventoryProducts={inventoryProducts}
         inventoryProductsByMetal={inventoryProductsByMetal}
         inventoryReportProducts={inventoryReportProducts}
+        inventoryStockCodeSettings={inventoryStockCodeSettings}
+        inventoryStockTypeOptions={inventoryStockTypeOptions}
+        inventoryTenantKey={inventoryTenantKey}
+        inventoryTopProducts={inventoryTopProducts}
         inventoryTotalQuantity={inventoryTotalQuantity}
         inventoryTotalValue={inventoryTotalValue}
-        inventoryLowStockCount={inventoryLowStockCount}
-        inventoryMetalBreakdown={inventoryMetalBreakdown}
-        inventoryTopProducts={inventoryTopProducts}
-        legacyInventoryProducts={legacyInventoryProducts}
         inventoryVatFilter={inventoryVatFilter}
         inventoryVatSortDir={inventoryVatSortDir}
-        sortedInventoryTableRows={sortedInventoryTableRows}
-        stockMovements={stockMovements}
-        stockMovementsLoading={stockMovementsLoading}
-        stockMovementsFilter={stockMovementsFilter}
-        showInventoryProductModal={showInventoryProductModal}
-        showInventoryMappingModal={showInventoryMappingModal}
-        editingProductId={editingProductId}
-        editingInventoryProductId={editingInventoryProductId}
-        stockTypeModalTab={stockTypeModalTab}
-        inventoryModalOffset={inventoryModalOffset}
-        inventoryModalDragging={inventoryModalDragging}
-        inventoryProductModalOffset={inventoryProductModalOffset}
-        inventoryProductModalDragging={inventoryProductModalDragging}
-        inventoryMappingForm={inventoryMappingForm}
-        inventoryProductForm={inventoryProductForm}
-        inventoryStockTypeOptions={inventoryStockTypeOptions}
-        inventoryProductPurityWeight={inventoryProductPurityWeight}
-        setEditingProductId={setEditingProductId}
-        setInventoryMappingForm={setInventoryMappingForm}
-        setInventoryStockCodeManualOverride={setInventoryStockCodeManualOverride}
-        setInventoryModalOffset={setInventoryModalOffset}
-        setShowInventoryMappingModal={setShowInventoryMappingModal}
+        isFinance={isFinance}
+        isSuperAdmin={isSuperAdmin}
+        isTransactionEditMode={isTransactionEditMode}
+        jumpToTransactionId={jumpToTransactionId}
+        jumpToVoucher={jumpToVoucher}
+        jvComboGroups={jvComboGroups}
+        jvEditEntryIds={jvEditEntryIds}
+        jvError={jvError}
+        jvHeader={jvHeader}
+        jvLines={jvLines}
+        jvModalDrag={jvModalDrag}
+        jvModalOffset={jvModalOffset}
+        jvModalResize={jvModalResize}
+        jvModalSize={jvModalSize}
+        jvMode={jvMode}
+        jvReadOnly={jvReadOnly}
+        ledger={ledger}
+        ledgerFilters={ledgerFilters}
+        ledgerMeta={ledgerMeta}
+        ledgerReportRows={ledgerReportRows}
+        ledgerVoucherTab={ledgerVoucherTab}
+        legacyInventoryProducts={legacyInventoryProducts}
+        liveMetalFetchError={liveMetalFetchError}
+        loadInventory={loadInventory}
+        loadLedger={loadLedger}
+        loadMappings={loadMappings}
+        loadStockLedger={loadStockLedger}
+        loadTransactions={loadTransactions}
+        loadVendorOverdueQueue={loadVendorOverdueQueue}
+        mappingFilters={mappingFilters}
+        mappingForm={mappingForm}
+        mappingSummary={mappingSummary}
+        mappings={mappings}
+        onJumpToVoucherConsumed={onJumpToVoucherConsumed}
+        onNavigateMain={onNavigateMain}
+        openJvModal={openJvModal}
+        pagination={pagination}
+        populateTransactionForm={populateTransactionForm}
+        removeJvLine={removeJvLine}
+        reportBranding={reportBranding}
+        reportFilters={reportFilters}
+        reportView={reportView}
+        reports={reports}
+        reportsLoading={reportsLoading}
+        resetInventoryMappingForm={resetInventoryMappingForm}
+        resetInventoryProductForm={resetInventoryProductForm}
+        resetTransactionComposer={resetTransactionComposer}
+        resolveJvLineAccount={resolveJvLineAccount}
+        resolveJvModeMeta={resolveJvModeMeta}
+        resolveMainStockValueFromForm={resolveMainStockValueFromForm}
+        resolveTransactionAttachmentUrl={resolveTransactionAttachmentUrl}
+        safeSummaryAccounts={safeSummaryAccounts}
+        saving={saving}
+        selectedBrandingKey={selectedBrandingKey}
+        selectedReportAccountCode={selectedReportAccountCode}
+        selectedReportAccountId={selectedReportAccountId}
+        selectedTransaction={selectedTransaction}
+        selectedTransactionId={selectedTransactionId}
+        selectedTransactionIds={selectedTransactionIds}
+        selectedUsdConversionRate={selectedUsdConversionRate}
+        selectedVendorDetails={selectedVendorDetails}
+        selectedVendorId={selectedVendorId}
+        setAccountEnquiryCode={setAccountEnquiryCode}
+        setActiveTabGuarded={setActiveTabGuarded}
+        setBrandingForm={setBrandingForm}
+        setCurrencyForm={setCurrencyForm}
+        setCustomerForm={setCustomerForm}
+        setCustomerMarginCompactView={setCustomerMarginCompactView}
+        setCustomerMarginSearch={setCustomerMarginSearch}
+        setCustomerMarginSort={setCustomerMarginSort}
+        setDashCustomizeOpen={setDashCustomizeOpen}
+        setDashEditMode={setDashEditMode}
+        setDashHoveredWid={setDashHoveredWid}
+        setDashPickSelected={setDashPickSelected}
+        setDashWidgetCols={setDashWidgetCols}
+        setDashWidgets={setDashWidgets}
+        setEditState={setEditState}
         setEditingInventoryProductId={setEditingInventoryProductId}
+        setEditingProductId={setEditingProductId}
+        setEditingVendorId={setEditingVendorId}
+        setEnquiryStatus={setEnquiryStatus}
+        setError={setError}
+        setFixingRegError={setFixingRegError}
+        setFixingRegFilter={setFixingRegFilter}
+        setFixingRegResults={setFixingRegResults}
+        setFixingRegShown={setFixingRegShown}
+        setInventoryMappingForm={setInventoryMappingForm}
+        setInventoryModalOffset={setInventoryModalOffset}
+        setInventoryProductForm={setInventoryProductForm}
         setInventoryProductModalOffset={setInventoryProductModalOffset}
-        setShowInventoryProductModal={setShowInventoryProductModal}
+        setInventoryStockCodeManualOverride={setInventoryStockCodeManualOverride}
+        setInventoryStockCodeSettings={setInventoryStockCodeSettings}
         setInventoryVatFilter={setInventoryVatFilter}
         setInventoryVatSortDir={setInventoryVatSortDir}
+        setJvHeader={setJvHeader}
+        setLedgerFilters={setLedgerFilters}
+        setLedgerVoucherTab={setLedgerVoucherTab}
+        setMappingFilters={setMappingFilters}
+        setMappingForm={setMappingForm}
+        setPagination={setPagination}
+        setReportFilters={setReportFilters}
+        setReportView={setReportView}
+        setSelectedBrandingKey={setSelectedBrandingKey}
+        setSelectedReportAccountCode={setSelectedReportAccountCode}
+        setSelectedReportAccountId={setSelectedReportAccountId}
+        setSelectedTransactionId={setSelectedTransactionId}
+        setSelectedTransactionIds={setSelectedTransactionIds}
+        setShowCurrencyForm={setShowCurrencyForm}
+        setShowCustomerForm={setShowCustomerForm}
+        setShowInventoryMappingModal={setShowInventoryMappingModal}
+        setShowInventoryProductModal={setShowInventoryProductModal}
+        setShowMappingForm={setShowMappingForm}
+        setShowMappingTest={setShowMappingTest}
+        setShowVendorForm={setShowVendorForm}
+        setSorting={setSorting}
         setStockMovementsFilter={setStockMovementsFilter}
-        setInventoryProductForm={setInventoryProductForm}
         setStockTypeModalTab={setStockTypeModalTab}
-        createInventoryMappingForm={createInventoryMappingForm}
-        decodeInventoryCategoryMeta={decodeInventoryCategoryMeta}
+        setSupplierMarginCompactView={setSupplierMarginCompactView}
+        setSupplierMarginSearch={setSupplierMarginSearch}
+        setSupplierMarginSort={setSupplierMarginSort}
+        setTestMapping={setTestMapping}
+        setTransactionCommentDraft={setTransactionCommentDraft}
+        setTransactionFilters={setTransactionFilters}
+        setTransactionForm={setTransactionForm}
+        setTransactionWorkflowNote={setTransactionWorkflowNote}
+        setUsdConversion={setUsdConversion}
+        setVendorDocumentForm={setVendorDocumentForm}
+        setVendorFilters={setVendorFilters}
+        setVendorForm={setVendorForm}
+        setVendorWorkflowReason={setVendorWorkflowReason}
+        setVoucherSource={setVoucherSource}
+        showCurrencyForm={showCurrencyForm}
+        showCustomerForm={showCustomerForm}
+        showInventoryMappingModal={showInventoryMappingModal}
+        showInventoryProductModal={showInventoryProductModal}
+        showLedgerForm={showLedgerForm}
+        showMappingForm={showMappingForm}
+        showNotification={showNotification}
+        showVendorForm={showVendorForm}
+        sortedInventoryTableRows={sortedInventoryTableRows}
+        sorting={sorting}
+        stockMovements={stockMovements}
+        stockMovementsFilter={stockMovementsFilter}
+        stockMovementsLoading={stockMovementsLoading}
+        stockTypeModalTab={stockTypeModalTab}
+        summaryAccountsLoading={summaryAccountsLoading}
+        supplierMarginCompactView={supplierMarginCompactView}
+        supplierMarginContextMenu={supplierMarginContextMenu}
+        supplierMarginRows={supplierMarginRows}
+        supplierMarginSearch={supplierMarginSearch}
+        supplierMarginSort={supplierMarginSort}
+        switchJvMode={switchJvMode}
         titleCaseWords={titleCaseWords}
-        formatVatPercent={formatVatPercent}
-        resolveMainStockValueFromForm={resolveMainStockValueFromForm}
-        handleEditProduct={handleEditProduct}
-        handleDeleteProduct={handleDeleteProduct}
-        handleEditInventoryCatalogProduct={handleEditInventoryCatalogProduct}
-        handleDeleteInventoryCatalogProduct={handleDeleteInventoryCatalogProduct}
-        loadStockLedger={loadStockLedger}
-        resetInventoryProductForm={resetInventoryProductForm}
-        handleCreateInventoryCatalogProduct={handleCreateInventoryCatalogProduct}
-        handleInventoryProductModalDragStart={handleInventoryProductModalDragStart}
-        resetInventoryMappingForm={resetInventoryMappingForm}
-        handleCreateProduct={handleCreateProduct}
-        handleInventoryModalDragStart={handleInventoryModalDragStart}
-          />
-        </Suspense>
-      )}
-      {/* SETTINGS TAB */}
-      {activeTab === 'settings' && (
-        <Suspense fallback={<ErpSubTabFallback />}>
-          <ERPSettingsTab
-            C={C}
-            selectedBrandingKey={selectedBrandingKey}
-            setSelectedBrandingKey={setSelectedBrandingKey}
-            handleSelectBrandingProfile={handleSelectBrandingProfile}
-            brandingProfiles={brandingProfiles}
-            brandingForm={brandingForm}
-            setBrandingForm={setBrandingForm}
-            reportBranding={reportBranding}
-            handleBrandingLogoFile={handleBrandingLogoFile}
-            saving={saving}
-            canManageAccounts={canManageAccounts}
-            handleSaveBranding={handleSaveBranding}
-            inventoryStockCodeSettings={inventoryStockCodeSettings}
-            setInventoryStockCodeSettings={setInventoryStockCodeSettings}
-            handleCreateBrandingDraft={handleCreateBrandingDraft}
-            brandingPreviewLogo={brandingPreviewLogo}
-            brandingPreview={brandingPreview}
-          />
-        </Suspense>
-      )}
-      {/* CURRENCIES TAB */}
-      {activeTab === 'currencies' && (
-        <Suspense fallback={<ErpSubTabFallback />}>
-          <ERPCurrenciesTab
-            C={C}
-            erpBaseCurrencyCode={erpBaseCurrencyCode}
-            canManageAccounts={canManageAccounts}
-            showCurrencyForm={showCurrencyForm}
-            setShowCurrencyForm={setShowCurrencyForm}
-            handleSyncCurrencyMaster={handleSyncCurrencyMaster}
-            saving={saving}
-            setActiveTabGuarded={setActiveTabGuarded}
-            usdConversion={usdConversion}
-            setUsdConversion={setUsdConversion}
-            usdToTargetAmount={usdToTargetAmount}
-            selectedUsdConversionRate={selectedUsdConversionRate}
-            currencyForm={currencyForm}
-            setCurrencyForm={setCurrencyForm}
-            handleCreateCurrency={handleCreateCurrency}
-            currencies={currencies}
-            handleEditCurrency={handleEditCurrency}
-            handleDeleteCurrency={handleDeleteCurrency}
-          />
-        </Suspense>
-      )}
-      <ErpEditRecordModal
-        editState={editState}
-        setEditState={setEditState}
-        accounts={accounts}
-        ledgerDepartments={LEDGER_DEPARTMENTS}
-        erpBaseCurrencyCode={erpBaseCurrencyCode}
-        saving={saving}
-        onClose={closeEditModal}
-        onSubmit={handleSaveEdit}
-        colors={C}
+        toggleTransactionSelection={toggleTransactionSelection}
+        toggleVisibleTransactionSelection={toggleVisibleTransactionSelection}
+        token={token}
+        transactionAttachmentInputKey={transactionAttachmentInputKey}
+        transactionCommentDraft={transactionCommentDraft}
+        transactionFilters={transactionFilters}
+        transactionForm={transactionForm}
+        transactionMeta={transactionMeta}
+        transactionPageCount={transactionPageCount}
+        transactionSummary={transactionSummary}
+        transactionWorkflowNote={transactionWorkflowNote}
+        transactions={transactions}
+        transactionsLoading={transactionsLoading}
+        updateJvLine={updateJvLine}
+        usdConversion={usdConversion}
+        usdToTargetAmount={usdToTargetAmount}
+        user={user}
+        vendorComplianceSummary={vendorComplianceSummary}
+        vendorDocumentForm={vendorDocumentForm}
+        vendorFilters={vendorFilters}
+        vendorForm={vendorForm}
+        vendorOverdueQueue={vendorOverdueQueue}
+        vendorPaymentCalendar={vendorPaymentCalendar}
+        vendorPermissions={vendorPermissions}
+        vendorSummary={vendorSummary}
+        vendorWorkflowReason={vendorWorkflowReason}
+        vendors={vendors}
+        voucherSource={voucherSource}
+        voucherSourceLoading={voucherSourceLoading}
       />
-      {/* VOUCHERS TAB */}
-      {(activeTab === 'vouchers' || jumpToVoucher) && (
-      <ERPVouchersTabContainer activeTab={activeTab}>
-        <Suspense fallback={<div style={{ padding: '1rem', color: C.inkSoft }}>Loading vouchers...</div>}>
-          <VoucherTab
-            token={token}
-            user={user}
-            accounts={accounts}
-            customers={customers}
-            vendors={vendors}
-            currencies={currencies}
-            reportBranding={branding}
-            pendingOpenTransactionId={jumpToVoucher?.id || null}
-            pendingOpenTransactionType={jumpToVoucher?.type || null}
-            onPendingOpenTransactionConsumed={onJumpToVoucherConsumed}
-          />
-        </Suspense>
-      </ERPVouchersTabContainer>
-      )}
-      {/* DIRECT DEALS TAB */}
-      {activeTab === 'direct-deals' && (
-        <Suspense fallback={<ErpSubTabFallback />}>
-          <DirectDealsTab
-            token={token}
-            customers={customers}
-            currencies={currencies}
-            canManage={canManageDirectDeals}
-            isSuperAdmin={isSuperAdmin}
-          />
-        </Suspense>
-      )}
-      {/* TEST MAPPING MODAL */}
-      {showMappingTest && testMapping && (
-        <div style={ERP_MODAL_BACKDROP_STYLE} onClick={() => setShowMappingTest(false)}>
-          <div style={ERP_MODAL_CARD_STYLE} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginBottom: '1rem', color: C.ink, fontWeight: '700' }}>
-              Test Mapping: {testMapping.mappingType}
-            </h3>
-            <div style={{ background: '#F9FAFB', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
-              <p style={{ color: C.inkSoft, marginBottom: '0.75rem' }}>
-                <strong>Usage Count:</strong> {testMapping.usageCount || 0} times used
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.75rem' }}>
-                <div>
-                  <p style={{ color: C.t3, fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem' }}>DEBIT ACCOUNT</p>
-                  <p style={{ color: C.ink, fontWeight: '600' }}>{testMapping.debitAccountId?.accountCode}</p>
-                  <p style={{ color: C.t3, fontSize: '0.875rem' }}>{testMapping.debitAccountId?.accountName}</p>
-                </div>
-                <div>
-                  <p style={{ color: C.t3, fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem' }}>CREDIT ACCOUNT</p>
-                  <p style={{ color: C.ink, fontWeight: '600' }}>{testMapping.creditAccountId?.accountCode}</p>
-                  <p style={{ color: C.t3, fontSize: '0.875rem' }}>{testMapping.creditAccountId?.accountName}</p>
-                </div>
-              </div>
-              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: `1px solid ${C.t2}` }}>
-                <p style={{ color: C.t3, fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem' }}>DESCRIPTION</p>
-                <p style={{ color: C.ink }}>{testMapping.description || '(No description)'}</p>
-              </div>
-              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: `1px solid ${C.t2}`, background: '#ECFDF5', padding: '0.75rem', borderRadius: '0.375rem' }}>
-                <p style={{ color: '#065F46', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem' }}>✓ Sample Transaction</p>
-                <p style={{ color: '#047857', fontSize: '0.875rem' }}>When this mapping is applied:</p>
-                <ul style={{ color: '#047857', fontSize: '0.875rem', marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
-                  <li>Debit: {testMapping.debitAccountId?.accountCode}</li>
-                  <li>Credit: {testMapping.creditAccountId?.accountCode}</li>
-                  <li>Amount: Enter any amount</li>
-                </ul>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowMappingTest(false)} style={{ padding: '0.6rem 1rem', background: '#FFFFFF', color: C.ink, border: '1px solid #D1D5DB', borderRadius: '0.5rem', cursor: 'pointer' }}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ErpMappingTestModal
+        open={showMappingTest}
+        testMapping={testMapping}
+        colors={C}
+        onClose={() => setShowMappingTest(false)}
+      />
       {/* ACCOUNT SUMMARY POPUP MODAL - TRADING PLATFORM STYLE */}
       <AccountEnquiryModal
         open={showEnquiryModal}
