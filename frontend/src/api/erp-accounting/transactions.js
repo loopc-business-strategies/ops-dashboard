@@ -21,6 +21,8 @@ const uploadTransactionAttachment = async (_token, id, file) => {
 const deleteTransactionAttachment = async (token, id, attachmentId) => (await axios.delete(`${BASE}/transactions/${id}/attachments/${attachmentId}`, getAuthConfig(token))).data
 const bulkTransactionAction = async (token, payload) => (await axios.post(`${BASE}/transactions/bulk-action`, payload, getAuthConfig(token))).data
 const getTransactionSourceByLedger = async (token, ledgerId) => (await axios.get(`${BASE}/transactions/source-by-ledger/${ledgerId}`, getAuthConfig(token))).data
+const voidTransaction = async (token, id, payload) => (await axios.post(`${BASE}/transactions/${id}/void`, payload, getAuthConfig(token))).data
+const revalueFxJournal = async (token, id, payload = {}) => (await axios.post(`${BASE}/transactions/${id}/revalue-fx-journal`, payload, getAuthConfig(token))).data
 
 export const transactionsApi = {
   getTransactions,
@@ -37,4 +39,6 @@ export const transactionsApi = {
   deleteTransactionAttachment,
   bulkTransactionAction,
   getTransactionSourceByLedger,
+  voidTransaction,
+  revalueFxJournal,
 }

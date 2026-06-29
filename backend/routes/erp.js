@@ -11,7 +11,7 @@ const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams, validateQuery } = require('../middleware/validate')
 const { escapeRegex } = require('../utils/escapeRegex')
 const { softDeleteById } = require('../utils/softDelete')
-const { withLegacySupplierDeprecation } = require('../utils/legacyErpDeprecation')
+const { rejectLegacySupplierWrite } = require('../utils/legacyErpDeprecation')
 const {
   isSuperAdmin,
   _isDeptHead,
@@ -458,63 +458,15 @@ router.get('/procurement/suppliers', protect, async (req, res) => {
 })
 
 router.post('/procurement/suppliers', protect, validateBody(supplierCreateSchema), async (req, res) => {
-  try {
-    if (!canManageSuppliers(req.user)) {
-      return res.status(403).json({ success: false, message: 'Only Super Admin or Operations Head can create suppliers.' })
-    }
-
-    if (!String(req.body.name || '').trim()) {
-      return res.status(400).json({ success: false, message: 'Supplier name is required.' })
-    }
-
-    const supplier = await Supplier.create({
-      name: req.body.name,
-      country: req.body.country,
-      contact: req.body.contact,
-      productType: req.body.productType,
-      rating: Number(req.body.rating || 3),
-      paymentTerms: req.body.paymentTerms,
-    })
-
-    return withLegacySupplierDeprecation(res, { success: true, supplier }, 'create', 201)
-  } catch {
-    res.status(500).json({ success: false, message: 'Failed to create supplier.' })
-  }
+  return rejectLegacySupplierWrite(res)
 })
 
 router.put('/procurement/suppliers/:id', protect, validateParams(idParam), validateBody(supplierPatchSchema), async (req, res) => {
-  try {
-    if (!canManageSuppliers(req.user)) {
-      return res.status(403).json({ success: false, message: 'Only Super Admin or Operations Head can update suppliers.' })
-    }
-
-    const supplier = await Supplier.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true })
-    if (!supplier) {
-      return res.status(404).json({ success: false, message: 'Supplier not found.' })
-    }
-
-    return withLegacySupplierDeprecation(res, { success: true, supplier }, 'update')
-  } catch {
-    res.status(500).json({ success: false, message: 'Failed to update supplier.' })
-  }
+  return rejectLegacySupplierWrite(res)
 })
 
 router.delete('/procurement/suppliers/:id', protect, validateParams(idParam), async (req, res) => {
-  try {
-    if (!canManageSuppliers(req.user)) {
-      return res.status(403).json({ success: false, message: 'Only Super Admin or Operations Head can delete suppliers.' })
-    }
-
-    const supplier = await Supplier.findById(req.params.id)
-    if (!supplier) {
-      return res.status(404).json({ success: false, message: 'Supplier not found.' })
-    }
-
-    await softDeleteById(Supplier, req.params.id, req)
-    return withLegacySupplierDeprecation(res, { success: true, message: 'Supplier deleted.' }, 'delete')
-  } catch {
-    res.status(500).json({ success: false, message: 'Failed to delete supplier.' })
-  }
+  return rejectLegacySupplierWrite(res)
 })
 
 router.get('/procurement/purchase-orders', protect, validateQuery(purchaseOrderListQuerySchema), async (req, res) => {

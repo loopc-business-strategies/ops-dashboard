@@ -194,7 +194,7 @@ router.post('/setup', validateBody(setupSchema), async (req, res) => {
       }
     }
 
-    if (!isLocalDevEnv()) {
+    if (!isLocalDevEnv() || String(process.env.SETUP_TOKEN || '').trim()) {
       const expectedToken = String(process.env.SETUP_TOKEN || '').trim()
       const providedToken = String(
         req.headers['x-setup-token']
@@ -205,6 +205,11 @@ router.post('/setup', validateBody(setupSchema), async (req, res) => {
       if (!expectedToken || providedToken !== expectedToken) {
         return res.status(403).json({ success: false, message: 'Invalid or missing setup token.' })
       }
+    } else if (String(process.env.ENABLE_SETUP || '').trim().toLowerCase() !== 'true') {
+      return res.status(403).json({
+        success: false,
+        message: 'Setup requires SETUP_TOKEN or ENABLE_SETUP=true in local development.',
+      })
     }
 
     const tenant = resolveRequestTenant(req, req.body.company)

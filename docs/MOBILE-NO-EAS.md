@@ -13,6 +13,19 @@ This doc is the **recommended default workflow** for the Nexa mobile app when yo
 
 **Default for this repo:** dev + Expo Go for daily work; local APK/AAB when distributing; OTA only if you explicitly adopt EAS Update.
 
+## EAS coupling policy (this repo)
+
+The codebase still contains **optional** EAS wiring for teams that want cloud builds or OTA:
+
+| Artifact | Purpose | Local-first default |
+|----------|---------|---------------------|
+| [`mobile/eas.json`](../mobile/eas.json) | Cloud build profiles | Ignore unless running `eas build` |
+| `expo-updates` in [`mobile/app.config.ts`](../mobile/app.config.ts) | OTA channel URL | **Inactive** for sideloaded local APKs unless you publish an update |
+| `mobile:build:android:preview` scripts | EAS preview APK | Use `npm run mobile:build:android:local:apk` instead |
+| `mobile:update:*` scripts | EAS Update | Do not run unless OTA is an explicit product decision |
+
+**Rule:** Local Gradle + GitHub Actions (`mobile-android-bundle.yml`) are the supported release path. EAS remains available but is not required for Nexa deployments. Native shell colors are tenant-neutral at launch; per-tenant branding applies after login via `TenantContext`.
+
 ## What uses Expo cloud (queue / limits / possible billing)
 
 - **`eas build`** — cloud macOS/Linux builders; queue and plan limits on free tiers.

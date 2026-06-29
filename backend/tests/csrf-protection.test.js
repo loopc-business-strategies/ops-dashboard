@@ -150,9 +150,14 @@ describe('CSRF protection for cookie-auth mutating routes', () => {
   })
 
   test('bypasses CSRF check for setup path', async () => {
+    const previousEnable = process.env.ENABLE_SETUP
+    process.env.ENABLE_SETUP = 'true'
     const res = await request(app)
       .post('/api/auth/setup')
       .send({ company: 'loopc', name: 'SetupAdmin', password: 'ValidPass1!' })
+
+    if (previousEnable === undefined) delete process.env.ENABLE_SETUP
+    else process.env.ENABLE_SETUP = previousEnable
 
     expect(res.status).toBe(201)
     expect(res.body.success).toBe(true)

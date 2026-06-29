@@ -39,7 +39,7 @@ function resolveUserFromRequest(req) {
       headerTenant: req.headers['x-tenant'] || req.headers['x-company'],
     })
     if (token && process.env.JWT_SECRET) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET)
+      const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] })
       return { userId: String(decoded.id || 'decoded'), userRole: 'session' }
     }
   } catch {

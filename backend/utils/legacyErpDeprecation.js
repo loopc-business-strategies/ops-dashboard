@@ -20,8 +20,19 @@ function withLegacySupplierDeprecation(res, payload, action, status = 200) {
   })
 }
 
+function rejectLegacySupplierWrite(res) {
+  res.setHeader('Deprecation', 'true')
+  res.setHeader('Link', '</api/erp-accounting/vendors>; rel="successor-version"')
+  return res.status(410).json({
+    success: false,
+    message: LEGACY_SUPPLIER_DEPRECATION.message,
+    deprecation: legacySupplierDeprecation('write'),
+  })
+}
+
 module.exports = {
   LEGACY_SUPPLIER_DEPRECATION,
   legacySupplierDeprecation,
   withLegacySupplierDeprecation,
+  rejectLegacySupplierWrite,
 }

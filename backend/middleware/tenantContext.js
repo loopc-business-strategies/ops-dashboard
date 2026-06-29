@@ -19,7 +19,7 @@ async function bindTenantContext(req, res, next) {
   if (!token) return next()
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] })
     const tenant = normalizeTenant(decoded.company)
     if (!tenant) return next()
 

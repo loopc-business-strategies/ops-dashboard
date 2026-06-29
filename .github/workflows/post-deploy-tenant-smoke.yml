@@ -71,22 +71,37 @@ jobs:
         working-directory: mobile
         run: npm ci
 
-      - name: Run mobile API smoke (JWT + X-Client mobile)
+      - name: Run mobile API smoke (JWT + X-Client mobile) — all tenants
         env:
           MOBILE_SMOKE_API_URL: ${{ vars.SMOKE_API_BASE || 'https://api.loopcstrategies.com' }}
-          MOBILE_SMOKE_COMPANY: mg
           SMOKE_AUTH_NAME_MG: ${{ secrets.SMOKE_AUTH_NAME_MG }}
           SMOKE_AUTH_PASSWORD_MG: ${{ secrets.SMOKE_AUTH_PASSWORD_MG }}
+          SMOKE_AUTH_NAME_CG: ${{ secrets.SMOKE_AUTH_NAME_CG }}
+          SMOKE_AUTH_PASSWORD_CG: ${{ secrets.SMOKE_AUTH_PASSWORD_CG }}
+          SMOKE_AUTH_NAME_LOOPC: ${{ secrets.SMOKE_AUTH_NAME_LOOPC }}
+          SMOKE_AUTH_PASSWORD_LOOPC: ${{ secrets.SMOKE_AUTH_PASSWORD_LOOPC }}
           SMOKE_AUTH_NAME: ${{ secrets.SMOKE_AUTH_NAME }}
           SMOKE_AUTH_PASSWORD: ${{ secrets.SMOKE_AUTH_PASSWORD }}
         run: |
-          export MOBILE_SMOKE_LOGIN_NAME="${SMOKE_AUTH_NAME_MG:-$SMOKE_AUTH_NAME}"
-          export MOBILE_SMOKE_LOGIN_PASSWORD="${SMOKE_AUTH_PASSWORD_MG:-$SMOKE_AUTH_PASSWORD}"
-          if [ -z "$MOBILE_SMOKE_LOGIN_NAME" ] || [ -z "$MOBILE_SMOKE_LOGIN_PASSWORD" ]; then
-            echo "Skipping mobile API smoke — set SMOKE_AUTH_NAME_MG or SMOKE_AUTH_NAME secrets."
-            exit 0
-          fi
-          npm run smoke:mobile:api
+          smoke_tenant() {
+            local company="$1"
+            local name_var="SMOKE_AUTH_NAME_${company^^}"
+            local pass_var="SMOKE_AUTH_PASSWORD_${company^^}"
+            local name="${!name_var:-$SMOKE_AUTH_NAME}"
+            local pass="${!pass_var:-$SMOKE_AUTH_PASSWORD}"
+            if [ -z "$name" ] || [ -z "$pass" ]; then
+              echo "Skipping mobile API smoke for $company — set SMOKE_AUTH_NAME_${company^^} or SMOKE_AUTH_NAME secrets."
+              return 0
+            fi
+            echo "Mobile API smoke: $company"
+            MOBILE_SMOKE_COMPANY="$company" \
+            MOBILE_SMOKE_LOGIN_NAME="$name" \
+            MOBILE_SMOKE_LOGIN_PASSWORD="$pass" \
+            npm run smoke:mobile:api
+          }
+          smoke_tenant mg
+          smoke_tenant cg
+          smoke_tenant loopc
       - name: Notify Slack on smoke failure
         if: failure()
         env:

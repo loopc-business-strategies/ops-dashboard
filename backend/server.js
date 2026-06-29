@@ -8,33 +8,33 @@
 
 require('dotenv').config() // load .env variables FIRST
 
-const { isWeakJwtSecret, validateProductionSecrets } = require('./utils/envValidation')
+const { isWeakJwtSecret, isHardenedDeployEnv, validateHardenedDeploySecrets } = require('./utils/envValidation')
 
 // ── Startup env validation ────────────────────────────────────────────────────
 // Railway healthchecks must get an HTTP response quickly. Prefer warning over
 // hard-exit so /api/health remains available even during partial misconfig.
 // Production rejects weak or placeholder JWT secrets before the server starts.
 ;(function validateEnv() {
-  const productionSecretErrors = validateProductionSecrets()
-  if (productionSecretErrors.length) {
-    console.error('[startup] FATAL — invalid production secrets:')
-    productionSecretErrors.forEach((message) => console.error(`  • ${message}`))
+  const hardenedSecretErrors = validateHardenedDeploySecrets()
+  if (hardenedSecretErrors.length) {
+    console.error('[startup] FATAL — invalid production/staging secrets:')
+    hardenedSecretErrors.forEach((message) => console.error(`  • ${message}`))
     process.exit(1)
   }
 
   const missing = []
   if (!process.env.JWT_SECRET || isWeakJwtSecret(process.env.JWT_SECRET)) missing.push('JWT_SECRET')
-  if (process.env.NODE_ENV === 'production' && !process.env.SERVER_BASE_URL) {
-    missing.push('SERVER_BASE_URL (recommended in production for attachment links)')
+  if (isHardenedDeployEnv() && !process.env.SERVER_BASE_URL) {
+    missing.push('SERVER_BASE_URL')
   }
   
-  // Check if at least one tenant URI is available; warn if none
+  // Check if at least one tenant URI is available; warn if none (dev/test only)
   const hasAnyTenantUri = process.env.MONGO_URI_MG || process.env.MONGO_URI_CG || process.env.MONGO_URI_LOOPC
   const hasAllTenantUris = process.env.MONGO_URI_MG && process.env.MONGO_URI_CG && process.env.MONGO_URI_LOOPC
   
   if (!hasAnyTenantUri) {
     missing.push('At least one of: MONGO_URI_MG / MONGO_URI_CG / MONGO_URI_LOOPC')
-  } else if (!hasAllTenantUris) {
+  } else if (!hasAllTenantUris && !isHardenedDeployEnv()) {
     const available = []
     if (process.env.MONGO_URI_MG) available.push('MG')
     if (process.env.MONGO_URI_CG) available.push('CG')
@@ -50,10 +50,9 @@ const { isWeakJwtSecret, validateProductionSecrets } = require('./utils/envValid
   if (process.env.NODE_ENV === 'production') {
     const mockSpot = String(process.env.METALS_SPOT_MOCK_REALTIME || '').trim().toLowerCase()
     if (mockSpot === '1' || mockSpot === 'true' || mockSpot === 'yes') {
-      const prod = String(process.env.NODE_ENV || '').toLowerCase() === 'production'
       const allowMockProd = String(process.env.METALS_SPOT_MOCK_REALTIME_ALLOW_PRODUCTION || '').trim().toLowerCase()
       const allow = allowMockProd === '1' || allowMockProd === 'true' || allowMockProd === 'yes'
-      if (!prod || allow) {
+      if (!allow) {
         console.warn('[startup] METALS_SPOT_MOCK_REALTIME is on — synthetic metal prices for API/market routes (not real market data).')
       }
     }
@@ -81,11 +80,6 @@ const { setPrimaryMongoReady } = require('./services/readiness')
 const { TENANT_KEYS, getDefaultTenant, getTenantUri } = require('./config/tenants')
 
 const app = createApp()
-
-function _envBool(value, defaultValue = false) {
-  if (value === undefined || value === null || value === '') return defaultValue
-  return String(value).trim().toLowerCase() === 'true'
-}
 
 function getAvailableTenantUris() {
   return TENANT_KEYS

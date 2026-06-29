@@ -49,6 +49,9 @@ jobs:
           node scripts/check-access-policy-parity.mjs
           git diff --exit-code -- shared/erp-access-matrix.json backend/shared/erp-access-matrix.json frontend/src/generated/erp-access-matrix.json
 
+      - name: Check tenant branding parity
+        run: npm run check:tenant-branding-parity
+
       - name: ESLint (ERP tab production JS, zero warnings)
         run: npm run lint:eslint:ci
 

@@ -59,7 +59,7 @@ export async function registerExpoPushAndPost(sessionToken: string): Promise<boo
       name: 'General',
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#005B96',
+      lightColor: '#374151',
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       sound: 'default',
     })

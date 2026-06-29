@@ -24,6 +24,7 @@ backend/reports/
 backend/build-meta.json
 mobile/android/.gradle/
 mobile/android/app/build/
+mobile/android/app/.cxx/
 mobile/android/build/
 *.log
 *.cookies/

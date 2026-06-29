@@ -6,6 +6,10 @@ const { EAS_PROJECT_ID } = require('./easProject.cjs')
 /** Keep in sync with `version`. Bare workflow requires a string `runtimeVersion`, not `{ policy: ... }`. */
 const APP_VERSION = '1.0.0'
 
+/** Neutral native shell — tenant colors apply after JS loads via TenantContext. */
+const NATIVE_SHELL_BACKGROUND = '#F8FAFC'
+const NATIVE_SHELL_ACCENT = '#374151'
+
 const PORTAL_HOSTS = ['mg.loopcstrategies.com', 'cg.loopcstrategies.com', 'loopc.loopcstrategies.com']
 
 const config: ExpoConfig = {
@@ -27,7 +31,7 @@ const config: ExpoConfig = {
   android: {
     package: 'com.loopc.nexa',
     adaptiveIcon: {
-      backgroundColor: '#005B96',
+      backgroundColor: NATIVE_SHELL_BACKGROUND,
       foregroundImage: './assets/images/android-icon-foreground.png',
       backgroundImage: './assets/images/android-icon-background.png',
     },
@@ -55,7 +59,7 @@ const config: ExpoConfig = {
       'expo-notifications',
       {
         icon: './assets/images/icon.png',
-        color: '#005B96',
+        color: NATIVE_SHELL_ACCENT,
         defaultChannel: 'default',
       },
     ],
@@ -67,7 +71,7 @@ const config: ExpoConfig = {
       {
         image: './assets/images/splash-icon.png',
         resizeMode: 'contain',
-        backgroundColor: '#005B96',
+        backgroundColor: NATIVE_SHELL_BACKGROUND,
       },
     ],
   ],

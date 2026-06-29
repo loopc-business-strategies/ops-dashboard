@@ -25,7 +25,7 @@ See [ERP-API-GUIDE.md](./ERP-API-GUIDE.md) for the split between APIs.
 |-------|------|--------|
 | **Now** | Immediate | Freeze new financial endpoints on `/api/erp`; PR checklist enforced |
 | **Phase 1** | **Complete** | [ERP-DUAL-API-AUDIT.md](./ERP-DUAL-API-AUDIT.md); CI `check:erp-legacy-imports` |
-| **Phase 2** | **In progress** | Supplier write responses include `deprecation` + `Deprecation` header → use `/api/erp-accounting/vendors` |
+| **Phase 2** | **Complete** | Supplier **writes** return **410 Gone**; reads still available for ops procurement. Use `/api/erp-accounting/vendors` for accounting parties. |
 | **Phase 3** | TBD | Remove unused `/api/erp` routes; keep production/procurement subset only |
 
 ## Frontend modules still on legacy `/api/erp`

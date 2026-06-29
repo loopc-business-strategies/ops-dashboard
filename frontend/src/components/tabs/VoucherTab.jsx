@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import axios from '../../api/client'
 import { useLanguage } from '../../context/LanguageContext'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import { isVoucherTypeEnabled } from '../../config/tenantBranding'
 import { resolveErpUserTenantKey } from './erp/resolveErpUserTenant'
 import { startMetalRatesRealtime } from '../../utils/realtimeSocket'
-import { buildMetalRatesFromApiPayload, marketPricesToRates, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
-import { BASE, cfg, fmt, today, S, btn, tabBtn, emptyLine, normalizeMongoIdField, emptyHeader, coerceVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
+import { buildMetalRatesFromApiPayload, resolveLiveVoucherMetalRate } from '../../utils/liveMetalRates'
+import { fmt, today, S, btn, tabBtn, emptyLine, normalizeMongoIdField, emptyHeader, coerceVoucherDocNo, normalizeLookupValue, normalizeLineType, FIXED_AED_RATE, backendRateToDisplayRate, displayRateToBackendRate, normalizeRateType, normalizeVoucherFixingType, formatPartyAddress, decodeInventoryCategoryMeta, normalizeMetalSymbol, normalizeStockGroup, toTitle, decodeFullMeta, getAccountCodeValue, pickDefaultAccountCodeByType, isMetalStockVoucherType, isMetalTransferVoucherType, hasMetalTransferLineQuantity, sortVouchersByDocNo, nextVocNo, displayVoucherDocNo } from './voucher/voucherTabShared'
+import { useVoucherReferenceData } from './voucher/useVoucherReferenceData'
+import { runVoucherWorkflowAction } from './voucher/voucherErpApi'
+import { BASE } from '../../api/erp-accounting/client'
 import { buildVoucherTypeConfigs } from './voucher/voucherTypeConfigs'
 import VoucherListPanel from './voucher/VoucherListPanel'
 import { useVoucherPrintModel } from './voucher/useVoucherPrintModel'
@@ -91,68 +93,13 @@ export default function VoucherTab({
     return Number.isFinite(rate) && rate > 0 ? rate : 1
   }, [currencyOptions])
 
-  const refreshParties = useCallback(async () => {
-    try {
-      const [custRes, vendRes] = await Promise.all([
-        axios.get(`${BASE}/customers`, { ...cfg(), params: { limit: 500 } }),
-        axios.get(`${BASE}/vendors`, { ...cfg(), params: { limit: 500 } }),
-      ])
-      setLocalCustomers(custRes.data.customers || [])
-      setLocalVendors(vendRes.data.vendors || [])
-    } catch {
-      // silently ignore — props fallback still available
-    }
-  }, [])
-
-  const refreshCurrencies = useCallback(async () => {
-    try {
-      const res = await axios.get(`${BASE}/currencies`, cfg())
-      const items = Array.isArray(res.data?.currencies) ? res.data.currencies : []
-      if (items.length > 0) {
-        setLocalCurrencies(items)
-      }
-    } catch {
-      // silently ignore — fallback to prop currencies or USD-only defaults
-    }
-  }, [])
-
-  const refreshMetalRates = useCallback(async () => {
-    try {
-      const liveRes = await axios.get(`${BASE}/metal-rates/live`, cfg())
-      const liveRates = liveRes.data?.rates
-      const lg = Number(liveRates?.goldPrice) || 0
-      const ls = Number(liveRates?.silverPrice) || 0
-      const lp = Number(liveRates?.platinumPrice) || 0
-      if (liveRes.data?.success && liveRes.data?.live && liveRates && lg > 0 && ls > 0 && lp > 0) {
-        setLatestMetalRates(buildMetalRatesFromApiPayload(liveRates))
-        return
-      }
-
-      try {
-        const marketRes = await axios.get(`${BASE}/reports/market-prices`, {
-          ...cfg(),
-          params: { currency: 'USD', unit: 'toz', fresh: 1 },
-        })
-        const marketRates = marketPricesToRates(marketRes.data)
-        const mg = Number(marketRates?.goldPrice) || 0
-        const ms = Number(marketRates?.silverPrice) || 0
-        const mp = Number(marketRates?.platinumPrice) || 0
-        if (marketRates && mg > 0 && ms > 0 && mp > 0) {
-          setLatestMetalRates(buildMetalRatesFromApiPayload(marketRates))
-          return
-        }
-      } catch {
-        // Some roles can read vouchers but not reports.
-      }
-
-      const savedRes = await axios.get(`${BASE}/metal-rates`, cfg())
-      if (savedRes.data?.success && savedRes.data?.rates) {
-        setLatestMetalRates(buildMetalRatesFromApiPayload(savedRes.data.rates))
-      }
-    } catch {
-      // Keep last known rates when refresh fails.
-    }
-  }, [])
+  const { refreshParties, refreshCurrencies, refreshMetalRates, voucherErpApi } = useVoucherReferenceData({
+    token,
+    setLocalCustomers,
+    setLocalVendors,
+    setLocalCurrencies,
+    setLatestMetalRates,
+  })
 
   useEffect(() => {
     if (canView) refreshParties()
@@ -346,12 +293,9 @@ export default function VoucherTab({
       if (resolvedParty.customerId) params.customerId = resolvedParty.customerId
       if (resolvedParty.vendorId) params.vendorId = resolvedParty.vendorId
 
-      const response = await axios.get(`${BASE}/transactions`, {
-        ...cfg(),
-        params,
-      })
+      const response = await voucherErpApi.getTransactions(token, params)
 
-      const items = (response.data.transactions || [])
+      const items = (response.transactions || [])
         .filter((item) => item.voucherMeta?.vocNo)
         .slice(0, 5)
         .map((item) => ({
@@ -591,12 +535,9 @@ export default function VoucherTab({
     const loadInventoryProducts = async () => {
       setLoadingInventoryProducts(true)
       try {
-        const res = await axios.get(`${BASE}/inventory/products`, {
-          ...cfg(),
-          params: { page: 1, limit: 500 },
-        })
+        const res = await voucherErpApi.getInventoryProducts(token)
         if (!mounted) return
-        setInventoryProducts(res.data.products || [])
+        setInventoryProducts(res.products || [])
       } catch {
         if (mounted) setInventoryProducts([])
       } finally {
@@ -606,7 +547,7 @@ export default function VoucherTab({
 
     loadInventoryProducts()
     return () => { mounted = false }
-  }, [canView])
+  }, [canView, token])
 
   useEffect(() => {
     if (!showLineForm || !isMetalStockVoucherType(voucherType)) return
@@ -734,12 +675,9 @@ export default function VoucherTab({
     if (!canView) return
     setLoadingList(true)
     try {
-      const res = await axios.get(`${BASE}/transactions`, {
-        ...cfg(),
-        params: { type: voucherType, limit: 200 },
-      })
+      const res = await voucherErpApi.getTransactions(token, { type: voucherType, limit: 200 })
       const txs = sortVouchers(
-        (res.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
+        (res.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
         voucherType
       )
       setVouchers(txs)
@@ -748,7 +686,7 @@ export default function VoucherTab({
     } finally {
       setLoadingList(false)
     }
-  }, [voucherType, canView, sortVouchers])
+  }, [voucherType, canView, sortVouchers, token])
 
   useEffect(() => { loadVouchers() }, [loadVouchers])
 
@@ -825,12 +763,9 @@ export default function VoucherTab({
   // ─── open last voucher for a type, or blank form if none exist ───────────────
   const openLastOrCreate = async (type) => {
     try {
-      const res = await axios.get(`${BASE}/transactions`, {
-        ...cfg(),
-        params: { type, limit: 200 },
-      })
+      const res = await voucherErpApi.getTransactions(token, { type, limit: 200 })
       const txs = sortVouchers(
-        (res.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
+        (res.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
         type
       )
       setVouchers(txs)
@@ -1061,16 +996,12 @@ export default function VoucherTab({
     try {
       const deletedId = editingId
       const deletedIdx = vouchers.findIndex(v => v._id === deletedId)
-      await axios.delete(`${BASE}/transactions/${deletedId}`, cfg())
+      await voucherErpApi.deleteTransaction(token, deletedId)
       showMsg('Voucher deleted')
       await loadVouchers()
-      // After reload, vouchers state is stale here — re-fetch locally to navigate
-      const res = await axios.get(`${BASE}/transactions`, {
-        ...cfg(),
-        params: { type: voucherType, limit: 200 },
-      })
+      const res = await voucherErpApi.getTransactions(token, { type: voucherType, limit: 200 })
       const remaining = sortVouchers(
-        (res.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
+        (res.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
         voucherType
       )
       setVouchers(remaining)
@@ -1171,10 +1102,11 @@ export default function VoucherTab({
     setSaving(true)
     clearError()
     try {
-      const requestAction = async (confirmVendorAdvance = false) => axios.post(
-        `${BASE}/transactions/${editingId}/${action}`,
+      const requestAction = async (confirmVendorAdvance = false) => runVoucherWorkflowAction(
+        token,
+        editingId,
+        action,
         { comment: workflowNote, ...(confirmVendorAdvance ? { confirmVendorAdvance: true } : {}) },
-        cfg()
       )
 
       try {
@@ -1225,10 +1157,11 @@ export default function VoucherTab({
     setSaving(true)
     clearError()
     try {
-      const requestAction = async (confirmVendorAdvance = false) => axios.post(
-        `${BASE}/transactions/${voucher._id}/${action}`,
+      const requestAction = async (confirmVendorAdvance = false) => runVoucherWorkflowAction(
+        token,
+        voucher._id,
+        action,
         { comment, ...(confirmVendorAdvance ? { confirmVendorAdvance: true } : {}) },
-        cfg()
       )
 
       try {
@@ -1276,7 +1209,7 @@ export default function VoucherTab({
     setSaving(true)
     clearError()
     try {
-      await axios.post(`${BASE}/transactions/${voucher._id}/void`, { reason: reason.trim(), confirmToken: confirmToken.trim() }, cfg())
+      await voucherErpApi.voidTransaction(token, voucher._id, { reason: reason.trim(), confirmToken: confirmToken.trim() })
       await loadVouchers()
       showMsg(`Voucher #${voucher.voucherMeta?.vocNo || '-'} voided with audit trail`)
     } catch (e) {
@@ -1306,8 +1239,8 @@ export default function VoucherTab({
     setSaving(true)
     clearError()
     try {
-      const previewRes = await axios.post(`${BASE}/transactions/${voucher._id}/revalue-fx-journal`, { apply: false }, cfg())
-      const preview = previewRes.data || {}
+      const previewRes = await voucherErpApi.revalueFxJournal(token, voucher._id, { apply: false })
+      const preview = previewRes || {}
       const tx = preview.transaction || {}
       const counts = preview.counts || {}
       const candidate = (preview.journals || []).find((row) => row.status === 'update')
@@ -1332,8 +1265,8 @@ export default function VoucherTab({
         return
       }
 
-      const applyRes = await axios.post(`${BASE}/transactions/${voucher._id}/revalue-fx-journal`, { apply: true }, cfg())
-      showMsg(formatFxRevalueSummary(applyRes.data, true))
+      const applyRes = await voucherErpApi.revalueFxJournal(token, voucher._id, { apply: true })
+      showMsg(formatFxRevalueSummary(applyRes, true))
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to revalue FX journal')
     } finally {
@@ -1473,21 +1406,17 @@ export default function VoucherTab({
     try {
       let savedId = editingId
       if (editingId) {
-        await axios.put(`${BASE}/transactions/${editingId}`, payload, cfg())
+        await voucherErpApi.updateTransaction(token, editingId, payload)
         showMsg('Voucher updated successfully')
       } else {
-        const res = await axios.post(`${BASE}/transactions`, payload, cfg())
-        savedId = res.data?.transaction?._id || null
+        const res = await voucherErpApi.createTransaction(token, payload)
+        savedId = res?.transaction?._id || null
         showMsg('Voucher saved successfully')
       }
       await loadVouchers()
-      // After save, reload list then open the exact voucher that was saved
-      const res2 = await axios.get(`${BASE}/transactions`, {
-        ...cfg(),
-        params: { type: voucherType, limit: 200 },
-      })
+      const res2 = await voucherErpApi.getTransactions(token, { type: voucherType, limit: 200 })
       const refreshed = sortVouchers(
-        (res2.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
+        (res2.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
         voucherType
       )
       setVouchers(refreshed)
@@ -1938,21 +1867,13 @@ export default function VoucherTab({
     setError('')
     try {
       for (const file of files) {
-        const formData = new FormData()
-        formData.append('file', file)
-        await axios.post(`${BASE}/transactions/${editingId}/attachments`, formData, {
-          withCredentials: true,
-          headers: { 'Content-Type': 'multipart/form-data' },
-        })
+        await voucherErpApi.uploadTransactionAttachment(token, editingId, file)
       }
       setAttachmentInputKey((prev) => prev + 1)
       await loadVouchers()
-      const refreshed = await axios.get(`${BASE}/transactions`, {
-        ...cfg(),
-        params: { type: voucherType, limit: 200 },
-      })
+      const refreshed = await voucherErpApi.getTransactions(token, { type: voucherType, limit: 200 })
       const nextVouchers = sortVouchers(
-        (refreshed.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
+        (refreshed.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
         voucherType
       )
       setVouchers(nextVouchers)
@@ -1972,13 +1893,10 @@ export default function VoucherTab({
     setSaving(true)
     setError('')
     try {
-      await axios.delete(`${BASE}/transactions/${editingId}/attachments/${attachmentId}`, cfg())
-      const refreshed = await axios.get(`${BASE}/transactions`, {
-        ...cfg(),
-        params: { type: voucherType, limit: 200 },
-      })
+      await voucherErpApi.deleteTransactionAttachment(token, editingId, attachmentId)
+      const refreshed = await voucherErpApi.getTransactions(token, { type: voucherType, limit: 200 })
       const nextVouchers = sortVouchers(
-        (refreshed.data.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
+        (refreshed.transactions || []).filter(t => t.voucherMeta && t.voucherMeta.vocNo),
         voucherType
       )
       setVouchers(nextVouchers)
