@@ -31,6 +31,7 @@ export default function HomeScreen() {
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -56,6 +57,7 @@ export default function HomeScreen() {
       ])
       if (sessionAtStart !== tenantSessionKeyRef.current) return
       setDashboard(dash)
+      setRefreshKey((k) => k + 1)
     } catch (err) {
       if (sessionAtStart !== tenantSessionKeyRef.current) return
       setError(err instanceof Error ? err.message : 'Failed to load dashboard')
@@ -110,6 +112,7 @@ export default function HomeScreen() {
                 goldPriceUSD,
                 silverPriceUSD,
                 liveRecalcEnabled,
+                refreshKey,
               })}
             </DashboardWidgetCard>
           ))}

@@ -24,6 +24,10 @@ const {
   isDashboardExpenseLedgerEntry,
   getDashboardExpenseCategory,
 } = require('../../utils/ledgerBalanceBatch')
+const {
+  mapExpenseLedgerEntry,
+  buildExpenseRegisterFromLedger,
+} = require('../../utils/expenseReportHelpers')
 
 const {
   fetchFredPreciousMetalSpotBundle,
@@ -1005,6 +1009,72 @@ router.get('/reports/market-prices/stream', protect, async (req, res) => {
   }
 })
 
+router.get('/reports/expense-register', protect, reportExportLimiter, async (req, res) => {
+  try {
+    if (!canReadErpDashboardReport(req.user)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' })
+    }
+
+    const today = new Date()
+    const { startDate, endDate, category, paymentSource, limit } = req.query
+    const periodStart = startDate
+      ? new Date(startDate)
+      : new Date(today.getFullYear(), 0, 1)
+    const periodEnd = endDate
+      ? new Date(endDate)
+      : new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    periodEnd.setHours(23, 59, 59, 999)
+
+    const cacheKey = reportCache.buildKey([
+      reportTenantKey(req),
+      'expense-register',
+      periodStart.toISOString(),
+      periodEnd.toISOString(),
+      String(category || ''),
+      String(paymentSource || 'all'),
+      String(limit || '200'),
+    ])
+    const cached = await reportCache.getShared(cacheKey)
+    if (cached) {
+      return res.json(cached)
+    }
+
+    const [accountMetaMap, ledgerEntries] = await Promise.all([
+      loadAccountMetaMap(ChartOfAccount),
+      Ledger.find({
+        date: { $gte: periodStart, $lte: periodEnd },
+        isDeleted: { $ne: true },
+      })
+        .select('date amount exchangeRate debitAccountId creditAccountId description referenceType currency paymentType notes')
+        .lean(),
+    ])
+
+    const register = buildExpenseRegisterFromLedger({
+      ledgerEntries,
+      accountMetaMap,
+      periodStart,
+      periodEnd,
+      categoryFilter: category,
+      paymentSourceFilter: paymentSource,
+      limit,
+      toMoney,
+    })
+
+    const payload = {
+      success: true,
+      startDate: periodStart.toISOString().slice(0, 10),
+      endDate: periodEnd.toISOString().slice(0, 10),
+      ...register,
+    }
+
+    await reportCache.setShared(cacheKey, payload, 60000)
+    return res.json(payload)
+  } catch (err) {
+    console.error('[reports] expense-register error:', err)
+    return res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+})
+
 router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) => {
   try {
     if (!canReadErpDashboardReport(req.user)) return res.status(403).json({ success: false, message: 'Forbidden' })
@@ -1091,13 +1161,14 @@ router.get('/reports/dashboard', protect, reportExportLimiter, async (req, res) 
       .filter((entry) => isDashboardExpenseLedgerEntry(entry, getType))
       .sort((a, b) => new Date(b.date) - new Date(a.date))
     const recentExpenses = expenseEntries.slice(0, 5).map((entry) => {
-      const debitAccount = accountMetaMap.get(String(entry.debitAccountId)) || {}
+      const mapped = mapExpenseLedgerEntry(entry, accountMetaMap, getType, toMoney)
       return {
-        date: entry.date,
-        category: getDashboardExpenseCategory(entry, accountMetaMap) || debitAccount.accountName || 'Other',
-        description: entry.description || entry.notes || '-',
-        amount: toMoney(getLedgerEntryAmount(entry)),
-        paymentMethod: entry.paymentType || (String(entry.referenceType || '').includes('bank') ? 'Bank Transfer' : 'General'),
+        date: mapped.date,
+        category: mapped.category,
+        description: mapped.description,
+        amount: mapped.amount,
+        paymentMethod: mapped.paymentMethod,
+        paymentRoute: mapped.paymentRoute,
       }
     })
     const expenseTrendMap = new Map()

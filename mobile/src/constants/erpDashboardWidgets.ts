@@ -3,6 +3,7 @@ export type ErpDashWidgetId =
   | 'fixing'
   | 'bank'
   | 'expenses'
+  | 'expenseReport'
   | 'volume'
   | 'apar'
 
@@ -17,6 +18,7 @@ export const ERP_DASH_WIDGETS: ErpDashWidgetMeta[] = [
   { id: 'fixing', label: 'Net Position', icon: '📌' },
   { id: 'bank', label: 'Bank & Cash Balances', icon: '🏦' },
   { id: 'expenses', label: 'Expenses', icon: '📋' },
+  { id: 'expenseReport', label: 'Expense Report', icon: '🧾' },
   { id: 'volume', label: 'Total Volume Traded', icon: '📦' },
   { id: 'apar', label: 'Accounts Payable & Receivable', icon: '⚖️' },
 ]

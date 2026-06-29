@@ -4,6 +4,7 @@ import { MarginsWidget } from '@/src/components/dashboard/widgets/MarginsWidget'
 import { FixingWidget } from '@/src/components/dashboard/widgets/FixingWidget'
 import { BankWidget } from '@/src/components/dashboard/widgets/BankWidget'
 import { ExpensesWidget } from '@/src/components/dashboard/widgets/ExpensesWidget'
+import { ExpenseReportWidget } from '@/src/components/dashboard/widgets/ExpenseReportWidget'
 import { VolumeWidget } from '@/src/components/dashboard/widgets/VolumeWidget'
 import { AparWidget } from '@/src/components/dashboard/widgets/AparWidget'
 
@@ -13,6 +14,7 @@ type Props = {
   goldPriceUSD?: number
   silverPriceUSD?: number
   liveRecalcEnabled?: boolean
+  refreshKey?: number | string
 }
 
 export function renderDashboardWidget({
@@ -21,6 +23,7 @@ export function renderDashboardWidget({
   goldPriceUSD = 0,
   silverPriceUSD = 0,
   liveRecalcEnabled = false,
+  refreshKey = 0,
 }: Props) {
   switch (id) {
     case 'margins':
@@ -38,6 +41,8 @@ export function renderDashboardWidget({
       return <BankWidget dashboard={dashboard} />
     case 'expenses':
       return <ExpensesWidget dashboard={dashboard} />
+    case 'expenseReport':
+      return <ExpenseReportWidget refreshKey={refreshKey} />
     case 'volume':
       return <VolumeWidget dashboard={dashboard} />
     case 'apar':

@@ -17,6 +17,7 @@ describe('erpReports API paths (MG mobile ERP Reports tab)', () => {
     expect(`${REPORTS_BASE}/vendor-outstanding`).toBe('/api/erp-accounting/reports/vendor-outstanding')
     expect(`${REPORTS_BASE}/forex-gain-loss`).toBe('/api/erp-accounting/reports/forex-gain-loss')
     expect(`${REPORTS_BASE}/ledger`).toBe('/api/erp-accounting/reports/ledger')
+    expect(`${REPORTS_BASE}/expense-register`).toBe('/api/erp-accounting/reports/expense-register')
     expect(ACCOUNTS_BASE).toBe('/api/erp-accounting/accounts')
   })
 })
