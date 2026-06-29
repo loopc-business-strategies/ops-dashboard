@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+require('./_destructive-guard')({
+  scriptName: __filename,
+  allowDryRunNoApply: !process.argv.includes('--apply'),
+})
 /**
  * Parameterized soft-delete for mis-posted exchange journal entries on a cash account.
  * Default: dry-run. Pass --apply with destructive guard token to write.
@@ -9,7 +13,6 @@
  */
 const args = process.argv.slice(2)
 const isDryRun = args.includes('--dry-run') || !args.includes('--apply')
-require('../destructive/_destructive-guard')({ scriptName: __filename, allowDryRunNoApply: isDryRun })
 
 require('dotenv').config()
 const mongoose = require('mongoose')

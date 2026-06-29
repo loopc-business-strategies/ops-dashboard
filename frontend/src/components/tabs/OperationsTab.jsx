@@ -64,17 +64,14 @@ import {
 } from './operations/operationsTabUI'
 import {
   OPS_PROJECTS_DEPT,
-  OPS_PROJECTS_MODULE,
   MAX_OPS_ASSIGNEES,
   OPS_LINKED_SECTION_OPTS,
   OPS_LINKED_LABEL_KEY,
-  dueToInputDate,
   fmtShortDt,
   mapApiTaskToOpsRow,
   projectDocFromApiResponse,
   buildOpsCreatePayload,
   buildOpsUpdatePayload,
-  defaultOpsProjectForm,
   normalizeOpsProjectForm,
   syncAssignFieldsFromAssignees,
 } from './operations/opsProjectsMapping'
@@ -2799,7 +2796,7 @@ export default function OperationsTab() {
         const items = res.items || res.data || []
         if (items.length > 0) setInventory(items.map(invToRow))
       } catch { /* keep current state */ }
-    }, [token])
+    }, [])
 
     useEffect(() => { loadInventory() }, [loadInventory])
   const [tasks, setTasks] = useState([])

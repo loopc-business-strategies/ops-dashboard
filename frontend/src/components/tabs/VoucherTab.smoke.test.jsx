@@ -10,6 +10,10 @@ vi.mock('../../hooks/usePermissions', () => ({
   usePermissions: () => ({ canViewTab: () => true }),
 }))
 
+vi.mock('../../context/LanguageContext', () => ({
+  useLanguage: () => ({ t: (key) => key }),
+}))
+
 vi.mock('../voucher/voucherErpApi', () => ({
   default: {
     listVouchers: vi.fn(async () => ({ vouchers: [] })),
@@ -23,7 +27,7 @@ vi.mock('../../api/erp-accounting', () => ({
   },
 }))
 
-import VoucherTab from '../VoucherTab'
+import VoucherTab from './VoucherTab'
 
 describe('VoucherTab smoke', () => {
   it('renders voucher editor shell', async () => {

@@ -1,5 +1,6 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 import { render, screen } from '@testing-library/react'
 
 vi.mock('../../context/AuthContext', () => ({
@@ -10,13 +11,17 @@ vi.mock('../../hooks/usePermissions', () => ({
   usePermissions: () => ({ canViewTab: () => true, canEditTab: () => true }),
 }))
 
+vi.mock('../../context/LanguageContext', () => ({
+  useLanguage: () => ({ t: (key) => key }),
+}))
+
 vi.mock('../../api/operations/inventory', () => ({
   inventoryApi: {
     getInventory: vi.fn(async () => ({ inventory: [] })),
   },
 }))
 
-import OperationsTab from '../OperationsTab'
+import OperationsTab from './OperationsTab'
 
 describe('OperationsTab smoke', () => {
   beforeEach(() => {
@@ -24,7 +29,11 @@ describe('OperationsTab smoke', () => {
   })
 
   it('mounts operations tab shell', async () => {
-    render(<OperationsTab />)
-    expect(await screen.findByText(/operations|inventory|procurement/i)).toBeTruthy()
+    render(
+      <MemoryRouter>
+        <OperationsTab />
+      </MemoryRouter>,
+    )
+    expect(screen.getAllByText(/KPI overview/i).length).toBeGreaterThan(0)
   })
 })
