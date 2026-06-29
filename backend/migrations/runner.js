@@ -5,6 +5,7 @@
  *   node migrations/runner.js              # dry-run pending migrations
  *   node migrations/runner.js --apply      # apply pending migrations
  *   node migrations/runner.js --apply --confirm=TOKEN
+ *   node migrations/runner.js --until=002-backfill-mapping-departments
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') })
@@ -62,13 +63,28 @@ function resolveTenantUri(tenant) {
   return String(process.env[key] || '').trim()
 }
 
+function resolveUntilMigrationId() {
+  const until = getArgValue('--until=')
+  return until ? String(until).trim() : ''
+}
+
+function filterMigrationsByUntil(migrations, untilId) {
+  if (!untilId) return migrations
+  const untilIndex = migrations.findIndex((migration) => migration.id === untilId)
+  if (untilIndex === -1) {
+    throw new Error(`Unknown --until migration id: ${untilId}`)
+  }
+  return migrations.slice(0, untilIndex + 1)
+}
+
 async function main() {
   const apply = hasArg('--apply')
   const validateOnly = hasArg('--validate-only')
+  const untilId = resolveUntilMigrationId()
   const confirm = getArgValue('--confirm=')
   const expectedToken = String(process.env.MIGRATION_CONFIRM_TOKEN || '').trim()
 
-  const migrations = loadMigrationFiles()
+  const migrations = filterMigrationsByUntil(loadMigrationFiles(), untilId)
   if (validateOnly) {
     console.log(`Migration validate-only — ${migrations.length} registered`)
     console.log(migrations.map((migration) => `  • ${migration.id} (${migration.file})`).join('\n'))
@@ -92,6 +108,7 @@ async function main() {
   }
 
   console.log(`Migration runner — mode: ${apply ? 'apply' : 'dry-run'}`)
+  if (untilId) console.log(`Until: ${untilId} (later migrations skipped)`)
   console.log(`Tenants: ${tenants.join(', ')}`)
   console.log(`Registered migrations: ${migrations.length}`)
 

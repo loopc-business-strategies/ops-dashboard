@@ -8,6 +8,12 @@ Versioned, replayable schema/data changes for multi-tenant MongoDB.
 # Dry-run (default)
 npm --prefix backend run migrate
 
+# Staging only — through migration 002 (skips 003)
+npm run migrate:staging
+
+# Apply on staging after Atlas backup + token in backend/.env.staging.local / Railway staging
+# MIGRATION_I_HAVE_BACKUP=true MIGRATION_CONFIRM_TOKEN=... npm run migrate:staging:apply -- --confirm=<token>
+
 # Apply pending migrations to all configured tenants
 npm --prefix backend run migrate:apply
 ```

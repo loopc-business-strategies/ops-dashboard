@@ -1,0 +1,53 @@
+name: Staging migration (002 only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply pending migrations up to 002 (requires backup + confirm token)
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: migrate-staging-002
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Migration 002 on staging tenants
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Dry-run migration 002 (skip 003)
+        if: ${{ inputs.apply != true }}
+        env:
+          MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
+          MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
+          MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
+        run: node migrations/runner.js --until=002-backfill-mapping-departments
+
+      - name: Apply migration 002 (skip 003)
+        if: ${{ inputs.apply == true }}
+        env:
+          MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
+          MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
+          MONGO_URI_LOOPC: ${{ secrets.STAGING_MONGO_URI_LOOPC }}
+          MIGRATION_I_HAVE_BACKUP: 'true'
+          MIGRATION_CONFIRM_TOKEN: ${{ secrets.MIGRATION_CONFIRM_TOKEN }}
+        run: node migrations/runner.js --until=002-backfill-mapping-departments --apply --confirm=${{ secrets.MIGRATION_CONFIRM_TOKEN }}
