@@ -31,6 +31,7 @@ export const uploadContactDocument = (id, file, status = 'Pending') => {
 	}).then((r) => r.data)
 }
 export const deleteContactDocument = (id, docId) => axios.delete(`${BASE}/contacts/${id}/documents/${docId}`, cfg()).then(r => r.data)
+export const getContactDocumentDownloadUrl = (contactId, docId) => `${BASE}/contacts/${contactId}/documents/${docId}/download`
 export const exportContactsCsv = () => axios.get(`${BASE}/contacts/export`, { withCredentials: true, responseType: 'blob' }).then(r => r.data)
 export const importContactsCsv = (file) => {
 	const formData = new FormData()

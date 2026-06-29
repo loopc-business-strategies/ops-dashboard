@@ -71,10 +71,6 @@ function registerAttachmentRoutes(deps) {
         return sendStoredAttachment({ res, attachment, transactionModel: TenantTransaction, localFilePath: filePath })
       }
 
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ success: false, message: 'File not found' })
-      }
-
       if (type === 'bank-slip') {
         if (!canViewLedger(req.user) && !canCreateTransaction(req.user)) {
           return res.status(403).json({ success: false, message: 'Forbidden' })
@@ -90,13 +86,18 @@ function registerAttachmentRoutes(deps) {
           return res.status(404).json({ success: false, message: 'Bank slip not found for this tenant' })
         }
 
+        if (!fs.existsSync(filePath)) {
+          return res.status(404).json({ success: false, message: 'File not found' })
+        }
+
         res.setHeader('Content-Disposition', resolveAttachmentContentDisposition(req, {
           mimeType: inferMimeFromFilename(filename),
           filename: ledger.attachmentName || filename,
         }))
+        return res.sendFile(filePath)
       }
 
-      res.sendFile(filePath)
+      return res.status(400).json({ success: false, message: 'Invalid attachment type' })
     } catch (err) {
       respondRouteError(res, err, { tag: 'erp-accounting/attachmentRoutes' })
     }

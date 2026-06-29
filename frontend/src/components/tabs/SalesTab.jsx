@@ -268,11 +268,10 @@ function downloadBlob(blob, filename) {
   window.URL.revokeObjectURL(url)
 }
 
-function resolveDocUrl(relativePath) {
-  if (!relativePath) return '#'
-  if (/^https?:\/\//i.test(relativePath)) return relativePath
+function resolveCrmDocDownloadUrl(contactId, doc) {
+  if (!contactId || !doc?._id) return '#'
   const base = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || ''
-  return `${base}${relativePath.startsWith('/') ? '' : '/'}${relativePath}`
+  return `${base}/api/crm/contacts/${contactId}/documents/${doc._id}/download`
 }
 
 function getContactInit(initial, reps) {
@@ -766,7 +765,7 @@ function ContactProfile({ contact, tab, setTab, activities, deals, canSeeKyc, on
           {(contact.kyc?.documents || []).map((d, i) => (
             <div key={`${d._id || d.name}-${i}`} style={{ fontSize: 12, color: C.sub, padding: '8px 0', borderTop: i ? `1px solid ${C.border}` : 'none', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
               <div>
-                <a href={resolveDocUrl(d.relativePath)} target='_blank' rel='noreferrer' style={{ color: C.primary, fontWeight: 700, textDecoration: 'none' }}>{d.name || 'Document'}</a>
+                <a href={resolveCrmDocDownloadUrl(contact._id, d)} target='_blank' rel='noreferrer' style={{ color: C.primary, fontWeight: 700, textDecoration: 'none' }}>{d.name || 'Document'}</a>
                 <div>{d.status || 'Pending'} {d.verifiedDate ? `- ${d.verifiedDate}` : ''}</div>
                 <div style={{ fontSize: 11, color: C.muted }}>{d.uploadedByName || '-'} {d.uploadedAt ? `- ${dateFmt(d.uploadedAt)}` : ''}</div>
               </div>
