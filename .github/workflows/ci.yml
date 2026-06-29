@@ -52,8 +52,11 @@ jobs:
       - name: Check tenant branding parity
         run: npm run check:tenant-branding-parity
 
-      - name: Migration dry-run
-        run: npm --prefix backend run migrate
+      - name: Install backend dependencies for migration validate
+        run: npm ci --prefix backend
+
+      - name: Migration validate-only
+        run: node backend/migrations/runner.js --validate-only
 
       - name: ESLint (ERP tab production JS, zero warnings)
         run: npm run lint:eslint:ci

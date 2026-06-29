@@ -64,8 +64,17 @@ function resolveTenantUri(tenant) {
 
 async function main() {
   const apply = hasArg('--apply')
+  const validateOnly = hasArg('--validate-only')
   const confirm = getArgValue('--confirm=')
   const expectedToken = String(process.env.MIGRATION_CONFIRM_TOKEN || '').trim()
+
+  const migrations = loadMigrationFiles()
+  if (validateOnly) {
+    console.log(`Migration validate-only — ${migrations.length} registered`)
+    console.log(migrations.map((migration) => `  • ${migration.id} (${migration.file})`).join('\n'))
+    return
+  }
+
   if (apply) {
     if (!expectedToken) {
       throw new Error('Refusing apply: set MIGRATION_CONFIRM_TOKEN in the environment.')
@@ -77,7 +86,6 @@ async function main() {
     assertMigrationApplyAllowed({ tenants: tenantsPreview, resolveUri: resolveTenantUri })
   }
 
-  const migrations = loadMigrationFiles()
   const tenants = TENANT_KEYS.filter((tenant) => resolveTenantUri(tenant))
   if (!tenants.length) {
     throw new Error('No tenant Mongo URIs configured (MONGO_URI_MG / _CG / _LOOPC)')

@@ -129,7 +129,7 @@ The workflow also accepts **`workflow_dispatch`** for manual runs.
 
 | Area | What runs |
 |------|-------------|
-| Hygiene | Tracked paths, destructive guards, risk guardrails, Vercel rewrites, ERP access parity, tenant branding, **migration dry-run**, ESLint slices |
+| Hygiene | Tracked paths, destructive guards, risk guardrails, Vercel rewrites, ERP access parity, tenant branding, **migration validate-only**, ESLint slices |
 | Backend fast | `test:fast` (13 suites) + `test:erp-accounting` |
 | **Backend full Jest** | **`npm test`** — **only** on `workflow_dispatch`, **push** to **`main`**, or **PRs targeting `main`** |
 | Backend integration | Tenant routing, tenant isolation, ERP transactions — **same branch gate as full Jest** |
