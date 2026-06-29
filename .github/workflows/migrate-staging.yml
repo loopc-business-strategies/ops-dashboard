@@ -36,6 +36,7 @@ jobs:
 
       - name: Dry-run migration 002 (skip 003)
         if: ${{ inputs.apply != true }}
+        working-directory: backend
         env:
           MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
           MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
@@ -44,6 +45,7 @@ jobs:
 
       - name: Apply migration 002 (skip 003)
         if: ${{ inputs.apply == true }}
+        working-directory: backend
         env:
           MONGO_URI_MG: ${{ secrets.STAGING_MONGO_URI_MG }}
           MONGO_URI_CG: ${{ secrets.STAGING_MONGO_URI_CG }}
