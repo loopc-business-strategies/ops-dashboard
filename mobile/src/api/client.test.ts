@@ -45,3 +45,42 @@ describe('api client tenant headers', () => {
     expect(headers['x-company']).toBe('loopc')
   })
 })
+
+describe('api client unauthorized handling', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    mockState.extra = {}
+  })
+
+  it('notifies unauthorized handler on 401 except login', async () => {
+    const { registerUnauthorizedHandler } = await import('./sessionEvents')
+    const handler = vi.fn()
+    registerUnauthorizedHandler(handler)
+
+    global.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({ message: 'Invalid session' }),
+    })) as unknown as typeof fetch
+
+    const { apiRequest } = await import('./client')
+    await expect(apiRequest('/api/auth/me')).rejects.toThrow('Invalid session')
+    expect(handler).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not notify unauthorized handler on login 401', async () => {
+    const { registerUnauthorizedHandler } = await import('./sessionEvents')
+    const handler = vi.fn()
+    registerUnauthorizedHandler(handler)
+
+    global.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({ message: 'Invalid credentials' }),
+    })) as unknown as typeof fetch
+
+    const { apiRequest } = await import('./client')
+    await expect(apiRequest('/api/auth/login', { method: 'POST', body: {} })).rejects.toThrow('Invalid credentials')
+    expect(handler).not.toHaveBeenCalled()
+  })
+})

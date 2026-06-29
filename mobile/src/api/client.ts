@@ -1,4 +1,5 @@
 import { API_URL, getTenant, syncTenantFromJwt } from '@/src/config/tenant'
+import { notifyUnauthorized } from '@/src/api/sessionEvents'
 
 type RequestOptions = {
   method?: string
@@ -48,6 +49,12 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}
   }
 }
 
+function shouldNotifyUnauthorized(path: string, status: number) {
+  if (status !== 401) return false
+  const normalized = path.split('?')[0] || ''
+  return !/\/api\/auth\/login\b/i.test(normalized)
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', token = authToken, body, params } = options
   const tenant = getTenant()
@@ -68,6 +75,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
+    if (shouldNotifyUnauthorized(path, res.status)) {
+      notifyUnauthorized()
+    }
     const message = typeof data?.message === 'string' ? data.message : `Request failed (${res.status})`
     throw new Error(message)
   }
@@ -95,6 +105,9 @@ export async function apiUploadRequest<T>(
 
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
+    if (shouldNotifyUnauthorized(path, res.status)) {
+      notifyUnauthorized()
+    }
     const message = typeof data?.message === 'string' ? data.message : `Upload failed (${res.status})`
     throw new Error(message)
   }

@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import * as SecureStore from 'expo-secure-store'
 import { setAuthToken } from '@/src/api/client'
+import { registerUnauthorizedHandler } from '@/src/api/sessionEvents'
 import * as authApi from '@/src/api/auth'
 import type { AuthUser } from '@/src/api/auth'
 import { SESSION_TOKEN_KEY } from '@/src/config/tenant'
@@ -110,6 +111,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await resetForLogout()
     setSessionEpoch((epoch) => epoch + 1)
   }, [applySession, resetForLogout, token])
+
+  useEffect(() => {
+    registerUnauthorizedHandler(() => logout())
+    return () => registerUnauthorizedHandler(null)
+  }, [logout])
 
   const tenantSessionKey = useMemo(
     () => buildTenantSessionKey(token, user, companyCode, sessionEpoch),

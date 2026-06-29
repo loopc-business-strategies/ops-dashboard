@@ -11,7 +11,8 @@
  *     --p12-path ./nexa-distribution.p12 \
  *     --profile-path ./Nexa_App_Store.mobileprovision \
  *     --p8-path ./AuthKey_XXXXX.p8 \
- *     --keystore-path ./upload-keystore.jks
+ *     --keystore-path ./upload-keystore.jks \
+ *     --google-services-path ./google-services.json
  *
  * Env vars for --from-env (text secrets):
  *   APPLE_TEAM_ID, P12_PASSWORD, KEYCHAIN_PASSWORD,
@@ -19,7 +20,7 @@
  *   ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS
  *
  * Env vars for file paths (--from-env):
- *   MOBILE_P12_PATH, MOBILE_PROFILE_PATH, MOBILE_P8_PATH, MOBILE_KEYSTORE_PATH
+ *   MOBILE_P12_PATH, MOBILE_PROFILE_PATH, MOBILE_P8_PATH, MOBILE_KEYSTORE_PATH, MOBILE_GOOGLE_SERVICES_PATH
  */
 import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
@@ -45,6 +46,7 @@ const FILE_SECRET_MAP = {
   profile: 'BUILD_PROVISION_PROFILE_BASE64',
   p8: 'APP_STORE_CONNECT_API_KEY',
   keystore: 'ANDROID_KEYSTORE_BASE64',
+  googleServices: 'GOOGLE_SERVICES_JSON_BASE64',
 }
 
 function parseArgs() {
@@ -56,6 +58,7 @@ function parseArgs() {
     profilePath: null,
     p8Path: null,
     keystorePath: null,
+    googleServicesPath: null,
   }
   for (let i = 0; i < args.length; i += 1) {
     const key = args[i]
@@ -64,6 +67,7 @@ function parseArgs() {
     if (key === '--profile-path' && val) flags.profilePath = val
     if (key === '--p8-path' && val) flags.p8Path = val
     if (key === '--keystore-path' && val) flags.keystorePath = val
+    if (key === '--google-services-path' && val) flags.googleServicesPath = val
   }
   return flags
 }
@@ -112,7 +116,9 @@ function printInstructions() {
   console.log('  BUILD_PROVISION_PROFILE_BASE64, KEYCHAIN_PASSWORD,')
   console.log('  APP_STORE_CONNECT_API_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_API_KEY')
   console.log('\nAndroid secrets (optional Play upload):')
-  console.log('  ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS\n')
+  console.log('  ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS')
+  console.log('\nAndroid FCM (optional — background push on release APK):')
+  console.log('  GOOGLE_SERVICES_JSON_BASE64 (base64 of mobile/android/app/google-services.json)\n')
   console.log('Verify: npm run check:mobile-release-secrets')
   console.log('iOS workflow: Actions → Mobile iOS (GitHub macOS)')
   console.log('Android workflow: Actions → Mobile Android bundle')
@@ -126,6 +132,7 @@ function applyFromFlags(flags) {
     flags.profilePath = flags.profilePath || process.env.MOBILE_PROFILE_PATH
     flags.p8Path = flags.p8Path || process.env.MOBILE_P8_PATH
     flags.keystorePath = flags.keystorePath || process.env.MOBILE_KEYSTORE_PATH
+    flags.googleServicesPath = flags.googleServicesPath || process.env.MOBILE_GOOGLE_SERVICES_PATH
     for (const name of TEXT_SECRETS) {
       if (setSecret(name, process.env[name])) count += 1
     }
@@ -147,6 +154,10 @@ function applyFromFlags(flags) {
     setSecret(FILE_SECRET_MAP.keystore, fileToBase64(flags.keystorePath))
     count += 1
   }
+  if (flags.googleServicesPath) {
+    setSecret(FILE_SECRET_MAP.googleServices, fileToBase64(flags.googleServicesPath))
+    count += 1
+  }
 
   return count
 }
@@ -154,7 +165,7 @@ function applyFromFlags(flags) {
 function main() {
   const flags = parseArgs()
 
-  if (flags.printInstructions || (!flags.fromEnv && !flags.p12Path && !flags.profilePath && !flags.p8Path && !flags.keystorePath)) {
+  if (flags.printInstructions || (!flags.fromEnv && !flags.p12Path && !flags.profilePath && !flags.p8Path && !flags.keystorePath && !flags.googleServicesPath)) {
     printInstructions()
     if (!flags.fromEnv && !flags.p12Path) process.exit(0)
   }

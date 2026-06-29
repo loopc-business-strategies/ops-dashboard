@@ -41,12 +41,27 @@
 
 ## Step 2: Set Up Railway Backend
 
+### 2.0 Root Directory (Railway)
+
+This repo's [`railway.json`](railway.json) expects the Railway project **Root Directory** to be the **repository root** (leave the field **empty**), **not** `backend`.
+
+| Setting | Value |
+|---------|-------|
+| **Root Directory** | **Empty** (monorepo root) |
+| **Config file** | [`railway.json`](railway.json) at repo root |
+| **Build** | Runs `node scripts/write-backend-build-meta.mjs`, then `cd backend && npm install` |
+| **Start** | `cd backend && node server.js` (with upload volume defaults) |
+
+If **Root Directory** is set to **`backend`**, the build meta script fails because `scripts/write-backend-build-meta.mjs` lives at repo root. **Clear Root Directory** and redeploy.
+
+- [ ] **Railway → Service → Settings → Root Directory:** **empty** (repository root)
+
 ### 2.1 Connect GitHub Repository
 1. Log into [railway.app](https://railway.app)
 2. Click **+ New Project**
 3. Select **Deploy from GitHub repo**
 4. Authorize GitHub and select your ops-dashboard repo
-5. Select the backend folder (if using monorepo) or leave default
+5. Leave **Root Directory empty** (repository root) — see **2.0** above; do **not** set it to `backend`
 6. Railway will auto-detect Node.js and create a service
 
 ### 2.2 Add Environment Variables

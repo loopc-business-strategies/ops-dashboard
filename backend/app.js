@@ -6,6 +6,7 @@ const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit')
+const { createSharedRateLimitStore } = require('./utils/sharedRateLimitStore')
 const cookieParser = require('cookie-parser')
 
 const sanitizeMiddleware = require('./middleware/sanitize')
@@ -178,6 +179,7 @@ function createApp() {
     max: Number(process.env.RATE_LIMIT_MAX || 1200),
     standardHeaders: true,
     legacyHeaders: false,
+    store: createSharedRateLimitStore('api'),
     skip: shouldSkipApiRateLimit,
     keyGenerator: (req) => {
       const ip = ipKeyGenerator(req)
@@ -192,6 +194,7 @@ function createApp() {
     max: Number(process.env.AUTH_RATE_LIMIT_MAX || 50),
     standardHeaders: true,
     legacyHeaders: false,
+    store: createSharedRateLimitStore('auth'),
     skip: () => !hardenedEnv,
     skipSuccessfulRequests: true,
     keyGenerator: (req) => {

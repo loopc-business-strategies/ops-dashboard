@@ -23,6 +23,9 @@ const GROUPS = {
     'ANDROID_KEYSTORE_PASSWORD',
     'ANDROID_KEY_ALIAS',
   ],
+  'Android FCM (optional — background push on release APK)': [
+    'GOOGLE_SERVICES_JSON_BASE64',
+  ],
 }
 
 function listSecretNames() {
@@ -66,6 +69,13 @@ function main() {
     console.log('Android signing: Play-upload keystore secrets configured for CI.')
   } else {
     console.log('Android signing: not configured in GitHub — CI AAB uses debug signing (internal QA only).')
+  }
+
+  const fcmReady = present.has('GOOGLE_SERVICES_JSON_BASE64')
+  if (fcmReady) {
+    console.log('Android FCM: google-services.json secret configured for CI builds.')
+  } else {
+    console.log('Android FCM: GOOGLE_SERVICES_JSON_BASE64 not set — add for background push (see docs/MOBILE-ANDROID-PUSH-FCM.md).')
   }
 
   process.exit(missingRequired > 0 ? 1 : 0)

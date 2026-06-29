@@ -12,7 +12,14 @@ Single reference for **how this repo ships**. First-time Vercel/Railway/Mongo se
 | Staging web | Vercel preview (`staging` branch) | Push to **`staging`** |
 | Mobile | Manual GitHub Actions (no auto-deploy on git push) | `workflow_dispatch` |
 
-Config files: root [`vercel.json`](../vercel.json), [`railway.json`](../railway.json). Vercel **Root Directory** must be **empty** (repo root), not `frontend`.
+Config files: root [`vercel.json`](../vercel.json), [`railway.json`](../railway.json).
+
+**Root Directory (both hosts):** leave **empty** (repository root), not `frontend` or `backend`.
+
+| Host | Root Directory | Why |
+|------|----------------|-----|
+| **Vercel** | Empty | [`vercel.json`](../vercel.json) outputs `frontend/dist` from repo root |
+| **Railway** | Empty | [`railway.json`](../railway.json) runs `scripts/write-backend-build-meta.mjs` then `cd backend` |
 
 ## Day-to-day production deploy
 

@@ -2,6 +2,35 @@
 
 Use this before every **App Store / Play Store** submission or **TestFlight** drop. Automated gates run in CI; manual steps are yours.
 
+## P0 — Store signing and FCM (one-time setup)
+
+These secrets cannot be generated from code — provision them in GitHub Actions (Settings → Secrets) or via the helper script.
+
+```bash
+# 1. See which secrets are missing
+npm run check:mobile-release-secrets
+
+# 2. Read setup guide
+npm run setup:mobile-github-secrets -- --print-instructions
+
+# 3. Push secrets from local cert files (requires gh auth login)
+node scripts/setup-mobile-github-secrets.mjs \
+  --p12-path ./nexa-distribution.p12 \
+  --profile-path ./Nexa_App_Store.mobileprovision \
+  --p8-path ./AuthKey_XXXXX.p8 \
+  --keystore-path ./upload-keystore.jks \
+  --google-services-path ./google-services.json
+```
+
+| Secret group | Required for | Guide |
+|--------------|--------------|-------|
+| iOS signing (5 secrets) | TestFlight / App Store CI | [docs/MOBILE-IOS-GITHUB-BUILD.md](../../docs/MOBILE-IOS-GITHUB-BUILD.md) |
+| App Store Connect API (3 secrets) | TestFlight upload | same |
+| Android keystore (3 secrets) | Play Store upload signing | [docs/MOBILE-ANDROID-LOCAL-BUILD.md](../../docs/MOBILE-ANDROID-LOCAL-BUILD.md) |
+| `GOOGLE_SERVICES_JSON_BASE64` | FCM background push on release APK | [docs/MOBILE-ANDROID-PUSH-FCM.md](../../docs/MOBILE-ANDROID-PUSH-FCM.md) |
+
+Local dev: place `google-services.json` at `mobile/android/app/google-services.json` (gitignored). Verify with `npm run check:fcm`.
+
 ## Automated gates (CI)
 
 | Check | Where |
@@ -49,8 +78,9 @@ Run from repo root: `npm run check:mobile-release-secrets` (requires `gh auth lo
 | `ANDROID_KEYSTORE_BASE64` | missing |
 | `ANDROID_KEYSTORE_PASSWORD` | missing |
 | `ANDROID_KEY_ALIAS` | missing |
+| `GOOGLE_SERVICES_JSON_BASE64` | missing |
 
-iOS signing is **not** ready for **Mobile iOS (GitHub macOS)** until the five iOS signing secrets are added per [docs/MOBILE-IOS-GITHUB-BUILD.md](../../docs/MOBILE-IOS-GITHUB-BUILD.md). Android CI still uses debug signing until the three Android keystore secrets are set.
+iOS signing is **not** ready for **Mobile iOS (GitHub macOS)** until the five iOS signing secrets are added per [docs/MOBILE-IOS-GITHUB-BUILD.md](../../docs/MOBILE-IOS-GITHUB-BUILD.md). Android CI still uses debug signing until the three Android keystore secrets are set. FCM background push requires `GOOGLE_SERVICES_JSON_BASE64` or a local `google-services.json`.
 
 ## iOS — GitHub macOS (no EAS)
 

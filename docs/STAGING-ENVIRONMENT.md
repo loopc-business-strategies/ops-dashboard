@@ -9,7 +9,7 @@ Goal: a **second** full stack that mirrors production **URLs and secrets shape**
 | Piece | Production | Staging |
 |--------|-------------|---------|
 | Git branch | `main` | `staging` (or deploy previews from PRs only) |
-| Railway service | e.g. `ops-dashboard-api` | New service: `ops-dashboard-api-staging` from same repo, **Root Directory** = `backend` |
+| Railway service | e.g. `ops-dashboard-api` | New service: `ops-dashboard-api-staging` from same repo, **Root Directory** = **empty** (repo root) |
 | Vercel project | Production project | Same project **Preview** env, or a dedicated `ops-dashboard-web-staging` |
 | MongoDB | Prod clusters | **Separate** Atlas DBs or databases (never point staging at prod data for write tests) |
 | EAS | `production` channel / profile | `preview` profile already maps to non-prod API if `EXPO_PUBLIC_API_URL` points at staging |

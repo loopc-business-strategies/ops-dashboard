@@ -52,7 +52,6 @@ export default function LoginScreen() {
           setRememberCredentials(true)
           if (saved.companyCode) setCompanyCode(saved.companyCode)
           if (saved.name) setName(saved.name)
-          if (saved.password) setPassword(saved.password)
         }
       })
       .finally(() => setPrefsLoaded(true))
@@ -70,7 +69,7 @@ export default function LoginScreen() {
       await applyCompanyCode(code)
       await login(name, password, code)
       if (rememberCredentials) {
-        await saveLoginCredentials({ companyCode: code, name, password })
+        await saveLoginCredentials({ companyCode: code, name })
       } else {
         await clearSavedLoginCredentials()
       }
@@ -148,7 +147,7 @@ export default function LoginScreen() {
               trackColor={{ false: '#D1D5DB', true: accent.secondary }}
               thumbColor="#FFFFFF"
             />
-            <Text style={[styles.rememberLabel, { color: accent.text }]}>Remember credentials</Text>
+            <Text style={[styles.rememberLabel, { color: accent.text }]}>Remember company and username</Text>
           </View>
           {error ? <Text style={[styles.error, { color: accent.danger }]}>{error}</Text> : null}
           <Pressable

@@ -25,11 +25,25 @@ describe('savedLoginCredentials', () => {
       remember: false,
       companyCode: '',
       name: '',
-      password: '',
     })
   })
 
-  it('loads saved credentials when remember flag is set', async () => {
+  it('loads saved company and username without password', async () => {
+    vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) => {
+      if (key === 'nexa_remember_login') return '1'
+      if (key === 'nexa_saved_company_code') return 'mg'
+      if (key === 'nexa_saved_username') return 'admin'
+      if (key === 'nexa_saved_password') return null
+      return null
+    })
+    await expect(loadSavedLoginCredentials()).resolves.toEqual({
+      remember: true,
+      companyCode: 'mg',
+      name: 'admin',
+    })
+  })
+
+  it('removes legacy saved password on load', async () => {
     vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) => {
       if (key === 'nexa_remember_login') return '1'
       if (key === 'nexa_saved_company_code') return 'mg'
@@ -37,20 +51,16 @@ describe('savedLoginCredentials', () => {
       if (key === 'nexa_saved_password') return 'secret'
       return null
     })
-    await expect(loadSavedLoginCredentials()).resolves.toEqual({
-      remember: true,
-      companyCode: 'mg',
-      name: 'admin',
-      password: 'secret',
-    })
+    await loadSavedLoginCredentials()
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('nexa_saved_password')
   })
 
-  it('persists credentials to secure store', async () => {
-    await saveLoginCredentials({ companyCode: 'mg', name: 'user', password: 'pw' })
+  it('persists company and username only', async () => {
+    await saveLoginCredentials({ companyCode: 'mg', name: 'user' })
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith('nexa_remember_login', '1')
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith('nexa_saved_company_code', 'mg')
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith('nexa_saved_username', 'user')
-    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('nexa_saved_password', 'pw')
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('nexa_saved_password')
   })
 
   it('clears all saved credential keys', async () => {

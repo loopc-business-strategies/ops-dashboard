@@ -191,6 +191,10 @@ function onLocal(channel, handler) {
   return () => localBus.off(channel, handler)
 }
 
+function resetLocalCoordinationForTests() {
+  localStore.clear()
+}
+
 module.exports = {
   getJson,
   setJson,
@@ -203,4 +207,5 @@ module.exports = {
   emitLocal,
   onLocal,
   isRedisConfigured,
+  resetLocalCoordinationForTests,
 }

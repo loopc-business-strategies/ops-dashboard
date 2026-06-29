@@ -83,6 +83,8 @@
     "smoke:tenants": "node scripts/smoke-tenants.js",
     "smoke:erp-acceptance": "node scripts/erp-acceptance-automated.mjs",
     "check:fcm": "node scripts/check-fcm-setup.mjs",
+    "check:mobile-release-secrets": "node scripts/check-mobile-release-secrets.mjs",
+    "setup:mobile-github-secrets": "node scripts/setup-mobile-github-secrets.mjs",
     "smoke:prod": "node scripts/production-smoke.js",
     "smoke:staging": "node scripts/staging-smoke.js",
     "smoke:erp-fix:prod": "node scripts/verify-erp-fix-production.mjs",
