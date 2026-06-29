@@ -9,6 +9,13 @@ module.exports = {
     'routes/employees.js',
     'routes/erp.js',
     'routes/crm.js',
+    'routes/platformRoutes.js',
+    'routes/adminTenantRoutes.js',
+    'routes/taskTemplates.js',
+    'routes/department-state.js',
+    'routes/notifications.js',
+    'routes/ai.js',
+    'routes/operationsLegalDocuments.js',
   ],
   coverageThreshold: {
     global: {
