@@ -9,7 +9,6 @@ import {
   buildEnquiryHref,
 } from '../../utils/dashboardNavigation'
 import erpAccountingAPI from '../../api/erp-accounting'
-import { readSummaryAccountsCache, writeSummaryAccountsCache } from '../../utils/erpSummaryAccountsCache'
 import { buildEntryAccountOptions, filterActiveAccounts } from './erp/accountDropdownHelpers'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import {
@@ -121,6 +120,9 @@ import { useErpLedger } from './erp/useErpLedger'
 import { useErpLedgerActions } from './erp/useErpLedgerActions'
 import { useErpVendors, fetchAllVendorsAggregated } from './erp/useErpVendors'
 import { useErpInventory } from './erp/useErpInventory'
+import { useErpAccounts } from './erp/useErpAccounts'
+import { useErpVendorActions } from './erp/useErpVendorActions'
+import { EMPTY_VENDOR_DOCUMENT_FORM, EMPTY_VENDOR_FORM } from './erp/vendorFormDefaults'
 
 const ChartOfAccountsTree = lazy(() => import('./ChartOfAccountsTree'))
 const DirectDealsTab = lazy(() => import('./DirectDealsTab'))
@@ -395,41 +397,14 @@ function ERPTab({
   const [transactionSummary, setTransactionSummary] = useState({ totalCount: 0, totalAmount: 0, draft: 0, submitted: 0, approved: 0, posted: 0, returned: 0, rejected: 0 })
   const [ledgerMeta, setLedgerMeta] = useState({ cursor: null, nextCursor: null, hasMore: false, cursorHistory: [] })
   const [transactionMeta, setTransactionMeta] = useState({ page: 1, limit: 25, total: 0, cursor: null, nextCursor: null, hasMore: false, cursorHistory: [] })
-  const [vendorForm, setVendorForm] = useState({
-    vendorCode: '',
-    name: '',
-    contactPerson: '',
-    phone: '',
-    email: '',
-    address: '',
-    city: '',
-    country: '',
-    postalCode: '',
-    gstVat: '',
-    taxRegistrationNo: '',
-    openingBalance: '',
-    paymentTermsDays: '30',
-    creditLimit: '',
-    category: 'general',
-    rating: '3',
-    riskLevel: 'medium',
-    status: 'active',
-    notes: '',
-    tags: '',
-    preferredCurrency: 'USD',
-    bankName: '',
-    bankAccountNumber: '',
-    iban: '',
-    swiftCode: '',
-    currency: 'USD',
-  })
+  const [vendorForm, setVendorForm] = useState({ ...EMPTY_VENDOR_FORM })
   const [vendorFilters, setVendorFilters] = useState({ search: '', status: '', approvalStatus: '', riskLevel: '', category: '', includeInactive: false })
   const [vendorSummary, setVendorSummary] = useState({ totalVendors: 0, totalOutstanding: 0, overLimit: 0, blacklisted: 0, onHold: 0, nonCompliant: 0 })
   const [vendorPermissions, setVendorPermissions] = useState({ canManage: false, canUpdateOperational: false })
   const [selectedVendorId, setSelectedVendorId] = useState('')
   const [selectedVendorDetails, setSelectedVendorDetails] = useState(null)
   const [vendorWorkflowReason, setVendorWorkflowReason] = useState('')
-  const [vendorDocumentForm, setVendorDocumentForm] = useState({ docType: 'contract', title: '', documentNo: '', fileUrl: '', file: null, issueDate: '', expiryDate: '', status: 'active', verified: false, notes: '' })
+  const [vendorDocumentForm, setVendorDocumentForm] = useState({ ...EMPTY_VENDOR_DOCUMENT_FORM })
   const [vendorPaymentCalendar, setVendorPaymentCalendar] = useState({ rows: [], alerts: { overdue: 0, due_soon: 0, upcoming: 0, later: 0, totalDue: 0 } })
   const [vendorComplianceSummary, setVendorComplianceSummary] = useState({ summary: { total: 0, nonCompliant: 0, avgComplianceScore: 0 }, expiryBuckets: { expired: 0, warning30: 0, warning60: 0, warning90: 0 }, atRisk: [] })
   const [vendorOverdueQueue, setVendorOverdueQueue] = useState({ summary: { total: 0, withRecipient: 0, critical: 0, totalAmountDue: 0 }, queue: [] })
@@ -530,6 +505,25 @@ function ERPTab({
     canLoadReferenceData,
     setLoading: setCurrenciesLoading,
     setCurrencies,
+    setError,
+  })
+  const erpAccountsTenantKey = user?.tenant || user?.company || 'default'
+  const { loadAccounts } = useErpAccounts({
+    token,
+    tenantKey: erpAccountsTenantKey,
+    canViewAccounts,
+    canViewBalanceEnquiry,
+    canAccessTransactions,
+    canAccessVouchers,
+    canViewLedger,
+    canAccessReports,
+    canAccessCurrencies,
+    canAccessErpSettings,
+    canAccessFixingRegister,
+    setLoading: setAccountsLoading,
+    setSummaryAccountsLoading,
+    setAccounts,
+    setSummaryAccounts,
     setError,
   })
   const patchAccountEnquiryMetalRates = useCallback((rates) => {
@@ -885,58 +879,6 @@ function ERPTab({
       // ignore local preference save errors
     }
   }, [inventoryStockCodeSettingsKey, inventoryStockCodeSettings])
-  const loadAccounts = async (params = {}) => {
-    const isSummaryScope = params.scope === 'summary'
-    if (!canLoadReferenceData && !(isSummaryScope && canViewBalanceEnquiry)) return
-    const tenantKey = user?.tenant || user?.company || 'default'
-    if (isSummaryScope) {
-      const cached = readSummaryAccountsCache(tenantKey)
-      if (Array.isArray(cached) && cached.length) {
-        const normalized = filterActiveAccounts(cached)
-          .filter((item) => item?._id && String(item?.accountCode || '').trim())
-          .map((item) => ({ ...item, accountCode: String(item.accountCode).trim() }))
-        setSummaryAccounts(normalized)
-        setSummaryAccountsLoading(false)
-      } else {
-        setSummaryAccountsLoading(true)
-      }
-    } else {
-      setAccountsLoading(true)
-    }
-    try {
-      if (isSummaryScope) {
-        const data = await erpAccountingAPI.getAccounts(token, { ...params, page: 1, limit: 5000 })
-        const rows = filterActiveAccounts(data.accounts || [])
-        const uniqueById = new Map()
-        rows.forEach((item) => {
-          const code = String(item?.accountCode || '').trim()
-          if (item?._id && code) uniqueById.set(item._id, { ...item, accountCode: code })
-        })
-        const next = Array.from(uniqueById.values())
-        setSummaryAccounts(next)
-        writeSummaryAccountsCache(tenantKey, next)
-      } else {
-        const pageSize = 500
-        let page = 1
-        let total = Number.POSITIVE_INFINITY
-        let collected = []
-        while (collected.length < total) {
-          const data = await erpAccountingAPI.getAccounts(token, { ...params, page, limit: pageSize })
-          const rows = data.accounts || []
-          collected = collected.concat(rows)
-          total = Number(data.total || collected.length)
-          if (!rows.length) break
-          page += 1
-        }
-        setAccounts(filterActiveAccounts(collected))
-      }
-      setError('')
-    } catch (e) {
-      setError(e.response?.data?.message || `Failed to load ${isSummaryScope ? 'account summary options' : 'accounts'}`)
-    }
-    if (isSummaryScope) setSummaryAccountsLoading(false)
-    else setAccountsLoading(false)
-  }
   const groupedSummaryAccounts = useMemo(() => safeSummaryAccounts
     .slice()
     .sort((a, b) => {
@@ -1260,241 +1202,42 @@ function ERPTab({
     loadLedger,
     showNotification,
   })
-  const handleCreateVendor = async (e) => {
-    e.preventDefault()
-    if (!canManageVendors && !editingVendorId) {
-      setError('Only Admin/Finance can create vendors')
-      return
-    }
-    if (!vendorForm.name) {
-      setError('Vendor name is required')
-      return
-    }
-    try {
-      setSaving(true)
-      const payload = {
-        ...vendorForm,
-        openingBalance: Number(vendorForm.openingBalance || 0),
-        paymentTermsDays: Number(vendorForm.paymentTermsDays || 30),
-        creditLimit: Number(vendorForm.creditLimit || 0),
-        rating: Number(vendorForm.rating || 3),
-        tags: String(vendorForm.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean),
-      }
-      if (editingVendorId) {
-        await erpAccountingAPI.updateVendor(token, editingVendorId, payload)
-        showNotification('✅ Vendor updated')
-      } else {
-        await erpAccountingAPI.createVendor(token, payload)
-        showNotification('✅ Vendor created')
-      }
-      setVendorForm({
-        vendorCode: '',
-        name: '',
-        contactPerson: '',
-        phone: '',
-        email: '',
-        address: '',
-        city: '',
-        country: '',
-        postalCode: '',
-        gstVat: '',
-        taxRegistrationNo: '',
-        openingBalance: '',
-        paymentTermsDays: '30',
-        creditLimit: '',
-        category: 'general',
-        rating: '3',
-        riskLevel: 'medium',
-        status: 'active',
-        notes: '',
-        tags: '',
-        preferredCurrency: 'USD',
-        bankName: '',
-        bankAccountNumber: '',
-        iban: '',
-        swiftCode: '',
-        currency: 'USD',
-      })
-      setShowVendorForm(false)
-      setEditingVendorId('')
-      await Promise.all([
-        loadVendors(vendorFilters),
-        loadVendorComplianceSummary(),
-      ])
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to save vendor')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleVendorFilterSearch = async () => {
-    await loadVendors(vendorFilters)
-  }
-  const handleVendorSelect = async (vendorId) => {
-    setSelectedVendorId(vendorId)
-    await loadVendorDetails(vendorId)
-  }
-  const handleEditVendor = (vendor) => {
-    if (!vendorPermissions.canUpdateOperational) {
-      setError('You are not allowed to edit vendors')
-      return
-    }
-    setEditingVendorId(vendor._id)
-    setShowVendorForm(true)
-    setVendorForm({
-      vendorCode: vendor.vendorCode || '',
-      name: vendor.name || '',
-      contactPerson: vendor.contactPerson || '',
-      phone: vendor.phone || '',
-      email: vendor.email || '',
-      address: vendor.address || '',
-      city: vendor.city || '',
-      country: vendor.country || '',
-      postalCode: vendor.postalCode || '',
-      gstVat: vendor.gstVat || '',
-      taxRegistrationNo: vendor.taxRegistrationNo || '',
-      openingBalance: String(vendor.openingBalance || ''),
-      paymentTermsDays: String(vendor.paymentTermsDays || 30),
-      creditLimit: String(vendor.creditLimit || ''),
-      category: vendor.category || 'general',
-      rating: String(vendor.rating || 3),
-      riskLevel: vendor.riskLevel || 'medium',
-      status: vendor.status || 'active',
-      notes: vendor.notes || '',
-      tags: Array.isArray(vendor.tags) ? vendor.tags.join(', ') : '',
-      preferredCurrency: vendor.preferredCurrency || vendor.currency || 'USD',
-      bankName: vendor.bankName || '',
-      bankAccountNumber: vendor.bankAccountNumber || '',
-      iban: vendor.iban || '',
-      swiftCode: vendor.swiftCode || '',
-      currency: vendor.currency || 'USD',
-    })
-  }
-  const handleDeleteVendor = async (vendor) => {
-    if (!vendorPermissions.canManage) {
-      setError('Only Admin/Finance can deactivate vendors')
-      return
-    }
-    if (!window.confirm(`Deactivate vendor ${vendor.name}?`)) return
-    try {
-      setSaving(true)
-      await erpAccountingAPI.deleteVendor(token, vendor._id)
-      if (selectedVendorId === vendor._id) {
-        setSelectedVendorId('')
-        setSelectedVendorDetails(null)
-      }
-      await Promise.all([
-        loadVendors(vendorFilters),
-        loadVendorComplianceSummary(),
-        loadVendorOverdueQueue(),
-      ])
-      showNotification('✅ Vendor deactivated')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to deactivate vendor')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleVendorWorkflowStatus = async (status) => {
-    if (!selectedVendorId) return
-    try {
-      setSaving(true)
-      await erpAccountingAPI.updateVendorWorkflow(token, selectedVendorId, {
-        status,
-        reason: vendorWorkflowReason,
-      })
-      setVendorWorkflowReason('')
-      await Promise.all([
-        loadVendors(vendorFilters),
-        loadVendorDetails(selectedVendorId),
-        loadVendorPaymentCalendar(),
-        loadVendorComplianceSummary(),
-        loadVendorOverdueQueue(),
-      ])
-      showNotification(`✅ Vendor moved to ${status}`)
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to update vendor workflow')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleAddVendorDocument = async (e) => {
-    e.preventDefault()
-    if (!selectedVendorId) {
-      setError('Select a vendor first')
-      return
-    }
-    if (!vendorDocumentForm.title && !vendorDocumentForm.file) {
-      setError('Document title is required')
-      return
-    }
-    try {
-      setSaving(true)
-      if (vendorDocumentForm.file) {
-        const { file, ...payload } = vendorDocumentForm
-        await erpAccountingAPI.uploadVendorDocument(token, selectedVendorId, {
-          ...payload,
-          title: payload.title || file.name || 'Vendor attachment',
-        }, file)
-      } else {
-        const { file: _omitFile, ...payload } = vendorDocumentForm
-        await erpAccountingAPI.addVendorDocument(token, selectedVendorId, payload)
-      }
-      setVendorDocumentForm({ docType: 'contract', title: '', documentNo: '', fileUrl: '', file: null, issueDate: '', expiryDate: '', status: 'active', verified: false, notes: '' })
-      await Promise.all([
-        loadVendorDetails(selectedVendorId),
-        loadVendorComplianceSummary(),
-      ])
-      showNotification('✅ Vendor document added')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to add vendor document')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleVendorTableDocumentUpload = async (vendor, file) => {
-    if (!vendor?._id || !file) return
-    if (!vendorPermissions.canUpdateOperational) {
-      setError('You are not allowed to upload vendor documents')
-      return
-    }
-    try {
-      setSaving(true)
-      await erpAccountingAPI.uploadVendorDocument(token, vendor._id, {
-        docType: 'other',
-        title: file.name || 'Vendor attachment',
-        status: 'active',
-        verified: false,
-      }, file)
-      await Promise.all([
-        loadVendors(vendorFilters),
-        loadVendorComplianceSummary(),
-        selectedVendorId === vendor._id ? loadVendorDetails(vendor._id) : Promise.resolve(),
-      ])
-      showNotification('✅ Vendor attachment uploaded')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to upload vendor attachment')
-    } finally {
-      setSaving(false)
-    }
-  }
-  const handleDeleteVendorDocument = async (documentId) => {
-    if (!selectedVendorId) return
-    if (!window.confirm('Delete this vendor document?')) return
-    try {
-      setSaving(true)
-      await erpAccountingAPI.deleteVendorDocument(token, selectedVendorId, documentId)
-      await Promise.all([
-        loadVendorDetails(selectedVendorId),
-        loadVendorComplianceSummary(),
-      ])
-      showNotification('✅ Vendor document deleted')
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to delete vendor document')
-    } finally {
-      setSaving(false)
-    }
-  }
+  const {
+    handleCreateVendor,
+    handleVendorFilterSearch,
+    handleVendorSelect,
+    handleEditVendor,
+    handleDeleteVendor,
+    handleVendorWorkflowStatus,
+    handleAddVendorDocument,
+    handleVendorTableDocumentUpload,
+    handleDeleteVendorDocument,
+  } = useErpVendorActions({
+    token,
+    canManageVendors,
+    vendorPermissions,
+    vendorForm,
+    editingVendorId,
+    vendorFilters,
+    vendorWorkflowReason,
+    vendorDocumentForm,
+    selectedVendorId,
+    setVendorForm,
+    setShowVendorForm,
+    setEditingVendorId,
+    setSelectedVendorId,
+    setSelectedVendorDetails,
+    setVendorWorkflowReason,
+    setVendorDocumentForm,
+    setSaving,
+    setError,
+    showNotification,
+    loadVendors,
+    loadVendorDetails,
+    loadVendorPaymentCalendar,
+    loadVendorComplianceSummary,
+    loadVendorOverdueQueue,
+  })
   const resetInventoryMappingForm = () => {
     setEditingProductId('')
     setInventoryMappingForm(createInventoryMappingForm())
