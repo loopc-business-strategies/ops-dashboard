@@ -5,8 +5,8 @@ test.describe('journal voucher save', () => {
   test('balanced JV posts to journal-voucher batch endpoint', async ({ page }) => {
     const { batchPosts } = await loginToErpLedger(page)
 
-    await page.goto('/dashboard?tab=erp-ledger', { waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('button', { name: '+ New Journal Voucher' })).toBeVisible({ timeout: 25_000 })
+    await expect(page.getByRole('heading', { name: 'Journal Voucher' })).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByRole('button', { name: '+ New Journal Voucher' })).toBeVisible({ timeout: 15_000 })
 
     await page.getByRole('button', { name: '+ New Journal Voucher' }).click()
     await expect(page.getByRole('button', { name: /Save JV/i })).toBeVisible({ timeout: 10_000 })

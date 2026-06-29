@@ -19,4 +19,17 @@ const config = getDefaultConfig(projectRoot)
 const existing = config.watchFolders ?? []
 config.watchFolders = [...new Set([...existing, projectRoot, canonicalRoot, repoRoot, sharedRoot])]
 
+// Keep Vitest files out of release bundles (expo-router scans app/ via require.context).
+config.resolver = {
+  ...config.resolver,
+  blockList: [
+    ...(Array.isArray(config.resolver?.blockList)
+      ? config.resolver.blockList
+      : config.resolver?.blockList
+        ? [config.resolver.blockList]
+        : []),
+    /.*\.(test|smoke\.test)\.[cm]?[jt]sx?$/,
+  ],
+}
+
 module.exports = config
