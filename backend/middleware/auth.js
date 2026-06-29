@@ -54,6 +54,13 @@ const protect = async (req, res, next) => {
     if (!user || user.isDeleted) return res.status(401).json({ success: false, message: 'User no longer exists.' })
     if (!user.isActive)          return res.status(401).json({ success: false, message: 'Account has been deactivated.' })
 
+    if (user.sessionInvalidatedAt && decoded.iat) {
+      const invalidatedAtSec = Math.ceil(user.sessionInvalidatedAt.getTime() / 1000)
+      if (decoded.iat < invalidatedAtSec) {
+        return res.status(401).json({ success: false, message: 'Session revoked. Please log in again.' })
+      }
+    }
+
     req.tenant = tenant
     req.user = user // attach user to request
     next()

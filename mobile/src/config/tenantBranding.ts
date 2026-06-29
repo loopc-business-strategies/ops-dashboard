@@ -101,7 +101,7 @@ export function normalizeTenantKey(value: string | null | undefined): TenantKey 
 }
 
 export function getTenantBranding(tenant?: string | null): MobileTenantBranding {
-  const key = normalizeTenantKey(tenant) || 'mg'
+  const key = normalizeTenantKey(tenant) || 'loopc'
   return mobileBrandingByKey[key] || mobileBrandingByKey.mg
 }
 

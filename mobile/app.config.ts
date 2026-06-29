@@ -83,7 +83,7 @@ const config: ExpoConfig = {
     url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
   },
   extra: {
-    tenant: 'mg',
+    tenant: 'loopc',
     apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://api.loopcstrategies.com',
     eas: {
       projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID || EAS_PROJECT_ID,

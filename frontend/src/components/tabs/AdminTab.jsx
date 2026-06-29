@@ -1052,7 +1052,7 @@ function SettingsTab() {
               <FieldLabel>Session Timeout (Minutes)</FieldLabel>
               <AdminInput value={settings.sessionTimeoutMinutes} onChange={(e) => setSettings((s) => ({ ...s, sessionTimeoutMinutes: e.target.value }))} placeholder="0" />
               <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.25rem' }}>
-                Use <strong>0</strong> to stay signed in until logout. Use 5–1440 for maximum session length from login (cookie expiry).
+                Use <strong>0</strong> to stay signed in until logout (sessions expire after 30 days). Use 5–1440 for maximum session length from login (cookie expiry).
               </div>
             </div>
             <div>

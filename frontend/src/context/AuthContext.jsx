@@ -46,9 +46,10 @@ export function AuthProvider({ children }) {
       (error) => {
         const status = error?.response?.status
         const requestUrl = String(error?.config?.url || '')
-        const isSessionProbe = /\/api\/auth\/me\b/i.test(requestUrl)
+        const isAuthExempt = /\/api\/auth\/(login|setup)\b/i.test(requestUrl)
 
-        if (status === 401 && isSessionProbe) {
+        if (status === 401 && !isAuthExempt) {
+          clearStoredActivity()
           setUser(null)
           setToken(null)
           setSessionPolicy(DEFAULT_SESSION_POLICY)

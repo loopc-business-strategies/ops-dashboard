@@ -22,8 +22,10 @@ describe('admin settings helpers', () => {
   })
 
   test('session timeout resolves from admin settings within bounds', () => {
+    const { MAX_SESSION_AGE_MS } = require('../services/adminSettings')
     expect(resolveSessionMaxAgeMs({ sessionTimeoutMinutes: '45' })).toBe(45 * 60 * 1000)
     expect(resolveSessionMaxAgeMs({ sessionTimeoutMinutes: '0' })).toBe(PERSISTENT_SESSION_MAX_AGE_MS)
+    expect(resolveSessionMaxAgeMs({ sessionTimeoutMinutes: '0' })).toBeLessThanOrEqual(MAX_SESSION_AGE_MS)
     expect(resolveSessionMaxAgeMs({ sessionTimeoutMinutes: '2' })).toBe(PERSISTENT_SESSION_MAX_AGE_MS)
     expect(resolveJwtExpiresIn(30 * 60 * 1000)).toBe('1800s')
   })

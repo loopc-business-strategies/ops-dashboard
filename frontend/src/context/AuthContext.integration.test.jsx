@@ -15,17 +15,27 @@ vi.mock('../utils/webPushRegister', () => ({
   teardownWebPush: vi.fn(),
 }))
 
-vi.mock('axios', () => ({
-  default: {
-    defaults: { headers: { common: {} } },
-    interceptors: {
-      request: { use: vi.fn() },
-      response: { use: vi.fn(() => 1), eject: vi.fn() },
+vi.mock('axios', () => {
+  let responseErrorHandler
+  return {
+    default: {
+      defaults: { headers: { common: {} } },
+      interceptors: {
+        request: { use: vi.fn() },
+        response: {
+          use: vi.fn((_ok, onRejected) => {
+            responseErrorHandler = onRejected
+            return 1
+          }),
+          eject: vi.fn(),
+        },
+      },
+      get: vi.fn(),
+      post: vi.fn(),
+      __getResponseErrorHandler: () => responseErrorHandler,
     },
-    get: vi.fn(),
-    post: vi.fn(),
-  },
-}))
+  }
+})
 
 function AuthProbe() {
   const { user, company, isAuthenticated, isLoading, sessionPolicy, login } = useAuth()
@@ -108,5 +118,36 @@ describe('AuthProvider session integration', () => {
     expect(screen.getByTestId('idle-timeout').textContent).toBe('30')
     const storedActivity = Number(localStorage.getItem(WEB_IDLE_ACTIVITY_STORAGE_KEY))
     expect(storedActivity).toBeGreaterThan(staleActivity)
+  })
+
+  test('401 on any non-login API clears session and redirects to login', async () => {
+    delete window.location
+    window.location = { pathname: '/dashboard', replace: vi.fn() }
+
+    axios.get.mockResolvedValueOnce({
+      data: {
+        user: { id: 'u1', name: 'Casey', role: 'super_admin', company: 'loopc' },
+        sessionPolicy: { idleTimeoutMinutes: 30, idleWarningMinutes: 5 },
+      },
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <AuthProvider>
+          <AuthProbe />
+        </AuthProvider>
+      </MemoryRouter>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('auth').textContent).toBe('true'))
+
+    const handler = axios.__getResponseErrorHandler()
+    await expect(handler({
+      response: { status: 401 },
+      config: { url: '/api/erp-accounting/accounts' },
+    })).rejects.toBeTruthy()
+
+    await waitFor(() => expect(screen.getByTestId('auth').textContent).toBe('false'))
+    expect(window.location.replace).toHaveBeenCalledWith('/login')
   })
 })

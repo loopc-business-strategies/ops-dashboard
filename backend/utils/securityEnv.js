@@ -13,7 +13,12 @@ function isProductionEnv() {
   return String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production'
 }
 
+function isHardenedEnv() {
+  return !isLocalDevEnv()
+}
+
 module.exports = {
   isLocalDevEnv,
   isProductionEnv,
+  isHardenedEnv,
 }

@@ -7,17 +7,14 @@ import { resolveErpUserTenantBranding, resolveErpUserTenantKey } from './erp/res
 import {
   buildDashboardSearchParams,
   buildEnquiryHref,
-  enquiryDeepLinkKey,
 } from '../../utils/dashboardNavigation'
 import erpAccountingAPI from '../../api/erp-accounting'
 import { readSummaryAccountsCache, writeSummaryAccountsCache } from '../../utils/erpSummaryAccountsCache'
 import { buildEntryAccountOptions, filterActiveAccounts } from './erp/accountDropdownHelpers'
-import { readAccountEnquiryCache, writeAccountEnquiryCache } from '../../utils/erpAccountEnquiryCache'
 import { ACCOUNT_TYPES } from '../../constants/accountTypes'
 import {
   LEDGER_REFERENCE_TYPES,
   LEDGER_DEPARTMENTS,
-  ENQUIRY_HISTORY_STORAGE_KEY,
   ENQUIRY_DETAILS_PANEL_STORAGE_KEY,
   ENQUIRY_STATEMENT_AUDIT_TOGGLE_STORAGE_KEY,
   INVENTORY_STOCK_CODE_SETTINGS_STORAGE_KEY,
@@ -82,7 +79,6 @@ import { useErpTransactionWorkflow } from './erp/useErpTransactionWorkflow'
 import { useErpVoucherSource } from './erp/useErpVoucherSource'
 
 import { trialBalanceRowsForView } from './erp/trialBalanceReportRows'
-import { startERPRealtimeFeeds } from '../../utils/realtimeSocket'
 import {
   liveRatesToMetalRatesState,
   resolveInventoryValuationUnitCost,
@@ -119,7 +115,9 @@ import { escapeHtml } from '../../utils/safeHtml'
 import { resolveDocumentBranding } from './erp/documentBranding'
 import { loadExcel, loadPdfTools } from './erp/lazyExportLibs'
 import { exchangeRateFromUnitsPerBase, resolveCurrencyRowByCode } from './erp/erpCurrencyRowHelpers'
-import StatementExportOptionsModal from './erp/StatementExportOptionsModal'
+import { buildBrandingLogoTag as buildBrandingLogoTagHelper, openPrintWindow as openPrintWindowHelper } from './erp/erpPrintHelpers'
+import { useErpAccountEnquiryController } from './erp/useErpAccountEnquiryController'
+import { useErpTabRouter } from './erp/useErpTabRouter'
 
 const ChartOfAccountsTree = lazy(() => import('./ChartOfAccountsTree'))
 const DirectDealsTab = lazy(() => import('./DirectDealsTab'))
@@ -935,23 +933,6 @@ function ERPTab({
     }
     if (isSummaryScope) setSummaryAccountsLoading(false)
     else setAccountsLoading(false)
-  }
-  const formatSummaryAccountLabel = (account) => {
-    const code = String(account?.accountCode || '').trim()
-    const name = String(account?.accountName || '').trim()
-    const type = String(account?.accountType || '').trim()
-    return [code, name, type].filter(Boolean).join(' - ')
-  }
-  const resolveAccountEnquiryCodeInput = (input) => {
-    const cleanInput = String(input || '').trim()
-    if (!cleanInput) return ''
-    const exactAccount = safeSummaryAccounts.find((account) => String(account?.accountCode || '').trim().toLowerCase() === cleanInput.toLowerCase())
-    if (exactAccount?.accountCode) return String(exactAccount.accountCode).trim()
-    const matchedLabel = safeSummaryAccounts.find((account) => formatSummaryAccountLabel(account).toLowerCase() === cleanInput.toLowerCase())
-    if (matchedLabel?.accountCode) return String(matchedLabel.accountCode).trim()
-    const labelPrefixMatch = cleanInput.match(/^([^\s-][^-]*?)(?:\s*-\s*.*)?$/)
-    const candidateCode = String(labelPrefixMatch?.[1] || cleanInput).trim()
-    return candidateCode
   }
   const groupedSummaryAccounts = useMemo(() => safeSummaryAccounts
     .slice()
@@ -1913,133 +1894,77 @@ function ERPTab({
       setSaving(false)
     }
   }
-  const loadEnquiryHistory = () => {
-    try {
-      const raw = localStorage.getItem(ENQUIRY_HISTORY_STORAGE_KEY)
-      if (!raw) return
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) {
-        setEnquiryHistory(parsed.slice(0, 10))
-      }
-    } catch {
-      setEnquiryHistory([])
-    }
-  }
-  const persistEnquiryHistory = (nextHistory) => {
-    setEnquiryHistory(nextHistory)
-    localStorage.setItem(ENQUIRY_HISTORY_STORAGE_KEY, JSON.stringify(nextHistory))
-  }
-  const pushEnquiryHistory = (account) => {
-    if (!account?.accountCode) return
-    const nextItem = {
-      accountCode: account.accountCode,
-      accountName: account.accountName || '',
-      searchedAt: new Date().toISOString(),
-    }
-    const deduped = enquiryHistory.filter((item) => item.accountCode !== nextItem.accountCode)
-    const nextHistory = [nextItem, ...deduped].slice(0, 10)
-    persistEnquiryHistory(nextHistory)
-  }
-  const fetchAccountEnquiryByCode = async (accountCode, options = {}) => {
-    const cleanCode = resolveAccountEnquiryCodeInput(accountCode)
-    const shouldOpenModal = Boolean(options.openModal)
-    const forceRefresh = Boolean(options.forceRefresh)
-    if (!cleanCode) {
-      setError('Please enter account number')
-      setEnquiryStatus({ type: 'error', message: 'Please enter account number' })
-      return
-    }
-    const tenantKey = user?.tenant || user?.company || 'default'
-    const deepLinkKey = enquiryDeepLinkKey({
-      account: cleanCode,
-      view: options.openStatementPreview ? 'statement' : null,
-    })
-    const cached = !forceRefresh ? readAccountEnquiryCache(tenantKey, cleanCode) : null
-    if (cached) {
-      setAccountEnquiryCode(cleanCode)
-      setAccountEnquiryData(cached)
-      setEnquiryLoading(false)
-      lastEnquiryDeepLinkKeyRef.current = deepLinkKey
-      syncEnquiryUrl({
-        account: cleanCode,
-        view: options.openStatementPreview ? 'statement' : null,
-      })
-      if (shouldOpenModal) setShowEnquiryModal(true)
-      if (options.openStatementPreview) setPendingStatementPreview(true)
-      setEnquiryStatus({ type: 'success', message: `Account ${cached.account?.accountCode || cleanCode} summary loaded from cache` })
-      return
-    }
-    try {
-      if (shouldOpenModal) setShowEnquiryModal(true)
-      setEnquiryLoading(true)
-      setShowEnquiryLookupMenu(false)
-      setEnquiryStatus({ type: '', message: '' })
-      const enquiryParams = { statementLimit: 80 }
-      if (forceRefresh) enquiryParams.refresh = '1'
-      const data = await erpAccountingAPI.getAccountEnquiry(token, cleanCode, enquiryParams)
-      setAccountEnquiryCode(cleanCode)
-      setAccountEnquiryData(data)
-      writeAccountEnquiryCache(tenantKey, cleanCode, data)
-      setStatementFilters({
-        startDate: '',
-        endDate: '',
-        referenceType: '',
-        department: '',
-        fixStatus: '',
-        foreignCurrency: '',
-        metalCommodity: '',
-        showAmountIn: '',
-      })
-      setStatementMetalCommodityEnabled(false)
-      pushEnquiryHistory(data.account)
-      setError('')
-      setEnquiryStatus({ type: 'success', message: `Account ${data.account.accountCode} summary loaded successfully` })
-      lastEnquiryDeepLinkKeyRef.current = deepLinkKey
-      syncEnquiryUrl({
-        account: data.account.accountCode,
-        view: options.openStatementPreview ? 'statement' : null,
-      })
-      if (options.openStatementPreview) setPendingStatementPreview(true)
-      showNotification('✅ Account summary loaded')
-    } catch (e) {
-      if (lastEnquiryDeepLinkKeyRef.current === deepLinkKey) {
-        lastEnquiryDeepLinkKeyRef.current = ''
-      }
-      setAccountEnquiryData(null)
-      const msg = e.response?.data?.message || 'Failed to fetch account summary'
-      setError(msg)
-      setEnquiryStatus({ type: 'error', message: msg })
-    } finally {
-      setEnquiryLoading(false)
-    }
-  }
-  const handleOpenAccountSummaryFromTree = async (account) => {
-    if (!account?.accountCode) return
-    setActiveTabGuarded('enquiry')
-    setAccountEnquiryCode(account.accountCode)
-    await fetchAccountEnquiryByCode(account.accountCode)
-  }
-  const handleAccountEnquiry = async (e) => {
-    e.preventDefault()
-    const cleanCode = resolveAccountEnquiryCodeInput(accountEnquiryCode)
-    const alreadyLoaded = String(accountEnquiryData?.account?.accountCode || '').trim() === cleanCode
-    await fetchAccountEnquiryByCode(accountEnquiryCode, { openModal: true, forceRefresh: alreadyLoaded })
-  }
+  const {
+    loadEnquiryHistory,
+    fetchAccountEnquiryByCode,
+    handleOpenAccountSummaryFromTree,
+    handleAccountEnquiry,
+  } = useErpAccountEnquiryController({
+    user,
+    token,
+    safeSummaryAccounts,
+    accountEnquiryCode,
+    accountEnquiryData,
+    enquiryHistory,
+    setAccountEnquiryCode,
+    setAccountEnquiryData,
+    setEnquiryLoading,
+    setShowEnquiryLookupMenu,
+    setEnquiryStatus,
+    setShowEnquiryModal,
+    setPendingStatementPreview,
+    setStatementFilters,
+    setStatementMetalCommodityEnabled,
+    setEnquiryHistory,
+    setError,
+    showNotification,
+    syncEnquiryUrl,
+    lastEnquiryDeepLinkKeyRef,
+    setActiveTabGuarded,
+  })
+  useErpTabRouter({
+    activeTab,
+    activeTabRef,
+    token,
+    user,
+    canAccessERP,
+    canAccessTransactions,
+    canAccessVouchers,
+    canAccessFixingRegister,
+    accounts,
+    customers,
+    currencies,
+    inventoryProducts,
+    fixingRegisterStockTypeOptions,
+    fixingRegFilter,
+    setFixingRegFilter,
+    ledgerFilters,
+    ledgerVoucherTab,
+    mappingFilters,
+    selectedTransactionId,
+    selectedVendorId,
+    transactions,
+    setError,
+    setSelectedTransactionId,
+    setSelectedTransactionIds,
+    loadAccounts,
+    loadCustomers,
+    loadVendors,
+    loadVendorDetails,
+    loadVendorPaymentCalendar,
+    loadVendorComplianceSummary,
+    loadVendorOverdueQueue,
+    loadTransactions,
+    loadReportBranding,
+    loadInventory,
+    loadStockLedger,
+    loadCurrencies,
+    loadLedger,
+    loadMappings,
+  })
   useEffect(() => {
     loadEnquiryHistory()
-  }, [])
-  useEffect(() => {
-    setSelectedTransactionIds((prev) => {
-      const next = prev.filter((id) => transactions.some((tx) => tx._id === id))
-      if (next.length === prev.length && next.every((id, idx) => id === prev[idx])) {
-        return prev
-      }
-      return next
-    })
-    if (selectedTransactionId && !transactions.some((tx) => tx._id === selectedTransactionId)) {
-      setSelectedTransactionId('')
-    }
-  }, [transactions, selectedTransactionId, setSelectedTransactionIds])
+  }, [loadEnquiryHistory])
   useEffect(() => {
     let cancelled = false
     const updatePreviewLogo = async () => {
@@ -2051,7 +1976,7 @@ function ERPTab({
         brandingForm.logoUrl,
         brandingForm.logoWidth,
         brandingForm.logoHeight,
-        brandingForm.logoFit
+        brandingForm.logoFit,
       )
       if (!cancelled) {
         setBrandingPreviewLogo(nextLogo)
@@ -2063,142 +1988,11 @@ function ERPTab({
     }
   }, [brandingForm.logoFit, brandingForm.logoHeight, brandingForm.logoUrl, brandingForm.logoWidth])
   useEffect(() => {
-    if (activeTab !== 'transactions' || !selectedTransactionId || !transactions.length) return
-    const target = document.getElementById(`erp-transaction-row-${selectedTransactionId}`)
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
-  }, [activeTab, selectedTransactionId, transactions])
-  useEffect(() => {
-    if (activeTab !== 'vendors' || !selectedVendorId) return
-    loadVendorDetails(selectedVendorId)
-  }, [activeTab, selectedVendorId, loadVendorDetails])
-  useEffect(() => {
-    // Prevent stale error banners from one ERP section leaking into another.
-    setError((prev) => (prev ? '' : prev))
-  }, [activeTab])
-  useEffect(() => {
-    activeTabRef.current = activeTab
-  }, [activeTab])
-  useEffect(() => {
     accountEnquiryDataRef.current = accountEnquiryData
   }, [accountEnquiryData])
   useEffect(() => {
     showEnquiryModalRef.current = showEnquiryModal
   }, [showEnquiryModal])
-  useEffect(() => {
-    if (!canAccessERP || !token) {
-      setError('You do not have access to the ERP Accounting module.')
-      return
-    }
-    if (!canViewErpSubTab(user, activeTab)) return
-    if (activeTab === 'accounts') loadAccounts()
-    else if (activeTab === 'customer-margin') loadCustomers({ limit: 200 })
-    else if (activeTab === 'customers') loadCustomers()
-    else if (activeTab === 'supplier-margin') loadVendors()
-    else if (activeTab === 'transactions' && (canAccessTransactions || canAccessVouchers || canAccessFixingRegister)) loadTransactions()
-    else if (activeTab === 'vouchers') loadReportBranding()
-    else if (activeTab === 'vendors') {
-      Promise.all([
-        loadVendors(),
-        loadVendorPaymentCalendar(),
-        loadVendorComplianceSummary(),
-        loadVendorOverdueQueue(),
-      ]).catch(() => {})
-    }
-    else if (activeTab === 'inventory') {
-      loadInventory()
-      loadStockLedger()
-      loadVendors()
-    }
-    else if (activeTab === 'settings') {
-      loadCurrencies()
-      loadReportBranding()
-    }
-    else if (activeTab === 'currencies') {
-      loadCurrencies()
-      if (!accounts.length) loadAccounts()
-    }
-    else if (activeTab === 'enquiry') loadAccounts({ scope: 'summary' })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, token])
-  useEffect(() => {
-    if (!canAccessERP || !token || activeTab !== 'ledger') return
-    loadLedger()
-    loadAccounts({ scope: 'summary' })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    activeTab,
-    token,
-    ledgerFilters.startDate,
-    ledgerFilters.endDate,
-    ledgerFilters.department,
-    ledgerFilters.referenceType,
-    ledgerFilters.accountId,
-    ledgerVoucherTab,
-  ])
-  useEffect(() => {
-    if (!canAccessERP || !token || activeTab !== 'mappings') return
-    loadMappings(mappingFilters)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, token, mappingFilters.department])
-  useEffect(() => {
-    if (!token || !canAccessERP) return undefined
-
-    let stopRealtime = () => {}
-    const tenantKey = user?.tenant || user?.company
-
-    const timer = window.setTimeout(() => {
-      stopRealtime = startERPRealtimeFeeds({
-        token,
-        tenant: tenantKey,
-        onLedgerUpdate: () => {
-          if (activeTabRef.current === 'ledger') {
-            loadLedger({ cursor: null, cursorHistory: [] })
-          }
-        },
-        onTransactionUpdate: () => {
-          if (activeTabRef.current === 'transactions') {
-            loadTransactions({ cursor: null, cursorHistory: [] })
-          }
-        },
-      })
-    }, 300)
-
-    return () => {
-      window.clearTimeout(timer)
-      stopRealtime()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- realtime handlers intentionally use refs + stable loaders
-  }, [token, user?.tenant, user?.company, canAccessERP])
-  useEffect(() => {
-    if (activeTab !== 'vouchers' || !token) return
-    loadCustomers({ limit: 500 })
-    loadVendors()
-    if (!currencies.length) loadCurrencies()
-    loadAccounts()
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- tab bootstrap: refresh reference data when entering vouchers
-  }, [activeTab, token])
-  useEffect(() => {
-    if (activeTab !== 'direct-deals' || !token) return
-    if (!customers.length) loadCustomers({ limit: 200 })
-    if (!currencies.length) loadCurrencies()
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- tab bootstrap: loaders intentionally omitted from deps
-  }, [activeTab, token, customers.length, currencies.length])
-  useEffect(() => {
-    if (activeTab !== 'fixing-register' || !token) return
-    if (!customers.length) loadCustomers({ limit: 200 })
-    if (!inventoryProducts.length) loadInventory()
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- tab bootstrap: loaders intentionally omitted from deps
-  }, [activeTab, token, customers.length, inventoryProducts.length])
-  useEffect(() => {
-    if (!fixingRegisterStockTypeOptions.length) return
-    const fallbackMetalType = fixingRegisterStockTypeOptions[0]?.value || ''
-    const hasSelected = fixingRegisterStockTypeOptions.some((option) => option.value === fixingRegFilter.metalType)
-    if (!hasSelected) {
-      setFixingRegFilter((prev) => (prev.metalType === fallbackMetalType ? prev : { ...prev, metalType: fallbackMetalType }))
-    }
-  }, [fixingRegisterStockTypeOptions, fixingRegFilter.metalType, setFixingRegFilter])
   const formatMoney = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
   const formatMoneyAbs = (value) => Math.abs(Number(value || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })
   const formatReportDirectionalBalance = (row, fallbackDirection = '') => (
@@ -2262,66 +2056,8 @@ function ERPTab({
   const tenantBranding = resolveErpUserTenantBranding(user)
   const branding = resolveDocumentBranding({ reportBranding, user, tenantBranding })
   const brandingPreview = { ...DEFAULT_BRANDING, ...brandingForm }
-  const buildBrandingLogoTag = async (brandingConfig, extraStyle = '') => {
-    const logoAsset = await createLogoRenderAsset(
-      brandingConfig.logoUrl,
-      brandingConfig.logoWidth,
-      brandingConfig.logoHeight,
-      brandingConfig.logoFit
-    )
-    if (!logoAsset) return ''
-    const width = clampBrandingDimension(brandingConfig.logoWidth, DEFAULT_BRANDING.logoWidth, 80, 260)
-    const height = clampBrandingDimension(brandingConfig.logoHeight, DEFAULT_BRANDING.logoHeight, 32, 120)
-    return `<img src="${logoAsset}" alt="Company Logo" style="width:${width}px;height:${height}px;object-fit:contain;display:block;${extraStyle}" />`
-  }
-  const openPrintWindow = (title, bodyHtml) => {
-    const w = window.open('', '_blank')
-    if (!w) {
-      setError('Popup blocked. Please allow popups for statement printing')
-      return
-    }
-    w.document.write(`
-      <html>
-        <head>
-          <title>${escapeHtml(title)}</title>
-          <style>
-            body { font-family: Georgia, 'Times New Roman', serif; color: #111827; margin: 0; padding: 32px; }
-            .sheet { max-width: 980px; margin: 0 auto; }
-            .brandbar { height: 10px; background: var(--grad-brand); border-radius: 999px; margin-bottom: 14px; }
-            .head { border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 20px; }
-            .doc-head { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 14px; }
-            .company { font-size: 18px; font-weight: 800; margin-bottom: 5px; }
-            h1 { font-size: 22px; text-align: center; text-transform: uppercase; letter-spacing: 0.04em; margin: 12px 0; }
-            .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; font-size: 12px; }
-            .note { border: 1px solid #D1D5DB; min-height: 34px; padding: 8px; margin-top: 12px; font-size: 12px; }
-            .title { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
-            .subtitle { color: #065F46; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin: 0 0 8px; }
-            .meta { color: #4B5563; font-size: 12px; margin: 2px 0; }
-            .section { margin-bottom: 20px; }
-            .section-title { font-size: 16px; font-weight: 700; margin: 0 0 8px; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            th, td { border: 1px solid #D1D5DB; padding: 7px 8px; text-align: left; }
-            th { background: #F3F4F6; }
-            .num { text-align: right; }
-            .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-            .card { border: 1px solid #D1D5DB; padding: 10px; }
-            .card-label { color: #334155; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
-            .card-value { font-size: 18px; font-weight: 700; margin-top: 4px; }
-            .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 36px; }
-            .sign-box { padding-top: 18px; border-top: 1px solid #475569; font-size: 12px; color: #374151; }
-            .footer { margin-top: 18px; font-size: 11px; color: #334155; display: flex; justify-content: space-between; }
-            @media print { body { padding: 0; } .sheet { max-width: none; } }
-          </style>
-        </head>
-        <body>
-          <div class="sheet">${bodyHtml}</div>
-        </body>
-      </html>
-    `)
-    w.document.close()
-    w.focus()
-    w.print()
-  }
+  const buildBrandingLogoTag = buildBrandingLogoTagHelper
+  const openPrintWindow = (title, bodyHtml) => openPrintWindowHelper(title, bodyHtml, setError)
   const {
     updateJvLine,
     resolveJvLineAccount,

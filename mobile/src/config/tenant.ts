@@ -11,7 +11,7 @@ export const API_URL =
   'https://api.loopcstrategies.com'
 
 const buildDefaultTenant = () =>
-  normalizeTenantKey((Constants.expoConfig?.extra?.tenant as string) || '') || 'mg'
+  normalizeTenantKey((Constants.expoConfig?.extra?.tenant as string) || '') || 'loopc'
 
 let activeTenant = buildDefaultTenant()
 

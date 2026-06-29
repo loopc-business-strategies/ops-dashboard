@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import erpAPI from '../../api/erp'
+import legacyOpsErpAPI from '../../api/legacyOpsErp'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useLanguage } from '../../context/LanguageContext'
 import { useDashboardModuleSubTab } from '../../hooks/useDashboardModuleSubTab'
@@ -1204,7 +1204,7 @@ function Planning({ canEdit, showToast }) {
     let mounted = true
     ;(async () => {
       try {
-        const res = await erpAPI.getWorkOrders(token)
+        const res = await legacyOpsErpAPI.getWorkOrders(token)
         if (mounted) setOrders((res.workOrders || res.data || []).map(toRow))
       } catch (e) {
         if (mounted) showToast?.(e?.response?.data?.message || 'Failed to load work orders')
@@ -1232,7 +1232,7 @@ function Planning({ canEdit, showToast }) {
   const deleteOrder = async order => {
     if (!window.confirm(`Delete order ${order.product || order.id}?`)) return
     try {
-      await erpAPI.deleteWorkOrder(token, order.id)
+      await legacyOpsErpAPI.deleteWorkOrder(token, order.id)
       setOrders(p => p.filter(x => x.id !== order.id))
       showToast('Order Deleted', `Order removed.`)
     } catch { showToast('Error', 'Failed to delete order.') }
@@ -1254,12 +1254,12 @@ function Planning({ canEdit, showToast }) {
     }
     try {
       if (editId) {
-        const res = await erpAPI.updateWorkOrder(token, editId, { ...payload })
+        const res = await legacyOpsErpAPI.updateWorkOrder(token, editId, { ...payload })
         const updated = toRow(res.workOrder || res.data || { ...payload, _id: editId })
         setOrders(p => p.map(x => x.id === editId ? updated : x))
         showToast('Production Order Updated', `${form.product} updated.`)
       } else {
-        const res = await erpAPI.createWorkOrder(token, payload)
+        const res = await legacyOpsErpAPI.createWorkOrder(token, payload)
         setOrders(p => [...p, toRow(res.workOrder || res.data || { ...payload, _id: Date.now() })])
         showToast('Production Order Created', `${form.product} scheduled.`)
       }

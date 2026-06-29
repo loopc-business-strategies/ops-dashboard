@@ -4,6 +4,7 @@
 
 const mongoose = require('mongoose')
 const { getActiveTenantConnection } = require('../db/tenantModelProxy')
+const { isHardenedEnv } = require('./securityEnv')
 
 function withSession(query, session) {
   return session ? query.session(session) : query
@@ -14,7 +15,11 @@ function writeOpts(session) {
 }
 
 function resolveConnection() {
-  return getActiveTenantConnection() || mongoose.connection
+  const conn = getActiveTenantConnection()
+  if (!conn && isHardenedEnv()) {
+    throw new Error('Tenant DB context required for transaction')
+  }
+  return conn || mongoose.connection
 }
 
 /**

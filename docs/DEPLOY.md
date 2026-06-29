@@ -40,10 +40,10 @@ npm run test:backend
 npm run test:frontend
 ```
 
-Optional gate (same as `deploy:railway` script):
+Optional gate (same as `deploy:railway` script — runs `check:ci-parity:full`):
 
 ```bash
-npm run deploy:railway           # tests only — does not push or trigger hosts
+npm run deploy:railway           # full CI parity gate — does not push or trigger hosts
 ```
 
 ### After deploy

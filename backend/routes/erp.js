@@ -11,7 +11,7 @@ const { protect } = require('../middleware/auth')
 const { Joi, validateBody, validateParams, validateQuery } = require('../middleware/validate')
 const { escapeRegex } = require('../utils/escapeRegex')
 const { softDeleteById } = require('../utils/softDelete')
-const { rejectLegacySupplierWrite } = require('../utils/legacyErpDeprecation')
+const { rejectLegacySupplierWrite, rejectLegacyFinanceRecords, markLegacyErpApi } = require('../utils/legacyErpDeprecation')
 const {
   isSuperAdmin,
   _isDeptHead,
@@ -27,6 +27,11 @@ const {
 } = require('../services/permissions/moduleAccessPolicy')
 
 const router = express.Router()
+
+router.use((req, res, next) => {
+  markLegacyErpApi(res)
+  next()
+})
 
 // ─── Joi Schemas ────────────────────────────────────────────────────────────
 const idParam = Joi.object({ id: Joi.string().hex().length(24).required() })
@@ -741,107 +746,11 @@ router.delete('/production/work-orders/:id', protect, validateParams(idParam), a
   }
 })
 
-// Finance Management Routes
-router.get('/finance/records', protect, validateQuery(financeRecordListQuerySchema), async (req, res) => {
-  try {
-    const page = Math.max(1, Number(req.query.page) || 1)
-    const limit = Math.min(50, Number(req.query.limit) || 20)
-    const skip = (page - 1) * limit
-    const search = String(req.query.search || '').trim().toLowerCase()
-    const typeFilter = req.query.recordType
-    const categoryFilter = req.query.category
-    const deptFilter = req.query.department
-
-    const query = { isDeleted: { $ne: true } }
-    if (search) {
-      const regex = buildSearchRegex(search)
-      query.$or = [{ description: regex }, { category: regex }]
-    }
-    if (typeFilter) query.recordType = typeFilter
-    if (categoryFilter) query.category = categoryFilter
-    if (deptFilter) query.department = deptFilter
-
-    const total = await FinanceRecord.countDocuments(query)
-    const records = await FinanceRecord.find(query)
-      .sort({ date: -1 })
-      .skip(skip)
-      .limit(limit)
-
-    const totalAmount = (await FinanceRecord.aggregate([{ $match: query }, { $group: { _id: null, total: { $sum: '$amount' } } }])[0]) || { total: 0 }
-
-    res.json({
-      success: true,
-      count: records.length,
-      total,
-      page,
-      limit,
-      records,
-      totalAmount: totalAmount.total,
-      permissions: { canEdit: canManageFinance(req.user) },
-    })
-  } catch {
-    res.status(500).json({ success: false, message: 'Failed to load finance records.' })
-  }
-})
-
-router.post('/finance/records', protect, validateBody(financeRecordCreateSchema), async (req, res) => {
-  try {
-    if (!canManageFinance(req.user)) {
-      return res.status(403).json({ success: false, message: 'Only Finance Head or Super Admin can create finance records.' })
-    }
-
-    const record = await FinanceRecord.create({
-      recordType: req.body.recordType,
-      category: req.body.category || 'other',
-      department: req.body.department,
-      amount: Number(req.body.amount),
-      date: req.body.date || new Date(),
-      description: req.body.description,
-      relatedDocId: req.body.relatedDocId || undefined,
-      approvalStatus: 'pending',
-      createdById: req.user._id,
-      createdByName: req.user.name,
-    })
-
-    res.status(201).json({ success: true, record })
-  } catch {
-    res.status(500).json({ success: false, message: 'Failed to create finance record.' })
-  }
-})
-
-router.put('/finance/records/:id', protect, validateParams(idParam), validateBody(financeRecordPatchSchema), async (req, res) => {
-  try {
-    if (!canManageFinance(req.user)) {
-      return res.status(403).json({ success: false, message: 'Only Finance Head or Super Admin can update finance records.' })
-    }
-
-    const record = await FinanceRecord.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true })
-    if (!record) {
-      return res.status(404).json({ success: false, message: 'Finance record not found.' })
-    }
-
-    res.json({ success: true, record })
-  } catch {
-    res.status(500).json({ success: false, message: 'Failed to update finance record.' })
-  }
-})
-
-router.delete('/finance/records/:id', protect, validateParams(idParam), async (req, res) => {
-  try {
-    if (!canManageFinance(req.user)) {
-      return res.status(403).json({ success: false, message: 'Only Finance Head or Super Admin can delete finance records.' })
-    }
-
-    const record = await softDeleteById(FinanceRecord, req.params.id, req)
-    if (!record) {
-      return res.status(404).json({ success: false, message: 'Finance record not found.' })
-    }
-
-    res.json({ success: true, message: 'Finance record deleted.' })
-  } catch {
-    res.status(500).json({ success: false, message: 'Failed to delete finance record.' })
-  }
-})
+// Finance Management Routes (Phase 3 — removed; use erp-accounting)
+router.get('/finance/records', protect, (req, res) => rejectLegacyFinanceRecords(res, 'read'))
+router.post('/finance/records', protect, (req, res) => rejectLegacyFinanceRecords(res, 'write'))
+router.put('/finance/records/:id', protect, (req, res) => rejectLegacyFinanceRecords(res, 'write'))
+router.delete('/finance/records/:id', protect, (req, res) => rejectLegacyFinanceRecords(res, 'write'))
 
 // Procurement Document Upload & Expiry Routes
 router.get('/procurement/documents', protect, validateQuery(procurementDocsQuerySchema), async (req, res) => {

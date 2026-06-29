@@ -2,6 +2,7 @@ const mongoose = require('mongoose')
 const { AsyncLocalStorage } = require('async_hooks')
 const { connectTenant } = require('./tenantConnections')
 const { registerTenantSchema, registerAllOnConnection } = require('./tenantModelRegistry')
+const { isHardenedEnv } = require('../utils/securityEnv')
 
 const tenantModelStorage = new AsyncLocalStorage()
 
@@ -12,7 +13,12 @@ function createTenantModel(modelName, schema) {
 
   const resolveModel = () => {
     const store = tenantModelStorage.getStore()
-    if (!store?.connection) return defaultModel
+    if (!store?.connection) {
+      if (isHardenedEnv()) {
+        throw new Error('Tenant DB context required')
+      }
+      return defaultModel
+    }
 
     registerAllOnConnection(store.connection)
     return store.connection.models[modelName] || store.connection.model(modelName, schema)

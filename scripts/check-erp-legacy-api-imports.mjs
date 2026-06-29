@@ -7,7 +7,7 @@ import path from 'node:path'
 
 const root = 'frontend/src'
 const allowlist = new Set([
-  'frontend/src/api/erp.js',
+  'frontend/src/api/legacyOpsErp.js',
   'frontend/src/api/erpUnified.js',
   'frontend/src/components/tabs/OperationsTab.jsx',
   'frontend/src/components/tabs/ProductionTab.jsx',

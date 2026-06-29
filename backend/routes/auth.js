@@ -475,6 +475,28 @@ router.post('/logout', protect, (req, res) => {
 })
 
 // ==========================================
+// POST /api/auth/logout-all-devices
+// Invalidates all existing JWTs for this user.
+// ==========================================
+router.post('/logout-all-devices', protect, async (req, res) => {
+  try {
+    const TenantUser = await User.getTenantModel(req.tenant)
+    const user = await TenantUser.findById(req.user._id)
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' })
+
+    user.sessionInvalidatedAt = new Date()
+    await user.save({ validateBeforeSave: false })
+
+    clearTenantSessionCookies(res, req.tenant)
+    clearCsrfCookie(res, req.tenant)
+    res.json({ success: true, message: 'Signed out on all devices.' })
+  } catch (err) {
+    console.error('Logout all devices error:', err)
+    res.status(500).json({ success: false, message: 'Server error.' })
+  }
+})
+
+// ==========================================
 // POST /api/auth/refresh
 // Re-issues a fresh session token if the current
 // token is valid and within the refresh window.

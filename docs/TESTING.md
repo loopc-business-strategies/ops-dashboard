@@ -34,7 +34,9 @@ npm run check:ci-parity:full
 
 Requires **`npm ci`** at the repo root, in **`backend/`**, **`frontend/`**, and **`mobile/`** first (see individual package READMEs). On **Windows**, use **Node 24** and see **`docs/WINDOWS-DEV.md`** for MongoDB Memory Server / **`MONGO_TEST_URI`** when backend tests fail. For **local Android release builds** without EAS, see **`docs/MOBILE-ANDROID-LOCAL-BUILD.md`**.
 
-## Full pre-release (matches `deploy:railway` spirit)
+## Full pre-release (matches `deploy:railway`)
+
+`deploy:railway` runs `check:ci-parity:full` (lint, mobile typecheck/tests, ERP access sync, backend fast + full suites, frontend tests).
 
 From the **repository root** (after `npm ci` in `backend/`, `frontend/`, and root if you use root ESLint):
 

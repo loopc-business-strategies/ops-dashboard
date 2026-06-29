@@ -46,9 +46,9 @@ describe('tenant config (Nexa mobile API / tenant)', () => {
     delete process.env.EXPO_PUBLIC_API_URL
   })
 
-  it('defaults tenant to mg and API to production when extra is unset', async () => {
+  it('defaults tenant to loopc and API to production when extra is unset', async () => {
     const { getTenant, API_URL } = await import('./tenant')
-    expect(getTenant()).toBe('mg')
+    expect(getTenant()).toBe('loopc')
     expect(API_URL).toBe('https://api.loopcstrategies.com')
   })
 
@@ -107,8 +107,8 @@ describe('tenant config (Nexa mobile API / tenant)', () => {
     secureStore.companyCode = 'cg'
     const { setTenant, resetTenantSession, getTenant } = await import('./tenant')
     setTenant('cg')
-    await expect(resetTenantSession()).resolves.toBe('mg')
-    expect(getTenant()).toBe('mg')
+    await expect(resetTenantSession()).resolves.toBe('loopc')
+    expect(getTenant()).toBe('loopc')
     expect(secureStore.companyCode).toBeNull()
   })
 })

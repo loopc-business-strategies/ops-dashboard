@@ -1,8 +1,18 @@
 const DepartmentState = require('../models/DepartmentState')
+const { isLocalDevEnv } = require('../utils/securityEnv')
 
-const PERSISTENT_SESSION_MAX_AGE_MS = Number(
-  process.env.PERSISTENT_SESSION_MAX_AGE_MS || 10 * 365 * 24 * 60 * 60 * 1000,
-)
+/** Product cap: persistent / stay-signed-in sessions expire after 30 days. */
+const MAX_SESSION_AGE_MS = 30 * 24 * 60 * 60 * 1000
+
+function resolvePersistentSessionMaxAgeMs() {
+  const envMs = Number(process.env.PERSISTENT_SESSION_MAX_AGE_MS)
+  if (Number.isFinite(envMs) && envMs > 0) {
+    return isLocalDevEnv() ? envMs : Math.min(envMs, MAX_SESSION_AGE_MS)
+  }
+  return MAX_SESSION_AGE_MS
+}
+
+const PERSISTENT_SESSION_MAX_AGE_MS = resolvePersistentSessionMaxAgeMs()
 
 const DEFAULT_ADMIN_SETTINGS = {
   passwordPolicy: 'strong',
@@ -50,19 +60,21 @@ function isPersistentSessionForced() {
 }
 
 function resolveSessionMaxAgeMs(settings = DEFAULT_ADMIN_SETTINGS) {
+  const cappedPersistent = Math.min(PERSISTENT_SESSION_MAX_AGE_MS, MAX_SESSION_AGE_MS)
+
   if (isPersistentSessionForced()) {
-    return PERSISTENT_SESSION_MAX_AGE_MS
+    return cappedPersistent
   }
 
   const minutes = Number.parseInt(String(settings?.sessionTimeoutMinutes ?? ''), 10)
-  // 0 = stay signed in until logout (persistent session).
+  // 0 = stay signed in until logout (capped at 30 days).
   if (minutes === 0) {
-    return PERSISTENT_SESSION_MAX_AGE_MS
+    return cappedPersistent
   }
   if (Number.isFinite(minutes) && minutes >= 5 && minutes <= 1440) {
-    return minutes * 60 * 1000
+    return Math.min(minutes * 60 * 1000, MAX_SESSION_AGE_MS)
   }
-  return PERSISTENT_SESSION_MAX_AGE_MS
+  return cappedPersistent
 }
 
 function resolveJwtExpiresIn(maxAgeMs) {
@@ -95,6 +107,7 @@ function buildWebSessionPolicy(settings = DEFAULT_ADMIN_SETTINGS) {
 
 module.exports = {
   DEFAULT_ADMIN_SETTINGS,
+  MAX_SESSION_AGE_MS,
   PERSISTENT_SESSION_MAX_AGE_MS,
   DEFAULT_IDLE_TIMEOUT_MINUTES,
   IDLE_WARNING_MINUTES,

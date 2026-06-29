@@ -33,12 +33,6 @@ const createWorkOrder = async (_token, data) => (await axios.post(`${BASE}/produ
 const updateWorkOrder = async (_token, id, data) => (await axios.put(`${BASE}/production/work-orders/${id}`, data)).data
 const deleteWorkOrder = async (_token, id) => (await axios.delete(`${BASE}/production/work-orders/${id}`)).data
 
-// Finance Records
-const getFinanceRecords = async (_token, params = {}) => (await axios.get(`${BASE}/finance/records`, { params })).data
-const createFinanceRecord = async (_token, data) => (await axios.post(`${BASE}/finance/records`, data)).data
-const updateFinanceRecord = async (_token, id, data) => (await axios.put(`${BASE}/finance/records/${id}`, data)).data
-const deleteFinanceRecord = async (_token, id) => (await axios.delete(`${BASE}/finance/records/${id}`)).data
-
 // Procurement Documents
 const getProcurementDocuments = async (_token, params = {}) => (await axios.get(`${BASE}/procurement/documents`, { params })).data
 const uploadProcurementDocument = async (_token, data) => (await axios.post(`${BASE}/procurement/documents`, data)).data
@@ -48,7 +42,7 @@ const deleteProcurementDocument = async (_token, id) => (await axios.delete(`${B
 const getExpiryAlerts = async (_token, params = {}) => (await axios.get(`${BASE}/alerts/expiry`, { params })).data
 const resolveExpiryAlert = async (_token, id, notes = '') => (await axios.put(`${BASE}/alerts/expiry/${id}/resolve`, { notes })).data
 
-const erpAPI = {
+const legacyOpsErpAPI = {
   getInventory,
   createInventoryItem,
   updateInventoryItem,
@@ -66,10 +60,6 @@ const erpAPI = {
   createWorkOrder,
   updateWorkOrder,
   deleteWorkOrder,
-  getFinanceRecords,
-  createFinanceRecord,
-  updateFinanceRecord,
-  deleteFinanceRecord,
   getProcurementDocuments,
   uploadProcurementDocument,
   deleteProcurementDocument,
@@ -77,4 +67,4 @@ const erpAPI = {
   resolveExpiryAlert,
 }
 
-export default erpAPI
+export default legacyOpsErpAPI

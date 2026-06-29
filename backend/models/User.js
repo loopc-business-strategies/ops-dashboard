@@ -164,6 +164,12 @@ const userSchema = new mongoose.Schema(
 
     lastLogin: Date,
 
+    /** Tokens issued before this timestamp are rejected (password change / logout-all-devices). */
+    sessionInvalidatedAt: {
+      type: Date,
+      default: null,
+    },
+
     /** Expo push tokens for this user (mobile). Max length enforced in routes. */
     expoPushTokens: {
       type: [
@@ -211,7 +217,10 @@ userSchema.index({ isDeleted: 1 })
 // bcrypt turns "mypassword" into "$2a$12$xKj..." (unreadable)
 // -----------------------------------------------
 userSchema.pre('save', async function () {
-  if (!this.isModified('password')) return // only hash if changed
+  if (!this.isModified('password')) return
+  if (!this.isNew) {
+    this.sessionInvalidatedAt = new Date()
+  }
   this.password = await bcrypt.hash(this.password, 12)
 })
 

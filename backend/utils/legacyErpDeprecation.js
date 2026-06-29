@@ -30,9 +30,41 @@ function rejectLegacySupplierWrite(res) {
   })
 }
 
+const LEGACY_FINANCE_RECORDS_DEPRECATION = Object.freeze({
+  api: '/api/erp/finance/records',
+  useInstead: '/api/erp-accounting',
+  message:
+    'Legacy ops finance records are removed. Use /api/erp-accounting for ledger-linked financial data.',
+  doc: 'docs/ERP-DUAL-API-DEPRECATION.md',
+})
+
+function legacyFinanceRecordsDeprecation(action = 'read') {
+  console.warn(`[legacy-erp] finance/records ${action} — use /api/erp-accounting`)
+  return { ...LEGACY_FINANCE_RECORDS_DEPRECATION, action }
+}
+
+function rejectLegacyFinanceRecords(res, action = 'read') {
+  res.setHeader('Deprecation', 'true')
+  res.setHeader('X-Legacy-Erp-Api', 'true')
+  res.setHeader('Link', '</api/erp-accounting>; rel="successor-version"')
+  return res.status(410).json({
+    success: false,
+    message: LEGACY_FINANCE_RECORDS_DEPRECATION.message,
+    deprecation: legacyFinanceRecordsDeprecation(action),
+  })
+}
+
+function markLegacyErpApi(res) {
+  res.setHeader('X-Legacy-Erp-Api', 'true')
+}
+
 module.exports = {
   LEGACY_SUPPLIER_DEPRECATION,
+  LEGACY_FINANCE_RECORDS_DEPRECATION,
   legacySupplierDeprecation,
+  legacyFinanceRecordsDeprecation,
   withLegacySupplierDeprecation,
   rejectLegacySupplierWrite,
+  rejectLegacyFinanceRecords,
+  markLegacyErpApi,
 }
