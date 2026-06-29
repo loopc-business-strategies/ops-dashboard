@@ -27,7 +27,13 @@
 
 - **Finance modals** — `frontend/src/components/tabs/finance/FinanceModals.jsx` + `financeTabTokens.js` extracted from `FinanceTab.jsx`.
 
-`ERPTab.jsx` is ~2070 lines after S6 tab-panel extraction (down from ~6460 on main). Sub-tab routing JSX lives in `erp/ERPTabPanels.jsx` (~960 lines).
+`ERPTab.jsx` is ~2050 lines after S7 modal/panel prop hooks (down from ~6460 on main). Sub-tab routing lives in `erp/ERPTabPanels.jsx` (~960 lines); overlays in `erp/ERPTabModals.jsx`.
+
+## S7 wire-up (done)
+
+- **`ERPTabModals`** — bundles `ErpMappingTestModal`, `AccountEnquiryModal`, `StatementPreviewModal`, and `StatementExportOptionsModal`.
+- **`useErpTabPanelProps`** — collects panel state/handlers; `ERPTab` renders `<ERPTabPanels {...panelProps} />`.
+- **`useErpTabModalProps`** — collects modal state/handlers; `ERPTab` renders `<ERPTabModals {...modalProps} />`.
 
 ## S6 wire-up (done)
 
